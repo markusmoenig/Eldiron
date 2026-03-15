@@ -13,7 +13,7 @@ fn substitute_placeholders<F>(input: &str, mut resolver: F) -> String
 where
     F: FnMut(&str, &str) -> Option<String>,
 {
-    let re = Regex::new(r"\{([A-Z_]+)\.([A-Z0-9_]+)\}").unwrap();
+    let re = Regex::new(r"\{([A-Z_]+)\.([A-Z0-9_\.]+)\}").unwrap();
 
     re.replace_all(input, |caps: &regex::Captures| {
         let category = &caps[1];
@@ -138,6 +138,47 @@ impl TextWidget {
                             if let Some(entity) = player {
                                 if key == "FUNDS" {
                                     return Some(entity.wallet.get_balance(currencies).to_string());
+                                } else if key == "ATTACK" {
+                                    return Some(self.resolver.resolve_with_context(
+                                        self.parser.parse(&format!("{{E:{}.ATTACK}}", entity.id)),
+                                        map,
+                                        assets,
+                                        MessageContext {
+                                            sender_entity: player_id,
+                                            sender_item: None,
+                                            receiver_entity: player_id,
+                                            world_time: Some(*time),
+                                        },
+                                    ));
+                                } else if key == "ARMOR" {
+                                    return Some(self.resolver.resolve_with_context(
+                                        self.parser.parse(&format!("{{E:{}.ARMOR}}", entity.id)),
+                                        map,
+                                        assets,
+                                        MessageContext {
+                                            sender_entity: player_id,
+                                            sender_item: None,
+                                            receiver_entity: player_id,
+                                            world_time: Some(*time),
+                                        },
+                                    ));
+                                } else if key.starts_with("WEAPON.")
+                                    || key.starts_with("EQUIPPED.")
+                                    || key.starts_with("ARMOR.")
+                                {
+                                    let token =
+                                        format!("{{E:{}.{} }}", entity.id, key).replace(" }", "}");
+                                    return Some(self.resolver.resolve_with_context(
+                                        self.parser.parse(&token),
+                                        map,
+                                        assets,
+                                        MessageContext {
+                                            sender_entity: player_id,
+                                            sender_item: None,
+                                            receiver_entity: player_id,
+                                            world_time: Some(*time),
+                                        },
+                                    ));
                                 } else if let Some(value) = entity.attributes.get(key) {
                                     return Some(value.to_string());
                                 }

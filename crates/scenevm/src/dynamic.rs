@@ -52,6 +52,7 @@ pub struct DynamicObject {
     pub id: GeoId,
     pub kind: DynamicKind,
     pub tile_id: Option<Uuid>,
+    pub layer: i32,
     pub center: Vec3<f32>,
     pub view_right: Vec3<f32>,
     pub view_up: Vec3<f32>,
@@ -71,6 +72,7 @@ impl Default for DynamicObject {
             id: GeoId::Unknown(0),
             kind: DynamicKind::BillboardTile,
             tile_id: None,
+            layer: 0,
             center: Vec3::zero(),
             view_right: Vec3::unit_x(),
             view_up: Vec3::unit_y(),
@@ -99,6 +101,7 @@ impl DynamicObject {
             id,
             kind: DynamicKind::BillboardTile,
             tile_id: Some(tile_id),
+            layer: 0,
             center,
             view_right,
             view_up,
@@ -144,6 +147,7 @@ impl DynamicObject {
             id,
             kind: DynamicKind::BillboardAvatar,
             tile_id: None,
+            layer: 0,
             center,
             view_right,
             view_up,
@@ -189,6 +193,12 @@ impl DynamicObject {
     /// Set an optional animation start counter for this billboard.
     pub fn with_anim_start_counter(mut self, counter: Option<u32>) -> Self {
         self.anim_start_counter = counter;
+        self
+    }
+
+    /// Set the 2D render layer for this billboard. Higher layers draw on top.
+    pub fn with_layer(mut self, layer: i32) -> Self {
+        self.layer = layer;
         self
     }
 }

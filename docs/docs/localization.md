@@ -131,6 +131,10 @@ Example widget text:
 
 ```text
 {ui.status.gold}: {PLAYER.FUNDS}
+ATK: {PLAYER.ATTACK}
+DEF: {PLAYER.ARMOR}
+Weapon DMG: {PLAYER.WEAPON.DMG}
+Armor Total: {PLAYER.ARMOR.ARMOR}
 {ui.quest.ready}
 ```
 
@@ -148,4 +152,16 @@ Current behavior:
 - existing `PLAYER.*` status placeholders still work in text widgets
 - `PLAYER.FUNDS` shows the current player funds
 - `PLAYER.<ATTR>` shows a player attribute value
+- `PLAYER.ATTACK` sums `DMG` across the player's equipped weapon slots
+- `PLAYER.ARMOR` sums `ARMOR` across the player's equipped gear slots
+- `PLAYER.WEAPON.<ATTR>` sums an attribute across the player's configured weapon slots
+- `PLAYER.EQUIPPED.<ATTR>` sums an attribute across all equipped items
+- `PLAYER.ARMOR.<ATTR>` sums an attribute across the player's configured gear slots
 - `WORLD.HOUR`, `WORLD.MINUTE`, `WORLD.TIME`, `WORLD.TIME_12`, and `WORLD.TIME_24` show the current in-game time
+
+For localized messages and templates, the same derived values are available through entity references and context aliases, for example:
+
+- `self.weapon.DMG`
+- `self.armor.ARMOR`
+- `target.weapon.DMG`
+- `E:11.equipped.ARMOR`

@@ -237,13 +237,23 @@ frame_index = 0
 
 ### UI Section
 
-- **text**: multiline string content; placeholders like `{PLAYER.STR}`, `{PLAYER.DEX}`, `{PLAYER.FUNDS}` are replaced at runtime.
+- **text**: multiline string content; placeholders like `{PLAYER.STR}`, `{PLAYER.DEX}`, `{PLAYER.FUNDS}`, `{PLAYER.ATTACK}`, and `{PLAYER.ARMOR}` are replaced at runtime.
 - **font**: font family name.
 - **font_size**: size of the font.
 - **spacing**: line spacing.
 - **color**: text color.
 
 You can customize the **font**, **size**, **line spacing**, and **color** of the text.
+
+Combat-related player placeholders:
+
+- `PLAYER.ATTACK` is the accumulated `DMG` value across the player's equipped weapon slots.
+- `PLAYER.ARMOR` is the accumulated `ARMOR` value across the player's equipped gear slots.
+- `PLAYER.WEAPON.<ATTR>` sums an attribute across the player's weapon slots.
+- `PLAYER.EQUIPPED.<ATTR>` sums an attribute across all equipped items.
+- `PLAYER.ARMOR.<ATTR>` sums an attribute across the player's gear slots.
+
+The slot groups come from `game.weapon_slots` and `game.gear_slots` in **Game / Settings**.
 
 ### Example
 
@@ -255,6 +265,7 @@ Welcome, adventurer!
 
 STR:  {PLAYER.STR}  DEX: {PLAYER.DEX}
 GOLD: {PLAYER.FUNDS}
+ATK:  {PLAYER.ATTACK}  DEF: {PLAYER.ARMOR}
 
 May the stars guide you!
 """

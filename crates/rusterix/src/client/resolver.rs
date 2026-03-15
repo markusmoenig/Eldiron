@@ -237,15 +237,12 @@ impl MsgResolver {
                 Tok::Num { val, opts } => Self::fmt_num(*val, opts),
                 Tok::Float { val, opts } => Self::fmt_float(*val, opts),
                 Tok::Entity { id, attr, opts } => {
-                    let mut string = format!("Entity#{}:{}", id, attr);
-
-                    for entity in map.entities.iter() {
-                        if entity.id == *id {
-                            if let Some(attr) = entity.attributes.get(&attr) {
-                                string = format!("{}", attr);
-                            }
-                        }
-                    }
+                    let string = map
+                        .entities
+                        .iter()
+                        .find(|entity| entity.id == *id)
+                        .map(|entity| resolve_entity_attr(entity, attr, assets))
+                        .unwrap_or_else(|| format!("Entity#{}:{}", id, attr));
 
                     let with_article = self.adapter().with_article_entity(&string, opts);
                     Self::apply_case(&with_article, opts)
@@ -500,6 +497,109 @@ impl MsgResolver {
         } else {
             formatted
         }
+    }
+}
+
+fn configured_slot_names(assets: &Assets, key: &str) -> Vec<String> {
+    assets
+        .config
+        .parse::<toml::Table>()
+        .ok()
+        .and_then(|config| config.get("game").and_then(toml::Value::as_table).cloned())
+        .and_then(|game| game.get(key).cloned())
+        .and_then(|value| value.as_array().cloned())
+        .map(|slots| {
+            slots
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(|slot| slot.trim().to_ascii_lowercase())
+                .filter(|slot| !slot.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn is_weapon_slot(assets: &Assets, slot: &str) -> bool {
+    let normalized = slot.trim().to_ascii_lowercase();
+    let configured = configured_slot_names(assets, "weapon_slots");
+    if !configured.is_empty() {
+        return configured
+            .iter()
+            .any(|configured| configured == &normalized);
+    }
+
+    matches!(
+        normalized.as_str(),
+        "main_hand" | "mainhand" | "weapon" | "hand_main" | "off_hand" | "offhand" | "hand_off"
+    )
+}
+
+fn is_gear_slot(assets: &Assets, slot: &str) -> bool {
+    let normalized = slot.trim().to_ascii_lowercase();
+    let configured = configured_slot_names(assets, "gear_slots");
+    if !configured.is_empty() {
+        return configured
+            .iter()
+            .any(|configured| configured == &normalized);
+    }
+
+    !is_weapon_slot(assets, slot)
+}
+
+fn fmt_scalar(value: f32) -> String {
+    if (value - value.round()).abs() <= 0.0001 {
+        (value.round() as i32).to_string()
+    } else {
+        format!("{:.2}", value)
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    }
+}
+
+fn sum_equipped_attr(
+    entity: &crate::Entity,
+    assets: &Assets,
+    attr: &str,
+    filter: fn(&Assets, &str) -> bool,
+) -> f32 {
+    entity
+        .equipped
+        .iter()
+        .filter(|(slot, _)| filter(assets, slot))
+        .map(|(_, item)| item.attributes.get_float_default(attr, 0.0))
+        .sum()
+}
+
+fn sum_all_equipped_attr(entity: &crate::Entity, attr: &str) -> f32 {
+    entity
+        .equipped
+        .values()
+        .map(|item| item.attributes.get_float_default(attr, 0.0))
+        .sum()
+}
+
+fn resolve_entity_attr(entity: &crate::Entity, attr: &str, assets: &Assets) -> String {
+    if let Some(inner) = attr.strip_prefix("weapon.") {
+        return fmt_scalar(sum_equipped_attr(entity, assets, inner, is_weapon_slot));
+    }
+    if let Some(inner) = attr.strip_prefix("equipped.") {
+        return fmt_scalar(sum_all_equipped_attr(entity, inner));
+    }
+    if let Some(inner) = attr.strip_prefix("armor.") {
+        return fmt_scalar(sum_equipped_attr(entity, assets, inner, is_gear_slot));
+    }
+    if attr.eq_ignore_ascii_case("ATTACK") {
+        return fmt_scalar(sum_equipped_attr(entity, assets, "DMG", is_weapon_slot));
+    }
+    if attr.eq_ignore_ascii_case("ARMOR") {
+        return fmt_scalar(sum_equipped_attr(entity, assets, "ARMOR", is_gear_slot));
+    }
+
+    if let Some(attr_val) = entity.attributes.get(attr) {
+        format!("{}", attr_val)
+    } else {
+        format!("Entity#{}:{}", entity.id, attr)
     }
 }
 

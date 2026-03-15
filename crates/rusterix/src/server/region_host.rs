@@ -1486,12 +1486,16 @@ impl<'a> HostHandler for RegionHost<'a> {
                 };
 
                 if let Some(id) = target_id {
-                    let subject_id = if self.ctx.curr_item_id.is_some() {
-                        self.ctx.curr_item_id.unwrap()
-                    } else {
-                        self.ctx.curr_entity_id
-                    };
-                    let dmg = apply_damage_rules(self.ctx, id, subject_id, base_dmg, &kind);
+                    let attacker_id = self.ctx.curr_entity_id;
+                    let source_item_id = self.ctx.curr_item_id.unwrap_or(0);
+                    let dmg = apply_damage_rules(
+                        self.ctx,
+                        id,
+                        attacker_id,
+                        base_dmg,
+                        &kind,
+                        source_item_id,
+                    );
                     if self.ctx.curr_item_id.is_none() && dmg > 0 {
                         if let Some(attacker) = self.ctx.get_current_entity_mut() {
                             let attack_time = attacker
@@ -1514,18 +1518,22 @@ impl<'a> HostHandler for RegionHost<'a> {
                         _ = apply_damage_direct(
                             self.ctx,
                             id,
-                            subject_id,
+                            attacker_id,
                             dmg,
                             &kind,
-                            self.ctx.curr_item_id,
+                            if source_item_id > 0 {
+                                Some(source_item_id)
+                            } else {
+                                None
+                            },
                         );
                     } else {
-                        let source_item_id = self.ctx.curr_item_id.unwrap_or(0) as f32;
+                        let source_item_id = source_item_id as f32;
                         self.ctx.to_execute_entity.push((
                             id,
                             "take_damage".into(),
                             VMValue::new_with_string(
-                                subject_id as f32,
+                                attacker_id as f32,
                                 dmg as f32,
                                 source_item_id,
                                 kind,

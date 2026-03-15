@@ -785,6 +785,7 @@ impl SceneHandler {
                         }
                         let dynamic =
                             DynamicObject::billboard_tile_2d(geo_id, tile.id, pos, 1.0, 1.0)
+                                .with_layer(10)
                                 .with_anim_start_counter(anim_start);
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                     }
@@ -854,7 +855,8 @@ impl SceneHandler {
                         );
                     if uploaded {
                         active_avatar_geo.insert(geo_id);
-                        let dynamic = DynamicObject::billboard_avatar_2d(geo_id, pos, 1.0, 1.0);
+                        let dynamic = DynamicObject::billboard_avatar_2d(geo_id, pos, 1.0, 1.0)
+                            .with_layer(20);
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                         continue;
                     }
@@ -863,7 +865,8 @@ impl SceneHandler {
                 if let Some(Value::Source(source)) = entity.attributes.get("source") {
                     if let Some(tile) = source.tile_from_tile_list(assets) {
                         let dynamic =
-                            DynamicObject::billboard_tile_2d(geo_id, tile.id, pos, 1.0, 1.0);
+                            DynamicObject::billboard_tile_2d(geo_id, tile.id, pos, 1.0, 1.0)
+                                .with_layer(20);
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                     }
                 }

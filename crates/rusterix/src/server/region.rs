@@ -4889,32 +4889,119 @@ fn send_damage_rule_messages(
     send_damage_rule_audio_with_source(ctx, from_id, from_id, kind, source_item_id, "outgoing");
 }
 
-fn equipped_attr(entity: &Entity, attr: &str) -> f32 {
-    for slot in ["main_hand", "mainhand", "weapon", "hand_main", "off_hand"] {
-        if let Some(item) = entity.get_equipped_item(slot) {
-            return item.attributes.get_float_default(attr, 0.0);
-        }
+fn configured_slot_names(ctx: &RegionCtx, key: &str) -> Vec<String> {
+    ctx.config
+        .get("game")
+        .and_then(toml::Value::as_table)
+        .and_then(|game| game.get(key))
+        .and_then(toml::Value::as_array)
+        .map(|slots| {
+            slots
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(|slot| slot.trim().to_ascii_lowercase())
+                .filter(|slot| !slot.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn is_weapon_slot(ctx: &RegionCtx, slot: &str) -> bool {
+    let normalized = slot.trim().to_ascii_lowercase();
+    let configured = configured_slot_names(ctx, "weapon_slots");
+    if !configured.is_empty() {
+        return configured
+            .iter()
+            .any(|configured| configured == &normalized);
     }
-    0.0
+
+    matches!(
+        normalized.as_str(),
+        "main_hand" | "mainhand" | "weapon" | "hand_main" | "off_hand" | "offhand" | "hand_off"
+    )
+}
+
+fn is_gear_slot(ctx: &RegionCtx, slot: &str) -> bool {
+    let normalized = slot.trim().to_ascii_lowercase();
+    let configured = configured_slot_names(ctx, "gear_slots");
+    if !configured.is_empty() {
+        return configured
+            .iter()
+            .any(|configured| configured == &normalized);
+    }
+
+    !is_weapon_slot(ctx, slot)
+}
+
+fn equipped_attr(ctx: &RegionCtx, entity: &Entity, attr: &str) -> f32 {
+    entity
+        .equipped
+        .iter()
+        .filter(|(slot, _)| is_weapon_slot(ctx, slot))
+        .map(|(_, item)| item.attributes.get_float_default(attr, 0.0))
+        .sum()
+}
+
+fn all_equipped_attr(entity: &Entity, attr: &str) -> f32 {
+    entity
+        .equipped
+        .values()
+        .map(|item| item.attributes.get_float_default(attr, 0.0))
+        .sum()
+}
+
+fn armor_equipped_attr(ctx: &RegionCtx, entity: &Entity, attr: &str) -> f32 {
+    entity
+        .equipped
+        .iter()
+        .filter(|(slot, _)| is_gear_slot(ctx, slot))
+        .map(|(_, item)| item.attributes.get_float_default(attr, 0.0))
+        .sum()
 }
 
 fn resolve_combat_var(
+    ctx: &RegionCtx,
     name: &str,
     value: f32,
     attacker: Option<&Entity>,
     defender: Option<&Entity>,
+    source_item: Option<&Item>,
 ) -> f32 {
     if name == "value" {
         return value;
     }
+    if let Some(attr) = name.strip_prefix("attacker.source.") {
+        return source_item.map_or(0.0, |item| item.attributes.get_float_default(attr, 0.0));
+    }
+    if let Some(attr) = name.strip_prefix("source.") {
+        return source_item.map_or(0.0, |item| item.attributes.get_float_default(attr, 0.0));
+    }
+    if let Some(attr) = name.strip_prefix("attacker.equipped.") {
+        return attacker.map_or(0.0, |entity| all_equipped_attr(entity, attr));
+    }
+    if let Some(attr) = name.strip_prefix("defender.equipped.") {
+        return defender.map_or(0.0, |entity| all_equipped_attr(entity, attr));
+    }
+    if let Some(attr) = name.strip_prefix("equipped.") {
+        return attacker.map_or(0.0, |entity| all_equipped_attr(entity, attr));
+    }
+    if let Some(attr) = name.strip_prefix("attacker.armor.") {
+        return attacker.map_or(0.0, |entity| armor_equipped_attr(ctx, entity, attr));
+    }
+    if let Some(attr) = name.strip_prefix("defender.armor.") {
+        return defender.map_or(0.0, |entity| armor_equipped_attr(ctx, entity, attr));
+    }
+    if let Some(attr) = name.strip_prefix("armor.") {
+        return defender.map_or(0.0, |entity| armor_equipped_attr(ctx, entity, attr));
+    }
     if let Some(attr) = name.strip_prefix("attacker.weapon.") {
-        return attacker.map_or(0.0, |entity| equipped_attr(entity, attr));
+        return attacker.map_or(0.0, |entity| equipped_attr(ctx, entity, attr));
     }
     if let Some(attr) = name.strip_prefix("defender.weapon.") {
-        return defender.map_or(0.0, |entity| equipped_attr(entity, attr));
+        return defender.map_or(0.0, |entity| equipped_attr(ctx, entity, attr));
     }
     if let Some(attr) = name.strip_prefix("weapon.") {
-        return attacker.map_or(0.0, |entity| equipped_attr(entity, attr));
+        return attacker.map_or(0.0, |entity| equipped_attr(ctx, entity, attr));
     }
     if let Some(attr) = name.strip_prefix("attacker.") {
         return attacker.map_or(0.0, |entity| entity.attributes.get_float_default(attr, 0.0));
@@ -5127,6 +5214,7 @@ pub(crate) fn apply_damage_rules(
     from_id: u32,
     amount: i32,
     kind: &str,
+    source_item_id: u32,
 ) -> i32 {
     let amount = amount.max(0);
     let Some(expr) = combat_rule_expr(ctx, kind) else {
@@ -5139,10 +5227,17 @@ pub(crate) fn apply_damage_rules(
         .entities
         .iter()
         .find(|entity| entity.id == target_id);
+    let source_item = attacker.and_then(|entity| {
+        if source_item_id > 0 {
+            entity.get_item(source_item_id)
+        } else {
+            None
+        }
+    });
     let base_value = amount as f32;
 
     let parsed = FormulaParser::new(expr, |name| {
-        resolve_combat_var(name, base_value, attacker, defender)
+        resolve_combat_var(ctx, name, base_value, attacker, defender, source_item)
     })
     .parse();
 
@@ -5516,7 +5611,8 @@ fn update_spell_items(ctx: &mut RegionCtx) {
         if amount <= 0 {
             continue;
         }
-        let final_amount = apply_damage_rules(ctx, target_id, caster_id, amount, &kind);
+        let final_amount =
+            apply_damage_rules(ctx, target_id, caster_id, amount, &kind, source_item_id);
         if final_amount <= 0 {
             continue;
         }

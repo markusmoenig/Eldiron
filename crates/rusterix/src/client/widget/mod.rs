@@ -137,9 +137,7 @@ impl Widget {
             );
         }
 
-        // Reuse existing button border syntax as a selected-state indicator.
-        // texture_index == 1 means active/selected visual state.
-        if self.border_size > 0 && texture_index == 1 {
+        if self.border_size > 0 {
             draw2d.rect_outline_thickness(
                 buffer.pixels_mut(),
                 &(

@@ -39,12 +39,68 @@ incoming_damage = "value + attacker.INT - defender.FIRE_RESIST"
 
 The first system using rules is damage calculation.
 
+### Formula Syntax
+
+Rules formulas support:
+
+- numbers like `1`, `2.5`, `10.0`
+- variables like `value`, `attacker.STR`, `defender.ARMOR`, `source.DMG`
+- `+`, `-`, `*`, `/`
+- parentheses: `( ... )`
+- unary `+` and `-`
+
+Supported helper functions:
+
+- `min(a, b)`
+- `max(a, b)`
+- `clamp(value, min, max)`
+- `abs(x)`
+- `floor(x)`
+- `ceil(x)`
+- `round(x)`
+
+Example:
+
+```toml
+[combat]
+incoming_damage = "(value + attacker.STR + source.DMG) - defender.armor.ARMOR"
+```
+
 Available variables in combat formulas:
 
 - `value`: The incoming base amount.
 - `attacker.<attr>`: Reads an attacker attribute from data.
 - `defender.<attr>`: Reads a defender attribute from data.
-- `weapon.<attr>`: Reads the attacker's equipped weapon attribute when available.
+- `weapon.<attr>` / `attacker.weapon.<attr>`: Sum of the attacker's equipped weapon-slot item attributes.
+- `defender.weapon.<attr>`: Sum of the defender's equipped weapon-slot item attributes.
+- `source.<attr>` / `attacker.source.<attr>`: Attribute of the actual weapon or spell item that caused this hit, when available.
+- `equipped.<attr>` / `attacker.equipped.<attr>`: Sum of all equipped attacker item attributes.
+- `defender.equipped.<attr>`: Sum of all equipped defender item attributes.
+- `armor.<attr>`: Sum of the defender's non-weapon equipped item attributes.
+- `attacker.armor.<attr>`: Sum of the attacker's non-weapon equipped item attributes.
+- `defender.armor.<attr>`: Sum of the defender's non-weapon equipped item attributes.
+
+The weapon and armor groups use the configured slot lists from `Game -> Settings`:
+
+- `game.weapon_slots`
+- `game.gear_slots`
+
+Examples:
+
+```toml
+[combat]
+incoming_damage = "value + attacker.weapon.DMG - defender.armor.ARMOR"
+```
+
+```toml
+[combat.kinds.physical]
+incoming_damage = "value + attacker.STR + attacker.weapon.DMG - defender.equipped.ARMOR"
+```
+
+```toml
+[combat.kinds.physical]
+incoming_damage = "value + source.DMG - defender.armor.ARMOR"
+```
 
 If `combat.kinds.<kind>.incoming_damage` exists, it overrides the base combat formula for that damage kind.
 

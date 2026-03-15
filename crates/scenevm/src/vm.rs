@@ -2393,11 +2393,13 @@ impl VM {
         let mut avatar_metas: Vec<DynamicAvatarMetaPod> = Vec::new();
         let mut avatar_pixels_rgba8: Vec<u32> = Vec::new();
         let mut avatar_indices: FxHashMap<GeoId, u32> = FxHashMap::default();
-        for obj in self
+        let mut dynamic_objs: Vec<&DynamicObject> = self
             .dynamic_objects
             .iter()
             .chain(self.dynamic_avatar_objects.values())
-        {
+            .collect();
+        dynamic_objs.sort_by(|a, b| b.layer.cmp(&a.layer));
+        for obj in dynamic_objs {
             match obj.kind {
                 DynamicKind::BillboardTile => {
                     let tile_id = match obj.tile_id {
@@ -4816,11 +4818,14 @@ impl VM {
                 avatar_meta_count += 1;
             }
 
-            for obj in self
+            let mut dynamic_objs: Vec<&DynamicObject> = self
                 .dynamic_objects
                 .iter()
                 .chain(self.dynamic_avatar_objects.values())
-            {
+                .collect();
+            dynamic_objs.sort_by(|a, b| b.layer.cmp(&a.layer));
+
+            for obj in dynamic_objs {
                 let (tile_index, tile_index2) = match obj.kind {
                     DynamicKind::BillboardTile => {
                         let Some(tile_id) = obj.tile_id else { continue };
