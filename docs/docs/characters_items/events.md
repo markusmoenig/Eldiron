@@ -83,6 +83,14 @@ Events are categorized as:
 
 ---
 
+### `level_up`
+
+Sent to a character after `gain_xp(...)` causes it to reach a new level.
+
+`value` is the new level number.
+
+---
+
 ### `kill`
 
 - **Value**: `entity_id` *(int)*

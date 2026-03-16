@@ -1,7 +1,7 @@
 use crate::server::message::{AudioCommand, RegionMessage};
 use crate::server::region::{
     add_debug_value, apply_damage_direct, apply_damage_rules, apply_spell_default_attrs,
-    is_spell_on_cooldown, set_spell_cooldown,
+    grant_experience, is_spell_on_cooldown, progression_stat_value, set_spell_cooldown,
 };
 use crate::vm::*;
 use crate::{
@@ -306,6 +306,162 @@ impl<'a> RegionHost<'a> {
         }
 
         None
+    }
+
+    fn configured_weapon_slots(&self) -> Vec<String> {
+        self.ctx
+            .config
+            .get("game")
+            .and_then(toml::Value::as_table)
+            .and_then(|game| game.get("weapon_slots"))
+            .and_then(toml::Value::as_array)
+            .map(|slots| {
+                slots
+                    .iter()
+                    .filter_map(toml::Value::as_str)
+                    .map(|slot| slot.trim().to_ascii_lowercase())
+                    .filter(|slot| !slot.is_empty())
+                    .collect()
+            })
+            .unwrap_or_else(|| vec!["main_hand".into(), "off_hand".into()])
+    }
+
+    fn current_attack_source_item_id(&self) -> Option<u32> {
+        if let Some(item_id) = self.ctx.curr_item_id {
+            return Some(item_id);
+        }
+
+        let entity = self
+            .ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == self.ctx.curr_entity_id)?;
+
+        let configured_slots = self.configured_weapon_slots();
+        for slot in &configured_slots {
+            if let Some((_, item)) = entity
+                .equipped
+                .iter()
+                .find(|(equipped_slot, _)| equipped_slot.trim().eq_ignore_ascii_case(slot))
+            {
+                return Some(item.id);
+            }
+        }
+
+        entity
+            .equipped
+            .iter()
+            .find(|(slot, _)| {
+                matches!(
+                    slot.trim().to_ascii_lowercase().as_str(),
+                    "main_hand"
+                        | "mainhand"
+                        | "weapon"
+                        | "hand_main"
+                        | "off_hand"
+                        | "offhand"
+                        | "hand_off"
+                )
+            })
+            .map(|(_, item)| item.id)
+    }
+
+    fn current_attack_base_damage(&self) -> i32 {
+        progression_stat_value(self.ctx, self.ctx.curr_entity_id, "damage")
+            .or_else(|| {
+                self.ctx
+                    .map
+                    .entities
+                    .iter()
+                    .find(|entity| entity.id == self.ctx.curr_entity_id)
+                    .map(|entity| entity.attributes.get_float_default("DMG", 1.0))
+            })
+            .unwrap_or(1.0)
+            .round()
+            .max(0.0) as i32
+    }
+
+    fn current_attack_kind(&self, source_item_id: Option<u32>) -> String {
+        let attacker = self
+            .ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == self.ctx.curr_entity_id);
+
+        if let Some(kind) = source_item_id
+            .and_then(|item_id| attacker.and_then(|entity| entity.get_item(item_id)))
+            .and_then(|item| item.attributes.get_str("damage_kind"))
+            .map(str::trim)
+            .filter(|kind| !kind.is_empty())
+        {
+            return kind.to_string();
+        }
+
+        "physical".to_string()
+    }
+
+    fn queue_damage(
+        &mut self,
+        target_id: Option<u32>,
+        base_dmg: i32,
+        kind: &str,
+        source_item_id: Option<u32>,
+    ) {
+        if let Some(id) = target_id {
+            let attacker_id = self.ctx.curr_entity_id;
+            let source_item_id = source_item_id.unwrap_or(0);
+            let dmg = apply_damage_rules(self.ctx, id, attacker_id, base_dmg, kind, source_item_id);
+            if self.ctx.curr_item_id.is_none() && dmg > 0 {
+                if let Some(attacker) = self.ctx.get_current_entity_mut() {
+                    let attack_time = attacker
+                        .attributes
+                        .get_float_default("avatar_attack_time", 0.35)
+                        .max(0.05);
+                    attacker.set_attribute("avatar_attack_left", Value::Float(attack_time));
+                }
+            }
+            let autodamage = self
+                .ctx
+                .map
+                .entities
+                .iter()
+                .find(|e| e.id == id)
+                .map(|e| e.attributes.get_bool_default("autodamage", false))
+                .unwrap_or(false);
+
+            if autodamage {
+                _ = apply_damage_direct(
+                    self.ctx,
+                    id,
+                    attacker_id,
+                    dmg,
+                    kind,
+                    if source_item_id > 0 {
+                        Some(source_item_id)
+                    } else {
+                        None
+                    },
+                );
+            } else {
+                let source_item_id = source_item_id as f32;
+                self.ctx.to_execute_entity.push((
+                    id,
+                    "take_damage".into(),
+                    VMValue::new_with_string(attacker_id as f32, dmg as f32, source_item_id, kind),
+                ));
+            }
+            if self.ctx.debug_mode {
+                add_debug_value(
+                    &mut self.ctx,
+                    TheValue::Text(format!("{} dmg", dmg.max(0))),
+                    false,
+                );
+            }
+        } else if self.ctx.debug_mode {
+            add_debug_value(&mut self.ctx, TheValue::Text("No Target".into()), true);
+        }
     }
 
     fn set_current_target_id(&mut self, target_id: Option<u32>) {
@@ -1484,72 +1640,14 @@ impl<'a> HostHandler for RegionHost<'a> {
                     ),
                     _ => (None, 0, "physical".to_string()),
                 };
-
-                if let Some(id) = target_id {
-                    let attacker_id = self.ctx.curr_entity_id;
-                    let source_item_id = self.ctx.curr_item_id.unwrap_or(0);
-                    let dmg = apply_damage_rules(
-                        self.ctx,
-                        id,
-                        attacker_id,
-                        base_dmg,
-                        &kind,
-                        source_item_id,
-                    );
-                    if self.ctx.curr_item_id.is_none() && dmg > 0 {
-                        if let Some(attacker) = self.ctx.get_current_entity_mut() {
-                            let attack_time = attacker
-                                .attributes
-                                .get_float_default("avatar_attack_time", 0.35)
-                                .max(0.05);
-                            attacker.set_attribute("avatar_attack_left", Value::Float(attack_time));
-                        }
-                    }
-                    let autodamage = self
-                        .ctx
-                        .map
-                        .entities
-                        .iter()
-                        .find(|e| e.id == id)
-                        .map(|e| e.attributes.get_bool_default("autodamage", false))
-                        .unwrap_or(false);
-
-                    if autodamage {
-                        _ = apply_damage_direct(
-                            self.ctx,
-                            id,
-                            attacker_id,
-                            dmg,
-                            &kind,
-                            if source_item_id > 0 {
-                                Some(source_item_id)
-                            } else {
-                                None
-                            },
-                        );
-                    } else {
-                        let source_item_id = source_item_id as f32;
-                        self.ctx.to_execute_entity.push((
-                            id,
-                            "take_damage".into(),
-                            VMValue::new_with_string(
-                                attacker_id as f32,
-                                dmg as f32,
-                                source_item_id,
-                                kind,
-                            ),
-                        ));
-                    }
-                    if self.ctx.debug_mode {
-                        add_debug_value(
-                            &mut self.ctx,
-                            TheValue::Text(format!("{} dmg", dmg.max(0))),
-                            false,
-                        );
-                    }
-                } else if self.ctx.debug_mode {
-                    add_debug_value(&mut self.ctx, TheValue::Text("No Target".into()), true);
-                }
+                self.queue_damage(target_id, base_dmg, &kind, self.ctx.curr_item_id);
+            }
+            "attack" => {
+                let target_id = self.get_current_target_id();
+                let source_item_id = self.current_attack_source_item_id();
+                let kind = self.current_attack_kind(source_item_id);
+                let base_dmg = self.current_attack_base_damage();
+                self.queue_damage(target_id, base_dmg, &kind, source_item_id);
             }
             "took_damage" => {
                 if let (Some(from), Some(amount_val)) = (args.get(0), args.get(1)) {
@@ -1670,6 +1768,24 @@ impl<'a> HostHandler for RegionHost<'a> {
                         if let Some(sender) = self.ctx.from_sender.get() {
                             let _ = sender.send(RegionMessage::MultipleChoice(choices));
                         }
+                    }
+                }
+            }
+            "gain_xp" => {
+                let gained = args.first().map(|v| v.x.max(0.0)).unwrap_or(0.0);
+                if gained > 0.0 {
+                    let level_ups =
+                        grant_experience(self.ctx, self.ctx.curr_entity_id, gained.round() as i32);
+                    if self.ctx.debug_mode {
+                        add_debug_value(
+                            &mut self.ctx,
+                            TheValue::Text(if let Some(level) = level_ups.last() {
+                                format!("XP +{} -> Lv {}", gained.round() as i32, level)
+                            } else {
+                                format!("XP +{}", gained.round() as i32)
+                            }),
+                            false,
+                        );
                     }
                 }
             }

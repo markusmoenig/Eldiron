@@ -34,6 +34,12 @@ weapon_slots = ["main_hand", "off_hand"]
 # The attribute which handles health & death
 health = "HP"
 
+# The attribute which stores the current character level
+level = "LEVEL"
+
+# The attribute which stores accumulated experience
+experience = "EXP"
+
 # Enables generated marker ramp shading for avatars
 avatar_shading = true
 

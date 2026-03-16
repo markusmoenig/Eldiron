@@ -557,6 +557,22 @@ fn fmt_scalar(value: f32) -> String {
     }
 }
 
+fn configured_attr_name(assets: &Assets, key: &str, default: &str) -> String {
+    assets
+        .config
+        .parse::<toml::Table>()
+        .ok()
+        .and_then(|config| {
+            config
+                .get("game")
+                .and_then(toml::Value::as_table)
+                .and_then(|game| game.get(key))
+                .and_then(toml::Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| default.to_string())
+}
+
 fn sum_equipped_attr(
     entity: &crate::Entity,
     assets: &Assets,
@@ -594,6 +610,23 @@ fn resolve_entity_attr(entity: &crate::Entity, attr: &str, assets: &Assets) -> S
     }
     if attr.eq_ignore_ascii_case("ARMOR") {
         return fmt_scalar(sum_equipped_attr(entity, assets, "ARMOR", is_gear_slot));
+    }
+    if attr.eq_ignore_ascii_case("LEVEL") {
+        let level_attr = configured_attr_name(assets, "level", "LEVEL");
+        return format!(
+            "{}",
+            entity
+                .attributes
+                .get_float_default(&level_attr, 1.0)
+                .round() as i32
+        );
+    }
+    if attr.eq_ignore_ascii_case("EXPERIENCE") || attr.eq_ignore_ascii_case("EXP") {
+        let exp_attr = configured_attr_name(assets, "experience", "EXP");
+        return format!(
+            "{}",
+            entity.attributes.get_float_default(&exp_attr, 0.0).round() as i32
+        );
     }
 
     if let Some(attr_val) = entity.attributes.get(attr) {

@@ -5,9 +5,10 @@ use theframework::prelude::*;
 const BLOCKS: [&str; 3] = ["Event", "Var = ..", "If .. == .."];
 const VALUES: [&str; 1] = ["Value"];
 const OPERATORS: [&str; 4] = ["Arithmetic", "Assignment", "Comparison", "Else"];
-const FUNCTIONS: [&str; 40] = [
+const FUNCTIONS: [&str; 42] = [
     "action",
     "add_item",
+    "attack",
     "block_events",
     "cast_spell",
     "clear_audio",
@@ -18,6 +19,7 @@ const FUNCTIONS: [&str; 40] = [
     "drop_items",
     "entities_in_radius",
     "equip",
+    "gain_xp",
     "get_attr",
     "get_attr_of",
     "goto",

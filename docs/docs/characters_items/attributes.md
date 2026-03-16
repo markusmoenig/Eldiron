@@ -198,6 +198,27 @@ Supported values:
 
 ---
 
+## `damage_kind`
+
+*Item-only attribute.*
+
+Damage kind used by `attack()` when this item is the active weapon.
+Default: `physical`.
+
+```toml
+damage_kind = "fire"
+```
+
+This maps weapon attacks to the matching `combat.kinds.<kind>` rule path, for example:
+
+- `damage_kind = "physical"` -> `combat.kinds.physical`
+- `damage_kind = "fire"` -> `combat.kinds.fire`
+- `damage_kind = "ice"` -> `combat.kinds.ice`
+
+See [Rules](../rules) for the full rules format and combat kind configuration.
+
+---
+
 ## Spell Attributes
 
 These are *item-only attributes* used by spell templates/items (`is_spell = true`).

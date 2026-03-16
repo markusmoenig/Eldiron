@@ -133,6 +133,8 @@ Example widget text:
 {ui.status.gold}: {PLAYER.FUNDS}
 ATK: {PLAYER.ATTACK}
 DEF: {PLAYER.ARMOR}
+LV: {PLAYER.LEVEL}
+XP: {PLAYER.EXP}
 Weapon DMG: {PLAYER.WEAPON.DMG}
 Armor Total: {PLAYER.ARMOR.ARMOR}
 {ui.quest.ready}
@@ -152,6 +154,8 @@ Current behavior:
 - existing `PLAYER.*` status placeholders still work in text widgets
 - `PLAYER.FUNDS` shows the current player funds
 - `PLAYER.<ATTR>` shows a player attribute value
+- `PLAYER.LEVEL` resolves through `game.level`
+- `PLAYER.EXP` and `PLAYER.EXPERIENCE` resolve through `game.experience`
 - `PLAYER.ATTACK` sums `DMG` across the player's equipped weapon slots
 - `PLAYER.ARMOR` sums `ARMOR` across the player's equipped gear slots
 - `PLAYER.WEAPON.<ATTR>` sums an attribute across the player's configured weapon slots

@@ -1,3 +1,29 @@
+# Eldiron v0.92
+
+## New Features
+
+### Server
+
+- Added a new high-level `attack()` combat command that uses progression-based base damage, weapon damage kinds, and the shared combat rules pipeline.
+- Expanded combat rules to support both `outgoing_damage` and `incoming_damage`, allowing attacks to be shaped before and after defense.
+- Added a new progression rules layer with configurable `level` / `experience` attribute names from Game Settings.
+- Added `progression.damage` so combat base damage can be derived from progression formulas instead of being hardcoded in scripts.
+- Added `gain_xp(...)`, automatic kill XP via `progression.xp.kill`, and `level_up` events when XP thresholds are crossed.
+- Added rules-driven progression messages for XP gain and leveling up, localized through the locale system.
+
+### Creator
+
+- Exposed `attack` and `gain_xp` in CodeGridFX.
+- Added config-aware `PLAYER.LEVEL`, `PLAYER.EXP`, and `PLAYER.EXPERIENCE` support for text widgets and localized text.
+- Added tab-stop support for text widgets via `\\t` and `tab_width`, making aligned HUD/status layouts easier to build.
+
+### Documentation
+
+- Expanded the Rules docs with progression, leveling flow, automatic kill XP, and progression message examples.
+- Updated command, event, widget, and localization docs to cover `attack()`, `gain_xp()`, `level_up`, XP/level placeholders, and text-widget tab alignment.
+
+---
+
 # Eldiron v0.91
 
 ## New Features

@@ -22,6 +22,7 @@ Scripts should usually decide things like:
 
 Rules should usually decide things like:
 
+- how base combat stats scale with level
 - how much damage a hit really does
 - how armor reduces damage
 - how spells differ from physical attacks
@@ -35,7 +36,24 @@ That keeps character scripts smaller and avoids copying the same combat logic in
 Rules use **TOML**.
 
 ```toml
+[progression.damage]
+base = 1
+gain = "STR * 0.25"
+
+[progression.level]
+xp_for_level = "level * level * 50"
+
+[progression.xp]
+kill = "defender.LEVEL * 25"
+
+[progression.messages]
+xp_key = "progression.xp.gained"
+xp_category = "system"
+level_up_key = "progression.level_up"
+level_up_category = "system"
+
 [combat]
+outgoing_damage = "value + source.DMG"
 incoming_damage = "value + attacker.STR - defender.ARMOR"
 
 [combat.messages]
@@ -49,12 +67,15 @@ incoming_fx = "hit"
 outgoing_fx = "attack"
 
 [combat.kinds.physical]
+outgoing_damage = "value + source.DMG"
 incoming_damage = "value + attacker.STR - defender.ARMOR"
 
 [combat.kinds.spell]
+outgoing_damage = "value + source.POWER"
 incoming_damage = "value + attacker.INT - defender.RESIST"
 
 [combat.kinds.fire]
+outgoing_damage = "value + source.POWER"
 incoming_damage = "value + attacker.INT - defender.FIRE_RESIST"
 ```
 
@@ -62,22 +83,26 @@ incoming_damage = "value + attacker.INT - defender.FIRE_RESIST"
 
 Right now, the normal damage flow looks like this:
 
-1. A script decides to attack and calls `deal_damage(...)`.
-2. That call provides a base `value`.
-3. The engine resolves:
+1. A script decides to attack and usually calls `attack()`.
+2. `attack()` starts from `progression.damage`.
+3. If `progression.damage` is not configured, it falls back to the attacker's `DMG` attribute, then to `1`.
+4. The engine resolves:
    - attacker
    - defender
    - damage kind
    - source item, if there is one
-4. The matching combat rule calculates the **final incoming damage**.
-5. The `take_damage` event runs as the reaction hook.
-6. The server applies the final damage automatically.
+5. `outgoing_damage` runs first and adjusts the attack before it reaches the defender.
+6. `incoming_damage` runs second and adjusts what the defender finally receives.
+7. The `take_damage` event runs as the reaction hook.
+8. The server applies the final damage automatically.
 
 So:
 
 - **scripts** decide that an attack happens
 - **rules** decide what that attack means mathematically
 - `take_damage` is for reaction logic, not for repeating combat math
+
+Use `attack()` for normal weapon-style attacks. Keep `deal_damage(...)` as the explicit low-level escape hatch when you want to send a manual amount or kind.
 
 ## Formula Syntax
 
@@ -103,16 +128,119 @@ Example:
 
 ```toml
 [combat]
-incoming_damage = "(value + attacker.STR + source.DMG) - defender.armor.ARMOR"
+outgoing_damage = "value + source.DMG"
+incoming_damage = "value + attacker.STR - defender.armor.ARMOR"
 ```
 
 The engine already clamps final damage to `>= 0`, so you usually do not need to wrap formulas in `max(0, ...)`.
+
+## Progression
+
+Progression rules are defined per stat under `progression.<stat>`.
+
+```toml
+[progression.damage]
+base = 1
+gain = "STR * 0.25"
+
+[progression.level]
+xp_for_level = "level * level * 50"
+
+[progression.hp]
+base = 10
+per_level = 2
+gain = "VIT * 0.5"
+```
+
+Current supported keys:
+
+- `base`: starting value at level 1
+- `per_level`: fixed amount added each level after level 1
+- `gain`: formula added each level after level 1
+- `xp_for_level`: total experience required to reach a level, used under `progression.level`
+
+The current formula is:
+
+`base + (level - 1) * (per_level + gain)`
+
+Progression formulas can use:
+
+- `level`
+- any direct character attribute like `STR`, `INT`, `VIT`
+
+`attack()` reads its base value from `progression.damage`.
+
+### Leveling Flow
+
+The full progression flow now works like this:
+
+1. A script calls `gain_xp(amount)`.
+2. The server adds that amount to the attribute named by `game.experience`.
+3. The server checks `progression.level.xp_for_level` against the new total.
+4. If one or more thresholds are reached, it raises the attribute named by `game.level`.
+5. For each level increase, the character receives a `level_up` event with the new level.
+
+Example:
+
+```toml
+[progression.level]
+xp_for_level = "level * level * 50"
+```
+
+With that rule:
+
+- level 2 requires `200` total XP
+- level 3 requires `450` total XP
+- level 4 requires `800` total XP
+
+If a character has `LEVEL = 1`, `EXP = 180`, and gains `25` XP, it reaches `EXP = 205` and levels up to `2`.
+
+### Automatic XP on Kill
+
+You do not need to call `gain_xp()` manually for normal combat kills.
+
+If `progression.xp.kill` is configured, the server awards XP automatically when a character kills another character.
+
+```toml
+[progression.xp]
+kill = "defender.LEVEL * 25"
+```
+
+This expression can use the normal combat-style attacker/defender values, so you can base XP on the defeated character.
+
+## Progression Messages
+
+Progression can also send automatic localized messages for XP gain and level-up.
+
+```toml
+[progression.messages]
+xp_key = "progression.xp.gained"
+xp_category = "system"
+level_up_key = "progression.level_up"
+level_up_category = "system"
+```
+
+Example locale entries:
+
+```toml
+[en]
+progression.xp.gained = "You gain {amount} XP"
+progression.level_up = "You reached level {level}"
+```
+
+Supported placeholders:
+
+- `{amount}`: XP gained in this step
+- `{level}`: new level for level-up messages
+- `{xp_total}`: new total experience after the gain
+
+These messages are only sent to player characters.
 
 ## Combat Values
 
 Available values in combat formulas:
 
-- `value`: the incoming base amount passed into the rules system
+- `value`: the current amount at this rule stage
 - `attacker.<attr>`: reads an attacker attribute
 - `defender.<attr>`: reads a defender attribute
 - `weapon.<attr>` / `attacker.weapon.<attr>`: sum of the attacker's equipped weapon-slot item attributes
@@ -146,25 +274,34 @@ So:
 ### Example 1: Basic Physical Damage
 
 ```toml
+[progression.damage]
+base = 1
+gain = "STR * 0.25"
+
 [combat]
+outgoing_damage = "value + source.DMG"
 incoming_damage = "value + attacker.STR - defender.armor.ARMOR"
 ```
 
 If:
 
-- `value = 2`
-- `attacker.STR = 3`
+- `LEVEL = 5`
+- `STR = 4`
+- `progression.damage = 1 + (5 - 1) * (4 * 0.25) = 5`
+- the current weapon has `DMG = 2`
 - `defender.armor.ARMOR = 1`
 
 then:
 
-- final damage = `2 + 3 - 1 = 4`
+- outgoing damage = `5 + 2 = 7`
+- final damage = `7 + 4 - 1 = 10`
 
 ### Example 2: Weapon Damage from the Actual Source Item
 
 ```toml
 [combat.kinds.physical]
-incoming_damage = "value + source.DMG - defender.armor.ARMOR"
+outgoing_damage = "value + source.DMG"
+incoming_damage = "value - defender.armor.ARMOR"
 ```
 
 If:
@@ -175,7 +312,8 @@ If:
 
 then:
 
-- final damage = `1 + 4 - 2 = 3`
+- outgoing damage = `1 + 4 = 5`
+- final damage = `5 - 2 = 3`
 
 This is usually a better formula than `attacker.weapon.DMG` if you want the hit to depend on the weapon that was actually used.
 
@@ -183,7 +321,8 @@ This is usually a better formula than `attacker.weapon.DMG` if you want the hit 
 
 ```toml
 [combat]
-incoming_damage = "value + attacker.weapon.DMG - defender.armor.ARMOR"
+outgoing_damage = "value + attacker.weapon.DMG"
+incoming_damage = "value - defender.armor.ARMOR"
 ```
 
 If the attacker has:
@@ -201,10 +340,12 @@ This is useful if your game really wants the total from all equipped weapons. If
 
 ```toml
 [combat.kinds.spell]
+outgoing_damage = "value + source.POWER"
 incoming_damage = "value + attacker.INT - defender.RESIST"
 
 [combat.kinds.fire]
-incoming_damage = "value + attacker.INT + source.POWER - defender.FIRE_RESIST"
+outgoing_damage = "value + source.POWER"
+incoming_damage = "value + attacker.INT - defender.FIRE_RESIST"
 ```
 
 If a spell item has:
@@ -230,11 +371,12 @@ Common examples:
 
 Behavior:
 
+- `attack()` uses the current weapon's `damage_kind` when available, otherwise `physical`
 - `deal_damage(...)` defaults to `physical`
 - spells default to `spell`
 - custom kinds like `fire` or `ice` can override the base rule
 
-If `combat.kinds.<kind>.incoming_damage` exists, it overrides the base combat formula for that kind.
+If `combat.kinds.<kind>.outgoing_damage` or `combat.kinds.<kind>.incoming_damage` exists, it overrides the base combat formula for that kind.
 
 Spells are already connected to this system through `spell_kind`:
 
@@ -253,6 +395,15 @@ incoming_category = "warning"
 outgoing_key = "combat.damage.outgoing"
 outgoing_category = "system"
 ```
+
+Message timing:
+
+1. `attack()` or `deal_damage(...)` starts the hit.
+2. `outgoing_damage` and `incoming_damage` calculate the final amount.
+3. The server applies that final amount.
+4. The rules-driven combat messages are sent using the final `amount`.
+
+So the message system sits after damage calculation. It reports the resolved hit, not the raw base value.
 
 The message key is looked up in **Game / Locales** using the active locale from **Game / Settings**.
 
@@ -278,12 +429,50 @@ Supported placeholders inside locale strings:
 - `{from_id}`
 - `{target_id}`
 
+These placeholders use the final combat context:
+
+- `{amount}` is the final post-rules damage
+- `{kind}` is the resolved damage kind like `physical`, `spell`, or `fire`
+- `{attacker}` and `{defender}` are resolved display names
+- `{from_id}` is the attacker entity id
+- `{target_id}` is the defender entity id
+
+### Example
+
+```toml
+[combat.messages]
+incoming_key = "combat.damage.incoming"
+incoming_category = "warning"
+outgoing_key = "combat.damage.outgoing"
+outgoing_category = "system"
+```
+
+```toml
+[en]
+combat.damage.incoming = "{attacker} burns you for {amount} damage"
+combat.damage.outgoing = "You burn {defender} for {amount} damage"
+```
+
+If a `fire` hit resolves to `9` final damage, that is the value inserted into `{amount}`.
+
 These messages are only sent when a player is involved:
 
 - `incoming`: only if the defender is a player
 - `outgoing`: only if the attacker is a player
 
 If you do not want localization for a rule message, you can still use literal `incoming` / `outgoing` strings instead of `incoming_key` / `outgoing_key`.
+
+### Kind-Specific Messages
+
+You can override messages per damage kind the same way as formulas:
+
+```toml
+[combat.kinds.fire.messages]
+incoming_key = "combat.damage.fire.incoming"
+outgoing_key = "combat.damage.fire.outgoing"
+```
+
+If a kind-specific message exists, it takes precedence over the base `combat.messages` values for that hit kind.
 
 ## Combat Audio
 
@@ -349,21 +538,22 @@ So the usual pattern is:
 For the current system, this is the intended split:
 
 - use scripts to decide **when** to attack
-- use `deal_damage(...)` to send a base amount into the combat system
-- use rules to calculate the final damage
+- use `attack()` for normal attacks against the current target
+- use `deal_damage(...)` for explicit custom damage cases
+- use rules to calculate outgoing and incoming damage
 - use `take_damage` to react to the hit
 
 This means the following is usually a good script shape:
 
 ```eldrin
 if event == "attack" {
-    let damage = random(1, 3)
-    deal_damage(target(), damage)
+    if target() != "" {
+        attack()
+        notify_in(4, "attack")
+    }
 }
 ```
 
 and the detailed math should live in rules, not in every NPC script.
-
-Future releases may add higher-level combat helpers on top of this, but the rules system already defines the shared math layer today.
 
 For general localization and built-in `system.*` keys, see [Localization](./localization).

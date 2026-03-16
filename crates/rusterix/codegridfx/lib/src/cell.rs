@@ -148,6 +148,7 @@ pub enum Cell {
     // Script based
     Action,
     AddItem,
+    Attack,
     BlockEvents,
     CastSpell,
     ClearAudio,
@@ -158,6 +159,7 @@ pub enum Cell {
     DropItems,
     EntitiesInRadius,
     Equip,
+    GainXp,
     GetAttr,
     GetAttrOf,
     GetEntityAttr,
@@ -273,6 +275,7 @@ impl Cell {
 
             Cell::Action => "Action",
             Cell::AddItem => "Add Item",
+            Cell::Attack => "Attack",
             Cell::BlockEvents => "Block Events",
             Cell::CastSpell => "Cast Spell",
             Cell::ClearAudio => "Clear Audio",
@@ -283,6 +286,7 @@ impl Cell {
             Cell::DropItems => "Drop Items",
             Cell::EntitiesInRadius => "Entities in Radius",
             Cell::Equip => "Equip",
+            Cell::GainXp => "Gain XP",
             Cell::GetAttr => "Get Attribute",
             Cell::GetAttrOf => "Get Attribute Of",
             Cell::GetEntityAttr => "Get Attribute Of",
@@ -373,6 +377,7 @@ impl Cell {
 
             "action" => Some(Cell::Action),
             "add_item" => Some(Cell::AddItem),
+            "attack" => Some(Cell::Attack),
             "block_events" => Some(Cell::BlockEvents),
             "cast_spell" => Some(Cell::CastSpell),
             "clear_audio" => Some(Cell::ClearAudio),
@@ -383,6 +388,7 @@ impl Cell {
             "drop_items" => Some(Cell::DropItems),
             "entities_in_radius" => Some(Cell::EntitiesInRadius),
             "equip" => Some(Cell::Equip),
+            "gain_xp" => Some(Cell::GainXp),
             "get_attr" => Some(Cell::GetAttr),
             "get_attr_of" => Some(Cell::GetAttrOf),
             "goto" => Some(Cell::Goto),
@@ -487,6 +493,7 @@ impl Cell {
 
             Action => "action".into(),
             AddItem => "add_item".into(),
+            Attack => "attack".into(),
             BlockEvents => "block_events".into(),
             CastSpell => "cast_spell".into(),
             ClearAudio => "clear_audio".into(),
@@ -497,6 +504,7 @@ impl Cell {
             DropItems => "drop_items".into(),
             EntitiesInRadius => "entities_in_radius".into(),
             Equip => "equip".into(),
+            GainXp => "gain_xp".into(),
             GetAttr => "get_attr".into(),
             GetAttrOf => "get_attr_of".into(),
             Goto => "goto".into(),
@@ -570,6 +578,7 @@ impl Cell {
         match &self {
             Action => "Player based action.".into(),
             AddItem => "Add an item to the inventory of the current entity.".into(),
+            Attack => "Attack the current target using progression.damage, or DMG / 1 as fallback, then apply weapon damage kind rules.".into(),
             BlockEvents => "Block specific events for a period of in-game minutes for the current entity or item.".into(),
             CastSpell => "Cast a spell template towards a target entity or position: cast_spell(template, target[, success_pct]).".into(),
             ClearAudio => "Stop currently playing audio on a bus, or all buses if omitted.".into(),
@@ -581,6 +590,7 @@ impl Cell {
             EntitiesInRadius => {
                 "Returns a list of entity IDs in the radius of the current entity or item.".into()
             }
+            GainXp => "Add experience to the current character and trigger level_up when progression.level thresholds are reached.".into(),
             GetAttr => "Get an attribute of the current entity or item.".into(),
             GetAttrOf => "Get an attribute of the given entity or item.".into(),
             Goto => "Go to a sector using pathfinding.".into(),

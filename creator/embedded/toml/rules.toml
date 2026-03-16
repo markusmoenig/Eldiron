@@ -1,11 +1,30 @@
 # value = base damage
 # attacker.<attr> / defender.<attr> = character attributes
 # weapon.<attr> = attacker's equipped weapon attributes
+# source.<attr> = the actual weapon or spell item used for the hit
 # Kind overrides live under [combat.kinds.<kind>]
 # Optional auto-messages live under [combat.messages]
 # Optional player combat audio lives under [combat.audio]
+# Progression stats live under [progression.<stat>]
+
+[progression.damage]
+base = 1
+gain = "STR * 0.25"
+
+[progression.level]
+xp_for_level = "level * level * 50"
+
+[progression.xp]
+kill = "defender.LEVEL * 25"
+
+[progression.messages]
+xp_key = "progression.xp.gained"
+xp_category = "system"
+level_up_key = "progression.level_up"
+level_up_category = "system"
 
 [combat]
+outgoing_damage = "value + source.DMG"
 incoming_damage = "value + attacker.STR - defender.ARMOR"
 
 [combat.messages]
@@ -23,9 +42,11 @@ outgoing_bus = "sfx"
 outgoing_gain = 1.0
 
 [combat.kinds.physical]
+outgoing_damage = "value + source.DMG"
 incoming_damage = "value + attacker.STR - defender.ARMOR"
 
 [combat.kinds.spell]
+outgoing_damage = "value + source.POWER"
 incoming_damage = "value + attacker.INT - defender.RESIST"
 
 [combat.kinds.spell.audio]
@@ -33,6 +54,7 @@ incoming_fx = "hit"
 outgoing_fx = "arcane_cast"
 
 [combat.kinds.fire]
+outgoing_damage = "value + source.POWER"
 incoming_damage = "value + attacker.INT - defender.FIRE_RESIST"
 
 [combat.kinds.fire.audio]

@@ -39,6 +39,12 @@ weapon_slots = ["main_hand", "off_hand"]
 # The attribute which handles health & death
 health = "HP"
 
+# The attribute which stores the current level
+level = "LEVEL"
+
+# The attribute which stores accumulated experience
+experience = "EXP"
+
 # Enables generated marker ramp shading for avatars.
 avatar_shading = true
 
@@ -111,6 +117,14 @@ avatar_skin_auto_shading = false
 ### `health`
 
   The name of the health attribute for characters. When it becomes smaller or equal to zero, the character is considered **dead** and its [mode](/docs/characters_items/attributes#mode) attribute is set to `"dead"` automatically by the server damage system. If you want to use another attribute name, change the default **"HP"** value to something else.
+
+### `level`
+
+  The name of the character attribute used as the current level for [Rules](../rules) progression formulas. Default: **"LEVEL"**.
+
+### `experience`
+
+  The name of the character attribute used to store accumulated experience. Default: **"EXP"**.
 
 ### `avatar_shading`
 

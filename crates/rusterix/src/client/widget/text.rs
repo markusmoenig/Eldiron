@@ -33,6 +33,7 @@ pub struct TextWidget {
     pub messages: Vec<(String, Pixel)>,
     pub draw2d: Draw2D,
     pub spacing: f32,
+    pub tab_width: f32,
     pub table: toml::Table,
     pub text: String,
     pub color: Pixel,
@@ -58,6 +59,7 @@ impl TextWidget {
             messages: vec![],
             draw2d: Draw2D::default(),
             spacing: 1.0,
+            tab_width: 120.0,
             table: toml::Table::default(),
             text: String::new(),
             color: WHITE,
@@ -93,6 +95,11 @@ impl TextWidget {
                 if let Some(value) = ui.get("spacing") {
                     if let Some(v) = value.as_float() {
                         self.spacing = v as f32;
+                    }
+                }
+                if let Some(value) = ui.get("tab_width") {
+                    if let Some(v) = value.as_float() {
+                        self.tab_width = v as f32;
                     }
                 }
                 if let Some(value) = ui.get("text") {
@@ -138,6 +145,20 @@ impl TextWidget {
                             if let Some(entity) = player {
                                 if key == "FUNDS" {
                                     return Some(entity.wallet.get_balance(currencies).to_string());
+                                } else if key == "LEVEL" || key == "EXP" || key == "EXPERIENCE" {
+                                    let token =
+                                        format!("{{E:{}.{} }}", entity.id, key).replace(" }", "}");
+                                    return Some(self.resolver.resolve_with_context(
+                                        self.parser.parse(&token),
+                                        map,
+                                        assets,
+                                        MessageContext {
+                                            sender_entity: player_id,
+                                            sender_item: None,
+                                            receiver_entity: player_id,
+                                            world_time: Some(*time),
+                                        },
+                                    ));
                                 } else if key == "ATTACK" {
                                     return Some(self.resolver.resolve_with_context(
                                         self.parser.parse(&format!("{{E:{}.ATTACK}}", entity.id)),
@@ -201,25 +222,50 @@ impl TextWidget {
                     },
                 );
 
-                let tuple = (
-                    self.rect.x as isize,
-                    y.floor() as isize,
-                    self.rect.width as isize,
-                    self.font_size as isize,
-                );
+                if resolved.contains('\t') {
+                    for (index, segment) in resolved.split('\t').enumerate() {
+                        let x = self.rect.x + self.tab_width * index as f32;
+                        let seg_width = (self.rect.width - (x - self.rect.x)).max(0.0);
+                        let tuple = (
+                            x.floor() as isize,
+                            y.floor() as isize,
+                            seg_width.floor() as isize,
+                            self.font_size as isize,
+                        );
+                        self.draw2d.text_rect_blend_safe(
+                            buffer.pixels_mut(),
+                            &tuple,
+                            stride,
+                            font,
+                            self.font_size,
+                            segment,
+                            &self.color,
+                            draw2d::TheHorizontalAlign::Left,
+                            draw2d::TheVerticalAlign::Center,
+                            &(0, 0, width as isize, height as isize),
+                        );
+                    }
+                } else {
+                    let tuple = (
+                        self.rect.x as isize,
+                        y.floor() as isize,
+                        self.rect.width as isize,
+                        self.font_size as isize,
+                    );
 
-                self.draw2d.text_rect_blend_safe(
-                    buffer.pixels_mut(),
-                    &tuple,
-                    stride,
-                    font,
-                    self.font_size,
-                    &resolved,
-                    &self.color,
-                    draw2d::TheHorizontalAlign::Left,
-                    draw2d::TheVerticalAlign::Center,
-                    &(0, 0, width as isize, height as isize),
-                );
+                    self.draw2d.text_rect_blend_safe(
+                        buffer.pixels_mut(),
+                        &tuple,
+                        stride,
+                        font,
+                        self.font_size,
+                        &resolved,
+                        &self.color,
+                        draw2d::TheHorizontalAlign::Left,
+                        draw2d::TheVerticalAlign::Center,
+                        &(0, 0, width as isize, height as isize),
+                    );
+                }
 
                 y += self.font_size + self.spacing;
             }

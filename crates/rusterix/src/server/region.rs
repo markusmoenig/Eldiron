@@ -797,6 +797,9 @@ impl RegionInstance {
         let target_fps = get_config_i32_default(&ctx, "game", "target_fps", 30).max(1) as f32;
         ctx.delta_time = 1.0 / target_fps;
         ctx.health_attr = get_config_string_default(&ctx, "game", "health", "HP").to_string();
+        ctx.level_attr = get_config_string_default(&ctx, "game", "level", "LEVEL").to_string();
+        ctx.experience_attr =
+            get_config_string_default(&ctx, "game", "experience", "EXP").to_string();
 
         self.entity_block_mode = {
             let mode = get_config_string_default(&ctx, "game", "entity_block_mode", "always");
@@ -2671,6 +2674,13 @@ impl RegionInstance {
             ctx.to_execute_entity.clear();
         });
         for todo in to_execute_entity {
+            if todo.1 == "__grant_xp" {
+                with_regionctx(self.id, |ctx| {
+                    let _ = grant_experience(ctx, todo.0, todo.2.x.max(0.0).round() as i32);
+                });
+                continue;
+            }
+
             let mut ticks = 0;
             let mut state_data = FxHashMap::default();
 
@@ -4474,14 +4484,27 @@ pub(crate) fn apply_damage_direct(
     );
 
     if kill {
+        let xp = progression_kill_xp(ctx, from_id, target_id);
         ctx.to_execute_entity
             .push((from_id, "kill".into(), VMValue::broadcast(target_id as f32)));
+        if xp > 0 {
+            ctx.to_execute_entity.push((
+                from_id,
+                "__grant_xp".into(),
+                VMValue::broadcast(xp as f32),
+            ));
+        }
     }
 
     kill
 }
 
-fn combat_rule_expr<'a>(ctx: &'a RegionCtx, kind: &str) -> Option<&'a str> {
+fn combat_rule_expr<'a>(ctx: &'a RegionCtx, kind: &str, key: &str) -> Option<&'a str> {
+    let kind_key = if key == "incoming_damage" {
+        Some(["incoming_damage", "received_damage"])
+    } else {
+        None
+    };
     if !kind.is_empty()
         && let Some(expr) = ctx
             .rules
@@ -4492,9 +4515,11 @@ fn combat_rule_expr<'a>(ctx: &'a RegionCtx, kind: &str) -> Option<&'a str> {
             .and_then(|kinds| kinds.get(kind))
             .and_then(toml::Value::as_table)
             .and_then(|kind_table| {
-                kind_table
-                    .get("incoming_damage")
-                    .or_else(|| kind_table.get("received_damage"))
+                if let Some(keys) = kind_key {
+                    keys.iter().find_map(|key| kind_table.get(*key))
+                } else {
+                    kind_table.get(key)
+                }
             })
             .and_then(toml::Value::as_str)
     {
@@ -4504,9 +4529,11 @@ fn combat_rule_expr<'a>(ctx: &'a RegionCtx, kind: &str) -> Option<&'a str> {
         .get("combat")
         .and_then(toml::Value::as_table)
         .and_then(|combat| {
-            combat
-                .get("incoming_damage")
-                .or_else(|| combat.get("received_damage"))
+            if let Some(keys) = kind_key {
+                keys.iter().find_map(|key| combat.get(*key))
+            } else {
+                combat.get(key)
+            }
         })
         .and_then(toml::Value::as_str)
 }
@@ -4636,6 +4663,29 @@ fn combat_message_template(ctx: &RegionCtx, key: &str) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn progression_message_template(ctx: &RegionCtx, key: &str) -> Option<String> {
+    let messages = ctx
+        .rules
+        .get("progression")
+        .and_then(toml::Value::as_table)
+        .and_then(|progression| progression.get("messages"))
+        .and_then(toml::Value::as_table)?;
+
+    if let Some(locale_key) = messages
+        .get(&format!("{}_key", key))
+        .and_then(toml::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        && let Some(template) = localized_template(ctx, locale_key)
+    {
+        return Some(template);
+    }
+
+    messages
+        .get(key)
+        .and_then(toml::Value::as_str)
+        .map(ToString::to_string)
+}
+
 fn combat_audio_string(ctx: &RegionCtx, kind: &str, key: &str) -> Option<String> {
     if !kind.is_empty()
         && let Some(value) = ctx
@@ -4707,6 +4757,18 @@ fn combat_message_category(ctx: &RegionCtx, key: &str) -> String {
         .unwrap_or_else(|| "system".to_string())
 }
 
+fn progression_message_category(ctx: &RegionCtx, key: &str) -> String {
+    ctx.rules
+        .get("progression")
+        .and_then(toml::Value::as_table)
+        .and_then(|progression| progression.get("messages"))
+        .and_then(toml::Value::as_table)
+        .and_then(|messages| messages.get(key))
+        .and_then(toml::Value::as_str)
+        .map(ToString::to_string)
+        .unwrap_or_else(|| "system".to_string())
+}
+
 fn render_damage_message(
     template: &str,
     attacker: &str,
@@ -4723,6 +4785,21 @@ fn render_damage_message(
         .replace("{kind}", kind)
         .replace("{from_id}", &from_id.to_string())
         .replace("{target_id}", &target_id.to_string())
+}
+
+fn render_progression_message(
+    template: &str,
+    amount: i32,
+    level: Option<u32>,
+    xp_total: i32,
+) -> String {
+    let mut rendered = template
+        .replace("{amount}", &amount.to_string())
+        .replace("{xp_total}", &xp_total.to_string());
+    if let Some(level) = level {
+        rendered = rendered.replace("{level}", &level.to_string());
+    }
+    rendered
 }
 
 fn is_player_message_recipient(ctx: &RegionCtx, entity_id: u32) -> bool {
@@ -4754,6 +4831,106 @@ fn item_by_id<'a>(ctx: &'a RegionCtx, item_id: u32) -> Option<&'a Item> {
         }
     }
     None
+}
+
+fn progression_kill_xp(ctx: &RegionCtx, from_id: u32, target_id: u32) -> i32 {
+    let Some(expr) = ctx
+        .rules
+        .get("progression")
+        .and_then(toml::Value::as_table)
+        .and_then(|progression| progression.get("xp"))
+        .and_then(toml::Value::as_table)
+        .and_then(|xp| xp.get("kill"))
+        .and_then(toml::Value::as_str)
+    else {
+        return 0;
+    };
+
+    let attacker = ctx.map.entities.iter().find(|entity| entity.id == from_id);
+    let defender = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == target_id);
+
+    FormulaParser::new(expr, |name| {
+        resolve_combat_var(ctx, name, 0.0, attacker, defender, None)
+    })
+    .parse()
+    .filter(|value| value.is_finite())
+    .map(|value| value.round().max(0.0) as i32)
+    .unwrap_or(0)
+}
+
+pub(crate) fn grant_experience(ctx: &mut RegionCtx, entity_id: u32, amount: i32) -> Vec<u32> {
+    if amount <= 0 {
+        return Vec::new();
+    }
+
+    let amount_f = amount as f32;
+    let level_attr = ctx.level_attr.clone();
+    let experience_attr = ctx.experience_attr.clone();
+
+    let (new_xp, mut level) = if let Some(entity) = ctx.get_entity_mut(entity_id) {
+        let new_xp = entity.attributes.get_float_default(&experience_attr, 0.0) + amount_f;
+        let level = entity
+            .attributes
+            .get_float_default(&level_attr, 1.0)
+            .round()
+            .max(1.0) as u32;
+        entity.set_attribute(&experience_attr, Value::Float(new_xp));
+        (new_xp, level)
+    } else {
+        return Vec::new();
+    };
+
+    let mut level_ups = Vec::new();
+    loop {
+        let Some(required_xp) = progression_xp_for_level(ctx, entity_id, level + 1) else {
+            break;
+        };
+        if new_xp + f32::EPSILON < required_xp {
+            break;
+        }
+        level += 1;
+        level_ups.push(level);
+    }
+
+    if !level_ups.is_empty() {
+        if let Some(entity) = ctx.get_entity_mut(entity_id) {
+            entity.set_attribute(&level_attr, Value::Int(level as i32));
+        }
+        for level in &level_ups {
+            ctx.to_execute_entity.push((
+                entity_id,
+                "level_up".into(),
+                VMValue::broadcast(*level as f32),
+            ));
+        }
+    }
+
+    if is_player_message_recipient(ctx, entity_id) {
+        let xp_total = new_xp.round() as i32;
+        if let Some(template) = progression_message_template(ctx, "xp") {
+            let category = progression_message_category(ctx, "xp_category");
+            let message =
+                render_progression_message(&template, amount, level_ups.last().copied(), xp_total);
+            if !message.trim().is_empty() {
+                send_message(ctx, entity_id, message, &category);
+            }
+        }
+        for level in &level_ups {
+            if let Some(template) = progression_message_template(ctx, "level_up") {
+                let category = progression_message_category(ctx, "level_up_category");
+                let message = render_progression_message(&template, amount, Some(*level), xp_total);
+                if !message.trim().is_empty() {
+                    send_message(ctx, entity_id, message, &category);
+                }
+            }
+        }
+    }
+
+    level_ups
 }
 
 fn equipped_audio_item<'a>(ctx: &'a RegionCtx, attacker_id: u32) -> Option<&'a Item> {
@@ -5004,12 +5181,92 @@ fn resolve_combat_var(
         return attacker.map_or(0.0, |entity| equipped_attr(ctx, entity, attr));
     }
     if let Some(attr) = name.strip_prefix("attacker.") {
-        return attacker.map_or(0.0, |entity| entity.attributes.get_float_default(attr, 0.0));
+        return attacker.map_or(0.0, |entity| {
+            let default = if attr == ctx.level_attr { 1.0 } else { 0.0 };
+            entity.attributes.get_float_default(attr, default)
+        });
     }
     if let Some(attr) = name.strip_prefix("defender.") {
-        return defender.map_or(0.0, |entity| entity.attributes.get_float_default(attr, 0.0));
+        return defender.map_or(0.0, |entity| {
+            let default = if attr == ctx.level_attr { 1.0 } else { 0.0 };
+            entity.attributes.get_float_default(attr, default)
+        });
     }
     0.0
+}
+
+fn progression_stat_table<'a>(ctx: &'a RegionCtx, stat: &str) -> Option<&'a toml::value::Table> {
+    ctx.rules
+        .get("progression")
+        .and_then(toml::Value::as_table)
+        .and_then(|progression| progression.get(stat))
+        .and_then(toml::Value::as_table)
+}
+
+fn progression_level_for_entity(ctx: &RegionCtx, entity: &Entity) -> f32 {
+    entity
+        .attributes
+        .get_float_default(&ctx.level_attr, 1.0)
+        .round()
+        .max(1.0)
+}
+
+fn resolve_progression_var(ctx: &RegionCtx, entity: &Entity, name: &str) -> f32 {
+    if name == "level" {
+        return progression_level_for_entity(ctx, entity);
+    }
+
+    entity.attributes.get_float_default(name, 0.0)
+}
+
+fn progression_number(value: Option<&toml::Value>, default: f32) -> f32 {
+    match value {
+        Some(toml::Value::Integer(value)) => *value as f32,
+        Some(toml::Value::Float(value)) => *value as f32,
+        _ => default,
+    }
+}
+
+pub(crate) fn progression_xp_for_level(ctx: &RegionCtx, entity_id: u32, level: u32) -> Option<f32> {
+    let entity = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)?;
+    let table = progression_stat_table(ctx, "level")?;
+    let expr = table.get("xp_for_level").and_then(toml::Value::as_str)?;
+    FormulaParser::new(expr, |name| {
+        if name == "level" {
+            level as f32
+        } else {
+            resolve_progression_var(ctx, entity, name)
+        }
+    })
+    .parse()
+    .filter(|value| value.is_finite())
+    .map(|value| value.max(0.0))
+}
+
+pub(crate) fn progression_stat_value(ctx: &RegionCtx, entity_id: u32, stat: &str) -> Option<f32> {
+    let entity = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)?;
+    let table = progression_stat_table(ctx, stat)?;
+    let base = progression_number(table.get("base"), 0.0);
+    let per_level = progression_number(table.get("per_level"), 0.0);
+    let level = progression_level_for_entity(ctx, entity);
+    let levels_gained = (level - 1.0).max(0.0);
+    let gain = table
+        .get("gain")
+        .and_then(toml::Value::as_str)
+        .and_then(|expr| {
+            FormulaParser::new(expr, |name| resolve_progression_var(ctx, entity, name)).parse()
+        })
+        .unwrap_or(0.0);
+
+    Some((base + levels_gained * (per_level + gain)).max(0.0))
 }
 
 struct FormulaParser<'a, F>
@@ -5208,17 +5465,17 @@ where
     }
 }
 
-pub(crate) fn apply_damage_rules(
+fn evaluate_damage_rule(
     ctx: &RegionCtx,
     target_id: u32,
     from_id: u32,
     amount: i32,
     kind: &str,
     source_item_id: u32,
-) -> i32 {
-    let amount = amount.max(0);
-    let Some(expr) = combat_rule_expr(ctx, kind) else {
-        return amount;
+    key: &str,
+) -> Option<i32> {
+    let Some(expr) = combat_rule_expr(ctx, kind, key) else {
+        return None;
     };
 
     let attacker = ctx.map.entities.iter().find(|entity| entity.id == from_id);
@@ -5244,7 +5501,38 @@ pub(crate) fn apply_damage_rules(
     parsed
         .filter(|value| value.is_finite())
         .map(|value| value.round().max(0.0) as i32)
-        .unwrap_or(amount)
+}
+
+pub(crate) fn apply_damage_rules(
+    ctx: &RegionCtx,
+    target_id: u32,
+    from_id: u32,
+    amount: i32,
+    kind: &str,
+    source_item_id: u32,
+) -> i32 {
+    let amount = amount.max(0);
+    let outgoing = evaluate_damage_rule(
+        ctx,
+        target_id,
+        from_id,
+        amount,
+        kind,
+        source_item_id,
+        "outgoing_damage",
+    )
+    .unwrap_or(amount);
+    evaluate_damage_rule(
+        ctx,
+        target_id,
+        from_id,
+        outgoing,
+        kind,
+        source_item_id,
+        "incoming_damage",
+    )
+    .unwrap_or(outgoing)
+    .max(0)
 }
 
 pub(crate) fn drop_all_items_for_entity(ctx: &mut RegionCtx, entity_id: u32) {

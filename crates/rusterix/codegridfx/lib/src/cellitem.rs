@@ -1079,6 +1079,20 @@ impl CellItem {
                 self.form = CellItemForm::LeftRounded;
                 grid.insert(pos, self)
             }
+            Cell::GainXp => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("10".into()),
+                        self.id,
+                        true,
+                        "Amount",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
             Cell::GetAttr => {
                 grid.insert(
                     (pos.0 + 1, pos.1),

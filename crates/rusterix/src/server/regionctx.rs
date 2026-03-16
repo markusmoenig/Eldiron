@@ -65,6 +65,8 @@ pub struct RegionCtx {
     pub from_sender: OnceLock<Sender<RegionMessage>>,
 
     pub health_attr: String,
+    pub level_attr: String,
+    pub experience_attr: String,
     pub damage_committed: bool,
     pub current_damage_kind: Option<String>,
     pub current_damage_source_item: Option<u32>,

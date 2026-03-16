@@ -237,7 +237,8 @@ frame_index = 0
 
 ### UI Section
 
-- **text**: multiline string content; placeholders like `{PLAYER.STR}`, `{PLAYER.DEX}`, `{PLAYER.FUNDS}`, `{PLAYER.ATTACK}`, and `{PLAYER.ARMOR}` are replaced at runtime.
+- **text**: multiline string content; placeholders like `{PLAYER.STR}`, `{PLAYER.DEX}`, `{PLAYER.FUNDS}`, `{PLAYER.LEVEL}`, `{PLAYER.EXP}`, `{PLAYER.ATTACK}`, and `{PLAYER.ARMOR}` are replaced at runtime.
+- **tab_width**: optional tab stop width in pixels for `\t` alignment inside the text.
 - **font**: font family name.
 - **font_size**: size of the font.
 - **spacing**: line spacing.
@@ -249,6 +250,8 @@ Combat-related player placeholders:
 
 - `PLAYER.ATTACK` is the accumulated `DMG` value across the player's equipped weapon slots.
 - `PLAYER.ARMOR` is the accumulated `ARMOR` value across the player's equipped gear slots.
+- `PLAYER.LEVEL` resolves through `game.level`.
+- `PLAYER.EXP` and `PLAYER.EXPERIENCE` resolve through `game.experience`.
 - `PLAYER.WEAPON.<ATTR>` sums an attribute across the player's weapon slots.
 - `PLAYER.EQUIPPED.<ATTR>` sums an attribute across all equipped items.
 - `PLAYER.ARMOR.<ATTR>` sums an attribute across the player's gear slots.
@@ -263,9 +266,10 @@ role = "text"
 text = """
 Welcome, adventurer!
 
-STR:  {PLAYER.STR}  DEX: {PLAYER.DEX}
-GOLD: {PLAYER.FUNDS}
-ATK:  {PLAYER.ATTACK}  DEF: {PLAYER.ARMOR}
+STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}
+EXP:\t{PLAYER.EXP}\tLEVEL:\t{PLAYER.LEVEL}
+HP:\t{PLAYER.HP}\tG:\t{PLAYER.FUNDS}
+ATK:\t{PLAYER.ATTACK}\tDEF:\t{PLAYER.ARMOR}
 
 May the stars guide you!
 """
@@ -273,6 +277,7 @@ May the stars guide you!
 font = "Tiny5-Regular"
 font_size = 18.0
 spacing = 2.0
+tab_width = 110.0
 color = "#aaaaaa"
 ```
 

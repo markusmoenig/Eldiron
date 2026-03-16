@@ -44,6 +44,28 @@ block_events(2, "intent") // Block all intents for 2 in-game minutes.
 
 ---
 
+## `attack`
+
+*This command can only be used with characters.*
+
+Attacks the current target using the project's progression and combat rules.
+
+```eldrin
+attack()
+```
+
+Behavior:
+
+- uses the current target (see [set_target](#set_target))
+- starts from `progression.damage`
+- if `progression.damage` is not configured, falls back to the attacker's `DMG` attribute, then to `1`
+- uses the current weapon's `damage_kind` when available, otherwise `physical`
+- then applies `outgoing_damage` and `incoming_damage` from [Rules](../rules)
+
+Use `attack()` for the normal combat path. Use [deal_damage](#deal_damage) when you need to send an explicit amount or kind.
+
+---
+
 ## `close_in`
 
 *This command can only be used with characters.*
@@ -94,7 +116,7 @@ See also: [set_target](#set_target), [target](#target), [has_target](#has_target
 
 *This command can be used with both characters and items.*
 
-Deals damage to an entity or item. The server first applies the project-wide **Game -> Rules** combat formula to calculate the final incoming damage, then sends a [take_damage](events#take_damage) event to the receiver with that final amount and the attacker id.
+Deals damage to an entity or item. The server first applies the project-wide [Rules](../rules) combat pipeline, then sends a [take_damage](events#take_damage) event to the receiver with the final amount and the attacker id.
 
 ```eldrin
 deal_damage(id, random(2, 5))
@@ -106,6 +128,8 @@ deal_damage(random(2, 5), "physical")
 If called with one argument, `deal_damage(amount)` uses the current target (see [set_target](#set_target)).
 If called with two arguments and the second argument is a string, `deal_damage(amount, kind)` uses the current target and sets the damage kind.
 If no kind is supplied, `deal_damage` defaults to `physical`.
+
+`deal_damage(...)` is the lower-level escape hatch. For normal attacks against the current target, prefer [attack](#attack).
 
 The damage kind is also used by:
 
@@ -181,6 +205,30 @@ Returns `true` on success or `false` on failure.
 ```eldrin
 equip(item_id)
 ```
+
+---
+
+## `gain_xp`
+
+*This command can only be used with characters.*
+
+Adds experience to the current character.
+
+```eldrin
+gain_xp(25)
+```
+
+Behavior:
+
+- adds to the attribute named by `game.experience`
+- compares the new total against `progression.level.xp_for_level`
+- raises the attribute named by `game.level` when thresholds are crossed
+- sends a [level_up](events#level_up) event with the new level
+- also uses the rules-driven progression message system when configured
+
+The experience value is treated as a running total, not as "xp since last level".
+
+Normal kill XP can also be awarded automatically through `progression.xp.kill`, so `gain_xp()` is mainly needed for quests, scripted rewards, trainers, and other custom sources.
 
 ---
 
