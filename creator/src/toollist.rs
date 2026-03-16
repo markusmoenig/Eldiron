@@ -10,6 +10,7 @@ use scenevm::GeoId;
 pub struct ToolList {
     pub server_time: TheTime,
     pub render_button_text: String,
+    pub authoring_mode: bool,
 
     pub game_tools: Vec<Box<dyn Tool>>,
     pub curr_game_tool: usize,
@@ -27,6 +28,8 @@ impl Default for ToolList {
 }
 
 impl ToolList {
+    const AUTHORING_BUTTON_NAME: &'static str = "Authoring";
+
     fn collect_terrain_tile_overrides(map: &Map) -> FxHashMap<(i32, i32), PixelSource> {
         match map.properties.get("tiles") {
             Some(Value::TileOverrides(tiles)) => tiles.clone(),
@@ -110,7 +113,7 @@ impl ToolList {
         Self {
             server_time: TheTime::default(),
             render_button_text: "Finished".to_string(),
-
+            authoring_mode: false,
             game_tools,
             curr_game_tool: 2,
 
@@ -149,6 +152,19 @@ impl ToolList {
                 }
                 list.add_widget(Box::new(b));
             }
+
+            let mut sep = TheSeparator::new(TheId::named_with_id("Tool Separator", Uuid::new_v4()));
+            sep.limiter_mut().set_max_width(46);
+            sep.limiter_mut().set_max_height(8);
+            list.add_widget(Box::new(sep));
+
+            let mut authoring = TheToolListButton::new(TheId::named(Self::AUTHORING_BUTTON_NAME));
+            authoring.set_icon_name("database".to_string());
+            authoring.set_status_text(&fl!("status_tool_authoring"));
+            if self.authoring_mode {
+                authoring.set_state(TheWidgetState::Selected);
+            }
+            list.add_widget(Box::new(authoring));
         }
     }
 
@@ -575,6 +591,34 @@ impl ToolList {
                 }
             }
             TheEvent::StateChanged(id, state) => {
+                if id.name == Self::AUTHORING_BUTTON_NAME && *state == TheWidgetState::Clicked {
+                    self.authoring_mode = !self.authoring_mode;
+                    let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
+                    if current_dock == "Tiles" || current_dock == "Authoring" {
+                        let dock = if self.authoring_mode {
+                            "Authoring"
+                        } else {
+                            "Tiles"
+                        };
+                        DOCKMANAGER.write().unwrap().set_dock(
+                            dock.into(),
+                            ui,
+                            ctx,
+                            project,
+                            server_ctx,
+                        );
+                    }
+                    ctx.ui.set_widget_state(
+                        Self::AUTHORING_BUTTON_NAME.to_string(),
+                        if self.authoring_mode {
+                            TheWidgetState::Selected
+                        } else {
+                            TheWidgetState::None
+                        },
+                    );
+                    redraw = true;
+                    return redraw;
+                }
                 if id.name == "Editor View Switch"
                     && *state == TheWidgetState::Clicked
                     && server_ctx.editor_view_mode == EditorViewMode::D2

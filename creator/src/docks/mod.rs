@@ -1,3 +1,4 @@
+pub mod authoring;
 pub mod code;
 pub mod code_undo;
 pub mod console;

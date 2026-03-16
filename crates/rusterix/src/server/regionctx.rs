@@ -75,6 +75,60 @@ pub struct RegionCtx {
 }
 
 impl RegionCtx {
+    fn sector_text_metadata(&self, sector: &Sector) -> (String, String) {
+        let mut title = sector.name.clone();
+        let mut description = String::new();
+
+        if let Some(Value::Str(data)) = sector.properties.get("data")
+            && let Ok(table) = data.parse::<toml::Table>()
+        {
+            if let Some(value) = table.get("title").and_then(toml::Value::as_str)
+                && !value.trim().is_empty()
+            {
+                title = value.to_string();
+            }
+            if let Some(value) = table.get("description").and_then(toml::Value::as_str)
+                && !value.trim().is_empty()
+            {
+                description = value.to_string();
+            }
+
+            for section in ["text_adventure", "text", "ui"] {
+                if let Some(group) = table.get(section).and_then(toml::Value::as_table) {
+                    if let Some(value) = group.get("title").and_then(toml::Value::as_str)
+                        && !value.trim().is_empty()
+                    {
+                        title = value.to_string();
+                    }
+                    if let Some(value) = group.get("description").and_then(toml::Value::as_str)
+                        && !value.trim().is_empty()
+                    {
+                        description = value.to_string();
+                    }
+                }
+            }
+        }
+
+        (title, description)
+    }
+
+    fn send_player_sector_description(&self, entity_id: u32, sector: &Sector) {
+        let (_, description) = self.sector_text_metadata(sector);
+        if description.trim().is_empty() {
+            return;
+        }
+
+        let msg = RegionMessage::Message(
+            self.region_id,
+            Some(entity_id),
+            None,
+            entity_id,
+            description,
+            "system".to_string(),
+        );
+        self.from_sender.get().unwrap().send(msg).unwrap();
+    }
+
     fn resolve_item_class_name(&self, requested: &str) -> Option<String> {
         let requested = requested.trim();
         if requested.is_empty() {
@@ -247,6 +301,9 @@ impl RegionCtx {
                         VMValue::from(sector.name.clone()),
                     ));
                 }
+                if entity.is_player() {
+                    self.send_player_sector_description(entity.id, sector);
+                }
                 // Send left event
                 if !old_sector_name.is_empty() {
                     self.to_execute_entity.push((
@@ -287,16 +344,25 @@ impl RegionCtx {
                 .map(|s| s.to_string())
                 .unwrap_or_default();
             let sector_name = self.map.find_sector_at(pos).map(|s| s.name.clone());
+            let sector_description = self
+                .map
+                .find_sector_at(pos)
+                .map(|sector| self.sector_text_metadata(sector).1);
+            let mut entered_player_sector: Option<u32> = None;
 
             if let Some(entity) = self.map.entities.get_mut(idx) {
                 if let Some(sector_name) = sector_name {
                     if sector_name != old_sector {
+                        let is_player = entity.is_player();
                         if !sector_name.is_empty() {
                             self.to_execute_entity.push((
                                 entity.id,
                                 "entered".into(),
                                 VMValue::from(sector_name.clone()),
                             ));
+                        }
+                        if is_player {
+                            entered_player_sector = Some(entity.id);
                         }
                         if !old_sector.is_empty() {
                             self.to_execute_entity.push((
@@ -317,6 +383,21 @@ impl RegionCtx {
                     }
                     entity.set_attribute("sector", Value::Str(String::new()));
                 }
+            }
+
+            if let Some(entity_id) = entered_player_sector
+                && let Some(description) = sector_description
+                && !description.trim().is_empty()
+            {
+                let msg = RegionMessage::Message(
+                    self.region_id,
+                    Some(entity_id),
+                    None,
+                    entity_id,
+                    description,
+                    "system".to_string(),
+                );
+                self.from_sender.get().unwrap().send(msg).unwrap();
             }
         }
     }

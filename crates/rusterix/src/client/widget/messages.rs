@@ -266,16 +266,14 @@ impl MessagesWidget {
             };
 
             for (id, message, rect, _choice, color) in self.messages.iter_mut().rev() {
-                if y + self.font_size < self.rect.y {
-                    break;
-                }
-
-                let tuple = (
-                    self.rect.x as isize,
-                    y.floor() as isize,
-                    self.rect.width as isize,
-                    self.font_size as isize,
-                );
+                let lines =
+                    Self::wrap_message_lines(font, self.font_size, message, self.rect.width);
+                let line_height = self.font_size + self.spacing;
+                let block_height = if lines.is_empty() {
+                    self.font_size
+                } else {
+                    self.font_size + (lines.len().saturating_sub(1) as f32 * line_height)
+                };
 
                 let color = if *id == self.clicked {
                     darken(*color, 100)
@@ -283,25 +281,73 @@ impl MessagesWidget {
                     *color
                 };
 
-                *rect = Rect::new(self.rect.x, y, self.rect.width, self.font_size);
-
-                self.draw2d.text_rect_blend_safe(
-                    buffer.pixels_mut(),
-                    &tuple,
-                    stride,
-                    font,
-                    self.font_size,
-                    message,
-                    &color,
-                    draw2d::TheHorizontalAlign::Left,
-                    draw2d::TheVerticalAlign::Center,
-                    &(0, 0, width as isize, height as isize),
-                );
-
                 if self.top_down {
-                    y += self.font_size + self.spacing;
+                    if y > self.rect.y + self.rect.height {
+                        break;
+                    }
+
+                    *rect = Rect::new(self.rect.x, y, self.rect.width, block_height);
+
+                    for (index, line) in lines.iter().enumerate() {
+                        let line_y = y + index as f32 * line_height;
+                        if line_y > self.rect.y + self.rect.height {
+                            break;
+                        }
+
+                        let tuple = (
+                            self.rect.x as isize,
+                            line_y.floor() as isize,
+                            self.rect.width as isize,
+                            self.font_size as isize,
+                        );
+
+                        self.draw2d.text_rect_blend_safe(
+                            buffer.pixels_mut(),
+                            &tuple,
+                            stride,
+                            font,
+                            self.font_size,
+                            line,
+                            &color,
+                            draw2d::TheHorizontalAlign::Left,
+                            draw2d::TheVerticalAlign::Center,
+                            &(0, 0, width as isize, height as isize),
+                        );
+                    }
+
+                    y += block_height + self.spacing;
                 } else {
-                    y -= self.font_size + self.spacing;
+                    let block_top = y - (lines.len().saturating_sub(1) as f32 * line_height);
+                    if block_top + self.font_size < self.rect.y {
+                        break;
+                    }
+
+                    *rect = Rect::new(self.rect.x, block_top, self.rect.width, block_height);
+
+                    for (index, line) in lines.iter().enumerate() {
+                        let line_y = block_top + index as f32 * line_height;
+                        let tuple = (
+                            self.rect.x as isize,
+                            line_y.floor() as isize,
+                            self.rect.width as isize,
+                            self.font_size as isize,
+                        );
+
+                        self.draw2d.text_rect_blend_safe(
+                            buffer.pixels_mut(),
+                            &tuple,
+                            stride,
+                            font,
+                            self.font_size,
+                            line,
+                            &color,
+                            draw2d::TheHorizontalAlign::Left,
+                            draw2d::TheVerticalAlign::Center,
+                            &(0, 0, width as isize, height as isize),
+                        );
+                    }
+
+                    y = block_top - line_height;
                 }
             }
         }
@@ -363,5 +409,75 @@ impl MessagesWidget {
                 ..Default::default()
             },
         )
+    }
+
+    fn wrap_message_lines(
+        font: &fontdue::Font,
+        font_size: f32,
+        message: &str,
+        max_width: f32,
+    ) -> Vec<String> {
+        let max_width = max_width.max(font_size);
+        let mut lines = Vec::new();
+
+        for paragraph in message.split('\n') {
+            if paragraph.trim().is_empty() {
+                lines.push(String::new());
+                continue;
+            }
+
+            let mut current = String::new();
+            for word in paragraph.split_whitespace() {
+                let candidate = if current.is_empty() {
+                    word.to_string()
+                } else {
+                    format!("{} {}", current, word)
+                };
+
+                if Self::measure_text_width(font, font_size, &candidate) <= max_width {
+                    current = candidate;
+                } else {
+                    if !current.is_empty() {
+                        lines.push(current);
+                    }
+
+                    if Self::measure_text_width(font, font_size, word) <= max_width {
+                        current = word.to_string();
+                    } else {
+                        let mut chunk = String::new();
+                        for ch in word.chars() {
+                            let candidate = format!("{}{}", chunk, ch);
+                            if !chunk.is_empty()
+                                && Self::measure_text_width(font, font_size, &candidate) > max_width
+                            {
+                                lines.push(chunk);
+                                chunk = ch.to_string();
+                            } else {
+                                chunk = candidate;
+                            }
+                        }
+                        current = chunk;
+                    }
+                }
+            }
+
+            lines.push(current);
+        }
+
+        if lines.is_empty() {
+            lines.push(String::new());
+        }
+
+        while lines.len() > 1 && lines.last().is_some_and(|line| line.is_empty()) {
+            lines.pop();
+        }
+
+        lines
+    }
+
+    fn measure_text_width(font: &fontdue::Font, font_size: f32, text: &str) -> f32 {
+        text.chars()
+            .map(|ch| font.metrics(ch, font_size).advance_width)
+            .sum()
     }
 }

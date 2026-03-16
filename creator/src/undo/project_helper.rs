@@ -1,6 +1,14 @@
-use crate::editor::{DOCKMANAGER, RUSTERIX};
+use crate::editor::{DOCKMANAGER, RUSTERIX, TOOLLIST};
 use crate::prelude::*;
 use theframework::prelude::*;
+
+fn tiles_or_authoring_dock() -> String {
+    if TOOLLIST.read().unwrap().authoring_mode {
+        "Authoring".into()
+    } else {
+        "Tiles".into()
+    }
+}
 
 fn data_attr_bool(data: &str, key: &str) -> bool {
     let Ok(value) = data.parse::<toml::Value>() else {
@@ -573,10 +581,13 @@ pub fn set_project_context(
                     TheValue::Text(format!("{}: {}", fl!("region"), region.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
-                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+            DOCKMANAGER.write().unwrap().set_dock(
+                tiles_or_authoring_dock(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
         ProjectContext::RegionSettings(id) => {
             if let Some(region) = project.get_region(&id) {
@@ -618,10 +629,13 @@ pub fn set_project_context(
                     TheValue::Text(format!("Region ({}) Item", region.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
-                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+            DOCKMANAGER.write().unwrap().set_dock(
+                tiles_or_authoring_dock(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
         ProjectContext::Character(id) => {
             if let Some(region) = project.characters.get(&id) {
@@ -631,10 +645,13 @@ pub fn set_project_context(
                     TheValue::Text(format!("Character: {}", region.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
-                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+            DOCKMANAGER.write().unwrap().set_dock(
+                tiles_or_authoring_dock(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
         ProjectContext::CharacterVisualCode(id) => {
             if let Some(region) = project.characters.get(&id) {
@@ -699,10 +716,13 @@ pub fn set_project_context(
                     TheValue::Text(format!("Item: {}", item.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
-                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+            DOCKMANAGER.write().unwrap().set_dock(
+                tiles_or_authoring_dock(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
         ProjectContext::ItemVisualCode(id) => {
             if let Some(item) = project.items.get(&id) {
@@ -770,10 +790,13 @@ pub fn set_project_context(
                     TheValue::Text(format!("Screen: {}", screen.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
-                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+            DOCKMANAGER.write().unwrap().set_dock(
+                tiles_or_authoring_dock(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
         ProjectContext::ScreenWidget(id, _widget_id) => {
             // Screens are always edited in 2D preview mode.
@@ -799,10 +822,13 @@ pub fn set_project_context(
                     TheValue::Text(format!("Asset: {}", asset.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
-                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+            DOCKMANAGER.write().unwrap().set_dock(
+                tiles_or_authoring_dock(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
         ProjectContext::Avatar(id) => {
             if let Some(avatar) = project.avatars.get(&id) {
@@ -812,10 +838,13 @@ pub fn set_project_context(
                     TheValue::Text(format!("Avatar: {}", avatar.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
-                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+            DOCKMANAGER.write().unwrap().set_dock(
+                tiles_or_authoring_dock(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
         ProjectContext::AvatarAnimation(avatar_id, anim_id, frame) => {
             if let Some(avatar) = project.avatars.get(&avatar_id) {
@@ -830,10 +859,13 @@ pub fn set_project_context(
                     );
                 }
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
-                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+            DOCKMANAGER.write().unwrap().set_dock(
+                tiles_or_authoring_dock(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
         ProjectContext::ProjectSettings => {
             ui.set_widget_value(
@@ -1053,6 +1085,10 @@ pub fn set_project_context(
         TheId::named("Update Action List"),
         TheValue::Empty,
     ));
+
+    if let Some(list) = ui.get_vlayout("Tool List Layout") {
+        TOOLLIST.write().unwrap().set_active_editor(list, ctx);
+    }
 
     ctx.ui.relayout = true;
 }

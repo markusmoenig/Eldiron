@@ -43,6 +43,8 @@ impl TheWidget for TheToolListButton {
         match event {
             TheEvent::MouseDown(_coord) => {
                 self.is_dirty = true;
+                ctx.ui
+                    .send_widget_state_changed(self.id(), TheWidgetState::Clicked);
                 if self.state != TheWidgetState::Selected {
                     self.state = TheWidgetState::Selected;
                     ctx.ui.send_widget_state_changed(self.id(), self.state);

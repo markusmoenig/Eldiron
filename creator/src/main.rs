@@ -1,6 +1,6 @@
 #![windows_subsystem = "windows"]
 
-use rustapi::editor::Editor;
+use eldiron_creator::editor::Editor;
 use theframework::*;
 
 fn main() {
@@ -11,7 +11,7 @@ fn main() {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    let _ = rustapi::i18n::select_system_locales();
+    let _ = eldiron_creator::i18n::select_system_locales();
 
     let editor = Editor::new();
     let mut app = TheApp::new();

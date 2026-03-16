@@ -1,0 +1,434 @@
+use crate::docks::code_undo::{CodeUndo, CodeUndoAtom};
+use crate::prelude::*;
+use theframework::prelude::*;
+use theframework::theui::thewidget::thetextedit::TheTextEditState;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum EntityKey {
+    RegionSector(Uuid, Uuid),
+    RegionLinedef(Uuid, Uuid),
+    RegionCharacter(Uuid, Uuid),
+    RegionItem(Uuid, Uuid),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AuthoringTarget {
+    Sector(Uuid, u32, Uuid),
+    Linedef(Uuid, u32, Uuid),
+    Character(Uuid, Uuid),
+    Item(Uuid, Uuid),
+}
+
+impl AuthoringTarget {
+    fn entity_key(self) -> EntityKey {
+        match self {
+            Self::Sector(region_id, _, creator_id) => {
+                EntityKey::RegionSector(region_id, creator_id)
+            }
+            Self::Linedef(region_id, _, creator_id) => {
+                EntityKey::RegionLinedef(region_id, creator_id)
+            }
+            Self::Character(region_id, id) => EntityKey::RegionCharacter(region_id, id),
+            Self::Item(region_id, id) => EntityKey::RegionItem(region_id, id),
+        }
+    }
+
+    fn title(self) -> String {
+        match self {
+            Self::Sector(_, id, _) => format!("{} {}", fl!("authoring_target_sector"), id),
+            Self::Linedef(_, id, _) => format!("{} {}", fl!("authoring_target_linedef"), id),
+            Self::Character(_, _) => fl!("authoring_target_character"),
+            Self::Item(_, _) => fl!("authoring_target_item"),
+        }
+    }
+}
+
+pub struct AuthoringDock {
+    entity_undos: FxHashMap<EntityKey, CodeUndo>,
+    current_entity: Option<EntityKey>,
+    max_undo: usize,
+    prev_state: Option<TheTextEditState>,
+}
+
+impl Dock for AuthoringDock {
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
+        Self {
+            entity_undos: FxHashMap::default(),
+            current_entity: None,
+            max_undo: 30,
+            prev_state: None,
+        }
+    }
+
+    fn setup(&mut self, _ctx: &mut TheContext) -> TheCanvas {
+        let mut center = TheCanvas::new();
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+        toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
+        toolbar_hlayout.set_padding(3);
+
+        let mut title = TheText::new(TheId::named("Authoring Dock Title"));
+        title.set_text(fl!("authoring_select_prompt"));
+        title.set_text_size(12.0);
+        toolbar_hlayout.add_widget(Box::new(title));
+
+        toolbar_canvas.set_layout(toolbar_hlayout);
+        center.set_top(toolbar_canvas);
+
+        let mut textedit = TheTextAreaEdit::new(TheId::named("DockAuthoringEditor"));
+        if let Some(bytes) = crate::Embedded::get("parser/TOML.sublime-syntax") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                textedit.add_syntax_from_string(source);
+                textedit.set_code_type("TOML");
+            }
+        }
+
+        if let Some(bytes) = crate::Embedded::get("parser/gruvbox-dark.tmTheme") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                textedit.add_theme_from_string(source);
+                textedit.set_code_theme("Gruvbox Dark");
+            }
+        }
+
+        textedit.set_continuous(true);
+        textedit.display_line_number(true);
+        textedit.use_global_statusbar(true);
+        textedit.set_font_size(14.0);
+        textedit.set_supports_undo(false);
+        center.set_widget(textedit);
+
+        center
+    }
+
+    fn activate(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        self.refresh_from_selection(ui, ctx, project, server_ctx);
+    }
+
+    fn handle_event(
+        &mut self,
+        event: &TheEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        match event {
+            TheEvent::ValueChanged(id, value) if id.name == "DockAuthoringEditor" => {
+                if let Some(edit) = ui.get_text_area_edit("DockAuthoringEditor")
+                    && let Some(prev) = &self.prev_state
+                {
+                    let current_state = edit.get_state();
+                    let atom = CodeUndoAtom::TextEdit(prev.clone(), current_state.clone());
+                    self.add_undo(atom, ctx);
+                    self.prev_state = Some(current_state);
+                }
+
+                if let Some(text) = value.to_string() {
+                    self.write_current(project, server_ctx, text);
+                }
+                true
+            }
+            TheEvent::Custom(id, _) if id.name == "Map Selection Changed" => {
+                self.refresh_from_selection(ui, ctx, project, server_ctx);
+                false
+            }
+            TheEvent::StateChanged(id, _)
+                if id.name == "Region Content List Item"
+                    || id.name == "Screen Content List Item" =>
+            {
+                self.refresh_from_selection(ui, ctx, project, server_ctx);
+                false
+            }
+            _ => false,
+        }
+    }
+
+    fn supports_undo(&self) -> bool {
+        true
+    }
+
+    fn has_changes(&self) -> bool {
+        self.entity_undos.values().any(|undo| undo.has_changes())
+    }
+
+    fn mark_saved(&mut self) {
+        for undo in self.entity_undos.values_mut() {
+            undo.index = -1;
+        }
+    }
+
+    fn undo(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        if let Some(entity_key) = self.current_entity
+            && let Some(undo) = self.entity_undos.get_mut(&entity_key)
+            && let Some(edit) = ui.get_text_area_edit("DockAuthoringEditor")
+        {
+            undo.undo(edit);
+            self.prev_state = Some(edit.get_state());
+            self.set_undo_state_to_ui(ctx);
+            self.write_current(project, server_ctx, edit.text());
+        }
+    }
+
+    fn redo(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        if let Some(entity_key) = self.current_entity
+            && let Some(undo) = self.entity_undos.get_mut(&entity_key)
+            && let Some(edit) = ui.get_text_area_edit("DockAuthoringEditor")
+        {
+            undo.redo(edit);
+            self.prev_state = Some(edit.get_state());
+            self.set_undo_state_to_ui(ctx);
+            self.write_current(project, server_ctx, edit.text());
+        }
+    }
+
+    fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {
+        if let Some(entity_key) = self.current_entity
+            && let Some(undo) = self.entity_undos.get(&entity_key)
+        {
+            if undo.has_undo() {
+                ctx.ui.set_enabled("Undo");
+            } else {
+                ctx.ui.set_disabled("Undo");
+            }
+
+            if undo.has_redo() {
+                ctx.ui.set_enabled("Redo");
+            } else {
+                ctx.ui.set_disabled("Redo");
+            }
+            return;
+        }
+
+        ctx.ui.set_disabled("Undo");
+        ctx.ui.set_disabled("Redo");
+    }
+}
+
+impl AuthoringDock {
+    fn template_for_target(&self, _target: AuthoringTarget) -> String {
+        "title = \"\"\ndescription = \"\"\"\n\"\"\"\n".to_string()
+    }
+
+    fn current_target(
+        &self,
+        project: &Project,
+        server_ctx: &ServerContext,
+    ) -> Option<AuthoringTarget> {
+        let region = project.get_region(&server_ctx.curr_region)?;
+        let map = &region.map;
+
+        if let Some(instance_id) = map.selected_entity_item {
+            if region.characters.contains_key(&instance_id) {
+                return Some(AuthoringTarget::Character(
+                    server_ctx.curr_region,
+                    instance_id,
+                ));
+            }
+            if region.items.contains_key(&instance_id) {
+                return Some(AuthoringTarget::Item(server_ctx.curr_region, instance_id));
+            }
+        }
+
+        if let Some(sector_id) = map.selected_sectors.first().copied()
+            && let Some(sector) = map.find_sector(sector_id)
+        {
+            return Some(AuthoringTarget::Sector(
+                server_ctx.curr_region,
+                sector.id,
+                sector.creator_id,
+            ));
+        }
+
+        if let Some(linedef_id) = map.selected_linedefs.first().copied()
+            && let Some(linedef) = map.find_linedef(linedef_id)
+        {
+            return Some(AuthoringTarget::Linedef(
+                server_ctx.curr_region,
+                linedef.id,
+                linedef.creator_id,
+            ));
+        }
+
+        None
+    }
+
+    fn read_target_text(&self, project: &Project, target: AuthoringTarget) -> Option<String> {
+        let region = project.get_region(&target.region_id())?;
+        let text = match target {
+            AuthoringTarget::Sector(_, id, _) => region
+                .map
+                .find_sector(id)
+                .map(|sector| sector.properties.get_str_default("data", "".into())),
+            AuthoringTarget::Linedef(_, id, _) => region
+                .map
+                .find_linedef(id)
+                .map(|linedef| linedef.properties.get_str_default("data", "".into())),
+            AuthoringTarget::Character(_, id) => region
+                .characters
+                .get(&id)
+                .map(|character| character.data.clone()),
+            AuthoringTarget::Item(_, id) => region.items.get(&id).map(|item| item.data.clone()),
+        }?;
+
+        if text.trim().is_empty() {
+            Some(self.template_for_target(target))
+        } else {
+            Some(text)
+        }
+    }
+
+    fn target_display_title(&self, project: &Project, target: AuthoringTarget) -> String {
+        let Some(region) = project.get_region(&target.region_id()) else {
+            return target.title();
+        };
+
+        match target {
+            AuthoringTarget::Sector(_, id, _) => {
+                if let Some(sector) = region.map.find_sector(id)
+                    && !sector.name.trim().is_empty()
+                {
+                    sector.name.clone()
+                } else {
+                    target.title()
+                }
+            }
+            AuthoringTarget::Linedef(_, id, _) => {
+                if let Some(linedef) = region.map.find_linedef(id)
+                    && !linedef.name.trim().is_empty()
+                {
+                    linedef.name.clone()
+                } else {
+                    target.title()
+                }
+            }
+            AuthoringTarget::Character(_, id) => region
+                .characters
+                .get(&id)
+                .map(|character| character.name.clone())
+                .filter(|name| !name.trim().is_empty())
+                .unwrap_or_else(|| target.title()),
+            AuthoringTarget::Item(_, id) => region
+                .items
+                .get(&id)
+                .map(|item| item.name.clone())
+                .filter(|name| !name.trim().is_empty())
+                .unwrap_or_else(|| target.title()),
+        }
+    }
+
+    fn write_current(&self, project: &mut Project, server_ctx: &ServerContext, text: String) {
+        let Some(target) = self.current_target(project, server_ctx) else {
+            return;
+        };
+        let Some(region) = project.get_region_mut(&target.region_id()) else {
+            return;
+        };
+
+        match target {
+            AuthoringTarget::Sector(_, id, _) => {
+                if let Some(sector) = region.map.find_sector_mut(id) {
+                    sector.properties.set("data".into(), Value::Str(text));
+                }
+            }
+            AuthoringTarget::Linedef(_, id, _) => {
+                if let Some(linedef) = region.map.find_linedef_mut(id) {
+                    linedef.properties.set("data".into(), Value::Str(text));
+                }
+            }
+            AuthoringTarget::Character(_, id) => {
+                if let Some(character) = region.characters.get_mut(&id) {
+                    character.data = text;
+                }
+            }
+            AuthoringTarget::Item(_, id) => {
+                if let Some(item) = region.items.get_mut(&id) {
+                    item.data = text;
+                }
+            }
+        }
+    }
+
+    fn refresh_from_selection(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &ServerContext,
+    ) {
+        let target = self.current_target(project, server_ctx);
+        let text = target
+            .and_then(|target| self.read_target_text(project, target))
+            .unwrap_or_default();
+        ui.set_widget_value("DockAuthoringEditor", ctx, TheValue::Text(text));
+
+        let title = target
+            .map(|target| {
+                format!(
+                    "{} {}",
+                    fl!("authoring_title_prefix"),
+                    self.target_display_title(project, target)
+                )
+            })
+            .unwrap_or_else(|| fl!("authoring_select_prompt"));
+        ui.set_widget_value("Authoring Dock Title", ctx, TheValue::Text(title));
+
+        self.current_entity = target.map(|target| target.entity_key());
+        self.set_undo_state_to_ui(ctx);
+
+        if let Some(edit) = ui.get_text_area_edit("DockAuthoringEditor") {
+            self.prev_state = Some(edit.get_state());
+        } else {
+            self.prev_state = None;
+        }
+    }
+
+    fn add_undo(&mut self, atom: CodeUndoAtom, ctx: &mut TheContext) {
+        if let Some(entity_key) = self.current_entity {
+            let undo = self
+                .entity_undos
+                .entry(entity_key)
+                .or_insert_with(CodeUndo::new);
+            undo.add(atom);
+            if undo.stack.len() > self.max_undo {
+                undo.stack.remove(0);
+                undo.index -= 1;
+            }
+            self.set_undo_state_to_ui(ctx);
+        }
+    }
+}
+
+impl AuthoringTarget {
+    fn region_id(self) -> Uuid {
+        match self {
+            Self::Sector(region_id, ..)
+            | Self::Linedef(region_id, ..)
+            | Self::Character(region_id, ..)
+            | Self::Item(region_id, ..) => region_id,
+        }
+    }
+}
