@@ -11,3 +11,17 @@ For selected **character instances**, you can rotate facing in 90° steps with:
 
 - **Q**: rotate left
 - **E**: rotate right
+
+## Authoring
+
+With **Authoring** mode enabled, the lower dock shows the Authoring editor instead of the tile picker for selected character and item instances.
+
+Use:
+
+```toml
+title = ""
+description = """
+"""
+```
+
+This is useful for descriptive text, inspect text, and text-adventure style presentation.

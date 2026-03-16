@@ -44,3 +44,11 @@ When the **map view** has focus, you can use the **number keys (1-0)** on your k
 ### Tile Icons
 
 The **icons in the upper-right corner** of the HUD are **tool-specific** and allow you to **assign tiles** to the selected geometry using the **Apply** and **Remove** buttons.
+
+## Authoring Mode
+
+The tool strip also contains an **Authoring** toggle. When enabled, contexts that would normally show the **Tiles** dock show the **Authoring** dock instead.
+
+Authoring mode lets you enter **TOML metadata** for selected sectors, linedefs, entity instances, and item instances.
+
+For the full workflow and metadata format, see [Authoring](../authoring).

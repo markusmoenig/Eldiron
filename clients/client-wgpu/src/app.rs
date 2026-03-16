@@ -119,6 +119,7 @@ impl EldironPlayerApp {
         self.rusterix.clear_say_messages();
         let commands = setup_client(&mut self.rusterix, &mut project);
         self.rusterix.server.process_client_commands(commands);
+        warmup_runtime(&mut self.rusterix, &mut project, 3);
         self.rusterix.client.server_time = project.time;
         self.project = project;
         self.initialized = true;

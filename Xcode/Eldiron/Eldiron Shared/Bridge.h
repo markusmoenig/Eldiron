@@ -62,6 +62,7 @@ void rust_show_settings();
 void rust_show_rules();
 void rust_show_locales();
 void rust_show_audio_fx();
+void rust_show_authoring();
 void rust_show_debug_log();
 void rust_show_console();
 

@@ -22,6 +22,18 @@ Unlike the **Selection Tool**, which can select multiple types of geometry at on
 
 You can **assign tiles** to selected sectors with the [Apply Tile](../actions/#apply-tile) action.
 
+## Authoring
+
+With **Authoring** mode enabled, the lower dock shows the Authoring editor instead of the tile picker for selected sectors. This is where you enter room metadata such as:
+
+```toml
+title = ""
+description = """
+"""
+```
+
+This metadata can be used for room descriptions and text-adventure style presentation.
+
 ## Tips and Tricks
 
 ### 2D

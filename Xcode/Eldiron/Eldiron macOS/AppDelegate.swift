@@ -156,6 +156,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         audioFx.target = self
         showMenu.addItem(audioFx)
 
+        let authoring = NSMenuItem(title: "Authoring", action: #selector(showAuthoringMenu), keyEquivalent: "")
+        authoring.target = self
+        showMenu.addItem(authoring)
+
         let debugLog = NSMenuItem(title: "Debug Log", action: #selector(showDebugLogMenu), keyEquivalent: "")
         debugLog.target = self
         showMenu.addItem(debugLog)
@@ -222,6 +226,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showAudioFxMenu() {
         rust_show_audio_fx()
+    }
+
+    @objc private func showAuthoringMenu() {
+        rust_show_authoring()
     }
 
     @objc private func showDebugLogMenu() {

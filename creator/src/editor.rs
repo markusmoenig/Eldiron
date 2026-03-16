@@ -93,6 +93,8 @@ pub struct Editor {
 
     update_counter: usize,
     last_processed_log_len: usize,
+    pending_game_messages: Vec<rusterix::server::Message>,
+    pending_game_choices: Vec<rusterix::MultipleChoice>,
 
     build_values: ValueContainer,
     window_state: CreatorWindowState,
@@ -447,6 +449,7 @@ impl Editor {
             ProjectContext::ProjectSettings => "docs/configuration/game".to_string(),
             ProjectContext::GameRules | ProjectContext::GameLocales => "docs/rules".to_string(),
             ProjectContext::GameAudioFx => "docs/audio".to_string(),
+            ProjectContext::GameAuthoring => "docs/creator/tools/overview".to_string(),
             ProjectContext::RegionSettings(_) => "docs/building_maps/region_settings".to_string(),
             ProjectContext::CharacterPreviewRigging(_) => "docs/characters_items/rigging".into(),
             ProjectContext::Character(_)
@@ -562,6 +565,11 @@ impl TheTrait for Editor {
                 project.audio_fx = source.to_string();
             }
         }
+        if let Some(bytes) = crate::Embedded::get("toml/authoring.toml") {
+            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                project.authoring = source.to_string();
+            }
+        }
 
         #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
         let (self_update_tx, self_update_rx) = channel();
@@ -611,6 +619,8 @@ impl TheTrait for Editor {
 
             update_counter: 0,
             last_processed_log_len: 0,
+            pending_game_messages: Vec::new(),
+            pending_game_choices: Vec::new(),
 
             build_values: ValueContainer::default(),
             window_state: Self::load_window_state(),
@@ -822,6 +832,10 @@ impl TheTrait for Editor {
             show_menu.add(TheContextMenuItem::new(
                 "Audio FX".to_string(),
                 TheId::named("Show Audio FX"),
+            ));
+            show_menu.add(TheContextMenuItem::new(
+                "Authoring".to_string(),
+                TheId::named("Show Authoring"),
             ));
             show_menu.add(TheContextMenuItem::new(
                 "Debug Log".to_string(),
@@ -1296,6 +1310,24 @@ impl TheTrait for Editor {
                             messages = rusterix.server.get_messages(&r.map.id);
                             says = rusterix.server.get_says(&r.map.id);
                             choices = rusterix.server.get_choices(&r.map.id);
+
+                            if !self.server_ctx.game_mode {
+                                self.pending_game_messages.append(&mut messages);
+                                self.pending_game_choices.append(&mut choices);
+                            } else {
+                                if !self.pending_game_messages.is_empty() {
+                                    let mut pending =
+                                        std::mem::take(&mut self.pending_game_messages);
+                                    pending.append(&mut messages);
+                                    messages = pending;
+                                }
+                                if !self.pending_game_choices.is_empty() {
+                                    let mut pending =
+                                        std::mem::take(&mut self.pending_game_choices);
+                                    pending.append(&mut choices);
+                                    choices = pending;
+                                }
+                            }
                             for cmd in rusterix.server.get_audio_commands(&r.map.id) {
                                 match cmd {
                                     AudioCommand::Play {
@@ -2568,6 +2600,11 @@ impl TheTrait for Editor {
                                     .unwrap()
                                     .server
                                     .process_client_commands(commands);
+                                warmup_runtime(
+                                    &mut RUSTERIX.write().unwrap(),
+                                    &mut self.project,
+                                    3,
+                                );
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
                                     "Server has been started.".to_string(),
@@ -2639,6 +2676,15 @@ impl TheTrait for Editor {
                             &self.project,
                             &mut self.server_ctx,
                             ProjectContext::GameAudioFx,
+                        );
+                        redraw = true;
+                    } else if id.name == "Show Authoring" {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            &self.project,
+                            &mut self.server_ctx,
+                            ProjectContext::GameAuthoring,
                         );
                         redraw = true;
                     } else if id.name == "Show Debug Log" {

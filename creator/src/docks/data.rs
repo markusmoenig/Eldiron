@@ -19,6 +19,7 @@ pub enum EntityKey {
     GameRules,
     GameLocales,
     GameAudioFx,
+    GameAuthoring,
     ScreenWidget(Uuid, Uuid), // (screen_id, widget_id)
 }
 
@@ -196,6 +197,13 @@ impl Dock for DataDock {
                 TheValue::Text(project.audio_fx.clone()),
             );
             self.switch_to_entity(EntityKey::GameAudioFx, ctx);
+        } else if server_ctx.pc.is_game_authoring() {
+            ui.set_widget_value(
+                "DockDataEditor",
+                ctx,
+                TheValue::Text(project.authoring.clone()),
+            );
+            self.switch_to_entity(EntityKey::GameAuthoring, ctx);
         }
 
         self.sync_audio_fx_toolbar(ctx, server_ctx);
@@ -316,6 +324,11 @@ impl Dock for DataDock {
                             let mut rusterix = RUSTERIX.write().unwrap();
                             rusterix.assets.audio_fx_src = project.audio_fx.clone();
                             rusterix.load_audio_assets();
+                        }
+                    } else if server_ctx.pc.is_game_authoring() {
+                        if let Some(code) = value.to_string() {
+                            project.authoring = code;
+                            redraw = true;
                         }
                     }
 
@@ -921,7 +934,10 @@ impl DataDock {
 
         if !matches!(
             entity_key,
-            EntityKey::GameRules | EntityKey::GameLocales | EntityKey::GameAudioFx
+            EntityKey::GameRules
+                | EntityKey::GameLocales
+                | EntityKey::GameAudioFx
+                | EntityKey::GameAuthoring
         ) {
             return;
         }
@@ -941,6 +957,7 @@ impl DataDock {
             EntityKey::GameRules => "Game / Rules",
             EntityKey::GameLocales => "Game / Locales",
             EntityKey::GameAudioFx => "Game / Audio FX",
+            EntityKey::GameAuthoring => "Game / Authoring",
             _ => return,
         };
 
@@ -1284,6 +1301,12 @@ impl DataDock {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
                 project.audio_fx = text;
+            }
+        } else if server_ctx.pc.is_game_authoring() {
+            if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
+                let state = edit.get_state();
+                let text = state.rows.join("\n");
+                project.authoring = text;
             }
         }
 

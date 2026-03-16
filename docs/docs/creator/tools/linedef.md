@@ -44,3 +44,17 @@ In Region map context, **Edit Linedef** includes a **terrain** section for roads
 - `terrain_tile_falloff`: texture fade distance for smoothed roads (default `1.0`).
 
 The target road height is interpolated from the start/end vertex `z` values.
+
+## Authoring
+
+With **Authoring** mode enabled, the lower dock shows the Authoring editor instead of the tile picker for selected linedefs.
+
+Use the same minimal TOML format:
+
+```toml
+title = ""
+description = """
+"""
+```
+
+For linedefs, this is intended for connection or passage descriptions rather than geometric direction names.

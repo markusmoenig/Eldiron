@@ -1,0 +1,64 @@
+[startup]
+# Optional welcome text shown before any room text.
+welcome = ""
+
+# What to show when the game starts in text-style clients:
+# "description" = only the current sector description
+# "room"        = full room summary
+# "none"        = show nothing automatically
+show = "room"
+
+[exits]
+# How exits are shown in text-style clients:
+# "list"     = one exit per line
+# "sentence" = prose like "You see a path to the crossroads to the north."
+style = "list"
+
+[colors]
+# Optional ANSI colors for terminal clients.
+# Examples: "cyan", "yellow", "bright_cyan", "bright_white", "red"
+title = "cyan"
+objects = "white"
+items = "bright_magenta"
+characters = "white"
+corpses = "bright_black"
+
+[[colors.character_rules]]
+when = "ALIGNMENT < 0"
+color = "red"
+
+[[colors.character_rules]]
+when = "ALIGNMENT > 0"
+color = "bright_green"
+
+[colors.message_categories]
+success = "bright_green"
+warning = "bright_yellow"
+severe = "bright_red"
+error = "bright_red"
+system = "cyan"
+multiple_choice = "bright_magenta"
+
+[alias]
+# Terminal command aliases for configured intents.
+attack = ["hit", "kill"]
+
+[combat]
+# Auto-attack mode for text-style clients:
+# "never"     = only attack when explicitly commanded
+# "on_attack" = automatically retaliate against the attacker while the fight continues
+auto_attack = "never"
+
+[sector_messages]
+# Sector descriptions sent to players when entering a sector.
+# mode_* can be "always", "once", "cooldown", or "never".
+mode_2d = "always"
+mode_3d = "always"
+
+# If mode is "cooldown", wait this many in-game minutes before showing
+# the same sector description again.
+cooldown_minutes_2d = 10
+cooldown_minutes_3d = 10
+
+# Whether the starting sector may also show its description automatically.
+show_on_startup = true

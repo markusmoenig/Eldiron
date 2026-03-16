@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::vm::{Program, VMValue};
-use crate::{CollisionWorld, MapMini};
+use crate::{CollisionWorld, MapMini, PlayerCamera};
 use crossbeam_channel::{Receiver, Sender};
 use std::sync::{Arc, OnceLock};
 use theframework::prelude::*;
@@ -75,6 +75,10 @@ pub struct RegionCtx {
 }
 
 impl RegionCtx {
+    fn authoring_table(&self) -> Option<Table> {
+        self.assets.authoring_src.parse::<toml::Table>().ok()
+    }
+
     fn sector_text_metadata(&self, sector: &Sector) -> (String, String) {
         let mut title = sector.name.clone();
         let mut description = String::new();
@@ -112,21 +116,243 @@ impl RegionCtx {
         (title, description)
     }
 
-    fn send_player_sector_description(&self, entity_id: u32, sector: &Sector) {
-        let (_, description) = self.sector_text_metadata(sector);
-        if description.trim().is_empty() {
+    fn sector_show_flags(&self, sector: &Sector) -> (bool, bool) {
+        let mut show_in_2d = true;
+        let mut show_in_3d = true;
+
+        if let Some(Value::Str(data)) = sector.properties.get("data")
+            && let Ok(table) = data.parse::<toml::Table>()
+        {
+            if let Some(value) = table.get("show_in_2d").and_then(toml::Value::as_bool) {
+                show_in_2d = value;
+            }
+            if let Some(value) = table.get("show_in_3d").and_then(toml::Value::as_bool) {
+                show_in_3d = value;
+            }
+
+            for section in ["text_adventure", "text", "ui"] {
+                if let Some(group) = table.get(section).and_then(toml::Value::as_table) {
+                    if let Some(value) = group.get("show_in_2d").and_then(toml::Value::as_bool) {
+                        show_in_2d = value;
+                    }
+                    if let Some(value) = group.get("show_in_3d").and_then(toml::Value::as_bool) {
+                        show_in_3d = value;
+                    }
+                }
+            }
+        }
+
+        (show_in_2d, show_in_3d)
+    }
+
+    fn entity_display_name(&self, entity: &Entity) -> String {
+        entity
+            .attributes
+            .get_str("name")
+            .map(str::to_string)
+            .or_else(|| entity.attributes.get_str("class_name").map(str::to_string))
+            .unwrap_or_else(|| format!("Entity {}", entity.id))
+    }
+
+    fn player_ids_in_sector_name(&self, sector_name: &str) -> Vec<u32> {
+        self.map
+            .entities
+            .iter()
+            .filter(|entity| entity.is_player())
+            .filter(|entity| {
+                entity
+                    .attributes
+                    .get_str("sector")
+                    .map(|name| name == sector_name)
+                    .unwrap_or(false)
+            })
+            .map(|entity| entity.id)
+            .collect()
+    }
+
+    fn send_system_message_to_players(&self, player_ids: &[u32], message: String) {
+        for player_id in player_ids {
+            let msg = RegionMessage::Message(
+                self.region_id,
+                None,
+                None,
+                *player_id,
+                message.clone(),
+                "system".to_string(),
+            );
+            self.from_sender.get().unwrap().send(msg).unwrap();
+        }
+    }
+
+    fn send_npc_sector_change_messages(
+        &self,
+        entity: &Entity,
+        old_sector_name: &str,
+        new_sector_name: &str,
+    ) {
+        if entity.is_player() {
             return;
         }
 
+        let name = self.entity_display_name(entity);
+
+        if !old_sector_name.is_empty() {
+            let players = self.player_ids_in_sector_name(old_sector_name);
+            if !players.is_empty() {
+                self.send_system_message_to_players(&players, format!("{} leaves.", name));
+            }
+        }
+
+        if !new_sector_name.is_empty() {
+            let players = self.player_ids_in_sector_name(new_sector_name);
+            if !players.is_empty() {
+                self.send_system_message_to_players(&players, format!("{} enters.", name));
+            }
+        }
+    }
+
+    fn should_send_player_sector_description(
+        &mut self,
+        entity: &Entity,
+        sector: &Sector,
+        startup: bool,
+    ) -> bool {
+        let (_, description) = self.sector_text_metadata(sector);
+        if description.trim().is_empty() {
+            return false;
+        }
+
+        let is_2d = matches!(
+            entity.attributes.get("player_camera"),
+            Some(Value::PlayerCamera(PlayerCamera::D2)) | None
+        );
+        let (show_in_2d, show_in_3d) = self.sector_show_flags(sector);
+        if (is_2d && !show_in_2d) || (!is_2d && !show_in_3d) {
+            return false;
+        }
+
+        let Some(authoring) = self.authoring_table() else {
+            return true;
+        };
+
+        let sector_messages = authoring
+            .get("sector_messages")
+            .and_then(toml::Value::as_table);
+
+        let show_on_startup = sector_messages
+            .and_then(|t| t.get("show_on_startup"))
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(true);
+        if startup && !show_on_startup {
+            return false;
+        }
+
+        let mode_key = if is_2d { "mode_2d" } else { "mode_3d" };
+        let cooldown_key = if is_2d {
+            "cooldown_minutes_2d"
+        } else {
+            "cooldown_minutes_3d"
+        };
+
+        let mode = sector_messages
+            .and_then(|t| t.get(mode_key))
+            .and_then(toml::Value::as_str)
+            .unwrap_or("always")
+            .trim()
+            .to_ascii_lowercase();
+
+        if mode == "never" {
+            return false;
+        }
+
+        let Some(state) = self.entity_state_data.get_mut(&entity.id) else {
+            return true;
+        };
+
+        let seen_key = format!(
+            "sector_desc_seen_{}_{}",
+            if is_2d { "2d" } else { "3d" },
+            sector.id
+        );
+        let tick_key = format!(
+            "sector_desc_tick_{}_{}",
+            if is_2d { "2d" } else { "3d" },
+            sector.id
+        );
+
+        match mode.as_str() {
+            "once" => !state.get_bool_default(&seen_key, false),
+            "cooldown" => {
+                let minutes = sector_messages
+                    .and_then(|t| t.get(cooldown_key))
+                    .and_then(toml::Value::as_float)
+                    .unwrap_or(10.0)
+                    .max(0.0);
+                let cooldown_ticks = (minutes * self.ticks_per_minute as f64).round() as i64;
+                if cooldown_ticks <= 0 {
+                    true
+                } else {
+                    let last_tick = state.get(&tick_key).and_then(|v| match v {
+                        Value::Int64(v) => Some(*v),
+                        Value::Int(v) => Some(*v as i64),
+                        _ => None,
+                    });
+                    last_tick
+                        .map(|last_tick| self.ticks.saturating_sub(last_tick) >= cooldown_ticks)
+                        .unwrap_or(true)
+                }
+            }
+            _ => true,
+        }
+    }
+
+    fn mark_player_sector_description_shown(
+        &mut self,
+        entity_id: u32,
+        sector: &Sector,
+        is_2d: bool,
+    ) {
+        let state = self.entity_state_data.entry(entity_id).or_default();
+        let seen_key = format!(
+            "sector_desc_seen_{}_{}",
+            if is_2d { "2d" } else { "3d" },
+            sector.id
+        );
+        let tick_key = format!(
+            "sector_desc_tick_{}_{}",
+            if is_2d { "2d" } else { "3d" },
+            sector.id
+        );
+        state.set(&seen_key, Value::Bool(true));
+        state.set(&tick_key, Value::Int64(self.ticks));
+    }
+
+    pub(crate) fn send_player_sector_description(
+        &mut self,
+        entity: &Entity,
+        sector: &Sector,
+        startup: bool,
+    ) {
+        let (_, description) = self.sector_text_metadata(sector);
+        if !self.should_send_player_sector_description(entity, sector, startup) {
+            return;
+        }
+
+        let is_2d = matches!(
+            entity.attributes.get("player_camera"),
+            Some(Value::PlayerCamera(PlayerCamera::D2)) | None
+        );
+
         let msg = RegionMessage::Message(
             self.region_id,
-            Some(entity_id),
+            Some(entity.id),
             None,
-            entity_id,
+            entity.id,
             description,
             "system".to_string(),
         );
         self.from_sender.get().unwrap().send(msg).unwrap();
+        self.mark_player_sector_description_shown(entity.id, sector, is_2d);
     }
 
     fn resolve_item_class_name(&self, requested: &str) -> Option<String> {
@@ -286,13 +512,14 @@ impl RegionCtx {
     /// Check if the player moved to a different sector and if yes send "enter" and "left" events
     pub fn check_player_for_section_change(&mut self, entity: &mut Entity) {
         // Determine, set and notify the entity about the sector it is in.
-        if let Some(sector) = self.map.find_sector_at(entity.get_pos_xz()) {
+        if let Some(sector) = self.map.find_sector_at(entity.get_pos_xz()).cloned() {
             let old_sector_name = entity
                 .attributes
                 .get_str("sector")
                 .map(|s| s.to_string())
                 .unwrap_or_default();
             if sector.name != old_sector_name {
+                self.send_npc_sector_change_messages(entity, &old_sector_name, &sector.name);
                 // Send entered event
                 if !sector.name.is_empty() {
                     self.to_execute_entity.push((
@@ -302,7 +529,8 @@ impl RegionCtx {
                     ));
                 }
                 if entity.is_player() {
-                    self.send_player_sector_description(entity.id, sector);
+                    let snapshot = entity.clone();
+                    self.send_player_sector_description(&snapshot, &sector, false);
                 }
                 // Send left event
                 if !old_sector_name.is_empty() {
@@ -344,15 +572,18 @@ impl RegionCtx {
                 .map(|s| s.to_string())
                 .unwrap_or_default();
             let sector_name = self.map.find_sector_at(pos).map(|s| s.name.clone());
-            let sector_description = self
-                .map
-                .find_sector_at(pos)
-                .map(|sector| self.sector_text_metadata(sector).1);
+            let sector_snapshot = self.map.find_sector_at(pos).cloned();
             let mut entered_player_sector: Option<u32> = None;
+            let entity_snapshot = self.map.entities.get(idx).cloned();
+            let mut npc_transition: Option<(Entity, String, String)> = None;
 
             if let Some(entity) = self.map.entities.get_mut(idx) {
                 if let Some(sector_name) = sector_name {
                     if sector_name != old_sector {
+                        if let Some(snapshot) = entity_snapshot.as_ref() {
+                            npc_transition =
+                                Some((snapshot.clone(), old_sector.clone(), sector_name.clone()));
+                        }
                         let is_player = entity.is_player();
                         if !sector_name.is_empty() {
                             self.to_execute_entity.push((
@@ -385,19 +616,15 @@ impl RegionCtx {
                 }
             }
 
-            if let Some(entity_id) = entered_player_sector
-                && let Some(description) = sector_description
-                && !description.trim().is_empty()
+            if let Some((entity, old_sector_name, new_sector_name)) = npc_transition {
+                self.send_npc_sector_change_messages(&entity, &old_sector_name, &new_sector_name);
+            }
+
+            if entered_player_sector.is_some()
+                && let (Some(entity), Some(sector)) =
+                    (entity_snapshot.as_ref(), sector_snapshot.as_ref())
             {
-                let msg = RegionMessage::Message(
-                    self.region_id,
-                    Some(entity_id),
-                    None,
-                    entity_id,
-                    description,
-                    "system".to_string(),
-                );
-                self.from_sender.get().unwrap().send(msg).unwrap();
+                self.send_player_sector_description(entity, sector, false);
             }
         }
     }

@@ -1170,6 +1170,63 @@ impl RegionInstance {
             if !is_entity_dead(self.id, *id) {
                 // let mut cmd = String::new();
                 with_regionctx(self.id, |ctx| {
+                    if notification == "attack" {
+                        let parse_target_attr = |value: Option<&Value>| -> Option<u32> {
+                            match value {
+                                Some(Value::UInt(id)) => Some(*id),
+                                Some(Value::Int(id)) if *id >= 0 => Some(*id as u32),
+                                Some(Value::Int64(id)) if *id >= 0 => Some(*id as u32),
+                                Some(Value::Str(id)) => id.trim().parse::<u32>().ok(),
+                                _ => None,
+                            }
+                        };
+
+                        let Some(attacker) = ctx.map.entities.iter().find(|e| e.id == *id) else {
+                            return;
+                        };
+                        let target_id = parse_target_attr(attacker.attributes.get("attack_target"))
+                            .or_else(|| parse_target_attr(attacker.attributes.get("target")));
+                        let Some(target_id) = target_id else {
+                            return;
+                        };
+
+                        let Some(target) = ctx.map.entities.iter().find(|e| e.id == target_id)
+                        else {
+                            return;
+                        };
+                        let target_mode =
+                            target.attributes.get_str_default("mode", "active".into());
+                        if target_mode == "dead" {
+                            return;
+                        }
+
+                        let attacker_sector = attacker
+                            .attributes
+                            .get_str("sector")
+                            .map(str::to_string)
+                            .or_else(|| {
+                                ctx.map
+                                    .find_sector_at(attacker.get_pos_xz())
+                                    .map(|s| s.name.clone())
+                            });
+                        let target_sector = target
+                            .attributes
+                            .get_str("sector")
+                            .map(str::to_string)
+                            .or_else(|| {
+                                ctx.map
+                                    .find_sector_at(target.get_pos_xz())
+                                    .map(|s| s.name.clone())
+                            });
+
+                        if attacker_sector.is_some()
+                            && target_sector.is_some()
+                            && attacker_sector != target_sector
+                        {
+                            return;
+                        }
+                    }
+
                     if let Some(class_name) = ctx.entity_classes.get(id) {
                         // cmd = format!("{}.event(\"{}\", \"\")", class_name, notification);
                         ctx.curr_entity_id = *id;
@@ -1703,6 +1760,69 @@ impl RegionInstance {
                     }
                 },
                 CreateEntity(_id, entity) => self.create_entity_instance(entity),
+                ShowStartupSectorDescription(entity_id) => {
+                    with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                        if let Some(entity) =
+                            ctx.map.entities.iter().find(|e| e.id == entity_id).cloned()
+                            && let Some(sector) =
+                                ctx.map.find_sector_at(entity.get_pos_xz()).cloned()
+                        {
+                            ctx.send_player_sector_description(&entity, &sector, true);
+                        }
+                    });
+                }
+                TeleportEntity(entity_id, dest_sector_name, dest_region_name) => {
+                    if dest_region_name.is_empty() {
+                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            let center = {
+                                let map = &ctx.map;
+                                map.sectors
+                                    .iter()
+                                    .find(|s| s.name == *dest_sector_name)
+                                    .and_then(|s| s.center(map))
+                            };
+
+                            if let Some(center) = center {
+                                if let Some(entity) =
+                                    ctx.map.entities.iter_mut().find(|e| e.id == entity_id)
+                                {
+                                    let id = entity.id;
+                                    entity.set_pos_xz(center);
+                                    ctx.check_player_for_section_change_id(id);
+                                }
+                            }
+                        });
+                    } else {
+                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            if let Some(pos) =
+                                ctx.map.entities.iter().position(|e| e.id == entity_id)
+                            {
+                                let removed = ctx.map.entities.remove(pos);
+                                ctx.entity_classes.remove(&removed.id);
+
+                                if let Some(sender) = ctx.from_sender.get() {
+                                    let _ = sender.send(RegionMessage::TransferEntity(
+                                        ctx.region_id,
+                                        removed,
+                                        dest_region_name.clone(),
+                                        dest_sector_name.clone(),
+                                    ));
+                                }
+                            }
+                        });
+                    }
+                }
+                TeleportEntityPos(entity_id, position) => {
+                    with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                        if let Some(entity) =
+                            ctx.map.entities.iter_mut().find(|e| e.id == entity_id)
+                        {
+                            let id = entity.id;
+                            entity.set_pos_xz(position.clone());
+                            ctx.check_player_for_section_change_id(id);
+                        }
+                    });
+                }
                 TransferEntity(_region_id, entity, _dest_region_name, dest_sector_name) => {
                     with_regionctx(self.id, |ctx: &mut RegionCtx| {
                         receive_entity(ctx, entity, dest_sector_name);
@@ -2692,6 +2812,14 @@ impl RegionInstance {
             });
 
             if let Some(state_data) = state_data.get_mut(&todo.0) {
+                let specific_intent_key = if todo.1 == "intent" {
+                    todo.2
+                        .as_string()
+                        .map(|intent| format!("intent: {}", intent.trim().to_ascii_lowercase()))
+                } else {
+                    None
+                };
+
                 // Check if we have already executed this script in this tick
                 if let Some(Value::Int64(tick)) = state_data.get(&todo.1) {
                     if *tick >= ticks {
@@ -2707,6 +2835,15 @@ impl RegionInstance {
                         }
                         continue;
                     }
+                }
+                if let Some(specific_intent_key) = &specific_intent_key
+                    && let Some(Value::Int64(tick)) = state_data.get(specific_intent_key)
+                    && *tick >= ticks
+                {
+                    with_regionctx(self.id, |ctx| {
+                        send_message(ctx, todo.0, "{system.cant_do_that_yet}".into(), "warning");
+                    });
+                    continue;
                 }
                 // Store the tick we executed this in
                 state_data.set(&todo.1, Value::Int64(ticks));
@@ -2796,11 +2933,25 @@ impl RegionInstance {
             });
 
             if let Some(state_data) = state_data.get_mut(&todo.0) {
+                let specific_intent_key = if todo.1 == "intent" {
+                    todo.2
+                        .as_string()
+                        .map(|intent| format!("intent: {}", intent.trim().to_ascii_lowercase()))
+                } else {
+                    None
+                };
+
                 // Check if we have already executed this script in this tick
                 if let Some(Value::Int64(tick)) = state_data.get(&todo.1) {
                     if *tick >= ticks {
                         continue;
                     }
+                }
+                if let Some(specific_intent_key) = &specific_intent_key
+                    && let Some(Value::Int64(tick)) = state_data.get(specific_intent_key)
+                    && *tick >= ticks
+                {
+                    continue;
                 }
                 // Store the tick we executed this in
                 state_data.set(&todo.1, Value::Int64(ticks));
@@ -4006,6 +4157,24 @@ fn send_message(ctx: &RegionCtx, id: u32, message: String, role: &str) {
     ctx.from_sender.get().unwrap().send(msg).unwrap();
 }
 
+fn send_message_from(
+    ctx: &RegionCtx,
+    sender_entity_id: u32,
+    receiver_id: u32,
+    message: String,
+    role: &str,
+) {
+    let msg = RegionMessage::Message(
+        ctx.region_id,
+        Some(sender_entity_id),
+        None,
+        receiver_id,
+        message,
+        role.to_string(),
+    );
+    ctx.from_sender.get().unwrap().send(msg).unwrap();
+}
+
 pub(crate) fn spell_cooldown_key(template: &str) -> String {
     format!("__spell_cd_{}", template.trim().to_ascii_lowercase())
 }
@@ -4444,6 +4613,57 @@ pub(crate) fn apply_damage_direct(
     let attacker_name = ctx.get_entity_name(from_id);
     let defender_name = ctx.get_entity_name(target_id);
 
+    let attr_matches_target_id = |value: &Value, target_id: u32| match value {
+        Value::UInt(id) => *id == target_id,
+        Value::Int(id) => *id >= 0 && *id as u32 == target_id,
+        Value::Int64(id) => *id >= 0 && *id as u32 == target_id,
+        Value::Str(id) => id.trim().parse::<u32>().ok() == Some(target_id),
+        _ => false,
+    };
+
+    let attacker_sector = ctx
+        .map
+        .entities
+        .iter()
+        .find(|e| e.id == from_id)
+        .and_then(|entity| {
+            entity
+                .attributes
+                .get_str("sector")
+                .map(str::to_string)
+                .or_else(|| {
+                    ctx.map
+                        .find_sector_at(entity.get_pos_xz())
+                        .map(|s| s.name.clone())
+                })
+        })
+        .unwrap_or_else(|| "<none>".to_string());
+    let target_sector_before = ctx
+        .map
+        .entities
+        .iter()
+        .find(|e| e.id == target_id)
+        .and_then(|entity| {
+            entity
+                .attributes
+                .get_str("sector")
+                .map(str::to_string)
+                .or_else(|| {
+                    ctx.map
+                        .find_sector_at(entity.get_pos_xz())
+                        .map(|s| s.name.clone())
+                })
+        })
+        .unwrap_or_else(|| "<none>".to_string());
+
+    if from_id != 0
+        && attacker_sector != "<none>"
+        && target_sector_before != "<none>"
+        && attacker_sector != target_sector_before
+    {
+        return false;
+    }
+
     if let Some(entity) = ctx.map.entities.iter_mut().find(|e| e.id == target_id)
         && let Some(mut health) = entity.attributes.get_int(&health_attr)
     {
@@ -4460,6 +4680,78 @@ pub(crate) fn apply_damage_direct(
             ctx.entity_proximity_alerts.remove(&target_id);
             should_autodrop = entity.attributes.get_bool_default("autodrop", false);
             kill = true;
+        }
+    }
+
+    if kill {
+        ctx.to_execute_entity.retain(|(id, event, payload)| {
+            if *id != target_id {
+                return true;
+            }
+            if event == "take_damage" {
+                return false;
+            }
+            // Drop any already-queued direct damage payloads still targeting the dead entity.
+            if event == "__apply_damage" {
+                return false;
+            }
+            // Guard against stale queued broadcasts encoding the dead entity as a target.
+            if payload.x.max(0.0) as u32 == target_id && event == "take_damage" {
+                return false;
+            }
+            true
+        });
+
+        for entity in &mut ctx.map.entities {
+            let target_matches = entity
+                .attributes
+                .get("target")
+                .map(|value| attr_matches_target_id(value, target_id))
+                .unwrap_or(false);
+            if target_matches {
+                entity.set_attribute("target", Value::Str(String::new()));
+                ctx.notifications_entities
+                    .retain(|(id, _, event)| *id != entity.id || event != "attack");
+            }
+
+            let attack_target_matches = entity
+                .attributes
+                .get("attack_target")
+                .map(|value| attr_matches_target_id(value, target_id))
+                .unwrap_or(false);
+            if attack_target_matches {
+                entity.set_attribute("attack_target", Value::Str(String::new()));
+                ctx.notifications_entities
+                    .retain(|(id, _, event)| *id != entity.id || event != "attack");
+            }
+        }
+
+        for item in &mut ctx.map.items {
+            let target_matches = item
+                .attributes
+                .get("target")
+                .map(|value| attr_matches_target_id(value, target_id))
+                .unwrap_or(false);
+            if target_matches {
+                item.set_attribute("target", Value::Str(String::new()));
+                ctx.notifications_items
+                    .retain(|(id, _, event)| *id != item.id || event != "attack");
+            }
+
+            let attack_target_matches = item
+                .attributes
+                .get("attack_target")
+                .map(|value| attr_matches_target_id(value, target_id))
+                .unwrap_or(false);
+            if attack_target_matches {
+                item.set_attribute("attack_target", Value::Str(String::new()));
+                ctx.notifications_items
+                    .retain(|(id, _, event)| *id != item.id || event != "attack");
+            }
+        }
+
+        if let Some(state) = ctx.entity_state_data.get_mut(&target_id) {
+            state.remove("__under_attack_by");
         }
     }
 
@@ -5017,7 +5309,7 @@ fn send_damage_rule_audio_with_source(
 }
 
 fn send_damage_rule_messages(
-    ctx: &RegionCtx,
+    ctx: &mut RegionCtx,
     from_id: u32,
     target_id: u32,
     amount: i32,
@@ -5040,7 +5332,37 @@ fn send_damage_rule_messages(
             target_id,
         );
         if !message.trim().is_empty() {
-            send_message(ctx, target_id, message, &category);
+            send_message_from(ctx, from_id, target_id, message, &category);
+        }
+
+        let under_attack_key = "__under_attack_by";
+        let previous_attacker = ctx
+            .entity_state_data
+            .get(&target_id)
+            .and_then(|state| state.get(under_attack_key))
+            .and_then(|value| match value {
+                Value::UInt(v) => Some(*v),
+                Value::Int(v) => Some(*v as u32),
+                Value::Int64(v) => Some(*v as u32),
+                _ => None,
+            });
+        let target_still_alive = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == target_id)
+            .map(|entity| entity.get_attr_string("mode").unwrap_or_default() != "dead")
+            .unwrap_or(false);
+        if target_still_alive && previous_attacker != Some(from_id) {
+            let state = ctx.entity_state_data.entry(target_id).or_default();
+            state.set(under_attack_key, Value::UInt(from_id));
+            send_message_from(
+                ctx,
+                from_id,
+                target_id,
+                format!("You are under attack by {}!", attacker_name),
+                "warning",
+            );
         }
     }
 
@@ -5058,7 +5380,7 @@ fn send_damage_rule_messages(
             target_id,
         );
         if !message.trim().is_empty() {
-            send_message(ctx, from_id, message, &category);
+            send_message_from(ctx, from_id, from_id, message, &category);
         }
     }
 

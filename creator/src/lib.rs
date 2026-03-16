@@ -368,6 +368,14 @@ mod ffi {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn rust_show_authoring() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Show Authoring"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn rust_show_debug_log() {
         CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
             TheId::named("Show Debug Log"),

@@ -25,6 +25,10 @@ fn default_audio_fx() -> String {
     String::new()
 }
 
+fn default_authoring() -> String {
+    String::new()
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Project {
     pub name: String,
@@ -70,6 +74,9 @@ pub struct Project {
     #[serde(default = "default_audio_fx")]
     pub audio_fx: String,
 
+    #[serde(default = "default_authoring")]
+    pub authoring: String,
+
     #[serde(default)]
     pub avatars: IndexMap<Uuid, Avatar>,
 }
@@ -111,6 +118,7 @@ impl Project {
             rules: default_rules(),
             locales: default_locales(),
             audio_fx: default_audio_fx(),
+            authoring: default_authoring(),
         }
     }
 

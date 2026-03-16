@@ -5,6 +5,13 @@ sidebar_position: 1
 
 You can configure **Eldiron** by selecting the **Game -> Settings** item in the **project tree**.
 
+Other game-level TOML documents are edited separately:
+
+- **Game -> Authoring**: [Authoring Configuration](./authoring)
+- **Game -> Rules**: [Rules](../rules)
+- **Game -> Locales**: [Localization](../localization)
+- **Game -> Audio FX**: [Audio](../audio)
+
 ---
 
 ## Game Configuration

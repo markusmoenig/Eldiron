@@ -170,6 +170,7 @@ pub enum ProjectContext {
     GameRules,
     GameLocales,
     GameAudioFx,
+    GameAuthoring,
     DebugLog,
     Console,
 }
@@ -182,6 +183,7 @@ impl ProjectContext {
             | ProjectContext::GameRules
             | ProjectContext::GameLocales
             | ProjectContext::GameAudioFx
+            | ProjectContext::GameAuthoring
             | ProjectContext::DebugLog
             | ProjectContext::Console => None,
             ProjectContext::Region(id)
@@ -303,6 +305,13 @@ impl ProjectContext {
     pub fn is_game_audio_fx(&self) -> bool {
         match self {
             ProjectContext::GameAudioFx => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_game_authoring(&self) -> bool {
+        match self {
+            ProjectContext::GameAuthoring => true,
             _ => false,
         }
     }

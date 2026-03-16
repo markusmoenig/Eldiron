@@ -11,6 +11,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.assets.rules = project.rules.clone();
     rusterix.assets.locales_src = project.locales.clone();
     rusterix.assets.audio_fx_src = project.audio_fx.clone();
+    rusterix.assets.authoring_src = project.authoring.clone();
     rusterix.assets.read_locales();
 
     // Characters
@@ -109,12 +110,33 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.scene_handler.mark_dynamics_dirty();
 }
 
+/// Let freshly queued startup work settle after client commands create the local player.
+pub fn warmup_runtime(rusterix: &mut Rusterix, project: &mut Project, ticks: usize) {
+    for _ in 0..ticks {
+        rusterix.server.system_tick();
+        rusterix.server.redraw_tick();
+
+        if let Some(new_region_name) = rusterix.update_server() {
+            rusterix.client.current_map = new_region_name;
+        }
+
+        for region in &mut project.regions {
+            rusterix.server.apply_entities_items(&mut region.map);
+            if let Some(time) = rusterix.server.get_time(&region.map.id) {
+                rusterix.client.set_server_time(time);
+                project.time = time;
+            }
+        }
+    }
+}
+
 /// Setup the client
 pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Command> {
     rusterix.assets.config = project.config.clone();
     rusterix.assets.rules = project.rules.clone();
     rusterix.assets.locales_src = project.locales.clone();
     rusterix.assets.audio_fx_src = project.audio_fx.clone();
+    rusterix.assets.authoring_src = project.authoring.clone();
     rusterix.assets.read_locales();
     rusterix.assets.palette = project.palette.clone();
     rusterix.assets.maps.clear();

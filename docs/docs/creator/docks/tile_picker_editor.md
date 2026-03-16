@@ -7,6 +7,8 @@ sidebar_position: 3
 
 The tile picker dock is open when working on maps, like regional maps or screens. The currently selected tile is used for example for the [Apply Tile](/docs/creator/actions/#apply-tile) sector based action and the [Rect](/docs/creator/tools/rect) tool.
 
+If **Authoring** mode is enabled in the tool strip, the tile picker is replaced by the **Authoring** dock for tile-backed map contexts. This lets you edit narrative metadata instead of tiles.
+
 The [Edit / Maximize](/docs/creator/actions/#edit--maximize) action opens the integrated tile editor where you can directly edit the tile.
  
 Changes to the tile are instantly reflected on the map. Undo / redo are tile based. Each tile has its own undo stack.
@@ -34,3 +36,17 @@ The editor currently has three core tools:
 - `Space`: Toggle animated preview.
 
 Paste preview and direct drawing are separate modes. While paste preview is active, place/apply/cancel the preview first, then continue painting.
+
+## Authoring Dock
+
+The Authoring dock is used to enter TOML metadata for selected sectors, linedefs, entities, and items.
+
+The current base template is:
+
+```toml
+title = ""
+description = """
+"""
+```
+
+`title` is a short label, while `description` is intended for longer room, connection, item, or character text.

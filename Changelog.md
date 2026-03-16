@@ -17,11 +17,20 @@
 - Added config-aware `PLAYER.LEVEL`, `PLAYER.EXP`, and `PLAYER.EXPERIENCE` support for text widgets and localized text.
 - Added tab-stop support for text widgets via `\\t` and `tab_width`, making aligned HUD/status layouts easier to build.
 - Added a persistent Authoring mode and dock for entering room, connection, entity, and item metadata as TOML, including starter templates and undo / redo support.
+- Added **Game / Authoring** for global startup text, exit presentation, terminal behavior, and text-style color configuration.
 
 ### Documentation
 
 - Expanded the Rules docs with progression, leveling flow, automatic kill XP, and progression message examples.
 - Updated command, event, widget, and localization docs to cover `attack()`, `gain_xp()`, `level_up`, XP/level placeholders, and text-widget tab alignment.
+- Added new documentation pages for **Features**, **Eldiron Architecture**, and **Authoring**, plus a stronger top-level **Getting Started** guide.
+
+### Text-Style Play
+
+- Added a first text-style terminal client that can load and play `.eldiron` projects without graphical assets.
+- Added authored room titles, descriptions, exits, entities, items, and corpse presentation to the terminal client.
+- Added terminal command aliases, realtime ticking, text exit navigation, and configured player-intent commands like `attack orc`.
+- Added terminal presentation controls through **Game / Authoring**, including exit styles, message colors, character color rules, and auto-attack behavior.
 
 ---
 

@@ -26,6 +26,8 @@ pub enum RegionMessage {
     /// Register a local player (which receives user based events).
     /// RegionInstanceId, PlayerId
     RegisterPlayer(u32, u32),
+    /// Request the current sector description for a player after registration/startup.
+    ShowStartupSectorDescription(u32),
     /// An event
     Event(u32, String, Value),
     /// A user event
@@ -34,6 +36,10 @@ pub enum RegionMessage {
     CreateEntity(u32, Entity),
     /// A user action
     UserAction(u32, EntityAction),
+    /// Instantly move an entity to a sector, optionally in another region.
+    TeleportEntity(u32, String, String),
+    /// Instantly move an entity to a position in the current region.
+    TeleportEntityPos(u32, Vec2<f32>),
     /// Entity updates for a given region instance
     EntitiesUpdate(u32, Vec<Vec<u8>>),
     /// Item updates for a given region instance

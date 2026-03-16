@@ -67,6 +67,7 @@ pub struct Server {
 
     pub log: String,
     pub log_changed: bool,
+    pub print_log_messages: bool,
 
     pub instances: Vec<Arc<Mutex<RegionInstance>>>,
 }
@@ -102,6 +103,7 @@ impl Server {
 
             log: String::new(),
             log_changed: true,
+            print_log_messages: true,
 
             instances: vec![],
         }
@@ -302,8 +304,13 @@ impl Server {
                 match message {
                     RegionMessage::RegisterPlayer(region_id, entity_id) => {
                         if let Ok(mut players) = LOCAL_PLAYERS.write() {
-                            println!("Registering player: {} {}", region_id, entity_id);
                             players.push((region_id, entity_id));
+                        }
+                        if let Ok(pipe) = REGIONPIPE.read()
+                            && let Some(sender) = pipe.get(&region_id)
+                        {
+                            let _ =
+                                sender.send(RegionMessage::ShowStartupSectorDescription(entity_id));
                         }
                     }
                     RegionMessage::EntitiesUpdate(id, serialized_updates) => {
@@ -340,7 +347,9 @@ impl Server {
                         }
                     }
                     RegionMessage::LogMessage(message) => {
-                        println!("{}", message);
+                        if self.print_log_messages {
+                            println!("{}", message);
+                        }
                         if self.log.is_empty() {
                             self.log = message;
                         } else {
@@ -565,6 +574,46 @@ impl Server {
                 for (region_id, entity_id) in local_players.iter() {
                     if let Some(sender) = pipe.get(region_id) {
                         match sender.send(RegionMessage::UserAction(*entity_id, action.clone())) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                println!("{:?}", err.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Instantly move all registered local players to a sector, optionally in another region.
+    pub fn local_player_teleport(&mut self, sector_name: String, region_name: String) {
+        if let Ok(local_players) = LOCAL_PLAYERS.read() {
+            if let Ok(pipe) = REGIONPIPE.read() {
+                for (region_id, entity_id) in local_players.iter() {
+                    if let Some(sender) = pipe.get(region_id) {
+                        match sender.send(RegionMessage::TeleportEntity(
+                            *entity_id,
+                            sector_name.clone(),
+                            region_name.clone(),
+                        )) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                println!("{:?}", err.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Instantly move all registered local players to a position in their current region.
+    pub fn local_player_teleport_pos(&mut self, position: Vec2<f32>) {
+        if let Ok(local_players) = LOCAL_PLAYERS.read() {
+            if let Ok(pipe) = REGIONPIPE.read() {
+                for (region_id, entity_id) in local_players.iter() {
+                    if let Some(sender) = pipe.get(region_id) {
+                        match sender.send(RegionMessage::TeleportEntityPos(*entity_id, position)) {
                             Ok(_) => {}
                             Err(err) => {
                                 println!("{:?}", err.to_string());

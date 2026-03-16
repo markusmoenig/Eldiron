@@ -493,7 +493,9 @@ impl<'a> RegionHost<'a> {
         let Some(target_id) = self.get_current_target_id() else {
             return false;
         };
-        self.ctx.map.entities.iter().any(|e| e.id == target_id)
+        self.ctx.map.entities.iter().any(|e| {
+            e.id == target_id && e.attributes.get_str_default("mode", "active".into()) != "dead"
+        })
     }
 
     fn parse_spell_target_arg(arg: &VMValue) -> Option<SpellTargetArg> {
