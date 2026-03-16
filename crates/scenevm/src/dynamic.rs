@@ -1,7 +1,7 @@
 use uuid::Uuid;
 use vek::{Vec2, Vec3};
 
-use crate::vm::GeoId;
+use crate::GeoId;
 
 /// Types of dynamic objects that can be injected per-frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -3,23 +3,29 @@
 
 pub mod audio;
 pub mod avatar;
+#[cfg(feature = "graphics")]
 pub mod avatar_builder;
 pub mod batch;
 pub mod camera;
 pub mod chunk;
 pub mod chunkbuilder;
+#[cfg(feature = "graphics")]
 pub mod client;
 pub mod collision_world;
+pub mod command;
 pub mod edge;
 pub mod intodata;
 pub mod map;
 pub mod material_profile;
 pub mod rasterizer;
 pub mod rect;
+#[cfg(feature = "graphics")]
 pub mod render_settings;
 pub mod rendermode;
+#[cfg(feature = "graphics")]
 pub mod rusterix;
 pub mod scene;
+#[cfg(feature = "graphics")]
 pub mod scene_handler;
 pub mod scenebuilder;
 pub mod scenemanager;
@@ -101,6 +107,21 @@ pub const BLACK: Pixel = [0, 0, 0, 255];
 pub const WHITE: Pixel = [255, 255, 255, 255];
 
 // Re-exports
+#[cfg(feature = "graphics")]
+pub use crate::client::{
+    Client,
+    daylight::Daylight,
+    parser::{MsgParser, Tok},
+};
+pub use crate::command::Command;
+#[cfg(feature = "graphics")]
+pub use crate::render_settings::RenderSettings;
+#[cfg(feature = "graphics")]
+pub use crate::rusterix::Rusterix;
+#[cfg(feature = "graphics")]
+pub use crate::scene_handler::SceneHandler;
+#[cfg(feature = "graphics")]
+pub use crate::scenebuilder::{d2preview::D2PreviewBuilder, d3builder::D3Builder};
 pub use crate::{
     audio::{AudioConfig, AudioEngine, AudioError, OutputInfo, SineVoiceId},
     avatar::{
@@ -112,12 +133,6 @@ pub use crate::{
     camera::{D3Camera, d3firstp::D3FirstPCamera, d3iso::D3IsoCamera, d3orbit::D3OrbitCamera},
     chunk::{BillboardMetadata, Chunk},
     chunkbuilder::{ChunkBuilder, d2chunkbuilder::D2ChunkBuilder, d3chunkbuilder::D3ChunkBuilder},
-    client::{
-        Client,
-        command::Command,
-        daylight::Daylight,
-        parser::{MsgParser, Tok},
-    },
     collision_world::CollisionWorld,
     edge::Edges,
     intodata::IntoDataInput,
@@ -143,14 +158,9 @@ pub use crate::{
     material_profile::MaterialProfile,
     rasterizer::{BrushPreview, Rasterizer},
     rect::Rect,
-    render_settings::RenderSettings,
     rendermode::RenderMode,
-    rusterix::Rusterix,
     scene::Scene,
-    scene_handler::SceneHandler,
-    scenebuilder::{
-        d2builder::D2Builder, d2material::D2MaterialBuilder, d2preview::D2PreviewBuilder,
-    },
+    scenebuilder::{d2builder::D2Builder, d2material::D2MaterialBuilder},
     scenemanager::*,
     // script::mapscript::MapScript,
     server::{
@@ -189,6 +199,7 @@ pub use crate::{
 // Prelude
 pub mod prelude {
     pub use crate::Chunk;
+    #[cfg(feature = "graphics")]
     pub use crate::Client;
     pub use crate::IntoDataInput;
     pub use crate::audio::{AudioConfig, AudioEngine, AudioError, OutputInfo, SineVoiceId};
@@ -200,16 +211,17 @@ pub mod prelude {
     // pub use crate::MapScript;
     pub use crate::Rasterizer;
     pub use crate::RenderMode;
-    pub use crate::scenebuilder::{
-        d2builder::D2Builder, d2material::D2MaterialBuilder, d2preview::D2PreviewBuilder,
-        d3builder::D3Builder,
-    };
+    pub use crate::scenebuilder::{d2builder::D2Builder, d2material::D2MaterialBuilder};
+    #[cfg(feature = "graphics")]
+    pub use crate::scenebuilder::{d2preview::D2PreviewBuilder, d3builder::D3Builder};
     pub use crate::{
         Assets, Choice, Currencies, Currency, Entity, EntityUpdate, Item, ItemUpdate,
         MultipleChoice, RegionInstance, RegionMessage, Server, Wallet,
     };
     pub use crate::{BLACK, Pixel, TRANSPARENT, WHITE};
     pub use crate::{Batch2D, Batch3D, CullMode, GeometrySource, PrimitiveMode};
+    #[cfg(feature = "graphics")]
+    pub use crate::{Command, Daylight, MsgParser, Tok};
     pub use crate::{D3Camera, D3FirstPCamera, D3IsoCamera, D3OrbitCamera};
     pub use crate::{GridShader, Shader, VGrayGradientShader};
     pub use crate::{
@@ -220,6 +232,8 @@ pub mod prelude {
     pub use crate::{
         Rect, Scene, SceneManager, SceneManagerCmd, SceneManagerResult, Value, ValueContainer,
     };
+    #[cfg(feature = "graphics")]
+    pub use crate::{RenderSettings, Rusterix, SceneHandler};
     pub use crate::{RepeatMode, SampleMode, Texture};
     pub use crate::{pixel_to_vec4, vec4_to_pixel};
     pub use codegridfx::{DebugGrid, DebugModule};

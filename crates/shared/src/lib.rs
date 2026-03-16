@@ -5,6 +5,7 @@ pub mod interaction;
 pub mod item;
 pub mod project;
 pub mod region;
+#[cfg(feature = "graphics")]
 pub mod rusterix_utils;
 pub mod screen;
 pub mod tilemap;

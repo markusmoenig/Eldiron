@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		DD219B832975298400E978F5 /* librustapi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B7529741C3900E978F5 /* librustapi.a */; };
+		DD219B832975298400E978F5 /* libeldiron_creator.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B7229741B3800E978F5 /* libeldiron_creator.a */; };
 		DD219B8529752AE300E978F5 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B8429752AE300E978F5 /* AudioToolbox.framework */; };
 		DD219B8729752B1100E978F5 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD219B8629752B1100E978F5 /* CoreAudio.framework */; };
 		DD219B89297672ED00E978F5 /* Keycodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD219B88297672ED00E978F5 /* Keycodes.swift */; };
@@ -64,7 +64,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		DD219B7229741B3800E978F5 /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librustapi.a; path = ../../target/release/librustapi.a; sourceTree = "<group>"; };
+		DD219B7229741B3800E978F5 /* libeldiron_creator.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libeldiron_creator.a; path = ../../target/release/libeldiron_creator.a; sourceTree = "<group>"; };
 		DD219B7429741BF800E978F5 /* librustapi.d */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.dtrace; name = librustapi.d; path = ../../target/release/librustapi.d; sourceTree = "<group>"; };
 		DD219B7529741C3900E978F5 /* librustapi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = librustapi.a; sourceTree = "<group>"; };
 		DD219B8429752AE300E978F5 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
@@ -140,7 +140,7 @@
 			files = (
 				DD219B8729752B1100E978F5 /* CoreAudio.framework in Frameworks */,
 				DDFD01872D69925400CEFB70 /* libz.tbd in Frameworks */,
-				DD219B832975298400E978F5 /* librustapi.a in Frameworks */,
+				DD219B832975298400E978F5 /* libeldiron_creator.a in Frameworks */,
 				DD8FB2B52BD396C7008D2A3C /* SystemConfiguration.framework in Frameworks */,
 				DDB240202CF5A8E600425D2F /* Carbon.framework in Frameworks */,
 				DD219B8529752AE300E978F5 /* AudioToolbox.framework in Frameworks */,
@@ -241,7 +241,7 @@
 				DD219B8429752AE300E978F5 /* AudioToolbox.framework */,
 				DD219B7529741C3900E978F5 /* librustapi.a */,
 				DD219B7429741BF800E978F5 /* librustapi.d */,
-				DD219B7229741B3800E978F5 /* librustapi.a */,
+				DD219B7229741B3800E978F5 /* libeldiron_creator.a */,
 				DDAB9559290F6AC900B79AB8 /* librustapiios.a */,
 				DDAB955B290F6B6D00B79AB8 /* librustapiios.a */,
 				DD976AA2290E6802007131BA /* librustapi.a */,
@@ -770,9 +770,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/rust-api/target/release",
-					"$(PROJECT_DIR)/rustapi/libs",
-					"$(PROJECT_DIR)",
+					"$(PROJECT_DIR)/../../target/release",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
 				MARKETING_VERSION = 0.9.1;
@@ -812,9 +810,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/rust-api/target/release",
-					"$(PROJECT_DIR)/rustapi/libs",
-					"$(PROJECT_DIR)",
+					"$(PROJECT_DIR)/../../target/release",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.3;
 				MARKETING_VERSION = 0.9.1;

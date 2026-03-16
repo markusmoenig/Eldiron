@@ -11,8 +11,8 @@ keywords = ["gpu", "rendering", "wgpu", "game", "engine"]
 readme = "README.md"
 
 [dependencies]
-wgpu = "27.0.1"
-pollster = "0.4"
+wgpu = { version = "27.0.1", optional = true }
+pollster = { version = "0.4", optional = true }
 uuid = { version = "1.18.1", features = ["v4", "rng-getrandom"] }
 rustc-hash = "2.1.1"
 vek = { version = "0.17.1", default-features = true }
@@ -56,10 +56,11 @@ web-sys = { version = "0.3", features = [
 getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [features]
+gpu = ["dep:wgpu", "dep:pollster"]
 ui = ["fontdue"]
 windowing = ["winit"]
 
-default = ["windowing"]
+default = ["gpu", "windowing"]
 
 [lib]
 crate-type = ["rlib", "staticlib"]

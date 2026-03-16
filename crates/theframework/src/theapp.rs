@@ -1,5 +1,3 @@
-use crate::prelude::*;
-
 /// TheApp class handles running an application on the current backend.
 pub struct TheApp {
     pub args: Option<Vec<String>>,
@@ -27,6 +25,9 @@ impl TheApp {
         setup_logger();
 
         #[cfg(feature = "winit_app")]
-        run_winit_app(self.args, app);
+        crate::thewinitapp::run_winit_app(self.args, app);
+
+        #[cfg(not(feature = "winit_app"))]
+        let _ = app;
     }
 }

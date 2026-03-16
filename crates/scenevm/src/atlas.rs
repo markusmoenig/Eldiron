@@ -1,4 +1,6 @@
-use crate::{Texture, texture::TextureGPU};
+use crate::Texture;
+#[cfg(feature = "gpu")]
+use crate::texture::TextureGPU;
 use rustc_hash::FxHashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -260,6 +262,7 @@ impl SharedAtlas {
         guard.atlas_material.copy_to_slice(dst, buf_w, buf_h);
     }
 
+    #[cfg(feature = "gpu")]
     pub fn upload_to_gpu_with(&self, device: &wgpu::Device, queue: &wgpu::Queue) {
         let mut guard = self.inner.lock().unwrap();
         if guard.atlas_dirty {
@@ -269,12 +272,14 @@ impl SharedAtlas {
         }
     }
 
+    #[cfg(feature = "gpu")]
     pub fn download_from_gpu_with(&self, device: &wgpu::Device, queue: &wgpu::Queue) {
         let mut guard = self.inner.lock().unwrap();
         guard.atlas.download_from_gpu_with(device, queue);
         guard.atlas_material.download_from_gpu_with(device, queue);
     }
 
+    #[cfg(feature = "gpu")]
     pub fn with_views<R>(&self, f: impl FnOnce(&TextureGPU, &TextureGPU) -> R) -> Option<R> {
         let guard = self.inner.lock().unwrap();
         let a = guard.atlas.gpu.as_ref()?;
@@ -282,6 +287,7 @@ impl SharedAtlas {
         Some(f(a, mat))
     }
 
+    #[cfg(feature = "gpu")]
     pub fn texture_views(&self) -> Option<(wgpu::TextureView, wgpu::TextureView)> {
         self.with_views(|a, m| {
             // Sample views must include all mip levels so trilinear/mip filtering can work.

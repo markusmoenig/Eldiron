@@ -86,6 +86,7 @@ pub mod prelude {
 }
 
 // --- FFI exports for the Xcode static library build ---
+// Build with: cargo build -p eldiron-creator --lib --release --no-default-features --features staticlib
 
 #[cfg(feature = "staticlib")]
 mod ffi {

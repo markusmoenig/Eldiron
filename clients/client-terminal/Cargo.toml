@@ -1,0 +1,21 @@
+[package]
+name = "eldiron-client-terminal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "A terminal player client for games created with Eldiron."
+keywords = ["game", "rpg", "client", "terminal", "eldiron"]
+
+[[bin]]
+name = "eldiron-client-terminal"
+path = "src/main.rs"
+
+[dependencies]
+rusterix = { path = "../../crates/rusterix", version = "0.9.1", default-features = false }
+shared = { path = "../../crates/shared", version = "0.9.1", package = "eldiron-shared", default-features = false }
+serde_json = "1.0"
+toml = "0.9.5"
+uuid = { version = "1.18", features = ["v4"] }

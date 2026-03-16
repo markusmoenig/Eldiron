@@ -1,11 +1,13 @@
 // pub mod app;
 #[cfg(feature = "ui")]
 pub mod app_event;
+#[cfg(feature = "gpu")]
 pub mod app_trait;
 pub mod atlas;
 pub mod bbox2d;
 pub mod camera3d;
 pub mod chunk;
+pub mod core;
 pub mod dynamic;
 pub mod intodata;
 pub mod light;
@@ -16,6 +18,7 @@ pub mod poly3d;
 pub mod texture;
 #[cfg(feature = "ui")]
 pub mod ui;
+#[cfg(feature = "gpu")]
 pub mod vm;
 
 /// Error types for SceneVM operations
@@ -32,6 +35,7 @@ pub enum SceneVMError {
 
 pub type SceneVMResult<T> = Result<T, SceneVMError>;
 
+#[cfg(feature = "gpu")]
 use instant::Instant;
 use rust_embed::RustEmbed;
 // Embedded shader/assets payload used at runtime by SceneVM.
@@ -45,22 +49,27 @@ pub mod prelude {
     //! Prelude module with commonly used types for SceneVM applications
 
     pub use crate::{
-        Embedded, SceneVM, SceneVMError, SceneVMResult,
-        app_trait::{SceneVMApp, SceneVMRenderCtx},
+        Embedded, SceneVMError, SceneVMResult,
         atlas::{AtlasEntry, SharedAtlas},
         bbox2d::BBox2D,
         camera3d::{Camera3D, CameraKind},
         chunk::Chunk,
+        core::{Atom, GeoId, LayerBlendMode, LineStrip2D, RenderMode, VMDebugStats},
         dynamic::{AlphaMode, DynamicKind, DynamicObject, RepeatMode},
         intodata::IntoDataInput,
         light::{Light, LightType},
         poly2d::Poly2D,
         poly3d::Poly3D,
         texture::Texture,
-        vm::{Atom, GeoId, LayerBlendMode, LineStrip2D, RenderMode, VM},
     };
 
-    #[cfg(feature = "ui")]
+    #[cfg(feature = "gpu")]
+    pub use crate::vm::VM;
+
+    #[cfg(feature = "gpu")]
+    pub use crate::app_trait::{SceneVMApp, SceneVMRenderCtx};
+
+    #[cfg(all(feature = "ui", feature = "gpu"))]
     pub use crate::{
         RenderResult,
         app_event::{AppEvent, AppEventQueue},
@@ -81,6 +90,8 @@ pub mod prelude {
     pub use vek::{Mat3, Mat4, Vec2, Vec3, Vec4};
 }
 
+#[cfg(feature = "gpu")]
+pub use crate::app_trait::{SceneVMApp, SceneVMRenderCtx};
 #[cfg(feature = "ui")]
 pub use crate::ui::{
     Alignment, Button, ButtonGroup, ButtonGroupStyle, ButtonKind, ButtonStyle, Canvas, Drawable,
@@ -89,27 +100,30 @@ pub use crate::ui::{
     ToolbarStyle, UiAction, UiEvent, UiEventKind, UiRenderer, UiView, UndoCommand, UndoStack,
     VAlign, VStack, ViewContext, Workspace,
 };
+#[cfg(feature = "gpu")]
+pub use crate::vm::VM;
 pub use crate::{
-    app_trait::{SceneVMApp, SceneVMRenderCtx},
     atlas::{AtlasEntry, SharedAtlas},
     bbox2d::BBox2D,
     camera3d::{Camera3D, CameraKind},
     chunk::Chunk,
+    core::{Atom, GeoId, LayerBlendMode, LineStrip2D, RenderMode, VMDebugStats},
     dynamic::{AlphaMode, DynamicKind, DynamicObject, RepeatMode},
     intodata::IntoDataInput,
     light::{Light, LightType},
     poly2d::Poly2D,
     poly3d::Poly3D,
     texture::Texture,
-    vm::{Atom, GeoId, LayerBlendMode, LineStrip2D, RenderMode, VM},
 };
+#[cfg(feature = "gpu")]
 use image;
+#[cfg(feature = "gpu")]
 use std::borrow::Cow;
 #[cfg(target_arch = "wasm32")]
 use std::cell::RefCell;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "gpu"))]
 use std::ffi::c_void;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "gpu"))]
 use std::sync::OnceLock;
 #[cfg(target_arch = "wasm32")]
 use std::{cell::Cell, future::Future, rc::Rc};
@@ -133,6 +147,7 @@ use winit::window::Window;
 #[cfg(all(feature = "windowing", not(target_arch = "wasm32")))]
 use winit::{dpi::PhysicalPosition, event::ElementState, event::MouseButton, event::WindowEvent};
 
+#[cfg(feature = "gpu")]
 /// Result of a call to `render_frame`.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum RenderResult {
@@ -145,7 +160,7 @@ pub enum RenderResult {
 }
 
 /// Render pipeline that blits the SceneVM storage texture into a window surface.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
 struct PresentPipeline {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
@@ -156,6 +171,7 @@ struct PresentPipeline {
 }
 
 /// Compositing pipeline for blending VM layers with alpha
+#[cfg(feature = "gpu")]
 struct CompositingPipeline {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
@@ -164,6 +180,7 @@ struct CompositingPipeline {
     target_format: wgpu::TextureFormat,
 }
 
+#[cfg(feature = "gpu")]
 impl CompositingPipeline {
     fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -305,6 +322,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     }
 }
 
+#[cfg(feature = "gpu")]
 struct RgbaOverlayCompositingPipeline {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
@@ -313,6 +331,7 @@ struct RgbaOverlayCompositingPipeline {
     target_format: wgpu::TextureFormat,
 }
 
+#[cfg(feature = "gpu")]
 impl RgbaOverlayCompositingPipeline {
     fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -459,6 +478,7 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     }
 }
 
+#[cfg(feature = "gpu")]
 struct RgbaOverlayState {
     texture: Texture,
     rect: [f32; 4],
@@ -466,6 +486,7 @@ struct RgbaOverlayState {
 
 /// Optional window surface (swapchain) managed by SceneVM for direct presentation.
 #[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "gpu")]
 struct WindowSurface {
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
@@ -473,6 +494,7 @@ struct WindowSurface {
     present_pipeline: Option<PresentPipeline>,
 }
 
+#[cfg(feature = "gpu")]
 pub struct GPUState {
     _instance: wgpu::Instance,
     _adapter: wgpu::Adapter,
@@ -487,6 +509,7 @@ pub struct GPUState {
 
 #[allow(dead_code)]
 #[derive(Clone)]
+#[cfg(feature = "gpu")]
 struct GlobalGpu {
     instance: wgpu::Instance,
     adapter: wgpu::Adapter,
@@ -495,15 +518,16 @@ struct GlobalGpu {
 }
 
 #[allow(dead_code)]
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
 static GLOBAL_GPU: OnceLock<GlobalGpu> = OnceLock::new();
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(feature = "gpu", target_arch = "wasm32"))]
 thread_local! {
     static GLOBAL_GPU_WASM: RefCell<Option<GlobalGpu>> = RefCell::new(None);
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "gpu")]
 impl PresentPipeline {
     fn new(
         device: &wgpu::Device,
@@ -745,6 +769,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "gpu")]
 impl WindowSurface {
     fn reconfigure(&mut self, device: &wgpu::Device) {
         self.surface.configure(device, &self.config);
@@ -753,11 +778,13 @@ impl WindowSurface {
 
 // --- WASM async map flag future support ---
 #[cfg(target_arch = "wasm32")]
+#[cfg(feature = "gpu")]
 struct MapReadyFuture {
     flag: Rc<Cell<bool>>,
 }
 
 #[cfg(target_arch = "wasm32")]
+#[cfg(feature = "gpu")]
 impl Future for MapReadyFuture {
     type Output = ();
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -771,6 +798,7 @@ impl Future for MapReadyFuture {
     }
 }
 
+#[cfg(feature = "gpu")]
 pub struct SceneVM {
     /// The intended render target size; used by either backend.
     size: (u32, u32),
@@ -814,12 +842,14 @@ pub struct ShaderDiagnostic {
     pub message: String,
 }
 
+#[cfg(feature = "gpu")]
 impl Default for SceneVM {
     fn default() -> Self {
         Self::new(100, 100)
     }
 }
 
+#[cfg(feature = "gpu")]
 impl SceneVM {
     fn refresh_layer_metadata(&mut self) {
         self.vm.set_layer_index(0);
@@ -919,8 +949,8 @@ impl SceneVM {
                 if let Some(layer_gpu) = &layer_texture.gpu {
                     // Create bind group for this layer
                     let mode_u32: u32 = match vm.blend_mode() {
-                        vm::LayerBlendMode::Alpha => 0,
-                        vm::LayerBlendMode::AlphaLinear => 1,
+                        LayerBlendMode::Alpha => 0,
+                        LayerBlendMode::AlphaLinear => 1,
                     };
                     // Upload mode
                     queue.write_buffer(&pipeline.mode_buf, 0, bytemuck::bytes_of(&mode_u32));
@@ -2213,8 +2243,7 @@ impl SceneVM {
             source: ShaderSource::Wgsl(full_source.into()),
         });
 
-        self.vm
-            .execute(vm::Atom::SetSourceSdf(body_source.to_string()));
+        self.vm.execute(Atom::SetSourceSdf(body_source.to_string()));
 
         ShaderCompilationResult {
             success: true,
@@ -2306,11 +2335,9 @@ impl SceneVM {
         if success {
             // Set the source if compilation succeeded
             if is_2d {
-                self.vm
-                    .execute(vm::Atom::SetSource2D(body_source.to_string()));
+                self.vm.execute(Atom::SetSource2D(body_source.to_string()));
             } else {
-                self.vm
-                    .execute(vm::Atom::SetSource3D(body_source.to_string()));
+                self.vm.execute(Atom::SetSource3D(body_source.to_string()));
             }
         }
 
@@ -2362,6 +2389,7 @@ async fn global_gpu_init_async() {
     };
     GLOBAL_GPU_WASM.with(|c| *c.borrow_mut() = Some(gg));
 }
+#[cfg(feature = "gpu")]
 impl SceneVM {
     fn for_each_vm_mut(&mut self, mut f: impl FnMut(&mut VM)) {
         f(&mut self.vm);
@@ -2388,6 +2416,7 @@ impl SceneVM {
 // -------------------------
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "windowing"))]
+#[cfg(feature = "gpu")]
 struct NativeRenderCtx {
     size: (u32, u32),
     last_result: RenderResult,
@@ -2395,6 +2424,7 @@ struct NativeRenderCtx {
 }
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "windowing"))]
+#[cfg(feature = "gpu")]
 impl NativeRenderCtx {
     fn new(size: (u32, u32)) -> Self {
         Self {
@@ -2417,6 +2447,7 @@ impl NativeRenderCtx {
 }
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "windowing"))]
+#[cfg(feature = "gpu")]
 impl SceneVMRenderCtx for NativeRenderCtx {
     fn size(&self) -> (u32, u32) {
         self.size
@@ -2434,6 +2465,7 @@ impl SceneVMRenderCtx for NativeRenderCtx {
 
 /// Run a `SceneVMApp` on native (winit) with GPU presentation to a window.
 #[cfg(all(not(target_arch = "wasm32"), feature = "windowing"))]
+#[cfg(feature = "gpu")]
 pub fn run_scenevm_app<A: SceneVMApp + 'static>(
     mut app: A,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -2733,6 +2765,7 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
 }
 
 #[cfg(target_arch = "wasm32")]
+#[cfg(feature = "gpu")]
 struct WasmRenderCtx {
     buffer: Vec<u8>,
     width: u32,
@@ -2744,6 +2777,7 @@ struct WasmRenderCtx {
 }
 
 #[cfg(target_arch = "wasm32")]
+#[cfg(feature = "gpu")]
 impl WasmRenderCtx {
     fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
@@ -2758,6 +2792,7 @@ impl WasmRenderCtx {
 }
 
 #[cfg(target_arch = "wasm32")]
+#[cfg(feature = "gpu")]
 impl SceneVMRenderCtx for WasmRenderCtx {
     fn size(&self) -> (u32, u32) {
         (self.width, self.height)
@@ -2810,6 +2845,7 @@ fn create_or_get_canvas(document: &Document) -> Result<HtmlCanvasElement, JsValu
 
 /// Run a `SceneVMApp` in the browser using a canvas + ImageData blit.
 #[cfg(target_arch = "wasm32")]
+#[cfg(feature = "gpu")]
 pub fn run_scenevm_app<A: SceneVMApp + 'static>(mut app: A) -> Result<(), JsValue> {
     let window: WebWindow = web_sys::window().ok_or_else(|| JsValue::from_str("no window"))?;
     let document = window
@@ -2930,6 +2966,7 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(mut app: A) -> Result<(), JsValu
 // C FFI for CoreAnimation layer (Metal) presentation (macOS/iOS)
 // -------------------------
 #[cfg(all(
+    feature = "gpu",
     not(target_arch = "wasm32"),
     any(target_os = "macos", target_os = "ios")
 ))]
@@ -2947,6 +2984,7 @@ pub unsafe extern "C" fn scenevm_ca_create(
 }
 
 #[cfg(all(
+    feature = "gpu",
     not(target_arch = "wasm32"),
     any(target_os = "macos", target_os = "ios")
 ))]
@@ -2961,6 +2999,7 @@ pub unsafe extern "C" fn scenevm_ca_destroy(ptr: *mut SceneVM) {
 }
 
 #[cfg(all(
+    feature = "gpu",
     not(target_arch = "wasm32"),
     any(target_os = "macos", target_os = "ios")
 ))]
@@ -2972,6 +3011,7 @@ pub unsafe extern "C" fn scenevm_ca_resize(ptr: *mut SceneVM, width: u32, height
 }
 
 #[cfg(all(
+    feature = "gpu",
     not(target_arch = "wasm32"),
     any(target_os = "macos", target_os = "ios")
 ))]

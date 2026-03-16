@@ -1,7 +1,8 @@
-use crate::{
-    Assets, BLACK, D2PreviewBuilder, Map, PixelSource, Rasterizer, ShapeFXParam, Value,
-    ValueContainer,
-};
+#[cfg(feature = "graphics")]
+use crate::D2PreviewBuilder;
+use crate::{Assets, BLACK, Map, ShapeFXParam, ValueContainer};
+#[cfg(feature = "graphics")]
+use crate::{PixelSource, Rasterizer, Value};
 // use rand::rngs::StdRng;
 // use rand::{Rng, SeedableRng};
 use theframework::prelude::*;
@@ -285,6 +286,7 @@ impl Shape {
         params
     }
 
+    #[cfg(feature = "graphics")]
     pub fn preview(&mut self, buffer: &mut TheRGBABuffer, assets: &Assets) {
         buffer.fill(BLACK);
         let width = buffer.dim().width as f32;
@@ -324,5 +326,10 @@ impl Shape {
                 assets,
             );
         }
+    }
+
+    #[cfg(not(feature = "graphics"))]
+    pub fn preview(&mut self, buffer: &mut TheRGBABuffer, _assets: &Assets) {
+        buffer.fill(BLACK);
     }
 }

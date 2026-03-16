@@ -15,7 +15,7 @@ name = "eldiron-client"
 path = "src/main.rs"
 
 [dependencies]
-theframework.workspace = true
+theframework = { workspace = true, features = ["winit_app"] }
 rusterix.workspace = true
 
 shared = { path = "../../crates/shared", version = "0.9.1", package = "eldiron-shared" }

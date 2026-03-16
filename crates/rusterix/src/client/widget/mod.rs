@@ -1,6 +1,7 @@
 pub mod avatar;
 pub mod deco;
 pub mod game;
+pub mod game_backend;
 pub mod messages;
 pub mod screen;
 pub mod text;

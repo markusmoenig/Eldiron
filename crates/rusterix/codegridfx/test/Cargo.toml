@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-theframework.workspace = true
+theframework = { workspace = true, features = ["winit_app"] }
 
 codegridfxlib = { path = "../lib" }
 serde = { version = "1.0", features = ["derive"] }

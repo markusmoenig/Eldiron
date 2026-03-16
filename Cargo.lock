@@ -1166,6 +1166,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "eldiron-client-terminal"
+version = "0.9.1"
+dependencies = [
+ "eldiron-shared",
+ "rusterix",
+ "serde_json",
+ "toml 0.9.11+spec-1.1.0",
+ "uuid",
+]
+
+[[package]]
 name = "eldiron-client-wgpu"
 version = "0.9.1"
 dependencies = [

@@ -296,18 +296,19 @@ pub trait ClientTrait {
 impl ClientTrait for Client {
     /// Returns the path to the game data
     fn get_data_path(&self) -> Option<PathBuf> {
-        // On WASM just return an empty path.
         #[cfg(target_arch = "wasm32")]
-        return Some(PathBuf::new());
-
-        // For now, return only the command line path
-        // We will need to adjust this based on platform specific features
-        // to hardcode the path
-        if let Some(clp) = self.cmd_line_path.clone() {
-            return Some(clp);
+        {
+            Some(PathBuf::new())
         }
 
-        None
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if let Some(clp) = self.cmd_line_path.clone() {
+                return Some(clp);
+            }
+
+            None
+        }
     }
 
     /// Load project
@@ -315,8 +316,8 @@ impl ClientTrait for Client {
         // On WASM, do a network request to "game.eldiron" in the same dir as the served page
         #[cfg(target_arch = "wasm32")]
         {
-            use wasm_bindgen::JsCast;
             use web_sys::XmlHttpRequest;
+            let _ = path;
 
             // Try to fetch from the same directory as the served page.
             let xhr = XmlHttpRequest::new().expect("XmlHttpRequest not available");

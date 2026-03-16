@@ -18,9 +18,9 @@ path = "src/main.rs"
 rusterix.workspace = true
 codegridfx.workspace = true
 rusteria.workspace = true
-scenevm.workspace = true
+scenevm = { path = "../crates/scenevm", version = "0.9.1", default-features = false, features = ["gpu"] }
 
-shared = { path = "../crates/shared", version = "0.9.1", package = "eldiron-shared" }
+shared = { path = "../crates/shared", version = "0.9.1", package = "eldiron-shared", default-features = false, features = ["graphics"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 vectorize = "0.2.0"
@@ -39,7 +39,7 @@ toml = "0.8.20"
 rand = "0.9"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-theframework = { workspace = true, features = ["ui", "i18n"] }
+theframework = { path = "../crates/theframework", version = "0.9.1", default-features = false, features = ["ui", "i18n"] }
 lazy_static = "1.5.0"
 i18n-embed = { version = "0.16.0", features = [
     "fluent-system",
@@ -51,7 +51,7 @@ self_update = { version = "0.39.0", optional = true, features = [
 ] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-theframework = { workspace = true, features = ["ui"] }
+theframework = { path = "../crates/theframework", version = "0.9.1", default-features = false, features = ["ui"] }
 
 [package.metadata.bundle.bin.eldiron-creator]
 name = "Eldiron Creator"
@@ -65,14 +65,15 @@ long_description = """
 Create classical RPGs with Eldiron.
 """
 
-# cargo build -p eldiron-creator --lib --release --features staticlib
+# cargo build -p eldiron-creator --lib --release --no-default-features --features staticlib
 [lib]
-name = "rustapi"
+name = "eldiron_creator"
 path = "src/lib.rs"
 crate-type = ["lib", "staticlib"]
 
 [features]
-default = []
+default = ["desktop"]
+desktop = ["theframework/winit_app"]
 log = ["theframework/log"]
 self-update = ["dep:self_update"]
 staticlib = []

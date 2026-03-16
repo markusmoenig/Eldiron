@@ -5,6 +5,6 @@ edition = "2024"
 
 [dependencies]
 scenevm = { path = "..", default-features = true }
-theframework.workspace = true
+theframework = { workspace = true, features = ["winit_app"] }
 vek = { version = "0.17.1", default-features = true }
 uuid = { version = "1.18.1", features = ["v4"] }

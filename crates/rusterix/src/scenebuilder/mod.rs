@@ -1,6 +1,8 @@
 pub mod d2builder;
 pub mod d2material;
+#[cfg(feature = "graphics")]
 pub mod d2preview;
+#[cfg(feature = "graphics")]
 pub mod d3builder;
 
 use crate::{CompiledLight, Map, Material, PixelSource, ShapeFXRole, Value, ValueContainer};

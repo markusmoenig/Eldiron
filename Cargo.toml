@@ -1,17 +1,17 @@
 [workspace]
 
-members = ["creator", "run-wasm", "crates/shared", "clients/client", "clients/client-wgpu", "crates/rusterix", "crates/rusterix/rusteria", "crates/rusterix/codegridfx/lib", "crates/theframework", "crates/scenevm"]
+members = ["creator", "run-wasm", "crates/shared", "clients/client", "clients/client-wgpu", "clients/client-terminal", "crates/rusterix", "crates/rusterix/rusteria", "crates/rusterix/codegridfx/lib", "crates/theframework", "crates/scenevm"]
 resolver = "2"
 
 [workspace.dependencies]
 theframework = { path = "crates/theframework", version = "0.9.1", features = [
     "ui",
-], default-features = true }
+], default-features = false }
 
 rusterix = { path = "crates/rusterix", version = "0.9.1" }
 codegridfx = { path = "crates/rusterix/codegridfx/lib", version = "0.9.1", package = "codegridfx" }
 rusteria = { path = "crates/rusterix/rusteria", version = "0.9.1", package = "rusteria" }
-scenevm = { path = "crates/scenevm", version = "0.9.1", default-features = false }
+scenevm = { path = "crates/scenevm", version = "0.9.1" }
 
 [workspace.package]
 edition = "2024"

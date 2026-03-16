@@ -12,9 +12,9 @@ readme = "README.md"
 
 [dependencies]
 theframework.workspace = true
-rusterix.workspace = true
+rusterix = { path = "../rusterix", version = "0.9.1", default-features = false }
 codegridfx.workspace = true
-scenevm.workspace = true
+scenevm = { path = "../scenevm", version = "0.9.1", default-features = false }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -35,3 +35,7 @@ rect_packer = "0.2.1"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
 web-sys = { version = "0.3", features = ['Window'] }
+
+[features]
+default = ["graphics"]
+graphics = ["rusterix/graphics", "scenevm/gpu"]

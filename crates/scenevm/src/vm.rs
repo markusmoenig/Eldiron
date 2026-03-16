@@ -2,14 +2,16 @@
 const DUMMY_U32_1: [u32; 1] = [0];
 
 use crate::{
-    Camera3D, CameraKind, Chunk, Light, LightType, Poly2D, Poly3D, Texture,
+    Camera3D, CameraKind, Chunk, Light, LightType, Poly2D, Texture,
     atlas::{AtlasEntry, AtlasGpuTables, SharedAtlas, default_material_frame},
+    core::{Atom, GeoId, LayerBlendMode, RenderMode, VMDebugStats},
     dynamic::{DynamicKind, DynamicObject},
 };
 use bytemuck::{Pod, Zeroable};
+#[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::hash::{Hash, Hasher};
+use std::hash::Hasher;
 use uuid::Uuid;
 use vek::{Mat3, Mat4, Vec2, Vec3, Vec4};
 
@@ -31,23 +33,6 @@ pub struct SceneBvhAccel {
 #[derive(Debug, Clone, Default)]
 pub struct SceneAccel {
     pub bvh: SceneBvhAccel,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// The Geometry Identifier for polygons and triangles.
-pub enum GeoId {
-    Unknown(u32),
-    Vertex(u32),
-    Linedef(u32),
-    Sector(u32),
-    Character(u32),
-    Item(u32),
-    Light(u32),
-    ItemLight(u32),
-    Triangle(u32),
-    Terrain(i32, i32),
-    Hole(u32, u32),
-    Gizmo(u32),
 }
 
 #[repr(C)]
@@ -163,207 +148,6 @@ struct DynamicAvatarData {
 #[allow(dead_code)]
 const SCENE_BILLBOARD_CMD_WORDS: u32 =
     (std::mem::size_of::<DynamicBillboardPod>() / std::mem::size_of::<u32>()) as u32;
-
-/// VM instruction set
-#[derive(Debug)]
-pub enum Atom {
-    /// Add a tile with `id`, dimensions, and animation frames (RGBA8). Each frame is tightly packed width*height*4 bytes.
-    AddTile {
-        id: Uuid,
-        width: u32,
-        height: u32,
-        frames: Vec<Vec<u8>>, // frames[f][row*width*4 .. (row+1)*width*4]
-        material_frames: Option<Vec<Vec<u8>>>,
-    },
-    /// Provide or replace per-frame material maps (RGBA = roughness/metallic/opacity/emission) for an existing tile.
-    SetTileMaterialFrames {
-        id: Uuid,
-        frames: Vec<Vec<u8>>,
-    },
-    /// Add a solid-color 1x1 tile with `id` and RGBA color.
-    AddSolid {
-        id: Uuid,
-        color: [u8; 4],
-    },
-    /// Add a solid-color 1x1 tile with `id`, RGBA color, and material properties.
-    /// Material properties: RGBA = roughness/metallic/opacity/emission
-    AddSolidWithMaterial {
-        id: Uuid,
-        color: [u8; 4],
-        material: [u8; 4],
-    },
-    /// Build the atlas for all frames
-    BuildAtlas,
-    /// Override atlas dimensions (default is 4096x4096). Rebuilds atlas on next build/upload.
-    SetAtlasSize {
-        width: u32,
-        height: u32,
-    },
-    /// Add a polygon (world coords) that references a tile by UUID into the CURRENT chunk; indices are local to the chunk.
-    AddPoly {
-        poly: Poly2D,
-    },
-    /// Add a 3D polygon (world coords) that references a tile by UUID; indices are local to the chunk.
-    AddPoly3D {
-        poly: Poly3D,
-    },
-    /// Add a simple 2D line strip as thick segments tessellated into quads (no caps/joins)
-    /// Points are in world coordinates; width is in the same units.
-    AddLineStrip2D {
-        id: GeoId,
-        tile_id: Uuid,
-        points: Vec<[f32; 2]>,
-        width: f32,
-    },
-    /// Add a 2D line strip rendered in screen space with a constant pixel width.
-    /// Points are in world coordinates; width is in pixels.
-    AddLineStrip2Dpx {
-        id: GeoId,
-        tile_id: Uuid,
-        points: Vec<[f32; 2]>,
-        width_px: f32,
-    },
-    /// Create an empty chunk (no switch)
-    NewChunk {
-        id: Uuid,
-    },
-    /// Insert or replace an entire chunk in one go (prepared externally, e.g., in Rusterix)
-    AddChunk {
-        id: Uuid,
-        chunk: Chunk,
-    },
-    /// Remove an existing chunk; if it is the current chunk, unset it
-    RemoveChunk {
-        id: Uuid,
-    },
-    /// Remove a chunk at a given origin (in chunk grid coordinates)
-    RemoveChunkAt {
-        origin: vek::Vec2<i32>,
-    },
-    /// Switch the current chunk (created if missing)
-    SetCurrentChunk {
-        id: Uuid,
-    },
-    /// Set the current animation counter (frame index modulo each tile's frame count)
-    SetAnimationCounter(usize),
-    /// Set background color/params shared by 2D and 3D
-    SetBackground(Vec4<f32>),
-    /// General-purpose vec4 slots shared by 2D and 3D
-    SetGP0(Vec4<f32>),
-    SetGP1(Vec4<f32>),
-    SetGP2(Vec4<f32>),
-    SetGP3(Vec4<f32>),
-    SetGP4(Vec4<f32>),
-    SetGP5(Vec4<f32>),
-    SetGP6(Vec4<f32>),
-    SetGP7(Vec4<f32>),
-    SetGP8(Vec4<f32>),
-    SetGP9(Vec4<f32>),
-    /// Raster 3D MSAA samples (valid: 0=off, 4=on).
-    SetRaster3DMsaaSamples(u32),
-    /// Switch between 2D/3D/SDF compute drawing
-    SetRenderMode(RenderMode),
-    /// Set a 256-entry color palette available in shaders (vec4<f32> entries).
-    SetPalette(Vec<Vec4<f32>>),
-    /// Set a 2D transform (Mat3) applied on CPU to polygon vertices before 2D compute draw
-    SetTransform2D(Mat3<f32>),
-    /// Set a 3D transform (Mat4) applied on CPU to polygon vertices before 3D compute draw
-    SetTransform3D(Mat4<f32>),
-    /// Set current 2D/3D layer for subsequently added geometry
-    SetLayer(i32),
-    /// Toggle visibility for a specific geometry id across all chunks
-    SetGeoVisible {
-        id: GeoId,
-        visible: bool,
-    },
-    /// Set opacity for a specific geometry id across all chunks (0.0..1.0).
-    SetGeoOpacity {
-        id: GeoId,
-        opacity: f32,
-    },
-    /// Provide a custom WGSL body for the 2D compute shader. The VM will prepend a header and compile at runtime.
-    SetSource2D(String),
-    /// Set the viewport rect for the 2D compute shader (x, y, width, height in screen pixels).
-    /// If None, uses full screen. The rect is passed to shader via uniforms.
-    SetViewportRect2D(Option<[f32; 4]>),
-    /// Provide a custom WGSL body for the 3D compute shader. The VM will prepend a header and compile at runtime.
-    SetSource3D(String),
-    /// Provide a custom WGSL body for the SDF compute shader. The VM will prepend a header and compile at runtime.
-    SetSourceSdf(String),
-    /// Replace the SDF data buffer (read-only storage) exposed to the shader.
-    SetSdfData(Vec<[f32; 4]>),
-    /// Clear EVERYTHING: tiles, atlas, scene (chunks), counters and modes
-    Clear,
-    /// Clear only the tiles and atlas (keep scene/chunks intact)
-    ClearTiles,
-    /// Clear only the scene geometry (chunks & current selection), keep tiles/atlas intact
-    ClearGeometry,
-    /// Add a light to the scene
-    AddLight {
-        id: GeoId,
-        light: Light,
-    },
-    /// Remove a light by its id
-    RemoveLight {
-        id: GeoId,
-    },
-    /// Remove all lights from the scene
-    ClearLights,
-    /// Remove all dynamic billboards for this VM layer.
-    ClearDynamics,
-    /// Add a dynamic object (billboard, particles, etc.) that is evaluated this frame.
-    AddDynamic {
-        object: DynamicObject,
-    },
-    /// Set or replace avatar billboard RGBA data for a GeoId (square size x size).
-    SetAvatarBillboardData {
-        id: GeoId,
-        size: u32,
-        rgba: Vec<u8>,
-    },
-    /// Remove avatar billboard RGBA data for a GeoId.
-    RemoveAvatarBillboardData {
-        id: GeoId,
-    },
-    /// Clear all avatar billboard RGBA data.
-    ClearAvatarBillboardData,
-    /// Set BVH leaf size (max triangles per leaf)
-    SetBvhLeafSize {
-        max_tris: u32,
-    },
-    /// Set the camera
-    SetCamera3D {
-        camera: Camera3D,
-    },
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct VMDebugStats {
-    pub chunks: usize,
-    pub polys2d: usize,
-    pub polys3d: usize,
-    pub tris3d: usize,
-    pub lines2d: usize,
-    pub dynamics: usize,
-    pub lights: usize,
-    pub cached_v3: usize,
-    pub cached_i3: usize,
-    pub accel_dirty: bool,
-    pub visibility_dirty: bool,
-    pub geometry3d_dirty: bool,
-    pub geometry2d_dirty: bool,
-}
-
-/// Screen-space line strip description (width in pixels; rendered as quads built in screen space).
-#[derive(Debug, Clone)]
-pub struct LineStrip2D {
-    pub id: GeoId,
-    pub tile_id: uuid::Uuid,
-    pub points: Vec<[f32; 2]>, // world-space points (will be transformed, then rasterized in screen space)
-    pub width_px: f32,         // line width in pixels (constant regardless of world scale)
-    pub layer: i32,
-    pub visible: bool,
-}
 
 // GPU rendering resources managed directly by VM
 pub struct VMGpu {
@@ -1631,24 +1415,6 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     return vec4<f32>(apply_post(fogged), out_alpha);
 }
 "#;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RenderMode {
-    Compute2D,
-    Raster2D,
-    Compute3D,
-    Raster3D,
-    Sdf,
-}
-
-/// How a VM layer should be composited over the previous result.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum LayerBlendMode {
-    /// Default alpha blending in sRGB.
-    Alpha,
-    /// Decode destination to linear, blend in linear, encode back to sRGB. Useful for accum/displays.
-    AlphaLinear,
-}
 
 pub struct VM {
     shared_atlas: SharedAtlas,

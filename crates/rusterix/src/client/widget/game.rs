@@ -1,12 +1,18 @@
+use crate::client::draw2d;
+use crate::client::draw2d::Draw2D;
 use crate::prelude::*;
-use crate::{PlayerCamera, Rect, SceneHandler};
+use crate::{Assets, Map, Pixel, PlayerCamera, Rect, SceneHandler, WHITE};
 use crate::{ValueGroups, ValueTomlLoader};
 use theframework::prelude::*;
 use vek::Vec2;
 
+use super::game_backend::{GameWidgetBackend, GraphicalGameWidgetBackend, TextGameWidgetBackend};
+
 pub struct GameWidget {
     pub name: String,
     pub scenemanager: SceneManager,
+    pub backend: Option<Box<dyn GameWidgetBackend>>,
+    pub backend_name: String,
 
     pub camera_d3: Box<dyn D3Camera>,
 
@@ -47,6 +53,11 @@ pub struct GameWidget {
     pub chunk_build_budget_near: i32,
     pub chunk_build_budget_far: i32,
     pub last_stream_focus_chunk: Option<(i32, i32)>,
+    pub text_draw2d: Draw2D,
+    pub text_font: Option<fontdue::Font>,
+    pub text_font_name: String,
+    pub text_font_size: f32,
+    pub text_color: Pixel,
 }
 
 impl Default for GameWidget {
@@ -60,6 +71,8 @@ impl GameWidget {
         Self {
             name: String::new(),
             scenemanager: SceneManager::default(),
+            backend: Some(Box::new(GraphicalGameWidgetBackend::new())),
+            backend_name: "graphical".to_string(),
 
             camera_d3: Box::new(D3FirstPCamera::new()),
 
@@ -96,7 +109,20 @@ impl GameWidget {
             chunk_build_budget_near: 10,
             chunk_build_budget_far: 2,
             last_stream_focus_chunk: None,
+            text_draw2d: Draw2D::default(),
+            text_font: None,
+            text_font_name: String::new(),
+            text_font_size: 18.0,
+            text_color: WHITE,
         }
+    }
+
+    fn set_backend_by_name(&mut self, name: &str) {
+        self.backend_name = name.to_string();
+        self.backend = Some(match name {
+            "text" => Box::new(TextGameWidgetBackend::new()),
+            _ => Box::new(GraphicalGameWidgetBackend::new()),
+        });
     }
 
     fn apply_iso_camera_overrides(&self, iso: &mut D3IsoCamera) {
@@ -151,6 +177,15 @@ impl GameWidget {
                     ui.get_int_default("chunk_build_budget_near", self.chunk_build_budget_near);
                 self.chunk_build_budget_far =
                     ui.get_int_default("chunk_build_budget_far", self.chunk_build_budget_far);
+                self.text_font_name =
+                    ui.get_str_default("font".into(), self.text_font_name.clone());
+                self.text_font_size = ui.get_float_default("font_size", self.text_font_size);
+                if let Some(color) = ui.get_str("color".into()) {
+                    self.text_color = Self::hex_to_rgba_u8(&color);
+                }
+                let presentation =
+                    ui.get_str_default("presentation".into(), self.backend_name.clone());
+                self.set_backend_by_name(&presentation);
             }
             self.table = groups;
             if let Some(camera) = self.table.get("camera") {
@@ -165,6 +200,176 @@ impl GameWidget {
             }
         }
         self.force_dynamics_rebuild = true;
+    }
+
+    fn ensure_text_resources(&mut self, assets: &Assets) {
+        if self.text_font.is_none() {
+            if !self.text_font_name.is_empty()
+                && let Some(font) = assets.fonts.get(&self.text_font_name)
+            {
+                self.text_font = Some(font.clone());
+            }
+            if self.text_font.is_none()
+                && let Some(font) = assets.fonts.values().next()
+            {
+                self.text_font = Some(font.clone());
+            }
+        }
+    }
+
+    fn hex_to_rgba_u8(hex: &str) -> Pixel {
+        let hex = hex.trim_start_matches('#');
+        match hex.len() {
+            6 => {
+                let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(255);
+                let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(255);
+                let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(255);
+                [r, g, b, 255]
+            }
+            8 => {
+                let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(255);
+                let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(255);
+                let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(255);
+                let a = u8::from_str_radix(&hex[6..8], 16).unwrap_or(255);
+                [r, g, b, a]
+            }
+            _ => WHITE,
+        }
+    }
+
+    fn update_player_context(&mut self, map: &Map) {
+        for entity in &map.entities {
+            if entity.is_player() {
+                if self.camera != PlayerCamera::D2 {
+                    entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
+                }
+                self.player_pos = entity.get_pos_xz();
+                self.current_sector_name = entity
+                    .get_attr_string("sector")
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| map.find_sector_at(self.player_pos).map(|s| s.name.clone()))
+                    .unwrap_or_default();
+                break;
+            }
+        }
+    }
+
+    fn current_sector<'a>(&self, map: &'a Map) -> Option<&'a crate::Sector> {
+        if !self.current_sector_name.is_empty() {
+            map.sectors
+                .iter()
+                .find(|sector| sector.name == self.current_sector_name)
+                .or_else(|| map.find_sector_at(self.player_pos))
+        } else {
+            map.find_sector_at(self.player_pos)
+        }
+    }
+
+    fn sector_text_metadata(&self, sector: &crate::Sector) -> (String, String) {
+        let mut title = sector.name.clone();
+        let mut description = String::new();
+
+        if let Some(crate::Value::Str(data)) = sector.properties.get("data")
+            && let Ok(table) = data.parse::<toml::Table>()
+        {
+            for section in ["text_adventure", "text", "ui"] {
+                if let Some(group) = table.get(section).and_then(toml::Value::as_table) {
+                    if let Some(value) = group.get("title").and_then(toml::Value::as_str)
+                        && !value.trim().is_empty()
+                    {
+                        title = value.to_string();
+                    }
+                    if let Some(value) = group.get("description").and_then(toml::Value::as_str)
+                        && !value.trim().is_empty()
+                    {
+                        description = value.to_string();
+                    }
+                }
+            }
+        }
+
+        (title, description)
+    }
+
+    fn text_lines(&self, map: &Map) -> Vec<String> {
+        let mut lines = Vec::new();
+        let Some(sector) = self.current_sector(map) else {
+            lines.push("No current room.".to_string());
+            return lines;
+        };
+
+        let (title, description) = self.sector_text_metadata(sector);
+        if !title.is_empty() {
+            lines.push(title);
+            lines.push(String::new());
+        }
+        if !description.is_empty() {
+            lines.push(description);
+            lines.push(String::new());
+        }
+
+        let exits: Vec<String> = sector
+            .linedefs
+            .iter()
+            .filter_map(|linedef_id| map.find_linedef(*linedef_id))
+            .map(|linedef| linedef.name.clone())
+            .filter(|name| !name.trim().is_empty())
+            .collect();
+        if !exits.is_empty() {
+            lines.push(format!("Exits: {}", exits.join(", ")));
+        }
+
+        let entities: Vec<String> = map
+            .entities
+            .iter()
+            .filter(|entity| !entity.is_player())
+            .filter(|entity| {
+                entity
+                    .get_attr_string("sector")
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s == sector.name)
+                    .unwrap_or_else(|| {
+                        map.find_sector_at(entity.get_pos_xz()).map(|s| s.id) == Some(sector.id)
+                    })
+            })
+            .map(|entity| {
+                entity
+                    .get_attr_string("name")
+                    .or_else(|| entity.get_attr_string("class_name"))
+                    .unwrap_or_else(|| format!("Entity {}", entity.id))
+            })
+            .filter(|name| !name.trim().is_empty())
+            .collect();
+        if !entities.is_empty() {
+            lines.push(format!("Characters: {}", entities.join(", ")));
+        }
+
+        let items: Vec<String> = map
+            .items
+            .iter()
+            .filter(|item| {
+                item.get_attr_string("sector")
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s == sector.name)
+                    .unwrap_or_else(|| {
+                        map.find_sector_at(item.get_pos_xz()).map(|s| s.id) == Some(sector.id)
+                    })
+            })
+            .map(|item| {
+                item.get_attr_string("name")
+                    .or_else(|| item.get_attr_string("class_name"))
+                    .unwrap_or_else(|| format!("Item {}", item.id))
+            })
+            .filter(|name| !name.trim().is_empty())
+            .collect();
+        if !items.is_empty() {
+            lines.push(format!("Items: {}", items.join(", ")));
+        }
+
+        if lines.is_empty() {
+            lines.push("No room text available.".to_string());
+        }
+        lines
     }
 
     fn player_chunk_origin(&self, chunk_size: i32) -> (i32, i32) {
@@ -249,6 +454,20 @@ impl GameWidget {
     }
 
     pub fn build(&mut self, map: &Map, assets: &Assets, scene_handler: &mut SceneHandler) {
+        let mut backend = self
+            .backend
+            .take()
+            .unwrap_or_else(|| Box::new(GraphicalGameWidgetBackend::new()));
+        backend.build(self, map, assets, scene_handler);
+        self.backend = Some(backend);
+    }
+
+    pub fn graphical_build(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        scene_handler: &mut SceneHandler,
+    ) {
         if let Some(bbox) = map.bounding_box() {
             self.map_bbox = bbox;
         }
@@ -283,43 +502,79 @@ impl GameWidget {
         animation_frame: usize,
         scene_handler: &mut SceneHandler,
     ) {
+        let mut backend = self
+            .backend
+            .take()
+            .unwrap_or_else(|| Box::new(GraphicalGameWidgetBackend::new()));
+        backend.apply_entities(self, map, assets, animation_frame, scene_handler);
+        self.backend = Some(backend);
+    }
+
+    pub fn graphical_apply_entities(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        animation_frame: usize,
+        scene_handler: &mut SceneHandler,
+    ) {
         if self.force_dynamics_rebuild {
             scene_handler.mark_dynamics_dirty();
             self.force_dynamics_rebuild = false;
         }
 
-        for entity in map.entities.iter() {
-            if entity.is_player() {
-                // if let Some(Value::PlayerCamera(camera)) = entity.attributes.get("player_camera") {
-                //     if *camera != self.camera {
-                //         self.camera = camera.clone();
-                //         if self.camera == PlayerCamera::D3Iso {
-                //             self.camera_d3 = Box::new(D3IsoCamera::new())
-                //         } else if self.camera == PlayerCamera::D3FirstP {
-                //             self.camera_d3 = Box::new(D3FirstPCamera::new());
-                //         }
-                //         self.build(map, assets, scene_handler);
-                //     }
-                // }
-
-                if self.camera != PlayerCamera::D2 {
-                    entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
-                }
-
-                self.player_pos = entity.get_pos_xz();
-                self.current_sector_name = entity
-                    .get_attr_string("sector")
-                    .filter(|s| !s.is_empty())
-                    .or_else(|| map.find_sector_at(self.player_pos).map(|s| s.name.clone()))
-                    .unwrap_or_default();
-                break;
-            }
-        }
+        self.update_player_context(map);
 
         if self.camera == PlayerCamera::D2 {
             scene_handler.build_dynamics_2d(map, animation_frame, assets);
         } else {
             scene_handler.build_dynamics_3d(map, self.camera_d3.as_ref(), animation_frame, assets);
+        }
+    }
+
+    pub fn text_build(&mut self, map: &Map, assets: &Assets) {
+        if let Some(bbox) = map.bounding_box() {
+            self.map_bbox = bbox;
+        }
+        self.ensure_text_resources(assets);
+        self.build_region_name = map.name.clone();
+    }
+
+    pub fn text_apply_entities(&mut self, map: &Map) {
+        self.update_player_context(map);
+    }
+
+    pub fn text_draw(&mut self, map: &Map, _time: &TheTime, assets: &Assets) {
+        self.ensure_text_resources(assets);
+        self.buffer.fill([0, 0, 0, 255]);
+
+        let Some(font) = &self.text_font else {
+            return;
+        };
+
+        let stride = self.buffer.stride();
+        let width = self.buffer.dim().width as isize;
+        let height = self.buffer.dim().height as isize;
+        let mut y: isize = 12;
+        let line_h = self.text_font_size.ceil() as isize + 6;
+
+        for line in self.text_lines(map) {
+            let rect = (12, y, width.saturating_sub(24), line_h);
+            self.text_draw2d.text_rect_blend_safe(
+                self.buffer.pixels_mut(),
+                &rect,
+                stride,
+                font,
+                self.text_font_size,
+                &line,
+                &self.text_color,
+                draw2d::TheHorizontalAlign::Left,
+                draw2d::TheVerticalAlign::Top,
+                &(0, 0, width, height),
+            );
+            y += line_h;
+            if y >= height {
+                break;
+            }
         }
     }
 
@@ -331,7 +586,23 @@ impl GameWidget {
         assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) {
-        self.prepare_frame(map, time, animation_frame, assets, scene_handler);
+        let mut backend = self
+            .backend
+            .take()
+            .unwrap_or_else(|| Box::new(GraphicalGameWidgetBackend::new()));
+        backend.draw(self, map, time, animation_frame, assets, scene_handler);
+        self.backend = Some(backend);
+    }
+
+    pub fn graphical_draw(
+        &mut self,
+        map: &Map,
+        time: &TheTime,
+        animation_frame: usize,
+        assets: &Assets,
+        scene_handler: &mut SceneHandler,
+    ) {
+        self.graphical_prepare_frame(map, time, animation_frame, assets, scene_handler);
         if self.camera == PlayerCamera::D2 {
             self.render_prepared_d2(time, animation_frame, scene_handler);
         } else {
@@ -348,8 +619,24 @@ impl GameWidget {
         assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) {
+        let mut backend = self
+            .backend
+            .take()
+            .unwrap_or_else(|| Box::new(GraphicalGameWidgetBackend::new()));
+        backend.prepare_frame(self, map, time, animation_frame, assets, scene_handler);
+        self.backend = Some(backend);
+    }
+
+    pub fn graphical_prepare_frame(
+        &mut self,
+        map: &Map,
+        time: &TheTime,
+        animation_frame: usize,
+        assets: &Assets,
+        scene_handler: &mut SceneHandler,
+    ) {
         if map.name != self.build_region_name {
-            self.build(map, assets, scene_handler);
+            self.graphical_build(map, assets, scene_handler);
         }
         self.update_streaming_chunks(map, scene_handler);
         // Process more chunks per frame while nearby chunks are still missing.

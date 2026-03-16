@@ -1,3 +1,4 @@
+#[cfg(feature = "gpu")]
 use crate::GPUState;
 
 /// CPU/GPU texture wrapper: stores CPU RGBA bytes and optional GPU resources
@@ -8,6 +9,7 @@ pub struct Texture {
     pub gpu: Option<TextureGPU>,
 }
 
+#[cfg(feature = "gpu")]
 pub struct TextureGPU {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
@@ -17,11 +19,16 @@ pub struct TextureGPU {
     pub map_ready: Option<std::rc::Rc<std::cell::Cell<bool>>>,
 }
 
+#[cfg(not(feature = "gpu"))]
+pub struct TextureGPU;
+
+#[cfg(feature = "gpu")]
 fn mip_level_count(width: u32, height: u32) -> u32 {
     let max_dim = width.max(height).max(1);
     (32 - max_dim.leading_zeros()).max(1)
 }
 
+#[cfg(feature = "gpu")]
 fn downsample_rgba8_box(src: &[u8], src_w: u32, src_h: u32) -> (Vec<u8>, u32, u32) {
     let dst_w = (src_w / 2).max(1);
     let dst_h = (src_h / 2).max(1);
@@ -115,6 +122,7 @@ impl Texture {
     }
 
     /// Ensure GPU texture exists using a raw device (no GPUState needed)
+    #[cfg(feature = "gpu")]
     pub fn ensure_gpu_with(&mut self, device: &wgpu::Device) {
         let need_realloc = match &self.gpu {
             None => true,
@@ -181,6 +189,7 @@ impl Texture {
     }
 
     /// Upload CPU RGBA8 data to the GPU using raw handles (no &GPUState borrow needed).
+    #[cfg(feature = "gpu")]
     pub fn upload_to_gpu_with(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         self.ensure_gpu_with(device);
         let g = self.gpu.as_ref().expect("Texture GPU not allocated");
@@ -222,6 +231,7 @@ impl Texture {
     }
 
     /// Download the GPU texture into `self.data` using raw handles.
+    #[cfg(feature = "gpu")]
     pub fn download_from_gpu_with(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         self.ensure_gpu_with(device);
         let g = self.gpu.as_ref().expect("Texture GPU not allocated");
@@ -301,6 +311,7 @@ impl Texture {
     }
 
     /// Ensure a GPU texture exists matching current size, creating or resizing as needed.
+    #[cfg(feature = "gpu")]
     fn ensure_gpu(&mut self, gpu: &GPUState) {
         let need_realloc = match &self.gpu {
             None => true,
@@ -364,6 +375,7 @@ impl Texture {
     }
 
     /// Upload CPU RGBA8 data to the GPU texture (creates it if needed).
+    #[cfg(feature = "gpu")]
     pub fn upload_to_gpu(&mut self, gpu: &GPUState) {
         let device = gpu.device.clone();
         let queue = gpu.queue.clone();
@@ -371,6 +383,7 @@ impl Texture {
     }
 
     /// Download the GPU texture into `self.data`. Blocks until the copy completes.
+    #[cfg(feature = "gpu")]
     pub fn download_from_gpu(&mut self, gpu: &GPUState) {
         let device = gpu.device.clone();
         let queue = gpu.queue.clone();
@@ -378,6 +391,7 @@ impl Texture {
     }
 
     /// Try to finish an in-flight download started on WASM. Returns true when completed.
+    #[cfg(feature = "gpu")]
     pub fn try_finish_download_from_gpu(&mut self) -> bool {
         if self.gpu.is_none() {
             return false;
@@ -423,6 +437,7 @@ impl Texture {
     }
 
     /// Blit this texture to the current GPU storage texture used by SceneVM (copy region = min size).
+    #[cfg(feature = "gpu")]
     pub fn gpu_blit_to_storage(&mut self, gpu: &GPUState, dest: &wgpu::Texture) {
         self.ensure_gpu(gpu);
         // Upload latest CPU data first (no-op if unchanged)
