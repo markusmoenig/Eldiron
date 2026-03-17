@@ -1357,43 +1357,8 @@ fn run_realtime_cli(mut app: TerminalApp) {
         while keep_running && now >= next_tick {
             app.process_auto_attack();
             app.tick();
-            let Some(index) = app.current_region_index() else {
-                next_tick += tick_dt;
-                continue;
-            };
-            let region_id = app.project.regions[index].map.id;
-            let player_id = app.current_region().and_then(|region| {
-                sg::current_player_and_sector(&region.map).map(|(player, _)| player.id)
-            });
-            for (sender_entity, _sender_item, receiver_id, message, category) in
-                app.server.get_messages(&region_id)
-            {
-                if let Some(player_id) = player_id
-                    && receiver_id != player_id
-                {
-                    continue;
-                }
-                if authoring_auto_attack_mode(&app.project.authoring) == AutoAttackMode::OnAttack
-                    && is_under_attack_message(&message)
-                    && let (Some(sender_id), Some(player_id)) = (sender_entity, player_id)
-                    && sender_id != player_id
-                {
-                    app.auto_attack_target = Some(sender_id);
-                }
-                if should_print_terminal_message(&message, &category) {
-                    print_with_printer(
-                        &mut printer,
-                        &colorize_terminal_category(&message, &category, &app.project.authoring),
-                    );
-                }
-            }
-            for (_sender_entity, _sender_item, message, _category) in
-                app.server.get_says(&region_id)
-            {
-                print_with_printer(&mut printer, &message);
-            }
-            if let Some(message) = app.take_hour_announcement() {
-                print_with_printer(&mut printer, &message);
+            for block in collect_region_output(&mut app, false) {
+                print_with_printer(&mut printer, &block);
             }
             next_tick += tick_dt;
         }
