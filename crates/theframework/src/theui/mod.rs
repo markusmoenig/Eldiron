@@ -1191,6 +1191,14 @@ impl TheUI {
         None
     }
 
+    /// Gets a given text view by name
+    pub fn get_text_view(&mut self, name: &str) -> Option<&mut dyn TheTextViewTrait> {
+        if let Some(text_view) = self.canvas.get_widget(Some(&name.to_string()), None) {
+            return text_view.as_text_view();
+        }
+        None
+    }
+
     /// Gets a given icon view by name
     pub fn get_icon_view(&mut self, name: &str) -> Option<&mut dyn TheIconViewTrait> {
         if let Some(text_line_edit) = self.canvas.get_widget(Some(&name.to_string()), None) {

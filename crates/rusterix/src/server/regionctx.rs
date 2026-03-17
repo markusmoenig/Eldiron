@@ -75,6 +75,22 @@ pub struct RegionCtx {
 }
 
 impl RegionCtx {
+    fn stored_entity_sector_id(&self, entity: &Entity) -> Option<u32> {
+        entity
+            .attributes
+            .get("sector_id")
+            .and_then(|value| match value {
+                Value::Int64(v) if *v >= 0 => Some(*v as u32),
+                Value::Int(v) if *v >= 0 => Some(*v as u32),
+                _ => None,
+            })
+    }
+
+    fn entity_sector_id(&self, entity: &Entity) -> Option<u32> {
+        self.stored_entity_sector_id(entity)
+            .or_else(|| self.map.find_sector_at(entity.get_pos_xz()).map(|s| s.id))
+    }
+
     fn authoring_table(&self) -> Option<Table> {
         self.assets.authoring_src.parse::<toml::Table>().ok()
     }
@@ -154,18 +170,12 @@ impl RegionCtx {
             .unwrap_or_else(|| format!("Entity {}", entity.id))
     }
 
-    fn player_ids_in_sector_name(&self, sector_name: &str) -> Vec<u32> {
+    fn player_ids_in_sector_id(&self, sector_id: u32) -> Vec<u32> {
         self.map
             .entities
             .iter()
             .filter(|entity| entity.is_player())
-            .filter(|entity| {
-                entity
-                    .attributes
-                    .get_str("sector")
-                    .map(|name| name == sector_name)
-                    .unwrap_or(false)
-            })
+            .filter(|entity| self.entity_sector_id(entity) == Some(sector_id))
             .map(|entity| entity.id)
             .collect()
     }
@@ -187,8 +197,8 @@ impl RegionCtx {
     fn send_npc_sector_change_messages(
         &self,
         entity: &Entity,
-        old_sector_name: &str,
-        new_sector_name: &str,
+        old_sector_id: Option<u32>,
+        new_sector_id: Option<u32>,
     ) {
         if entity.is_player() {
             return;
@@ -196,15 +206,15 @@ impl RegionCtx {
 
         let name = self.entity_display_name(entity);
 
-        if !old_sector_name.is_empty() {
-            let players = self.player_ids_in_sector_name(old_sector_name);
+        if let Some(old_sector_id) = old_sector_id {
+            let players = self.player_ids_in_sector_id(old_sector_id);
             if !players.is_empty() {
                 self.send_system_message_to_players(&players, format!("{} leaves.", name));
             }
         }
 
-        if !new_sector_name.is_empty() {
-            let players = self.player_ids_in_sector_name(new_sector_name);
+        if let Some(new_sector_id) = new_sector_id {
+            let players = self.player_ids_in_sector_id(new_sector_id);
             if !players.is_empty() {
                 self.send_system_message_to_players(&players, format!("{} enters.", name));
             }
@@ -518,8 +528,9 @@ impl RegionCtx {
                 .get_str("sector")
                 .map(|s| s.to_string())
                 .unwrap_or_default();
-            if sector.name != old_sector_name {
-                self.send_npc_sector_change_messages(entity, &old_sector_name, &sector.name);
+            let old_sector_id = self.stored_entity_sector_id(entity);
+            if old_sector_id != Some(sector.id) {
+                self.send_npc_sector_change_messages(entity, old_sector_id, Some(sector.id));
                 // Send entered event
                 if !sector.name.is_empty() {
                     self.to_execute_entity.push((
@@ -542,6 +553,7 @@ impl RegionCtx {
                 }
 
                 entity.set_attribute("sector", Value::Str(sector.name.clone()));
+                entity.set_attribute("sector_id", Value::Int64(sector.id as i64));
             }
         } else if let Some(Value::Str(old_sector_name)) = entity.attributes.get("sector") {
             // Send left event
@@ -557,6 +569,7 @@ impl RegionCtx {
                 }
             }
             entity.set_attribute("sector", Value::Str(String::new()));
+            entity.set_attribute("sector_id", Value::Int64(-1));
         }
     }
 
@@ -571,18 +584,24 @@ impl RegionCtx {
                 .and_then(|e| e.attributes.get_str("sector"))
                 .map(|s| s.to_string())
                 .unwrap_or_default();
+            let old_sector_id = self
+                .map
+                .entities
+                .get(idx)
+                .and_then(|e| self.stored_entity_sector_id(e));
             let sector_name = self.map.find_sector_at(pos).map(|s| s.name.clone());
+            let sector_id = self.map.find_sector_at(pos).map(|s| s.id);
             let sector_snapshot = self.map.find_sector_at(pos).cloned();
             let mut entered_player_sector: Option<u32> = None;
             let entity_snapshot = self.map.entities.get(idx).cloned();
-            let mut npc_transition: Option<(Entity, String, String)> = None;
+            let mut npc_transition: Option<(Entity, Option<u32>, Option<u32>)> = None;
 
             if let Some(entity) = self.map.entities.get_mut(idx) {
-                if let Some(sector_name) = sector_name {
-                    if sector_name != old_sector {
+                if let (Some(sector_name), Some(sector_id)) = (sector_name, sector_id) {
+                    if old_sector_id != Some(sector_id) {
                         if let Some(snapshot) = entity_snapshot.as_ref() {
                             npc_transition =
-                                Some((snapshot.clone(), old_sector.clone(), sector_name.clone()));
+                                Some((snapshot.clone(), old_sector_id, Some(sector_id)));
                         }
                         let is_player = entity.is_player();
                         if !sector_name.is_empty() {
@@ -603,6 +622,7 @@ impl RegionCtx {
                             ));
                         }
                         entity.set_attribute("sector", Value::Str(sector_name.clone()));
+                        entity.set_attribute("sector_id", Value::Int64(sector_id as i64));
                     }
                 } else {
                     if !old_sector.is_empty() {
@@ -613,11 +633,12 @@ impl RegionCtx {
                         ));
                     }
                     entity.set_attribute("sector", Value::Str(String::new()));
+                    entity.set_attribute("sector_id", Value::Int64(-1));
                 }
             }
 
-            if let Some((entity, old_sector_name, new_sector_name)) = npc_transition {
-                self.send_npc_sector_change_messages(&entity, &old_sector_name, &new_sector_name);
+            if let Some((entity, old_sector_id, new_sector_id)) = npc_transition {
+                self.send_npc_sector_change_messages(&entity, old_sector_id, new_sector_id);
             }
 
             if entered_player_sector.is_some()

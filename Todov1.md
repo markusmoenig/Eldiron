@@ -100,3 +100,15 @@ Create tiles procedurally
 - Explosions
 - Flames
 - Smog
+
+## Better Tile Picker
+
+Right now tiles are displayed in the order they were added, but can be filtered by category.
+
+On resizes and new tiles, tile structure looses cohersion, tiles which are similar get disconnected and tiles which fit together are disconnected to.
+
+We would need a new widget which:
+
+* Makes tiles sortable via Dnd
+* Allows for tile-groups to stay in cohersive even on resize etc.
+* Makes it easy for a future Eldiron Treasury system to integrate new tiles and tile-groups easily via a DB connection.

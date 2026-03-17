@@ -1243,6 +1243,7 @@ dependencies = [
  "serde",
  "serde_json",
  "theframework",
+ "toml 0.9.11+spec-1.1.0",
  "vectorize",
  "vek",
  "wasm-bindgen",

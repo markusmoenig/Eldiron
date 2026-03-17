@@ -11,6 +11,7 @@ pub struct ToolList {
     pub server_time: TheTime,
     pub render_button_text: String,
     pub authoring_mode: bool,
+    pub text_game_mode: bool,
 
     pub game_tools: Vec<Box<dyn Tool>>,
     pub curr_game_tool: usize,
@@ -29,6 +30,7 @@ impl Default for ToolList {
 
 impl ToolList {
     const AUTHORING_BUTTON_NAME: &'static str = "Authoring";
+    const TEXT_PLAY_BUTTON_NAME: &'static str = "Text Play";
 
     fn collect_terrain_tile_overrides(map: &Map) -> FxHashMap<(i32, i32), PixelSource> {
         match map.properties.get("tiles") {
@@ -114,6 +116,7 @@ impl ToolList {
             server_time: TheTime::default(),
             render_button_text: "Finished".to_string(),
             authoring_mode: false,
+            text_game_mode: false,
             game_tools,
             curr_game_tool: 2,
 
@@ -159,12 +162,20 @@ impl ToolList {
             list.add_widget(Box::new(sep));
 
             let mut authoring = TheToolListButton::new(TheId::named(Self::AUTHORING_BUTTON_NAME));
-            authoring.set_icon_name("database".to_string());
+            authoring.set_icon_name("book-open".to_string());
             authoring.set_status_text(&fl!("status_tool_authoring"));
             if self.authoring_mode {
                 authoring.set_state(TheWidgetState::Selected);
             }
             list.add_widget(Box::new(authoring));
+
+            let mut text_play = TheToolListButton::new(TheId::named(Self::TEXT_PLAY_BUTTON_NAME));
+            text_play.set_icon_name("terminal".to_string());
+            text_play.set_status_text(&fl!("status_tool_text_play"));
+            if self.text_game_mode {
+                text_play.set_state(TheWidgetState::Selected);
+            }
+            list.add_widget(Box::new(text_play));
         }
     }
 
@@ -616,6 +627,32 @@ impl ToolList {
                             TheWidgetState::None
                         },
                     );
+                    redraw = true;
+                    return redraw;
+                }
+                if id.name == Self::TEXT_PLAY_BUTTON_NAME && *state == TheWidgetState::Clicked {
+                    self.text_game_mode = !self.text_game_mode;
+                    server_ctx.text_game_mode = self.text_game_mode;
+                    ctx.ui.set_widget_state(
+                        Self::TEXT_PLAY_BUTTON_NAME.to_string(),
+                        if self.text_game_mode {
+                            TheWidgetState::Selected
+                        } else {
+                            TheWidgetState::None
+                        },
+                    );
+
+                    if self.get_current_tool().id().name == "Game Tool" && server_ctx.game_mode {
+                        if let Some(stack) = ui.get_stack_layout("Game Output Stack") {
+                            stack.set_index(if self.text_game_mode { 1 } else { 0 });
+                        }
+                        if self.text_game_mode {
+                            crate::editor::TEXTGAME.write().unwrap().activate(ui, ctx);
+                        } else if let Some(widget) = ui.get_widget("PolyView") {
+                            let id = widget.id().clone();
+                            ctx.ui.set_focus(&id);
+                        }
+                    }
                     redraw = true;
                     return redraw;
                 }

@@ -507,6 +507,9 @@ pub struct ServerContext {
     /// Game input mode
     pub game_input_mode: bool,
 
+    /// Text gameplay mode inside the Creator Game Tool
+    pub text_game_mode: bool,
+
     /// Help mode state
     pub help_mode: bool,
 
@@ -624,6 +627,7 @@ impl ServerContext {
             rect_blend_preset: VertexBlendPreset::Solid,
 
             game_input_mode: false,
+            text_game_mode: false,
             help_mode: false,
 
             editing_ctx: PixelEditingContext::None,

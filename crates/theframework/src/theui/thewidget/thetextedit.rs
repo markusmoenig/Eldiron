@@ -1172,6 +1172,10 @@ impl TheTextRenderer {
         self.actual_size.y > self.height
     }
 
+    pub fn viewport_height(&self) -> usize {
+        self.height
+    }
+
     pub fn prepare(&mut self, text: &str, font_preference: TheFontPreference, draw: &TheDraw2D) {
         self.actual_size = Vec2::zero();
         self.glyphs.clear();
@@ -2301,7 +2305,7 @@ impl TheTextRenderer {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Debug)]
 pub struct TheTextStyle {
     pub foreground: Option<TheColor>,
     pub background: Option<TheColor>,

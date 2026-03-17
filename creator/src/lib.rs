@@ -19,6 +19,7 @@ pub mod misc;
 #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
 pub mod self_update;
 pub mod sidebar;
+pub mod textplay;
 pub mod toollist;
 pub mod tools;
 pub mod undo;
@@ -46,6 +47,7 @@ pub mod prelude {
     // pub use crate::previewview::*;
     pub use crate::actionlist::*;
     pub use crate::sidebar::*;
+    pub use crate::textplay::*;
     pub use crate::toollist::*;
     pub use crate::undo::project_atoms::*;
     pub use crate::undo::project_helper::*;

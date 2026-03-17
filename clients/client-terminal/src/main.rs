@@ -1,9 +1,9 @@
-use rusterix::Linedef;
 use rusterix::prelude::*;
 use rusterix::{Command, EntityAction, ServerState};
 use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, ExternalPrinter};
 use shared::project::Project;
+use shared::text_game as sg;
 use std::collections::BTreeSet;
 use std::fs;
 use std::io::IsTerminal;
@@ -12,7 +12,6 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 use toml::Table;
-use vek::Vec2;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum StartupDisplay {
@@ -21,33 +20,13 @@ enum StartupDisplay {
     None,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ExitPresentation {
-    List,
-    Sentence,
-}
-
-#[derive(Clone)]
-struct TextExit {
-    direction: String,
-    title: String,
-    target_title: String,
-    target_sector_id: u32,
-    target_center: Vec2<f32>,
-}
-
-#[derive(Clone)]
-enum TextTarget {
-    Entity { id: u32, distance: f32 },
-    Item { id: u32, distance: f32 },
-}
-
 struct TerminalApp {
     project: Project,
     assets: Assets,
     server: Server,
     current_map: String,
     last_announced_hour: Option<u8>,
+    last_nearby_attackers: BTreeSet<String>,
     auto_attack_target: Option<u32>,
 }
 
@@ -81,6 +60,7 @@ impl TerminalApp {
             server: Server::default(),
             current_map,
             last_announced_hour: None,
+            last_nearby_attackers: BTreeSet::new(),
             auto_attack_target: None,
         };
 
@@ -93,6 +73,7 @@ impl TerminalApp {
         }
 
         app.last_announced_hour = app.current_time_hour_and_label().map(|(hour, _)| hour);
+        app.last_nearby_attackers = app.current_nearby_attackers();
 
         Ok(app)
     }
@@ -246,13 +227,6 @@ impl TerminalApp {
         players
     }
 
-    fn current_region_mut(&mut self) -> Option<&mut shared::region::Region> {
-        self.project
-            .regions
-            .iter_mut()
-            .find(|region| region.map.name == self.current_map)
-    }
-
     fn current_region_index(&self) -> Option<usize> {
         self.project
             .regions
@@ -319,8 +293,6 @@ impl TerminalApp {
     }
 
     fn render_room_text(&mut self) -> String {
-        let probe_distance = authoring_connection_probe_distance(&self.project.authoring);
-        let exit_presentation = authoring_exit_presentation(&self.project.authoring);
         let title_color = authoring_color(&self.project.authoring, "title");
         let object_color = authoring_color(&self.project.authoring, "objects");
         let item_color =
@@ -330,65 +302,55 @@ impl TerminalApp {
         let neutral_character_color =
             authoring_color(&self.project.authoring, "characters").or_else(|| object_color.clone());
         let character_color_rules = authoring_character_color_rules(&self.project.authoring);
-        let Some(region) = self.current_region_mut() else {
+        let Some(region) = self.current_region() else {
             return format!("Current region '{}' not found.", self.current_map);
         };
-        let map = &region.map;
-
-        let Some((_player, sector)) = current_player_and_sector(map) else {
+        let Some((_, sector)) = sg::current_player_and_sector(&region.map) else {
             return "No local player found.".into();
         };
+        let Some(room) = sg::build_text_room(&region.map, &self.project.authoring) else {
+            return "No room text available.".into();
+        };
 
-        let (title, description) = sector_text_metadata(sector);
         let mut lines = Vec::new();
-        if !title.is_empty() {
-            lines.push(colorize_terminal_text(&title, title_color.as_deref()));
+        if !room.title.is_empty() {
+            lines.push(colorize_terminal_text(&room.title, title_color.as_deref()));
             lines.push(String::new());
         }
-        if !description.is_empty() {
-            lines.push(description);
+        if !room.description.is_empty() {
+            lines.push(room.description.clone());
             lines.push(String::new());
         }
 
-        let exits = resolve_text_exits(map, sector, probe_distance);
-        if !exits.is_empty() {
-            match exit_presentation {
-                ExitPresentation::List => {
+        if !room.exits.is_empty() {
+            match sg::authoring_exit_presentation(&self.project.authoring) {
+                sg::ExitPresentation::List => {
                     lines.push("Exits:".into());
-                    for exit in exits {
+                    for exit in &room.exits {
                         lines.push(format!("  {} - {}", exit.direction, exit.title));
                     }
                 }
-                ExitPresentation::Sentence => {
-                    lines.push(render_exit_sentence(&exits));
-                }
+                sg::ExitPresentation::Sentence => lines.push(sg::render_exit_sentence(&room.exits)),
             }
         }
 
         let mut live_entities = Vec::new();
         let mut dead_entities = Vec::new();
-        for entity in &map.entities {
+        for entity in &region.map.entities {
             if entity.is_player() {
                 continue;
             }
-            let same_sector = entity
-                .get_attr_string("sector")
-                .filter(|s| !s.is_empty())
-                .map(|s| s == sector.name)
-                .unwrap_or_else(|| {
-                    map.find_sector_at(entity.get_pos_xz()).map(|s| s.id) == Some(sector.id)
-                });
-            if !same_sector {
+            if !sg::entity_sector_matches(&region.map, entity, sector) {
                 continue;
             }
 
-            if entity_is_dead(entity) {
-                let corpse = corpse_name_for_entity(entity);
+            if sg::entity_is_dead(entity) {
+                let corpse = sg::corpse_name_for_entity(entity);
                 if !corpse.trim().is_empty() {
                     dead_entities.push(colorized_presence_phrase(&corpse, corpse_color.as_deref()));
                 }
             } else {
-                let name = display_name_for_entity(entity);
+                let name = sg::display_name_for_entity(entity);
                 if !name.trim().is_empty() {
                     let color = resolve_character_color(entity, &character_color_rules)
                         .or(neutral_character_color.as_deref());
@@ -397,29 +359,26 @@ impl TerminalApp {
             }
         }
         if !live_entities.is_empty() {
-            lines.push(render_presence_sentence("You see", &live_entities));
+            lines.push(sg::render_presence_sentence("You see", &live_entities));
+        }
+        if !room.nearby_attackers.is_empty() {
+            lines.push(sg::render_nearby_attackers_sentence(&room.nearby_attackers));
         }
         if !dead_entities.is_empty() {
-            lines.push(render_presence_sentence("You see", &dead_entities));
+            lines.push(sg::render_presence_sentence("You see", &dead_entities));
         }
 
-        let items: Vec<String> = map
+        let items: Vec<String> = region
+            .map
             .items
             .iter()
-            .filter(|item| {
-                item.get_attr_string("sector")
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s == sector.name)
-                    .unwrap_or_else(|| {
-                        map.find_sector_at(item.get_pos_xz()).map(|s| s.id) == Some(sector.id)
-                    })
-            })
-            .map(display_name_for_item)
+            .filter(|item| sg::item_sector_matches(&region.map, item, sector))
+            .map(sg::display_name_for_item)
             .filter(|name| !name.trim().is_empty())
             .map(|name| colorized_presence_phrase(&name, item_color.as_deref()))
             .collect();
         if !items.is_empty() {
-            lines.push(render_presence_sentence("You notice", &items));
+            lines.push(sg::render_presence_sentence("You notice", &items));
         }
 
         if lines.is_empty() {
@@ -430,29 +389,29 @@ impl TerminalApp {
     }
 
     fn render_current_sector_description(&mut self) -> Option<String> {
-        let Some(region) = self.current_region_mut() else {
+        let Some(region) = self.current_region() else {
             return None;
         };
-        let map = &region.map;
-
-        let (_, sector) = current_player_and_sector(map)?;
-
-        let (_, description) = sector_text_metadata(sector);
-        if description.trim().is_empty() {
-            None
-        } else {
-            Some(description.trim_end().to_string())
-        }
+        sg::render_current_sector_description(&region.map)
     }
 
-    fn move_to_exit(&mut self, exit: &TextExit) -> bool {
+    fn current_nearby_attackers(&self) -> BTreeSet<String> {
+        let Some(region) = self.current_region() else {
+            return BTreeSet::new();
+        };
+        sg::build_text_room(&region.map, &self.project.authoring)
+            .map(|room| room.nearby_attackers.into_iter().collect())
+            .unwrap_or_default()
+    }
+
+    fn move_to_exit(&mut self, exit: &sg::TextExit) -> bool {
         self.auto_attack_target = None;
         self.server.local_player_teleport_pos(exit.target_center);
 
         for _ in 0..4 {
             self.tick();
             if let Some(region) = self.current_region() {
-                if let Some((_, sector)) = current_player_and_sector(&region.map)
+                if let Some((_, sector)) = sg::current_player_and_sector(&region.map)
                     && sector.id == exit.target_sector_id
                 {
                     return true;
@@ -509,7 +468,7 @@ impl TerminalApp {
             self.auto_attack_target = None;
             return;
         };
-        let Some((player, sector)) = current_player_and_sector(&region.map) else {
+        let Some((player, sector)) = sg::current_player_and_sector(&region.map) else {
             self.auto_attack_target = None;
             return;
         };
@@ -523,18 +482,12 @@ impl TerminalApp {
             self.auto_attack_target = None;
             return;
         };
-        if entity_is_dead(target) {
+        if sg::entity_is_dead(target) {
             self.auto_attack_target = None;
             return;
         }
 
-        let same_sector = target
-            .get_attr_string("sector")
-            .filter(|s| !s.is_empty())
-            .map(|s| s == sector.name)
-            .unwrap_or_else(|| {
-                region.map.find_sector_at(target.get_pos_xz()).map(|s| s.id) == Some(sector.id)
-            });
+        let same_sector = sg::entity_sector_matches(&region.map, target, sector);
         if !same_sector {
             self.auto_attack_target = None;
             return;
@@ -547,231 +500,6 @@ impl TerminalApp {
             Some("attack".into()),
         ));
     }
-}
-
-fn display_name_for_entity(entity: &Entity) -> String {
-    entity
-        .get_attr_string("name")
-        .or_else(|| entity.get_attr_string("class_name"))
-        .unwrap_or_else(|| format!("Entity {}", entity.id))
-}
-
-fn entity_is_dead(entity: &Entity) -> bool {
-    entity
-        .get_attr_string("mode")
-        .map(|mode| mode.eq_ignore_ascii_case("dead"))
-        .unwrap_or(false)
-}
-
-fn corpse_name_for_entity(entity: &Entity) -> String {
-    let name = display_name_for_entity(entity);
-    if name.trim().is_empty() {
-        String::new()
-    } else {
-        format!("corpse of {}", sentence_case_exit_title(&name))
-    }
-}
-
-fn display_name_for_item(item: &Item) -> String {
-    item.get_attr_string("name")
-        .or_else(|| item.get_attr_string("class_name"))
-        .unwrap_or_else(|| format!("Item {}", item.id))
-}
-
-fn normalize_target_name(text: &str) -> String {
-    text.trim()
-        .to_ascii_lowercase()
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c.is_ascii_whitespace() {
-                c
-            } else {
-                ' '
-            }
-        })
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn target_matches(name: &str, query: &str) -> bool {
-    let name_norm = normalize_target_name(name);
-    let query_norm = normalize_target_name(query);
-    !query_norm.is_empty()
-        && (name_norm == query_norm
-            || name_norm.starts_with(&(query_norm.clone() + " "))
-            || name_norm.contains(&format!(" {}", query_norm)))
-}
-
-fn resolve_text_target(map: &Map, sector: &Sector, query: &str) -> Result<TextTarget, String> {
-    let Some((player, _)) = current_player_and_sector(map) else {
-        return Err("No local player found.".into());
-    };
-    let player_pos = player.get_pos_xz();
-    let mut matches: Vec<(String, TextTarget)> = Vec::new();
-
-    for entity in &map.entities {
-        if entity.is_player() {
-            continue;
-        }
-        if entity_is_dead(entity) {
-            continue;
-        }
-        let same_sector = entity
-            .get_attr_string("sector")
-            .filter(|s| !s.is_empty())
-            .map(|s| s == sector.name)
-            .unwrap_or_else(|| {
-                map.find_sector_at(entity.get_pos_xz()).map(|s| s.id) == Some(sector.id)
-            });
-        if !same_sector {
-            continue;
-        }
-        let name = display_name_for_entity(entity);
-        if target_matches(&name, query) {
-            matches.push((
-                name,
-                TextTarget::Entity {
-                    id: entity.id,
-                    distance: player_pos.distance(entity.get_pos_xz()),
-                },
-            ));
-        }
-    }
-
-    for item in &map.items {
-        let same_sector = item
-            .get_attr_string("sector")
-            .filter(|s| !s.is_empty())
-            .map(|s| s == sector.name)
-            .unwrap_or_else(|| {
-                map.find_sector_at(item.get_pos_xz()).map(|s| s.id) == Some(sector.id)
-            });
-        if !same_sector {
-            continue;
-        }
-        let name = display_name_for_item(item);
-        if target_matches(&name, query) {
-            matches.push((
-                name,
-                TextTarget::Item {
-                    id: item.id,
-                    distance: player_pos.distance(item.get_pos_xz()),
-                },
-            ));
-        }
-    }
-
-    if matches.is_empty() {
-        return Err(format!("You do not see '{}' here.", query.trim()));
-    }
-    if matches.len() > 1 {
-        matches.sort_by(|a, b| a.0.cmp(&b.0));
-        let names = matches
-            .into_iter()
-            .map(|m| m.0)
-            .collect::<Vec<_>>()
-            .join(", ");
-        return Err(format!("Be more specific: {}", names));
-    }
-
-    Ok(matches.remove(0).1)
-}
-
-fn current_player_and_sector(map: &Map) -> Option<(&Entity, &Sector)> {
-    let player = map.entities.iter().find(|entity| entity.is_player())?;
-    let player_pos = player.get_pos_xz();
-    let current_sector_name = player
-        .get_attr_string("sector")
-        .filter(|s| !s.is_empty())
-        .or_else(|| map.find_sector_at(player_pos).map(|s| s.name.clone()))
-        .unwrap_or_default();
-
-    let sector = if !current_sector_name.is_empty() {
-        map.sectors
-            .iter()
-            .find(|sector| sector.name == current_sector_name)
-            .or_else(|| map.find_sector_at(player_pos))
-    } else {
-        map.find_sector_at(player_pos)
-    }?;
-
-    Some((player, sector))
-}
-
-fn sector_text_metadata(sector: &Sector) -> (String, String) {
-    let mut title = sector.name.clone();
-    let mut description = String::new();
-
-    if let Some(Value::Str(data)) = sector.properties.get("data")
-        && let Ok(table) = data.parse::<toml::Table>()
-    {
-        if let Some(value) = table.get("title").and_then(toml::Value::as_str)
-            && !value.trim().is_empty()
-        {
-            title = value.to_string();
-        }
-        if let Some(value) = table.get("description").and_then(toml::Value::as_str)
-            && !value.trim().is_empty()
-        {
-            description = value.to_string();
-        }
-
-        for section in ["text_adventure", "text", "ui"] {
-            if let Some(group) = table.get(section).and_then(toml::Value::as_table) {
-                if let Some(value) = group.get("title").and_then(toml::Value::as_str)
-                    && !value.trim().is_empty()
-                {
-                    title = value.to_string();
-                }
-                if let Some(value) = group.get("description").and_then(toml::Value::as_str)
-                    && !value.trim().is_empty()
-                {
-                    description = value.to_string();
-                }
-            }
-        }
-    }
-
-    (title.trim().to_string(), description.trim_end().to_string())
-}
-
-fn linedef_text_metadata(linedef: &Linedef) -> (String, String) {
-    let mut title = linedef.name.clone();
-    let mut description = String::new();
-
-    if let Some(Value::Str(data)) = linedef.properties.get("data")
-        && let Ok(table) = data.parse::<toml::Table>()
-    {
-        if let Some(value) = table.get("title").and_then(toml::Value::as_str)
-            && !value.trim().is_empty()
-        {
-            title = value.to_string();
-        }
-        if let Some(value) = table.get("description").and_then(toml::Value::as_str)
-            && !value.trim().is_empty()
-        {
-            description = value.to_string();
-        }
-
-        for section in ["text_adventure", "text", "ui"] {
-            if let Some(group) = table.get(section).and_then(toml::Value::as_table) {
-                if let Some(value) = group.get("title").and_then(toml::Value::as_str)
-                    && !value.trim().is_empty()
-                {
-                    title = value.to_string();
-                }
-                if let Some(value) = group.get("description").and_then(toml::Value::as_str)
-                    && !value.trim().is_empty()
-                {
-                    description = value.to_string();
-                }
-            }
-        }
-    }
-
-    (title.trim().to_string(), description.trim_end().to_string())
 }
 
 fn config_table(src: &str) -> Option<Table> {
@@ -833,40 +561,6 @@ fn authoring_startup_welcome(src: &str) -> Option<String> {
         })
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-}
-
-fn authoring_connection_probe_distance(src: &str) -> f32 {
-    config_table(src)
-        .and_then(|table| {
-            table
-                .get("connections")
-                .and_then(toml::Value::as_table)
-                .and_then(|table| table.get("probe_distance"))
-                .and_then(|value| {
-                    value
-                        .as_float()
-                        .or_else(|| value.as_integer().map(|v| v as f64))
-                })
-        })
-        .map(|value| value as f32)
-        .unwrap_or(1.5)
-}
-
-fn authoring_exit_presentation(src: &str) -> ExitPresentation {
-    config_table(src)
-        .and_then(|table| {
-            table
-                .get("exits")
-                .and_then(toml::Value::as_table)
-                .and_then(|table| table.get("style"))
-                .and_then(toml::Value::as_str)
-                .map(str::to_string)
-        })
-        .map(|value| match value.trim().to_ascii_lowercase().as_str() {
-            "sentence" => ExitPresentation::Sentence,
-            _ => ExitPresentation::List,
-        })
-        .unwrap_or(ExitPresentation::List)
 }
 
 fn authoring_color(src: &str, key: &str) -> Option<String> {
@@ -1010,45 +704,6 @@ fn resolve_intent_alias(src: &str, verb: &str) -> String {
     normalized
 }
 
-fn render_exit_sentence(exits: &[TextExit]) -> String {
-    let parts: Vec<String> = exits
-        .iter()
-        .map(|exit| {
-            let subject = if !exit.target_title.trim().is_empty() {
-                sentence_case_exit_title(&exit.target_title)
-            } else {
-                sentence_case_exit_title(&exit.title)
-            };
-            format!("{} to the {}", subject, exit.direction)
-        })
-        .collect();
-
-    match parts.len() {
-        0 => String::new(),
-        1 => format!("You see {}.", with_indefinite_article(&parts[0])),
-        2 => format!(
-            "You see {} and {}.",
-            with_indefinite_article(&parts[0]),
-            with_indefinite_article(&parts[1])
-        ),
-        _ => {
-            let mut sentence = String::from("You see ");
-            for (index, part) in parts.iter().enumerate() {
-                let article_part = with_indefinite_article(part);
-                if index == parts.len() - 1 {
-                    sentence.push_str("and ");
-                    sentence.push_str(&article_part);
-                } else {
-                    sentence.push_str(&article_part);
-                    sentence.push_str(", ");
-                }
-            }
-            sentence.push('.');
-            sentence
-        }
-    }
-}
-
 fn with_indefinite_article(text: &str) -> String {
     let lower = text.trim_start().to_ascii_lowercase();
     if lower.starts_with("your ")
@@ -1072,41 +727,6 @@ fn with_indefinite_article(text: &str) -> String {
         _ => "a",
     };
     format!("{} {}", article, text)
-}
-
-fn sentence_case_exit_title(title: &str) -> String {
-    let trimmed = title.trim();
-    if trimmed.is_empty() {
-        return String::new();
-    }
-
-    let mut chars = trimmed.chars();
-    let first = chars.next().unwrap();
-    let mut out = first.to_ascii_lowercase().to_string();
-    out.push_str(chars.as_str());
-    out
-}
-
-fn render_presence_sentence(prefix: &str, names: &[String]) -> String {
-    match names.len() {
-        0 => String::new(),
-        1 => format!("{} {} here.", prefix, names[0]),
-        2 => format!("{} {} and {} here.", prefix, names[0], names[1]),
-        _ => {
-            let mut sentence = format!("{} ", prefix);
-            for (index, part) in names.iter().enumerate() {
-                if index == names.len() - 1 {
-                    sentence.push_str("and ");
-                    sentence.push_str(part);
-                } else {
-                    sentence.push_str(part);
-                    sentence.push_str(", ");
-                }
-            }
-            sentence.push_str(" here.");
-            sentence
-        }
-    }
 }
 
 fn colorized_presence_phrase(name: &str, color: Option<&str>) -> String {
@@ -1143,134 +763,6 @@ fn colorize_terminal_text(text: &str, color: Option<&str>) -> String {
     } else {
         text.to_string()
     }
-}
-
-fn cardinal_direction(from: Vec2<f32>, to: Vec2<f32>) -> String {
-    let delta = to - from;
-    if delta.x.abs() > delta.y.abs() {
-        if delta.x >= 0.0 { "east" } else { "west" }
-    } else if delta.y >= 0.0 {
-        "south"
-    } else {
-        "north"
-    }
-    .to_string()
-}
-
-fn probe_nearest_sector(map: &Map, origin: Vec2<f32>, max_distance: f32) -> Option<&Sector> {
-    let mut best: Option<(&Sector, f32)> = None;
-
-    for sector in &map.sectors {
-        if sector.layer.is_some() {
-            continue;
-        }
-        if let Some(distance) = sector.signed_distance(map, origin) {
-            let distance = distance.abs();
-            if distance <= max_distance {
-                match best {
-                    Some((_, best_distance)) if distance >= best_distance => {}
-                    _ => best = Some((sector, distance)),
-                }
-            }
-        }
-    }
-
-    best.map(|(sector, _)| sector)
-}
-
-fn resolve_text_exits(map: &Map, sector: &Sector, probe_distance: f32) -> Vec<TextExit> {
-    let mut exits = Vec::new();
-    let Some(current_center) = sector.center(map) else {
-        return exits;
-    };
-
-    for linedef in &map.linedefs {
-        let (line_title, line_description) = linedef_text_metadata(linedef);
-        if line_title.is_empty() && line_description.is_empty() {
-            continue;
-        }
-
-        let Some(v0) = map.get_vertex(linedef.start_vertex) else {
-            continue;
-        };
-        let Some(v1) = map.get_vertex(linedef.end_vertex) else {
-            continue;
-        };
-
-        let edge = v1 - v0;
-        if edge.magnitude_squared() <= f32::EPSILON {
-            continue;
-        }
-
-        let endpoint_a = probe_nearest_sector(map, v0, probe_distance);
-        let endpoint_b = probe_nearest_sector(map, v1, probe_distance);
-
-        let side_a;
-        let side_b;
-        let (front_sector, back_sector) = if let (Some(a), Some(b)) = (endpoint_a, endpoint_b) {
-            (a, b)
-        } else {
-            let midpoint = (v0 + v1) * 0.5;
-            let normal = Vec2::new(-edge.y, edge.x).normalized();
-            side_a = probe_nearest_sector(
-                map,
-                midpoint - normal * (probe_distance * 0.5),
-                probe_distance,
-            );
-            side_b = probe_nearest_sector(
-                map,
-                midpoint + normal * (probe_distance * 0.5),
-                probe_distance,
-            );
-            let (Some(a), Some(b)) = (side_a, side_b) else {
-                continue;
-            };
-            (a, b)
-        };
-
-        if front_sector.id == back_sector.id {
-            continue;
-        }
-
-        let target_sector = if front_sector.id == sector.id {
-            back_sector
-        } else if back_sector.id == sector.id {
-            front_sector
-        } else {
-            continue;
-        };
-
-        let Some(target_center) = target_sector.center(map) else {
-            continue;
-        };
-        let direction = cardinal_direction(current_center, target_center);
-        let (target_title, _) = sector_text_metadata(target_sector);
-        let title = if !line_title.is_empty() {
-            line_title.clone()
-        } else if !target_title.is_empty() {
-            target_title.clone()
-        } else {
-            target_sector.name.clone()
-        };
-
-        exits.push(TextExit {
-            direction,
-            title,
-            target_title,
-            target_sector_id: target_sector.id,
-            target_center,
-        });
-    }
-
-    exits.sort_by_key(|exit| match exit.direction.as_str() {
-        "north" => 0,
-        "east" => 1,
-        "south" => 2,
-        "west" => 3,
-        _ => 4,
-    });
-    exits.dedup_by(|a, b| a.direction == b.direction && a.target_sector_id == b.target_sector_id);
-    exits
 }
 
 fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
@@ -1456,7 +948,12 @@ fn collect_region_output(app: &mut TerminalApp, include_room: bool) -> Vec<Strin
     let region_id = app.project.regions[index].map.id;
     let player_id = app
         .current_region()
-        .and_then(|region| current_player_and_sector(&region.map).map(|(player, _)| player.id));
+        .and_then(|region| sg::current_player_and_sector(&region.map).map(|(player, _)| player.id));
+    let current_description = if include_room {
+        app.render_current_sector_description()
+    } else {
+        None
+    };
     for (sender_entity, _sender_item, receiver_id, message, category) in
         app.server.get_messages(&region_id)
     {
@@ -1473,6 +970,14 @@ fn collect_region_output(app: &mut TerminalApp, include_room: bool) -> Vec<Strin
             app.auto_attack_target = Some(sender_id);
         }
         if should_print_terminal_message(&message, &category) {
+            if include_room
+                && current_description
+                    .as_deref()
+                    .map(|text| text.trim() == message.trim())
+                    .unwrap_or(false)
+            {
+                continue;
+            }
             output.push(colorize_terminal_category(
                 &message,
                 &category,
@@ -1485,6 +990,19 @@ fn collect_region_output(app: &mut TerminalApp, include_room: bool) -> Vec<Strin
     }
     if include_room {
         output.push(app.render_room_text());
+        app.last_nearby_attackers = app.current_nearby_attackers();
+    } else {
+        let current_nearby_attackers = app.current_nearby_attackers();
+        let new_attackers: Vec<String> = current_nearby_attackers
+            .difference(&app.last_nearby_attackers)
+            .cloned()
+            .collect();
+        if !new_attackers.is_empty() {
+            output.push(sg::render_nearby_attacker_appearance_sentence(
+                &new_attackers,
+            ));
+        }
+        app.last_nearby_attackers = current_nearby_attackers;
     }
     if let Some(message) = app.take_hour_announcement() {
         output.push(message);
@@ -1496,24 +1014,24 @@ fn trigger_text_intent(app: &mut TerminalApp, intent: &str, query: &str) -> Vec<
     let Some(region) = app.current_region() else {
         return vec![format!("Current region '{}' not found.", app.current_map)];
     };
-    let Some((_player, sector)) = current_player_and_sector(&region.map) else {
+    let Some((_player, sector)) = sg::current_player_and_sector(&region.map) else {
         return vec!["No local player found.".into()];
     };
 
-    let target = match resolve_text_target(&region.map, sector, query) {
+    let target = match sg::resolve_text_target(&region.map, sector, query) {
         Ok(target) => target,
         Err(err) => return vec![err],
     };
 
     match target {
-        TextTarget::Entity { id, distance } => {
+        sg::TextTarget::Entity { id, distance } => {
             app.server.local_player_action(EntityAction::EntityClicked(
                 id,
                 distance,
                 Some(intent.trim().to_string()),
             ));
         }
-        TextTarget::Item { id, distance } => {
+        sg::TextTarget::Item { id, distance } => {
             app.server.local_player_action(EntityAction::ItemClicked(
                 id,
                 distance,
@@ -1523,51 +1041,22 @@ fn trigger_text_intent(app: &mut TerminalApp, intent: &str, query: &str) -> Vec<
     }
 
     app.tick();
-    collect_region_output(app, true)
+    let mut output = collect_region_output(app, false);
+    if output.is_empty() {
+        app.tick();
+        output = collect_region_output(app, false);
+    }
+    if output.is_empty() {
+        output.push(app.render_room_text());
+        app.last_nearby_attackers = app.current_nearby_attackers();
+    }
+    output
 }
 
 fn current_player_supported_intents(app: &TerminalApp) -> BTreeSet<String> {
-    let mut intents = BTreeSet::new();
-    let Some(region) = app.current_region() else {
-        return intents;
-    };
-    let Some((player, _)) = current_player_and_sector(&region.map) else {
-        return intents;
-    };
-    let Some(class_name) = player.get_attr_string("class_name") else {
-        return intents;
-    };
-    let Some(character) = app
-        .project
-        .characters
-        .values()
-        .find(|c| c.name == class_name)
-    else {
-        return intents;
-    };
-    let Ok(table) = character.data.parse::<Table>() else {
-        return intents;
-    };
-    let Some(input) = table.get("input").and_then(toml::Value::as_table) else {
-        return intents;
-    };
-
-    for value in input.values().filter_map(toml::Value::as_str) {
-        let trimmed = value.trim();
-        let lower = trimmed.to_ascii_lowercase();
-        if let Some(inner) = lower
-            .strip_prefix("intent(")
-            .and_then(|v| v.strip_suffix(')'))
-            .map(str::trim)
-        {
-            let inner = inner.trim_matches('"').trim_matches('\'').trim();
-            if !inner.is_empty() {
-                intents.insert(inner.to_string());
-            }
-        }
-    }
-
-    intents
+    app.current_region()
+        .map(|region| sg::current_player_supported_intents(&app.project, &region.map))
+        .unwrap_or_default()
 }
 
 fn tick_duration(project: &Project) -> Duration {
@@ -1602,11 +1091,11 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
         _ if matches!(direction, "north" | "south" | "east" | "west") => {
             let mut moved = false;
             if let Some(region) = app.current_region() {
-                if let Some((_, sector)) = current_player_and_sector(&region.map) {
-                    let exits = resolve_text_exits(
+                if let Some((_, sector)) = sg::current_player_and_sector(&region.map) {
+                    let exits = sg::resolve_text_exits(
                         &region.map,
                         sector,
-                        authoring_connection_probe_distance(&app.project.authoring),
+                        sg::authoring_connection_probe_distance(&app.project.authoring),
                     );
                     if let Some(exit) = exits.into_iter().find(|exit| exit.direction == direction) {
                         moved = app.move_to_exit(&exit);
@@ -1685,11 +1174,11 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
             } else {
                 let mut moved = false;
                 if let Some(region) = app.current_region() {
-                    if let Some((_, sector)) = current_player_and_sector(&region.map) {
-                        let exits = resolve_text_exits(
+                    if let Some((_, sector)) = sg::current_player_and_sector(&region.map) {
+                        let exits = sg::resolve_text_exits(
                             &region.map,
                             sector,
-                            authoring_connection_probe_distance(&app.project.authoring),
+                            sg::authoring_connection_probe_distance(&app.project.authoring),
                         );
                         if let Some(exit) = exits.into_iter().find(|exit| {
                             exit.direction == target
@@ -1860,7 +1349,7 @@ fn run_realtime_cli(mut app: TerminalApp) {
             };
             let region_id = app.project.regions[index].map.id;
             let player_id = app.current_region().and_then(|region| {
-                current_player_and_sector(&region.map).map(|(player, _)| player.id)
+                sg::current_player_and_sector(&region.map).map(|(player, _)| player.id)
             });
             for (sender_entity, _sender_item, receiver_id, message, category) in
                 app.server.get_messages(&region_id)

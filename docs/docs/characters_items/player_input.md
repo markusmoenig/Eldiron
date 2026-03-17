@@ -64,7 +64,7 @@ In 2D-style play, an intent is usually **one-shot**:
 2. press a directional action like `forward`
 3. the engine looks in that direction and sends the matching `intent` event
 
-If no valid target is found, the engine may send a localized fallback message such as `nothing_to_use` or `nothing_to_attack`.
+If no valid target is found, the engine sends the localized fallback `{system.cant_do_that}`.
 
 ### Isometric / First-Person
 

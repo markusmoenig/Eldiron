@@ -48,6 +48,8 @@ pub static SCENEMANAGER: LazyLock<RwLock<SceneManager>> =
     LazyLock::new(|| RwLock::new(SceneManager::default()));
 pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
     LazyLock::new(|| RwLock::new(DockManager::default()));
+pub static TEXTGAME: LazyLock<RwLock<TextGameState>> =
+    LazyLock::new(|| RwLock::new(TextGameState::default()));
 
 pub static CODEGRIDFX: LazyLock<RwLock<Module>> =
     LazyLock::new(|| RwLock::new(Module::as_type(codegridfx::ModuleType::CharacterTemplate)));
@@ -247,6 +249,8 @@ impl Editor {
         }
 
         self.server_ctx.clear();
+        self.server_ctx.text_game_mode = TOOLLIST.read().unwrap().text_game_mode;
+        TEXTGAME.write().unwrap().reset();
         if let Some(first) = self.project.regions.first() {
             self.server_ctx.curr_region = first.id;
         }
@@ -1362,6 +1366,16 @@ impl TheTrait for Editor {
                     }
                 }
             }
+            if self.server_ctx.game_mode && self.server_ctx.text_game_mode {
+                TEXTGAME.write().unwrap().update(
+                    &self.project,
+                    &self.server_ctx,
+                    &mut messages,
+                    &mut says,
+                    ui,
+                    ctx,
+                );
+            }
 
             // Draw Map
             if let Some(render_view) = ui.get_render_view("PolyView") {
@@ -1386,9 +1400,24 @@ impl TheTrait for Editor {
                     let is_running = rusterix.server.state == rusterix::ServerState::Running;
 
                     if is_running && self.server_ctx.game_mode {
+                        let game_messages = if self.server_ctx.text_game_mode {
+                            Vec::new()
+                        } else {
+                            messages
+                        };
+                        let game_says = if self.server_ctx.text_game_mode {
+                            Vec::new()
+                        } else {
+                            says
+                        };
+                        let game_choices = if self.server_ctx.text_game_mode {
+                            Vec::new()
+                        } else {
+                            choices
+                        };
                         for r in &mut self.project.regions {
                             if r.map.name == rusterix.client.current_map {
-                                rusterix.draw_game(&r.map, messages, says, choices);
+                                rusterix.draw_game(&r.map, game_messages, game_says, game_choices);
                                 break;
                             }
                         }
@@ -2583,10 +2612,22 @@ impl TheTrait for Editor {
                     else if id.name == "Play" {
                         let state = RUSTERIX.read().unwrap().server.state;
                         if state == rusterix::ServerState::Paused {
+                            self.pending_game_messages.clear();
+                            self.pending_game_choices.clear();
+                            TEXTGAME.write().unwrap().reset();
+                            if self.server_ctx.text_game_mode {
+                                TEXTGAME.write().unwrap().sync_output(ui, ctx);
+                            }
                             RUSTERIX.write().unwrap().server.continue_instances();
                             update_server_icons = true;
                         } else {
                             if state == rusterix::ServerState::Off {
+                                self.pending_game_messages.clear();
+                                self.pending_game_choices.clear();
+                                TEXTGAME.write().unwrap().reset();
+                                if self.server_ctx.text_game_mode {
+                                    TEXTGAME.write().unwrap().sync_output(ui, ctx);
+                                }
                                 start_server(
                                     &mut RUSTERIX.write().unwrap(),
                                     &mut self.project,
@@ -2809,6 +2850,17 @@ impl TheTrait for Editor {
                                     rusterix.server.set_time(&map.id, time);
                                 }
                             }
+                        }
+                    } else if id.name == TextGameState::INPUT_ID {
+                        if let Some(command) = value.to_string() {
+                            TEXTGAME.write().unwrap().handle_input(
+                                &command,
+                                &mut self.project,
+                                &self.server_ctx,
+                                ui,
+                                ctx,
+                            );
+                            redraw = true;
                         }
                     }
                 }

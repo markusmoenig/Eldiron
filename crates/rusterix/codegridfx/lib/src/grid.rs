@@ -519,95 +519,56 @@ impl Grid {
         self.row_indents = new_indents;
     }
 
-    /// Handles deletion/backspace at the given row.
-    /// If the current row is empty, delete it. Otherwise, if the previous row exists and is empty,
-    /// delete that previous row. Otherwise, delete the current row. Then shift rows below up by one
-    /// and update indents accordingly. Finally, restore grid invariants via `insert_empty()`.
+    /// Deletes the given row and shifts all following rows up by one.
+    /// This is true delete-line behavior: delete the selected line itself,
+    /// not a neighboring empty line.
     pub fn delete_at(&mut self, row: u32) {
-        // Helper: does a row exist and is it all empty?
-        let row_exists = |rr: u32| -> bool { self.grid.keys().any(|&(_, r)| r == rr) };
-        let row_all_empty = |rr: u32| -> bool {
-            let mut any = false;
-            for ((_, r), cell) in &self.grid {
-                if *r == rr {
-                    any = true;
-                    if !matches!(cell.cell, Cell::Empty) {
-                        return false;
-                    }
-                }
-            }
-            // If the row has no cells recorded at all, treat it as empty-only if it truly doesn't exist.
-            // We use row_exists separately to decide whether it's a candidate for deletion.
-            any && true
-        };
-
-        // Decide which row to remove.
-        let remove_row: u32 = {
-            let current_is_empty = row_exists(row) && row_all_empty(row);
-            if current_is_empty {
-                row
-            } else if row > 0 {
-                let prev = row - 1;
-                if row_exists(prev) && row_all_empty(prev) {
-                    prev
-                } else {
-                    row
-                }
-            } else {
-                row
-            }
-        };
-
         // Detect whether the removed row is a block opener (`if` / `else`) and
         // capture its effective indent so we can outdent the child block.
         let mut removed_is_block_opener = false;
-        let removed_row_indent = self.effective_indent(remove_row);
+        let removed_row_indent = self.effective_indent(row);
         let mut leading_col: Option<u32> = None;
         for (&(col, r), cell) in &self.grid {
-            if r == remove_row && !matches!(cell.cell, Cell::Empty) {
+            if r == row && !matches!(cell.cell, Cell::Empty) {
                 leading_col = Some(leading_col.map_or(col, |m| m.min(col)));
             }
         }
         if let Some(col) = leading_col
-            && let Some(cell) = self.grid.get(&(col, remove_row))
+            && let Some(cell) = self.grid.get(&(col, row))
         {
             removed_is_block_opener = matches!(cell.cell, Cell::If | Cell::Else);
         }
 
-        // Gather cells to remove (the row we’re deleting) and cells to shift (rows below)
-        let mut to_shift: Vec<((u32, u32), CellItem)> = Vec::new();
         let mut to_remove: Vec<(u32, u32)> = Vec::new();
+        let mut to_shift: Vec<((u32, u32), CellItem)> = Vec::new();
         for (&(col, r), cell) in &self.grid {
-            if r == remove_row {
+            if r == row {
                 to_remove.push((col, r));
-            } else if r > remove_row {
+            } else if r > row {
                 to_shift.push(((col, r), cell.clone()));
             }
         }
 
-        // Remove all cells in the row being deleted
+        // Remove all cells in the row being deleted.
         for (col, r) in &to_remove {
             self.grid.remove(&(*col, *r));
             self.grid_rects.remove(&(*col, *r));
         }
 
-        // Remove and reinsert all cells in lower rows, shifting them up by one.
-        // IMPORTANT: process in ASCENDING row order to avoid overwriting freshly shifted rows.
+        // Shift lower rows up by one.
         to_shift.sort_by_key(|&((_, r), _)| r);
         for ((col, r), cell) in to_shift {
-            // remove original position (if still present) and insert at r-1
             self.grid.remove(&(col, r));
             self.grid_rects.remove(&(col, r));
             self.grid.insert((col, r - 1), cell);
         }
 
-        // Update the indent map: drop the indent for the removed row, and shift indents for rows below it up by one
+        // Update the indent map: drop the deleted row and shift lower rows up.
         let mut new_indents: FxHashMap<u32, u32> = FxHashMap::default();
         for (&r, &ind) in &self.row_indents {
-            if r == remove_row {
-                // skip the removed row
+            if r == row {
                 continue;
-            } else if r > remove_row {
+            } else if r > row {
                 new_indents.insert(r - 1, ind);
             } else {
                 new_indents.insert(r, ind);
@@ -616,11 +577,9 @@ impl Grid {
         self.row_indents = new_indents;
 
         // If we removed a block opener, outdent the contiguous child block by one level.
-        // Child rows are the rows immediately following `remove_row` while their indent
-        // stays deeper than the removed row's indent.
         if removed_is_block_opener {
             let max_row = self.grid.keys().map(|&(_, r)| r).max().unwrap_or(0);
-            let mut rr = remove_row;
+            let mut rr = row;
             while rr <= max_row {
                 let ind = self.effective_indent(rr);
                 if ind <= removed_row_indent {

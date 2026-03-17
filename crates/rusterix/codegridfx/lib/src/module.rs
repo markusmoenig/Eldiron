@@ -113,6 +113,11 @@ impl ModuleType {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct RoutineDragPayload {
+    routine_id: Uuid,
+}
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Module {
     #[serde(default)]
@@ -141,6 +146,55 @@ pub struct Module {
 }
 
 impl Module {
+    fn cancel_drag(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.drag_started = false;
+        self.drop_target = None;
+        self.drag_origin = None;
+        ctx.ui.clear_drop();
+        self.redraw(ui, ctx);
+        ctx.ui
+            .send(TheEvent::SetStatusText(TheId::empty(), String::new()));
+    }
+
+    fn routine_header_at(&self, coord: Vec2<i32>) -> Option<Uuid> {
+        let content_y = coord.y - self.grid_ctx.offset_y;
+        for r in self.routines.values() {
+            if !r.visible {
+                continue;
+            }
+            let local_y = content_y - r.module_offset;
+            if (0..35).contains(&local_y) {
+                return Some(r.id);
+            }
+        }
+        None
+    }
+
+    fn move_routine_before(&mut self, moving: Uuid, before: Uuid) -> bool {
+        if moving == before {
+            return false;
+        }
+        let Some(routine) = self.routines.shift_remove(&moving) else {
+            return false;
+        };
+        let mut reordered = IndexMap::default();
+        let mut inserted = false;
+        for (id, existing) in self.routines.drain(..) {
+            if id == before {
+                reordered.insert(moving, routine.clone());
+                inserted = true;
+            }
+            reordered.insert(id, existing);
+        }
+        if !inserted {
+            reordered.insert(moving, routine);
+        }
+        self.routines = reordered;
+        self.grid_ctx.selected_routine = Some(moving);
+        self.grid_ctx.current_cell = None;
+        true
+    }
+
     fn update_drop_preview(
         &mut self,
         ui: &mut TheUI,
@@ -152,6 +206,37 @@ impl Module {
         self.drop_target = None;
 
         if let Some(drop) = &ctx.ui.drop {
+            if drop.id.name == "Code Editor Routine" {
+                if let Some(target_id) = self.routine_header_at(coord) {
+                    let moving_name = self
+                        .routines
+                        .get(
+                            &serde_json::from_str::<RoutineDragPayload>(&drop.data)
+                                .ok()
+                                .map(|payload| payload.routine_id)
+                                .unwrap_or_default(),
+                        )
+                        .map(|r| r.name.clone())
+                        .unwrap_or_else(|| "routine".to_string());
+                    let target_name = self
+                        .routines
+                        .get(&target_id)
+                        .map(|r| r.name.clone())
+                        .unwrap_or_else(|| "routine".to_string());
+                    self.redraw(ui, ctx);
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        format!("Move '{}' before '{}'", moving_name, target_name),
+                    ));
+                    return true;
+                }
+                self.redraw(ui, ctx);
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    "Drag onto a routine header to reorder".into(),
+                ));
+                return true;
+            }
             for r in self.routines.values() {
                 if r.visible {
                     let local_y = content_y - r.module_offset;
@@ -802,7 +887,12 @@ impl Module {
                     if focus.name == self.get_view_name() {
                         let prev = self.to_json();
                         if let Some(key_code) = key.to_key_code() {
-                            if key_code == TheKeyCode::Return {
+                            if key_code == TheKeyCode::Escape {
+                                if self.drag_started || ctx.ui.drop.is_some() {
+                                    self.cancel_drag(ui, ctx);
+                                    redraw = true;
+                                }
+                            } else if key_code == TheKeyCode::Return {
                                 if let Some(sel) = self.grid_ctx.current_cell.clone() {
                                     if let Some(routine) = self.get_selected_routine_mut() {
                                         if ui.shift {
@@ -864,7 +954,11 @@ impl Module {
                                     }
                                 } else if let Some(r) = self.grid_ctx.selected_routine {
                                     self.routines.shift_remove(&r);
+                                    self.grid_ctx.selected_routine =
+                                        self.routines.first().map(|(id, _)| *id);
+                                    self.grid_ctx.current_cell = None;
                                     self.redraw(ui, ctx);
+                                    self.show_event_settings(ui, ctx);
 
                                     ctx.ui.send(TheEvent::Custom(
                                         TheId::named("ModuleChanged"),
@@ -875,6 +969,7 @@ impl Module {
                                         prev,
                                         self.to_json(),
                                     ));
+                                    redraw = true;
                                 }
                             }
                         }
@@ -1056,6 +1151,27 @@ impl Module {
                     let content_x = coord.x - self.grid_ctx.offset_x;
                     let content_y = coord.y - self.grid_ctx.offset_y;
 
+                    if let Some(routine_id) = self.routine_header_at(origin) {
+                        let mut drop = TheDrop::new(TheId::named("Code Editor Routine"));
+                        drop.operation = TheDropOperation::Move;
+                        drop.set_title(
+                            self.routines
+                                .get(&routine_id)
+                                .map(|r| r.name.clone())
+                                .unwrap_or_else(|| "Routine".to_string()),
+                        );
+                        drop.set_data(
+                            serde_json::to_string(&RoutineDragPayload { routine_id })
+                                .unwrap_or_default(),
+                        );
+                        ui.style.create_drop_image(&mut drop, ctx);
+                        ctx.ui.set_drop(drop);
+                        self.drag_started = true;
+                        self.update_drop_preview(ui, ctx, *coord);
+                        redraw = true;
+                        return redraw;
+                    }
+
                     for r in self.routines.values() {
                         if !r.visible {
                             continue;
@@ -1094,10 +1210,7 @@ impl Module {
             }
             TheEvent::RenderViewUp(id, _coord) => {
                 if id.name == self.get_view_name() {
-                    self.drag_started = false;
-                    self.drop_target = None;
-                    self.drag_origin = None;
-                    ctx.ui.clear_drop();
+                    self.cancel_drag(ui, ctx);
                 }
             }
             TheEvent::Drop(coord, drop) => {
@@ -1125,6 +1238,12 @@ impl Module {
                     self.redraw(ui, ctx);
 
                     self.show_event_settings(ui, ctx);
+                } else if drop.id.name == "Code Editor Routine" {
+                    if let Ok(payload) = serde_json::from_str::<RoutineDragPayload>(&drop.data)
+                        && let Some(target_id) = self.routine_header_at(Vec2::new(coord.x, coord.y))
+                    {
+                        handled = self.move_routine_before(payload.routine_id, target_id);
+                    }
                 } else {
                     for r in self.routines.values_mut() {
                         if r.visible {

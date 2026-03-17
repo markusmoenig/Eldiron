@@ -60,11 +60,11 @@ icon = ["../build/Eldiron.icns"]
 resources = []
 copyright = "Copyright (c) Markus Moenig 2025. All rights reserved."
 category = "Game"
-short_description = "A game creator for classical RPGs with modern features."
+short_description = "A creator for retro RPGs in text, 2D, and 3D."
 long_description = """
-Create classical RPGs with Eldiron.
+Create retro RPGs and interactive-fiction worlds with Eldiron.
+Build games that can be played in text, 2D, and 3D.
 """
-
 # cargo build -p eldiron-creator --lib --release --no-default-features --features staticlib
 [lib]
 name = "eldiron_creator"

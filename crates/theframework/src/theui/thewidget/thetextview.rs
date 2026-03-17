@@ -1,11 +1,23 @@
 #[cfg(not(target_arch = "wasm32"))]
 use arboard::Clipboard;
 
+use std::ops::Range;
+
+use unicode_segmentation::UnicodeSegmentation;
 use web_time::Instant;
 
-use crate::{prelude::*, theui::thewidget::thetextedit::TheCursor};
+use crate::{
+    prelude::*,
+    theui::thewidget::thetextedit::{TheCursor, TheTextStyle},
+};
 
 use super::thetextedit::{TheTextEditState, TheTextRenderer};
+
+#[derive(Clone, Debug, Default)]
+pub struct TheTextViewBlock {
+    pub text: String,
+    pub style: TheTextStyle,
+}
 
 pub struct TheTextView {
     // Widget Basic
@@ -21,6 +33,8 @@ pub struct TheTextView {
 
     // Text render
     renderer: TheTextRenderer,
+    styled_ranges: Vec<(Range<usize>, TheTextStyle)>,
+    background_override: Option<TheColor>,
     scrollbar_size: usize,
     draw_background: bool,
     draw_border: bool,
@@ -78,6 +92,8 @@ impl TheWidget for TheTextView {
             state,
 
             renderer: TheTextRenderer::default(),
+            styled_ranges: Vec::new(),
+            background_override: None,
             scrollbar_size: 13,
             draw_border: false,
             draw_background: false,
@@ -430,11 +446,13 @@ impl TheWidget for TheTextView {
         match value {
             TheValue::Empty => {
                 self.state.reset();
+                self.styled_ranges.clear();
                 self.is_dirty = true;
             }
             TheValue::Text(text) => {
                 self.state.reset();
                 self.state.set_text(text);
+                self.styled_ranges.clear();
                 self.is_dirty = true;
             }
             _ => {}
@@ -452,6 +470,17 @@ impl TheWidget for TheTextView {
         }
 
         let mut shrinker = TheDimShrinker::zero();
+
+        if let Some(color) = &self.background_override {
+            let stride = buffer.stride();
+            ctx.draw.rect(
+                buffer.pixels_mut(),
+                &self.dim.to_buffer_utuple(),
+                stride,
+                &color.to_u8_array(),
+            );
+        }
+
         self.renderer.render_widget(
             &mut shrinker,
             true,
@@ -474,7 +503,7 @@ impl TheWidget for TheTextView {
             }
 
             self.renderer
-                .prepare(&self.state.to_text(), TheFontPreference::Code, &ctx.draw);
+                .prepare(&self.state.to_text(), TheFontPreference::Default, &ctx.draw);
 
             shrinker.shrink_by(
                 -(self.renderer.padding.0 as i32),
@@ -562,15 +591,28 @@ impl TheWidget for TheTextView {
             }
         }
 
-        self.renderer.render_text(
-            &self.state,
-            ctx.ui.has_focus(self.id()),
-            true,
-            buffer,
-            style,
-            TheFontPreference::Code,
-            &ctx.draw,
-        );
+        if self.styled_ranges.is_empty() {
+            self.renderer.render_text(
+                &self.state,
+                ctx.ui.has_focus(self.id()),
+                true,
+                buffer,
+                style,
+                TheFontPreference::Default,
+                &ctx.draw,
+            );
+        } else {
+            self.renderer.render_text_with_styles(
+                &self.state,
+                ctx.ui.has_focus(self.id()),
+                true,
+                buffer,
+                style,
+                TheFontPreference::Default,
+                &self.styled_ranges,
+                &ctx.draw,
+            );
+        }
 
         if self.renderer.is_horizontal_overflow() {
             if let Some(scrollbar) = self.hscrollbar.as_horizontal_scrollbar() {
@@ -614,11 +656,14 @@ impl TheWidget for TheTextView {
 pub trait TheTextViewTrait: TheWidget {
     fn text(&self) -> String;
     fn set_text(&mut self, text: String);
+    fn set_blocks(&mut self, blocks: Vec<TheTextViewBlock>);
     fn set_font_size(&mut self, font_size: f32);
     fn set_embedded(&mut self, embedded: bool);
     fn set_selectable(&mut self, selectable: bool);
     fn set_word_wrap(&mut self, word_wrap: bool);
     fn set_padding(&mut self, padding: (usize, usize, usize, usize));
+    fn set_background_override(&mut self, color: Option<TheColor>);
+    fn scroll_to_bottom(&mut self);
     fn draw_background(&mut self, draw_background: bool);
     fn draw_border(&mut self, draw_border: bool);
 }
@@ -628,7 +673,27 @@ impl TheTextViewTrait for TheTextView {
         self.state.to_text()
     }
     fn set_text(&mut self, text: String) {
+        self.styled_ranges.clear();
         self.state.set_text(text);
+        self.is_dirty = true;
+    }
+    fn set_blocks(&mut self, blocks: Vec<TheTextViewBlock>) {
+        self.state.reset();
+        self.styled_ranges.clear();
+
+        let mut merged = String::new();
+        let mut cursor = 0usize;
+
+        for block in blocks {
+            let start = cursor;
+            merged.push_str(&block.text);
+            cursor = merged.graphemes(true).count();
+            if !block.style.is_empty() && cursor > start {
+                self.styled_ranges.push((start..(cursor - 1), block.style));
+            }
+        }
+
+        self.state.set_text(merged);
         self.is_dirty = true;
     }
     fn set_font_size(&mut self, font_size: f32) {
@@ -656,6 +721,19 @@ impl TheTextViewTrait for TheTextView {
             padding.2 as i32,
             padding.3 as i32,
         );
+        self.is_dirty = true;
+    }
+    fn set_background_override(&mut self, color: Option<TheColor>) {
+        self.background_override = color;
+        self.is_dirty = true;
+    }
+    fn scroll_to_bottom(&mut self) {
+        let downmost = self
+            .renderer
+            .actual_size
+            .y
+            .saturating_sub(self.renderer.viewport_height());
+        self.renderer.scroll_offset.y = downmost;
         self.is_dirty = true;
     }
     fn draw_background(&mut self, draw_background: bool) {

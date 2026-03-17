@@ -888,11 +888,19 @@ impl RegionInstance {
                 with_regionctx(self.id, |ctx| {
                     if let Some(sector) = ctx.map.find_sector_at(entity.get_pos_xz()) {
                         sector_name = sector.name.clone();
-                    }
-                    {
+                        let sector_id = sector.id;
                         for e in ctx.map.entities.iter_mut() {
                             if e.id == entity.id {
                                 e.attributes.set("sector", Value::Str(sector_name.clone()));
+                                e.attributes
+                                    .set("sector_id", Value::Int64(sector_id as i64));
+                            }
+                        }
+                    } else {
+                        for e in ctx.map.entities.iter_mut() {
+                            if e.id == entity.id {
+                                e.attributes.set("sector", Value::Str(String::new()));
+                                e.attributes.set("sector_id", Value::Int64(-1));
                             }
                         }
                     }
@@ -1202,22 +1210,24 @@ impl RegionInstance {
 
                         let attacker_sector = attacker
                             .attributes
-                            .get_str("sector")
-                            .map(str::to_string)
+                            .get("sector_id")
+                            .and_then(|value| match value {
+                                Value::Int64(v) if *v >= 0 => Some(*v as u32),
+                                Value::Int(v) if *v >= 0 => Some(*v as u32),
+                                _ => None,
+                            })
                             .or_else(|| {
-                                ctx.map
-                                    .find_sector_at(attacker.get_pos_xz())
-                                    .map(|s| s.name.clone())
+                                ctx.map.find_sector_at(attacker.get_pos_xz()).map(|s| s.id)
                             });
                         let target_sector = target
                             .attributes
-                            .get_str("sector")
-                            .map(str::to_string)
-                            .or_else(|| {
-                                ctx.map
-                                    .find_sector_at(target.get_pos_xz())
-                                    .map(|s| s.name.clone())
-                            });
+                            .get("sector_id")
+                            .and_then(|value| match value {
+                                Value::Int64(v) if *v >= 0 => Some(*v as u32),
+                                Value::Int(v) if *v >= 0 => Some(*v as u32),
+                                _ => None,
+                            })
+                            .or_else(|| ctx.map.find_sector_at(target.get_pos_xz()).map(|s| s.id));
 
                         if attacker_sector.is_some()
                             && target_sector.is_some()
@@ -1421,6 +1431,53 @@ impl RegionInstance {
                             let intent = intent_raw.trim().to_string();
                             let intent_lower = intent.to_ascii_lowercase();
                             let mut handled_shortcut = false;
+                            let subject = ctx.map.entities.iter().find(|e| e.id == entity_id);
+                            let target_entity =
+                                ctx.map.entities.iter().find(|e| e.id == clicked_entity_id);
+                            let rules = intent_rule_config(ctx, entity_id, &intent_lower);
+
+                            if !intent.is_empty()
+                                && let Some(max_distance) =
+                                    entity_intent_distance_limit(ctx, entity_id, &intent_lower)
+                                && distance > max_distance
+                            {
+                                send_message(
+                                    ctx,
+                                    entity_id,
+                                    "{system.too_far_away}".into(),
+                                    "warning",
+                                );
+                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                                    entity.set_attribute("intent", Value::Str(String::new()));
+                                }
+                                return;
+                            }
+
+                            if !intent.is_empty()
+                                && let Some(allowed) = rules.allowed.as_deref()
+                                && !evaluate_intent_allowed(
+                                    ctx,
+                                    allowed,
+                                    distance,
+                                    subject,
+                                    target_entity,
+                                    None,
+                                )
+                            {
+                                send_message(
+                                    ctx,
+                                    entity_id,
+                                    rules
+                                        .deny_message
+                                        .clone()
+                                        .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
+                                    "warning",
+                                );
+                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                                    entity.set_attribute("intent", Value::Str(String::new()));
+                                }
+                                return;
+                            }
 
                             if let Some(spell_template) = intent.strip_prefix("spell:") {
                                 let spell_template = spell_template.trim();
@@ -1471,11 +1528,18 @@ impl RegionInstance {
                                             entity_id as f32,
                                             distance as f32,
                                             0.0,
-                                            intent,
+                                            &intent,
                                         ),
                                     ));
                                 }
                             }
+
+                            queue_intent_cooldown(
+                                ctx,
+                                entity_id,
+                                &intent_lower,
+                                rules.cooldown_minutes,
+                            );
 
                             if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
                                 entity.set_attribute("intent", Value::Str(String::new()));
@@ -1501,6 +1565,74 @@ impl RegionInstance {
                             let intent = intent_raw.trim().to_string();
                             let intent_lower = intent.to_ascii_lowercase();
                             let mut handled_shortcut = false;
+                            let subject = ctx.map.entities.iter().find(|e| e.id == entity_id);
+                            let target_item = ctx
+                                .map
+                                .items
+                                .iter()
+                                .find(|i| i.id == clicked_item_id)
+                                .or_else(|| {
+                                    ctx.map
+                                        .entities
+                                        .iter()
+                                        .find(|e| e.id == entity_id)
+                                        .and_then(|e| e.get_item(clicked_item_id))
+                                })
+                                .or_else(|| {
+                                    ctx.map
+                                        .entities
+                                        .iter()
+                                        .find(|e| e.id == entity_id)
+                                        .and_then(|e| {
+                                            e.equipped
+                                                .values()
+                                                .find(|item| item.id == clicked_item_id)
+                                        })
+                                });
+                            let rules = intent_rule_config(ctx, entity_id, &intent_lower);
+
+                            if !intent.is_empty()
+                                && let Some(max_distance) =
+                                    entity_intent_distance_limit(ctx, entity_id, &intent_lower)
+                                && distance > max_distance
+                            {
+                                send_message(
+                                    ctx,
+                                    entity_id,
+                                    "{system.too_far_away}".into(),
+                                    "warning",
+                                );
+                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                                    entity.set_attribute("intent", Value::Str(String::new()));
+                                }
+                                return;
+                            }
+
+                            if !intent.is_empty()
+                                && let Some(allowed) = rules.allowed.as_deref()
+                                && !evaluate_intent_allowed(
+                                    ctx,
+                                    allowed,
+                                    distance,
+                                    subject,
+                                    None,
+                                    target_item,
+                                )
+                            {
+                                send_message(
+                                    ctx,
+                                    entity_id,
+                                    rules
+                                        .deny_message
+                                        .clone()
+                                        .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
+                                    "warning",
+                                );
+                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                                    entity.set_attribute("intent", Value::Str(String::new()));
+                                }
+                                return;
+                            }
 
                             // Optional item-level shortcuts for common intents.
                             let item_attrs = ctx
@@ -1638,11 +1770,18 @@ impl RegionInstance {
                                             entity_id as f32,
                                             distance as f32,
                                             0.0,
-                                            intent,
+                                            &intent,
                                         ),
                                     ));
                                 }
                             }
+
+                            queue_intent_cooldown(
+                                ctx,
+                                entity_id,
+                                &intent_lower,
+                                rules.cooldown_minutes,
+                            );
 
                             if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
                                 entity.set_attribute("intent", Value::Str(String::new()));
@@ -2147,10 +2286,6 @@ impl RegionInstance {
 
                                 // Send closed in event
                                 if let Some(_class_name) = ctx.entity_classes.get(&entity.id) {
-                                    // let cmd = format!(
-                                    //     "{}.event(\"closed_in\", {})",
-                                    //     class_name, target_id
-                                    // );
                                     ctx.to_execute_entity.push((
                                         entity.id,
                                         "closed_in".into(),
@@ -2847,6 +2982,20 @@ impl RegionInstance {
                 }
                 // Store the tick we executed this in
                 state_data.set(&todo.1, Value::Int64(ticks));
+
+                if let Some(specific_intent_key) = &specific_intent_key {
+                    let pending_key = format!(
+                        "__pending_intent_cooldown:{}",
+                        todo.2
+                            .as_string()
+                            .map(|intent| intent.trim().to_ascii_lowercase())
+                            .unwrap_or_default()
+                    );
+                    if let Some(value) = state_data.get(&pending_key).cloned() {
+                        state_data.set(specific_intent_key, value);
+                        state_data.remove(&pending_key);
+                    }
+                }
             } else {
                 let mut vc = ValueContainer::default();
                 vc.set(&todo.1, Value::Int64(ticks));
@@ -3491,6 +3640,8 @@ impl RegionInstance {
             }
 
             let intent = entity.attributes.get_str_default("intent", "".into());
+            let intent_lower = intent.trim().to_ascii_lowercase();
+            let rules = intent_rule_config(ctx, entity.id, &intent_lower);
 
             if let Some(spell_template) = intent.trim().strip_prefix("spell:") {
                 let spell_template = spell_template.trim();
@@ -3521,9 +3672,37 @@ impl RegionInstance {
             }
 
             if !found_target {
-                let message = format!("{{nothing_to_{}}}", intent);
                 entity.set_attribute("intent", Value::Str(String::new()));
-                send_message(ctx, entity.id, message, "system");
+                send_message(ctx, entity.id, "{system.cant_do_that}".into(), "warning");
+                return;
+            }
+
+            let target_entity = target_entity_id
+                .and_then(|id| ctx.map.entities.iter().find(|candidate| candidate.id == id));
+            let target_item = target_item_id
+                .and_then(|id| ctx.map.items.iter().find(|candidate| candidate.id == id));
+
+            if !intent.trim().is_empty()
+                && let Some(allowed) = rules.allowed.as_deref()
+                && !evaluate_intent_allowed(
+                    ctx,
+                    allowed,
+                    value.y,
+                    Some(entity),
+                    target_entity,
+                    target_item,
+                )
+            {
+                send_message(
+                    ctx,
+                    entity.id,
+                    rules
+                        .deny_message
+                        .clone()
+                        .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
+                    "warning",
+                );
+                entity.set_attribute("intent", Value::Str(String::new()));
                 return;
             }
 
@@ -3541,6 +3720,8 @@ impl RegionInstance {
                 ctx.to_execute_item
                     .push((item_id, "intent".to_string(), value));
             }
+
+            queue_intent_cooldown(ctx, entity.id, &intent_lower, rules.cooldown_minutes);
 
             entity.set_attribute("intent", Value::Str(String::new()));
         });
@@ -3576,11 +3757,14 @@ impl RegionInstance {
             }
         }
 
-        let mut entities = Vec::new();
+        let mut entities: Vec<(u32, f32)> = Vec::new();
 
         if let Some(position) = position {
             for other in ctx.map.entities.iter() {
                 if is_entity && other.id == id {
+                    continue;
+                }
+                if other.get_mode() == "dead" {
                     continue;
                 }
                 let other_position = other.get_pos_xz();
@@ -3592,12 +3776,13 @@ impl RegionInstance {
 
                 // Entity is inside the radius
                 if distance_squared < combined_radius_squared {
-                    entities.push(other.id);
+                    entities.push((other.id, distance_squared));
                 }
             }
         }
 
-        entities
+        entities.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        entities.into_iter().map(|(id, _)| id).collect()
     }
 }
 
@@ -4629,14 +4814,15 @@ pub(crate) fn apply_damage_direct(
         .and_then(|entity| {
             entity
                 .attributes
-                .get_str("sector")
-                .map(str::to_string)
-                .or_else(|| {
-                    ctx.map
-                        .find_sector_at(entity.get_pos_xz())
-                        .map(|s| s.name.clone())
+                .get("sector_id")
+                .and_then(|value| match value {
+                    Value::Int64(v) if *v >= 0 => Some(*v as u32),
+                    Value::Int(v) if *v >= 0 => Some(*v as u32),
+                    _ => None,
                 })
+                .or_else(|| ctx.map.find_sector_at(entity.get_pos_xz()).map(|s| s.id))
         })
+        .map(|id| id.to_string())
         .unwrap_or_else(|| "<none>".to_string());
     let target_sector_before = ctx
         .map
@@ -4646,14 +4832,15 @@ pub(crate) fn apply_damage_direct(
         .and_then(|entity| {
             entity
                 .attributes
-                .get_str("sector")
-                .map(str::to_string)
-                .or_else(|| {
-                    ctx.map
-                        .find_sector_at(entity.get_pos_xz())
-                        .map(|s| s.name.clone())
+                .get("sector_id")
+                .and_then(|value| match value {
+                    Value::Int64(v) if *v >= 0 => Some(*v as u32),
+                    Value::Int(v) if *v >= 0 => Some(*v as u32),
+                    _ => None,
                 })
+                .or_else(|| ctx.map.find_sector_at(entity.get_pos_xz()).map(|s| s.id))
         })
+        .map(|id| id.to_string())
         .unwrap_or_else(|| "<none>".to_string());
 
     if from_id != 0
@@ -4903,6 +5090,121 @@ fn resolve_runtime_locale<'a>(assets: &'a Assets, configured: &str) -> &'a str {
     }
 
     "en"
+}
+
+fn parse_intent_distance_limit(data: &str, intent: &str) -> Option<f32> {
+    let table = data.parse::<toml::Table>().ok()?;
+    let distances = table.get("intent_distance")?.as_table()?;
+    let intent_key = intent.trim().to_ascii_lowercase();
+
+    let specific = distances.get(&intent_key).and_then(|value| {
+        value
+            .as_float()
+            .or_else(|| value.as_integer().map(|v| v as f64))
+    });
+    let default = distances.get("default").and_then(|value| {
+        value
+            .as_float()
+            .or_else(|| value.as_integer().map(|v| v as f64))
+    });
+
+    specific
+        .or(default)
+        .map(|value| value as f32)
+        .filter(|v| *v >= 0.0)
+}
+
+fn entity_intent_distance_limit(ctx: &RegionCtx, entity_id: u32, intent: &str) -> Option<f32> {
+    let class_name = ctx.entity_classes.get(&entity_id)?;
+    let data = ctx.entity_class_data.get(class_name)?;
+    Some(parse_intent_distance_limit(data, intent).unwrap_or(2.0))
+}
+
+fn queue_intent_cooldown(
+    ctx: &mut RegionCtx,
+    entity_id: u32,
+    intent: &str,
+    cooldown_minutes: Option<f32>,
+) {
+    let Some(minutes) = cooldown_minutes else {
+        return;
+    };
+    let intent = intent.trim().to_ascii_lowercase();
+    if intent.is_empty() {
+        return;
+    }
+    let target_tick = ctx.ticks + (ctx.ticks_per_minute as f32 * minutes) as i64;
+    let state = ctx.entity_state_data.entry(entity_id).or_default();
+    state.set(
+        &format!("__pending_intent_cooldown:{}", intent),
+        Value::Int64(target_tick),
+    );
+}
+
+#[derive(Default)]
+struct IntentRuleConfig {
+    allowed: Option<String>,
+    deny_message: Option<String>,
+    cooldown_minutes: Option<f32>,
+}
+
+fn merge_intent_rule_config(config: &mut IntentRuleConfig, table: &toml::value::Table) {
+    if let Some(value) = table.get("allowed").and_then(toml::Value::as_str)
+        && !value.trim().is_empty()
+    {
+        config.allowed = Some(value.trim().to_string());
+    }
+    if let Some(value) = table.get("deny_message").and_then(toml::Value::as_str)
+        && !value.trim().is_empty()
+    {
+        config.deny_message = Some(value.trim().to_string());
+    }
+    if let Some(value) = table.get("cooldown").and_then(|value| {
+        value
+            .as_float()
+            .or_else(|| value.as_integer().map(|v| v as f64))
+    }) {
+        config.cooldown_minutes = Some(value as f32);
+    }
+}
+
+fn intent_rule_config_from_data(data: &str, intent: &str) -> Option<IntentRuleConfig> {
+    let table = data.parse::<toml::Table>().ok()?;
+    let intents = table.get("intents")?.as_table()?;
+    let intent_table = intents.get(intent)?.as_table()?;
+    let mut config = IntentRuleConfig::default();
+    merge_intent_rule_config(&mut config, intent_table);
+    Some(config)
+}
+
+fn intent_rule_config(ctx: &RegionCtx, entity_id: u32, intent: &str) -> IntentRuleConfig {
+    let mut config = IntentRuleConfig::default();
+    if let Some(global) = ctx
+        .rules
+        .get("intents")
+        .and_then(toml::Value::as_table)
+        .and_then(|intents| intents.get(intent))
+        .and_then(toml::Value::as_table)
+    {
+        merge_intent_rule_config(&mut config, global);
+    }
+
+    if let Some(class_name) = ctx.entity_classes.get(&entity_id)
+        && let Some(data) = ctx.entity_class_data.get(class_name)
+        && let Some(local) = intent_rule_config_from_data(data, intent)
+    {
+        if local.allowed.is_some() {
+            config.allowed = local.allowed;
+        }
+        if local.deny_message.is_some() {
+            config.deny_message = local.deny_message;
+        }
+        if local.cooldown_minutes.is_some() {
+            config.cooldown_minutes = local.cooldown_minutes;
+        }
+    }
+
+    config
 }
 
 fn localized_template(ctx: &RegionCtx, key: &str) -> Option<String> {
@@ -5591,6 +5893,60 @@ pub(crate) fn progression_stat_value(ctx: &RegionCtx, entity_id: u32, stat: &str
     Some((base + levels_gained * (per_level + gain)).max(0.0))
 }
 
+fn item_numeric_attr(item: &Item, attr: &str) -> f32 {
+    item.attributes.get_float_default(attr, 0.0)
+}
+
+fn entity_numeric_attr(ctx: &RegionCtx, entity: &Entity, attr: &str) -> f32 {
+    let default = if attr == ctx.level_attr { 1.0 } else { 0.0 };
+    entity.attributes.get_float_default(attr, default)
+}
+
+fn resolve_intent_rule_var(
+    ctx: &RegionCtx,
+    name: &str,
+    distance: f32,
+    subject: Option<&Entity>,
+    target_entity: Option<&Entity>,
+    target_item: Option<&Item>,
+) -> f32 {
+    if name == "distance" {
+        return distance;
+    }
+    if let Some(attr) = name.strip_prefix("subject.") {
+        return subject.map_or(0.0, |entity| entity_numeric_attr(ctx, entity, attr));
+    }
+    if let Some(attr) = name.strip_prefix("actor.") {
+        return subject.map_or(0.0, |entity| entity_numeric_attr(ctx, entity, attr));
+    }
+    if let Some(attr) = name.strip_prefix("target.") {
+        if let Some(entity) = target_entity {
+            return entity_numeric_attr(ctx, entity, attr);
+        }
+        if let Some(item) = target_item {
+            return item_numeric_attr(item, attr);
+        }
+    }
+    0.0
+}
+
+fn evaluate_intent_allowed(
+    ctx: &RegionCtx,
+    expr: &str,
+    distance: f32,
+    subject: Option<&Entity>,
+    target_entity: Option<&Entity>,
+    target_item: Option<&Item>,
+) -> bool {
+    FormulaParser::new(expr, |name| {
+        resolve_intent_rule_var(ctx, name, distance, subject, target_entity, target_item)
+    })
+    .parse()
+    .filter(|value| value.is_finite())
+    .map(|value| value != 0.0)
+    .unwrap_or(false)
+}
+
 struct FormulaParser<'a, F>
 where
     F: Fn(&str) -> f32,
@@ -5613,7 +5969,7 @@ where
     }
 
     fn parse(mut self) -> Option<f32> {
-        let value = self.parse_expr()?;
+        let value = self.parse_or()?;
         self.skip_ws();
         if self.idx == self.src.len() {
             Some(value)
@@ -5636,6 +5992,100 @@ where
         } else {
             false
         }
+    }
+
+    fn parse_or(&mut self) -> Option<f32> {
+        let mut value = self.parse_and()?;
+        loop {
+            self.skip_ws();
+            if self.idx + 1 < self.src.len()
+                && self.src[self.idx] == b'|'
+                && self.src[self.idx + 1] == b'|'
+            {
+                self.idx += 2;
+                let rhs = self.parse_and()?;
+                value = if value != 0.0 || rhs != 0.0 { 1.0 } else { 0.0 };
+            } else {
+                break;
+            }
+        }
+        Some(value)
+    }
+
+    fn parse_and(&mut self) -> Option<f32> {
+        let mut value = self.parse_comparison()?;
+        loop {
+            self.skip_ws();
+            if self.idx + 1 < self.src.len()
+                && self.src[self.idx] == b'&'
+                && self.src[self.idx + 1] == b'&'
+            {
+                self.idx += 2;
+                let rhs = self.parse_comparison()?;
+                value = if value != 0.0 && rhs != 0.0 { 1.0 } else { 0.0 };
+            } else {
+                break;
+            }
+        }
+        Some(value)
+    }
+
+    fn parse_comparison(&mut self) -> Option<f32> {
+        let mut value = self.parse_expr()?;
+        loop {
+            self.skip_ws();
+            let next = if self.idx + 1 < self.src.len() {
+                Some((self.src[self.idx], self.src[self.idx + 1]))
+            } else {
+                None
+            };
+            let result = match next {
+                Some((b'=', b'=')) => {
+                    self.idx += 2;
+                    let rhs = self.parse_expr()?;
+                    Some(if (value - rhs).abs() <= f32::EPSILON {
+                        1.0
+                    } else {
+                        0.0
+                    })
+                }
+                Some((b'!', b'=')) => {
+                    self.idx += 2;
+                    let rhs = self.parse_expr()?;
+                    Some(if (value - rhs).abs() > f32::EPSILON {
+                        1.0
+                    } else {
+                        0.0
+                    })
+                }
+                Some((b'<', b'=')) => {
+                    self.idx += 2;
+                    let rhs = self.parse_expr()?;
+                    Some(if value <= rhs { 1.0 } else { 0.0 })
+                }
+                Some((b'>', b'=')) => {
+                    self.idx += 2;
+                    let rhs = self.parse_expr()?;
+                    Some(if value >= rhs { 1.0 } else { 0.0 })
+                }
+                _ if self.consume(b'<') => {
+                    let rhs = self.parse_expr()?;
+                    Some(if value < rhs { 1.0 } else { 0.0 })
+                }
+                _ if self.consume(b'>') => {
+                    let rhs = self.parse_expr()?;
+                    Some(if value > rhs { 1.0 } else { 0.0 })
+                }
+                _ => None,
+            };
+
+            if let Some(result) = result {
+                value = result;
+            } else {
+                break;
+            }
+        }
+        Some(value)
     }
 
     fn parse_expr(&mut self) -> Option<f32> {
@@ -5686,7 +6136,7 @@ where
     fn parse_primary(&mut self) -> Option<f32> {
         self.skip_ws();
         if self.consume(b'(') {
-            let value = self.parse_expr()?;
+            let value = self.parse_or()?;
             if !self.consume(b')') {
                 return None;
             }

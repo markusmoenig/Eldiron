@@ -55,12 +55,20 @@ impl MapEditor {
 
         //center.set_layout(shared_layout);
 
+        let mut output_stack = TheStackLayout::new(TheId::named("Game Output Stack"));
+
         let mut poly_canvas: TheCanvas = TheCanvas::new();
         let mut render_view = TheRenderView::new(TheId::named("PolyView"));
         render_view.set_auto_focus(true);
         poly_canvas.set_widget(render_view);
+        output_stack.add_canvas(poly_canvas);
 
-        center.set_center(poly_canvas);
+        let text_canvas = crate::textplay::TextGameState::setup_canvas();
+        output_stack.add_canvas(text_canvas);
+
+        let mut output_canvas = TheCanvas::new();
+        output_canvas.set_layout(output_stack);
+        center.set_center(output_canvas);
 
         // Picker
 

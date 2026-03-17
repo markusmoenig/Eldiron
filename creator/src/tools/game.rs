@@ -7,7 +7,6 @@ use theframework::prelude::*;
 pub struct GameTool {
     id: TheId,
 
-    right: Option<Mutex<Box<TheCanvas>>>,
     toolbar: Option<Mutex<Box<TheCanvas>>>,
     editor_routed_prev_camera: Option<PlayerCamera>,
 }
@@ -20,7 +19,6 @@ impl Tool for GameTool {
         Self {
             id: TheId::named("Game Tool"),
 
-            right: None,
             toolbar: None,
             editor_routed_prev_camera: None,
         }
@@ -105,8 +103,11 @@ impl Tool for GameTool {
                     self.editor_routed_prev_camera = None;
                 }
 
-                if let Some(right) = ui.canvas.right.take() {
-                    self.right = Some(Mutex::new(right));
+                if let Some(stack) = ui.get_stack_layout("Game Output Stack") {
+                    stack.set_index(if server_ctx.text_game_mode { 1 } else { 0 });
+                }
+                if server_ctx.text_game_mode {
+                    crate::editor::TEXTGAME.write().unwrap().activate(ui, ctx);
                 }
                 ctx.ui.redraw_all = true;
                 ctx.ui.relayout = true;
@@ -128,14 +129,11 @@ impl Tool for GameTool {
                     }
                 }
 
-                if let Some(right) = &mut self.right {
-                    let lock = right.get_mut().unwrap();
-                    let boxed_canvas: Box<TheCanvas> =
-                        std::mem::replace(&mut *lock, Box::new(TheCanvas::default()));
-                    ui.canvas.right = Some(boxed_canvas);
-                    ctx.ui.redraw_all = true;
-                    ctx.ui.relayout = true;
+                if let Some(stack) = ui.get_stack_layout("Game Output Stack") {
+                    stack.set_index(0);
                 }
+                ctx.ui.redraw_all = true;
+                ctx.ui.relayout = true;
 
                 server_ctx.game_mode = false;
                 true
@@ -209,6 +207,9 @@ impl Tool for GameTool {
         #[allow(clippy::single_match)]
         match event {
             TheEvent::KeyDown(TheValue::Char(char)) => {
+                if server_ctx.text_game_mode {
+                    return false;
+                }
                 let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
                     if server_ctx.game_input_mode && !server_ctx.game_mode {
@@ -236,6 +237,9 @@ impl Tool for GameTool {
                 }
             }
             TheEvent::KeyUp(TheValue::Char(char)) => {
+                if server_ctx.text_game_mode {
+                    return false;
+                }
                 let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
                     if server_ctx.game_input_mode && !server_ctx.game_mode {
