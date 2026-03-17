@@ -1146,20 +1146,27 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
             app.tick();
             output.extend(collect_region_output(app, true));
         }
+        "inventory" | "inv" => {
+            if let Some(region) = app.current_region() {
+                if let Some(text) = sg::render_player_inventory(&region.map) {
+                    output.push(text);
+                } else {
+                    output.push("No local player found.".into());
+                }
+            } else {
+                output.push(format!("Current region '{}' not found.", app.current_map));
+            }
+        }
         "help" => output.push(
             [
                 "Commands:",
                 "  look | l           Show the current room",
-                "  wait | .           Advance one game tick",
+                "  inventory | inv    Show your inventory",
                 "  north | east | south | west",
                 "  n | e | s | w",
                 "                     Move through a text exit",
                 "  go <name>          Move by exit direction or title",
                 "  <intent> <target>  Trigger a configured player intent on a visible target",
-                "  forward | f        Send a forward action",
-                "  backward | b       Send a backward action",
-                "  left               Send a left action",
-                "  right              Send a right action",
                 "  intent <name>      Set the current player intent",
                 "  help               Show this help",
                 "  quit | exit        Leave the client",
@@ -1268,6 +1275,7 @@ fn run_blocking_cli(mut app: TerminalApp) {
             }
         }
         if !keep_running {
+            clear_terminal_prompt_line();
             break;
         }
     }
@@ -1292,6 +1300,7 @@ fn run_realtime_cli(mut app: TerminalApp) {
     };
 
     let (tx, rx) = mpsc::channel::<InputEvent>();
+    let (ack_tx, ack_rx) = mpsc::channel::<bool>();
     thread::spawn(move || {
         loop {
             let input = match editor.readline("> ") {
@@ -1314,6 +1323,10 @@ fn run_realtime_cli(mut app: TerminalApp) {
             if end {
                 break;
             }
+            match ack_rx.recv() {
+                Ok(true) => {}
+                _ => break,
+            }
         }
     });
 
@@ -1329,6 +1342,7 @@ fn run_realtime_cli(mut app: TerminalApp) {
                 for block in output {
                     print_with_printer(&mut printer, &block);
                 }
+                let _ = ack_tx.send(keep_running);
             }
             Ok(InputEvent::Eof) => break,
             Ok(InputEvent::Error(err)) => {
@@ -1385,7 +1399,15 @@ fn run_realtime_cli(mut app: TerminalApp) {
         }
     }
 
+    clear_terminal_prompt_line();
     app.server.stop();
+}
+
+fn clear_terminal_prompt_line() {
+    if std::io::stdout().is_terminal() {
+        print!("\r\x1b[2K");
+    }
+    println!();
 }
 
 fn main() {

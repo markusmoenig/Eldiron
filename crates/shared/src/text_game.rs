@@ -474,6 +474,37 @@ pub fn render_current_sector_description(map: &Map) -> Option<String> {
     }
 }
 
+pub fn render_player_inventory(map: &Map) -> Option<String> {
+    let (player, _) = current_player_and_sector(map)?;
+
+    let mut lines = vec!["Inventory:".to_string()];
+    let configured_slots = player
+        .attributes
+        .get("inventory_slots")
+        .and_then(|value| match value {
+            Value::Int(v) if *v >= 0 => Some(*v as usize),
+            Value::Int64(v) if *v >= 0 => Some(*v as usize),
+            Value::UInt(v) => Some(*v as usize),
+            _ => None,
+        })
+        .unwrap_or(0);
+
+    let slot_count = player.inventory.len().max(configured_slots);
+    if slot_count == 0 {
+        lines.push("  <empty>".to_string());
+    } else {
+        for index in 0..slot_count {
+            let label = match player.inventory.get(index).and_then(|slot| slot.as_ref()) {
+                Some(item) => display_name_for_item(item),
+                None => "<empty>".to_string(),
+            };
+            lines.push(format!("  {}. {}", index + 1, label));
+        }
+    }
+
+    Some(lines.join("\n"))
+}
+
 pub fn normalize_target_name(text: &str) -> String {
     text.trim()
         .to_ascii_lowercase()

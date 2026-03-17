@@ -309,6 +309,17 @@ impl TextGameState {
 
         match input {
             "" | "look" | "l" => self.push_room_text(project, server_ctx),
+            "inventory" | "inv" => {
+                if let Some(region) = current_region(project, server_ctx) {
+                    if let Some(text) = sg::render_player_inventory(&region.map) {
+                        self.push_plain_block(&text);
+                    } else {
+                        self.push_plain_line("No local player found.");
+                    }
+                } else {
+                    self.push_plain_line("Current region not found.");
+                }
+            }
             _ if matches!(direction, "north" | "south" | "east" | "west") => {
                 if move_by_direction(direction, project, server_ctx) {
                     sync_text_runtime(project);
@@ -327,6 +338,7 @@ impl TextGameState {
                     [
                         "Commands:",
                         "  look | l           Show the current room",
+                        "  inventory | inv    Show your inventory",
                         "  north | east | south | west",
                         "  n | e | s | w",
                         "                     Move through a text exit",
