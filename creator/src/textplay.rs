@@ -6,9 +6,6 @@ use shared::text_game as sg;
 use std::collections::BTreeSet;
 use toml::Table;
 
-type GameMessage = (Option<u32>, Option<u32>, u32, String, String);
-type GameSay = (Option<u32>, Option<u32>, String, String);
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AutoAttackMode {
     Never,
@@ -18,18 +15,14 @@ enum AutoAttackMode {
 #[derive(Clone)]
 struct TextGameColors {
     title: Option<TheColor>,
+    items: Option<TheColor>,
+    corpses: Option<TheColor>,
     message_categories: FxHashMap<String, TheColor>,
 }
 
 pub struct TextGameState {
     blocks: Vec<TheTextViewBlock>,
-    initialized: bool,
-    last_sector_id: Option<u32>,
-    last_nearby_attackers: BTreeSet<String>,
-    suppress_next_sector_render: Option<u32>,
-    suppress_next_description_for_sector: Option<u32>,
-    last_announced_hour: Option<u8>,
-    auto_attack_target: Option<u32>,
+    session: TextSession,
     dirty: bool,
     appended_since_sync: bool,
     force_scroll_to_bottom: bool,
@@ -48,13 +41,7 @@ impl TextGameState {
     pub fn new() -> Self {
         Self {
             blocks: Vec::new(),
-            initialized: false,
-            last_sector_id: None,
-            last_nearby_attackers: BTreeSet::new(),
-            suppress_next_sector_render: None,
-            suppress_next_description_for_sector: None,
-            last_announced_hour: None,
-            auto_attack_target: None,
+            session: TextSession::new(),
             dirty: false,
             appended_since_sync: false,
             force_scroll_to_bottom: false,
@@ -88,13 +75,7 @@ impl TextGameState {
 
     pub fn reset(&mut self) {
         self.blocks.clear();
-        self.initialized = false;
-        self.last_sector_id = None;
-        self.last_nearby_attackers.clear();
-        self.suppress_next_sector_render = None;
-        self.suppress_next_description_for_sector = None;
-        self.last_announced_hour = None;
-        self.auto_attack_target = None;
+        self.session.reset();
         self.dirty = true;
         self.appended_since_sync = false;
         self.force_scroll_to_bottom = true;
@@ -168,8 +149,8 @@ impl TextGameState {
         &mut self,
         project: &Project,
         server_ctx: &ServerContext,
-        messages: &mut Vec<GameMessage>,
-        says: &mut Vec<GameSay>,
+        messages: &mut Vec<TextGameMessage>,
+        says: &mut Vec<TextGameSay>,
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) {
@@ -177,114 +158,22 @@ impl TextGameState {
             return;
         }
 
-        let colors = authoring_colors(&project.authoring);
-        let mut rendered_room_this_update = false;
-        let current_sector_id = current_region(project, server_ctx).and_then(|region| {
-            sg::current_player_and_sector(&region.map).map(|(_, sector)| sector.id)
-        });
-
-        if !self.initialized {
-            self.initialized = true;
-            self.last_sector_id = current_sector_id;
-            self.last_announced_hour = current_time_hour(project, server_ctx);
-
-            match sg::authoring_startup_display(&project.authoring) {
-                sg::StartupDisplay::Description => {
-                    if let Some(text) = render_current_sector_description(project, server_ctx) {
-                        self.push_plain_block(&text);
-                    }
-                }
-                sg::StartupDisplay::Room => {
-                    self.push_room_text(project, server_ctx);
-                    rendered_room_this_update = true;
-                }
-                sg::StartupDisplay::None => {}
-            }
-            self.last_nearby_attackers = current_nearby_attackers(project, server_ctx);
-        } else if let Some(current_sector_id) = current_sector_id
-            && Some(current_sector_id) != self.last_sector_id
-        {
-            self.last_sector_id = Some(current_sector_id);
-            if self.suppress_next_sector_render == Some(current_sector_id) {
-                self.suppress_next_sector_render = None;
-            } else {
-                self.push_room_text(project, server_ctx);
-                rendered_room_this_update = true;
-            }
-            self.last_nearby_attackers = current_nearby_attackers(project, server_ctx);
-        }
-
-        let player_id = current_region(project, server_ctx).and_then(|region| {
-            sg::current_player_and_sector(&region.map).map(|(player, _)| player.id)
-        });
-        let current_description = render_current_sector_description(project, server_ctx);
-
-        for (sender_entity, _sender_item, receiver_id, message, category) in messages.drain(..) {
-            if let Some(player_id) = player_id
-                && receiver_id != player_id
-            {
-                continue;
-            }
-            if authoring_auto_attack_mode(&project.authoring) == AutoAttackMode::OnAttack
-                && is_under_attack_message(&message)
-                && let (Some(sender_id), Some(player_id)) = (sender_entity, player_id)
-                && sender_id != player_id
-            {
-                self.auto_attack_target = Some(sender_id);
-            }
-            if !should_print_text_message(&message, &category) {
-                continue;
-            }
-            if current_sector_id.is_some()
-                && self.suppress_next_description_for_sector == current_sector_id
-                && current_description
-                    .as_deref()
-                    .map(|text| text.trim() == message.trim())
-                    .unwrap_or(false)
-            {
-                self.suppress_next_description_for_sector = None;
-                continue;
-            }
-            if rendered_room_this_update
-                && current_description
-                    .as_deref()
-                    .map(|text| text.trim() == message.trim())
-                    .unwrap_or(false)
-            {
-                continue;
-            }
-            self.push_line(
-                &message,
-                colors
-                    .message_categories
-                    .get(&category.to_ascii_lowercase()),
-            );
-        }
-
-        for (_sender_entity, _sender_item, message, _category) in says.drain(..) {
-            self.push_plain_line(&message);
-        }
-
-        if let Some(label) =
-            take_hour_announcement(project, server_ctx, &mut self.last_announced_hour)
-        {
-            self.push_plain_line(&format!("It is {}.", label));
-        }
-
-        let current_nearby_attackers = current_nearby_attackers(project, server_ctx);
-        if !rendered_room_this_update {
-            let new_attackers: Vec<String> = current_nearby_attackers
-                .difference(&self.last_nearby_attackers)
-                .cloned()
-                .collect();
-            if !new_attackers.is_empty() {
-                self.push_plain_line(&sg::render_nearby_attacker_appearance_sentence(
-                    &new_attackers,
-                ));
-            }
-        }
-        self.last_nearby_attackers = current_nearby_attackers;
-
+        let outputs = if let Some(region) = current_region(project, server_ctx) {
+            self.session.collect(
+                &region.map,
+                &project.authoring,
+                std::mem::take(messages),
+                std::mem::take(says),
+                current_time_hour(project, server_ctx),
+                current_time_label(project, server_ctx),
+                authoring_auto_attack_mode(&project.authoring) == AutoAttackMode::OnAttack,
+            )
+        } else {
+            messages.clear();
+            says.clear();
+            Vec::new()
+        };
+        self.apply_outputs(project, server_ctx, &outputs);
         self.process_auto_attack(project, server_ctx);
         self.sync_output(ui, ctx);
         self.dirty = false;
@@ -323,12 +212,10 @@ impl TextGameState {
             _ if matches!(direction, "north" | "south" | "east" | "west") => {
                 if move_by_direction(direction, project, server_ctx) {
                     sync_text_runtime(project);
-                    self.last_sector_id = current_region(project, server_ctx).and_then(|region| {
-                        sg::current_player_and_sector(&region.map).map(|(_, sector)| sector.id)
-                    });
-                    self.suppress_next_sector_render = self.last_sector_id;
-                    self.suppress_next_description_for_sector = self.last_sector_id;
-                    self.push_room_text(project, server_ctx);
+                    if let Some(region) = current_region(project, server_ctx) {
+                        let outputs = self.session.after_movement(&region.map, &project.authoring);
+                        self.apply_outputs(project, server_ctx, &outputs);
+                    }
                 } else {
                     self.push_plain_line("You cannot go that way.");
                 }
@@ -356,12 +243,10 @@ impl TextGameState {
                     self.push_plain_line("Usage: go <direction or exit name>");
                 } else if move_by_exit_name(&target, project, server_ctx) {
                     sync_text_runtime(project);
-                    self.last_sector_id = current_region(project, server_ctx).and_then(|region| {
-                        sg::current_player_and_sector(&region.map).map(|(_, sector)| sector.id)
-                    });
-                    self.suppress_next_sector_render = self.last_sector_id;
-                    self.suppress_next_description_for_sector = self.last_sector_id;
-                    self.push_room_text(project, server_ctx);
+                    if let Some(region) = current_region(project, server_ctx) {
+                        let outputs = self.session.after_movement(&region.map, &project.authoring);
+                        self.apply_outputs(project, server_ctx, &outputs);
+                    }
                 } else {
                     self.push_plain_line("No matching exit.");
                 }
@@ -421,7 +306,6 @@ impl TextGameState {
         if !room.is_empty() {
             self.blocks.extend(room);
         }
-        self.last_nearby_attackers = current_nearby_attackers(project, server_ctx);
     }
 
     fn push_plain_block(&mut self, text: &str) {
@@ -474,19 +358,19 @@ impl TextGameState {
 
     fn process_auto_attack(&mut self, project: &Project, server_ctx: &ServerContext) {
         if authoring_auto_attack_mode(&project.authoring) != AutoAttackMode::OnAttack {
-            self.auto_attack_target = None;
+            self.session.clear_auto_attack_target();
             return;
         }
 
-        let Some(target_id) = self.auto_attack_target else {
+        let Some(target_id) = self.session.auto_attack_target() else {
             return;
         };
         let Some(region) = current_region(project, server_ctx) else {
-            self.auto_attack_target = None;
+            self.session.clear_auto_attack_target();
             return;
         };
         let Some((player, sector)) = sg::current_player_and_sector(&region.map) else {
-            self.auto_attack_target = None;
+            self.session.clear_auto_attack_target();
             return;
         };
         let Some(target) = region
@@ -495,17 +379,17 @@ impl TextGameState {
             .iter()
             .find(|entity| entity.id == target_id)
         else {
-            self.auto_attack_target = None;
+            self.session.clear_auto_attack_target();
             return;
         };
         if sg::entity_is_dead(target) {
-            self.auto_attack_target = None;
+            self.session.clear_auto_attack_target();
             return;
         }
 
         let same_sector = sg::entity_sector_matches(&region.map, target, sector);
         if !same_sector {
-            self.auto_attack_target = None;
+            self.session.clear_auto_attack_target();
             return;
         }
 
@@ -519,6 +403,27 @@ impl TextGameState {
                 distance,
                 Some("attack".into()),
             ));
+    }
+
+    fn apply_outputs(
+        &mut self,
+        project: &Project,
+        server_ctx: &ServerContext,
+        outputs: &[TextSessionOutput],
+    ) {
+        let colors = authoring_colors(&project.authoring);
+        for output in outputs {
+            match output {
+                TextSessionOutput::RenderRoom => self.push_room_text(project, server_ctx),
+                TextSessionOutput::Plain(text) => self.push_plain_line(text),
+                TextSessionOutput::Message { text, category } => self.push_line(
+                    text,
+                    colors
+                        .message_categories
+                        .get(&category.to_ascii_lowercase()),
+                ),
+            }
+        }
     }
 }
 
@@ -608,7 +513,7 @@ fn render_room_blocks(
                 "{}\n",
                 sg::render_presence_sentence("You see", &room.dead_entities)
             ),
-            None,
+            colors.corpses.as_ref(),
         ));
     }
 
@@ -618,7 +523,7 @@ fn render_room_blocks(
                 "{}\n",
                 sg::render_presence_sentence("You notice", &room.items)
             ),
-            None,
+            colors.items.as_ref(),
         ));
     }
 
@@ -629,23 +534,6 @@ fn render_room_blocks(
     }
 
     blocks
-}
-
-fn current_nearby_attackers(project: &Project, server_ctx: &ServerContext) -> BTreeSet<String> {
-    let Some(region) = current_region(project, server_ctx) else {
-        return BTreeSet::new();
-    };
-    sg::build_text_room(&region.map, &project.authoring)
-        .map(|room| room.nearby_attackers.into_iter().collect())
-        .unwrap_or_default()
-}
-
-fn render_current_sector_description(
-    project: &Project,
-    server_ctx: &ServerContext,
-) -> Option<String> {
-    let region = current_region(project, server_ctx)?;
-    sg::render_current_sector_description(&region.map)
 }
 
 fn text_block(text: &str, color: Option<&TheColor>) -> TheTextViewBlock {
@@ -773,11 +661,7 @@ fn current_time_hour(project: &Project, server_ctx: &ServerContext) -> Option<u8
         .map(|time| time.hours)
 }
 
-fn take_hour_announcement(
-    project: &Project,
-    server_ctx: &ServerContext,
-    last_announced_hour: &mut Option<u8>,
-) -> Option<String> {
+fn current_time_label(project: &Project, server_ctx: &ServerContext) -> Option<String> {
     let region = current_region(project, server_ctx)?;
     let time = RUSTERIX.read().unwrap().server.get_time(&region.map.id)?;
     let label = if time.minutes == 0 {
@@ -791,12 +675,7 @@ fn take_hour_announcement(
     } else {
         time.to_time12()
     };
-    let previous_hour = last_announced_hour.replace(time.hours);
-    if previous_hour == Some(time.hours) {
-        None
-    } else {
-        Some(label)
-    }
+    Some(label)
 }
 fn config_table(src: &str) -> Option<Table> {
     src.parse::<Table>().ok()
@@ -848,25 +727,21 @@ fn resolve_intent_alias(src: &str, verb: &str) -> String {
     normalized
 }
 
-fn should_print_text_message(message: &str, category: &str) -> bool {
-    !(category == "warning" && message.trim() == "{system.cant_do_that_yet}")
-}
-
-fn is_under_attack_message(message: &str) -> bool {
-    message.trim_start().starts_with("You are under attack by ")
-}
-
 fn authoring_colors(src: &str) -> TextGameColors {
     let mut message_categories = FxHashMap::default();
     let Some(table) = config_table(src) else {
         return TextGameColors {
             title: None,
+            items: None,
+            corpses: None,
             message_categories,
         };
     };
     let Some(colors) = table.get("colors").and_then(toml::Value::as_table) else {
         return TextGameColors {
             title: None,
+            items: None,
+            corpses: None,
             message_categories,
         };
     };
@@ -885,6 +760,14 @@ fn authoring_colors(src: &str) -> TextGameColors {
     TextGameColors {
         title: colors
             .get("title")
+            .and_then(toml::Value::as_str)
+            .and_then(parse_named_text_color),
+        items: colors
+            .get("items")
+            .and_then(toml::Value::as_str)
+            .and_then(parse_named_text_color),
+        corpses: colors
+            .get("corpses")
             .and_then(toml::Value::as_str)
             .and_then(parse_named_text_color),
         message_categories,

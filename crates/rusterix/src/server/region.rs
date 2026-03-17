@@ -6308,6 +6308,13 @@ pub(crate) fn apply_damage_rules(
 }
 
 pub(crate) fn drop_all_items_for_entity(ctx: &mut RegionCtx, entity_id: u32) {
+    let drop_position = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)
+        .map(|entity| entity.get_pos_xz());
+
     let removed_items = if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
         let mut removed_items = Vec::new();
 
@@ -6341,7 +6348,11 @@ pub(crate) fn drop_all_items_for_entity(ctx: &mut RegionCtx, entity_id: u32) {
     };
 
     if !removed_items.is_empty() {
+        let count = removed_items.len();
         ctx.map.items.extend(removed_items);
+        if let Some(drop_position) = drop_position {
+            ctx.send_item_drop_message_for_position(drop_position, count);
+        }
     }
 }
 
@@ -6726,6 +6737,13 @@ fn update_spell_items(ctx: &mut RegionCtx) {
 }
 
 fn drop_item_for_entity(ctx: &mut RegionCtx, entity_id: u32, item_id: u32) -> bool {
+    let drop_position = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)
+        .map(|entity| entity.get_pos_xz());
+
     if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
         // Drop from inventory.
         if let Some(slot) = entity.get_item_slot(item_id)
@@ -6737,6 +6755,9 @@ fn drop_item_for_entity(ctx: &mut RegionCtx, entity_id: u32, item_id: u32) -> bo
             item.position = entity.position;
             item.mark_all_dirty();
             ctx.map.items.push(item);
+            if let Some(drop_position) = drop_position {
+                ctx.send_item_drop_message_for_position(drop_position, 1);
+            }
             return true;
         }
 
@@ -6757,6 +6778,9 @@ fn drop_item_for_entity(ctx: &mut RegionCtx, entity_id: u32, item_id: u32) -> bo
             item.position = entity.position;
             item.mark_all_dirty();
             ctx.map.items.push(item);
+            if let Some(drop_position) = drop_position {
+                ctx.send_item_drop_message_for_position(drop_position, 1);
+            }
             return true;
         }
     }

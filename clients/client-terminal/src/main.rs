@@ -2,6 +2,7 @@ use rusterix::prelude::*;
 use rusterix::{Command, EntityAction, ServerState};
 use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, ExternalPrinter};
+use shared::prelude::{TextSession, TextSessionOutput};
 use shared::project::Project;
 use shared::text_game as sg;
 use std::collections::BTreeSet;
@@ -25,8 +26,7 @@ struct TerminalApp {
     assets: Assets,
     server: Server,
     current_map: String,
-    last_announced_hour: Option<u8>,
-    last_nearby_attackers: BTreeSet<String>,
+    session: TextSession,
     auto_attack_target: Option<u32>,
 }
 
@@ -59,8 +59,7 @@ impl TerminalApp {
             assets: Assets::default(),
             server: Server::default(),
             current_map,
-            last_announced_hour: None,
-            last_nearby_attackers: BTreeSet::new(),
+            session: TextSession::new(),
             auto_attack_target: None,
         };
 
@@ -72,8 +71,8 @@ impl TerminalApp {
             thread::sleep(Duration::from_millis(5));
         }
 
-        app.last_announced_hour = app.current_time_hour_and_label().map(|(hour, _)| hour);
-        app.last_nearby_attackers = app.current_nearby_attackers();
+        app.session
+            .set_current_hour(app.current_time_hour_and_label().map(|(hour, _)| hour));
 
         Ok(app)
     }
@@ -282,16 +281,6 @@ impl TerminalApp {
             })
     }
 
-    fn take_hour_announcement(&mut self) -> Option<String> {
-        let (hour, label) = self.current_time_hour_and_label()?;
-        let previous_hour = self.last_announced_hour.replace(hour);
-        if previous_hour == Some(hour) {
-            None
-        } else {
-            Some(format!("It is {}.", label))
-        }
-    }
-
     fn render_room_text(&mut self) -> String {
         let title_color = authoring_color(&self.project.authoring, "title");
         let object_color = authoring_color(&self.project.authoring, "objects");
@@ -395,31 +384,13 @@ impl TerminalApp {
         sg::render_current_sector_description(&region.map)
     }
 
-    fn current_nearby_attackers(&self) -> BTreeSet<String> {
-        let Some(region) = self.current_region() else {
-            return BTreeSet::new();
-        };
-        sg::build_text_room(&region.map, &self.project.authoring)
-            .map(|room| room.nearby_attackers.into_iter().collect())
-            .unwrap_or_default()
-    }
-
     fn move_to_exit(&mut self, exit: &sg::TextExit) -> bool {
         self.auto_attack_target = None;
         self.server.local_player_teleport_pos(exit.target_center);
-
-        for _ in 0..4 {
-            self.tick();
-            if let Some(region) = self.current_region() {
-                if let Some((_, sector)) = sg::current_player_and_sector(&region.map)
-                    && sector.id == exit.target_sector_id
-                {
-                    return true;
-                }
-            }
-        }
-
-        false
+        self.tick();
+        self.current_region().and_then(|region| {
+            sg::current_player_and_sector(&region.map).map(|(_, sector)| sector.id)
+        }) == Some(exit.target_sector_id)
     }
 
     fn print_pending_messages(&mut self) -> usize {
@@ -457,19 +428,22 @@ impl TerminalApp {
     fn process_auto_attack(&mut self) {
         if authoring_auto_attack_mode(&self.project.authoring) != AutoAttackMode::OnAttack {
             self.auto_attack_target = None;
+            self.session.clear_auto_attack_target();
             return;
         }
 
-        let Some(target_id) = self.auto_attack_target else {
+        let Some(target_id) = self.session.auto_attack_target() else {
             return;
         };
 
         let Some(region) = self.current_region() else {
             self.auto_attack_target = None;
+            self.session.clear_auto_attack_target();
             return;
         };
         let Some((player, sector)) = sg::current_player_and_sector(&region.map) else {
             self.auto_attack_target = None;
+            self.session.clear_auto_attack_target();
             return;
         };
 
@@ -480,16 +454,19 @@ impl TerminalApp {
             .find(|entity| entity.id == target_id)
         else {
             self.auto_attack_target = None;
+            self.session.clear_auto_attack_target();
             return;
         };
         if sg::entity_is_dead(target) {
             self.auto_attack_target = None;
+            self.session.clear_auto_attack_target();
             return;
         }
 
         let same_sector = sg::entity_sector_matches(&region.map, target, sector);
         if !same_sector {
             self.auto_attack_target = None;
+            self.session.clear_auto_attack_target();
             return;
         }
 
@@ -887,7 +864,11 @@ fn print_with_printer(printer: &mut impl ExternalPrinter, text: &str) {
     if text.trim().is_empty() {
         return;
     }
-    let _ = printer.print(text.to_string());
+    let mut chunk = text.to_string();
+    if !chunk.ends_with('\n') {
+        chunk.push('\n');
+    }
+    let _ = printer.print(chunk);
 }
 
 fn authoring_message_category_color(src: &str, category: &str) -> Option<String> {
@@ -936,78 +917,55 @@ fn should_print_terminal_message(message: &str, category: &str) -> bool {
     true
 }
 
-fn is_under_attack_message(message: &str) -> bool {
-    message.trim_start().starts_with("You are under attack by ")
-}
-
 fn collect_region_output(app: &mut TerminalApp, include_room: bool) -> Vec<String> {
-    let mut output = Vec::new();
     let Some(index) = app.current_region_index() else {
-        return output;
+        return Vec::new();
     };
     let region_id = app.project.regions[index].map.id;
-    let player_id = app
-        .current_region()
-        .and_then(|region| sg::current_player_and_sector(&region.map).map(|(player, _)| player.id));
-    let current_description = if include_room {
-        app.render_current_sector_description()
-    } else {
-        None
+    let Some(map) = app.current_region().map(|region| region.map.clone()) else {
+        return Vec::new();
     };
-    for (sender_entity, _sender_item, receiver_id, message, category) in
-        app.server.get_messages(&region_id)
-    {
-        if let Some(player_id) = player_id
-            && receiver_id != player_id
-        {
-            continue;
-        }
-        if authoring_auto_attack_mode(&app.project.authoring) == AutoAttackMode::OnAttack
-            && is_under_attack_message(&message)
-            && let (Some(sender_id), Some(player_id)) = (sender_entity, player_id)
-            && sender_id != player_id
-        {
-            app.auto_attack_target = Some(sender_id);
-        }
-        if should_print_terminal_message(&message, &category) {
-            if include_room
-                && current_description
-                    .as_deref()
-                    .map(|text| text.trim() == message.trim())
-                    .unwrap_or(false)
-            {
-                continue;
+    let outputs = app.session.collect(
+        &map,
+        &app.project.authoring,
+        app.server.get_messages(&region_id),
+        app.server.get_says(&region_id),
+        app.current_time_hour_and_label().map(|(hour, _)| hour),
+        app.current_time_hour_and_label().map(|(_, label)| label),
+        authoring_auto_attack_mode(&app.project.authoring) == AutoAttackMode::OnAttack,
+    );
+    app.auto_attack_target = app.session.auto_attack_target();
+
+    let mut rendered = Vec::new();
+    let mut saw_death = false;
+    for entry in outputs {
+        match entry {
+            TextSessionOutput::RenderRoom => {
+                if include_room {
+                    rendered.push(app.render_room_text());
+                }
             }
-            output.push(colorize_terminal_category(
-                &message,
-                &category,
-                &app.project.authoring,
-            ));
+            TextSessionOutput::Plain(text) => rendered.push(text),
+            TextSessionOutput::Message { text, category } => {
+                if should_print_terminal_message(&text, &category) {
+                    rendered.push(colorize_terminal_category(
+                        &text,
+                        &category,
+                        &app.project.authoring,
+                    ));
+                    if text.trim() == "You died. Try again!" {
+                        saw_death = true;
+                    }
+                }
+            }
         }
     }
-    for (_sender_entity, _sender_item, message, _category) in app.server.get_says(&region_id) {
-        output.push(message);
+    if saw_death {
+        app.auto_attack_target = None;
+        app.session.clear_auto_attack_target();
+        app.discard_pending_messages();
     }
-    if include_room {
-        output.push(app.render_room_text());
-        app.last_nearby_attackers = app.current_nearby_attackers();
-    } else {
-        let current_nearby_attackers = app.current_nearby_attackers();
-        let new_attackers: Vec<String> = current_nearby_attackers
-            .difference(&app.last_nearby_attackers)
-            .cloned()
-            .collect();
-        if !new_attackers.is_empty() {
-            output.push(sg::render_nearby_attacker_appearance_sentence(
-                &new_attackers,
-            ));
-        }
-        app.last_nearby_attackers = current_nearby_attackers;
-    }
-    if let Some(message) = app.take_hour_announcement() {
-        output.push(message);
-    }
-    output
+    rendered
 }
 
 fn trigger_text_intent(app: &mut TerminalApp, intent: &str, query: &str) -> Vec<String> {
@@ -1041,16 +999,7 @@ fn trigger_text_intent(app: &mut TerminalApp, intent: &str, query: &str) -> Vec<
     }
 
     app.tick();
-    let mut output = collect_region_output(app, false);
-    if output.is_empty() {
-        app.tick();
-        output = collect_region_output(app, false);
-    }
-    if output.is_empty() {
-        output.push(app.render_room_text());
-        app.last_nearby_attackers = app.current_nearby_attackers();
-    }
-    output
+    collect_region_output(app, false)
 }
 
 fn current_player_supported_intents(app: &TerminalApp) -> BTreeSet<String> {
@@ -1104,7 +1053,21 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
             }
 
             if moved {
-                output.extend(collect_region_output(app, true));
+                if let Some(map) = app.current_region().map(|region| region.map.clone()) {
+                    for entry in app.session.after_movement(&map, &app.project.authoring) {
+                        match entry {
+                            TextSessionOutput::RenderRoom => output.push(app.render_room_text()),
+                            TextSessionOutput::Plain(text) => output.push(text),
+                            TextSessionOutput::Message { text, category } => {
+                                output.push(colorize_terminal_category(
+                                    &text,
+                                    &category,
+                                    &app.project.authoring,
+                                ))
+                            }
+                        }
+                    }
+                }
             } else {
                 output.push("You cannot go that way.".into());
             }
@@ -1198,7 +1161,23 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
                 }
 
                 if moved {
-                    output.extend(collect_region_output(app, true));
+                    if let Some(map) = app.current_region().map(|region| region.map.clone()) {
+                        for entry in app.session.after_movement(&map, &app.project.authoring) {
+                            match entry {
+                                TextSessionOutput::RenderRoom => {
+                                    output.push(app.render_room_text())
+                                }
+                                TextSessionOutput::Plain(text) => output.push(text),
+                                TextSessionOutput::Message { text, category } => {
+                                    output.push(colorize_terminal_category(
+                                        &text,
+                                        &category,
+                                        &app.project.authoring,
+                                    ))
+                                }
+                            }
+                        }
+                    }
                 } else {
                     output.push("No matching exit.".into());
                 }
@@ -1342,6 +1321,7 @@ fn run_realtime_cli(mut app: TerminalApp) {
                 for block in output {
                     print_with_printer(&mut printer, &block);
                 }
+                next_tick = Instant::now() + tick_dt;
                 let _ = ack_tx.send(keep_running);
             }
             Ok(InputEvent::Eof) => break,
@@ -1417,8 +1397,31 @@ fn main() {
             if printed_startup {
                 println!();
             }
-            println!("{}", app.render_room_text());
             let _ = app.discard_pending_messages();
+            if let Some(map) = app.current_region().map(|region| region.map.clone()) {
+                for entry in app.session.startup(
+                    &map,
+                    &app.project.authoring,
+                    app.current_time_hour_and_label().map(|(hour, _)| hour),
+                ) {
+                    match entry {
+                        TextSessionOutput::RenderRoom => println!("{}", app.render_room_text()),
+                        TextSessionOutput::Plain(text) => println!("{}", text),
+                        TextSessionOutput::Message { text, category } => {
+                            println!(
+                                "{}",
+                                colorize_terminal_category(
+                                    &text,
+                                    &category,
+                                    &app.project.authoring
+                                )
+                            )
+                        }
+                    }
+                }
+            } else {
+                println!("{}", app.render_room_text());
+            }
         }
     }
 

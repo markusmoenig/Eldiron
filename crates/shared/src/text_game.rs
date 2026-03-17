@@ -636,6 +636,16 @@ pub fn with_indefinite_article(text: &str) -> String {
         || lower.starts_with("the ")
         || lower.starts_with("this ")
         || lower.starts_with("that ")
+        || lower.starts_with("in ")
+        || lower.starts_with("on ")
+        || lower.starts_with("at ")
+        || lower.starts_with("under ")
+        || lower.starts_with("inside ")
+        || lower.starts_with("outside ")
+        || lower.starts_with("near ")
+        || lower.starts_with("behind ")
+        || lower.starts_with("before ")
+        || lower.starts_with("after ")
     {
         return text.to_string();
     }

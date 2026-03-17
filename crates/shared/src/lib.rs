@@ -9,6 +9,7 @@ pub mod region;
 pub mod rusterix_utils;
 pub mod screen;
 pub mod text_game;
+pub mod text_session;
 pub mod tilemap;
 
 pub mod prelude {
@@ -23,6 +24,7 @@ pub mod prelude {
     pub use crate::region::Region;
     pub use crate::screen::*;
     pub use crate::text_game::*;
+    pub use crate::text_session::*;
     pub use crate::tilemap::{Tile, Tilemap};
     pub use indexmap::IndexMap;
     pub use rusterix::{

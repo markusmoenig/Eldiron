@@ -75,6 +75,27 @@ pub struct RegionCtx {
 }
 
 impl RegionCtx {
+    fn nearest_sector_id_for_pos(&self, pos: Vec2<f32>, max_distance: f32) -> Option<u32> {
+        let mut best: Option<(u32, f32)> = None;
+
+        for sector in &self.map.sectors {
+            if sector.layer.is_some() {
+                continue;
+            }
+            if let Some(distance) = sector.signed_distance(&self.map, pos) {
+                let distance = distance.abs();
+                if distance <= max_distance {
+                    match best {
+                        Some((_, best_distance)) if distance >= best_distance => {}
+                        _ => best = Some((sector.id, distance)),
+                    }
+                }
+            }
+        }
+
+        best.map(|(sector_id, _)| sector_id)
+    }
+
     fn stored_entity_sector_id(&self, entity: &Entity) -> Option<u32> {
         entity
             .attributes
@@ -89,6 +110,7 @@ impl RegionCtx {
     fn entity_sector_id(&self, entity: &Entity) -> Option<u32> {
         self.stored_entity_sector_id(entity)
             .or_else(|| self.map.find_sector_at(entity.get_pos_xz()).map(|s| s.id))
+            .or_else(|| self.nearest_sector_id_for_pos(entity.get_pos_xz(), 2.0))
     }
 
     fn authoring_table(&self) -> Option<Table> {
@@ -192,6 +214,32 @@ impl RegionCtx {
             );
             self.from_sender.get().unwrap().send(msg).unwrap();
         }
+    }
+
+    pub(crate) fn send_item_drop_message_for_position(&self, pos: Vec2<f32>, count: usize) {
+        let sector_id = self
+            .map
+            .find_sector_at(pos)
+            .map(|sector| sector.id)
+            .or_else(|| self.nearest_sector_id_for_pos(pos, 2.0));
+        let Some(sector_id) = sector_id else {
+            return;
+        };
+        if count == 0 {
+            return;
+        }
+
+        let players = self.player_ids_in_sector_id(sector_id);
+        if players.is_empty() {
+            return;
+        }
+
+        let message = if count == 1 {
+            "Something falls to the floor.".to_string()
+        } else {
+            "Several things fall to the floor.".to_string()
+        };
+        self.send_system_message_to_players(&players, message);
     }
 
     fn send_npc_sector_change_messages(
