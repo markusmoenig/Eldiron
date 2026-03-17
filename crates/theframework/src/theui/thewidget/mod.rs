@@ -104,7 +104,7 @@ pub mod prelude {
     pub use crate::theui::thewidget::thetextedit::TheTextStyle;
     pub use crate::theui::thewidget::thetextlineedit::{TheTextLineEdit, TheTextLineEditTrait};
     pub use crate::theui::thewidget::thetextview::{
-        TheTextView, TheTextViewBlock, TheTextViewTrait,
+        TheTextView, TheTextViewBlock, TheTextViewSpan, TheTextViewTrait,
     };
     pub use crate::theui::thewidget::thetraybar::TheTraybar;
     pub use crate::theui::thewidget::thetraybarbutton::{TheTraybarButton, TheTraybarButtonTrait};

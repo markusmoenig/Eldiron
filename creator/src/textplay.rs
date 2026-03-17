@@ -319,6 +319,7 @@ impl TextGameState {
                 background: None,
                 underline: None,
             },
+            spans: Vec::new(),
         });
         self.dirty = true;
         self.appended_since_sync = true;
@@ -335,6 +336,7 @@ impl TextGameState {
                 background: None,
                 underline: None,
             },
+            spans: Vec::new(),
         });
         self.dirty = true;
         self.appended_since_sync = true;
@@ -351,6 +353,7 @@ impl TextGameState {
                 background: None,
                 underline: None,
             },
+            spans: Vec::new(),
         });
         self.dirty = true;
         self.appended_since_sync = true;
@@ -508,29 +511,25 @@ fn render_room_blocks(
     }
 
     if !room.dead_entities.is_empty() {
-        blocks.push(text_block(
-            &format!(
-                "{}\n",
-                sg::render_presence_sentence("You see", &room.dead_entities)
-            ),
+        blocks.push(presence_block(
+            "You see",
+            &room.dead_entities,
             colors.corpses.as_ref(),
         ));
     }
 
     if !room.items.is_empty() {
-        blocks.push(text_block(
-            &format!(
-                "{}\n",
-                sg::render_presence_sentence("You notice", &room.items)
-            ),
+        blocks.push(presence_block(
+            "You notice",
+            &room.items,
             colors.items.as_ref(),
         ));
     }
 
     if let Some(last) = blocks.last_mut()
-        && !last.text.ends_with("\n\n")
+        && !block_ends_with(last, "\n\n")
     {
-        last.text.push('\n');
+        append_block_plain_text(last, "\n");
     }
 
     blocks
@@ -544,6 +543,111 @@ fn text_block(text: &str, color: Option<&TheColor>) -> TheTextViewBlock {
             background: None,
             underline: None,
         },
+        spans: Vec::new(),
+    }
+}
+
+fn presence_block(prefix: &str, names: &[String], color: Option<&TheColor>) -> TheTextViewBlock {
+    let mut block = TheTextViewBlock::default();
+    let plain_style = TheTextStyle {
+        foreground: None,
+        background: None,
+        underline: None,
+    };
+    let colored_style = TheTextStyle {
+        foreground: color.cloned(),
+        background: None,
+        underline: None,
+    };
+
+    let push_plain = |block: &mut TheTextViewBlock, text: String, style: &TheTextStyle| {
+        block.spans.push(TheTextViewSpan {
+            text,
+            style: style.clone(),
+        });
+    };
+
+    match names.len() {
+        0 => {}
+        1 => {
+            push_plain(&mut block, format!("{} ", prefix), &plain_style);
+            push_plain(
+                &mut block,
+                sg::with_indefinite_article(&names[0]),
+                &colored_style,
+            );
+            push_plain(&mut block, " here.\n".to_string(), &plain_style);
+        }
+        2 => {
+            push_plain(&mut block, format!("{} ", prefix), &plain_style);
+            push_plain(
+                &mut block,
+                sg::with_indefinite_article(&names[0]),
+                &colored_style,
+            );
+            push_plain(&mut block, " and ".to_string(), &plain_style);
+            push_plain(
+                &mut block,
+                sg::with_indefinite_article(&names[1]),
+                &colored_style,
+            );
+            push_plain(&mut block, " here.\n".to_string(), &plain_style);
+        }
+        _ => {
+            push_plain(&mut block, format!("{} ", prefix), &plain_style);
+            for (index, name) in names.iter().enumerate() {
+                if index > 0 {
+                    if index == names.len() - 1 {
+                        push_plain(&mut block, "and ".to_string(), &plain_style);
+                    } else {
+                        push_plain(&mut block, ", ".to_string(), &plain_style);
+                    }
+                }
+                push_plain(
+                    &mut block,
+                    sg::with_indefinite_article(name),
+                    &colored_style,
+                );
+                if index < names.len() - 2 {
+                    push_plain(&mut block, ", ".to_string(), &plain_style);
+                } else if index == names.len() - 2 {
+                    push_plain(&mut block, " ".to_string(), &plain_style);
+                }
+            }
+            push_plain(&mut block, " here.\n".to_string(), &plain_style);
+        }
+    }
+
+    block
+}
+
+fn append_block_plain_text(block: &mut TheTextViewBlock, text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    if block.spans.is_empty() {
+        block.text.push_str(text);
+    } else {
+        block.spans.push(TheTextViewSpan {
+            text: text.to_string(),
+            style: TheTextStyle {
+                foreground: None,
+                background: None,
+                underline: None,
+            },
+        });
+    }
+}
+
+fn block_ends_with(block: &TheTextViewBlock, suffix: &str) -> bool {
+    if !block.spans.is_empty() {
+        let mut text = String::new();
+        for span in &block.spans {
+            text.push_str(&span.text);
+        }
+        text.ends_with(suffix)
+    } else {
+        block.text.ends_with(suffix)
     }
 }
 

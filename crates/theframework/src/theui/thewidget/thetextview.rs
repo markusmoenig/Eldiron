@@ -14,9 +14,16 @@ use crate::{
 use super::thetextedit::{TheTextEditState, TheTextRenderer};
 
 #[derive(Clone, Debug, Default)]
+pub struct TheTextViewSpan {
+    pub text: String,
+    pub style: TheTextStyle,
+}
+
+#[derive(Clone, Debug, Default)]
 pub struct TheTextViewBlock {
     pub text: String,
     pub style: TheTextStyle,
+    pub spans: Vec<TheTextViewSpan>,
 }
 
 pub struct TheTextView {
@@ -61,6 +68,7 @@ pub struct TheTextView {
 
     is_dirty: bool,
     embedded: bool,
+    pending_scroll_to_bottom: bool,
 }
 
 impl TheWidget for TheTextView {
@@ -117,6 +125,7 @@ impl TheWidget for TheTextView {
 
             is_dirty: false,
             embedded: false,
+            pending_scroll_to_bottom: false,
         }
     }
 
@@ -589,6 +598,16 @@ impl TheWidget for TheTextView {
                         + self.renderer.padding.3,
                 );
             }
+
+            if self.pending_scroll_to_bottom {
+                let downmost = self
+                    .renderer
+                    .actual_size
+                    .y
+                    .saturating_sub(self.renderer.viewport_height());
+                self.renderer.scroll_offset.y = downmost;
+                self.pending_scroll_to_bottom = false;
+            }
         }
 
         if self.styled_ranges.is_empty() {
@@ -685,11 +704,24 @@ impl TheTextViewTrait for TheTextView {
         let mut cursor = 0usize;
 
         for block in blocks {
-            let start = cursor;
-            merged.push_str(&block.text);
-            cursor = merged.graphemes(true).count();
-            if !block.style.is_empty() && cursor > start {
-                self.styled_ranges.push((start..(cursor - 1), block.style));
+            if block.spans.is_empty() {
+                append_styled_segment(
+                    &mut merged,
+                    &mut cursor,
+                    &mut self.styled_ranges,
+                    &block.text,
+                    &block.style,
+                );
+            } else {
+                for span in block.spans {
+                    append_styled_segment(
+                        &mut merged,
+                        &mut cursor,
+                        &mut self.styled_ranges,
+                        &span.text,
+                        &span.style,
+                    );
+                }
             }
         }
 
@@ -728,12 +760,7 @@ impl TheTextViewTrait for TheTextView {
         self.is_dirty = true;
     }
     fn scroll_to_bottom(&mut self) {
-        let downmost = self
-            .renderer
-            .actual_size
-            .y
-            .saturating_sub(self.renderer.viewport_height());
-        self.renderer.scroll_offset.y = downmost;
+        self.pending_scroll_to_bottom = true;
         self.is_dirty = true;
     }
     fn draw_background(&mut self, draw_background: bool) {
@@ -743,5 +770,33 @@ impl TheTextViewTrait for TheTextView {
     fn draw_border(&mut self, draw_border: bool) {
         self.draw_border = draw_border;
         self.is_dirty = true;
+    }
+}
+
+fn append_styled_segment(
+    merged: &mut String,
+    cursor: &mut usize,
+    styled_ranges: &mut Vec<(Range<usize>, TheTextStyle)>,
+    text: &str,
+    style: &TheTextStyle,
+) {
+    if text.is_empty() {
+        return;
+    }
+
+    let start = *cursor;
+    merged.push_str(text);
+    *cursor = merged.graphemes(true).count();
+
+    if style.is_empty() || *cursor <= start {
+        return;
+    }
+
+    let mut end = *cursor;
+    if text.ends_with('\n') && end > start {
+        end -= 1;
+    }
+    if end > start {
+        styled_ranges.push((start..end, style.clone()));
     }
 }
