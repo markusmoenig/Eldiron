@@ -1,10 +1,14 @@
 [game]
+locale = "en"
+
 target_fps = 30      # The target frames per second for the game.
 game_tick_ms = 250   # The milliseconds per game tick.
 ticks_per_minute = 4 # The amount of ticks per in-game minute.
-movement_units_per_sec = 4 # Base movement speed in world units per second.
-turn_speed_deg_per_sec = 120 # First-person turn speed in degrees per second.
-firstp_eye_level = 1.7 # First-person camera eye height above base Y.
+
+collision_mode = "tile"      # Collision mode, "tile" or "mesh"
+movement_units_per_sec = 4   # Default movement speed
+turn_speed_deg_per_sec = 120 # Default turn speed
+firstp_eye_level = 1.7       # First-person camera eye height above base Y.
 
 entity_block_mode = "always" # The block mode, "always" or "never"
 auto_create_player = true    # Whether to auto create a player entity.
@@ -12,7 +16,7 @@ auto_create_player = true    # Whether to auto create a player entity.
 # The name of the region to start the game in.
 start_region = ""
 
-# The name of the start scren. If empty, shows the start region
+# The name of the start screen. If empty, shows the start region.
 start_screen = ""
 
 # The name of the base currency
@@ -20,10 +24,6 @@ base_currency_name = "Gold"
 
 # The symbol of the base currency
 base_currency_symbol = "G"
-
-# The active locale used for localized UI and rules-driven messages.
-# Use "auto" to follow the system locale.
-locale = "en"
 
 # The supported gear slots
 gear_slots = ["legs", "head", "torso"]
@@ -46,49 +46,71 @@ avatar_shading = true
 # Enables generated marker ramp shading for skin markers
 avatar_skin_auto_shading = false
 
-[say]
-# Duration in in-game minutes a say bubble stays visible.
-duration = 1.0
-
-# Default say color used when category is empty or unknown.
-default = "#E5E501"
-
-# Draw a background behind say text.
-background_enabled = true
-
-# Background color for say text (supports alpha as #RRGGBBAA).
-background_color = "#00000080"
-
 [viewport]
 width = 960
 height = 540
 window_scale = 1.0
 grid_size = 32
+upscale = "aspect"
+cursor_id = ""
+
+[say]
+duration = 1.0
+default = "#E5E501"
+background_enabled = true
+background_color = "#00000080"
 
 [render]
-# AO samples (number of rays, 0.0 = disable AO, default: 8)
+# Lighting model: "lambert", "cook_torrance", or "pbr".
+lighting_model = "cook_torrance"
+
+# MSAA sample count for raster 3D (0=off, 4=on).
+msaa_samples = 4
+
+# AO samples (number of rays, 0.0 = disable AO).
 ao_samples = 2.0
 
-# AO radius (0.0 = disable AO, default: 0.5)
+# AO radius (0.0 = disable AO).
 ao_radius = 0.5
 
-# Reflection samples (0 = disabled, >=1 = GGX PBR reflection rays)
+# Reflection samples (0 = disabled, >=1 = reflection rays).
 reflection_samples = 0.0
 
-# Bump strength (0.0 = disable bump mapping, default: 1.0)
+# Bump mapping strength (0.0 = off, 1.0 = full).
 bump_strength = 1.0
 
-# Max transparency bounces (1.0 = no transparency, default: 8)
+# Max transparency bounces.
 max_transparency_bounces = 8.0
 
-# Max shadow distance (0.0 = no distance limit, default: 10.0)
+# Max shadow distance.
 max_shadow_distance = 10.0
 
-# Max sky distance (0.0 = no sky visibility check, default: 50.0)
+# Max sky distance.
 max_sky_distance = 50.0
 
-# Max shadow steps for transparent shadows (0.0 = no transparent shadows, default: 0)
-max_shadow_steps = 0.0
+# Max shadow steps for transparent shadows.
+max_shadow_steps = 2.0
+
+# First-person blur transition start distance.
+firstp_blur_near = 3.0
+
+# First-person blur transition end distance.
+firstp_blur_far = 8.0
+
+# Shadow toggle.
+shadow_enabled = true
+
+# Shadow strength (default 0.8).
+shadow_strength = 0.8
+
+# Shadow-map resolution.
+shadow_resolution = 1024
+
+# Shadow depth bias.
+shadow_bias = 0.0015
+
+# Fade mode for alpha/visibility transitions: "ordered_dither" or "uniform".
+fade_mode = "ordered_dither"
 
 # Static sky color (used when simulation is disabled)
 sky_color = "#87CEEB"
@@ -116,6 +138,40 @@ fog_color = "#808080"
 
 # Fog density (0.0 = no fog, higher values = denser fog)
 fog_density = 0.0
+
+# Avatar readability boost toggle (Raster 3D avatars/billboards).
+avatar_highlight_enabled = true
+
+# Avatar readability lift multiplier (1.0 = unchanged).
+avatar_highlight_lift = 1.12
+
+# Avatar ambient fill contribution.
+avatar_highlight_fill = 0.20
+
+# Avatar rim-light contribution.
+avatar_highlight_rim = 0.18
+
+# Target frame time in milliseconds for interpolation. 33.333 ~= 30 FPS.
+ms_per_frame = 33.333
+
+[post]
+# Enable/disable final post pass.
+enabled = true
+
+# Tone mapper: "none", "reinhard", "aces".
+tone_mapper = "reinhard"
+
+# Exposure multiplier before tone mapping.
+exposure = 1.0
+
+# Post saturation (1.0 = unchanged, 0.0 = grayscale).
+saturation = 1.0
+
+# Post luminance/brightness multiplier.
+luminance = 1.0
+
+# Output gamma.
+gamma = 2.2
 
 [simulation]
 # Enable procedural daylight simulation (overrides static sky_color, sun_color, sun_direction)
@@ -150,3 +206,6 @@ sunrise_time = 6.0
 
 # Sunset time in 24-hour format (e.g., 18.5 = 6:30 PM)
 sunset_time = 18.0
+
+# Transition window in hours for color blending.
+color_transition_duration_hours = 0.5

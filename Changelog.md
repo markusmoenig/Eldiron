@@ -18,6 +18,10 @@
 - Added tab-stop support for text widgets via `\\t` and `tab_width`, making aligned HUD/status layouts easier to build.
 - Added a persistent Authoring mode and dock for entering room, connection, entity, and item metadata as TOML, including starter templates and undo / redo support.
 - Added **Game / Authoring** for global startup text, exit presentation, terminal behavior, and text-style color configuration.
+- Added embedded text-style play directly inside the Creator Game Tool, including colored transcript output, command input, inventory display, and shared text-session behavior with the terminal client.
+- Added a starter project browser for new projects, driven by a repo manifest and offering built-in 2D and 3D starter templates.
+- Creator now persists and restores the region camera mode used for editing, so saved 3D projects reopen in their 3D view.
+- Improved `TheTextView` and `TheListItem` with richer text/styling support used by the new text-play and starter-browser UI.
 
 ### Documentation
 
@@ -31,6 +35,8 @@
 - Added authored room titles, descriptions, exits, entities, items, and corpse presentation to the terminal client.
 - Added terminal command aliases, realtime ticking, text exit navigation, and configured player-intent commands like `attack orc`.
 - Added terminal presentation controls through **Game / Authoring**, including exit styles, message colors, character color rules, and auto-attack behavior.
+- Added shared text session/gameplay logic used by both the terminal client and the embedded Creator text-play mode.
+- Added text inventory display, nearby-attacker handling, corpse/item room fallback near sector boundaries, and drop/fall cues for newly dropped items.
 
 ---
 

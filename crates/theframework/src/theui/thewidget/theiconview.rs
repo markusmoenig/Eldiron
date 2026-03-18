@@ -13,6 +13,7 @@ pub struct TheIconView {
     text_color: RGBA,
 
     border_color: Option<RGBA>,
+    background_color: Option<RGBA>,
 
     alpha_mode: bool,
 
@@ -40,6 +41,7 @@ impl TheWidget for TheIconView {
             text_color: WHITE,
 
             border_color: None,
+            background_color: None,
 
             alpha_mode: true,
             dim: TheDim::zero(),
@@ -106,6 +108,10 @@ impl TheWidget for TheIconView {
         }
 
         let utuple = self.dim.to_buffer_utuple();
+
+        if let Some(color) = self.background_color {
+            ctx.draw.rect(buffer.pixels_mut(), &utuple, stride, &color);
+        }
 
         if !self.tile.buffer.is_empty() {
             if self.alpha_mode {
@@ -181,6 +187,7 @@ pub trait TheIconViewTrait {
     fn set_rgba_tile(&mut self, tile: TheRGBATile);
     fn step(&mut self);
     fn set_border_color(&mut self, color: Option<RGBA>);
+    fn set_background_color(&mut self, color: Option<RGBA>);
     fn set_text_color(&mut self, color: RGBA);
     /// Set the text to display.
     fn set_text(&mut self, text: Option<String>);
@@ -207,6 +214,10 @@ impl TheIconViewTrait for TheIconView {
     }
     fn set_border_color(&mut self, color: Option<RGBA>) {
         self.border_color = color;
+        self.is_dirty = true;
+    }
+    fn set_background_color(&mut self, color: Option<RGBA>) {
+        self.background_color = color;
         self.is_dirty = true;
     }
     fn set_text_color(&mut self, color: RGBA) {

@@ -1,0 +1,15 @@
+[[starter]]
+id = "hideout-2d"
+title = "Hideout 2D"
+dimension = "2D"
+description = "A compact 2D starter featuring 2D & text play, combat, item use, gate unlocking, and a merchant."
+project_path = "starters/projects/Hideout2D.eldiron"
+image = "starters/images/logo.png"
+
+[[starter]]
+id = "village-3d"
+title = "Village 3D"
+dimension = "3D"
+description = "A 3D village starter showcasing 3D editing, the avatar system, and the current world workflow."
+project_path = "starters/projects/Village3D.eldiron"
+image = "starters/images/logo.png"

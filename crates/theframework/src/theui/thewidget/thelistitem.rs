@@ -8,6 +8,10 @@ pub struct TheListItem {
 
     text: String,
     sub_text: String,
+    text_color: Option<RGBA>,
+    sub_text_color: Option<RGBA>,
+    text_size: f32,
+    sub_text_size: f32,
 
     dim: TheDim,
     is_dirty: bool,
@@ -43,6 +47,10 @@ impl TheWidget for TheListItem {
 
             text: "".to_string(),
             sub_text: "".to_string(),
+            text_color: None,
+            sub_text_color: None,
+            text_size: 12.0,
+            sub_text_size: 12.0,
 
             dim: TheDim::zero(),
             is_dirty: true,
@@ -252,35 +260,55 @@ impl TheWidget for TheListItem {
 
         if let Some(icon) = &self.icon {
             let ut = self.dim.to_buffer_shrunk_utuple(&shrinker);
+            let icon_size = (ut.3.saturating_sub(4)).max(16);
+            let icon_frame = icon_size + 2;
+            let text_x = ut.0 + icon_frame + 7 + 5;
+            let text_width = (self.dim.width as usize).saturating_sub(icon_frame + 7 + 10);
+
+            let scaled_icon = if icon.dim().width as usize != icon_size
+                || icon.dim().height as usize != icon_size
+            {
+                icon.scaled(icon_size as i32, icon_size as i32)
+            } else {
+                icon.clone()
+            };
             ctx.draw.rect_outline_border(
                 buffer.pixels_mut(),
-                &(ut.0 + 1, ut.1 + 1, 38, 38),
+                &(ut.0 + 1, ut.1 + 1, icon_frame, icon_frame),
                 stride,
                 style.theme().color(ListItemIconBorder),
                 1,
             );
             ctx.draw.copy_slice(
                 buffer.pixels_mut(),
-                icon.pixels(),
-                &(ut.0 + 2, ut.1 + 2, 36, 36),
+                scaled_icon.pixels(),
+                &(ut.0 + 2, ut.1 + 2, icon_size, icon_size),
                 stride,
             );
 
+            let content_height = ut.3;
+            let text_block_top = ut.1 + 3;
+            let text_block_height = content_height.saturating_sub(6);
+            let title_height = if self.sub_text.is_empty() {
+                text_block_height
+            } else {
+                text_block_height / 2
+            };
+            let sub_text_top = text_block_top + title_height;
+            let sub_text_height = text_block_height.saturating_sub(title_height);
+
             ctx.draw.text_rect_blend(
                 buffer.pixels_mut(),
-                &(
-                    ut.0 + 38 + 7 + 5,
-                    ut.1 + 5,
-                    (self.dim.width - 38 - 7 - 10) as usize,
-                    13,
-                ),
+                &(text_x, text_block_top, text_width, title_height.max(1)),
                 stride,
                 &self.text,
                 TheFontSettings {
-                    size: 12.0,
+                    size: self.text_size,
                     ..Default::default()
                 },
-                style.theme().color(ListItemText),
+                self.text_color
+                    .as_ref()
+                    .unwrap_or(style.theme().color(ListItemText)),
                 TheHorizontalAlign::Left,
                 TheVerticalAlign::Center,
             );
@@ -288,19 +316,16 @@ impl TheWidget for TheListItem {
             if !self.sub_text.is_empty() {
                 ctx.draw.text_rect_blend(
                     buffer.pixels_mut(),
-                    &(
-                        ut.0 + 38 + 7 + 5,
-                        ut.1 + 22,
-                        (self.dim.width - 38 - 7 - 10) as usize,
-                        13,
-                    ),
+                    &(text_x, sub_text_top, text_width, sub_text_height.max(1)),
                     stride,
                     &self.sub_text,
                     TheFontSettings {
-                        size: 12.0,
+                        size: self.sub_text_size,
                         ..Default::default()
                     },
-                    style.theme().color(ListItemText),
+                    self.sub_text_color
+                        .as_ref()
+                        .unwrap_or(style.theme().color(ListItemText)),
                     TheHorizontalAlign::Left,
                     TheVerticalAlign::Center,
                 );
@@ -391,6 +416,10 @@ pub trait TheListItemTrait {
     fn set_background_color(&mut self, color: TheColor);
     fn set_text(&mut self, text: String);
     fn set_sub_text(&mut self, sub_text: String);
+    fn set_text_color(&mut self, color: RGBA);
+    fn set_sub_text_color(&mut self, color: RGBA);
+    fn set_text_size(&mut self, size: f32);
+    fn set_sub_text_size(&mut self, size: f32);
     fn set_associated_layout(&mut self, id: TheId);
     fn set_size(&mut self, size: i32);
     fn set_icon(&mut self, icon: TheRGBABuffer);
@@ -409,6 +438,22 @@ impl TheListItemTrait for TheListItem {
     }
     fn set_sub_text(&mut self, sub_text: String) {
         self.sub_text = sub_text;
+        self.is_dirty = true;
+    }
+    fn set_text_color(&mut self, color: RGBA) {
+        self.text_color = Some(color);
+        self.is_dirty = true;
+    }
+    fn set_sub_text_color(&mut self, color: RGBA) {
+        self.sub_text_color = Some(color);
+        self.is_dirty = true;
+    }
+    fn set_text_size(&mut self, size: f32) {
+        self.text_size = size;
+        self.is_dirty = true;
+    }
+    fn set_sub_text_size(&mut self, size: f32) {
+        self.sub_text_size = size;
         self.is_dirty = true;
     }
     fn set_associated_layout(&mut self, layout_id: TheId) {

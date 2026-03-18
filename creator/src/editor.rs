@@ -62,6 +62,31 @@ struct ProjectSession {
     dirty: bool,
 }
 
+#[derive(Deserialize, Clone)]
+struct StarterProjectManifest {
+    #[serde(default)]
+    starter: Vec<StarterProjectManifestEntry>,
+}
+
+#[derive(Deserialize, Clone)]
+struct StarterProjectManifestEntry {
+    id: String,
+    title: String,
+    description: String,
+    project_path: String,
+    image: String,
+}
+
+#[derive(Clone)]
+struct StarterProjectEntry {
+    id: Uuid,
+    manifest_id: String,
+    title: String,
+    description: String,
+    project_path: String,
+    preview: Option<TheRGBATile>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 struct CreatorWindowState {
     x: Option<i32>,
@@ -100,11 +125,126 @@ pub struct Editor {
 
     build_values: ValueContainer,
     window_state: CreatorWindowState,
+    starter_projects: Vec<StarterProjectEntry>,
 }
 
 impl Editor {
+    const STARTER_DIALOG_TITLE: &'static str = "Choose Starter Project";
+    const STARTER_LIST_ID: &'static str = "Starter Project List";
+    const STARTER_PREVIEW_ID: &'static str = "Starter Project Preview";
+    const STARTER_CREATE_ID: &'static str = "Starter Project Create";
+    const STARTER_CANCEL_ID: &'static str = "Starter Project Cancel";
+
     fn log_segment_has_warning_or_error(segment: &str) -> bool {
         segment.contains("[error]") || segment.contains("[warning]")
+    }
+
+    fn repo_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
+    }
+
+    fn starter_manifest_path() -> PathBuf {
+        Self::repo_root().join("starters").join("manifest.toml")
+    }
+
+    fn load_project_from_json_path(path: &std::path::Path) -> Option<Project> {
+        let contents = std::fs::read_to_string(path).ok()?;
+        let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
+        loaded.palette.current_index = 0;
+        Some(loaded)
+    }
+
+    fn load_embedded_starter_project() -> Project {
+        let mut project = Project::default();
+        if let Some(bytes) = crate::Embedded::get("starter_project.eldiron")
+            && let Ok(project_string) = std::str::from_utf8(bytes.data.as_ref())
+            && let Ok(loaded) = serde_json::from_str(&project_string.to_string())
+        {
+            project = loaded;
+        }
+        project
+    }
+
+    fn load_empty_project_template() -> Project {
+        let mut project = Project::new();
+        if let Some(bytes) = crate::Embedded::get("toml/config.toml")
+            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+        {
+            project.config = source.to_string();
+        }
+        if let Some(bytes) = crate::Embedded::get("toml/rules.toml")
+            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+        {
+            project.rules = source.to_string();
+        }
+        if let Some(bytes) = crate::Embedded::get("toml/locales.toml")
+            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+        {
+            project.locales = source.to_string();
+        }
+        if let Some(bytes) = crate::Embedded::get("toml/audio_fx.toml")
+            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+        {
+            project.audio_fx = source.to_string();
+        }
+        if let Some(bytes) = crate::Embedded::get("toml/authoring.toml")
+            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+        {
+            project.authoring = source.to_string();
+        }
+        project
+    }
+
+    fn load_starter_manifest() -> Vec<StarterProjectEntry> {
+        let path = Self::starter_manifest_path();
+        let contents = match std::fs::read_to_string(path) {
+            Ok(contents) => contents,
+            Err(_) => return Vec::new(),
+        };
+        let manifest = match toml::from_str::<StarterProjectManifest>(&contents) {
+            Ok(manifest) => manifest,
+            Err(_) => return Vec::new(),
+        };
+
+        manifest
+            .starter
+            .into_iter()
+            .map(|entry| StarterProjectEntry {
+                id: Uuid::new_v4(),
+                preview: Self::load_starter_preview(&entry.image),
+                manifest_id: entry.id,
+                title: entry.title,
+                description: entry.description,
+                project_path: entry.project_path,
+            })
+            .collect()
+    }
+
+    fn load_starter_preview(repo_path: &str) -> Option<TheRGBATile> {
+        let bytes = std::fs::read(Self::repo_root().join(repo_path)).ok()?;
+        Self::decode_png_tile(bytes)
+    }
+
+    fn decode_png_tile(bytes: Vec<u8>) -> Option<TheRGBATile> {
+        let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+        let mut reader = decoder.read_info().ok()?;
+        let buffer_size = reader.output_buffer_size()?;
+        let mut buf = vec![0; buffer_size];
+        let info = reader.next_frame(&mut buf).ok()?;
+        let bytes = &buf[..info.buffer_size()];
+        Some(TheRGBATile::buffer(TheRGBABuffer::from(
+            bytes.to_vec(),
+            info.width,
+            info.height,
+        )))
+    }
+
+    fn load_named_starter_project(manifest_id: &str) -> Option<Project> {
+        let choice = Self::load_starter_manifest()
+            .into_iter()
+            .find(|choice| choice.manifest_id == manifest_id)?;
+        Self::load_project_from_json_path(&Self::repo_root().join(choice.project_path))
+            .or_else(|| Some(Self::load_embedded_starter_project()))
     }
 
     fn window_state_file_path() -> Option<PathBuf> {
@@ -224,6 +364,134 @@ impl Editor {
         }
     }
 
+    fn open_starter_project_dialog(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.starter_projects = Self::load_starter_manifest();
+
+        let width = 980;
+        let height = 340;
+        let bottom_bar_height = 32;
+        let preview_size = height;
+
+        let mut dialog = TheCanvas::new();
+        dialog.limiter_mut().set_max_size(Vec2::new(width, height));
+
+        let mut left = TheCanvas::new();
+        left.limiter_mut()
+            .set_max_size(Vec2::new(preview_size, preview_size));
+        let mut preview = TheIconView::new(TheId::named(Self::STARTER_PREVIEW_ID));
+        preview
+            .limiter_mut()
+            .set_max_size(Vec2::new(preview_size, preview_size));
+        preview.set_border_color(Some([120, 120, 120, 255]));
+        preview.set_background_color(Some([218, 211, 177, 255]));
+        preview.set_alpha_mode(true);
+        if let Some(tile) = ctx.ui.icon("lord").cloned().map(TheRGBATile::buffer) {
+            preview.set_rgba_tile(tile);
+        }
+        left.set_widget(preview);
+        dialog.set_left(left);
+
+        let mut center = TheCanvas::new();
+        center
+            .limiter_mut()
+            .set_max_size(Vec2::new(width - (preview_size + 20), preview_size));
+        let mut list = TheListLayout::new(TheId::named(Self::STARTER_LIST_ID));
+        list.set_item_size(52);
+        for (index, entry) in self.starter_projects.iter().enumerate() {
+            let mut item =
+                TheListItem::new(TheId::named_with_id("Starter Project List Item", entry.id));
+            item.set_text(entry.title.clone());
+            item.set_sub_text(entry.description.clone());
+            item.set_size(52);
+            item.set_text_color(WHITE);
+            item.set_text_size(14.0);
+            item.set_sub_text_size(12.0);
+            if index == 0 {
+                item.set_state(TheWidgetState::Selected);
+            }
+            if let Some(preview) = &entry.preview
+                && let Some(first) = preview.buffer.first()
+            {
+                item.set_icon(first.clone());
+            }
+            list.add_item(item, ctx);
+        }
+        center.set_layout(list);
+        dialog.set_center(center);
+
+        let mut bottom = TheCanvas::new();
+        bottom
+            .limiter_mut()
+            .set_max_size(Vec2::new(width, bottom_bar_height));
+        let mut actions = TheHLayout::new(TheId::named("Starter Project Actions"));
+        actions
+            .limiter_mut()
+            .set_max_size(Vec2::new(width, bottom_bar_height));
+        actions.set_background_color(Some(TheThemeColors::ListLayoutBackground));
+        actions.set_margin(Vec4::new(10, 2, 10, 2));
+        actions.set_padding(8);
+        actions.set_reverse_index(Some(2));
+
+        let mut create = TheTraybarButton::new(TheId::named(Self::STARTER_CREATE_ID));
+        create.set_text("Choose".to_string());
+        actions.add_widget(Box::new(create));
+
+        let mut cancel = TheTraybarButton::new(TheId::named(Self::STARTER_CANCEL_ID));
+        cancel.set_text("Cancel".to_string());
+        actions.add_widget(Box::new(cancel));
+
+        bottom.set_layout(actions);
+        dialog.set_bottom(bottom);
+
+        ui.show_dialog(Self::STARTER_DIALOG_TITLE, dialog, vec![], ctx);
+        if let Some(first) = self.starter_projects.first() {
+            ctx.ui.send(TheEvent::StateChanged(
+                TheId::named_with_id("Starter Project List Item", first.id),
+                TheWidgetState::Selected,
+            ));
+        }
+    }
+
+    fn selected_starter_project<'a>(&'a self, ui: &mut TheUI) -> Option<&'a StarterProjectEntry> {
+        let selected = ui.get_list_layout(Self::STARTER_LIST_ID)?.selected()?;
+        self.starter_projects
+            .iter()
+            .find(|entry| entry.id == selected.uuid)
+    }
+
+    fn open_project_as_session(
+        &mut self,
+        mut project: Project,
+        project_path: Option<PathBuf>,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        update_server_icons: &mut bool,
+        redraw: &mut bool,
+    ) {
+        Self::sanitize_loaded_project(&mut project);
+
+        self.sync_active_session_from_editor();
+        let new_index = if self.replace_next_project_load_in_active_tab {
+            self.sessions[self.active_session] = ProjectSession {
+                project,
+                project_path,
+                undo: UndoManager::default(),
+                dirty: false,
+            };
+            self.replace_next_project_load_in_active_tab = false;
+            self.active_session
+        } else {
+            self.sessions.push(ProjectSession {
+                project,
+                project_path,
+                undo: UndoManager::default(),
+                dirty: false,
+            });
+            self.sessions.len() - 1
+        };
+        self.switch_to_session(new_index, ui, ctx, update_server_icons, redraw);
+    }
+
     fn activate_loaded_project(
         &mut self,
         ui: &mut TheUI,
@@ -254,10 +522,46 @@ impl Editor {
         if let Some(first) = self.project.regions.first() {
             self.server_ctx.curr_region = first.id;
         }
+        let restored_view_index = self
+            .project
+            .get_region(&self.server_ctx.curr_region)
+            .map(|region| match region.map.camera {
+                MapCamera::TwoD => 0,
+                MapCamera::ThreeDIso => 2,
+                MapCamera::ThreeDFirstPerson => 3,
+            })
+            .unwrap_or(0);
+        self.server_ctx.editor_view_mode = EditorViewMode::from_index(restored_view_index);
+        let restored_camera_action_name = match restored_view_index {
+            2 => fl!("action_iso_camera"),
+            3 => fl!("action_first_p_camera"),
+            _ => fl!("action_editing_camera"),
+        };
 
         self.sidebar
             .load_from_project(ui, ctx, &mut self.server_ctx, &mut self.project);
         self.mapeditor.load_from_project(ui, ctx, &self.project);
+        if let Some(widget) = ui.get_widget("Editor View Switch")
+            && let Some(group) = widget.as_group_button()
+        {
+            group.set_index(restored_view_index);
+        }
+        {
+            let mut actions = ACTIONLIST.write().unwrap();
+            if let Some(action) = actions
+                .actions
+                .iter_mut()
+                .find(|action| action.id().name == restored_camera_action_name)
+            {
+                self.server_ctx.curr_action_id = Some(action.id().uuid);
+                if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
+                    action.load_params(map);
+                    let _ = action.apply(map, ui, ctx, &mut self.server_ctx);
+                }
+                action.load_params_project(&self.project, &mut self.server_ctx);
+                action.apply_project(&mut self.project, ui, ctx, &mut self.server_ctx);
+            }
+        }
         *update_server_icons = true;
         *redraw = true;
 
@@ -406,13 +710,7 @@ impl Editor {
         self.sessions.remove(self.active_session);
 
         if self.sessions.is_empty() {
-            let mut project = Project::default();
-            if let Some(bytes) = crate::Embedded::get("starter_project.eldiron")
-                && let Ok(project_string) = std::str::from_utf8(bytes.data.as_ref())
-                && let Ok(loaded) = serde_json::from_str(&project_string.to_string())
-            {
-                project = loaded;
-            }
+            let mut project = Self::load_embedded_starter_project();
             Self::sanitize_loaded_project(&mut project);
             self.sessions.push(ProjectSession {
                 project,
@@ -628,6 +926,7 @@ impl TheTrait for Editor {
 
             build_values: ValueContainer::default(),
             window_state: Self::load_window_state(),
+            starter_projects: Vec::new(),
         }
     }
 
@@ -2331,49 +2630,25 @@ impl TheTrait for Editor {
                     // Open
                     if id.name == "Open" {
                         for p in paths {
-                            if let Ok(contents) = std::fs::read_to_string(&p) {
-                                if let Ok(mut loaded) = serde_json::from_str::<Project>(&contents) {
-                                    loaded.palette.current_index = 0;
-                                    Self::sanitize_loaded_project(&mut loaded);
-
-                                    self.sync_active_session_from_editor();
-                                    let new_index = if self.replace_next_project_load_in_active_tab
-                                    {
-                                        self.sessions[self.active_session] = ProjectSession {
-                                            project: loaded,
-                                            project_path: Some(p.clone()),
-                                            undo: UndoManager::default(),
-                                            dirty: false,
-                                        };
-                                        self.replace_next_project_load_in_active_tab = false;
-                                        self.active_session
-                                    } else {
-                                        self.sessions.push(ProjectSession {
-                                            project: loaded,
-                                            project_path: Some(p.clone()),
-                                            undo: UndoManager::default(),
-                                            dirty: false,
-                                        });
-                                        self.sessions.len() - 1
-                                    };
-                                    self.switch_to_session(
-                                        new_index,
-                                        ui,
-                                        ctx,
-                                        &mut update_server_icons,
-                                        &mut redraw,
-                                    );
-                                    ctx.ui.send(TheEvent::SetStatusText(
-                                        TheId::empty(),
-                                        "Project loaded successfully.".to_string(),
-                                    ));
-                                } else {
-                                    self.replace_next_project_load_in_active_tab = false;
-                                    ctx.ui.send(TheEvent::SetStatusText(
-                                        TheId::empty(),
-                                        "Unable to load project!".to_string(),
-                                    ));
-                                }
+                            if let Some(loaded) = Self::load_project_from_json_path(&p) {
+                                self.open_project_as_session(
+                                    loaded,
+                                    Some(p.clone()),
+                                    ui,
+                                    ctx,
+                                    &mut update_server_icons,
+                                    &mut redraw,
+                                );
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    "Project loaded successfully.".to_string(),
+                                ));
+                            } else {
+                                self.replace_next_project_load_in_active_tab = false;
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    "Unable to load project!".to_string(),
+                                ));
                             }
                         }
                     } else if id.name == "Save As" {
@@ -2410,47 +2685,73 @@ impl TheTrait for Editor {
                     }
                     if id.name == "GameInput" {
                         self.server_ctx.game_input_mode = state == TheWidgetState::Clicked;
-                    } else if id.name == "New" {
-                        let mut project = Project::default();
-                        if let Some(bytes) = crate::Embedded::get("starter_project.eldiron")
-                            && let Ok(project_string) = std::str::from_utf8(bytes.data.as_ref())
-                            && let Ok(loaded) = serde_json::from_str(&project_string.to_string())
-                        {
-                            project = loaded;
-                        }
-                        Self::sanitize_loaded_project(&mut project);
-
-                        self.sync_active_session_from_editor();
-                        let new_index = if self.replace_next_project_load_in_active_tab {
-                            self.sessions[self.active_session] = ProjectSession {
-                                project,
-                                project_path: None,
-                                undo: UndoManager::default(),
-                                dirty: false,
-                            };
-                            self.replace_next_project_load_in_active_tab = false;
-                            self.active_session
-                        } else {
-                            self.sessions.push(ProjectSession {
-                                project,
-                                project_path: None,
-                                undo: UndoManager::default(),
-                                dirty: false,
+                    } else if id.name == "Starter Project List Item"
+                        && state == TheWidgetState::Selected
+                    {
+                        redraw = true;
+                    } else if id.name == Self::STARTER_CREATE_ID {
+                        let selected_manifest_id = self
+                            .selected_starter_project(ui)
+                            .map(|entry| entry.manifest_id.clone())
+                            .or_else(|| {
+                                self.starter_projects
+                                    .first()
+                                    .map(|entry| entry.manifest_id.clone())
                             });
-                            self.sessions.len() - 1
-                        };
-                        self.switch_to_session(
-                            new_index,
+                        if let Some(manifest_id) = selected_manifest_id {
+                            if let Some(project) = Self::load_named_starter_project(&manifest_id) {
+                                ui.clear_dialog();
+                                self.open_project_as_session(
+                                    project,
+                                    None,
+                                    ui,
+                                    ctx,
+                                    &mut update_server_icons,
+                                    &mut redraw,
+                                );
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    "Starter project successfully initialized.".to_string(),
+                                ));
+                            } else {
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    "Unable to load starter project!".to_string(),
+                                ));
+                            }
+                        }
+                        ctx.ui.set_widget_state(
+                            Self::STARTER_CREATE_ID.to_string(),
+                            TheWidgetState::None,
+                        );
+                        ctx.ui.clear_hover();
+                        redraw = true;
+                    } else if id.name == Self::STARTER_CANCEL_ID {
+                        ui.clear_dialog();
+                        ctx.ui.set_widget_state(
+                            Self::STARTER_CANCEL_ID.to_string(),
+                            TheWidgetState::None,
+                        );
+                        ctx.ui.clear_hover();
+                        self.open_project_as_session(
+                            Self::load_empty_project_template(),
+                            None,
                             ui,
                             ctx,
                             &mut update_server_icons,
                             &mut redraw,
                         );
-
+                        redraw = true;
+                    } else if id.name == "New" {
+                        self.open_starter_project_dialog(ui, ctx);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
-                            "New project successfully initialized.".to_string(),
+                            "Choose a 2D or 3D starter project.".to_string(),
                         ));
+                        ctx.ui
+                            .set_widget_state("New".to_string(), TheWidgetState::None);
+                        ctx.ui.clear_hover();
+                        redraw = true;
                     } else if id.name == "Logo" {
                         _ = open::that("https://eldiron.com");
                         ctx.ui

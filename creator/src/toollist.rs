@@ -371,6 +371,14 @@ impl ToolList {
                     let new_mode = server_ctx.editor_view_mode;
                     let new = new_mode.is_3d();
 
+                    if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+                        region.map.camera = match new_mode {
+                            EditorViewMode::D2 => MapCamera::TwoD,
+                            EditorViewMode::Iso | EditorViewMode::Orbit => MapCamera::ThreeDIso,
+                            EditorViewMode::FirstP => MapCamera::ThreeDFirstPerson,
+                        };
+                    }
+
                     // Restore region camera anchor for the selected view mode.
                     if let Some(region) = project.get_region_ctx_mut(server_ctx) {
                         if new_mode == EditorViewMode::D2 {
