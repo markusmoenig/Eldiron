@@ -27,6 +27,10 @@ pub struct Item {
     #[serde(default)]
     pub data: String,
 
+    /// Authoring metadata used for look/description style presentation.
+    #[serde(default)]
+    pub authoring: String,
+
     /// The initial position.
     pub position: Vec3<f32>,
 
@@ -51,6 +55,7 @@ impl Item {
             source: String::new(),
             source_debug: String::new(),
             data: String::new(),
+            authoring: String::new(),
             position: zero(),
 
             item_id: Uuid::new_v4(),

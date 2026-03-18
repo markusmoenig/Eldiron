@@ -19,14 +19,23 @@ This makes Authoring a persistent mode:
 
 ## What You Can Edit
 
-The Authoring dock currently edits TOML metadata for selected:
+The Authoring dock edits player-facing TOML metadata for:
 
-- sectors
-- linedefs
-- entity instances
-- item instances
+- selected sectors
+- selected linedefs
+- selected character templates
+- selected item templates
 
-This metadata is stored with the selected object and is intended for player-facing text.
+Important:
+
+- sectors and linedefs are authored from the current region selection
+- characters and items are authored on their templates, not on placed instances
+- gameplay/mechanical TOML still belongs in the normal `Data` dock
+
+So the split is:
+
+- `Authoring`: descriptive and presentation text
+- `Data`: stats, flags, input, rules-related values, and other mechanics
 
 ## Minimal Format
 
@@ -44,6 +53,8 @@ Use:
 
 - `title` for the player-facing name of the place, connection, entity, or item
 - `description` for the longer descriptive text
+
+`title` is optional for `look`. If only `description` is present, that still works.
 
 Examples:
 
@@ -68,6 +79,57 @@ Right now the authoring metadata is already used by:
 - text-style terminal room titles and descriptions
 - text-style exit and room presentation
 - authored sector description messages in regular gameplay
+- `look` for characters and items in 2D, 3D, and text play when no explicit `on_look` message is present
+
+## Character And Item Authoring
+
+Character and item templates can define descriptive fallbacks used by `look`.
+
+Characters support mode-based overrides:
+
+```toml
+title = "Guard"
+description = """
+A weary guard watches the road.
+"""
+
+[mode.active]
+description = """
+A weary guard watches the road.
+"""
+
+[mode.dead]
+description = """
+The guard lies motionless on the ground.
+"""
+```
+
+Items support state-based overrides:
+
+```toml
+title = "Torch"
+description = """
+A simple wall torch.
+"""
+
+[state.off]
+description = """
+An unlit torch is fixed to the wall.
+"""
+
+[state.on]
+description = """
+A lit torch flickers warmly against the stone wall.
+"""
+```
+
+Resolution order is:
+
+1. matching `mode.<value>` for characters
+2. matching `state.<value>` for items
+3. fallback to the top-level `description`
+
+So `mode.*` and `state.*` are optional overrides, not required fields.
 
 For sectors, you can also add:
 

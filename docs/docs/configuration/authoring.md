@@ -5,7 +5,11 @@ sidebar_position: 2
 
 You can configure text-adventure and authoring-related runtime behavior by selecting **Game -> Authoring** in the **project tree**.
 
-This page documents the global `Game / Authoring` TOML configuration and the per-sector metadata keys used by sector descriptions.
+This page documents:
+
+- the global `Game / Authoring` TOML configuration
+- per-sector metadata keys used by sector descriptions
+- template authoring metadata used by `look` for characters and items
 
 ---
 
@@ -255,6 +259,94 @@ show_in_3d = false
 ```
 
 This is useful for places like a `Crossroads` sector that should exist for navigation but should stay quiet in moment-to-moment 2D play.
+
+---
+
+## Character And Item Template Authoring
+
+Character and item templates have separate **Authoring** metadata in addition to their normal `Data` TOML.
+
+Use:
+
+- the **Authoring** dock for descriptive/player-facing text
+- the **Data** dock for mechanical attributes and gameplay configuration
+
+### Character Templates
+
+Minimal example:
+
+```toml
+title = "Guard"
+description = """
+A weary guard watches the road.
+"""
+
+[mode.active]
+description = """
+A weary guard watches the road.
+"""
+
+[mode.dead]
+description = """
+The guard lies motionless on the ground.
+"""
+```
+
+Characters may define optional `mode.*` overrides. These are used by `look` based on the current runtime mode, for example:
+
+- `mode.active`
+- `mode.dead`
+
+If the current `mode.*` entry is missing, `look` falls back to the top-level `description`.
+
+### Item Templates
+
+Minimal example:
+
+```toml
+title = "Torch"
+description = """
+A simple wall torch.
+"""
+
+[state.off]
+description = """
+An unlit torch is fixed to the wall.
+"""
+
+[state.on]
+description = """
+A lit torch flickers warmly against the stone wall.
+"""
+```
+
+Items may define optional `state.*` overrides. These are used by `look` based on the current runtime state, for example:
+
+- `state.off`
+- `state.on`
+
+If the current `state.*` entry is missing, `look` falls back to the top-level `description`.
+
+### `title`
+
+- Optional display name for the template.
+- Useful for UI or future presentation systems.
+- `look` itself only requires `description`.
+
+### `description`
+
+- Base fallback description used by `look`.
+- Works even if no `mode.*` or `state.*` overrides are defined.
+
+### Runtime Use
+
+This template authoring metadata is currently used by `look` in:
+
+- 2D gameplay
+- 3D gameplay
+- text gameplay
+
+It is used when no explicit `on_look` message is defined for the target.
 
 ---
 

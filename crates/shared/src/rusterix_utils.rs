@@ -16,6 +16,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
 
     // Characters
     rusterix.assets.entities.clear();
+    rusterix.assets.entity_authoring.clear();
     rusterix.assets.character_maps.clear();
     rusterix.assets.entity_tiles.clear();
     for character in project.characters.values_mut() {
@@ -38,6 +39,10 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
                 (character.source.clone(), character.data.clone()),
             );
         }
+        rusterix
+            .assets
+            .entity_authoring
+            .insert(character.name.clone(), character.authoring.clone());
         if !character.map.vertices.is_empty() {
             rusterix
                 .assets
@@ -48,6 +53,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
 
     // Items
     rusterix.assets.items.clear();
+    rusterix.assets.item_authoring.clear();
     rusterix.assets.item_maps.clear();
     rusterix.assets.item_tiles.clear();
     for item in project.items.values_mut() {
@@ -70,6 +76,10 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
                 .items
                 .insert(item.name.clone(), (item.source.clone(), item.data.clone()));
         }
+        rusterix
+            .assets
+            .item_authoring
+            .insert(item.name.clone(), item.authoring.clone());
         if !item.map.vertices.is_empty() {
             rusterix
                 .assets

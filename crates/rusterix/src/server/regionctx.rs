@@ -40,6 +40,8 @@ pub struct RegionCtx {
 
     pub entity_class_data: FxHashMap<String, String>,
     pub item_class_data: FxHashMap<String, String>,
+    pub entity_authoring_data: FxHashMap<String, String>,
+    pub item_authoring_data: FxHashMap<String, String>,
 
     pub entity_proximity_alerts: FxHashMap<u32, f32>,
     pub item_proximity_alerts: FxHashMap<u32, f32>,

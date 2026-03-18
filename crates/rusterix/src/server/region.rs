@@ -579,6 +579,10 @@ impl RegionInstance {
 
             ctx.entity_class_data
                 .insert(name.clone(), entity_data.clone());
+            if let Some(authoring) = assets.entity_authoring.get(name) {
+                ctx.entity_authoring_data
+                    .insert(name.clone(), authoring.clone());
+            }
         }
 
         /*
@@ -652,6 +656,10 @@ impl RegionInstance {
             //     ));
             // }
             ctx.item_class_data.insert(name.clone(), item_data.clone());
+            if let Some(authoring) = assets.item_authoring.get(name) {
+                ctx.item_authoring_data
+                    .insert(name.clone(), authoring.clone());
+            }
         }
 
         // Remove player based entities, these only get created on demand from a client
@@ -1498,11 +1506,18 @@ impl RegionInstance {
                                 && intent_lower == "look"
                                 && let Some(target) =
                                     ctx.map.entities.iter().find(|e| e.id == clicked_entity_id)
-                                && let Some(msg) = target.attributes.get_str("on_look")
                             {
-                                let msg = msg.trim();
-                                if !msg.is_empty() {
-                                    send_message(ctx, entity_id, msg.to_string(), "system");
+                                if let Some(msg) = target.attributes.get_str("on_look") {
+                                    let msg = msg.trim();
+                                    if !msg.is_empty() {
+                                        send_message(ctx, entity_id, msg.to_string(), "system");
+                                        handled_shortcut = true;
+                                    }
+                                }
+                                if !handled_shortcut
+                                    && let Some(msg) = entity_look_description(ctx, target)
+                                {
+                                    send_message(ctx, entity_id, msg, "system");
                                     handled_shortcut = true;
                                 }
                             }
@@ -1711,6 +1726,35 @@ impl RegionInstance {
                                             send_message(ctx, entity_id, msg.to_string(), "system");
                                             handled_shortcut = true;
                                         }
+                                    }
+                                    if !handled_shortcut
+                                        && let Some(item) = ctx
+                                            .map
+                                            .items
+                                            .iter()
+                                            .find(|i| i.id == clicked_item_id)
+                                            .or_else(|| {
+                                                ctx.map
+                                                    .entities
+                                                    .iter()
+                                                    .find(|e| e.id == entity_id)
+                                                    .and_then(|e| e.get_item(clicked_item_id))
+                                            })
+                                            .or_else(|| {
+                                                ctx.map
+                                                    .entities
+                                                    .iter()
+                                                    .find(|e| e.id == entity_id)
+                                                    .and_then(|e| {
+                                                        e.equipped
+                                                            .values()
+                                                            .find(|item| item.id == clicked_item_id)
+                                                    })
+                                            })
+                                        && let Some(msg) = item_look_description(ctx, item)
+                                    {
+                                        send_message(ctx, entity_id, msg, "system");
+                                        handled_shortcut = true;
                                     }
                                 } else if intent_lower == "use" {
                                     if let Some(msg) = attrs.get_str("on_use") {
@@ -3706,6 +3750,39 @@ impl RegionInstance {
                 return;
             }
 
+            if intent_lower == "look" {
+                if let Some(target_entity) = target_entity {
+                    if let Some(msg) = target_entity.attributes.get_str("on_look") {
+                        let msg = msg.trim();
+                        if !msg.is_empty() {
+                            send_message(ctx, entity.id, msg.to_string(), "system");
+                            entity.set_attribute("intent", Value::Str(String::new()));
+                            return;
+                        }
+                    }
+                    if let Some(msg) = entity_look_description(ctx, target_entity) {
+                        send_message(ctx, entity.id, msg, "system");
+                        entity.set_attribute("intent", Value::Str(String::new()));
+                        return;
+                    }
+                }
+                if let Some(target_item) = target_item {
+                    if let Some(msg) = target_item.attributes.get_str("on_look") {
+                        let msg = msg.trim();
+                        if !msg.is_empty() {
+                            send_message(ctx, entity.id, msg.to_string(), "system");
+                            entity.set_attribute("intent", Value::Str(String::new()));
+                            return;
+                        }
+                    }
+                    if let Some(msg) = item_look_description(ctx, target_item) {
+                        send_message(ctx, entity.id, msg, "system");
+                        entity.set_attribute("intent", Value::Str(String::new()));
+                        return;
+                    }
+                }
+            }
+
             value.string = Some(intent.clone());
 
             ctx.to_execute_entity
@@ -5232,6 +5309,80 @@ fn localized_template(ctx: &RegionCtx, key: &str) -> Option<String> {
                 .and_then(|translations| translations.get(key))
                 .cloned()
         })
+}
+
+fn authored_description_from_entry(value: &toml::Value) -> Option<String> {
+    if let Some(text) = value.as_str() {
+        let text = text.trim();
+        if !text.is_empty() {
+            return Some(text.to_string());
+        }
+    }
+
+    if let Some(table) = value.as_table()
+        && let Some(text) = table.get("description").and_then(toml::Value::as_str)
+    {
+        let text = text.trim();
+        if !text.is_empty() {
+            return Some(text.to_string());
+        }
+    }
+
+    None
+}
+
+fn authored_description_from_data(
+    data: &str,
+    mode: Option<&str>,
+    state: Option<&str>,
+) -> Option<String> {
+    let table = data.parse::<toml::Table>().ok()?;
+
+    if let Some(mode) = mode
+        && let Some(entries) = table.get("mode").and_then(toml::Value::as_table)
+        && let Some(value) = entries.get(mode)
+        && let Some(description) = authored_description_from_entry(value)
+    {
+        return Some(description);
+    }
+
+    if let Some(state) = state
+        && let Some(entries) = table.get("state").and_then(toml::Value::as_table)
+        && let Some(value) = entries.get(state)
+        && let Some(description) = authored_description_from_entry(value)
+    {
+        return Some(description);
+    }
+
+    table
+        .get("description")
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(ToString::to_string)
+}
+
+fn entity_look_description(ctx: &RegionCtx, entity: &Entity) -> Option<String> {
+    let class_name = entity.get_attr_string("class_name")?;
+    let data = ctx.entity_authoring_data.get(&class_name)?;
+    let mode = entity.get_attr_string("mode");
+    authored_description_from_data(data, mode.as_deref(), None)
+}
+
+fn item_look_description(ctx: &RegionCtx, item: &Item) -> Option<String> {
+    let class_name = item.get_attr_string("class_name")?;
+    let data = ctx.item_authoring_data.get(&class_name)?;
+    let state = item
+        .get_attr_string("state")
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            if item.attributes.get_bool_default("active", false) {
+                Some("on".to_string())
+            } else {
+                Some("off".to_string())
+            }
+        });
+    authored_description_from_data(data, None, state.as_deref())
 }
 
 fn combat_message_template(ctx: &RegionCtx, key: &str) -> Option<String> {

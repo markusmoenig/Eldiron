@@ -11,6 +11,8 @@ pub struct Assets {
 
     pub entities: FxHashMap<String, (String, String)>,
     pub items: FxHashMap<String, (String, String)>,
+    pub entity_authoring: FxHashMap<String, String>,
+    pub item_authoring: FxHashMap<String, String>,
 
     pub tiles: IndexMap<Uuid, Tile>,
     pub materials: FxHashMap<Uuid, Tile>,
@@ -86,6 +88,8 @@ impl Assets {
             maps: FxHashMap::default(),
             entities: FxHashMap::default(),
             items: FxHashMap::default(),
+            entity_authoring: FxHashMap::default(),
+            item_authoring: FxHashMap::default(),
             tiles: IndexMap::default(),
             textures: FxHashMap::default(),
             tile_list: vec![],

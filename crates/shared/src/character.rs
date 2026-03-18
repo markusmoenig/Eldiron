@@ -27,6 +27,10 @@ pub struct Character {
     #[serde(default)]
     pub data: String,
 
+    /// Authoring metadata used for look/description style presentation.
+    #[serde(default)]
+    pub authoring: String,
+
     /// Editor-only rigging preview TOML data.
     #[serde(default)]
     pub preview_rigging: String,
@@ -60,6 +64,7 @@ impl Character {
             source: String::new(),
             source_debug: String::new(),
             data: String::new(),
+            authoring: String::new(),
             preview_rigging: String::new(),
             position: zero(),
             orientation: default_orientation(),
