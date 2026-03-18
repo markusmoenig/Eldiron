@@ -28,6 +28,7 @@
 #define KEY_TAB 8
 
 void rust_init();
+void rust_resize(uint32_t width, uint32_t height, float scale_factor);
 void rust_draw(uint8_t *pixels, uint32_t width, uint32_t height, uintptr_t anim_counter);
 void rust_update();
 void rust_new();

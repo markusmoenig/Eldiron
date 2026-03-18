@@ -68,6 +68,7 @@ class Renderer: NSObject, MTKViewDelegate {
 
         metalStates = MetalStates(self)
         checkTexture()
+        rust_resize(UInt32(max(1, Int(screenWidth))), UInt32(max(1, Int(screenHeight))), scaleFactor)
         checkFramerate()
     }
 
@@ -86,6 +87,7 @@ class Renderer: NSObject, MTKViewDelegate {
 
             screenWidth = Float(texture!.width)
             screenHeight = Float(texture!.height)
+            rust_resize(UInt32(texture!.width), UInt32(texture!.height), scaleFactor)
 
             scissorRect = MTLScissorRect(x: 0, y: 0, width: texture!.texture.width, height: texture!.texture.height)
 
@@ -96,8 +98,6 @@ class Renderer: NSObject, MTKViewDelegate {
 
     func draw(in view: MTKView) {
         checkFramerate()
-
-        rust_update()
         #if os(OSX)
         let currentHasChanges = rust_has_changes()
         if currentHasChanges != hasChanges {
@@ -107,6 +107,10 @@ class Renderer: NSObject, MTKViewDelegate {
         #endif
 
         checkTexture()
+        rust_resize(UInt32(max(1, Int(texture?.width ?? Float(view.frame.width)))),
+                    UInt32(max(1, Int(texture?.height ?? Float(view.frame.height)))),
+                    scaleFactor)
+        rust_update()
         //print(screenWidth, screenHeight)
         guard let drawable = view.currentDrawable else {
             return
@@ -278,5 +282,6 @@ class Renderer: NSObject, MTKViewDelegate {
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        rust_resize(UInt32(max(1, Int(size.width))), UInt32(max(1, Int(size.height))), scaleFactor)
     }
 }

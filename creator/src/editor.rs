@@ -179,17 +179,6 @@ impl Editor {
         Some(loaded)
     }
 
-    fn load_embedded_starter_project() -> Project {
-        let mut project = Project::default();
-        if let Some(bytes) = crate::Embedded::get("starter_project.eldiron")
-            && let Ok(project_string) = std::str::from_utf8(bytes.data.as_ref())
-            && let Ok(loaded) = serde_json::from_str(&project_string.to_string())
-        {
-            project = loaded;
-        }
-        project
-    }
-
     fn load_empty_project_template() -> Project {
         let mut project = Project::new();
         if let Some(bytes) = crate::Embedded::get("toml/config.toml")
@@ -744,8 +733,7 @@ impl Editor {
         self.sessions.remove(self.active_session);
 
         if self.sessions.is_empty() {
-            let mut project = Self::load_embedded_starter_project();
-            Self::sanitize_loaded_project(&mut project);
+            let project = Self::load_empty_project_template();
             self.sessions.push(ProjectSession {
                 project,
                 project_path: None,
@@ -760,6 +748,15 @@ impl Editor {
         self.sync_editor_from_active_session();
         self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
         self.rebuild_project_tabs(ui);
+        if self.sessions.len() == 1 && self.project_path.is_none() {
+            self.replace_next_project_load_in_active_tab = true;
+            self.open_starter_project_dialog(ui, ctx);
+            ctx.ui.send(TheEvent::SetStatusText(
+                TheId::empty(),
+                "Choose a 2D or 3D starter project.".to_string(),
+            ));
+            *redraw = true;
+        }
     }
 
     fn active_session_has_changes(&self) -> bool {

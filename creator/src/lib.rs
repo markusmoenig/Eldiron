@@ -123,6 +123,21 @@ mod ffi {
         );
     }
 
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_resize(width: u32, height: u32, scale_factor: f32) {
+        let mut ctx = CTX.lock().unwrap();
+        if ctx.width != width as usize
+            || ctx.height != height as usize
+            || (ctx.scale_factor - scale_factor).abs() > f32::EPSILON
+        {
+            ctx.width = width as usize;
+            ctx.height = height as usize;
+            ctx.scale_factor = scale_factor;
+            ctx.ui.relayout = true;
+            ctx.ui.redraw_all = true;
+        }
+    }
+
     /// # Safety
     #[unsafe(no_mangle)]
     pub unsafe extern "C" fn rust_draw(pixels: *mut u8, width: u32, height: u32) {
