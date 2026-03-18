@@ -342,6 +342,11 @@ impl TheUI {
         let width = self.canvas.buffer().dim().width;
         let height = self.canvas.buffer().dim().height;
         self.canvas.layout(width, height, ctx);
+        if let Some(dialog) = &mut self.dialog {
+            let width = dialog.limiter.get_max_width();
+            let height = dialog.limiter.get_max_height();
+            dialog.layout(width, height, ctx);
+        }
         ctx.ui.relayout = false;
     }
 
@@ -1165,19 +1170,31 @@ impl TheUI {
         }
     }
 
+    pub fn get_layout_abs(
+        &mut self,
+        name: Option<&String>,
+        uuid: Option<&Uuid>,
+    ) -> Option<&mut Box<dyn TheLayout>> {
+        if let Some(dialog) = &mut self.dialog {
+            dialog.get_layout(name, uuid)
+        } else {
+            self.canvas.get_layout(name, uuid)
+        }
+    }
+
     /// Gets a given widget by name
     pub fn get_widget(&mut self, name: &str) -> Option<&mut Box<dyn TheWidget>> {
-        self.canvas.get_widget(Some(&name.to_string()), None)
+        self.get_widget_abs(Some(&name.to_string()), None)
     }
 
     /// Gets a given widget by id
     pub fn get_widget_id(&mut self, id: Uuid) -> Option<&mut Box<dyn TheWidget>> {
-        self.canvas.get_widget(None, Some(&id))
+        self.get_widget_abs(None, Some(&id))
     }
 
     /// Gets a given text line edit by name
     pub fn get_text_line_edit(&mut self, name: &str) -> Option<&mut dyn TheTextLineEditTrait> {
-        if let Some(text_line_edit) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(text_line_edit) = self.get_widget_abs(Some(&name.to_string()), None) {
             return text_line_edit.as_text_line_edit();
         }
         None
@@ -1185,7 +1202,7 @@ impl TheUI {
 
     /// Gets a given text area edit by name
     pub fn get_text_area_edit(&mut self, name: &str) -> Option<&mut dyn TheTextAreaEditTrait> {
-        if let Some(text_area_edit) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(text_area_edit) = self.get_widget_abs(Some(&name.to_string()), None) {
             return text_area_edit.as_text_area_edit();
         }
         None
@@ -1193,7 +1210,7 @@ impl TheUI {
 
     /// Gets a given text view by name
     pub fn get_text_view(&mut self, name: &str) -> Option<&mut dyn TheTextViewTrait> {
-        if let Some(text_view) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(text_view) = self.get_widget_abs(Some(&name.to_string()), None) {
             return text_view.as_text_view();
         }
         None
@@ -1201,7 +1218,7 @@ impl TheUI {
 
     /// Gets a given icon view by name
     pub fn get_icon_view(&mut self, name: &str) -> Option<&mut dyn TheIconViewTrait> {
-        if let Some(text_line_edit) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(text_line_edit) = self.get_widget_abs(Some(&name.to_string()), None) {
             return text_line_edit.as_icon_view();
         }
         None
@@ -1209,7 +1226,7 @@ impl TheUI {
 
     /// Gets a given menu by name
     pub fn get_menu(&mut self, name: &str) -> Option<&mut dyn TheMenuTrait> {
-        if let Some(menu) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(menu) = self.get_widget_abs(Some(&name.to_string()), None) {
             return menu.as_menu();
         }
         None
@@ -1217,7 +1234,7 @@ impl TheUI {
 
     /// Gets a given render view by name
     pub fn get_render_view(&mut self, name: &str) -> Option<&mut dyn TheRenderViewTrait> {
-        if let Some(render_view) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(render_view) = self.get_widget_abs(Some(&name.to_string()), None) {
             return render_view.as_render_view();
         }
         None
@@ -1225,7 +1242,7 @@ impl TheUI {
 
     /// Gets a given text by name
     pub fn get_text(&mut self, name: &str) -> Option<&mut dyn TheTextTrait> {
-        if let Some(text) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(text) = self.get_widget_abs(Some(&name.to_string()), None) {
             return text.as_text();
         }
         None
@@ -1233,7 +1250,7 @@ impl TheUI {
 
     /// Gets a given group button by name
     pub fn get_group_button(&mut self, name: &str) -> Option<&mut dyn TheGroupButtonTrait> {
-        if let Some(text) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(text) = self.get_widget_abs(Some(&name.to_string()), None) {
             return text.as_group_button();
         }
         None
@@ -1241,7 +1258,7 @@ impl TheUI {
 
     /// Gets a given statusbar by name
     pub fn get_statusbar(&mut self, name: &str) -> Option<&mut dyn TheStatusbarTrait> {
-        if let Some(text) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(text) = self.get_widget_abs(Some(&name.to_string()), None) {
             return text.as_statusbar();
         }
         None
@@ -1249,7 +1266,7 @@ impl TheUI {
 
     /// Gets a given drop down menu by name
     pub fn get_drop_down_menu(&mut self, name: &str) -> Option<&mut dyn TheDropdownMenuTrait> {
-        if let Some(drop_down_menu) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(drop_down_menu) = self.get_widget_abs(Some(&name.to_string()), None) {
             return drop_down_menu.as_drop_down_menu();
         }
         None
@@ -1257,7 +1274,7 @@ impl TheUI {
 
     /// Gets a given time slider by name
     pub fn get_time_slider(&mut self, name: &str) -> Option<&mut dyn TheTimeSliderTrait> {
-        if let Some(text) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(text) = self.get_widget_abs(Some(&name.to_string()), None) {
             return text.as_time_slider();
         }
         None
@@ -1265,7 +1282,7 @@ impl TheUI {
 
     /// Gets a given palette picker by name
     pub fn get_palette_picker(&mut self, name: &str) -> Option<&mut dyn ThePalettePickerTrait> {
-        if let Some(text) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(text) = self.get_widget_abs(Some(&name.to_string()), None) {
             return text.as_palette_picker();
         }
         None
@@ -1273,19 +1290,19 @@ impl TheUI {
 
     /// Gets a given layout by name
     pub fn get_layout(&mut self, name: &str) -> Option<&mut Box<dyn TheLayout>> {
-        self.canvas.get_layout(Some(&name.to_string()), None)
+        self.get_layout_abs(Some(&name.to_string()), None)
     }
 
     /// Relayouts the given layout.
     pub fn relayout_layout(&mut self, name: &str, ctx: &mut TheContext) {
-        if let Some(l) = self.canvas.get_layout(Some(&name.to_string()), None) {
+        if let Some(l) = self.get_layout_abs(Some(&name.to_string()), None) {
             l.relayout(ctx);
         }
     }
 
     /// Gets a given TheListLayout by name
     pub fn get_list_layout(&mut self, name: &str) -> Option<&mut dyn TheListLayoutTrait> {
-        if let Some(text_line_edit) = self.canvas.get_layout(Some(&name.to_string()), None) {
+        if let Some(text_line_edit) = self.get_layout_abs(Some(&name.to_string()), None) {
             return text_line_edit.as_list_layout();
         }
         None
@@ -1293,7 +1310,7 @@ impl TheUI {
 
     /// Gets a given TheTreeLayout by name
     pub fn get_tree_layout(&mut self, name: &str) -> Option<&mut dyn TheTreeLayoutTrait> {
-        if let Some(layout) = self.canvas.get_layout(Some(&name.to_string()), None) {
+        if let Some(layout) = self.get_layout_abs(Some(&name.to_string()), None) {
             return layout.as_tree_layout();
         }
         None
@@ -1301,7 +1318,7 @@ impl TheUI {
 
     /// Gets a given TheRowListLayout by name
     pub fn get_rowlist_layout(&mut self, name: &str) -> Option<&mut dyn TheRowListLayoutTrait> {
-        if let Some(text_line_edit) = self.canvas.get_layout(Some(&name.to_string()), None) {
+        if let Some(text_line_edit) = self.get_layout_abs(Some(&name.to_string()), None) {
             return text_line_edit.as_rowlist_layout();
         }
         None

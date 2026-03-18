@@ -37,6 +37,7 @@ regex = "1.11.1"
 arboard = "3.4.1"
 toml = "0.8.20"
 rand = "0.9"
+ureq = "2.10.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 theframework = { path = "../crates/theframework", version = "0.9.1", default-features = false, features = ["ui", "i18n"] }

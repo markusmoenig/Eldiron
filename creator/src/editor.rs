@@ -10,6 +10,7 @@ use rusterix::{
 };
 use shared::rusterix_utils::*;
 use std::fs;
+use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::mpsc::Receiver;
@@ -126,9 +127,13 @@ pub struct Editor {
     build_values: ValueContainer,
     window_state: CreatorWindowState,
     starter_projects: Vec<StarterProjectEntry>,
+    starter_loader_rx: Option<Receiver<Vec<StarterProjectEntry>>>,
+    selected_starter_manifest_id: Option<String>,
 }
 
 impl Editor {
+    const STARTER_REPO_RAW_BASE: &'static str =
+        "https://raw.githubusercontent.com/markusmoenig/Eldiron/master/";
     const STARTER_DIALOG_TITLE: &'static str = "Choose Starter Project";
     const STARTER_LIST_ID: &'static str = "Starter Project List";
     const STARTER_PREVIEW_ID: &'static str = "Starter Project Preview";
@@ -139,16 +144,36 @@ impl Editor {
         segment.contains("[error]") || segment.contains("[warning]")
     }
 
-    fn repo_root() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
+    fn starter_manifest_url() -> String {
+        format!("{}starters/manifest.toml", Self::STARTER_REPO_RAW_BASE)
     }
 
-    fn starter_manifest_path() -> PathBuf {
-        Self::repo_root().join("starters").join("manifest.toml")
+    fn starter_repo_url(repo_path: &str) -> String {
+        format!("{}{}", Self::STARTER_REPO_RAW_BASE, repo_path)
+    }
+
+    fn fetch_url_bytes(url: &str) -> Option<Vec<u8>> {
+        let response = ureq::get(url).call().ok()?;
+        let mut reader = response.into_reader();
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).ok()?;
+        Some(bytes)
+    }
+
+    fn fetch_url_text(url: &str) -> Option<String> {
+        let bytes = Self::fetch_url_bytes(url)?;
+        String::from_utf8(bytes).ok()
     }
 
     fn load_project_from_json_path(path: &std::path::Path) -> Option<Project> {
         let contents = std::fs::read_to_string(path).ok()?;
+        let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
+        loaded.palette.current_index = 0;
+        Some(loaded)
+    }
+
+    fn load_project_from_url(url: &str) -> Option<Project> {
+        let contents = Self::fetch_url_text(url)?;
         let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
         loaded.palette.current_index = 0;
         Some(loaded)
@@ -196,10 +221,9 @@ impl Editor {
     }
 
     fn load_starter_manifest() -> Vec<StarterProjectEntry> {
-        let path = Self::starter_manifest_path();
-        let contents = match std::fs::read_to_string(path) {
-            Ok(contents) => contents,
-            Err(_) => return Vec::new(),
+        let contents = match Self::fetch_url_text(&Self::starter_manifest_url()) {
+            Some(contents) => contents,
+            None => return Vec::new(),
         };
         let manifest = match toml::from_str::<StarterProjectManifest>(&contents) {
             Ok(manifest) => manifest,
@@ -221,7 +245,7 @@ impl Editor {
     }
 
     fn load_starter_preview(repo_path: &str) -> Option<TheRGBATile> {
-        let bytes = std::fs::read(Self::repo_root().join(repo_path)).ok()?;
+        let bytes = Self::fetch_url_bytes(&Self::starter_repo_url(repo_path))?;
         Self::decode_png_tile(bytes)
     }
 
@@ -243,8 +267,7 @@ impl Editor {
         let choice = Self::load_starter_manifest()
             .into_iter()
             .find(|choice| choice.manifest_id == manifest_id)?;
-        Self::load_project_from_json_path(&Self::repo_root().join(choice.project_path))
-            .or_else(|| Some(Self::load_embedded_starter_project()))
+        Self::load_project_from_url(&Self::starter_repo_url(&choice.project_path))
     }
 
     fn window_state_file_path() -> Option<PathBuf> {
@@ -365,7 +388,9 @@ impl Editor {
     }
 
     fn open_starter_project_dialog(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.starter_projects = Self::load_starter_manifest();
+        self.starter_projects.clear();
+        self.starter_loader_rx = None;
+        self.selected_starter_manifest_id = None;
 
         let width = 980;
         let height = 340;
@@ -397,25 +422,14 @@ impl Editor {
             .set_max_size(Vec2::new(width - (preview_size + 20), preview_size));
         let mut list = TheListLayout::new(TheId::named(Self::STARTER_LIST_ID));
         list.set_item_size(52);
-        for (index, entry) in self.starter_projects.iter().enumerate() {
-            let mut item =
-                TheListItem::new(TheId::named_with_id("Starter Project List Item", entry.id));
-            item.set_text(entry.title.clone());
-            item.set_sub_text(entry.description.clone());
-            item.set_size(52);
-            item.set_text_color(WHITE);
-            item.set_text_size(14.0);
-            item.set_sub_text_size(12.0);
-            if index == 0 {
-                item.set_state(TheWidgetState::Selected);
-            }
-            if let Some(preview) = &entry.preview
-                && let Some(first) = preview.buffer.first()
-            {
-                item.set_icon(first.clone());
-            }
-            list.add_item(item, ctx);
-        }
+        let mut item = TheListItem::new(TheId::named("Starter Project Loading"));
+        item.set_text("Loading starter projects...".to_string());
+        item.set_sub_text("Fetching metadata from the Eldiron repo.".to_string());
+        item.set_size(52);
+        item.set_text_color(WHITE);
+        item.set_text_size(14.0);
+        item.set_sub_text_size(12.0);
+        list.add_item(item, ctx);
         center.set_layout(list);
         dialog.set_center(center);
 
@@ -444,19 +458,39 @@ impl Editor {
         dialog.set_bottom(bottom);
 
         ui.show_dialog(Self::STARTER_DIALOG_TITLE, dialog, vec![], ctx);
-        if let Some(first) = self.starter_projects.first() {
-            ctx.ui.send(TheEvent::StateChanged(
-                TheId::named_with_id("Starter Project List Item", first.id),
-                TheWidgetState::Selected,
-            ));
-        }
+        ui.set_disabled(Self::STARTER_CREATE_ID, ctx);
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.starter_loader_rx = Some(rx);
+        std::thread::spawn(move || {
+            let _ = tx.send(Self::load_starter_manifest());
+        });
     }
 
-    fn selected_starter_project<'a>(&'a self, ui: &mut TheUI) -> Option<&'a StarterProjectEntry> {
-        let selected = ui.get_list_layout(Self::STARTER_LIST_ID)?.selected()?;
-        self.starter_projects
-            .iter()
-            .find(|entry| entry.id == selected.uuid)
+    fn rebuild_starter_project_list(&self, ui: &mut TheUI, ctx: &mut TheContext) {
+        if let Some(list) = ui.get_list_layout(Self::STARTER_LIST_ID) {
+            list.clear();
+            list.set_item_size(52);
+            for (index, entry) in self.starter_projects.iter().enumerate() {
+                let mut item =
+                    TheListItem::new(TheId::named_with_id("Starter Project List Item", entry.id));
+                item.set_text(entry.title.clone());
+                item.set_sub_text(entry.description.clone());
+                item.set_size(52);
+                item.set_text_color(WHITE);
+                item.set_text_size(14.0);
+                item.set_sub_text_size(12.0);
+                if index == 0 {
+                    item.set_state(TheWidgetState::Selected);
+                }
+                if let Some(preview) = &entry.preview
+                    && let Some(first) = preview.buffer.first()
+                {
+                    item.set_icon(first.clone());
+                }
+                list.add_item(item, ctx);
+            }
+        }
     }
 
     fn open_project_as_session(
@@ -927,6 +961,8 @@ impl TheTrait for Editor {
             build_values: ValueContainer::default(),
             window_state: Self::load_window_state(),
             starter_projects: Vec::new(),
+            starter_loader_rx: None,
+            selected_starter_manifest_id: None,
         }
     }
 
@@ -1522,6 +1558,35 @@ impl TheTrait for Editor {
             }
         }
         if !pending_events.is_empty() {
+            redraw_update = true;
+        }
+
+        if let Some(receiver) = &mut self.starter_loader_rx
+            && let Ok(starters) = receiver.try_recv()
+        {
+            self.starter_projects = starters;
+            self.rebuild_starter_project_list(ui, ctx);
+            if let Some(first) = self.starter_projects.first() {
+                self.selected_starter_manifest_id = Some(first.manifest_id.clone());
+                ctx.ui.send(TheEvent::StateChanged(
+                    TheId::named_with_id("Starter Project List Item", first.id),
+                    TheWidgetState::Selected,
+                ));
+                ui.set_enabled(Self::STARTER_CREATE_ID, ctx);
+            } else if let Some(list) = ui.get_list_layout(Self::STARTER_LIST_ID) {
+                list.clear();
+                let mut item = TheListItem::new(TheId::named("Starter Project Empty"));
+                item.set_text("No starter projects found.".to_string());
+                item.set_sub_text("The Eldiron repo metadata could not be loaded.".to_string());
+                item.set_size(52);
+                item.set_text_color(WHITE);
+                item.set_text_size(14.0);
+                item.set_sub_text_size(12.0);
+                list.add_item(item, ctx);
+            }
+            self.starter_loader_rx = None;
+            ctx.ui.relayout = true;
+            ctx.ui.redraw_all = true;
             redraw_update = true;
         }
 
@@ -2688,12 +2753,15 @@ impl TheTrait for Editor {
                     } else if id.name == "Starter Project List Item"
                         && state == TheWidgetState::Selected
                     {
+                        self.selected_starter_manifest_id = self
+                            .starter_projects
+                            .iter()
+                            .find(|entry| entry.id == id.uuid)
+                            .map(|entry| entry.manifest_id.clone());
                         redraw = true;
                     } else if id.name == Self::STARTER_CREATE_ID {
-                        let selected_manifest_id = self
-                            .selected_starter_project(ui)
-                            .map(|entry| entry.manifest_id.clone())
-                            .or_else(|| {
+                        let selected_manifest_id =
+                            self.selected_starter_manifest_id.clone().or_else(|| {
                                 self.starter_projects
                                     .first()
                                     .map(|entry| entry.manifest_id.clone())
