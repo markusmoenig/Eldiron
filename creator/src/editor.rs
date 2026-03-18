@@ -9,6 +9,7 @@ use rusterix::{
     PlayerCamera, Rusterix, SceneManager, SceneManagerResult, Texture, Value, ValueContainer,
 };
 use shared::rusterix_utils::*;
+use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
@@ -127,6 +128,8 @@ pub struct Editor {
     build_values: ValueContainer,
     window_state: CreatorWindowState,
     starter_projects: Vec<StarterProjectEntry>,
+    starter_project_cache: HashMap<String, Project>,
+    starter_manifest_cache: Option<Vec<StarterProjectEntry>>,
     starter_loader_rx: Option<Receiver<Vec<StarterProjectEntry>>>,
     selected_starter_manifest_id: Option<String>,
 }
@@ -153,11 +156,14 @@ impl Editor {
     }
 
     fn fetch_url_bytes(url: &str) -> Option<Vec<u8>> {
-        let response = ureq::get(url).call().ok()?;
-        let mut reader = response.into_reader();
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).ok()?;
-        Some(bytes)
+        if let Ok(response) = ureq::get(url).call() {
+            let mut reader = response.into_reader();
+            let mut bytes = Vec::new();
+            if reader.read_to_end(&mut bytes).is_ok() {
+                return Some(bytes);
+            }
+        }
+        None
     }
 
     fn fetch_url_text(url: &str) -> Option<String> {
@@ -167,13 +173,6 @@ impl Editor {
 
     fn load_project_from_json_path(path: &std::path::Path) -> Option<Project> {
         let contents = std::fs::read_to_string(path).ok()?;
-        let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
-        loaded.palette.current_index = 0;
-        Some(loaded)
-    }
-
-    fn load_project_from_url(url: &str) -> Option<Project> {
-        let contents = Self::fetch_url_text(url)?;
         let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
         loaded.palette.current_index = 0;
         Some(loaded)
@@ -252,11 +251,23 @@ impl Editor {
         )))
     }
 
-    fn load_named_starter_project(manifest_id: &str) -> Option<Project> {
-        let choice = Self::load_starter_manifest()
+    fn load_named_starter_project(&mut self, manifest_id: &str) -> Option<Project> {
+        if let Some(project) = self.starter_project_cache.get(manifest_id).cloned() {
+            return Some(project);
+        }
+
+        let choice = self
+            .starter_manifest_cache
+            .clone()
+            .unwrap_or_else(|| self.starter_projects.clone())
             .into_iter()
             .find(|choice| choice.manifest_id == manifest_id)?;
-        Self::load_project_from_url(&Self::starter_repo_url(&choice.project_path))
+        let contents = Self::fetch_url_text(&Self::starter_repo_url(&choice.project_path))?;
+        let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
+        loaded.palette.current_index = 0;
+        self.starter_project_cache
+            .insert(manifest_id.to_string(), loaded.clone());
+        Some(loaded)
     }
 
     fn window_state_file_path() -> Option<PathBuf> {
@@ -377,7 +388,6 @@ impl Editor {
     }
 
     fn open_starter_project_dialog(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.starter_projects.clear();
         self.starter_loader_rx = None;
         self.selected_starter_manifest_id = None;
 
@@ -447,13 +457,29 @@ impl Editor {
         dialog.set_bottom(bottom);
 
         ui.show_dialog(Self::STARTER_DIALOG_TITLE, dialog, vec![], ctx);
-        ui.set_disabled(Self::STARTER_CREATE_ID, ctx);
+        if let Some(starters) = self.starter_manifest_cache.clone() {
+            self.starter_projects = starters;
+            self.rebuild_starter_project_list(ui, ctx);
+            if let Some(first) = self.starter_projects.first() {
+                self.selected_starter_manifest_id = Some(first.manifest_id.clone());
+                ctx.ui.send(TheEvent::StateChanged(
+                    TheId::named_with_id("Starter Project List Item", first.id),
+                    TheWidgetState::Selected,
+                ));
+                ui.set_enabled(Self::STARTER_CREATE_ID, ctx);
+            } else {
+                ui.set_disabled(Self::STARTER_CREATE_ID, ctx);
+            }
+        } else {
+            self.starter_projects.clear();
+            ui.set_disabled(Self::STARTER_CREATE_ID, ctx);
 
-        let (tx, rx) = std::sync::mpsc::channel();
-        self.starter_loader_rx = Some(rx);
-        std::thread::spawn(move || {
-            let _ = tx.send(Self::load_starter_manifest());
-        });
+            let (tx, rx) = std::sync::mpsc::channel();
+            self.starter_loader_rx = Some(rx);
+            std::thread::spawn(move || {
+                let _ = tx.send(Self::load_starter_manifest());
+            });
+        }
     }
 
     fn rebuild_starter_project_list(&self, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -958,6 +984,8 @@ impl TheTrait for Editor {
             build_values: ValueContainer::default(),
             window_state: Self::load_window_state(),
             starter_projects: Vec::new(),
+            starter_project_cache: HashMap::new(),
+            starter_manifest_cache: None,
             starter_loader_rx: None,
             selected_starter_manifest_id: None,
         }
@@ -1561,6 +1589,7 @@ impl TheTrait for Editor {
         if let Some(receiver) = &mut self.starter_loader_rx
             && let Ok(starters) = receiver.try_recv()
         {
+            self.starter_manifest_cache = Some(starters.clone());
             self.starter_projects = starters;
             self.rebuild_starter_project_list(ui, ctx);
             if let Some(first) = self.starter_projects.first() {
@@ -2764,7 +2793,7 @@ impl TheTrait for Editor {
                                     .map(|entry| entry.manifest_id.clone())
                             });
                         if let Some(manifest_id) = selected_manifest_id {
-                            if let Some(project) = Self::load_named_starter_project(&manifest_id) {
+                            if let Some(project) = self.load_named_starter_project(&manifest_id) {
                                 ui.clear_dialog();
                                 self.open_project_as_session(
                                     project,
