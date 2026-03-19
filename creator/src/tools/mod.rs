@@ -10,7 +10,6 @@ pub mod linedef;
 pub mod rect;
 // pub mod render;
 pub mod sector;
-pub mod selection;
 // pub mod terrain;
 // pub mod tileset;
 pub mod entity;

@@ -5,7 +5,7 @@ sidebar_position: 3
 
 The **Linedef Tool** (keyboard shortcut **'L'**) allows you to **select, edit, and create linedefs** in the map.
 
-Unlike the **Selection Tool**, which can select multiple types of geometry at once, the **Linedef Tool** is specifically designed for working with **linedefs only**. It also includes **creation modes** for quickly building map geometry (sectors).
+It is specifically designed for working with **linedefs only**. It also includes **creation modes** for quickly building map geometry (sectors).
 
 ## Selection Modes
 

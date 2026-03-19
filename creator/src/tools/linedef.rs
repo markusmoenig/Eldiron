@@ -166,6 +166,7 @@ impl Tool for LinedefTool {
                     server_ctx.editor_view_mode == EditorViewMode::D2 && over_vertex;
 
                 if map.curr_grid_pos.is_none()
+                    && map.curr_grid_pos_3d.is_none()
                     && server_ctx.hover.1.is_some()
                     && !hovering_vertex_in_2d
                 {
@@ -207,75 +208,130 @@ impl Tool for LinedefTool {
                             TheValue::Empty,
                         ));
                     }
-                } else if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                } else {
                     // Line mode
                     let mut set_current_gid_pos = true;
                     if let Some(render_view) = ui.get_render_view("PolyView") {
-                        let dim = *render_view.dim();
-                        let grid_pos = server_ctx.local_to_map_grid(
-                            Vec2::new(dim.width as f32, dim.height as f32),
-                            Vec2::new(coord.x as f32, coord.y as f32),
-                            map,
-                            map.subdivisions,
-                        );
+                        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                            let dim = *render_view.dim();
+                            let grid_pos = server_ctx.local_to_map_grid(
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::new(coord.x as f32, coord.y as f32),
+                                map,
+                                map.subdivisions,
+                            );
 
-                        if let Some(curr_grid_pos) = map.curr_grid_pos {
-                            if curr_grid_pos.x != grid_pos.x || curr_grid_pos.y != grid_pos.y {
-                                let prev = map.clone();
+                            if let Some(curr_grid_pos) = map.curr_grid_pos {
+                                if curr_grid_pos.x != grid_pos.x || curr_grid_pos.y != grid_pos.y {
+                                    let prev = map.clone();
 
-                                let start_vertex =
-                                    map.add_vertex_at(curr_grid_pos.x, curr_grid_pos.y);
-                                let end_vertex = map.add_vertex_at(grid_pos.x, grid_pos.y);
+                                    let start_vertex =
+                                        map.add_vertex_at(curr_grid_pos.x, curr_grid_pos.y);
+                                    let end_vertex = map.add_vertex_at(grid_pos.x, grid_pos.y);
 
-                                // Choose between manual and auto polygon creation modes
-                                // Manual mode (default): Only creates sectors when you close the polygon
-                                // Auto mode (Ctrl/Cmd): Automatically detects and creates sectors when a loop is closed
-                                let use_manual_mode = !ui.ctrl; // Ctrl/Cmd enables auto-detection
+                                    let use_manual_mode = !ui.ctrl;
 
-                                if use_manual_mode {
-                                    // MANUAL MODE: Only creates sectors when you manually close the polygon
-                                    // Good for drawing in existing grids where auto-detection would trigger too early
-                                    let _linedef_id =
-                                        map.create_linedef_manual(start_vertex, end_vertex);
+                                    if use_manual_mode {
+                                        let _linedef_id =
+                                            map.create_linedef_manual(start_vertex, end_vertex);
 
-                                    // Check if the user manually closed the polygon (clicked back to start)
-                                    if let Some(sector_id) = map.close_polygon_manual() {
-                                        // When we close a polygon add a surface
-                                        let mut surface = Surface::new(sector_id);
-                                        surface.calculate_geometry(map);
-                                        map.surfaces.insert(surface.id, surface);
+                                        if let Some(sector_id) = map.close_polygon_manual() {
+                                            let mut surface = Surface::new(sector_id);
+                                            surface.calculate_geometry(map);
+                                            map.surfaces.insert(surface.id, surface);
 
-                                        // and delete the temporary data
-                                        map.clear_temp();
-                                        set_current_gid_pos = false;
+                                            map.clear_temp();
+                                            set_current_gid_pos = false;
+                                        }
+                                    } else {
+                                        let ids = map.create_linedef(start_vertex, end_vertex);
+
+                                        if let Some(sector_id) = ids.1 {
+                                            let mut surface = Surface::new(sector_id);
+                                            surface.calculate_geometry(map);
+                                            map.surfaces.insert(surface.id, surface);
+
+                                            map.clear_temp();
+                                            set_current_gid_pos = false;
+                                        }
                                     }
-                                } else {
-                                    // AUTO MODE: Automatically detects and creates sectors when a loop is closed
-                                    // Good for quick polygon creation in empty areas
-                                    let ids = map.create_linedef(start_vertex, end_vertex);
 
-                                    if let Some(sector_id) = ids.1 {
-                                        // When we close a polygon add a surface
-                                        let mut surface = Surface::new(sector_id);
-                                        surface.calculate_geometry(map);
-                                        map.surfaces.insert(surface.id, surface);
-
-                                        // and delete the temporary data
-                                        map.clear_temp();
-                                        set_current_gid_pos = false;
-                                    }
+                                    undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                        server_ctx.pc,
+                                        Box::new(prev),
+                                        Box::new(map.clone()),
+                                    ));
                                 }
-
-                                undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                    server_ctx.pc,
-                                    Box::new(prev),
-                                    Box::new(map.clone()),
-                                ));
                             }
-                        }
 
-                        if set_current_gid_pos {
-                            map.curr_grid_pos = Some(vek::Vec2::new(grid_pos.x, grid_pos.y));
+                            if set_current_gid_pos {
+                                map.curr_grid_pos = Some(vek::Vec2::new(grid_pos.x, grid_pos.y));
+                                map.curr_grid_pos_3d = None;
+                            }
+                        } else if let Some(hit_pos) = server_ctx.hover_cursor_3d {
+                            let subdivisions = 1.0 / map.subdivisions;
+                            let snapped_pos = Vec3::new(
+                                (hit_pos.x / subdivisions).round() * subdivisions,
+                                (hit_pos.y / subdivisions).round() * subdivisions,
+                                (hit_pos.z / subdivisions).round() * subdivisions,
+                            );
+
+                            if let Some(curr_grid_pos) = map.curr_grid_pos_3d {
+                                if curr_grid_pos != snapped_pos {
+                                    let prev = map.clone();
+
+                                    let start_vertex = map.add_vertex_at_3d(
+                                        curr_grid_pos.x,
+                                        curr_grid_pos.z,
+                                        curr_grid_pos.y,
+                                        true,
+                                    );
+                                    let end_vertex = map.add_vertex_at_3d(
+                                        snapped_pos.x,
+                                        snapped_pos.z,
+                                        snapped_pos.y,
+                                        true,
+                                    );
+
+                                    let use_manual_mode = !ui.ctrl;
+
+                                    if use_manual_mode {
+                                        let _linedef_id =
+                                            map.create_linedef_manual(start_vertex, end_vertex);
+
+                                        if let Some(sector_id) = map.close_polygon_manual() {
+                                            let mut surface = Surface::new(sector_id);
+                                            surface.calculate_geometry(map);
+                                            map.surfaces.insert(surface.id, surface);
+
+                                            map.clear_temp();
+                                            set_current_gid_pos = false;
+                                        }
+                                    } else {
+                                        let ids = map.create_linedef(start_vertex, end_vertex);
+
+                                        if let Some(sector_id) = ids.1 {
+                                            let mut surface = Surface::new(sector_id);
+                                            surface.calculate_geometry(map);
+                                            map.surfaces.insert(surface.id, surface);
+
+                                            map.clear_temp();
+                                            set_current_gid_pos = false;
+                                        }
+                                    }
+
+                                    undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                        server_ctx.pc,
+                                        Box::new(prev),
+                                        Box::new(map.clone()),
+                                    ));
+                                }
+                            }
+
+                            if set_current_gid_pos {
+                                map.curr_grid_pos = None;
+                                map.curr_grid_pos_3d = Some(snapped_pos);
+                            }
                         }
                     }
                 }

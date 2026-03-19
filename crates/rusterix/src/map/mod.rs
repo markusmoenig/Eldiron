@@ -72,6 +72,8 @@ pub struct Map {
     #[serde(skip)]
     pub curr_grid_pos: Option<Vec2<f32>>,
     #[serde(skip)]
+    pub curr_grid_pos_3d: Option<Vec3<f32>>,
+    #[serde(skip)]
     pub curr_mouse_pos: Option<Vec2<f32>>,
     #[serde(skip)]
     pub curr_rectangle: Option<(Vec2<f32>, Vec2<f32>)>,
@@ -162,6 +164,7 @@ impl Map {
 
             possible_polygon: vec![],
             curr_grid_pos: None,
+            curr_grid_pos_3d: None,
             curr_mouse_pos: None,
             curr_rectangle: None,
 
@@ -203,6 +206,7 @@ impl Map {
     pub fn clear_temp(&mut self) {
         self.possible_polygon = vec![];
         self.curr_grid_pos = None;
+        self.curr_grid_pos_3d = None;
         self.curr_rectangle = None;
     }
 
@@ -1802,6 +1806,7 @@ impl Map {
 
             possible_polygon: vec![],
             curr_grid_pos: None,
+            curr_grid_pos_3d: None,
             curr_mouse_pos: None,
             curr_rectangle: None,
 

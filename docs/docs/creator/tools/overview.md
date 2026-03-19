@@ -8,7 +8,6 @@ This chapter and its sub-sections describe the tools available in **Eldiron Crea
 ## Map Tools Specifics
 
 Some tools are specifically designed for **map editing** and display a common **HUD**. These include:
-- **Selection Tool**
 - **Linedef Tool**
 - **Sector Tool**
 - **Rect Tool**

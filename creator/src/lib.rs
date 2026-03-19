@@ -58,7 +58,6 @@ pub mod prelude {
     pub use crate::tools::game::GameTool;
     pub use crate::tools::linedef::LinedefTool;
     pub use crate::tools::sector::SectorTool;
-    pub use crate::tools::selection::SelectionTool;
     // pub use crate::tools::tileset::TilesetTool;
     pub use crate::tools::vertex::VertexTool;
 

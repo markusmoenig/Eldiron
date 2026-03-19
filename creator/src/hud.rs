@@ -35,6 +35,10 @@ pub struct Hud {
 }
 
 impl Hud {
+    fn clean_coord(v: f32) -> f32 {
+        if v.abs() < 0.0005 { 0.0 } else { v }
+    }
+
     pub fn new(mode: HudMode) -> Self {
         Self {
             mode,
@@ -89,12 +93,38 @@ impl Hud {
             &bg_color,
         );
 
-        if let Some(v) = server_ctx.hover_cursor {
+        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+            if let Some(v) = server_ctx.hover_cursor {
+                ctx.draw.text(
+                    buffer.pixels_mut(),
+                    &(10, 2),
+                    stride,
+                    &format!("{:.2}, {:.2}", v.x, v.y),
+                    TheFontSettings {
+                        size: 13.0,
+                        ..Default::default()
+                    },
+                    &text_color,
+                    &bg_color,
+                );
+            }
+        } else if let Some(v) = server_ctx.hover_cursor_3d {
+            let subdivisions = 1.0 / map.subdivisions.max(1.0);
+            let snapped = Vec3::new(
+                (v.x / subdivisions).round() * subdivisions,
+                (v.y / subdivisions).round() * subdivisions,
+                (v.z / subdivisions).round() * subdivisions,
+            );
             ctx.draw.text(
                 buffer.pixels_mut(),
                 &(10, 2),
                 stride,
-                &format!("{:.2}, {:.2}", v.x, v.y),
+                &format!(
+                    "{:.2}, {:.2}, {:.2}",
+                    Self::clean_coord(snapped.x),
+                    Self::clean_coord(snapped.y),
+                    Self::clean_coord(snapped.z)
+                ),
                 TheFontSettings {
                     size: 13.0,
                     ..Default::default()
@@ -219,11 +249,13 @@ impl Hud {
         }
 
         // Show Subdivs
-        if (map.camera == MapCamera::TwoD || server_ctx.get_map_context() == MapContext::Screen)
+        if (map.camera == MapCamera::TwoD
+            || server_ctx.get_map_context() == MapContext::Screen
+            || server_ctx.editor_view_mode != EditorViewMode::D2)
             && self.mode != HudMode::Terrain
             && self.mode != HudMode::Rect
         {
-            let x = 150;
+            let x = 170;
 
             let size = 20;
             for i in 0..10 {

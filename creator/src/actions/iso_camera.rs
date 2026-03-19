@@ -39,7 +39,7 @@ impl Action for IsoCamera {
             "actionIsoScale".into(),
             "".into(),
             "".into(),
-            4.0,
+            6.0,
             2.0..=70.0,
             true,
         );

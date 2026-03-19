@@ -5,7 +5,7 @@ sidebar_position: 4
 
 The **Sector Tool** (keyboard shortcut **'E'**) allows you to **select, edit, move and delete sectors** in the map.
 
-Unlike the **Selection Tool**, which can select multiple types of geometry at once, the **Sector Tool** is specifically designed for working with **sectors only**. Unlike the **Linedef Tool**, it does not include a creation mode, as sectors are automatically formed when a closed shape is created.
+It is specifically designed for working with **sectors only**. Unlike the **Linedef Tool**, it does not include a creation mode, as sectors are automatically formed when a closed shape is created.
 
 ## Selection Modes
 

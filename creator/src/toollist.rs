@@ -97,7 +97,6 @@ impl ToolList {
 
     pub fn new() -> Self {
         let game_tools: Vec<Box<dyn Tool>> = vec![
-            Box::new(SelectionTool::new()),
             Box::new(VertexTool::new()),
             Box::new(LinedefTool::new()),
             Box::new(SectorTool::new()),
@@ -1464,6 +1463,15 @@ impl ToolList {
                     .add_line_3d(id, tile_id, a, b, thickness, normal, 100);
             };
 
+            let snap_world_pos = |p: Vec3<f32>| {
+                let subdivisions = 1.0 / map.subdivisions;
+                Vec3::new(
+                    (p.x / subdivisions).round() * subdivisions,
+                    (p.y / subdivisions).round() * subdivisions,
+                    (p.z / subdivisions).round() * subdivisions,
+                )
+            };
+
             // Rect tool previews
 
             if let Some((top_left, bottom_right)) = map.curr_rectangle {
@@ -1567,6 +1575,32 @@ impl ToolList {
                     );
                 };
 
+            let hover_point = server_ctx.hover_cursor_3d.map(|p| {
+                if server_ctx.curr_map_tool_type == MapToolType::Linedef
+                    || server_ctx.curr_map_tool_type == MapToolType::Vertex
+                    || server_ctx.curr_map_tool_type == MapToolType::Sector
+                {
+                    snap_world_pos(p)
+                } else {
+                    p
+                }
+            });
+
+            if server_ctx.curr_map_tool_type != MapToolType::Rect {
+                if let Some(pos) = hover_point {
+                    let yellow = rusterix.scene_handler.yellow;
+                    rusterix.scene_handler.overlay_3d.add_billboard_3d(
+                        GeoId::Triangle(1000),
+                        yellow,
+                        pos + view_nudge,
+                        view_right,
+                        view_up,
+                        vertex_size_world,
+                        true,
+                    );
+                }
+            }
+
             if server_ctx.curr_map_tool_type == MapToolType::Vertex {
                 for v in map.vertices.iter() {
                     let Some(world_pos) = map.get_vertex_3d(v.id) else {
@@ -1582,6 +1616,20 @@ impl ToolList {
             } else {
                 // Linedefs
                 if server_ctx.curr_map_tool_type == MapToolType::Linedef {
+                    if let (Some(start), Some(end)) = (map.curr_grid_pos_3d, hover_point) {
+                        if start != end {
+                            push_line(
+                                GeoId::Unknown(5000),
+                                &mut rusterix,
+                                start + view_nudge,
+                                end + view_nudge,
+                                cam_forward,
+                                false,
+                                true,
+                            );
+                        }
+                    }
+
                     for linedef in &map.linedefs {
                         if linedef.sector_ids.is_empty() {
                             if let (Some(vs), Some(ve)) = (
