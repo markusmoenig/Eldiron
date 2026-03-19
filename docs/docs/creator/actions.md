@@ -46,6 +46,15 @@ The slice position is not fixed to a small range (useful for tall maps / mountai
 It also defines the **slice height/thickness** (`1..10`, default `2`).  
 A higher value includes more geometry around the slice for both preview and selection.
 
+### Geometry / Detail Mode
+
+In 3D editor views, the HUD exposes two geometry modes:
+
+- `GEOM`: edit world geometry directly.
+- `DETAIL`: edit the profile of the clicked surface directly in 3D.
+
+`DETAIL` replaces the older separate surface-edit workflow. Profile-specific actions only appear when `DETAIL` is active and the current profile selection makes them applicable.
+
 ---
 
 # Geometry Editor Actions
@@ -225,23 +234,25 @@ Duplicate the current selection with XYZ offsets.
 
 *Shortcut: Alt + R*
 
-Cut a recess into the active profile surface. Params: *depth*, *target* front/back face, and cap/jamb tiles chosen via two icons (shows the textures that will be stamped).
+Cut a recess into the active profile surface. Use it in `DETAIL` mode on a selected profile sector. Params: *depth*, *target* front/back face, and cap/jamb tiles chosen via two icons (shows the textures that will be stamped).
 
 ### Relief
 
 *Shortcut: Alt + E*
 
-Emboss the active profile surface outward. Params mirror Recess: *height*, *target* (front/back), and cap/side tiles.
+Emboss the active profile surface outward. Use it in `DETAIL` mode on a selected profile sector. Params mirror Recess: *height*, *target* (front/back), and cap/side tiles.
 
 ### Gate / Door
 
 *Shortcut: Alt + G*
 
-Carve an inset opening in the profile surface and fill it with a tile. Params: *inset*, *repeat/scale* mode, gate/door *tile* icon, and speed/behavior flags (hidden, locked, secret) stored on the sector.
+Carve an inset opening in the profile surface and fill it with a tile. Use it in `DETAIL` mode on a selected profile sector. Params: *inset*, *repeat/scale* mode, gate/door *tile* icon, and speed/behavior flags (hidden, locked, secret) stored on the sector.
 
 ### Window
 
 Create a static window inside the selected profile hole. The window generates frame geometry and a glass pane (no dynamic open/close behavior).
+
+Use it in `DETAIL` mode on a selected profile sector.
 
 Parameters:
 - `[window]`

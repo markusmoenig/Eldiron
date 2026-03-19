@@ -7,6 +7,13 @@ import Admonition from '@theme/Admonition';
 
 ## Creating Walls
 
+In 3D views, the HUD exposes two geometry modes:
+
+- `GEOM`: edit world geometry directly.
+- `DETAIL`: edit the profile of the clicked surface directly in the 3D view.
+
+Use `GEOM` for layout, extrusions, roofs, and structural work. Use `DETAIL` for holes, windows, gates, recesses, reliefs, and other surface-local detail.
+
 Every structure starts with a foundation. Let’s create a **sector**.
 
 ![3D Tutorial Step1](3d_tutorial1.png)
@@ -41,11 +48,11 @@ Let’s cut a hole in a wall for a passage. Switch to `DETAIL` mode and click th
 
 ![3D Tutorial Step4](3d_tutorial4.png)
 
-After selecting the wall in `DETAIL` mode, you see the editing profile of the surface.
+After selecting the wall in `DETAIL` mode, the normal 3D tools work on that surface profile.
 
 ![3D Tutorial Step5](3d_tutorial5.png)
 
-The turquoise outline shows you the boundaries of the surface you are adding profile details into.
+The turquoise outline shows the boundaries of the active surface. Everything you draw in `DETAIL` mode is stored in that surface profile.
 
 Here I added a sector for a door into the profile. Each **sector** you add to a **surface profile** creates a hole by default. When you activate the isometric camera again you can see the result in 3D (I also applied a tile to the walls).
 
@@ -61,7 +68,7 @@ You can have any number of holes of any shape, edit the profile geometry for win
 
 ## Hole-Based Actions
 
-Instead of just using a **surface profile** as a hole, you can also apply the [Recess](/docs/creator/actions/#recess) and [Relief](/docs/creator/actions/#relief) actions to create a recess and relief of a given depth or height. You can drag and drop tiles for the sides and cap to the given action.
+Instead of just using a **surface profile** as a hole, you can also apply the [Recess](/docs/creator/actions/#recess) and [Relief](/docs/creator/actions/#relief) actions to create a recess and relief of a given depth or height. These actions appear when `DETAIL` mode is active and a profile sector is selected. You can drag and drop tiles for the sides and cap to the given action.
 
 A more sophisticated profile action is [Gate / Door](/docs/creator/actions/#gate--door), which uses the given icon to create a gate or door for the hole. The key is that, by selecting the **sector**, you can use the [Edit Sector](/docs/creator/actions/#edit-sector) action to associate an item for the gate (set **Item Name** to the name of the **Item Template**). In the item behavior code you can then dynamically open/close the gate and make it **blocking** by setting the **visible** and **blocking** attributes of the item.
 
@@ -101,7 +108,7 @@ Selecting the four vertices and applying the [Create Sector](/docs/creator/actio
     The **Create Sector** action works with both vertices and linedefs. Use it to create custom surface sectors for your geometry.
 </Admonition>
 
-Of course you can further decorate roof surfaces or floors with profiles (recesses / reliefs) like we did with the side wall.
+Of course you can further decorate roof surfaces or floors in `DETAIL` mode with profiles (recesses / reliefs) like we did with the side wall.
 
 <Admonition type="tip" title="Creating Vertices">
     Shift-clicking geometry with the **vertex** tool creates a new vertex at the hit position—handy for quickly adding and connecting vertices.

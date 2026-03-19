@@ -8,6 +8,7 @@ This chapter and its sub-sections describe the tools available in **Eldiron Crea
 ## Map Tools Specifics
 
 Some tools are specifically designed for **map editing** and display a common **HUD**. These include:
+- **Vertex Tool**
 - **Linedef Tool**
 - **Sector Tool**
 - **Rect Tool**
@@ -35,14 +36,34 @@ You can navigate the map using:
   - **1** = Largest subdivision (for broad layouts)
   - **10** = Smallest subdivision (for fine details)
 - Larger subdivisions help create **detailed** maps, while smaller subdivisions are useful for **general layouts**.
+- In 3D views, the HUD also contains a `GEOM / DETAIL` switch:
+  - `GEOM` edits world geometry.
+  - `DETAIL` edits the active surface profile directly in 3D.
 
 ### Keyboard Shortcuts
 
 When the **map view** has focus, you can use the **number keys (1-0)** on your keyboard to quickly switch between subdivisions, instead of clicking on the HUD.
 
+In 3D geometry views you can also use:
+
+- `G`: switch to `GEOM`
+- `D`: switch to `DETAIL`
+
 ### Tile Icons
 
 The **icons in the upper-right corner** of the HUD are **tool-specific** and allow you to **assign tiles** to the selected geometry using the **Apply** and **Remove** buttons.
+
+## 3D Detail Editing
+
+`DETAIL` replaces the older separate surface-edit workflow. Instead of switching into a dedicated editing-surface mode, you stay in the normal 3D view and click the wall, floor, or ceiling you want to edit.
+
+In `DETAIL`:
+
+- `Vertex` edits profile vertices.
+- `Linedef` edits profile edges and creates profile geometry.
+- `Sector` edits profile sectors such as holes and cutouts.
+
+Profile-specific actions such as `Window`, `Gate / Door`, `Recess`, `Relief`, `Clear Profile`, and `Create Prop` appear when they are applicable.
 
 ## Authoring Mode
 

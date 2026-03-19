@@ -18,6 +18,15 @@ It is specifically designed for working with **sectors only**. Unlike the **Line
 - **Delete Key**: Remove selected sectors.
 - **Escape Key**: Clear the selection.
 
+## 3D Modes
+
+In 3D views, the Sector tool works in both `GEOM` and `DETAIL`:
+
+- `GEOM`: selects and moves world sectors.
+- `DETAIL`: selects and moves sectors inside the active surface profile.
+
+Profile sectors are used for holes, windows, gates, recesses, reliefs, and other surface-local features.
+
 ## Assigning Tiles
 
 You can **assign tiles** to selected sectors with the [Apply Tile](../actions/#apply-tile) action.
@@ -43,6 +52,8 @@ Use sectors to create logical units, such as a house, and fill them with content
 ### 3D
 
 Use sectors to create foundations of structures; you can [Extrude](../actions/#extrude) the linedefs of sectors to create walls and build up complex **3D** objects.
+
+In `DETAIL`, sectors are not structural world sectors. They are profile sectors attached to the currently active surface.
 
 ### 2D and 3D
 

@@ -165,8 +165,6 @@ tool_game = 游戏工具 (A)。服务器运行时输入事件会发送到游戏
 tool_linedef = 线段工具 (L)。创建线段定义和区域
 tool_rect = 矩形工具 (R)。点击绘制当前图块，按住 Shift 点击删除
 tool_sector = 区域工具 (E)
-tool_selection = 选择工具 (S)。按住 Shift 添加，按住 Alt 减去，点击并拖动进行多选。3D：选择编辑平面
-tool_selection_mac = 选择工具 (S)。按住 Shift 添加，按住 Option 减去，点击并拖动进行多选。3D：选择编辑平面
 tool_vertex = 顶点工具 (V)。按住 'Shift' + 单击可创建新顶点。
 tool_entity = 实体工具 (Y)。放置、移动、选择和删除游戏实体。
 

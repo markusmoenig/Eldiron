@@ -178,8 +178,6 @@ tool_game = Game Tool (A). If the server is running input events are send to the
 tool_linedef = Linedef Tool (L). Create line definitions and sectors.
 tool_rect = Rect Tool (R). Click to draw the current tile. Shift-click to delete.
 tool_sector = Sector Tool (E).
-tool_selection = Selection Tool (S). Hold 'Shift' to add. 'Alt' to subtract. Click and drag for multi-selection. 3D: Select editing plane.
-tool_selection_mac = Selection Tool (S). Hold 'Shift' to add. 'Option' to subtract. Click and drag for multi-selection. 3D: Select editing plane.
 tool_vertex = Vertex Tool (V). 'Shift' + Click to create a new vertex.
 tool_entity = Entity Tool (Y). Place, move, select, and delete game entities.
 

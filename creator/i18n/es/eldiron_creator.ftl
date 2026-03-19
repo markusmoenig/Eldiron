@@ -165,8 +165,6 @@ tool_game = Herramienta de juego (A). Si el servidor está en marcha, los evento
 tool_linedef = Herramienta de linedef (L). Crear definiciones de línea y sectores.
 tool_rect = Herramienta de rectángulo (R). Clic para dibujar la baldosa actual. Shift-clic para borrar.
 tool_sector = Herramienta de sector (E).
-tool_selection = Herramienta de selección (S). Mantén 'Shift' para añadir. 'Alt' para restar. Clic y arrastra para selección múltiple. 3D: Seleccionar plano de edición.
-tool_selection_mac = Herramienta de selección (S). Mantén 'Shift' para añadir. 'Option' para restar. Clic y arrastra para selección múltiple. 3D: Seleccionar plano de edición.
 tool_vertex = Herramienta de vértice (V). 'Shift' + clic para crear un nuevo vértice.
 tool_entity = Herramienta de entidad (Y). Coloca, mueve, selecciona y elimina entidades del juego.
 

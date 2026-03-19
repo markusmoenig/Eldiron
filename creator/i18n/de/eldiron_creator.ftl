@@ -165,8 +165,6 @@ tool_game = Spiel-Tool (A). Wenn der Server läuft, werden Eingabeereignisse an 
 tool_linedef = Linedef-Tool (L). Liniendefinitionen und Sektoren erstellen.
 tool_rect = Rect-Tool (R). Klicken, um die aktuelle Kachel zu zeichnen. Shift-Klick zum Löschen.
 tool_sector = Sektor-Tool (E).
-tool_selection = Auswahl-Tool (S). Halte 'Shift', um hinzuzufügen. 'Alt', um zu subtrahieren. Klicken und ziehen für Mehrfachauswahl. 3D: Bearbeitungsebene auswählen.
-tool_selection_mac = Auswahl-Tool (S). Halte 'Shift', um hinzuzufügen. 'Option', um zu subtrahieren. Klicken und ziehen für Mehrfachauswahl. 3D: Bearbeitungsebene auswählen.
 tool_vertex = Vertex-Tool (V). 'Shift' + Klick erstellt einen neuen Vertex.
 tool_entity = Entity-Tool (Y). Spiel-Entitäten platzieren, verschieben, auswählen und löschen.
 

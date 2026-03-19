@@ -17,6 +17,15 @@ It is specifically designed for working with **linedefs only**. It also includes
 - **Delete Key**: Remove selected linedefs.
 - **Escape Key**: Clear the selection.
 
+## 3D Modes
+
+In 3D views, the Linedef tool supports both geometry modes:
+
+- `GEOM`: create and move world-space linedefs.
+- `DETAIL`: create and move profile linedefs on the active surface.
+
+In `DETAIL`, clicking a wall, floor, or ceiling makes that surface active. New lines are written into that surface profile, not into the world map itself.
+
 ## Creation Mode (Manual)
 
 - **Click on free space**: Creates a new **vertex** (or uses an existing one at the click position).
@@ -31,6 +40,8 @@ This manual mode creates sectors by keeping a history of vertex clicks. You can 
  Hold **Command (macOS) / Ctrl** while clicking on vertices; on every click, the automatic mode checks if it can close an existing polygon. For example, if you have a shape that is not closed, you can add linedefs to this shape to close the shape and create a **sector**.
 
 This mode fails if you have a grid of existing geometry created by the [Rect Tool](rect).
+
+In `DETAIL`, the same creation logic applies, but the vertices and linedefs are stored in the active surface profile.
 
 ## Terrain (Region Maps)
 

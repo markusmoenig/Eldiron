@@ -47,9 +47,22 @@ The [Rect](creator/tools/rect) tool does all the above in one step, it creates a
 
 The [Vertex](creator/tools/vertex), [Linedef](creator/tools/linedef) and [Sector](creator/tools/sector) tools have a diverse set of functionality, so make sure to read their documentation. You can, for example, create new standalone **vertices** with the **vertex** tool by holding *Shift* and clicking in the grid.
 
-Using each tool you can select and drag the corresponding geometry, both in 2D and 3D. In 3D camera views you have a small gizmo helper at the bottom right of the viewport to control in which plane you are dragging the geometry:
+## 3D Geometry Modes
+
+In 3D views, Eldiron has two geometry edit modes in the HUD:
+
+- `GEOM`: edit world geometry directly.
+- `DETAIL`: edit the active surface profile directly in 3D.
+
+`GEOM` is used for structural edits such as moving vertices, building sectors, and extruding geometry.
+
+`DETAIL` is used for surface-local edits such as holes, windows, gates, recesses, and reliefs. In this mode you click a wall, floor, or ceiling and the `Vertex`, `Linedef`, and `Sector` tools operate on that surface profile instead of on the world map.
+
+Using each tool you can select and drag the corresponding geometry, both in 2D and 3D. In `GEOM`, 3D camera views show a small gizmo helper at the bottom right of the viewport to control in which plane you are dragging the geometry:
 
 ![3D Gizmo](3d_gizmo.png)
+
+In `DETAIL`, the active surface defines the editing plane, so the plane gizmo is hidden.
 
 Press **Delete** to remove the currently selected geometry.
 
