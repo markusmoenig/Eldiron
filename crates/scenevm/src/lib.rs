@@ -35,8 +35,6 @@ pub enum SceneVMError {
 
 pub type SceneVMResult<T> = Result<T, SceneVMError>;
 
-#[cfg(feature = "gpu")]
-use instant::Instant;
 use rust_embed::RustEmbed;
 // Embedded shader/assets payload used at runtime by SceneVM.
 #[derive(RustEmbed)]
@@ -818,8 +816,6 @@ pub struct SceneVM {
     compositing_pipeline: Option<CompositingPipeline>,
     rgba_overlay_pipeline: Option<RgbaOverlayCompositingPipeline>,
     rgba_overlay: Option<RgbaOverlayState>,
-    stats_last_log: Instant,
-    stats_frames_since_log: u32,
 }
 
 /// Result of shader compilation with detailed diagnostics
@@ -1269,93 +1265,6 @@ impl SceneVM {
         );
     }
 
-    fn maybe_log_runtime_stats(
-        log_layer_activity: bool,
-        base_vm: &VM,
-        overlays: &[VM],
-        stats_last_log: &mut Instant,
-        stats_frames_since_log: &mut u32,
-    ) {
-        if !log_layer_activity {
-            return;
-        }
-
-        *stats_frames_since_log = stats_frames_since_log.saturating_add(1);
-        let now = Instant::now();
-        let elapsed = now.saturating_duration_since(*stats_last_log);
-        if elapsed.as_secs_f32() < 2.0 {
-            return;
-        }
-
-        let base = base_vm.debug_stats();
-        let mut totals = base;
-        let mut dirty_accel = if base_vm.is_enabled() {
-            base.accel_dirty
-        } else {
-            false
-        };
-        let mut dirty_visibility = if base_vm.is_enabled() {
-            base.visibility_dirty
-        } else {
-            false
-        };
-        let mut dirty_g3 = if base_vm.is_enabled() {
-            base.geometry3d_dirty
-        } else {
-            false
-        };
-        let mut dirty_g2 = if base_vm.is_enabled() {
-            base.geometry2d_dirty
-        } else {
-            false
-        };
-        let mut enabled_layers = if base_vm.is_enabled() { 1usize } else { 0usize };
-        for vm in overlays {
-            let s = vm.debug_stats();
-            totals.chunks += s.chunks;
-            totals.polys2d += s.polys2d;
-            totals.polys3d += s.polys3d;
-            totals.tris3d += s.tris3d;
-            totals.lines2d += s.lines2d;
-            totals.dynamics += s.dynamics;
-            totals.lights += s.lights;
-            totals.cached_v3 += s.cached_v3;
-            totals.cached_i3 += s.cached_i3;
-            if vm.is_enabled() {
-                enabled_layers += 1;
-                dirty_accel |= s.accel_dirty;
-                dirty_visibility |= s.visibility_dirty;
-                dirty_g3 |= s.geometry3d_dirty;
-                dirty_g2 |= s.geometry2d_dirty;
-            }
-        }
-
-        let secs = elapsed.as_secs_f32().max(1e-3);
-        let fps = *stats_frames_since_log as f32 / secs;
-        println!(
-            "[SceneVM Stats] layers={}/{} fps={:.1} chunks={} polys3d={} tris3d={} polys2d={} lines2d={} dynamics={} lights={} cache(v3/i3)={}/{} dirty(a/v/g3/g2)={}/{}/{}/{}",
-            enabled_layers,
-            1 + overlays.len(),
-            fps,
-            totals.chunks,
-            totals.polys3d,
-            totals.tris3d,
-            totals.polys2d,
-            totals.lines2d,
-            totals.dynamics,
-            totals.lights,
-            totals.cached_v3,
-            totals.cached_i3,
-            dirty_accel as u8,
-            dirty_visibility as u8,
-            dirty_g3 as u8,
-            dirty_g2 as u8
-        );
-
-        *stats_last_log = now;
-        *stats_frames_since_log = 0;
-    }
-
     /// Executes a single atom on the currently active VM layer.
     pub fn execute(&mut self, atom: Atom) {
         let affects_atlas = SceneVM::atom_touches_atlas(&atom);
@@ -1422,8 +1331,6 @@ impl SceneVM {
                 compositing_pipeline: None,
                 rgba_overlay_pipeline: None,
                 rgba_overlay: None,
-                stats_last_log: Instant::now(),
-                stats_frames_since_log: 0,
             };
             this.refresh_layer_metadata();
             this
@@ -1475,8 +1382,6 @@ impl SceneVM {
                 compositing_pipeline: None,
                 rgba_overlay_pipeline: None,
                 rgba_overlay: None,
-                stats_last_log: Instant::now(),
-                stats_frames_since_log: 0,
             };
             this.refresh_layer_metadata();
             this
@@ -1576,8 +1481,6 @@ impl SceneVM {
             compositing_pipeline: None,
             rgba_overlay_pipeline: None,
             rgba_overlay: None,
-            stats_last_log: Instant::now(),
-            stats_frames_since_log: 0,
         };
         this.refresh_layer_metadata();
         this
@@ -1677,8 +1580,6 @@ impl SceneVM {
             compositing_pipeline: None,
             rgba_overlay_pipeline: None,
             rgba_overlay: None,
-            stats_last_log: Instant::now(),
-            stats_frames_since_log: 0,
         };
         this.refresh_layer_metadata();
         this
@@ -1843,14 +1744,6 @@ impl SceneVM {
             &mut self.rgba_overlay_pipeline,
             false,
         );
-        SceneVM::maybe_log_runtime_stats(
-            self.log_layer_activity,
-            base_vm,
-            overlays,
-            &mut self.stats_last_log,
-            &mut self.stats_frames_since_log,
-        );
-
         let frame = match ws.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(wgpu::SurfaceError::Lost) | Err(wgpu::SurfaceError::Outdated) => {
@@ -2000,14 +1893,6 @@ impl SceneVM {
             &mut self.rgba_overlay_pipeline,
             true,
         );
-        SceneVM::maybe_log_runtime_stats(
-            self.log_layer_activity,
-            base_vm,
-            overlays,
-            &mut self.stats_last_log,
-            &mut self.stats_frames_since_log,
-        );
-
         // Readback into the surface's CPU memory (blocking on native, non-blocking noop on wasm)
         let device = gpu.device.clone();
         let queue = gpu.queue.clone();
@@ -2163,14 +2048,6 @@ impl SceneVM {
                 &mut self.rgba_overlay_pipeline,
                 true,
             );
-            SceneVM::maybe_log_runtime_stats(
-                self.log_layer_activity,
-                base_vm,
-                overlays,
-                &mut self.stats_last_log,
-                &mut self.stats_frames_since_log,
-            );
-
             let device = gpu.device.clone();
             let queue = gpu.queue.clone();
             gpu.surface.download_from_gpu_with(&device, &queue);

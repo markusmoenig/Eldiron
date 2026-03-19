@@ -14,6 +14,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::hash::Hasher;
 use uuid::Uuid;
 use vek::{Mat3, Mat4, Vec2, Vec3, Vec4};
+use wgpu::util::DeviceExt;
 
 // --- Scene-wide acceleration structure (BVH over all 3D geometry) ---
 #[derive(Debug, Clone, Default)]
@@ -194,11 +195,23 @@ pub struct VMGpu {
     pub i3d_ssbo: Option<wgpu::Buffer>,
     pub i3d_raster: Option<wgpu::Buffer>,
     pub i3d_raster_count: u32,
+    pub i3d_raster_capacity: u64,
     pub i3d_raster_opaque: Option<wgpu::Buffer>,
     pub i3d_raster_opaque_count: u32,
+    pub i3d_raster_opaque_capacity: u64,
     pub i3d_raster_transparent: Option<wgpu::Buffer>,
     pub i3d_raster_transparent_count: u32,
+    pub i3d_raster_transparent_capacity: u64,
     pub shadow_sampler_compare: Option<wgpu::Sampler>,
+    pub raster3d_shadow_tex: Option<wgpu::Texture>,
+    pub raster3d_shadow_view: Option<wgpu::TextureView>,
+    pub raster3d_shadow_res: u32,
+    pub raster3d_msaa_color_tex: Option<wgpu::Texture>,
+    pub raster3d_msaa_color_view: Option<wgpu::TextureView>,
+    pub raster3d_depth_tex: Option<wgpu::Texture>,
+    pub raster3d_depth_view: Option<wgpu::TextureView>,
+    pub raster3d_fb_size: (u32, u32),
+    pub raster3d_sample_count: u32,
     // --- Tiling
     pub tile_bins: Option<wgpu::Buffer>,
     pub tile_tris: Option<wgpu::Buffer>,
@@ -212,6 +225,108 @@ pub struct VMGpu {
     pub grid_data: Option<wgpu::Buffer>,
     // --- SDF data
     pub sdf_data_ssbo: Option<wgpu::Buffer>,
+}
+
+impl VMGpu {
+    fn ensure_raster3d_targets(
+        &mut self,
+        device: &wgpu::Device,
+        fb_w: u32,
+        fb_h: u32,
+        shadow_res: u32,
+        raster_samples: u32,
+    ) {
+        if self.raster3d_shadow_res != shadow_res || self.raster3d_shadow_tex.is_none() {
+            let shadow_tex = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("vm-raster3d-shadow-depth"),
+                size: wgpu::Extent3d {
+                    width: shadow_res,
+                    height: shadow_res,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth32Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            let shadow_view = shadow_tex.create_view(&wgpu::TextureViewDescriptor::default());
+            self.raster3d_shadow_tex = Some(shadow_tex);
+            self.raster3d_shadow_view = Some(shadow_view);
+            self.raster3d_shadow_res = shadow_res;
+        }
+
+        if self.raster3d_fb_size != (fb_w, fb_h)
+            || self.raster3d_sample_count != raster_samples
+            || self.raster3d_msaa_color_tex.is_none()
+            || self.raster3d_depth_tex.is_none()
+        {
+            let msaa_color_tex = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("vm-raster3d-msaa-color"),
+                size: wgpu::Extent3d {
+                    width: fb_w,
+                    height: fb_h,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: raster_samples,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+            let msaa_color_view =
+                msaa_color_tex.create_view(&wgpu::TextureViewDescriptor::default());
+
+            let depth_tex = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("vm-raster3d-depth"),
+                size: wgpu::Extent3d {
+                    width: fb_w,
+                    height: fb_h,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: raster_samples,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth32Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+            let depth_view = depth_tex.create_view(&wgpu::TextureViewDescriptor::default());
+
+            self.raster3d_msaa_color_tex = Some(msaa_color_tex);
+            self.raster3d_msaa_color_view = Some(msaa_color_view);
+            self.raster3d_depth_tex = Some(depth_tex);
+            self.raster3d_depth_view = Some(depth_view);
+            self.raster3d_fb_size = (fb_w, fb_h);
+            self.raster3d_sample_count = raster_samples;
+        }
+    }
+
+    fn update_or_create_index_buffer(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        slot: &mut Option<wgpu::Buffer>,
+        capacity: &mut u64,
+        label: &'static str,
+        data: &[u32],
+    ) {
+        let size = std::mem::size_of_val(data) as u64;
+        if slot.is_none() || *capacity < size {
+            *slot = Some(
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some(label),
+                    contents: bytemuck::cast_slice(data),
+                    usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                }),
+            );
+            *capacity = size;
+        } else if let Some(buffer) = slot.as_ref() {
+            queue.write_buffer(buffer, 0, bytemuck::cast_slice(data));
+        }
+    }
 }
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -3194,11 +3309,23 @@ impl VM {
             i3d_ssbo: None,
             i3d_raster: None,
             i3d_raster_count: 0,
+            i3d_raster_capacity: 0,
             i3d_raster_opaque: None,
             i3d_raster_opaque_count: 0,
+            i3d_raster_opaque_capacity: 0,
             i3d_raster_transparent: None,
             i3d_raster_transparent_count: 0,
+            i3d_raster_transparent_capacity: 0,
             shadow_sampler_compare: None,
+            raster3d_shadow_tex: None,
+            raster3d_shadow_view: None,
+            raster3d_shadow_res: 0,
+            raster3d_msaa_color_tex: None,
+            raster3d_msaa_color_view: None,
+            raster3d_depth_tex: None,
+            raster3d_depth_view: None,
+            raster3d_fb_size: (0, 0),
+            raster3d_sample_count: 0,
             tile_bins: None,
             tile_tris: None,
             tile_meta_ssbo: None,
@@ -6113,24 +6240,12 @@ impl VM {
         };
 
         let shadow_res = self.gp7.z.round().clamp(256.0, 4096.0) as u32;
-        let shadow_tex = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("vm-raster3d-shadow-depth"),
-            size: wgpu::Extent3d {
-                width: shadow_res,
-                height: shadow_res,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let shadow_view = shadow_tex.create_view(&wgpu::TextureViewDescriptor::default());
+        let raster_samples = self.raster3d_effective_samples();
+        let use_msaa = raster_samples > 1;
 
         {
             let g = self.gpu.as_mut().unwrap();
+            g.ensure_raster3d_targets(device, fb_w, fb_h, shadow_res, raster_samples);
             queue.write_buffer(
                 g.u_raster3d_buf.as_ref().unwrap(),
                 0,
@@ -6168,12 +6283,13 @@ impl VM {
             } else {
                 visible_upload.len() as u32
             };
-            g.i3d_raster = Some(
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("vm-3d-indices-raster-visible"),
-                    contents: bytemuck::cast_slice(&visible_upload),
-                    usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-                }),
+            VMGpu::update_or_create_index_buffer(
+                device,
+                queue,
+                &mut g.i3d_raster,
+                &mut g.i3d_raster_capacity,
+                "vm-3d-indices-raster-visible",
+                &visible_upload,
             );
 
             let opaque_upload = if opaque_indices.is_empty() {
@@ -6186,13 +6302,14 @@ impl VM {
             } else {
                 opaque_upload.len() as u32
             };
-            g.i3d_raster_opaque = Some(device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("vm-3d-indices-raster-opaque"),
-                    contents: bytemuck::cast_slice(&opaque_upload),
-                    usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-                },
-            ));
+            VMGpu::update_or_create_index_buffer(
+                device,
+                queue,
+                &mut g.i3d_raster_opaque,
+                &mut g.i3d_raster_opaque_capacity,
+                "vm-3d-indices-raster-opaque",
+                &opaque_upload,
+            );
 
             let transparent_upload = if transparent_indices.is_empty() {
                 vec![0u32]
@@ -6204,13 +6321,14 @@ impl VM {
             } else {
                 transparent_upload.len() as u32
             };
-            g.i3d_raster_transparent = Some(device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("vm-3d-indices-raster-transparent"),
-                    contents: bytemuck::cast_slice(&transparent_upload),
-                    usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-                },
-            ));
+            VMGpu::update_or_create_index_buffer(
+                device,
+                queue,
+                &mut g.i3d_raster_transparent,
+                &mut g.i3d_raster_transparent_capacity,
+                "vm-3d-indices-raster-transparent",
+                &transparent_upload,
+            );
 
             g.u_raster3d_shadow_bg = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("vm-raster3d-shadow-bg"),
@@ -6272,7 +6390,9 @@ impl VM {
                     },
                     wgpu::BindGroupEntry {
                         binding: 5,
-                        resource: wgpu::BindingResource::TextureView(&shadow_view),
+                        resource: wgpu::BindingResource::TextureView(
+                            g.raster3d_shadow_view.as_ref().unwrap(),
+                        ),
                     },
                     wgpu::BindGroupEntry {
                         binding: 6,
@@ -6291,40 +6411,6 @@ impl VM {
                 ],
             }));
         }
-
-        let raster_samples = self.raster3d_effective_samples();
-        let use_msaa = raster_samples > 1;
-        let msaa_color_tex = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("vm-raster3d-msaa-color"),
-            size: wgpu::Extent3d {
-                width: fb_w,
-                height: fb_h,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: raster_samples,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        });
-        let msaa_color_view = msaa_color_tex.create_view(&wgpu::TextureViewDescriptor::default());
-
-        let depth_tex = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("vm-raster3d-depth"),
-            size: wgpu::Extent3d {
-                width: fb_w,
-                height: fb_h,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: raster_samples,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        });
-        let depth_view = depth_tex.create_view(&wgpu::TextureViewDescriptor::default());
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("vm-3d-raster-enc"),
@@ -6405,7 +6491,7 @@ impl VM {
                     label: Some("vm-3d-raster-shadow-pass"),
                     color_attachments: &[],
                     depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                        view: &shadow_view,
+                        view: g.raster3d_shadow_view.as_ref().unwrap(),
                         depth_ops: Some(wgpu::Operations {
                             load: wgpu::LoadOp::Clear(1.0),
                             store: wgpu::StoreOp::Store,
@@ -6429,7 +6515,7 @@ impl VM {
                 label: Some("vm-3d-raster-pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: if use_msaa {
-                        &msaa_color_view
+                        g.raster3d_msaa_color_view.as_ref().unwrap()
                     } else {
                         &write_view
                     },
@@ -6446,7 +6532,7 @@ impl VM {
                     depth_slice: None,
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &depth_view,
+                    view: g.raster3d_depth_view.as_ref().unwrap(),
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
