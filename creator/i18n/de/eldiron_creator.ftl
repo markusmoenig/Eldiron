@@ -161,7 +161,7 @@ action_remap_tile = Kachel neu zuordnen
 action_remap_tile_desc = Ordnet die Farben der Kachel der Palette zu
 
 # Tools
-tool_game = Spiel-Tool (G). Wenn der Server läuft, werden Eingabeereignisse an das Spiel gesendet.
+tool_game = Spiel-Tool (A). Wenn der Server läuft, werden Eingabeereignisse an das Spiel gesendet.
 tool_linedef = Linedef-Tool (L). Liniendefinitionen und Sektoren erstellen.
 tool_rect = Rect-Tool (R). Klicken, um die aktuelle Kachel zu zeichnen. Shift-Klick zum Löschen.
 tool_sector = Sektor-Tool (E).

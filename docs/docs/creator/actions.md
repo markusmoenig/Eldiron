@@ -326,12 +326,6 @@ Notes:
 - Bookcase footprint is derived from the selected floor sector shape/depth.
 - `prop.type` fully controls which generator is applied (`table`, `bookcase`, `crate`, `barrel`, `bed`).
 
-### Set Editing Surface
-
-*Shortcut: Alt + U*
-
-Choose which face of the selected sector is being profiled (front/back/left/right/top/bottom depending on view). This updates overlays in 3D.
-
 ### Clear Profile
 
 *Shortcut: Alt + G*

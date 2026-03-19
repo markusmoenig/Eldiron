@@ -34,7 +34,7 @@ impl Tool for GameTool {
         str!("joystick")
     }
     fn accel(&self) -> Option<char> {
-        Some('G')
+        Some('A')
     }
 
     fn help_url(&self) -> Option<String> {

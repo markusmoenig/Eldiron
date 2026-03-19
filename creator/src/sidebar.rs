@@ -3854,6 +3854,16 @@ impl Sidebar {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
+        let profile_detail_mode = server_ctx.editor_view_mode != EditorViewMode::D2
+            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+            && server_ctx.active_detail_surface.is_some();
+        let is_profile_detail_action = |name: &str| {
+            matches!(
+                name,
+                "Window" | "Gate / Door" | "Recess" | "Relief" | "Clear Profile" | "Create Prop"
+            )
+        };
+
         if let Some(layout) = ui.canvas.get_layout(Some(&"Action List".to_string()), None) {
             if let Some(list_layout) = layout.as_list_layout() {
                 list_layout.clear();
@@ -3868,6 +3878,12 @@ impl Sidebar {
                 if let Some(map) = project.get_map(server_ctx).or(Some(&Map::default())) {
                     for action in &actions.actions {
                         if action.is_applicable(map, ctx, server_ctx) {
+                            if profile_detail_mode
+                                && action.role() == ActionRole::Editor
+                                && !is_profile_detail_action(&action.id().name)
+                            {
+                                continue;
+                            }
                             let mut item = TheListItem::new(action.id().clone());
                             item.set_text(action.id().name.clone());
 

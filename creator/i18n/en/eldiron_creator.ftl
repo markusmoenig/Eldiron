@@ -158,8 +158,6 @@ action_recess = Recess
 action_recess_desc = Creates a recess in the selected profile sector.
 action_relief = Relief
 action_relief_desc = Creates a relief (emboss) on the selected profile sector.
-action_set_edit_surface = Set Editing Surface
-action_set_edit_surface_desc = Make the selected surface the active 2D profile for editing.
 action_set_tile_material = Set Tile Material
 action_set_tile_material_desc = Set the material attributes to all pixels of the tile.
 action_split = Split
@@ -176,7 +174,7 @@ action_remap_tile = Remap Tile
 action_remap_tile_desc = Remaps the colors of the tile to the palette.
 
 # Tools
-tool_game = Game Tool (G). If the server is running input events are send to the game.
+tool_game = Game Tool (A). If the server is running input events are send to the game.
 tool_linedef = Linedef Tool (L). Create line definitions and sectors.
 tool_rect = Rect Tool (R). Click to draw the current tile. Shift-click to delete.
 tool_sector = Sector Tool (E).

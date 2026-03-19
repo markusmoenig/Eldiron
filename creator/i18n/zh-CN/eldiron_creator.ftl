@@ -161,7 +161,7 @@ action_remap_tile = 重新映射图块
 action_remap_tile_desc = 将图块的颜色映射到调色板
 
 # Tools
-tool_game = 游戏工具 (G)。服务器运行时输入事件会发送到游戏
+tool_game = 游戏工具 (A)。服务器运行时输入事件会发送到游戏
 tool_linedef = 线段工具 (L)。创建线段定义和区域
 tool_rect = 矩形工具 (R)。点击绘制当前图块，按住 Shift 点击删除
 tool_sector = 区域工具 (E)

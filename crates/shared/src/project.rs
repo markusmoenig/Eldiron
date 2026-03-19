@@ -372,6 +372,15 @@ impl Project {
     pub fn get_map(&self, ctx: &ServerContext) -> Option<&Map> {
         if ctx.editor_view_mode != EditorViewMode::D2 {
             if let Some(region) = self.get_region(&ctx.curr_region) {
+                if ctx.geometry_edit_mode == GeometryEditMode::Detail {
+                    if let Some(surface) = ctx.active_detail_surface.as_ref() {
+                        if let Some(surface) = region.map.surfaces.get(&surface.id) {
+                            if let Some(profile_id) = surface.profile {
+                                return region.map.profiles.get(&profile_id);
+                            }
+                        }
+                    }
+                }
                 return Some(&region.map);
             }
         } else if ctx.get_map_context() == MapContext::Region {
@@ -419,6 +428,15 @@ impl Project {
             // if let Some(id) = ctx.pc.id() {
             if ctx.editor_view_mode != EditorViewMode::D2 {
                 if let Some(region) = self.get_region_mut(&ctx.curr_region) {
+                    if ctx.geometry_edit_mode == GeometryEditMode::Detail {
+                        if let Some(surface) = ctx.active_detail_surface.as_ref() {
+                            if let Some(surface) = region.map.surfaces.get_mut(&surface.id) {
+                                if let Some(profile_id) = surface.profile {
+                                    return region.map.profiles.get_mut(&profile_id);
+                                }
+                            }
+                        }
+                    }
                     return Some(&mut region.map);
                 }
             } else if let Some(surface) = &ctx.editing_surface {

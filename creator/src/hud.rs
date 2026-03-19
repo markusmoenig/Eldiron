@@ -32,6 +32,7 @@ pub struct Hud {
 
     // Plane picker widget for 3D mode
     plane_picker_rects: Vec<TheDim>,
+    edit_mode_rects: Vec<TheDim>,
 }
 
 impl Hud {
@@ -54,6 +55,7 @@ impl Hud {
             light_icon: None,
 
             plane_picker_rects: vec![],
+            edit_mode_rects: vec![],
         }
     }
 
@@ -109,12 +111,7 @@ impl Hud {
                 );
             }
         } else if let Some(v) = server_ctx.hover_cursor_3d {
-            let subdivisions = 1.0 / map.subdivisions.max(1.0);
-            let snapped = Vec3::new(
-                (v.x / subdivisions).round() * subdivisions,
-                (v.y / subdivisions).round() * subdivisions,
-                (v.z / subdivisions).round() * subdivisions,
-            );
+            let snapped = server_ctx.snap_world_point_for_edit(map, v);
             ctx.draw.text(
                 buffer.pixels_mut(),
                 &(10, 2),
@@ -284,6 +281,68 @@ impl Hud {
             }
         }
 
+        if server_ctx.editor_view_mode != EditorViewMode::D2 && self.mode != HudMode::Rect {
+            self.edit_mode_rects.clear();
+            let labels = ["GEOM", "DETAIL"];
+            let modes = [GeometryEditMode::Geometry, GeometryEditMode::Detail];
+            let start_x = 390;
+            let button_w = 52;
+
+            for i in 0..2 {
+                let rect = TheDim::rect(start_x + (i as i32 * (button_w + 4)), 0, button_w, 20);
+                let active = server_ctx.geometry_edit_mode == modes[i];
+                let fg = if active { sel_text_color } else { text_color };
+                let inner = if active {
+                    [65, 65, 65, 255]
+                } else {
+                    [45, 45, 45, 255]
+                };
+
+                ctx.draw.rect(
+                    buffer.pixels_mut(),
+                    &rect.to_buffer_utuple(),
+                    stride,
+                    &bg_color,
+                );
+                ctx.draw.rect(
+                    buffer.pixels_mut(),
+                    &(
+                        rect.x as usize + 1,
+                        rect.y as usize + 1,
+                        rect.width as usize - 2,
+                        rect.height as usize - 2,
+                    ),
+                    stride,
+                    &inner,
+                );
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &rect.to_buffer_utuple(),
+                    stride,
+                    labels[i],
+                    TheFontSettings {
+                        size: 11.0,
+                        ..Default::default()
+                    },
+                    &fg,
+                    &inner,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
+                if active {
+                    ctx.draw.rect_outline(
+                        buffer.pixels_mut(),
+                        &rect.to_buffer_utuple(),
+                        stride,
+                        &sel_text_color,
+                    );
+                }
+                self.edit_mode_rects.push(rect);
+            }
+        } else {
+            self.edit_mode_rects.clear();
+        }
+
         // Terrain: Height
         if self.mode == HudMode::Terrain {
             if let Some(v) = server_ctx.hover_height {
@@ -375,8 +434,13 @@ impl Hud {
         }
 
         // Draw plane picker widget in 3D mode when editing geometry
-        if server_ctx.editor_view_mode != EditorViewMode::D2 && server_ctx.show_editing_geometry {
+        if server_ctx.editor_view_mode != EditorViewMode::D2
+            && server_ctx.show_editing_geometry
+            && server_ctx.geometry_edit_mode != GeometryEditMode::Detail
+        {
             self.draw_plane_picker(buffer, ctx, server_ctx, width, height, stride);
+        } else {
+            self.plane_picker_rects.clear();
         }
     }
 
@@ -631,8 +695,24 @@ impl Hud {
             }
         }
 
+        if server_ctx.editor_view_mode != EditorViewMode::D2 {
+            for (i, rect) in self.edit_mode_rects.iter().enumerate() {
+                if rect.contains(Vec2::new(x, y)) {
+                    server_ctx.geometry_edit_mode = if i == 0 {
+                        GeometryEditMode::Geometry
+                    } else {
+                        GeometryEditMode::Detail
+                    };
+                    return true;
+                }
+            }
+        }
+
         // Check plane picker clicks in 3D mode
-        if server_ctx.editor_view_mode != EditorViewMode::D2 && server_ctx.show_editing_geometry {
+        if server_ctx.editor_view_mode != EditorViewMode::D2
+            && server_ctx.show_editing_geometry
+            && server_ctx.geometry_edit_mode != GeometryEditMode::Detail
+        {
             for (i, rect) in self.plane_picker_rects.iter().enumerate() {
                 if rect.contains(Vec2::new(x, y)) {
                     server_ctx.gizmo_mode = match i {

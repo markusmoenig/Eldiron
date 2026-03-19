@@ -5,6 +5,7 @@ use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
 use rusterix::Assets;
+use rusterix::Surface;
 use rusterix::prelude::*;
 use scenevm::GeoId;
 use std::str::FromStr;
@@ -102,6 +103,49 @@ impl Tool for VertexTool {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         let mut undo_atom: Option<ProjectUndoAtom> = None;
+        let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
+            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
+
+        fn detail_surface_at_point(map: &Map, point: Vec3<f32>) -> Option<Surface> {
+            let mut best_surface: Option<(Surface, f32)> = None;
+            for surface in map.surfaces.values() {
+                let loop_uv = match surface.sector_loop_uv(map) {
+                    Some(loop_uv) if !loop_uv.is_empty() => loop_uv,
+                    _ => continue,
+                };
+                let uv = surface.world_to_uv(point);
+                let mut min = loop_uv[0];
+                let mut max = loop_uv[0];
+                for p in loop_uv.iter().skip(1) {
+                    min.x = min.x.min(p.x);
+                    min.y = min.y.min(p.y);
+                    max.x = max.x.max(p.x);
+                    max.y = max.y.max(p.y);
+                }
+                let eps = 0.01;
+                if uv.x < min.x - eps
+                    || uv.x > max.x + eps
+                    || uv.y < min.y - eps
+                    || uv.y > max.y + eps
+                {
+                    continue;
+                }
+                let n = surface.plane.normal;
+                let n_len = n.magnitude();
+                if n_len <= 1e-6 {
+                    continue;
+                }
+                let dist = ((point - surface.plane.origin).dot(n / n_len)).abs();
+                if best_surface
+                    .as_ref()
+                    .map(|(_, best_dist)| dist < *best_dist)
+                    .unwrap_or(true)
+                {
+                    best_surface = Some((surface.clone(), dist));
+                }
+            }
+            best_surface.map(|(surface, _)| surface)
+        }
 
         match map_event {
             MapKey(c) => {
@@ -120,37 +164,97 @@ impl Tool for VertexTool {
                 }
                 self.was_clicked = true;
 
+                if detail_mode_3d
+                    && let Some(surface) = detail_surface_at_point(
+                        map,
+                        server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos),
+                    )
+                    && server_ctx.active_detail_surface.as_ref().map(|s| s.id) != Some(surface.id)
+                {
+                    if let Some(old_profile_id) = server_ctx
+                        .active_detail_surface
+                        .as_ref()
+                        .and_then(|active| active.profile)
+                        && let Some(old_profile_map) = map.profiles.get_mut(&old_profile_id)
+                    {
+                        old_profile_map.selected_vertices.clear();
+                    }
+                    server_ctx.active_detail_surface = Some(surface);
+                    map.curr_grid_pos = None;
+                    map.curr_grid_pos_3d = None;
+                    map.clear_temp();
+                }
+
+                if detail_mode_3d {
+                    server_ctx.hover.0 = match server_ctx.geo_hit {
+                        Some(GeoId::Vertex(id)) => Some(id),
+                        _ => None,
+                    };
+                }
+
                 self.click_selected = false;
                 if server_ctx.hover.0.is_some() {
                     let mut changed = false;
 
                     map.selected_entity_item = None;
 
-                    if ui.shift {
-                        // Add
-                        if let Some(v) = server_ctx.hover.0 {
-                            if !map.selected_vertices.contains(&v) {
-                                map.selected_vertices.push(v);
+                    if detail_mode_3d
+                        && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                        && let Some(profile_id) = surface.profile
+                        && let Some(profile_map) = map.profiles.get_mut(&profile_id)
+                    {
+                        if ui.shift {
+                            if let Some(v) = server_ctx.hover.0 {
+                                if !profile_map.selected_vertices.contains(&v) {
+                                    profile_map.selected_vertices.push(v);
+                                    changed = true;
+                                }
+                            }
+                            self.click_selected = true;
+                        } else if ui.alt {
+                            if let Some(v) = server_ctx.hover.0 {
+                                profile_map
+                                    .selected_vertices
+                                    .retain(|&selected| selected != v);
                                 changed = true;
                             }
-                        }
-                        self.click_selected = true;
-                    } else if ui.alt {
-                        // Subtract
-                        if let Some(v) = server_ctx.hover.0 {
-                            map.selected_vertices.retain(|&selected| selected != v);
-                            changed = true;
+                        } else {
+                            if let Some(v) = server_ctx.hover.0 {
+                                profile_map.selected_vertices = vec![v];
+                                changed = true;
+                            } else {
+                                profile_map.selected_vertices.clear();
+                                changed = true;
+                            }
+                            self.click_selected = true;
                         }
                     } else {
-                        // Replace
-                        if let Some(v) = server_ctx.hover.0 {
-                            map.selected_vertices = vec![v];
-                            changed = true;
+                        if ui.shift {
+                            // Add
+                            if let Some(v) = server_ctx.hover.0 {
+                                if !map.selected_vertices.contains(&v) {
+                                    map.selected_vertices.push(v);
+                                    changed = true;
+                                }
+                            }
+                            self.click_selected = true;
+                        } else if ui.alt {
+                            // Subtract
+                            if let Some(v) = server_ctx.hover.0 {
+                                map.selected_vertices.retain(|&selected| selected != v);
+                                changed = true;
+                            }
                         } else {
-                            map.selected_vertices.clear();
-                            changed = true;
+                            // Replace
+                            if let Some(v) = server_ctx.hover.0 {
+                                map.selected_vertices = vec![v];
+                                changed = true;
+                            } else {
+                                map.selected_vertices.clear();
+                                changed = true;
+                            }
+                            self.click_selected = true;
                         }
-                        self.click_selected = true;
                     }
 
                     if changed {
@@ -194,9 +298,46 @@ impl Tool for VertexTool {
                                 ));
                             } else if let Some(pt) = server_ctx.hover_cursor_3d {
                                 let prev = map.clone();
+                                let snapped = server_ctx.snap_world_point_for_edit(map, pt);
+                                if detail_mode_3d
+                                    && let Some(surface) = server_ctx.active_detail_surface.clone()
+                                {
+                                    let mut profile_to_add = None;
+                                    let profile_id = if let Some(surface_mut) =
+                                        map.surfaces.get_mut(&surface.id)
+                                    {
+                                        if surface_mut.profile.is_none() {
+                                            let profile = Map::default();
+                                            surface_mut.profile = Some(profile.id);
+                                            profile_to_add = Some(profile);
+                                        }
+                                        surface_mut.profile
+                                    } else {
+                                        None
+                                    };
 
-                                let id = map.add_vertex_at_3d(pt.x, pt.z, pt.y, false);
-                                map.selected_vertices = vec![id];
+                                    if let Some(profile) = profile_to_add {
+                                        map.profiles.insert(profile.id, profile.clone());
+                                        if let Some(active) =
+                                            server_ctx.active_detail_surface.as_mut()
+                                            && active.id == surface.id
+                                        {
+                                            active.profile = Some(profile.id);
+                                        }
+                                    }
+
+                                    if let Some(profile_id) = profile_id
+                                        && let Some(profile_map) = map.profiles.get_mut(&profile_id)
+                                    {
+                                        let uv = surface.world_to_uv(snapped);
+                                        let id = profile_map.add_vertex_at(uv.x, -uv.y);
+                                        profile_map.selected_vertices = vec![id];
+                                    }
+                                } else {
+                                    let id = map
+                                        .add_vertex_at_3d(snapped.x, snapped.z, snapped.y, false);
+                                    map.selected_vertices = vec![id];
+                                }
 
                                 server_ctx.curr_action_id =
                                     Some(Uuid::from_str(EDIT_VERTEX_ACTION_ID).unwrap());
@@ -220,7 +361,45 @@ impl Tool for VertexTool {
                 self.click_ray_intersection_3d = None;
 
                 // For 3D dragging, use the actual vertex position if one is selected
-                if self.click_selected && !map.selected_vertices.is_empty() {
+                if detail_mode_3d
+                    && self.click_selected
+                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(profile_id) = surface.profile
+                    && let Some(profile_map) = map.profiles.get(&profile_id)
+                    && !profile_map.selected_vertices.is_empty()
+                {
+                    let vertex_id = profile_map.selected_vertices[0];
+                    if let Some(vertex) = profile_map.find_vertex(vertex_id) {
+                        self.click_pos_3d = surface.uv_to_world(Vec2::new(vertex.x, -vertex.y));
+                    } else {
+                        self.click_pos_3d = server_ctx.geo_hit_pos;
+                    }
+
+                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                        let dim = *render_view.dim();
+                        let screen_uv = [
+                            coord.x as f32 / dim.width as f32,
+                            coord.y as f32 / dim.height as f32,
+                        ];
+
+                        let rusterix = RUSTERIX.read().unwrap();
+                        let ray = rusterix.client.camera_d3.create_ray(
+                            Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                            Vec2::new(dim.width as f32, dim.height as f32),
+                            Vec2::zero(),
+                        );
+                        drop(rusterix);
+
+                        let plane_normal = surface.frame.normal;
+                        let denom: f32 = plane_normal.dot(ray.dir);
+                        if denom.abs() > 0.0001 {
+                            let t = (self.click_pos_3d - ray.origin).dot(plane_normal) / denom;
+                            if t >= 0.0 {
+                                self.click_ray_intersection_3d = Some(ray.origin + ray.dir * t);
+                            }
+                        }
+                    }
+                } else if self.click_selected && !map.selected_vertices.is_empty() {
                     if let Some(vertex) = map.find_vertex(map.selected_vertices[0]) {
                         // Convert vertex storage to world 3D coords
                         self.click_pos_3d = vertex.as_vec3_world();
@@ -265,7 +444,15 @@ impl Tool for VertexTool {
                     self.click_pos_3d = server_ctx.geo_hit_pos;
                 }
 
-                self.rectangle_undo_map = map.clone();
+                if detail_mode_3d
+                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(profile_id) = surface.profile
+                    && let Some(profile_map) = map.profiles.get(&profile_id)
+                {
+                    self.rectangle_undo_map = profile_map.clone();
+                } else {
+                    self.rectangle_undo_map = map.clone();
+                }
             }
             MapDragged(coord) => {
                 if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
@@ -313,6 +500,79 @@ impl Tool for VertexTool {
 
                             if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
                                 self.drag_changed = true;
+                            }
+                        } else if detail_mode_3d
+                            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                            && let Some(profile_id) = surface.profile
+                        {
+                            let drag_distance = self
+                                .click_pos
+                                .distance(Vec2::new(coord.x as f32, coord.y as f32));
+                            if drag_distance < 5.0 {
+                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                return None;
+                            }
+
+                            let click_intersection = match self.click_ray_intersection_3d {
+                                Some(pos) => pos,
+                                None => {
+                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                    return None;
+                                }
+                            };
+
+                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                                let dim = *render_view.dim();
+                                let screen_uv = [
+                                    coord.x as f32 / dim.width as f32,
+                                    coord.y as f32 / dim.height as f32,
+                                ];
+                                let rusterix = RUSTERIX.read().unwrap();
+                                let ray = rusterix.client.camera_d3.create_ray(
+                                    Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::zero(),
+                                );
+                                drop(rusterix);
+
+                                let plane_normal = surface.frame.normal;
+                                let denom: f32 = plane_normal.dot(ray.dir);
+                                if denom.abs() > 0.0001
+                                    && let Some(profile_map) = map.profiles.get_mut(&profile_id)
+                                {
+                                    let t =
+                                        (self.click_pos_3d - ray.origin).dot(plane_normal) / denom;
+                                    if t >= 0.0 {
+                                        let current_pos = ray.origin + ray.dir * t;
+                                        let start_uv = surface.world_to_uv(click_intersection);
+                                        let current_uv = surface.world_to_uv(current_pos);
+                                        let drag_delta_uv = current_uv - start_uv;
+                                        let step = 1.0 / map.subdivisions.max(1.0);
+
+                                        for vertex_id in
+                                            &self.rectangle_undo_map.selected_vertices.clone()
+                                        {
+                                            if let Some(original_vertex) =
+                                                self.rectangle_undo_map.find_vertex(*vertex_id)
+                                                && let Some(vertex) =
+                                                    profile_map.find_vertex_mut(*vertex_id)
+                                            {
+                                                vertex.x = ((original_vertex.x + drag_delta_uv.x)
+                                                    / step)
+                                                    .round()
+                                                    * step;
+                                                vertex.y = ((original_vertex.y - drag_delta_uv.y)
+                                                    / step)
+                                                    .round()
+                                                    * step;
+                                            }
+                                        }
+
+                                        if drag_delta_uv.x != 0.0 || drag_delta_uv.y != 0.0 {
+                                            self.drag_changed = true;
+                                        }
+                                    }
+                                }
                             }
                         } else {
                             // 3D Drag
@@ -442,6 +702,11 @@ impl Tool for VertexTool {
                         }
                     }
                 } else if let Some(render_view) = ui.get_render_view("PolyView") {
+                    if detail_mode_3d {
+                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                        return None;
+                    }
+
                     if !self.was_clicked {
                         return None;
                     }
@@ -613,7 +878,27 @@ impl Tool for VertexTool {
                 }
             }
             MapDelete => {
-                if !map.selected_vertices.is_empty() {
+                let prev = map.clone();
+                if detail_mode_3d
+                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(profile_id) = surface.profile
+                    && let Some(profile_map) = map.profiles.get_mut(&profile_id)
+                    && !profile_map.selected_vertices.is_empty()
+                {
+                    let vertices = profile_map.selected_vertices.clone();
+                    profile_map.delete_elements(&vertices, &[], &[]);
+                    profile_map.selected_vertices.clear();
+
+                    undo_atom = Some(ProjectUndoAtom::MapEdit(
+                        server_ctx.pc,
+                        Box::new(prev),
+                        Box::new(map.clone()),
+                    ));
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
+                } else if !map.selected_vertices.is_empty() {
                     let prev = map.clone();
                     let vertices = map.selected_vertices.clone();
 
@@ -633,7 +918,19 @@ impl Tool for VertexTool {
                 }
             }
             MapEscape => {
-                if !map.selected_vertices.is_empty() {
+                if detail_mode_3d
+                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(profile_id) = surface.profile
+                    && let Some(profile_map) = map.profiles.get_mut(&profile_id)
+                    && !profile_map.selected_vertices.is_empty()
+                {
+                    profile_map.selected_vertices.clear();
+
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
+                } else if !map.selected_vertices.is_empty() {
                     map.selected_vertices.clear();
 
                     ctx.ui.send(TheEvent::Custom(
@@ -656,7 +953,15 @@ impl Tool for VertexTool {
         server_ctx: &mut ServerContext,
         assets: &Assets,
     ) {
-        let id = if !map.selected_vertices.is_empty() {
+        let id = if server_ctx.editor_view_mode != EditorViewMode::D2
+            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+            && let Some(profile_id) = surface.profile
+            && let Some(profile_map) = map.profiles.get(&profile_id)
+            && !profile_map.selected_vertices.is_empty()
+        {
+            Some(profile_map.selected_vertices[0])
+        } else if !map.selected_vertices.is_empty() {
             Some(map.selected_vertices[0])
         } else {
             None

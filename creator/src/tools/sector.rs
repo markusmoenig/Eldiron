@@ -4,7 +4,7 @@ use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
-use rusterix::{Assets, PixelSource, Value};
+use rusterix::{Assets, PixelSource, Surface, Value};
 use scenevm::GeoId;
 use std::str::FromStr;
 use vek::Vec2;
@@ -112,6 +112,66 @@ impl Tool for SectorTool {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         let mut undo_atom: Option<ProjectUndoAtom> = None;
+        let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
+            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
+        fn hovered_detail_surface(server_ctx: &ServerContext) -> Option<Surface> {
+            server_ctx
+                .hover_surface
+                .clone()
+                .or(server_ctx.editing_surface.clone())
+        }
+        fn detail_surface_at_point(map: &Map, point: Vec3<f32>) -> Option<Surface> {
+            let mut best_surface: Option<(Surface, f32)> = None;
+            for surface in map.surfaces.values() {
+                let loop_uv = match surface.sector_loop_uv(map) {
+                    Some(loop_uv) if !loop_uv.is_empty() => loop_uv,
+                    _ => continue,
+                };
+                let uv = surface.world_to_uv(point);
+                let mut min = loop_uv[0];
+                let mut max = loop_uv[0];
+                for p in loop_uv.iter().skip(1) {
+                    min.x = min.x.min(p.x);
+                    min.y = min.y.min(p.y);
+                    max.x = max.x.max(p.x);
+                    max.y = max.y.max(p.y);
+                }
+                let eps = 0.01;
+                if uv.x < min.x - eps
+                    || uv.x > max.x + eps
+                    || uv.y < min.y - eps
+                    || uv.y > max.y + eps
+                {
+                    continue;
+                }
+                let n = surface.plane.normal;
+                let n_len = n.magnitude();
+                if n_len <= 1e-6 {
+                    continue;
+                }
+                let dist = ((point - surface.plane.origin).dot(n / n_len)).abs();
+                if best_surface
+                    .as_ref()
+                    .map(|(_, best_dist)| dist < *best_dist)
+                    .unwrap_or(true)
+                {
+                    best_surface = Some((surface.clone(), dist));
+                }
+            }
+            best_surface.map(|(surface, _)| surface)
+        }
+        let detail_profile_sector_at =
+            |map: &Map, surface: &Surface, world: Vec3<f32>| -> Option<u32> {
+                let profile_id = surface.profile?;
+                let profile_map = map.profiles.get(&profile_id)?;
+                let uv = surface.world_to_uv(world);
+                let point = Vec2::new(uv.x, -uv.y);
+                profile_map
+                    .sectors
+                    .iter()
+                    .find(|sector| sector.is_inside(profile_map, point))
+                    .map(|sector| sector.id)
+            };
 
         match map_event {
             MapKey(c) => {
@@ -131,7 +191,40 @@ impl Tool for SectorTool {
                 self.was_clicked = true;
                 let mut changed = false;
 
-                if server_ctx.editor_view_mode != EditorViewMode::D2 && server_ctx.hover.2.is_none()
+                if detail_mode_3d {
+                    if let Some(surface) = detail_surface_at_point(
+                        map,
+                        server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos),
+                    ) && server_ctx.active_detail_surface.as_ref().map(|s| s.id)
+                        != Some(surface.id)
+                    {
+                        if let Some(old_profile_id) = server_ctx
+                            .active_detail_surface
+                            .as_ref()
+                            .and_then(|active| active.profile)
+                            && let Some(old_profile_map) = map.profiles.get_mut(&old_profile_id)
+                        {
+                            old_profile_map.selected_sectors.clear();
+                        }
+                        server_ctx.active_detail_surface = Some(surface);
+                        server_ctx.hover.2 = None;
+                    }
+
+                    if let Some(surface) = detail_surface_at_point(
+                        map,
+                        server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos),
+                    ) {
+                        if server_ctx.active_detail_surface.is_none() {
+                            server_ctx.active_detail_surface = Some(surface);
+                        }
+                    }
+                    if let Some(surface) = server_ctx.active_detail_surface.as_ref() {
+                        let hit_pos = server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
+                        server_ctx.hover.2 = detail_profile_sector_at(map, surface, hit_pos);
+                    }
+                } else if server_ctx.editor_view_mode != EditorViewMode::D2
+                    && !detail_mode_3d
+                    && server_ctx.hover.2.is_none()
                 {
                     let hit_pos = server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
                     server_ctx.hover.2 = map
@@ -143,31 +236,68 @@ impl Tool for SectorTool {
                 if server_ctx.hover.2.is_some() {
                     map.selected_entity_item = None;
 
-                    if ui.shift {
-                        // Add
-                        if let Some(s) = server_ctx.hover.2 {
-                            if !map.selected_sectors.contains(&s) {
-                                map.selected_sectors.push(s);
+                    let mut handled_detail_selection = false;
+                    if detail_mode_3d {
+                        if let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                            && let Some(profile_id) = surface.profile
+                            && let Some(profile_map) = map.profiles.get_mut(&profile_id)
+                        {
+                            handled_detail_selection = true;
+                            if ui.shift {
+                                if let Some(s) = server_ctx.hover.2 {
+                                    if !profile_map.selected_sectors.contains(&s) {
+                                        profile_map.selected_sectors.push(s);
+                                        changed = true;
+                                    }
+                                    self.click_selected = true;
+                                }
+                            } else if ui.alt {
+                                if let Some(v) = server_ctx.hover.2 {
+                                    profile_map
+                                        .selected_sectors
+                                        .retain(|&selected| selected != v);
+                                    changed = true;
+                                }
+                            } else {
+                                if let Some(v) = server_ctx.hover.2 {
+                                    profile_map.selected_sectors = vec![v];
+                                    changed = true;
+                                } else {
+                                    profile_map.selected_sectors.clear();
+                                    changed = true;
+                                }
+                                self.click_selected = true;
+                            }
+                        }
+                    }
+
+                    if !handled_detail_selection {
+                        if ui.shift {
+                            // Add
+                            if let Some(s) = server_ctx.hover.2 {
+                                if !map.selected_sectors.contains(&s) {
+                                    map.selected_sectors.push(s);
+                                    changed = true;
+                                }
+                                self.click_selected = true;
+                            }
+                        } else if ui.alt {
+                            // Subtract
+                            if let Some(v) = server_ctx.hover.2 {
+                                map.selected_sectors.retain(|&selected| selected != v);
+                                changed = true;
+                            }
+                        } else {
+                            // Replace
+                            if let Some(v) = server_ctx.hover.2 {
+                                map.selected_sectors = vec![v];
+                                changed = true;
+                            } else {
+                                map.selected_sectors.clear();
                                 changed = true;
                             }
                             self.click_selected = true;
                         }
-                    } else if ui.alt {
-                        // Subtract
-                        if let Some(v) = server_ctx.hover.2 {
-                            map.selected_sectors.retain(|&selected| selected != v);
-                            changed = true;
-                        }
-                    } else {
-                        // Replace
-                        if let Some(v) = server_ctx.hover.2 {
-                            map.selected_sectors = vec![v];
-                            changed = true;
-                        } else {
-                            map.selected_sectors.clear();
-                            changed = true;
-                        }
-                        self.click_selected = true;
                     }
 
                     if changed {
@@ -183,8 +313,71 @@ impl Tool for SectorTool {
                 self.click_pos = Vec2::new(coord.x as f32, coord.y as f32);
                 self.click_ray_intersection_3d = None;
 
-                // For 3D dragging, use the average position of selected sector vertices
-                if self.click_selected && !map.selected_sectors.is_empty() {
+                // For 3D dragging, use the average position of selected sector vertices.
+                let mut detail_selection_prepared = false;
+                if detail_mode_3d
+                    && self.click_selected
+                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(profile_id) = surface.profile
+                    && let Some(profile_map) = map.profiles.get(&profile_id)
+                    && !profile_map.selected_sectors.is_empty()
+                {
+                    let mut sum_pos = Vec3::zero();
+                    let mut count = 0;
+                    for sector_id in &profile_map.selected_sectors {
+                        if let Some(sector) = profile_map.find_sector(*sector_id) {
+                            for line_id in &sector.linedefs {
+                                if let Some(line) = profile_map.find_linedef(*line_id) {
+                                    if let Some(v1) = profile_map.find_vertex(line.start_vertex) {
+                                        sum_pos += surface.uv_to_world(Vec2::new(v1.x, -v1.y));
+                                        count += 1;
+                                    }
+                                    if let Some(v2) = profile_map.find_vertex(line.end_vertex) {
+                                        sum_pos += surface.uv_to_world(Vec2::new(v2.x, -v2.y));
+                                        count += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if count > 0 {
+                        self.click_pos_3d = sum_pos / count as f32;
+                    } else {
+                        self.click_pos_3d = server_ctx.geo_hit_pos;
+                    }
+
+                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                        let dim = *render_view.dim();
+                        let screen_uv = [
+                            coord.x as f32 / dim.width as f32,
+                            coord.y as f32 / dim.height as f32,
+                        ];
+
+                        let rusterix = RUSTERIX.read().unwrap();
+                        let ray = rusterix.client.camera_d3.create_ray(
+                            Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                            Vec2::new(dim.width as f32, dim.height as f32),
+                            Vec2::zero(),
+                        );
+                        drop(rusterix);
+
+                        let plane_normal = surface.frame.normal;
+                        let denom: f32 = plane_normal.dot(ray.dir);
+                        if denom.abs() > 0.0001 {
+                            let t = (self.click_pos_3d - ray.origin).dot(plane_normal) / denom;
+                            if t >= 0.0 {
+                                self.click_ray_intersection_3d = Some(ray.origin + ray.dir * t);
+                            }
+                        }
+                    }
+
+                    detail_selection_prepared = true;
+                }
+
+                if !detail_selection_prepared
+                    && self.click_selected
+                    && !map.selected_sectors.is_empty()
+                {
                     let mut sum_pos = Vec3::zero();
                     let mut count = 0;
                     for sector_id in &map.selected_sectors {
@@ -242,11 +435,19 @@ impl Tool for SectorTool {
                             }
                         }
                     }
-                } else {
+                } else if !detail_selection_prepared {
                     self.click_pos_3d = server_ctx.geo_hit_pos;
                 }
 
-                self.rectangle_undo_map = map.clone();
+                if detail_mode_3d
+                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(profile_id) = surface.profile
+                    && let Some(profile_map) = map.profiles.get(&profile_id)
+                {
+                    self.rectangle_undo_map = profile_map.clone();
+                } else {
+                    self.rectangle_undo_map = map.clone();
+                }
                 self.vertices_duplicated = false;
                 self.cached_sectors_to_move.clear();
             }
@@ -393,6 +594,97 @@ impl Tool for SectorTool {
 
                             if drag_delta.x != 0.0 || drag_delta.y != 0.0 {
                                 self.drag_changed = true;
+                            }
+                        } else if detail_mode_3d
+                            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                            && let Some(profile_id) = surface.profile
+                        {
+                            let drag_distance = self
+                                .click_pos
+                                .distance(Vec2::new(coord.x as f32, coord.y as f32));
+                            if drag_distance < 5.0 {
+                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                return None;
+                            }
+
+                            let click_intersection = match self.click_ray_intersection_3d {
+                                Some(pos) => pos,
+                                None => {
+                                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                    return None;
+                                }
+                            };
+
+                            let screen_uv = [
+                                coord.x as f32 / dim.width as f32,
+                                coord.y as f32 / dim.height as f32,
+                            ];
+
+                            let rusterix = RUSTERIX.read().unwrap();
+                            let ray = rusterix.client.camera_d3.create_ray(
+                                Vec2::new(screen_uv[0], 1.0 - screen_uv[1]),
+                                Vec2::new(dim.width as f32, dim.height as f32),
+                                Vec2::zero(),
+                            );
+                            drop(rusterix);
+
+                            let plane_normal = surface.frame.normal;
+                            let denom: f32 = plane_normal.dot(ray.dir);
+                            if denom.abs() > 0.0001
+                                && let Some(profile_map) = map.profiles.get_mut(&profile_id)
+                            {
+                                let t = (self.click_pos_3d - ray.origin).dot(plane_normal) / denom;
+                                if t >= 0.0 {
+                                    let current_pos = ray.origin + ray.dir * t;
+                                    let start_uv = surface.world_to_uv(click_intersection);
+                                    let current_uv = surface.world_to_uv(current_pos);
+                                    let drag_delta_uv = current_uv - start_uv;
+                                    let step = 1.0 / map.subdivisions.max(1.0);
+
+                                    let mut selected_vertices = vec![];
+                                    for sector_id in &self.rectangle_undo_map.selected_sectors {
+                                        if let Some(sector) =
+                                            self.rectangle_undo_map.find_sector(*sector_id)
+                                        {
+                                            for line_id in &sector.linedefs {
+                                                if let Some(line) =
+                                                    self.rectangle_undo_map.find_linedef(*line_id)
+                                                {
+                                                    if !selected_vertices
+                                                        .contains(&line.start_vertex)
+                                                    {
+                                                        selected_vertices.push(line.start_vertex);
+                                                    }
+                                                    if !selected_vertices.contains(&line.end_vertex)
+                                                    {
+                                                        selected_vertices.push(line.end_vertex);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    for vertex_id in selected_vertices {
+                                        if let Some(original_vertex) =
+                                            self.rectangle_undo_map.find_vertex(vertex_id)
+                                            && let Some(vertex) =
+                                                profile_map.find_vertex_mut(vertex_id)
+                                        {
+                                            vertex.x = ((original_vertex.x + drag_delta_uv.x)
+                                                / step)
+                                                .round()
+                                                * step;
+                                            vertex.y = ((original_vertex.y - drag_delta_uv.y)
+                                                / step)
+                                                .round()
+                                                * step;
+                                        }
+                                    }
+
+                                    if drag_delta_uv.x != 0.0 || drag_delta_uv.y != 0.0 {
+                                        self.drag_changed = true;
+                                    }
+                                }
                             }
                         } else {
                             // 3D dragging
@@ -624,6 +916,11 @@ impl Tool for SectorTool {
                         }
                     }
                 } else if let Some(render_view) = ui.get_render_view("PolyView") {
+                    if detail_mode_3d {
+                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                        return None;
+                    }
+
                     if !self.was_clicked {
                         return None;
                     }
@@ -755,13 +1052,35 @@ impl Tool for SectorTool {
                         ));
                         server_ctx.hover_cursor = Some(cp);
                     } else {
+                        if detail_mode_3d {
+                            let selected_count = server_ctx
+                                .active_detail_surface
+                                .as_ref()
+                                .and_then(|surface| surface.profile)
+                                .and_then(|profile_id| map.profiles.get(&profile_id))
+                                .map(|profile_map| profile_map.selected_sectors.len())
+                                .unwrap_or(0);
+                            if selected_count == 0
+                                && let Some(surface) = hovered_detail_surface(server_ctx)
+                            {
+                                server_ctx.active_detail_surface = Some(surface);
+                            }
+                        }
+
                         let hit_pos = server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
 
-                        let hovered_sector = match server_ctx.geo_hit {
-                            Some(GeoId::Sector(id)) => Some(id),
-                            _ => map
-                                .find_sector_at(Vec2::new(hit_pos.x, hit_pos.z))
-                                .map(|s| s.id),
+                        let hovered_sector = if detail_mode_3d {
+                            server_ctx
+                                .active_detail_surface
+                                .as_ref()
+                                .and_then(|surface| detail_profile_sector_at(map, surface, hit_pos))
+                        } else {
+                            match server_ctx.geo_hit {
+                                Some(GeoId::Sector(id)) => Some(id),
+                                _ => map
+                                    .find_sector_at(Vec2::new(hit_pos.x, hit_pos.z))
+                                    .map(|s| s.id),
+                            }
                         };
 
                         server_ctx.hover = (None, None, hovered_sector);
@@ -777,7 +1096,23 @@ impl Tool for SectorTool {
                     }
 
                     if let Some(s) = server_ctx.hover.2 {
-                        if let Some(sector) = map.find_sector(s) {
+                        if detail_mode_3d
+                            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                            && let Some(profile_id) = surface.profile
+                            && let Some(profile_map) = map.profiles.get(&profile_id)
+                            && let Some(sector) = profile_map.find_sector(s)
+                        {
+                            let lines = sector
+                                .linedefs
+                                .iter()
+                                .map(|id| id.to_string())
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                format!("Detail Sector {}: Linedefs ({})", s, lines),
+                            ));
+                        } else if let Some(sector) = map.find_sector(s) {
                             let lines = sector
                                 .linedefs
                                 .iter()
@@ -796,7 +1131,31 @@ impl Tool for SectorTool {
                 }
             }
             MapDelete => {
-                if !map.selected_sectors.is_empty() {
+                if detail_mode_3d
+                    && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(profile_id) = surface.profile
+                {
+                    let prev = map.clone();
+                    if let Some(profile_map) = map.profiles.get_mut(&profile_id)
+                        && !profile_map.selected_sectors.is_empty()
+                    {
+                        let sectors = profile_map.selected_sectors.clone();
+
+                        profile_map.delete_elements(&[], &[], &sectors);
+                        profile_map.selected_sectors.clear();
+
+                        undo_atom = Some(ProjectUndoAtom::MapEdit(
+                            server_ctx.pc,
+                            Box::new(prev),
+                            Box::new(map.clone()),
+                        ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    }
+                } else if !map.selected_sectors.is_empty() {
                     let prev = map.clone();
                     let sectors = map.selected_sectors.clone();
 
@@ -817,6 +1176,13 @@ impl Tool for SectorTool {
                 }
             }
             MapEscape => {
+                if let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                    && let Some(profile_id) = surface.profile
+                    && let Some(profile_map) = map.profiles.get_mut(&profile_id)
+                {
+                    profile_map.selected_sectors.clear();
+                }
+                server_ctx.active_detail_surface = None;
                 if !map.selected_sectors.is_empty() {
                     map.selected_sectors.clear();
                     ctx.ui.send(TheEvent::Custom(
@@ -839,7 +1205,16 @@ impl Tool for SectorTool {
         server_ctx: &mut ServerContext,
         assets: &Assets,
     ) {
-        let id = if !map.selected_sectors.is_empty() {
+        let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
+            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
+        let id = if detail_mode_3d
+            && let Some(surface) = server_ctx.active_detail_surface.as_ref()
+            && let Some(profile_id) = surface.profile
+            && let Some(profile_map) = map.profiles.get(&profile_id)
+            && !profile_map.selected_sectors.is_empty()
+        {
+            Some(profile_map.selected_sectors[0])
+        } else if !map.selected_sectors.is_empty() {
             Some(map.selected_sectors[0])
         } else {
             None

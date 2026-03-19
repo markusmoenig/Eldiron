@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use rusterix::{Surface, ValueContainer};
+use rusterix::ValueContainer;
 use std::collections::hash_map::DefaultHasher;
 use vek::Vec2;
 
@@ -48,58 +48,6 @@ pub fn minimap_bbox_for_map(map: &Map) -> Option<Vec4<f32>> {
     bbox.z += 1.0;
     bbox.w += 1.0;
     Some(bbox)
-}
-
-fn surface_uv_outline(surface: &Surface) -> Option<Vec<Vec2<f32>>> {
-    if surface.world_vertices.len() < 2 {
-        return None;
-    }
-    let mut points = Vec::with_capacity(surface.world_vertices.len());
-    for p in &surface.world_vertices {
-        let mut uv = surface.world_to_uv(*p);
-        uv.y = -uv.y;
-        points.push(uv);
-    }
-    Some(points)
-}
-
-fn minimap_bbox_for_surface(surface: &Surface) -> Option<Vec4<f32>> {
-    let points = surface_uv_outline(surface)?;
-    let mut min = points[0];
-    let mut max = points[0];
-    for p in points.iter().skip(1) {
-        min = min.map2(*p, f32::min);
-        max = max.map2(*p, f32::max);
-    }
-    let mut bbox = Vec4::new(min.x, min.y, max.x - min.x, max.y - min.y);
-    bbox.x -= 0.5;
-    bbox.y -= 0.5;
-    bbox.z += 1.0;
-    bbox.w += 1.0;
-    Some(bbox)
-}
-
-fn draw_surface_outline_on_minimap(buffer: &mut TheRGBABuffer, surface: &Surface, bbox: Vec4<f32>) {
-    let Some(points) = surface_uv_outline(surface) else {
-        return;
-    };
-    if points.len() < 2 {
-        return;
-    }
-    let dim = *buffer.dim();
-    let render_dim = Vec2::new(dim.width as f32, dim.height as f32);
-    let line_color = [235, 235, 235, 255];
-    for i in 0..points.len() {
-        let p0 = world_to_minimap_pixel(points[i], render_dim, bbox);
-        let p1 = world_to_minimap_pixel(points[(i + 1) % points.len()], render_dim, bbox);
-        buffer.draw_line(
-            p0.x.round() as i32,
-            p0.y.round() as i32,
-            p1.x.round() as i32,
-            p1.y.round() as i32,
-            line_color,
-        );
-    }
 }
 
 pub fn draw_camera_marker(
@@ -157,11 +105,7 @@ pub fn draw_minimap_context_label(
     server_ctx: &ServerContext,
 ) {
     let label = if server_ctx.get_map_context() == MapContext::Region {
-        if server_ctx.editing_surface.is_some() {
-            "Profile"
-        } else {
-            "Region"
-        }
+        "Region"
     } else if server_ctx.get_map_context() == MapContext::Screen {
         "Screen"
     } else if server_ctx.get_map_context() == MapContext::Character {
@@ -244,7 +188,15 @@ pub fn draw_minimap(
 
     if !hard {
         buffer.copy_into(0, 0, &MINIMAPBUFFER.read().unwrap());
-        if let Some(map) = project.get_map(server_ctx) {
+        let map = if server_ctx.get_map_context() == MapContext::Region {
+            project
+                .get_region(&server_ctx.curr_region)
+                .map(|region| &region.map)
+        } else {
+            project.get_map(server_ctx)
+        };
+
+        if let Some(map) = map {
             let region_marker = if server_ctx.get_map_context() == MapContext::Region {
                 project.get_region(&server_ctx.curr_region)
             } else {
@@ -261,12 +213,16 @@ pub fn draw_minimap(
     let height = dim.height as f32;
     let background = [42, 42, 42, 255];
 
-    if let Some(map) = project.get_map(server_ctx) {
-        let bbox_from_surface = server_ctx
-            .editing_surface
-            .as_ref()
-            .and_then(minimap_bbox_for_surface);
-        let Some(bbox) = minimap_bbox_for_map(map).or(bbox_from_surface) else {
+    let map = if server_ctx.get_map_context() == MapContext::Region {
+        project
+            .get_region(&server_ctx.curr_region)
+            .map(|region| &region.map)
+    } else {
+        project.get_map(server_ctx)
+    };
+
+    if let Some(map) = map {
+        let Some(bbox) = minimap_bbox_for_map(map) else {
             buffer.fill(background);
             return;
         };
@@ -295,8 +251,7 @@ pub fn draw_minimap(
         let scale_matrix = Mat3::new(scale_x, 0.0, 0.0, 0.0, scale_y, 0.0, 0.0, 0.0, 1.0);
         let transform = translation_matrix * scale_matrix;
 
-        let use_scenevm_region = server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editing_surface.is_none();
+        let use_scenevm_region = server_ctx.get_map_context() == MapContext::Region;
 
         if use_scenevm_region {
             // Minimap readability: render with stable daytime lighting.
@@ -366,36 +321,6 @@ pub fn draw_minimap(
                     40,
                     &rusterix.assets,
                 );
-        }
-
-        // Only overlay linedefs while editing a profile surface in D2 mode.
-        let show_profile_lines = server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode == EditorViewMode::D2
-            && server_ctx.editing_surface.is_some();
-        if show_profile_lines && !map_copy.linedefs.is_empty() {
-            let dim = Vec2::new(width, height);
-            let line_color = [235, 235, 235, 255];
-            for linedef in &map_copy.linedefs {
-                if let Some(start) = map_copy.get_vertex(linedef.start_vertex)
-                    && let Some(end) = map_copy.get_vertex(linedef.end_vertex)
-                {
-                    let p0 = world_to_minimap_pixel(start, dim, bbox);
-                    let p1 = world_to_minimap_pixel(end, dim, bbox);
-                    buffer.draw_line(
-                        p0.x.round() as i32,
-                        p0.y.round() as i32,
-                        p1.x.round() as i32,
-                        p1.y.round() as i32,
-                        line_color,
-                    );
-                }
-            }
-        }
-        if map_copy.sectors.is_empty()
-            && map_copy.linedefs.is_empty()
-            && let Some(surface) = server_ctx.editing_surface.as_ref()
-        {
-            draw_surface_outline_on_minimap(buffer, surface, bbox);
         }
 
         MINIMAPBUFFER

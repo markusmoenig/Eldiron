@@ -40,7 +40,6 @@ pub mod paste_vcode;
 pub mod recess;
 pub mod relief;
 pub mod remap_tile;
-pub mod set_editing_surface;
 pub mod set_tile_material;
 pub mod split;
 pub mod toggle_editing_geo;

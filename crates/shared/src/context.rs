@@ -100,6 +100,12 @@ pub enum GizmoMode {
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
+pub enum GeometryEditMode {
+    Geometry,
+    Detail,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum EditorViewMode {
     D2,
     Orbit,
@@ -401,6 +407,11 @@ pub struct ServerContext {
     /// The current 3d hover position
     pub hover_cursor_3d: Option<Vec3<f32>>,
 
+    /// The hovered surface resolved from the raw 3D scene hit, if any.
+    pub hover_surface: Option<Surface>,
+    /// The currently active surface for a 3D detail edit chain.
+    pub active_detail_surface: Option<Surface>,
+
     /// The current grid hover height
     pub hover_height: Option<f32>,
 
@@ -497,6 +508,8 @@ pub struct ServerContext {
 
     /// The current plane for 3D movement
     pub gizmo_mode: GizmoMode,
+    /// Geometry edits work in world/gizmo space, detail edits on hovered surfaces.
+    pub geometry_edit_mode: GeometryEditMode,
 
     // For the Rect tool, identify the current sector and tile for preview
     pub rect_sector_id_3d: Option<u32>,
@@ -571,6 +584,8 @@ impl ServerContext {
             hover: (None, None, None),
             hover_cursor: None,
             hover_cursor_3d: None,
+            hover_surface: None,
+            active_detail_surface: None,
             hover_height: None,
 
             curr_map_tool_type: MapToolType::Linedef,
@@ -618,6 +633,7 @@ impl ServerContext {
             show_editing_geometry: true,
 
             gizmo_mode: GizmoMode::XZ,
+            geometry_edit_mode: GeometryEditMode::Geometry,
 
             editing_slice: 0.0,
             editing_slice_height: 2.0,
@@ -764,6 +780,33 @@ impl ServerContext {
         } else {
             rounded
         }
+    }
+
+    fn snap_scalar(value: f32, subdivisions: f32) -> f32 {
+        let step = 1.0 / subdivisions.max(1.0);
+        (value / step).round() * step
+    }
+
+    pub fn snap_world_point_for_edit(&self, map: &Map, point: Vec3<f32>) -> Vec3<f32> {
+        if self.geometry_edit_mode == GeometryEditMode::Detail
+            && let Some(surface) = self.active_detail_surface.as_ref().or(self
+                .hover_surface
+                .as_ref()
+                .or(self.editing_surface.as_ref()))
+        {
+            let uv = surface.world_to_uv(point);
+            let snapped_uv = Vec2::new(
+                Self::snap_scalar(uv.x, map.subdivisions),
+                Self::snap_scalar(uv.y, map.subdivisions),
+            );
+            return surface.uv_to_world(snapped_uv);
+        }
+
+        Vec3::new(
+            Self::snap_scalar(point.x, map.subdivisions),
+            Self::snap_scalar(point.y, map.subdivisions),
+            Self::snap_scalar(point.z, map.subdivisions),
+        )
     }
 
     /// Snap to a grid cell

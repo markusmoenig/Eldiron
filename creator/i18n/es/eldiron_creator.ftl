@@ -161,7 +161,7 @@ action_remap_tile = Remapear baldosa
 action_remap_tile_desc = Remapea los colores de la baldosa a la paleta
 
 # Tools
-tool_game = Herramienta de juego (G). Si el servidor está en marcha, los eventos de entrada se envían al juego.
+tool_game = Herramienta de juego (A). Si el servidor está en marcha, los eventos de entrada se envían al juego.
 tool_linedef = Herramienta de linedef (L). Crear definiciones de línea y sectores.
 tool_rect = Herramienta de rectángulo (R). Clic para dibujar la baldosa actual. Shift-clic para borrar.
 tool_sector = Herramienta de sector (E).

@@ -78,10 +78,12 @@ impl Action for Relief {
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        // Only in 2D Profile Editing Mode with sector selection
-        !map.selected_sectors.is_empty()
-            && server_ctx.editor_view_mode == EditorViewMode::D2
-            && server_ctx.editing_surface.is_some()
+        let profile_edit_active = (server_ctx.editor_view_mode == EditorViewMode::D2
+            && server_ctx.editing_surface.is_some())
+            || (server_ctx.editor_view_mode != EditorViewMode::D2
+                && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                && server_ctx.active_detail_surface.is_some());
+        !map.selected_sectors.is_empty() && profile_edit_active
     }
 
     fn load_params(&mut self, map: &Map) {

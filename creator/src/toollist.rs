@@ -4,6 +4,7 @@ pub use crate::tools::rect::RectTool;
 use rusterix::Assets;
 use rusterix::D3Camera;
 use rusterix::PixelSource;
+use rusterix::Surface;
 use rusterix::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 use scenevm::GeoId;
 
@@ -31,6 +32,22 @@ impl Default for ToolList {
 impl ToolList {
     const AUTHORING_BUTTON_NAME: &'static str = "Authoring";
     const TEXT_PLAY_BUTTON_NAME: &'static str = "Text Play";
+
+    fn get_tool_map_mut<'a>(
+        project: &'a mut Project,
+        server_ctx: &ServerContext,
+    ) -> Option<&'a mut Map> {
+        if server_ctx.get_map_context() == MapContext::Region
+            && server_ctx.editor_view_mode != EditorViewMode::D2
+            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+        {
+            project
+                .get_region_mut(&server_ctx.curr_region)
+                .map(|region| &mut region.map)
+        } else {
+            project.get_map_mut(server_ctx)
+        }
+    }
 
     fn collect_terrain_tile_overrides(map: &Map) -> FxHashMap<(i32, i32), PixelSource> {
         match map.properties.get("tiles") {
@@ -495,13 +512,25 @@ impl ToolList {
             TheEvent::KeyDown(TheValue::Char(c)) => {
                 if let Some(id) = &ctx.ui.focus {
                     if id.name == "PolyView" {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
+                        if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                             if *c == ',' {
                                 map.grid_size -= 2.0;
                                 return false;
                             } else if *c == '.' {
                                 map.grid_size += 2.0;
                                 return false;
+                            } else if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                if *c == 'g' || *c == 'G' {
+                                    server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
+                                    self.update_geometry_overlay_3d(project, server_ctx);
+                                    RUSTERIX.write().unwrap().set_dirty();
+                                    return false;
+                                } else if *c == 'd' || *c == 'D' {
+                                    server_ctx.geometry_edit_mode = GeometryEditMode::Detail;
+                                    self.update_geometry_overlay_3d(project, server_ctx);
+                                    RUSTERIX.write().unwrap().set_dirty();
+                                    return false;
+                                }
                             }
 
                             let undo_atom = self.get_current_tool().map_event(
@@ -719,31 +748,31 @@ impl ToolList {
                 if let Some(id) = &ctx.ui.focus {
                     if id.name == "PolyView" {
                         if *code == TheKeyCode::Up {
-                            if let Some(map) = project.get_map_mut(server_ctx) {
+                            if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                                 map.offset.y += 50.0;
                             }
                             return false;
                         }
                         if *code == TheKeyCode::Down {
-                            if let Some(map) = project.get_map_mut(server_ctx) {
+                            if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                                 map.offset.y -= 50.0;
                             }
                             return false;
                         }
                         if *code == TheKeyCode::Left {
-                            if let Some(map) = project.get_map_mut(server_ctx) {
+                            if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                                 map.offset.x -= 50.0;
                             }
                             return false;
                         }
                         if *code == TheKeyCode::Right {
-                            if let Some(map) = project.get_map_mut(server_ctx) {
+                            if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                                 map.offset.x += 50.0;
                             }
                             return false;
                         }
                         if *code == TheKeyCode::Escape {
-                            if let Some(map) = project.get_map_mut(server_ctx) {
+                            if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                                 if server_ctx.paste_clipboard.is_some() {
                                     server_ctx.paste_clipboard = None;
                                     return true;
@@ -765,7 +794,7 @@ impl ToolList {
                                 }
                             }
                         } else if *code == TheKeyCode::Delete {
-                            if let Some(map) = project.get_map_mut(server_ctx) {
+                            if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                                 let undo_atom = self.get_current_tool().map_event(
                                     MapEvent::MapDelete,
                                     ui,
@@ -788,7 +817,7 @@ impl ToolList {
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
                     if !server_ctx.game_mode && !server_ctx.game_input_mode {
-                        if let Some(map) = project.get_map_mut(server_ctx) {
+                        if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                             if coord.y > 20 {
                                 // Test for Paste operation
                                 if let Some(paste) = &server_ctx.paste_clipboard {
@@ -871,7 +900,7 @@ impl ToolList {
                             }
                         }
 
-                        if let Some(map) = project.get_map_mut(server_ctx) {
+                        if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                             let undo_atom = self.get_current_tool().map_event(
                                 MapEvent::MapClicked(*coord),
                                 ui,
@@ -911,7 +940,7 @@ impl ToolList {
                         // Map dragging handled by tools.
                     }
 
-                    if let Some(map) = project.get_map_mut(server_ctx) {
+                    if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                         let undo_atom = self.get_current_tool().map_event(
                             MapEvent::MapDragged(*coord),
                             ui,
@@ -936,7 +965,7 @@ impl ToolList {
             }
             TheEvent::RenderViewUp(id, coord) => {
                 if id.name == "PolyView" {
-                    if let Some(map) = project.get_map_mut(server_ctx) {
+                    if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                         let undo_atom = self.get_current_tool().map_event(
                             MapEvent::MapUp(*coord),
                             ui,
@@ -1002,7 +1031,8 @@ impl ToolList {
                 if id.name == "PolyView" {
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
                         if let Some(render_view) = ui.get_render_view("PolyView") {
-                            if let Some(rc) = self.get_geometry_hit(render_view, *coord, server_ctx)
+                            if let Some(rc) =
+                                self.get_geometry_hit(render_view, *coord, project, server_ctx)
                             {
                                 server_ctx.geo_hit = Some(rc.0);
                                 server_ctx.geo_hit_pos = rc.1;
@@ -1013,7 +1043,7 @@ impl ToolList {
                             // println!("{:?}", server_ctx.geo_hit);
                         }
                     }
-                    if let Some(map) = project.get_map_mut(server_ctx) {
+                    if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                         let undo_atom = self.get_current_tool().map_event(
                             MapEvent::MapHover(*coord),
                             ui,
@@ -1463,15 +1493,6 @@ impl ToolList {
                     .add_line_3d(id, tile_id, a, b, thickness, normal, 100);
             };
 
-            let snap_world_pos = |p: Vec3<f32>| {
-                let subdivisions = 1.0 / map.subdivisions;
-                Vec3::new(
-                    (p.x / subdivisions).round() * subdivisions,
-                    (p.y / subdivisions).round() * subdivisions,
-                    (p.z / subdivisions).round() * subdivisions,
-                )
-            };
-
             // Rect tool previews
 
             if let Some((top_left, bottom_right)) = map.curr_rectangle {
@@ -1580,7 +1601,7 @@ impl ToolList {
                     || server_ctx.curr_map_tool_type == MapToolType::Vertex
                     || server_ctx.curr_map_tool_type == MapToolType::Sector
                 {
-                    snap_world_pos(p)
+                    server_ctx.snap_world_point_for_edit(map, p)
                 } else {
                     p
                 }
@@ -1602,18 +1623,52 @@ impl ToolList {
             }
 
             if server_ctx.curr_map_tool_type == MapToolType::Vertex {
-                for v in map.vertices.iter() {
-                    let Some(world_pos) = map.get_vertex_3d(v.id) else {
-                        continue;
-                    };
-                    let mut pos = Vec3::new(world_pos.x, world_pos.y, world_pos.z);
-                    pos += view_nudge;
-                    let selected =
-                        map.selected_vertices.contains(&v.id) || server_ctx.hover.0 == Some(v.id);
+                let detail_surface = server_ctx
+                    .active_detail_surface
+                    .as_ref()
+                    .or(server_ctx.hover_surface.as_ref())
+                    .or(server_ctx.editing_surface.as_ref())
+                    .cloned();
+                let detail_vertex_mode = server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                    && detail_surface.is_some();
 
-                    push_vertex(GeoId::Vertex(v.id), pos, selected, &mut rusterix);
+                if detail_vertex_mode {
+                    if let Some(surface) = detail_surface
+                        && let Some(profile_id) = surface.profile
+                        && let Some(profile_map) = map.profiles.get(&profile_id)
+                    {
+                        for v in &profile_map.vertices {
+                            let mut pos = surface.uv_to_world(Vec2::new(v.x, -v.y)) + view_nudge;
+                            pos += Vec3::zero();
+                            let selected = profile_map.selected_vertices.contains(&v.id)
+                                || server_ctx.hover.0 == Some(v.id);
+                            push_vertex(GeoId::Vertex(v.id), pos, selected, &mut rusterix);
+                        }
+                    }
+                } else {
+                    for v in map.vertices.iter() {
+                        let Some(world_pos) = map.get_vertex_3d(v.id) else {
+                            continue;
+                        };
+                        let mut pos = Vec3::new(world_pos.x, world_pos.y, world_pos.z);
+                        pos += view_nudge;
+                        let selected = map.selected_vertices.contains(&v.id)
+                            || server_ctx.hover.0 == Some(v.id);
+
+                        push_vertex(GeoId::Vertex(v.id), pos, selected, &mut rusterix);
+                    }
                 }
             } else {
+                let detail_surface = server_ctx
+                    .active_detail_surface
+                    .as_ref()
+                    .or(server_ctx.hover_surface.as_ref())
+                    .or(server_ctx.editing_surface.as_ref())
+                    .cloned();
+                let skip_world_linedef_overlay = server_ctx.curr_map_tool_type
+                    == MapToolType::Linedef
+                    && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                    && detail_surface.is_some();
                 // Linedefs
                 if server_ctx.curr_map_tool_type == MapToolType::Linedef {
                     if let (Some(start), Some(end)) = (map.curr_grid_pos_3d, hover_point) {
@@ -1630,28 +1685,76 @@ impl ToolList {
                         }
                     }
 
-                    for linedef in &map.linedefs {
-                        if linedef.sector_ids.is_empty() {
-                            if let (Some(vs), Some(ve)) = (
-                                map.get_vertex_3d(linedef.start_vertex),
-                                map.get_vertex_3d(linedef.end_vertex),
-                            ) {
-                                let a = Vec3::new(vs.x, vs.y, vs.z) + view_nudge;
-                                let b = Vec3::new(ve.x, ve.y, ve.z) + view_nudge;
-                                let normal = cam_forward;
+                    if server_ctx.geometry_edit_mode == GeometryEditMode::Detail {
+                        if let Some(surface) = detail_surface.clone() {
+                            if let Some(profile_id) = surface.profile
+                                && let Some(profile_map) = map.profiles.get(&profile_id)
+                            {
+                                for linedef in &profile_map.linedefs {
+                                    let Some(start_vertex) = profile_map
+                                        .vertices
+                                        .iter()
+                                        .find(|vertex| vertex.id == linedef.start_vertex)
+                                    else {
+                                        continue;
+                                    };
+                                    let Some(end_vertex) = profile_map
+                                        .vertices
+                                        .iter()
+                                        .find(|vertex| vertex.id == linedef.end_vertex)
+                                    else {
+                                        continue;
+                                    };
 
-                                let is_selected = map.selected_linedefs.contains(&linedef.id);
-                                let is_hovered = server_ctx.hover.1 == Some(linedef.id);
+                                    let a = surface
+                                        .uv_to_world(Vec2::new(start_vertex.x, -start_vertex.y))
+                                        + view_nudge;
+                                    let b = surface
+                                        .uv_to_world(Vec2::new(end_vertex.x, -end_vertex.y))
+                                        + view_nudge;
 
-                                push_line(
-                                    GeoId::Linedef(linedef.id),
-                                    &mut rusterix,
-                                    a,
-                                    b,
-                                    normal,
-                                    is_selected,
-                                    is_hovered,
-                                );
+                                    let is_selected =
+                                        profile_map.selected_linedefs.contains(&linedef.id);
+                                    let is_hovered = server_ctx.hover.1 == Some(linedef.id);
+
+                                    push_line(
+                                        GeoId::Linedef(linedef.id),
+                                        &mut rusterix,
+                                        a,
+                                        b,
+                                        cam_forward,
+                                        is_selected,
+                                        is_hovered,
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    if !skip_world_linedef_overlay {
+                        for linedef in &map.linedefs {
+                            if linedef.sector_ids.is_empty() {
+                                if let (Some(vs), Some(ve)) = (
+                                    map.get_vertex_3d(linedef.start_vertex),
+                                    map.get_vertex_3d(linedef.end_vertex),
+                                ) {
+                                    let a = Vec3::new(vs.x, vs.y, vs.z) + view_nudge;
+                                    let b = Vec3::new(ve.x, ve.y, ve.z) + view_nudge;
+                                    let normal = cam_forward;
+
+                                    let is_selected = map.selected_linedefs.contains(&linedef.id);
+                                    let is_hovered = server_ctx.hover.1 == Some(linedef.id);
+
+                                    push_line(
+                                        GeoId::Linedef(linedef.id),
+                                        &mut rusterix,
+                                        a,
+                                        b,
+                                        normal,
+                                        is_selected,
+                                        is_hovered,
+                                    );
+                                }
                             }
                         }
                     }
@@ -1683,7 +1786,58 @@ impl ToolList {
                 }
                 let mut edge_accum: HashMap<EdgeKey, EdgeInfo> = HashMap::new();
 
+                if server_ctx.curr_map_tool_type == MapToolType::Sector
+                    && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                    && let Some(surface) = server_ctx
+                        .active_detail_surface
+                        .as_ref()
+                        .or(server_ctx.hover_surface.as_ref())
+                        .or(server_ctx.editing_surface.as_ref())
+                        .cloned()
+                    && let Some(profile_id) = surface.profile
+                    && let Some(profile_map) = map.profiles.get(&profile_id)
+                {
+                    for sector in &profile_map.sectors {
+                        let sector_is_selected = profile_map.selected_sectors.contains(&sector.id);
+                        let sector_is_hovered = server_ctx.hover.2 == Some(sector.id);
+                        for &ld_id in &sector.linedefs {
+                            let Some(linedef) = profile_map.find_linedef(ld_id) else {
+                                continue;
+                            };
+                            let Some(start_vertex) = profile_map.find_vertex(linedef.start_vertex)
+                            else {
+                                continue;
+                            };
+                            let Some(end_vertex) = profile_map.find_vertex(linedef.end_vertex)
+                            else {
+                                continue;
+                            };
+                            let a = surface.uv_to_world(Vec2::new(start_vertex.x, -start_vertex.y))
+                                + view_nudge;
+                            let b = surface.uv_to_world(Vec2::new(end_vertex.x, -end_vertex.y))
+                                + view_nudge;
+                            push_line(
+                                GeoId::Sector(sector.id),
+                                &mut rusterix,
+                                a,
+                                b,
+                                cam_forward,
+                                sector_is_selected,
+                                sector_is_hovered,
+                            );
+                        }
+                    }
+                }
+
+                let skip_world_sector_overlay = server_ctx.curr_map_tool_type
+                    == MapToolType::Sector
+                    && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                    && server_ctx.active_detail_surface.is_some();
+
                 for surface in map.surfaces.values() {
+                    if skip_world_sector_overlay {
+                        continue;
+                    }
                     let sector_id = surface.sector_id;
                     let Some(sector) = map.find_sector(sector_id) else {
                         continue;
@@ -1883,6 +2037,7 @@ impl ToolList {
         &self,
         render_view: &dyn TheRenderViewTrait,
         coord: Vec2<i32>,
+        project: &Project,
         server_ctx: &mut ServerContext,
     ) -> Option<(GeoId, Vec3<f32>)> {
         let dim = *render_view.dim();
@@ -1895,6 +2050,7 @@ impl ToolList {
         let mut rusterix = RUSTERIX.write().unwrap();
 
         server_ctx.hover_cursor_3d = None;
+        server_ctx.hover_surface = None;
         if let Some(raw) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
             dim.width as u32,
             dim.height as u32,
@@ -1903,7 +2059,36 @@ impl ToolList {
             false,
         ) {
             server_ctx.hover_cursor_3d = Some(raw.1);
-            if server_ctx.curr_map_tool_type == MapToolType::Sector {
+            if let GeoId::Sector(id) = raw.0
+                && let Some(map) = project.get_map(server_ctx)
+            {
+                let mut best_surface: Option<(Surface, f32)> = None;
+                for surface in map.surfaces.values() {
+                    if surface.sector_id != id {
+                        continue;
+                    }
+
+                    let n = surface.plane.normal;
+                    let n_len = n.magnitude();
+                    if n_len <= 1e-6 {
+                        continue;
+                    }
+
+                    let signed_dist = (raw.1 - surface.plane.origin).dot(n / n_len);
+                    let dist = signed_dist.abs();
+                    if best_surface
+                        .as_ref()
+                        .map(|(_, best_dist)| dist < *best_dist)
+                        .unwrap_or(true)
+                    {
+                        best_surface = Some((surface.clone(), dist));
+                    }
+                }
+                server_ctx.hover_surface = best_surface.map(|(surface, _)| surface);
+            }
+            if server_ctx.curr_map_tool_type == MapToolType::Sector
+                && server_ctx.geometry_edit_mode != GeometryEditMode::Detail
+            {
                 return Some((raw.0, raw.1));
             }
         }
