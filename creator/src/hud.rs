@@ -81,10 +81,13 @@ impl Hud {
         let stride = buffer.stride();
 
         let info_height = 20;
-        let bg_color = [50, 50, 50, 255];
-        // let dark_bg_color = [30, 30, 30, 255];
-        let text_color = [150, 150, 150, 255];
-        let sel_text_color = [220, 220, 220, 255];
+        let bg_color = [48, 48, 50, 235];
+        let panel_color = [34, 34, 36, 240];
+        let text_color = [168, 168, 172, 255];
+        let sel_text_color = [240, 240, 242, 255];
+        let accent_color = [210, 176, 92, 255];
+        let geom_accent = [98, 150, 120, 255];
+        let detail_accent = [176, 124, 92, 255];
 
         self.subdiv_rects = vec![];
 
@@ -94,9 +97,17 @@ impl Hud {
             stride,
             &bg_color,
         );
+        ctx.draw.rect(
+            buffer.pixels_mut(),
+            &(0, info_height - 1, width, 1),
+            stride,
+            &[96, 96, 100, 255],
+        );
 
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
             if let Some(v) = server_ctx.hover_cursor {
+                ctx.draw
+                    .rect(buffer.pixels_mut(), &(8, 2, 150, 16), stride, &panel_color);
                 ctx.draw.text(
                     buffer.pixels_mut(),
                     &(10, 2),
@@ -112,6 +123,8 @@ impl Hud {
             }
         } else if let Some(v) = server_ctx.hover_cursor_3d {
             let snapped = server_ctx.snap_world_point_for_edit(map, v);
+            ctx.draw
+                .rect(buffer.pixels_mut(), &(8, 2, 175, 16), stride, &panel_color);
             ctx.draw.text(
                 buffer.pixels_mut(),
                 &(10, 2),
@@ -253,10 +266,49 @@ impl Hud {
             && self.mode != HudMode::Rect
         {
             let x = 170;
-
             let size = 20;
             for i in 0..10 {
                 let rect = TheDim::rect(x + (i * size), 0, size, size);
+                let active = (i + 1) as f32 == map.subdivisions;
+                let hovered = rect.contains(self.mouse_pos);
+                let inner = if active {
+                    [68, 68, 72, 255]
+                } else if hovered {
+                    [54, 54, 58, 255]
+                } else {
+                    panel_color
+                };
+
+                ctx.draw.rect(
+                    buffer.pixels_mut(),
+                    &rect.to_buffer_utuple(),
+                    stride,
+                    &bg_color,
+                );
+                ctx.draw.rect(
+                    buffer.pixels_mut(),
+                    &(
+                        rect.x as usize + 1,
+                        rect.y as usize + 2,
+                        rect.width as usize - 2,
+                        rect.height as usize - 4,
+                    ),
+                    stride,
+                    &inner,
+                );
+                if active {
+                    ctx.draw.rect(
+                        buffer.pixels_mut(),
+                        &(
+                            rect.x as usize + 3,
+                            rect.y as usize + 16,
+                            rect.width as usize - 6,
+                            2,
+                        ),
+                        stride,
+                        &accent_color,
+                    );
+                }
 
                 let r = rect.to_buffer_utuple();
                 ctx.draw.text_rect(
@@ -265,10 +317,10 @@ impl Hud {
                     stride,
                     &(i + 1).to_string(),
                     TheFontSettings {
-                        size: 13.0,
+                        size: 12.5,
                         ..Default::default()
                     },
-                    &if (i + 1) as f32 == map.subdivisions || rect.contains(self.mouse_pos) {
+                    &if active || hovered {
                         sel_text_color
                     } else {
                         text_color
@@ -293,10 +345,11 @@ impl Hud {
                 let active = server_ctx.geometry_edit_mode == modes[i];
                 let fg = if active { sel_text_color } else { text_color };
                 let inner = if active {
-                    [65, 65, 65, 255]
+                    [60, 60, 64, 255]
                 } else {
-                    [45, 45, 45, 255]
+                    panel_color
                 };
+                let accent = if i == 0 { geom_accent } else { detail_accent };
 
                 ctx.draw.rect(
                     buffer.pixels_mut(),
@@ -308,9 +361,9 @@ impl Hud {
                     buffer.pixels_mut(),
                     &(
                         rect.x as usize + 1,
-                        rect.y as usize + 1,
+                        rect.y as usize + 2,
                         rect.width as usize - 2,
-                        rect.height as usize - 2,
+                        rect.height as usize - 4,
                     ),
                     stride,
                     &inner,
@@ -335,6 +388,17 @@ impl Hud {
                         &rect.to_buffer_utuple(),
                         stride,
                         &sel_text_color,
+                    );
+                    ctx.draw.rect(
+                        buffer.pixels_mut(),
+                        &(
+                            rect.x as usize + 4,
+                            rect.y as usize + 16,
+                            rect.width as usize - 8,
+                            2,
+                        ),
+                        stride,
+                        &accent,
                     );
                 }
                 self.edit_mode_rects.push(rect);
@@ -457,6 +521,7 @@ impl Hud {
 
         let widget_size = 80;
         let widget_margin = 20;
+        let shadow_color = [0, 0, 0, 110];
 
         // Position in lower-right corner
         let x = width as i32 - widget_size - widget_margin;
@@ -464,7 +529,7 @@ impl Hud {
 
         // Draw isometric cube with three visible planes
         let cx = x + widget_size / 2;
-        let cy = y + widget_size / 2 + 25; // Offset down to fit in widget
+        let cy = y + widget_size / 2 + 18;
         let size = 15;
 
         // Define the 8 corners of the isometric cube
@@ -486,21 +551,21 @@ impl Hud {
 
         // Define colors for each plane
         let xz_color = if server_ctx.gizmo_mode == GizmoMode::XZ {
-            [120, 200, 120, 200]
+            [132, 212, 148, 248]
         } else {
-            [80, 140, 80, 150]
+            [102, 112, 108, 96]
         };
 
         let xy_color = if server_ctx.gizmo_mode == GizmoMode::XY {
-            [120, 120, 200, 200]
+            [126, 144, 220, 248]
         } else {
-            [80, 80, 140, 150]
+            [104, 108, 122, 96]
         };
 
         let yz_color = if server_ctx.gizmo_mode == GizmoMode::YZ {
-            [200, 120, 120, 200]
+            [224, 146, 122, 248]
         } else {
-            [140, 80, 80, 150]
+            [122, 108, 102, 96]
         };
 
         // Helper to fill a quad
@@ -560,6 +625,32 @@ impl Hud {
             }
         };
 
+        // Draw a soft shadow first so the gizmo reads over any scene background.
+        fill_quad(
+            buffer.pixels_mut(),
+            (p[4].0 + 3, p[4].1 + 3),
+            (p[5].0 + 3, p[5].1 + 3),
+            (p[6].0 + 3, p[6].1 + 3),
+            (p[7].0 + 3, p[7].1 + 3),
+            shadow_color,
+        );
+        fill_quad(
+            buffer.pixels_mut(),
+            (p[3].0 + 3, p[3].1 + 3),
+            (p[7].0 + 3, p[7].1 + 3),
+            (p[6].0 + 3, p[6].1 + 3),
+            (p[2].0 + 3, p[2].1 + 3),
+            shadow_color,
+        );
+        fill_quad(
+            buffer.pixels_mut(),
+            (p[1].0 + 3, p[1].1 + 3),
+            (p[5].0 + 3, p[5].1 + 3),
+            (p[6].0 + 3, p[6].1 + 3),
+            (p[2].0 + 3, p[2].1 + 3),
+            shadow_color,
+        );
+
         // Draw the three visible front faces (XZ top, YZ front-left, XY front-right)
         // XZ plane (top/horizontal) - points 4,5,6,7
         fill_quad(buffer.pixels_mut(), p[4], p[5], p[6], p[7], xz_color);
@@ -571,7 +662,7 @@ impl Hud {
         fill_quad(buffer.pixels_mut(), p[1], p[5], p[6], p[2], xy_color);
 
         // Draw edges for clarity
-        let edge_color = [200, 200, 200, 255];
+        let edge_color = [196, 196, 200, 220];
         let draw_edge = |buf: &mut [u8], p0: (i32, i32), p1: (i32, i32)| {
             // Bresenham line
             let mut x0 = p0.0;
@@ -628,6 +719,71 @@ impl Hud {
         draw_edge(buf, p[3], p[7]);
         draw_edge(buf, p[1], p[2]);
         draw_edge(buf, p[2], p[3]);
+
+        let active_edge = match server_ctx.gizmo_mode {
+            GizmoMode::XZ => [248, 255, 250, 255],
+            GizmoMode::YZ => [255, 244, 236, 255],
+            GizmoMode::XY => [238, 244, 255, 255],
+        };
+        let active_face = match server_ctx.gizmo_mode {
+            GizmoMode::XZ => [p[4], p[5], p[6], p[7]],
+            GizmoMode::YZ => [p[3], p[7], p[6], p[2]],
+            GizmoMode::XY => [p[1], p[5], p[6], p[2]],
+        };
+        draw_edge(buf, active_face[0], active_face[1]);
+        draw_edge(buf, active_face[1], active_face[2]);
+        draw_edge(buf, active_face[2], active_face[3]);
+        draw_edge(buf, active_face[3], active_face[0]);
+        draw_edge(buf, active_face[0], active_face[1]);
+        draw_edge(buf, active_face[1], active_face[2]);
+        draw_edge(buf, active_face[2], active_face[3]);
+        draw_edge(buf, active_face[3], active_face[0]);
+        let draw_highlight_edge = |buf: &mut [u8], p0: (i32, i32), p1: (i32, i32)| {
+            let mut x0 = p0.0;
+            let mut y0 = p0.1;
+            let x1 = p1.0;
+            let y1 = p1.1;
+            let dx = (x1 - x0).abs();
+            let dy = (y1 - y0).abs();
+            let sx = if x0 < x1 { 1 } else { -1 };
+            let sy = if y0 < y1 { 1 } else { -1 };
+            let mut err = dx - dy;
+            loop {
+                if x0 >= widget_bounds.0
+                    && x0 < widget_bounds.2
+                    && y0 >= widget_bounds.1
+                    && y0 < widget_bounds.3
+                    && x0 >= 0
+                    && y0 >= 0
+                    && (x0 as usize) < width
+                    && (y0 as usize) < height
+                {
+                    let offset = y0 as usize * stride * 4 + x0 as usize * 4;
+                    if offset + 3 < buf.len() {
+                        buf[offset] = active_edge[0];
+                        buf[offset + 1] = active_edge[1];
+                        buf[offset + 2] = active_edge[2];
+                        buf[offset + 3] = active_edge[3];
+                    }
+                }
+                if x0 == x1 && y0 == y1 {
+                    break;
+                }
+                let e2 = 2 * err;
+                if e2 > -dy {
+                    err -= dy;
+                    x0 += sx;
+                }
+                if e2 < dx {
+                    err += dx;
+                    y0 += sy;
+                }
+            }
+        };
+        draw_highlight_edge(buf, active_face[0], active_face[1]);
+        draw_highlight_edge(buf, active_face[1], active_face[2]);
+        draw_highlight_edge(buf, active_face[2], active_face[3]);
+        draw_highlight_edge(buf, active_face[3], active_face[0]);
 
         // Store clickable regions for each plane
         // XZ plane (top)
