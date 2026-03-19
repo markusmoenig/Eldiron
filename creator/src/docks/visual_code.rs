@@ -51,44 +51,25 @@ impl Dock for VisualCodeDock {
             if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
                 if let Some(region) = project.get_region(&id) {
                     if let Some(character_instance) = region.characters.get(&instance_id) {
-                        let mut entity_key = EntityKey::CharacterInstance(id, instance_id);
                         self.module = character_instance.module.clone();
-                        self.module.module_type = codegridfx::ModuleType::CharacterInstance;
-
-                        if self.module.routines.is_empty() {
-                            if let Some(character) =
-                                project.characters.get(&character_instance.character_id)
-                            {
-                                self.module = character.module.clone();
-                                self.module.module_type = codegridfx::ModuleType::CharacterTemplate;
-                                entity_key =
-                                    EntityKey::CharacterTemplate(character_instance.character_id);
-                            }
-                        }
+                        self.module
+                            .set_module_type(codegridfx::ModuleType::CharacterInstance);
 
                         self.module.view_name = "DockVisualScripting".into();
                         self.module.redraw(ui, ctx);
-                        self.switch_to_entity(entity_key, ctx);
+                        self.switch_to_entity(EntityKey::CharacterInstance(id, instance_id), ctx);
                     }
                 }
             } else if let Some(instance_id) = server_ctx.pc.get_region_item_instance_id() {
                 if let Some(region) = project.get_region(&id) {
                     if let Some(item_instance) = region.items.get(&instance_id) {
-                        let mut entity_key = EntityKey::ItemInstance(id, instance_id);
                         self.module = item_instance.module.clone();
-                        self.module.module_type = codegridfx::ModuleType::ItemInstance;
-
-                        if self.module.routines.is_empty() {
-                            if let Some(item) = project.items.get(&item_instance.item_id) {
-                                self.module = item.module.clone();
-                                self.module.module_type = codegridfx::ModuleType::ItemTemplate;
-                                entity_key = EntityKey::ItemTemplate(item_instance.item_id);
-                            }
-                        }
+                        self.module
+                            .set_module_type(codegridfx::ModuleType::ItemInstance);
 
                         self.module.view_name = "DockVisualScripting".into();
                         self.module.redraw(ui, ctx);
-                        self.switch_to_entity(entity_key, ctx);
+                        self.switch_to_entity(EntityKey::ItemInstance(id, instance_id), ctx);
                     }
                 }
             } else if server_ctx.pc.is_character() {

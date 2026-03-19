@@ -204,7 +204,16 @@ impl RegionCtx {
             .collect()
     }
 
-    fn send_system_message_to_players(&self, player_ids: &[u32], message: String) {
+    fn send_text_only_message_to_players(&self, player_ids: &[u32], message: String) {
+        self.send_categorized_message_to_players(player_ids, message, "text_only");
+    }
+
+    fn send_categorized_message_to_players(
+        &self,
+        player_ids: &[u32],
+        message: String,
+        category: &str,
+    ) {
         for player_id in player_ids {
             let msg = RegionMessage::Message(
                 self.region_id,
@@ -212,7 +221,7 @@ impl RegionCtx {
                 None,
                 *player_id,
                 message.clone(),
-                "system".to_string(),
+                category.to_string(),
             );
             self.from_sender.get().unwrap().send(msg).unwrap();
         }
@@ -241,7 +250,7 @@ impl RegionCtx {
         } else {
             "Several things fall to the floor.".to_string()
         };
-        self.send_system_message_to_players(&players, message);
+        self.send_text_only_message_to_players(&players, message);
     }
 
     fn send_npc_sector_change_messages(
@@ -259,14 +268,14 @@ impl RegionCtx {
         if let Some(old_sector_id) = old_sector_id {
             let players = self.player_ids_in_sector_id(old_sector_id);
             if !players.is_empty() {
-                self.send_system_message_to_players(&players, format!("{} leaves.", name));
+                self.send_text_only_message_to_players(&players, format!("{} leaves.", name));
             }
         }
 
         if let Some(new_sector_id) = new_sector_id {
             let players = self.player_ids_in_sector_id(new_sector_id);
             if !players.is_empty() {
-                self.send_system_message_to_players(&players, format!("{} enters.", name));
+                self.send_text_only_message_to_players(&players, format!("{} enters.", name));
             }
         }
     }

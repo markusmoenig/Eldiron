@@ -12,8 +12,10 @@ use toml::Table;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EntityKey {
     RegionSettings(Uuid),
+    CharacterInstance(Uuid, Uuid),
     Character(Uuid),
     CharacterPreviewRigging(Uuid),
+    ItemInstance(Uuid, Uuid),
     Item(Uuid),
     ProjectSettings,
     GameRules,
@@ -119,7 +121,25 @@ impl Dock for DataDock {
         server_ctx: &mut ServerContext,
     ) {
         if let Some(id) = server_ctx.pc.id() {
-            if server_ctx.pc.is_region() {
+            if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
+                if let Some(region) = project.get_region(&id)
+                    && let Some(character) = region.characters.get(&instance_id)
+                {
+                    ui.set_widget_value(
+                        "DockDataEditor",
+                        ctx,
+                        TheValue::Text(character.data.clone()),
+                    );
+                    self.switch_to_entity(EntityKey::CharacterInstance(id, instance_id), ctx);
+                }
+            } else if let Some(instance_id) = server_ctx.pc.get_region_item_instance_id() {
+                if let Some(region) = project.get_region(&id)
+                    && let Some(item) = region.items.get(&instance_id)
+                {
+                    ui.set_widget_value("DockDataEditor", ctx, TheValue::Text(item.data.clone()));
+                    self.switch_to_entity(EntityKey::ItemInstance(id, instance_id), ctx);
+                }
+            } else if server_ctx.pc.is_region() {
                 if let Some(region) = project.get_region(&id) {
                     ui.set_widget_value(
                         "DockDataEditor",
@@ -239,7 +259,26 @@ impl Dock for DataDock {
                     }
 
                     if let Some(id) = server_ctx.pc.id() {
-                        if server_ctx.pc.is_region() {
+                        if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id()
+                        {
+                            if let Some(code) = value.to_string()
+                                && let Some(region) = project.get_region_mut(&id)
+                                && let Some(character) = region.characters.get_mut(&instance_id)
+                            {
+                                character.data = code;
+                                redraw = true;
+                            }
+                        } else if let Some(instance_id) =
+                            server_ctx.pc.get_region_item_instance_id()
+                        {
+                            if let Some(code) = value.to_string()
+                                && let Some(region) = project.get_region_mut(&id)
+                                && let Some(item) = region.items.get_mut(&instance_id)
+                            {
+                                item.data = code;
+                                redraw = true;
+                            }
+                        } else if server_ctx.pc.is_region() {
                             if let Some(code) = value.to_string() {
                                 if let Some(region) = project.get_region_mut(&id) {
                                     region.config = code;

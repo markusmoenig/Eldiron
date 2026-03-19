@@ -1606,6 +1606,7 @@ impl Module {
             for r in self.routines.values() {
                 r.build_source(&mut out, 4, debug);
             }
+            out += "}\n\n";
         }
         out
     }

@@ -6,7 +6,9 @@ use theframework::theui::thewidget::thetextedit::TheTextEditState;
 /// Unique identifier for entities being edited
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EntityKey {
+    CharacterInstance(Uuid, Uuid),
     Character(Uuid),
+    ItemInstance(Uuid, Uuid),
     Item(Uuid),
 }
 
@@ -69,8 +71,34 @@ impl Dock for CodeDock {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
-        if let Some(id) = server_ctx.pc.id() {
-            if server_ctx.pc.is_character() {
+        if let Some(region_id) = server_ctx.pc.id() {
+            if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
+                if let Some(region) = project.get_region(&region_id)
+                    && let Some(character_instance) = region.characters.get(&instance_id)
+                {
+                    ui.set_widget_value(
+                        "DockCodeEditor",
+                        ctx,
+                        TheValue::Text(character_instance.source.clone()),
+                    );
+                    self.switch_to_entity(
+                        EntityKey::CharacterInstance(region_id, instance_id),
+                        ctx,
+                    );
+                }
+            } else if let Some(instance_id) = server_ctx.pc.get_region_item_instance_id() {
+                if let Some(region) = project.get_region(&region_id)
+                    && let Some(item_instance) = region.items.get(&instance_id)
+                {
+                    ui.set_widget_value(
+                        "DockCodeEditor",
+                        ctx,
+                        TheValue::Text(item_instance.source.clone()),
+                    );
+                    self.switch_to_entity(EntityKey::ItemInstance(region_id, instance_id), ctx);
+                }
+            } else if server_ctx.pc.is_character() {
+                let id = region_id;
                 if let Some(character) = project.characters.get(&id) {
                     ui.set_widget_value(
                         "DockCodeEditor",
@@ -81,6 +109,7 @@ impl Dock for CodeDock {
                     self.switch_to_entity(EntityKey::Character(id), ctx);
                 }
             } else if server_ctx.pc.is_item() {
+                let id = region_id;
                 if let Some(item) = project.items.get(&id) {
                     ui.set_widget_value("DockCodeEditor", ctx, TheValue::Text(item.source.clone()));
                     // Switch to this entity's undo stack
@@ -119,7 +148,28 @@ impl Dock for CodeDock {
                     }
 
                     if let Some(id) = server_ctx.pc.id() {
-                        if server_ctx.pc.is_character() {
+                        if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id()
+                        {
+                            if let Some(code) = value.to_string()
+                                && let Some(region) = project.get_region_mut(&id)
+                                && let Some(character) = region.characters.get_mut(&instance_id)
+                            {
+                                character.source = code.clone();
+                                character.source_debug = code;
+                                redraw = true;
+                            }
+                        } else if let Some(instance_id) =
+                            server_ctx.pc.get_region_item_instance_id()
+                        {
+                            if let Some(code) = value.to_string()
+                                && let Some(region) = project.get_region_mut(&id)
+                                && let Some(item) = region.items.get_mut(&instance_id)
+                            {
+                                item.source = code.clone();
+                                item.source_debug = code;
+                                redraw = true;
+                            }
+                        } else if server_ctx.pc.is_character() {
                             if let Some(code) = value.to_string() {
                                 if let Some(character) = project.characters.get_mut(&id) {
                                     character.source = code.clone();
@@ -257,7 +307,21 @@ impl CodeDock {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
 
-                if server_ctx.pc.is_character() {
+                if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
+                    if let Some(region) = project.get_region_mut(&id)
+                        && let Some(character) = region.characters.get_mut(&instance_id)
+                    {
+                        character.source = text.clone();
+                        character.source_debug = text;
+                    }
+                } else if let Some(instance_id) = server_ctx.pc.get_region_item_instance_id() {
+                    if let Some(region) = project.get_region_mut(&id)
+                        && let Some(item) = region.items.get_mut(&instance_id)
+                    {
+                        item.source = text.clone();
+                        item.source_debug = text;
+                    }
+                } else if server_ctx.pc.is_character() {
                     if let Some(character) = project.characters.get_mut(&id) {
                         character.source = text.clone();
                         character.source_debug = text;

@@ -1,5 +1,5 @@
 use crate::server::py_fn::*;
-use crate::server::region_host::{run_client_fn, run_server_fn};
+use crate::server::region_host::{run_client_fn, run_server_fn, run_server_named_fn};
 use crate::vm::*;
 use crate::{
     Assets, Choice, Currency, Entity, EntityAction, Item, Map, PixelSource, PlayerCamera,
@@ -220,6 +220,90 @@ pub struct RegionInstance {
 }
 
 impl RegionInstance {
+    fn run_instance_setup_program(
+        &mut self,
+        source: &str,
+        current_entity_id: Option<u32>,
+        current_item_id: Option<u32>,
+    ) -> Result<bool, String> {
+        let program = self.vm.prepare_str(source).map_err(|err| err.to_string())?;
+
+        Ok(with_regionctx(self.id, |ctx| {
+            let prev_entity_id = ctx.curr_entity_id;
+            let prev_item_id = ctx.curr_item_id;
+
+            if let Some(entity_id) = current_entity_id {
+                ctx.curr_entity_id = entity_id;
+            }
+            if current_item_id.is_some() || current_entity_id.is_none() {
+                ctx.curr_item_id = current_item_id;
+            }
+
+            let ran = run_server_named_fn(&mut self.exec, "setup", &[], &program, ctx);
+
+            ctx.curr_entity_id = prev_entity_id;
+            ctx.curr_item_id = prev_item_id;
+
+            ran
+        })
+        .unwrap_or(false))
+    }
+
+    fn run_entity_instance_setup(&mut self, entity: &Entity, region_name: &str, context: &str) {
+        if let Some(setup) = entity.get_attr_string("setup")
+            && !setup.trim().is_empty()
+        {
+            match self.run_instance_setup_program(&setup, Some(entity.id), None) {
+                Ok(_) => {}
+                Err(err) => {
+                    send_log_message(
+                        self.id,
+                        format!(
+                            "{}: Setup '{}/{}' {}: {}",
+                            region_name,
+                            entity.get_attr_string("name").unwrap_or("Unknown".into()),
+                            entity
+                                .get_attr_string("class_name")
+                                .unwrap_or("Unknown".into()),
+                            context,
+                            err,
+                        ),
+                    );
+                    with_regionctx(self.id, |ctx| {
+                        ctx.error_count += 1;
+                    });
+                }
+            }
+        }
+    }
+
+    fn run_item_instance_setup(&mut self, item: &Item, region_name: &str, context: &str) {
+        if let Some(setup) = item.get_attr_string("setup")
+            && !setup.trim().is_empty()
+        {
+            match self.run_instance_setup_program(&setup, None, Some(item.id)) {
+                Ok(_) => {}
+                Err(err) => {
+                    send_log_message(
+                        self.id,
+                        format!(
+                            "{}: Item Setup '{}/{}' {}: {}",
+                            region_name,
+                            item.get_attr_string("name").unwrap_or("Unknown".into()),
+                            item.get_attr_string("class_name")
+                                .unwrap_or("Unknown".into()),
+                            context,
+                            err,
+                        ),
+                    );
+                    with_regionctx(self.id, |ctx| {
+                        ctx.error_count += 1;
+                    });
+                }
+            }
+        }
+    }
+
     pub fn new(region_id: u32) -> Self {
         /*
         let interp = rustpython::InterpreterConfig::new()
@@ -959,67 +1043,10 @@ impl RegionInstance {
             ctx.curr_item_id = None;
         });*/
 
-        /*
         // Running the character setup scripts for the class instances
         for entity in entities.iter() {
-            if let Some(_setup) = entity.get_attr_string("setup") {
-                // if let Err(err) = self.execute(&setup) {
-                //     send_log_message(
-                //         self.id,
-                //         format!(
-                //             "{}: Setup '{}/{}': {}",
-                //             name,
-                //             entity.get_attr_string("name").unwrap_or("Unknown".into()),
-                //             entity
-                //                 .get_attr_string("class_name")
-                //                 .unwrap_or("Unknown".into()),
-                //             err,
-                //         ),
-                //     );
-                //     with_regionctx(self.id, |ctx| {
-                //         ctx.error_count += 1;
-                //     });
-                // }
-
-                with_regionctx(self.id, |ctx| {
-                    ctx.curr_entity_id = entity.id;
-                });
-                // if let Err(err) = self.execute("setup()") {
-                //     send_log_message(
-                //         self.id,
-                //         format!(
-                //             "{}: Setup '{}/{}': {}",
-                //             name,
-                //             entity.get_attr_string("name").unwrap_or("Unknown".into()),
-                //             entity
-                //                 .get_attr_string("class_name")
-                //                 .unwrap_or("Unknown".into()),
-                //             err,
-                //         ),
-                //     );
-                //     with_regionctx(self.id, |ctx| {
-                //         ctx.error_count += 1;
-                //     });
-                // }
-
-                /*
-                // Setting the data for the entity.
-                if let Some(class_name) = entity.get_attr_string("class_name") {
-                    if let Some(data) = ENTITY_CLASS_DATA.borrow().get(&class_name) {
-                        let mut map = MAP.borrow_mut();
-                        for e in map.entities.iter_mut() {
-                            if e.id == entity.id {
-                                apply_entity_data(e, data);
-
-                                if let Some(inv_slots) = e.attributes.get("inventory_slots") {
-                                    println!("{} {}", class_name, inv_slots);
-                                }
-                            }
-                        }
-                    }
-                }*/
-            }
-        }*/
+            self.run_entity_instance_setup(entity, &name, "for instance");
+        }
 
         // Running the item setup scripts for the class instances
         let mut items = vec![];
@@ -1027,44 +1054,7 @@ impl RegionInstance {
             items = ctx.map.items.clone();
         });
         for item in items.iter_mut() {
-            if let Some(_setup) = item.get_attr_string("setup") {
-                // if let Err(err) = self.execute(&setup) {
-                //     send_log_message(
-                //         self.id,
-                //         format!(
-                //             "{}: Item Setup '{}/{}': {}",
-                //             name,
-                //             item.get_attr_string("name").unwrap_or("Unknown".into()),
-                //             item.get_attr_string("class_name")
-                //                 .unwrap_or("Unknown".into()),
-                //             err,
-                //         ),
-                //     );
-                //     with_regionctx(self.id, |ctx| {
-                //         ctx.error_count += 1;
-                //     });
-                // }
-
-                with_regionctx(self.id, |ctx| {
-                    ctx.curr_item_id = Some(item.id);
-                });
-                // if let Err(err) = self.execute("setup()") {
-                //     send_log_message(
-                //         self.id,
-                //         format!(
-                //             "{}: Item Setup '{}/{}': {}",
-                //             name,
-                //             item.get_attr_string("name").unwrap_or("Unknown".into()),
-                //             item.get_attr_string("class_name")
-                //                 .unwrap_or("Unknown".into()),
-                //             err,
-                //         ),
-                //     );
-                //     with_regionctx(self.id, |ctx| {
-                //         ctx.error_count += 1;
-                //     });
-                // }
-            }
+            self.run_item_instance_setup(item, &name, "for instance");
 
             // Setting the data for the item.
             if let Some(class_name) = item.get_attr_string("class_name") {
@@ -3584,50 +3574,8 @@ impl RegionInstance {
             // }
         }
 
-        // Running the character setup script
-        if let Some(_setup) = entity.get_attr_string("setup") {
-            // TODO
-            // if let Err(err) = self.execute(&setup) {
-            //     send_log_message(
-            //         self.id,
-            //         format!(
-            //             "{}: Setup '{}/{}': {}",
-            //             self.name,
-            //             entity.get_attr_string("name").unwrap_or("Unknown".into()),
-            //             entity
-            //                 .get_attr_string("class_name")
-            //                 .unwrap_or("Unknown".into()),
-            //             err,
-            //         ),
-            //     );
-            //     with_regionctx(self.id, |ctx: &mut RegionCtx| {
-            //         ctx.error_count += 1;
-            //     });
-            // }
-
-            with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                ctx.curr_entity_id = entity.id;
-            });
-
-            // TODO
-            // if let Err(err) = self.execute("setup()") {
-            //     send_log_message(
-            //         self.id,
-            //         format!(
-            //             "{}: Setup '{}/{}': {}",
-            //             self.name,
-            //             entity.get_attr_string("name").unwrap_or("Unknown".into()),
-            //             entity
-            //                 .get_attr_string("class_name")
-            //                 .unwrap_or("Unknown".into()),
-            //             err,
-            //         ),
-            //     );
-            //     with_regionctx(self.id, |ctx: &mut RegionCtx| {
-            //         ctx.error_count += 1;
-            //     });
-            // }
-        }
+        let region_name = self.name.clone();
+        self.run_entity_instance_setup(&entity, &region_name, "for spawned instance");
 
         send_log_message(
             self.id,

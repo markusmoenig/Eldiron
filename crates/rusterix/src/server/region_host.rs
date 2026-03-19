@@ -2041,6 +2041,23 @@ impl<'a> HostHandler for RegionHost<'a> {
     }
 }
 
+pub fn run_server_named_fn(
+    exec: &mut Execution,
+    name: &str,
+    args: &[VMValue],
+    program: &crate::vm::Program,
+    region_ctx: &mut RegionCtx,
+) -> bool {
+    if let Some(index) = program.user_functions_name_map.get(name).copied() {
+        exec.reset(program.globals);
+        let mut host = RegionHost { ctx: region_ctx };
+        let _ret = exec.execute_function_host(args, index, program, &mut host);
+        true
+    } else {
+        false
+    }
+}
+
 // Run an event
 pub fn run_server_fn(
     exec: &mut Execution,
@@ -2048,11 +2065,7 @@ pub fn run_server_fn(
     program: &crate::vm::Program,
     region_ctx: &mut RegionCtx,
 ) {
-    if let Some(index) = program.user_functions_name_map.get("event").copied() {
-        exec.reset(program.globals);
-        let mut host = RegionHost { ctx: region_ctx };
-        let _ret = exec.execute_function_host(args, index, program, &mut host);
-    }
+    let _ = run_server_named_fn(exec, "event", args, program, region_ctx);
 }
 
 // Run a user_event

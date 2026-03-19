@@ -125,6 +125,9 @@ impl MessagesWidget {
     ) -> Option<FxHashMap<char, Choice>> {
         // Append new messages
         for (sender_entity, sender_item, receiver_id, msg, category) in &messages {
+            if category.trim().eq_ignore_ascii_case("text_only") {
+                continue;
+            }
             let mut color = self.default_color;
             if let Some(ui) = self.table.get("ui").and_then(toml::Value::as_table) {
                 if let Some(value) = ui.get(category) {
