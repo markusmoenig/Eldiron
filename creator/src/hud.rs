@@ -520,7 +520,7 @@ impl Hud {
         self.plane_picker_rects.clear();
 
         let widget_size = 80;
-        let widget_margin = 20;
+        let widget_margin = 8;
         let shadow_color = [0, 0, 0, 110];
 
         // Position in lower-right corner
