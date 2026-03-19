@@ -94,6 +94,7 @@ impl TerminalApp {
         self.assets.entities.clear();
         self.assets.character_maps.clear();
         self.assets.entity_tiles.clear();
+        self.assets.entity_authoring.clear();
         for character in self.project.characters.values_mut() {
             if !character.module.routines.is_empty() {
                 if character.source.is_empty() {
@@ -119,11 +120,15 @@ impl TerminalApp {
                     .character_maps
                     .insert(character.name.clone(), character.map.clone());
             }
+            self.assets
+                .entity_authoring
+                .insert(character.name.clone(), character.authoring.clone());
         }
 
         self.assets.items.clear();
         self.assets.item_maps.clear();
         self.assets.item_tiles.clear();
+        self.assets.item_authoring.clear();
         for item in self.project.items.values_mut() {
             if !item.module.routines.is_empty() {
                 if item.source.is_empty() {
@@ -148,6 +153,9 @@ impl TerminalApp {
                     .item_maps
                     .insert(item.name.clone(), item.map.clone());
             }
+            self.assets
+                .item_authoring
+                .insert(item.name.clone(), item.authoring.clone());
         }
 
         self.assets.avatars.clear();
@@ -681,33 +689,8 @@ fn resolve_intent_alias(src: &str, verb: &str) -> String {
     normalized
 }
 
-fn with_indefinite_article(text: &str) -> String {
-    let lower = text.trim_start().to_ascii_lowercase();
-    if lower.starts_with("your ")
-        || lower.starts_with("my ")
-        || lower.starts_with("a ")
-        || lower.starts_with("an ")
-        || lower.starts_with("the ")
-        || lower.starts_with("this ")
-        || lower.starts_with("that ")
-    {
-        return text.to_string();
-    }
-
-    let first = text
-        .trim_start()
-        .chars()
-        .next()
-        .map(|c| c.to_ascii_lowercase());
-    let article = match first {
-        Some('a' | 'e' | 'i' | 'o' | 'u') => "an",
-        _ => "a",
-    };
-    format!("{} {}", article, text)
-}
-
 fn colorized_presence_phrase(name: &str, color: Option<&str>) -> String {
-    colorize_terminal_text(&with_indefinite_article(name), color)
+    colorize_terminal_text(name, color)
 }
 
 fn colorize_terminal_text(text: &str, color: Option<&str>) -> String {
@@ -985,21 +968,34 @@ fn trigger_text_intent(app: &mut TerminalApp, intent: &str, query: &str) -> Vec<
         sg::TextTarget::Entity { id, distance } => {
             app.server.local_player_action(EntityAction::EntityClicked(
                 id,
-                distance,
+                if intent.trim().eq_ignore_ascii_case("look") {
+                    0.0
+                } else {
+                    distance
+                },
                 Some(intent.trim().to_string()),
             ));
         }
         sg::TextTarget::Item { id, distance } => {
             app.server.local_player_action(EntityAction::ItemClicked(
                 id,
-                distance,
+                if intent.trim().eq_ignore_ascii_case("look") {
+                    0.0
+                } else {
+                    distance
+                },
                 Some(intent.trim().to_string()),
             ));
         }
     }
 
     app.tick();
-    collect_region_output(app, false)
+    let mut output = collect_region_output(app, false);
+    if output.is_empty() && !intent.trim().eq_ignore_ascii_case("look") {
+        app.tick();
+        output = collect_region_output(app, false);
+    }
+    output
 }
 
 fn current_player_supported_intents(app: &TerminalApp) -> BTreeSet<String> {
@@ -1068,6 +1064,7 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
                         }
                     }
                 }
+                output.extend(collect_region_output(app, false));
             } else {
                 output.push("You cannot go that way.".into());
             }
@@ -1178,6 +1175,7 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
                             }
                         }
                     }
+                    output.extend(collect_region_output(app, false));
                 } else {
                     output.push("No matching exit.".into());
                 }

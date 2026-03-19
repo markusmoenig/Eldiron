@@ -313,11 +313,13 @@ A simple wall torch.
 description = """
 An unlit torch is fixed to the wall.
 """
+on_use = "You light the torch."
 
 [state.on]
 description = """
 A lit torch flickers warmly against the stone wall.
 """
+on_use = "You extinguish the torch."
 ```
 
 Items may define optional `state.*` overrides. These are used by `look` based on the current runtime state, for example:
@@ -326,6 +328,13 @@ Items may define optional `state.*` overrides. These are used by `look` based on
 - `state.on`
 
 If the current `state.*` entry is missing, `look` falls back to the top-level `description`.
+
+State entries may also define optional `on_use` text:
+
+- `state.off.on_use`
+- `state.on.on_use`
+
+If present, this message is shown when the item is used and no explicit item `on_use` attribute overrides it.
 
 ### `title`
 
@@ -347,6 +356,14 @@ This template authoring metadata is currently used by `look` in:
 - text gameplay
 
 It is used when no explicit `on_look` message is defined for the target.
+
+For item templates, authored `state.*.on_use` messages are also used by `use` in:
+
+- text play
+- 2D gameplay
+- 3D gameplay
+
+This is a simple authored fallback. If the item already defines an explicit `on_use` attribute/message in gameplay data or script behavior, that explicit behavior takes precedence.
 
 ---
 

@@ -591,6 +591,122 @@ pub fn resolve_text_target(map: &Map, sector: &Sector, query: &str) -> Result<Te
     Ok(matches.remove(0).1)
 }
 
+fn authored_description_from_entry(value: &toml::Value) -> Option<String> {
+    if let Some(text) = value.as_str() {
+        let text = text.trim();
+        if !text.is_empty() {
+            return Some(text.to_string());
+        }
+    }
+
+    if let Some(table) = value.as_table()
+        && let Some(text) = table.get("description").and_then(toml::Value::as_str)
+    {
+        let text = text.trim();
+        if !text.is_empty() {
+            return Some(text.to_string());
+        }
+    }
+
+    None
+}
+
+fn authored_description_from_data(
+    data: &str,
+    mode: Option<&str>,
+    state: Option<&str>,
+) -> Option<String> {
+    let table = data.parse::<toml::Table>().ok()?;
+
+    if let Some(mode) = mode
+        && let Some(entries) = table.get("mode").and_then(toml::Value::as_table)
+        && let Some(value) = entries.get(mode)
+        && let Some(description) = authored_description_from_entry(value)
+    {
+        return Some(description);
+    }
+
+    if let Some(state) = state
+        && let Some(entries) = table.get("state").and_then(toml::Value::as_table)
+        && let Some(value) = entries.get(state)
+        && let Some(description) = authored_description_from_entry(value)
+    {
+        return Some(description);
+    }
+
+    table
+        .get("description")
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(ToString::to_string)
+}
+
+pub fn text_target_look_description(
+    project: &Project,
+    map: &Map,
+    sector: &Sector,
+    query: &str,
+) -> Result<String, String> {
+    let target = resolve_text_target(map, sector, query)?;
+
+    match target {
+        TextTarget::Entity { id, .. } => {
+            let Some(entity) = map.entities.iter().find(|entity| entity.id == id) else {
+                return Err(format!("You do not see '{}' here.", query.trim()));
+            };
+
+            if let Some(msg) = entity.attributes.get_str("on_look") {
+                let msg = msg.trim();
+                if !msg.is_empty() {
+                    return Ok(msg.to_string());
+                }
+            }
+
+            let Some(class_name) = entity.get_attr_string("class_name") else {
+                return Err(format!("You see nothing special about {}.", query.trim()));
+            };
+            let Some(character) = project.characters.values().find(|c| c.name == class_name) else {
+                return Err(format!("You see nothing special about {}.", query.trim()));
+            };
+            let mode = entity.get_attr_string("mode");
+            authored_description_from_data(&character.authoring, mode.as_deref(), None)
+                .ok_or_else(|| format!("You see nothing special about {}.", query.trim()))
+        }
+        TextTarget::Item { id, .. } => {
+            let Some(item) = map.items.iter().find(|item| item.id == id) else {
+                return Err(format!("You do not see '{}' here.", query.trim()));
+            };
+
+            if let Some(msg) = item.attributes.get_str("on_look") {
+                let msg = msg.trim();
+                if !msg.is_empty() {
+                    return Ok(msg.to_string());
+                }
+            }
+
+            let Some(class_name) = item.get_attr_string("class_name") else {
+                return Err(format!("You see nothing special about {}.", query.trim()));
+            };
+            let Some(item_template) = project.items.values().find(|i| i.name == class_name) else {
+                return Err(format!("You see nothing special about {}.", query.trim()));
+            };
+            let state = item
+                .get_attr_string("state")
+                .filter(|value| !value.trim().is_empty())
+                .or_else(|| {
+                    if item.attributes.get_bool_default("active", false) {
+                        Some("on".to_string())
+                    } else {
+                        Some("off".to_string())
+                    }
+                });
+            authored_description_from_data(&item_template.authoring, None, state.as_deref())
+                .ok_or_else(|| format!("You see nothing special about {}.", query.trim()))
+        }
+    }
+}
+
 pub fn current_player_supported_intents(project: &Project, map: &Map) -> BTreeSet<String> {
     let mut intents = BTreeSet::new();
     let Some((player, _)) = current_player_and_sector(map) else {
@@ -628,7 +744,8 @@ pub fn current_player_supported_intents(project: &Project, map: &Map) -> BTreeSe
 }
 
 pub fn with_indefinite_article(text: &str) -> String {
-    let lower = text.trim_start().to_ascii_lowercase();
+    let trimmed = text.trim_start();
+    let lower = trimmed.to_ascii_lowercase();
     if lower.starts_with("your ")
         || lower.starts_with("my ")
         || lower.starts_with("a ")
@@ -650,11 +767,17 @@ pub fn with_indefinite_article(text: &str) -> String {
         return text.to_string();
     }
 
-    let first = text
-        .trim_start()
-        .chars()
-        .next()
-        .map(|c| c.to_ascii_lowercase());
+    if !trimmed.contains(char::is_whitespace)
+        && trimmed
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_uppercase())
+            .unwrap_or(false)
+    {
+        return text.to_string();
+    }
+
+    let first = trimmed.chars().next().map(|c| c.to_ascii_lowercase());
     let article = match first {
         Some('a' | 'e' | 'i' | 'o' | 'u') => "an",
         _ => "a",

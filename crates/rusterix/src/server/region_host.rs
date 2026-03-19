@@ -1037,12 +1037,11 @@ impl<'a> HostHandler for RegionHost<'a> {
                     if let Some(item_id) = self.ctx.curr_item_id {
                         let mut push_active: Option<(u32, String, VMValue)> = None;
                         if let Some(item) = self.ctx.get_item_mut(item_id) {
-                            item.attributes.toggle(key);
+                            let next_value = !item.attributes.get_bool_default(key, false);
+                            item.set_attribute(key, Value::Bool(next_value));
                             if key == "active" {
                                 if let Some(class_name) = item.attributes.get_str("class_name") {
-                                    let value = VMValue::from_bool(
-                                        item.attributes.get_bool_default("active", false),
-                                    );
+                                    let value = VMValue::from_bool(next_value);
                                     push_active = Some((item.id, class_name.to_string(), value));
                                 }
                             }
@@ -1051,7 +1050,8 @@ impl<'a> HostHandler for RegionHost<'a> {
                             self.ctx.to_execute_item.push((id, "active".into(), value));
                         }
                     } else if let Some(entity) = self.ctx.get_current_entity_mut() {
-                        entity.attributes.toggle(key);
+                        let next_value = !entity.attributes.get_bool_default(key, false);
+                        entity.set_attribute(key, Value::Bool(next_value));
                     }
                 }
             }

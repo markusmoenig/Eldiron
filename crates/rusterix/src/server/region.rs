@@ -1594,6 +1594,11 @@ impl RegionInstance {
                                                 .find(|item| item.id == clicked_item_id)
                                         })
                                 });
+                            let authored_use_message = if intent_lower == "use" {
+                                target_item.and_then(|item| item_use_message(ctx, item))
+                            } else {
+                                None
+                            };
                             let rules = intent_rule_config(ctx, entity_id, &intent_lower);
 
                             if !intent.is_empty()
@@ -1781,6 +1786,13 @@ impl RegionInstance {
                                         }
                                     }
                                 }
+                            }
+
+                            if !handled_shortcut
+                                && intent_lower == "use"
+                                && let Some(msg) = authored_use_message
+                            {
+                                send_message(ctx, entity_id, msg, "system");
                             }
 
                             if !handled_shortcut {
@@ -3731,6 +3743,19 @@ impl RegionInstance {
                 }
             }
 
+            if intent_lower == "use" {
+                if let Some(target_item) = target_item {
+                    if let Some(msg) = target_item.attributes.get_str("on_use") {
+                        let msg = msg.trim();
+                        if !msg.is_empty() {
+                            send_message(ctx, entity.id, msg.to_string(), "system");
+                        }
+                    } else if let Some(msg) = item_use_message(ctx, target_item) {
+                        send_message(ctx, entity.id, msg, "system");
+                    }
+                }
+            }
+
             value.string = Some(intent.clone());
 
             ctx.to_execute_entity
@@ -5279,6 +5304,18 @@ fn authored_description_from_entry(value: &toml::Value) -> Option<String> {
     None
 }
 
+fn authored_text_from_entry(value: &toml::Value, key: &str) -> Option<String> {
+    if let Some(table) = value.as_table()
+        && let Some(text) = table.get(key).and_then(toml::Value::as_str)
+    {
+        let text = text.trim();
+        if !text.is_empty() {
+            return Some(text.to_string());
+        }
+    }
+    None
+}
+
 fn authored_description_from_data(
     data: &str,
     mode: Option<&str>,
@@ -5310,6 +5347,33 @@ fn authored_description_from_data(
         .map(ToString::to_string)
 }
 
+fn authored_state_text_from_data(
+    data: &str,
+    mode: Option<&str>,
+    state: Option<&str>,
+    key: &str,
+) -> Option<String> {
+    let table = data.parse::<toml::Table>().ok()?;
+
+    if let Some(mode) = mode
+        && let Some(entries) = table.get("mode").and_then(toml::Value::as_table)
+        && let Some(value) = entries.get(mode)
+        && let Some(text) = authored_text_from_entry(value, key)
+    {
+        return Some(text);
+    }
+
+    if let Some(state) = state
+        && let Some(entries) = table.get("state").and_then(toml::Value::as_table)
+        && let Some(value) = entries.get(state)
+        && let Some(text) = authored_text_from_entry(value, key)
+    {
+        return Some(text);
+    }
+
+    None
+}
+
 fn entity_look_description(ctx: &RegionCtx, entity: &Entity) -> Option<String> {
     let class_name = entity.get_attr_string("class_name")?;
     let data = ctx.entity_authoring_data.get(&class_name)?;
@@ -5331,6 +5395,22 @@ fn item_look_description(ctx: &RegionCtx, item: &Item) -> Option<String> {
             }
         });
     authored_description_from_data(data, None, state.as_deref())
+}
+
+fn item_use_message(ctx: &RegionCtx, item: &Item) -> Option<String> {
+    let class_name = item.get_attr_string("class_name")?;
+    let data = ctx.item_authoring_data.get(&class_name)?;
+    let state = item
+        .get_attr_string("state")
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            if item.attributes.get_bool_default("active", false) {
+                Some("on".to_string())
+            } else {
+                Some("off".to_string())
+            }
+        });
+    authored_state_text_from_data(data, None, state.as_deref(), "on_use")
 }
 
 fn combat_message_template(ctx: &RegionCtx, key: &str) -> Option<String> {

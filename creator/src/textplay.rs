@@ -216,6 +216,8 @@ impl TextGameState {
                         let outputs = self.session.after_movement(&region.map, &project.authoring);
                         self.apply_outputs(project, server_ctx, &outputs);
                     }
+                    let outputs = collect_pending_outputs(project, server_ctx, &mut self.session);
+                    self.apply_outputs(project, server_ctx, &outputs);
                 } else {
                     self.push_plain_line("You cannot go that way.");
                 }
@@ -247,6 +249,8 @@ impl TextGameState {
                         let outputs = self.session.after_movement(&region.map, &project.authoring);
                         self.apply_outputs(project, server_ctx, &outputs);
                     }
+                    let outputs = collect_pending_outputs(project, server_ctx, &mut self.session);
+                    self.apply_outputs(project, server_ctx, &outputs);
                 } else {
                     self.push_plain_line("No matching exit.");
                 }
@@ -265,7 +269,13 @@ impl TextGameState {
                         {
                             self.push_plain_line(&error);
                         } else {
-                            sync_text_runtime(project);
+                            let outputs = sync_text_intent_runtime(
+                                project,
+                                server_ctx,
+                                &mut self.session,
+                                intent,
+                            );
+                            self.apply_outputs(project, server_ctx, &outputs);
                         }
                     } else if !intent.is_empty() {
                         RUSTERIX
@@ -289,7 +299,9 @@ impl TextGameState {
                     if let Some(error) = trigger_text_intent(project, server_ctx, &verb, target) {
                         self.push_plain_line(&error);
                     } else {
-                        sync_text_runtime(project);
+                        let outputs =
+                            sync_text_intent_runtime(project, server_ctx, &mut self.session, &verb);
+                        self.apply_outputs(project, server_ctx, &outputs);
                     }
                 } else {
                     self.push_plain_line("Unknown command. Type 'help' for available commands.");
@@ -435,6 +447,27 @@ fn current_region<'a>(
     server_ctx: &ServerContext,
 ) -> Option<&'a shared::region::Region> {
     project.get_region_ctx(server_ctx)
+}
+
+fn collect_pending_outputs(
+    project: &Project,
+    server_ctx: &ServerContext,
+    session: &mut TextSession,
+) -> Vec<TextSessionOutput> {
+    let Some(region) = current_region(project, server_ctx) else {
+        return Vec::new();
+    };
+    let region_id = region.map.id;
+    let mut rusterix = RUSTERIX.write().unwrap();
+    session.collect(
+        &region.map,
+        &project.authoring,
+        rusterix.server.get_messages(&region_id),
+        rusterix.server.get_says(&region_id),
+        current_time_hour(project, server_ctx),
+        current_time_label(project, server_ctx),
+        authoring_auto_attack_mode(&project.authoring) == AutoAttackMode::OnAttack,
+    )
 }
 
 fn sync_text_runtime(project: &mut Project) {
@@ -726,7 +759,11 @@ fn trigger_text_intent(
                 .server
                 .local_player_action(EntityAction::EntityClicked(
                     id,
-                    distance,
+                    if intent.trim().eq_ignore_ascii_case("look") {
+                        0.0
+                    } else {
+                        distance
+                    },
                     Some(intent.trim().to_string()),
                 ));
         }
@@ -737,13 +774,32 @@ fn trigger_text_intent(
                 .server
                 .local_player_action(EntityAction::ItemClicked(
                     id,
-                    distance,
+                    if intent.trim().eq_ignore_ascii_case("look") {
+                        0.0
+                    } else {
+                        distance
+                    },
                     Some(intent.trim().to_string()),
                 ));
         }
     }
 
     None
+}
+
+fn sync_text_intent_runtime(
+    project: &mut Project,
+    server_ctx: &ServerContext,
+    session: &mut TextSession,
+    intent: &str,
+) -> Vec<TextSessionOutput> {
+    sync_text_runtime(project);
+    let mut outputs = collect_pending_outputs(project, server_ctx, session);
+    if outputs.is_empty() && !intent.trim().eq_ignore_ascii_case("look") {
+        sync_text_runtime(project);
+        outputs = collect_pending_outputs(project, server_ctx, session);
+    }
+    outputs
 }
 
 fn current_player_supported_intents(

@@ -116,11 +116,13 @@ A simple wall torch.
 description = """
 An unlit torch is fixed to the wall.
 """
+on_use = "You light the torch."
 
 [state.on]
 description = """
 A lit torch flickers warmly against the stone wall.
 """
+on_use = "You extinguish the torch."
 ```
 
 Resolution order is:
@@ -130,6 +132,9 @@ Resolution order is:
 3. fallback to the top-level `description`
 
 So `mode.*` and `state.*` are optional overrides, not required fields.
+
+For items, `state.*` can also carry simple use text like `on_use`.
+That authored `on_use` message is used as a fallback in text, 2D, and 3D play when no explicit item `on_use` behavior overrides it.
 
 For sectors, you can also add:
 

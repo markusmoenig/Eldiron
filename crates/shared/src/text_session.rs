@@ -141,12 +141,16 @@ impl TextSession {
             if !should_print_text_message(&message, &category) {
                 continue;
             }
-            if rendered_room_this_update
-                && current_description
-                    .as_deref()
-                    .map(|text| text.trim() == message.trim())
-                    .unwrap_or(false)
+            if current_description
+                .as_deref()
+                .map(|text| text.trim() == message.trim())
+                .unwrap_or(false)
             {
+                if rendered_room_this_update {
+                    continue;
+                }
+                output.push(TextSessionOutput::RenderRoom);
+                rendered_room_this_update = true;
                 continue;
             }
 
