@@ -171,6 +171,18 @@ impl Editor {
         String::from_utf8(bytes).ok()
     }
 
+    fn refresh_system_text_clipboard(ctx: &mut TheContext) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if let Ok(mut clipboard) = arboard::Clipboard::new()
+                && let Ok(text) = clipboard.get_text()
+            {
+                ctx.ui.clipboard = Some(TheValue::Text(text));
+                ctx.ui.clipboard_app_type = Some("text/plain".to_string());
+            }
+        }
+    }
+
     fn load_project_from_json_path(path: &std::path::Path) -> Option<Project> {
         let contents = std::fs::read_to_string(path).ok()?;
         let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
@@ -3214,6 +3226,7 @@ impl TheTrait for Editor {
                             ctx.ui.send(TheEvent::Copy);
                         }
                     } else if id.name == "Paste" {
+                        Self::refresh_system_text_clipboard(ctx);
                         if ui.focus_widget_supports_clipboard(ctx) {
                             // Widget specific
                             ui.paste(ctx);
