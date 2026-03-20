@@ -172,6 +172,68 @@ impl Tool for SectorTool {
                     .find(|sector| sector.is_inside(profile_map, point))
                     .map(|sector| sector.id)
             };
+        let detail_profile_sector_near_border = |map: &Map,
+                                                 surface: &Surface,
+                                                 world: Vec3<f32>|
+         -> Option<u32> {
+            let profile_id = surface.profile?;
+            let profile_map = map.profiles.get(&profile_id)?;
+            let uv = surface.world_to_uv(world);
+            let point = Vec2::new(uv.x, -uv.y);
+            let tolerance = (0.5 / map.subdivisions.max(1.0)).max(0.08);
+
+            let point_to_segment_distance = |p: Vec2<f32>, a: Vec2<f32>, b: Vec2<f32>| -> f32 {
+                let ab = b - a;
+                let ab_len_sq = ab.dot(ab);
+                if ab_len_sq <= 1e-6 {
+                    return (p - a).magnitude();
+                }
+                let t = ((p - a).dot(ab) / ab_len_sq).clamp(0.0, 1.0);
+                let closest = a + ab * t;
+                (p - closest).magnitude()
+            };
+
+            let mut best: Option<(u32, f32)> = None;
+            for sector in &profile_map.sectors {
+                for line_id in &sector.linedefs {
+                    let Some(line) = profile_map.find_linedef(*line_id) else {
+                        continue;
+                    };
+                    let Some(a) = profile_map.find_vertex(line.start_vertex) else {
+                        continue;
+                    };
+                    let Some(b) = profile_map.find_vertex(line.end_vertex) else {
+                        continue;
+                    };
+                    let dist =
+                        point_to_segment_distance(point, Vec2::new(a.x, a.y), Vec2::new(b.x, b.y));
+                    if dist <= tolerance
+                        && best
+                            .as_ref()
+                            .map(|(_, best_dist)| dist < *best_dist)
+                            .unwrap_or(true)
+                    {
+                        best = Some((sector.id, dist));
+                    }
+                }
+            }
+            best.map(|(id, _)| id)
+        };
+        let detail_profile_sector_from_hit = |map: &Map,
+                                              surface: &Surface,
+                                              world: Vec3<f32>,
+                                              geo_hit: Option<GeoId>|
+         -> Option<u32> {
+            if let Some(profile_id) = surface.profile
+                && let Some(profile_map) = map.profiles.get(&profile_id)
+                && let Some(GeoId::Sector(id)) = geo_hit
+                && profile_map.find_sector(id).is_some()
+            {
+                return Some(id);
+            }
+            detail_profile_sector_at(map, surface, world)
+                .or_else(|| detail_profile_sector_near_border(map, surface, world))
+        };
 
         match map_event {
             MapKey(c) => {
@@ -220,7 +282,12 @@ impl Tool for SectorTool {
                     }
                     if let Some(surface) = server_ctx.active_detail_surface.as_ref() {
                         let hit_pos = server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
-                        server_ctx.hover.2 = detail_profile_sector_at(map, surface, hit_pos);
+                        server_ctx.hover.2 = detail_profile_sector_from_hit(
+                            map,
+                            surface,
+                            hit_pos,
+                            server_ctx.geo_hit,
+                        );
                     }
                 } else if server_ctx.editor_view_mode != EditorViewMode::D2
                     && !detail_mode_3d
@@ -1073,7 +1140,14 @@ impl Tool for SectorTool {
                             server_ctx
                                 .active_detail_surface
                                 .as_ref()
-                                .and_then(|surface| detail_profile_sector_at(map, surface, hit_pos))
+                                .and_then(|surface| {
+                                    detail_profile_sector_from_hit(
+                                        map,
+                                        surface,
+                                        hit_pos,
+                                        server_ctx.geo_hit,
+                                    )
+                                })
                         } else {
                             match server_ctx.geo_hit {
                                 Some(GeoId::Sector(id)) => Some(id),

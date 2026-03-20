@@ -519,7 +519,10 @@ impl ToolList {
                             } else if *c == '.' {
                                 map.grid_size += 2.0;
                                 return false;
-                            } else if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                            } else if server_ctx.editor_view_mode != EditorViewMode::D2
+                                && !server_ctx.game_input_mode
+                                && server_ctx.curr_map_tool_type != MapToolType::Game
+                            {
                                 if *c == 'g' || *c == 'G' {
                                     server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
                                     self.update_geometry_overlay_3d(project, server_ctx);

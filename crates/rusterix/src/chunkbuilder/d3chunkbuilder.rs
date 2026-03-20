@@ -20,6 +20,10 @@ pub const DEFAULT_TILE_ID: &str = "27826750-a9e7-4346-994b-fb318b238452";
 
 pub struct D3ChunkBuilder {}
 
+fn stairs_debug_enabled() -> bool {
+    std::env::var_os("ELDIRON_STAIRS_DEBUG").is_some()
+}
+
 fn matches_preview_hide_pattern(name: &str, pattern: &str) -> bool {
     let name = name.trim();
     let pattern = pattern.trim();
@@ -1581,7 +1585,19 @@ impl ChunkBuilder for D3ChunkBuilder {
             let Some(sector) = map.find_sector(surface.sector_id) else {
                 continue;
             };
+            let sector_visible = sector.properties.get_bool_default("visible", true);
+            let sector_is_cutout_handle =
+                sector.properties.get_bool_default("cutout_handle", false);
+            if !sector_visible || sector_is_cutout_handle {
+                continue;
+            }
             let sector_is_ridge = sector.properties.get_int_default("terrain_mode", 0) == 2;
+            let stairs_generated = sector
+                .properties
+                .get_bool_default("stairs_generated", false);
+            let stairs_part = sector
+                .properties
+                .get_str_default("stairs_part", String::new());
             let sector_feature = sector
                 .properties
                 .get_str_default("sector_feature", "None".to_string());
@@ -1597,6 +1613,50 @@ impl ChunkBuilder for D3ChunkBuilder {
             // Get profile loops (same as rendering)
             if let Some((outer_loop, hole_loops)) = read_profile_loops(surface, sector, map) {
                 let extrude_abs = surface.extrusion.depth.abs();
+                let walkable_polygons: Vec<Vec<Vec2<f32>>> = if hole_loops.is_empty() {
+                    vec![
+                        outer_loop
+                            .path
+                            .iter()
+                            .map(|uv| {
+                                let world_pos = surface.uv_to_world(*uv);
+                                Vec2::new(world_pos.x, world_pos.z)
+                            })
+                            .collect(),
+                    ]
+                } else {
+                    let mut outer_path = outer_loop.path.clone();
+                    let mut holes_paths: Vec<Vec<Vec2<f32>>> =
+                        hole_loops.iter().map(|h| h.path.clone()).collect();
+                    if let Some((verts_uv, indices)) =
+                        earcut_with_holes(&mut outer_path, &mut holes_paths)
+                    {
+                        indices
+                            .into_iter()
+                            .map(|(i0, i1, i2)| {
+                                [i0, i1, i2]
+                                    .into_iter()
+                                    .map(|idx| {
+                                        let uv = Vec2::new(verts_uv[idx][0], verts_uv[idx][1]);
+                                        let world_pos = surface.uv_to_world(uv);
+                                        Vec2::new(world_pos.x, world_pos.z)
+                                    })
+                                    .collect::<Vec<_>>()
+                            })
+                            .collect()
+                    } else {
+                        vec![
+                            outer_loop
+                                .path
+                                .iter()
+                                .map(|uv| {
+                                    let world_pos = surface.uv_to_world(*uv);
+                                    Vec2::new(world_pos.x, world_pos.z)
+                                })
+                                .collect(),
+                        ]
+                    }
+                };
 
                 // Calculate bounds for the surface
                 let mut min_x = f32::INFINITY;
@@ -1629,6 +1689,9 @@ impl ChunkBuilder for D3ChunkBuilder {
                 // Only add blocking volumes for VERTICAL surfaces (walls)
                 // Horizontal surfaces (floors/ceilings) should not block movement
                 if !is_horizontal {
+                    if stairs_generated && (stairs_part == "riser" || stairs_part == "tread") {
+                        continue;
+                    }
                     // Add blocking volume for vertical surfaces (both extruded and non-extruded)
                     if surface.extrusion.enabled && extrude_abs > 1e-6 {
                         // Extruded surface - full volume
@@ -1662,20 +1725,19 @@ impl ChunkBuilder for D3ChunkBuilder {
                         });
 
                         // Add walkable floor at base level
-                        let floor_polygon: Vec<Vec2<f32>> = outer_loop
-                            .path
-                            .iter()
-                            .map(|uv| {
-                                let world_pos = surface.uv_to_world(*uv);
-                                Vec2::new(world_pos.x, world_pos.z)
-                            })
-                            .collect();
+                        for floor_polygon in &walkable_polygons {
+                            let floor_polygon = if stairs_generated && stairs_part == "tread" {
+                                inflate_walkable_polygon(floor_polygon, 0.14)
+                            } else {
+                                floor_polygon.clone()
+                            };
 
-                        collision.walkable_floors.push(WalkableFloor {
-                            geo_id: GeoId::Sector(sector.id),
-                            height: base_y,
-                            polygon_2d: floor_polygon,
-                        });
+                            collision.walkable_floors.push(WalkableFloor {
+                                geo_id: GeoId::Sector(sector.id),
+                                height: base_y,
+                                polygon_2d: floor_polygon,
+                            });
+                        }
                     } else {
                         // Non-extruded surface - thin wall
                         // Create thin blocking volume (small height to represent wall)
@@ -1706,20 +1768,19 @@ impl ChunkBuilder for D3ChunkBuilder {
                 } else {
                     // Horizontal surface (floor/ceiling) - only add as walkable floor if facing up
                     if normalized_y > 0.7 && !sector_has_stairs && !sector_is_ridge {
-                        let floor_polygon: Vec<Vec2<f32>> = outer_loop
-                            .path
-                            .iter()
-                            .map(|uv| {
-                                let world_pos = surface.uv_to_world(*uv);
-                                Vec2::new(world_pos.x, world_pos.z)
-                            })
-                            .collect();
+                        for floor_polygon in &walkable_polygons {
+                            let floor_polygon = if stairs_generated && stairs_part == "tread" {
+                                inflate_walkable_polygon(floor_polygon, 0.14)
+                            } else {
+                                floor_polygon.clone()
+                            };
 
-                        collision.walkable_floors.push(WalkableFloor {
-                            geo_id: GeoId::Sector(sector.id),
-                            height: base_y,
-                            polygon_2d: floor_polygon,
-                        });
+                            collision.walkable_floors.push(WalkableFloor {
+                                geo_id: GeoId::Sector(sector.id),
+                                height: base_y,
+                                polygon_2d: floor_polygon,
+                            });
+                        }
                     }
                 }
 
@@ -2264,6 +2325,251 @@ fn add_generated_feature_collision(
     collision: &mut crate::collision_world::ChunkCollision,
 ) {
     add_stairs_feature_collision(map, chunk_bbox, collision);
+    add_built_stairs_collision(map, chunk_bbox, collision);
+}
+
+fn inflate_walkable_polygon(polygon: &[Vec2<f32>], padding: f32) -> Vec<Vec2<f32>> {
+    if polygon.len() < 3 || padding <= 0.0 {
+        return polygon.to_vec();
+    }
+
+    let mut centroid = Vec2::zero();
+    for p in polygon {
+        centroid += *p;
+    }
+    centroid /= polygon.len() as f32;
+
+    polygon
+        .iter()
+        .map(|p| {
+            let delta = *p - centroid;
+            let len = delta.magnitude();
+            if len <= 1e-5 {
+                *p
+            } else {
+                *p + delta / len * padding
+            }
+        })
+        .collect()
+}
+
+fn lerp3(a: Vec3<f32>, b: Vec3<f32>, t: f32) -> Vec3<f32> {
+    a + (b - a) * t
+}
+
+fn align_stair_edges(
+    bottom: (Vec3<f32>, Vec3<f32>),
+    top: (Vec3<f32>, Vec3<f32>),
+) -> ((Vec3<f32>, Vec3<f32>), (Vec3<f32>, Vec3<f32>)) {
+    let direct = (bottom.0 - top.0).magnitude() + (bottom.1 - top.1).magnitude();
+    let flipped = (bottom.0 - top.1).magnitude() + (bottom.1 - top.0).magnitude();
+    if flipped < direct {
+        (bottom, (top.1, top.0))
+    } else {
+        (bottom, top)
+    }
+}
+
+fn add_built_stairs_collision(
+    map: &Map,
+    chunk_bbox: &crate::BBox,
+    collision: &mut crate::collision_world::ChunkCollision,
+) {
+    let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
+
+    for sector in &map.sectors {
+        if !sector
+            .properties
+            .get_bool_default("stairs_generated", false)
+        {
+            continue;
+        }
+        if sector
+            .properties
+            .get_str_default("stairs_part", String::new())
+            != "tread"
+        {
+            continue;
+        }
+
+        let a = sector.properties.get_int_default("stairs_source_a", -1);
+        let b = sector.properties.get_int_default("stairs_source_b", -1);
+        if a < 0 || b < 0 {
+            continue;
+        }
+        let key = if a <= b {
+            (a as u32, b as u32)
+        } else {
+            (b as u32, a as u32)
+        };
+        if !seen.insert(key) {
+            continue;
+        }
+
+        let Some(ld_a) = map.find_linedef(key.0) else {
+            continue;
+        };
+        let Some(ld_b) = map.find_linedef(key.1) else {
+            continue;
+        };
+        let (Some(a0), Some(a1), Some(b0), Some(b1)) = (
+            map.get_vertex_3d(ld_a.start_vertex),
+            map.get_vertex_3d(ld_a.end_vertex),
+            map.get_vertex_3d(ld_b.start_vertex),
+            map.get_vertex_3d(ld_b.end_vertex),
+        ) else {
+            continue;
+        };
+
+        let a_avg_y = (a0.y + a1.y) * 0.5;
+        let b_avg_y = (b0.y + b1.y) * 0.5;
+        let (bottom, top) = if a_avg_y <= b_avg_y {
+            ((a0, a1), (b0, b1))
+        } else {
+            ((b0, b1), (a0, a1))
+        };
+        let ((b0, b1), (t0, t1)) = align_stair_edges(bottom, top);
+
+        let dir_bottom = b1 - b0;
+        let dir_top = t1 - t0;
+        let len_bottom = dir_bottom.magnitude();
+        let len_top = dir_top.magnitude();
+        if len_bottom < 0.01 || len_top < 0.01 {
+            continue;
+        }
+        if dir_bottom.normalized().dot(dir_top.normalized()).abs() < 0.9 {
+            continue;
+        }
+
+        let group_min = Vec2::new(
+            b0.x.min(b1.x).min(t0.x).min(t1.x),
+            b0.z.min(b1.z).min(t0.z).min(t1.z),
+        );
+        let group_max = Vec2::new(
+            b0.x.max(b1.x).max(t0.x).max(t1.x),
+            b0.z.max(b1.z).max(t0.z).max(t1.z),
+        );
+        let group_bbox = crate::BBox::new(group_min, group_max);
+        if !group_bbox.intersects(chunk_bbox) {
+            continue;
+        }
+
+        let steps = sector.properties.get_int_default("stairs_steps", 6).max(1) as usize;
+        let rise = ((t0.y + t1.y) * 0.5 - (b0.y + b1.y) * 0.5) / steps as f32;
+        let bottom_y = (b0.y + b1.y) * 0.5;
+        let top_y = (t0.y + t1.y) * 0.5;
+        let run_overlap = 1.0 / steps as f32 * 0.18;
+        if stairs_debug_enabled() {
+            println!(
+                "[StairsDebug][build] linedefs=({}, {}) steps={} bottom_y={:.3} top_y={:.3} chunk=({:.1},{:.1})-({:.1},{:.1})",
+                key.0,
+                key.1,
+                steps,
+                bottom_y,
+                top_y,
+                chunk_bbox.min.x,
+                chunk_bbox.min.y,
+                chunk_bbox.max.x,
+                chunk_bbox.max.y
+            );
+        }
+
+        // Mark the stair-top lip as a passage so the collision solver can step
+        // from the host floor into the first descending tread.
+        let strip_norm = (0.9 / steps as f32).clamp(0.05, 0.22);
+        let open_left_inner = lerp3(b0, t0, 1.0 - strip_norm);
+        let open_right_inner = lerp3(b1, t1, 1.0 - strip_norm);
+        let top_extension = 0.75;
+        let top_left_dir = (t0 - b0).try_normalized().unwrap_or(Vec3::zero());
+        let top_right_dir = (t1 - b1).try_normalized().unwrap_or(Vec3::zero());
+        let open_left_outer = t0 + top_left_dir * top_extension;
+        let open_right_outer = t1 + top_right_dir * top_extension;
+        let top_opening = inflate_walkable_polygon(
+            &[
+                Vec2::new(open_left_inner.x, open_left_inner.z),
+                Vec2::new(open_right_inner.x, open_right_inner.z),
+                Vec2::new(open_right_outer.x, open_right_outer.z),
+                Vec2::new(open_left_outer.x, open_left_outer.z),
+            ],
+            0.04,
+        );
+        collision.dynamic_openings.push(DynamicOpening {
+            geo_id: GeoId::Sector(sector.id),
+            item_blocking: Some(false),
+            boundary_2d: top_opening.clone(),
+            floor_height: top_y - 0.10,
+            ceiling_height: top_y + 2.5,
+            opening_type: OpeningType::Passage,
+        });
+        collision.walkable_floors.push(WalkableFloor {
+            geo_id: GeoId::Sector(sector.id),
+            height: top_y,
+            polygon_2d: inflate_walkable_polygon(
+                &[
+                    Vec2::new(open_left_inner.x, open_left_inner.z),
+                    Vec2::new(open_right_inner.x, open_right_inner.z),
+                    Vec2::new(open_right_outer.x, open_right_outer.z),
+                    Vec2::new(open_left_outer.x, open_left_outer.z),
+                ],
+                0.12,
+            ),
+        });
+        if stairs_debug_enabled() {
+            println!(
+                "[StairsDebug][open] sector={} a=({:.3},{:.3}) b=({:.3},{:.3}) c=({:.3},{:.3}) d=({:.3},{:.3})",
+                sector.id,
+                open_left_inner.x,
+                open_left_inner.z,
+                open_right_inner.x,
+                open_right_inner.z,
+                open_right_outer.x,
+                open_right_outer.z,
+                open_left_outer.x,
+                open_left_outer.z
+            );
+        }
+
+        for i in 0..steps {
+            let t0f = ((i as f32 / steps as f32) - run_overlap).clamp(0.0, 1.0);
+            let t1f = (((i + 1) as f32 / steps as f32) + run_overlap).clamp(0.0, 1.0);
+            let tread_y = bottom_y + (i + 1) as f32 * rise;
+
+            let front_left = lerp3(b0, t0, t0f);
+            let front_right = lerp3(b1, t1, t0f);
+            let back_left = lerp3(b0, t0, t1f);
+            let back_right = lerp3(b1, t1, t1f);
+
+            collision.walkable_floors.push(WalkableFloor {
+                geo_id: GeoId::Sector(sector.id),
+                height: tread_y,
+                polygon_2d: inflate_walkable_polygon(
+                    &[
+                        Vec2::new(front_left.x, front_left.z),
+                        Vec2::new(front_right.x, front_right.z),
+                        Vec2::new(back_right.x, back_right.z),
+                        Vec2::new(back_left.x, back_left.z),
+                    ],
+                    0.08,
+                ),
+            });
+            if stairs_debug_enabled() {
+                println!(
+                    "[StairsDebug][step] sector={} step={} y={:.3} a=({:.3},{:.3}) b=({:.3},{:.3}) c=({:.3},{:.3}) d=({:.3},{:.3})",
+                    sector.id,
+                    i + 1,
+                    tread_y,
+                    front_left.x,
+                    front_left.z,
+                    front_right.x,
+                    front_right.z,
+                    back_right.x,
+                    back_right.z,
+                    back_left.x,
+                    back_left.z
+                );
+            }
+        }
+    }
 }
 
 fn add_stairs_feature_collision(

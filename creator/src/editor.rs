@@ -2142,7 +2142,17 @@ impl TheTrait for Editor {
                     }
                 }
                 if !self.server_ctx.game_mode {
-                    if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
+                    let map_for_hud = if self.server_ctx.get_map_context() == MapContext::Region
+                        && self.server_ctx.editor_view_mode != EditorViewMode::D2
+                        && self.server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                    {
+                        self.project
+                            .get_region_mut(&self.server_ctx.curr_region)
+                            .map(|region| &mut region.map)
+                    } else {
+                        self.project.get_map_mut(&self.server_ctx)
+                    };
+                    if let Some(map) = map_for_hud {
                         TOOLLIST.write().unwrap().draw_hud(
                             render_view.render_buffer_mut(),
                             map,

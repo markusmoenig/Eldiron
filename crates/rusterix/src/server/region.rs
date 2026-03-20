@@ -58,6 +58,10 @@ where
 // 0 is reserved as NO_ID / None sentinel.
 static GLOBAL_ID_GEN: AtomicU32 = AtomicU32::new(1);
 
+fn stairs_debug_enabled() -> bool {
+    std::env::var_os("ELDIRON_STAIRS_DEBUG").is_some()
+}
+
 pub fn get_global_id() -> u32 {
     GLOBAL_ID_GEN.fetch_add(1, Ordering::Relaxed)
 }
@@ -2275,10 +2279,23 @@ impl RegionInstance {
                         }
 
                         if let Some(coord) = coord {
+                            if stairs_debug_enabled() && entity.is_player() {
+                                println!(
+                                    "[StairsDebug][player-closein] entity={} pos=({:.3},{:.3},{:.3}) target=({:.3},{:.3}) radius={:.3}",
+                                    entity.id,
+                                    position.x,
+                                    entity.position.y,
+                                    position.y,
+                                    coord.x,
+                                    coord.y,
+                                    radius
+                                );
+                            }
                             let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                                 && ctx.collision_world.has_collision_data();
-                            let (new_position, arrived) = if use_3d_nav {
-                                ctx.collision_world
+                            let (new_position, new_y, arrived) = if use_3d_nav {
+                                let (p, arrived) = ctx
+                                    .collision_world
                                     .close_in_on_floors(
                                         position,
                                         coord,
@@ -2286,14 +2303,29 @@ impl RegionInstance {
                                         speed,
                                         radius,
                                         1.0,
+                                        entity.position.y,
                                     )
                                     .unwrap_or_else(|| {
                                         let to_target = coord - position;
                                         let dist = to_target.magnitude();
                                         if dist <= *target_radius {
-                                            (position, true)
+                                            (
+                                                Vec3::new(
+                                                    position.x,
+                                                    entity.position.y,
+                                                    position.y,
+                                                ),
+                                                true,
+                                            )
                                         } else if dist <= f32::EPSILON {
-                                            (position, false)
+                                            (
+                                                Vec3::new(
+                                                    position.x,
+                                                    entity.position.y,
+                                                    position.y,
+                                                ),
+                                                false,
+                                            )
                                         } else {
                                             let step = to_target.normalized() * speed.min(dist);
                                             let start_3d = vek::Vec3::new(
@@ -2308,18 +2340,20 @@ impl RegionInstance {
                                             let end_2d = vek::Vec2::new(end_3d.x, end_3d.z);
                                             let arrived =
                                                 (coord - end_2d).magnitude() <= *target_radius;
-                                            (end_2d, arrived)
+                                            (end_3d, arrived)
                                         }
-                                    })
+                                    });
+                                (Vec2::new(p.x, p.z), p.y, arrived)
                             } else {
-                                ctx.mapmini.close_in(
+                                let (p, arrived) = ctx.mapmini.close_in(
                                     position,
                                     coord,
                                     *target_radius,
                                     speed,
                                     radius,
                                     1.0,
-                                )
+                                );
+                                (p, entity.position.y, arrived)
                             };
 
                             let move_delta = new_position - position;
@@ -2327,6 +2361,7 @@ impl RegionInstance {
                                 entity.set_orientation(move_delta.normalized());
                             }
                             entity.set_pos_xz(new_position);
+                            entity.position.y = new_y;
                             if arrived {
                                 entity.action = EntityAction::Off;
 
@@ -2350,19 +2385,42 @@ impl RegionInstance {
 
                     with_regionctx(self.id, |ctx| {
                         let speed = self.movement_units_per_sec * speed * ctx.delta_time;
+                        if stairs_debug_enabled() && entity.is_player() {
+                            println!(
+                                "[StairsDebug][player-goto] entity={} pos=({:.3},{:.3},{:.3}) target=({:.3},{:.3}) radius={:.3}",
+                                entity.id,
+                                position.x,
+                                entity.position.y,
+                                position.y,
+                                coord.x,
+                                coord.y,
+                                radius
+                            );
+                        }
 
                         let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                             && ctx.collision_world.has_collision_data();
-                        let (new_position, arrived) = if use_3d_nav {
-                            ctx.collision_world
-                                .move_towards_on_floors(position, *coord, speed, radius, 1.0)
+                        let (new_position, new_y, arrived) = if use_3d_nav {
+                            let (p, arrived) = ctx
+                                .collision_world
+                                .move_towards_on_floors(
+                                    position,
+                                    *coord,
+                                    speed,
+                                    radius,
+                                    1.0,
+                                    entity.position.y,
+                                )
                                 .unwrap_or_else(|| {
                                     let to_target = *coord - position;
                                     let dist = to_target.magnitude();
                                     if dist <= 0.05 {
-                                        (position, true)
+                                        (Vec3::new(position.x, entity.position.y, position.y), true)
                                     } else if dist <= f32::EPSILON {
-                                        (position, false)
+                                        (
+                                            Vec3::new(position.x, entity.position.y, position.y),
+                                            false,
+                                        )
                                     } else {
                                         let step = to_target.normalized() * speed.min(dist);
                                         let start_3d = vek::Vec3::new(
@@ -2376,12 +2434,15 @@ impl RegionInstance {
                                             .move_distance(start_3d, step_3d, radius);
                                         let end_2d = vek::Vec2::new(end_3d.x, end_3d.z);
                                         let arrived = (*coord - end_2d).magnitude() <= 0.05;
-                                        (end_2d, arrived)
+                                        (end_3d, arrived)
                                     }
-                                })
+                                });
+                            (Vec2::new(p.x, p.z), p.y, arrived)
                         } else {
-                            ctx.mapmini
-                                .move_towards(position, *coord, speed, radius, 1.0)
+                            let (p, arrived) = ctx
+                                .mapmini
+                                .move_towards(position, *coord, speed, radius, 1.0);
+                            (p, entity.position.y, arrived)
                         };
 
                         let move_delta = new_position - position;
@@ -2394,6 +2455,7 @@ impl RegionInstance {
                             entity.set_orientation(move_delta.normalized());
                         }
                         entity.set_pos_xz(new_position);
+                        entity.position.y = new_y;
 
                         // Track long-running no-improvement oscillations near blockers.
                         // This catches "left/right flicker forever" where tiny movement happens
@@ -2584,31 +2646,72 @@ impl RegionInstance {
                                 let use_3d_nav = ctx.collision_world.has_collision_data()
                                     && (self.collision_mode == CollisionMode::Mesh
                                         || is_elevated_floor);
+                                if stairs_debug_enabled() && entity.is_player() {
+                                    println!(
+                                        "[StairsDebug][player-rwis] entity={} pos=({:.3},{:.3},{:.3}) target=({:.3},{:.3}) radius={:.3} use_3d_nav={}",
+                                        entity.id,
+                                        position.x,
+                                        entity.position.y,
+                                        position.y,
+                                        target.x,
+                                        target.y,
+                                        radius,
+                                        use_3d_nav
+                                    );
+                                }
 
                                 let mut mesh_blocked = false;
-                                let (new_position, mut arrived) = if use_3d_nav {
+                                let (new_position, new_y, mut arrived) = if use_3d_nav {
                                     let (desired_position, arrived_hint) = ctx
                                         .collision_world
                                         .move_towards_on_floors(
-                                            position, *target, step_speed, radius, 1.0,
+                                            position,
+                                            *target,
+                                            step_speed,
+                                            radius,
+                                            1.0,
+                                            entity.position.y,
                                         )
                                         .unwrap_or_else(|| {
                                             let to_target = *target - position;
                                             let dist = to_target.magnitude();
                                             if dist <= 0.1 {
-                                                (position, true)
+                                                (
+                                                    Vec3::new(
+                                                        position.x,
+                                                        entity.position.y,
+                                                        position.y,
+                                                    ),
+                                                    true,
+                                                )
                                             } else if dist <= f32::EPSILON {
-                                                (position, false)
+                                                (
+                                                    Vec3::new(
+                                                        position.x,
+                                                        entity.position.y,
+                                                        position.y,
+                                                    ),
+                                                    false,
+                                                )
                                             } else {
                                                 let step =
                                                     to_target.normalized() * step_speed.min(dist);
-                                                (position + step, false)
+                                                (
+                                                    Vec3::new(
+                                                        position.x + step.x,
+                                                        entity.position.y,
+                                                        position.y + step.y,
+                                                    ),
+                                                    false,
+                                                )
                                             }
                                         });
 
                                     // Always clamp the nav step against full mesh collision so
                                     // walls/furniture cannot be crossed.
-                                    let desired_move = desired_position - position;
+                                    let desired_move =
+                                        Vec2::new(desired_position.x, desired_position.z)
+                                            - position;
                                     let start_3d =
                                         vek::Vec3::new(position.x, entity.position.y, position.y);
                                     let step_3d =
@@ -2621,10 +2724,12 @@ impl RegionInstance {
                                     let arrived = arrived_hint
                                         && !blocked
                                         && (*target - end_2d).magnitude() <= 0.1;
-                                    (end_2d, arrived)
+                                    (end_2d, end_3d.y, arrived)
                                 } else {
-                                    ctx.mapmini
-                                        .move_towards(position, *target, step_speed, radius, 1.0)
+                                    let (p, arrived) = ctx
+                                        .mapmini
+                                        .move_towards(position, *target, step_speed, radius, 1.0);
+                                    (p, entity.position.y, arrived)
                                 };
 
                                 // Keep dynamic blocking (entities/items) behavior:
@@ -2691,6 +2796,7 @@ impl RegionInstance {
                                     entity.set_orientation(move_delta.normalized());
                                 }
                                 entity.set_pos_xz(resolved_position);
+                                entity.position.y = new_y;
 
                                 // Keep Y aligned to walking sector first (RPG behavior),
                                 // then fall back to collision floor/terrain.
@@ -2823,16 +2929,50 @@ impl RegionInstance {
 
                             let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                                 && ctx.collision_world.has_collision_data();
-                            let (new_position, arrived) = if use_3d_nav {
-                                ctx.collision_world
-                                    .move_towards_on_floors(position, target, speed, radius, 1.0)
+                            if stairs_debug_enabled() && entity.is_player() {
+                                println!(
+                                    "[StairsDebug][player-patrol] entity={} pos=({:.3},{:.3},{:.3}) target=({:.3},{:.3}) radius={:.3}",
+                                    entity.id,
+                                    position.x,
+                                    entity.position.y,
+                                    position.y,
+                                    target.x,
+                                    target.y,
+                                    radius
+                                );
+                            }
+                            let (new_position, new_y, arrived) = if use_3d_nav {
+                                let (p, arrived) = ctx
+                                    .collision_world
+                                    .move_towards_on_floors(
+                                        position,
+                                        target,
+                                        speed,
+                                        radius,
+                                        1.0,
+                                        entity.position.y,
+                                    )
                                     .unwrap_or_else(|| {
                                         let to_target = target - position;
                                         let dist = to_target.magnitude();
                                         if dist <= 0.05 {
-                                            (position, true)
+                                            (
+                                                Vec3::new(
+                                                    position.x,
+                                                    entity.position.y,
+                                                    position.y,
+                                                ),
+                                                true,
+                                            )
                                         } else if dist <= f32::EPSILON {
-                                            (position, false)
+                                            (
+                                                Vec3::new(
+                                                    position.x,
+                                                    entity.position.y,
+                                                    position.y,
+                                                ),
+                                                false,
+                                            )
                                         } else {
                                             let step = to_target.normalized() * speed.min(dist);
                                             let start_3d = vek::Vec3::new(
@@ -2846,12 +2986,15 @@ impl RegionInstance {
                                                 .move_distance(start_3d, step_3d, radius);
                                             let end_2d = vek::Vec2::new(end_3d.x, end_3d.z);
                                             let arrived = (target - end_2d).magnitude() <= 0.05;
-                                            (end_2d, arrived)
+                                            (end_3d, arrived)
                                         }
-                                    })
+                                    });
+                                (Vec2::new(p.x, p.z), p.y, arrived)
                             } else {
-                                ctx.mapmini
-                                    .move_towards(position, target, speed, radius, 1.0)
+                                let (p, arrived) = ctx
+                                    .mapmini
+                                    .move_towards(position, target, speed, radius, 1.0);
+                                (p, entity.position.y, arrived)
                             };
 
                             let move_delta = new_position - position;
@@ -2859,6 +3002,7 @@ impl RegionInstance {
                                 entity.set_orientation(move_delta.normalized());
                             }
                             entity.set_pos_xz(new_position);
+                            entity.position.y = new_y;
                             if arrived {
                                 let wait_ticks =
                                     (*route_wait * ctx.ticks_per_minute as f32).max(0.0) as i64;
@@ -3239,6 +3383,23 @@ impl RegionInstance {
             let move_vector = entity.orientation * speed * dir;
             let position = entity.get_pos_xz();
             let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
+            let player_debug = stairs_debug_enabled() && entity.is_player();
+            if player_debug {
+                println!(
+                    "[StairsDebug][player-move] entity={} pos=({:.3},{:.3},{:.3}) orient=({:.3},{:.3}) dir={:.3} speed={:.3} move=({:.3},{:.3}) radius={:.3}",
+                    entity.id,
+                    position.x,
+                    entity.position.y,
+                    position.y,
+                    entity.orientation.x,
+                    entity.orientation.y,
+                    dir,
+                    speed,
+                    move_vector.x,
+                    move_vector.y,
+                    radius
+                );
+            }
 
             let mut new_position = position + move_vector;
 
@@ -3403,16 +3564,32 @@ impl RegionInstance {
                         let move_vec = new_position - position;
                         let desired_dist = move_vec.magnitude();
                         if desired_dist > 1e-6 {
-                            if let Some((end_2d, arrived)) =
+                            if let Some((end_pos, arrived)) =
                                 ctx.collision_world.move_towards_on_floors(
                                     position,
                                     new_position,
                                     desired_dist,
                                     radius,
                                     1.0,
+                                    entity.position.y,
                                 )
                             {
-                                entity.set_pos_xz(end_2d);
+                                if player_debug {
+                                    println!(
+                                        "[StairsDebug][player-move-nav] entity={} from=({:.3},{:.3}) desired=({:.3},{:.3}) end=({:.3},{:.3},{:.3}) arrived={}",
+                                        entity.id,
+                                        position.x,
+                                        position.y,
+                                        new_position.x,
+                                        new_position.y,
+                                        end_pos.x,
+                                        end_pos.y,
+                                        end_pos.z,
+                                        arrived
+                                    );
+                                }
+                                entity.set_pos_xz(vek::Vec2::new(end_pos.x, end_pos.z));
+                                entity.position.y = end_pos.y;
                                 !arrived
                             } else {
                                 let start_pos =
@@ -3423,6 +3600,22 @@ impl RegionInstance {
                                     move_vec_3d,
                                     radius,
                                 );
+                                if player_debug {
+                                    println!(
+                                        "[StairsDebug][player-move-fallback] entity={} from=({:.3},{:.3},{:.3}) desired=({:.3},{:.3},{:.3}) end=({:.3},{:.3},{:.3}) blocked={}",
+                                        entity.id,
+                                        start_pos.x,
+                                        start_pos.y,
+                                        start_pos.z,
+                                        start_pos.x + move_vec_3d.x,
+                                        start_pos.y + move_vec_3d.y,
+                                        start_pos.z + move_vec_3d.z,
+                                        collision_pos.x,
+                                        collision_pos.y,
+                                        collision_pos.z,
+                                        blocked
+                                    );
+                                }
                                 entity.set_pos_xz(vek::Vec2::new(collision_pos.x, collision_pos.z));
                                 blocked
                             }
@@ -3448,7 +3641,7 @@ impl RegionInstance {
             {
                 base_y = ctx
                     .collision_world
-                    .get_floor_height_nearest(final_pos, entity.position.y);
+                    .get_floor_height_reachable(final_pos, entity.position.y, 1.0);
             }
             // Fallback to terrain if no floor found.
             if base_y.is_none() {
@@ -3462,6 +3655,17 @@ impl RegionInstance {
 
             if let Some(y) = base_y {
                 entity.position.y = y;
+            }
+            if player_debug {
+                let final_pos = entity.get_pos_xz();
+                println!(
+                    "[StairsDebug][player-final] entity={} pos=({:.3},{:.3},{:.3}) blocked={}",
+                    entity.id,
+                    final_pos.x,
+                    entity.position.y,
+                    final_pos.y,
+                    blocked
+                );
             }
 
             ctx.check_player_for_section_change(entity);

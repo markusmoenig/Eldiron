@@ -2,6 +2,8 @@ pub use crate::prelude::*;
 
 pub mod add_arch;
 pub mod apply_tile;
+pub mod build_shaft;
+pub mod build_stairs;
 pub mod clear_palette;
 pub mod clear_profile;
 pub mod clear_tile;
@@ -16,6 +18,7 @@ pub mod create_prop;
 pub mod create_roof;
 pub mod create_sector;
 pub mod create_stairs;
+pub mod cut_hole;
 pub mod duplicate;
 pub mod duplicate_tile;
 pub mod edit_linedef;
