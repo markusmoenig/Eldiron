@@ -287,6 +287,79 @@ fn distance_to_sector_edge_2d(point: Vec2<f32>, sector: &Sector, map: &Map) -> f
     min_dist
 }
 
+fn extract_thin_wall_edge_volumes(
+    geo_id: GeoId,
+    path: &[Vec2<f32>],
+    min_y: f32,
+    max_y: f32,
+) -> Vec<BlockingVolume> {
+    let mut points: Vec<Vec2<f32>> = Vec::new();
+    for &p in path {
+        if points
+            .last()
+            .is_none_or(|last| (*last - p).magnitude() > 0.01)
+        {
+            points.push(p);
+        }
+    }
+
+    if points.len() >= 2 && (points[0] - *points.last().unwrap()).magnitude() <= 0.01 {
+        points.pop();
+    }
+
+    if points.len() < 2 {
+        return Vec::new();
+    }
+
+    const HALF_THICKNESS: f32 = 0.08;
+    const MAX_SEGMENT_LEN: f32 = 0.35;
+
+    let mut volumes = Vec::new();
+    let mut seen: Vec<(Vec2<f32>, Vec2<f32>)> = Vec::new();
+
+    for i in 0..points.len() {
+        let start = points[i];
+        let end = points[(i + 1) % points.len()];
+        if (end - start).magnitude_squared() < 0.01 {
+            continue;
+        }
+
+        let duplicate = seen.iter().any(|(a, b)| {
+            ((start - *a).magnitude() <= 0.01 && (end - *b).magnitude() <= 0.01)
+                || ((start - *b).magnitude() <= 0.01 && (end - *a).magnitude() <= 0.01)
+        });
+        if duplicate {
+            continue;
+        }
+
+        seen.push((start, end));
+
+        let edge = end - start;
+        let edge_len = edge.magnitude();
+        let steps = (edge_len / MAX_SEGMENT_LEN).ceil().max(1.0) as usize;
+
+        for step in 0..steps {
+            let t0 = step as f32 / steps as f32;
+            let t1 = (step + 1) as f32 / steps as f32;
+            let a = start + edge * t0;
+            let b = start + edge * t1;
+
+            let min_x = a.x.min(b.x) - HALF_THICKNESS;
+            let max_x = a.x.max(b.x) + HALF_THICKNESS;
+            let min_z = a.y.min(b.y) - HALF_THICKNESS;
+            let max_z = a.y.max(b.y) + HALF_THICKNESS;
+
+            volumes.push(BlockingVolume {
+                geo_id,
+                min: Vec3::new(min_x, min_y, min_z),
+                max: Vec3::new(max_x, max_y, max_z),
+            });
+        }
+    }
+
+    volumes
+}
+
 /// Split triangles into per-tile batches using 1x1 UV cells. Only routes a triangle
 /// to an override if all three vertices fall into the same overridden cell.
 fn partition_triangles_with_tile_and_blend_overrides(
@@ -1692,6 +1765,14 @@ impl ChunkBuilder for D3ChunkBuilder {
                     if stairs_generated && (stairs_part == "riser" || stairs_part == "tread") {
                         continue;
                     }
+                    let wall_path_2d: Vec<Vec2<f32>> = outer_loop
+                        .path
+                        .iter()
+                        .map(|uv| {
+                            let world_pos = surface.uv_to_world(*uv);
+                            Vec2::new(world_pos.x, world_pos.z)
+                        })
+                        .collect();
                     // Add blocking volume for vertical surfaces (both extruded and non-extruded)
                     if surface.extrusion.enabled && extrude_abs > 1e-6 {
                         // Extruded surface - full volume
@@ -1718,11 +1799,21 @@ impl ChunkBuilder for D3ChunkBuilder {
                             wall_max.z = mid + MIN_THICKNESS * 0.5;
                         }
 
-                        collision.static_volumes.push(BlockingVolume {
-                            geo_id: GeoId::Sector(sector.id),
-                            min: wall_min,
-                            max: wall_max,
-                        });
+                        let edge_volumes = extract_thin_wall_edge_volumes(
+                            GeoId::Sector(sector.id),
+                            &wall_path_2d,
+                            min_y,
+                            max_y,
+                        );
+                        if edge_volumes.is_empty() {
+                            collision.static_volumes.push(BlockingVolume {
+                                geo_id: GeoId::Sector(sector.id),
+                                min: wall_min,
+                                max: wall_max,
+                            });
+                        } else {
+                            collision.static_volumes.extend(edge_volumes);
+                        }
 
                         // Add walkable floor at base level
                         for floor_polygon in &walkable_polygons {
@@ -1759,11 +1850,21 @@ impl ChunkBuilder for D3ChunkBuilder {
                             wall_max.z = mid + MIN_THICKNESS * 0.5;
                         }
 
-                        collision.static_volumes.push(BlockingVolume {
-                            geo_id: GeoId::Sector(sector.id),
-                            min: wall_min,
-                            max: wall_max,
-                        });
+                        let edge_volumes = extract_thin_wall_edge_volumes(
+                            GeoId::Sector(sector.id),
+                            &wall_path_2d,
+                            base_y,
+                            base_y + WALL_HEIGHT,
+                        );
+                        if edge_volumes.is_empty() {
+                            collision.static_volumes.push(BlockingVolume {
+                                geo_id: GeoId::Sector(sector.id),
+                                min: wall_min,
+                                max: wall_max,
+                            });
+                        } else {
+                            collision.static_volumes.extend(edge_volumes);
+                        }
                     }
                 } else {
                     // Horizontal surface (floor/ceiling) - only add as walkable floor if facing up
@@ -2123,11 +2224,21 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 wall_max.z = mid + MIN_THICKNESS * 0.5;
                             }
 
-                            collision.static_volumes.push(BlockingVolume {
-                                geo_id: GeoId::Sector(sector.id),
-                                min: wall_min,
-                                max: wall_max,
-                            });
+                            let edge_volumes = extract_thin_wall_edge_volumes(
+                                GeoId::Sector(sector.id),
+                                &sector_points,
+                                min_y,
+                                max_y,
+                            );
+                            if edge_volumes.is_empty() {
+                                collision.static_volumes.push(BlockingVolume {
+                                    geo_id: GeoId::Sector(sector.id),
+                                    min: wall_min,
+                                    max: wall_max,
+                                });
+                            } else {
+                                collision.static_volumes.extend(edge_volumes);
+                            }
                         } else {
                             // Non-extruded wall
                             const WALL_HEIGHT: f32 = 2.5;
@@ -2147,11 +2258,21 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 wall_max.z = mid + MIN_THICKNESS * 0.5;
                             }
 
-                            collision.static_volumes.push(BlockingVolume {
-                                geo_id: GeoId::Sector(sector.id),
-                                min: wall_min,
-                                max: wall_max,
-                            });
+                            let edge_volumes = extract_thin_wall_edge_volumes(
+                                GeoId::Sector(sector.id),
+                                &sector_points,
+                                base_y,
+                                base_y + WALL_HEIGHT,
+                            );
+                            if edge_volumes.is_empty() {
+                                collision.static_volumes.push(BlockingVolume {
+                                    geo_id: GeoId::Sector(sector.id),
+                                    min: wall_min,
+                                    max: wall_max,
+                                });
+                            } else {
+                                collision.static_volumes.extend(edge_volumes);
+                            }
                         }
                     } else if normalized_y > 0.7 && !sector_has_stairs && !sector_is_ridge {
                         // Horizontal floor - add as walkable
@@ -4878,32 +4999,44 @@ fn generate_terrain(
     // Create terrain generator config (can be upsampled per-ridge via `ridge_subdiv`).
     let mut config = TerrainConfig::default();
     let mut chunk_ridge_subdiv = config.subdivisions.max(1);
+    let mut chunk_exclusion_subdiv = config.subdivisions.max(1);
     for sector in &map.sectors {
-        if sector.properties.get_int_default("terrain_mode", 0) != 2 {
-            continue;
+        match sector.properties.get_int_default("terrain_mode", 0) {
+            1 => {
+                if sector.bounding_box(map).intersects(&chunk.bbox) {
+                    let exclusion_subdiv = sector
+                        .properties
+                        .get_int_default("terrain_exclusion_subdiv", 4)
+                        .clamp(1, 8) as u32;
+                    chunk_exclusion_subdiv = chunk_exclusion_subdiv.max(exclusion_subdiv);
+                }
+            }
+            2 => {
+                let mut expanded_bbox = sector.bounding_box(map);
+                let influence = sector
+                    .properties
+                    .get_float_default("ridge_plateau_width", 0.0)
+                    .max(0.0)
+                    + sector
+                        .properties
+                        .get_float_default("ridge_falloff_distance", 0.0)
+                        .max(0.0);
+                if influence > 0.0 {
+                    expanded_bbox.expand(Vec2::broadcast(influence * 2.0));
+                }
+                if !expanded_bbox.intersects(&chunk.bbox) {
+                    continue;
+                }
+                let ridge_subdiv = sector
+                    .properties
+                    .get_int_default("ridge_subdiv", 1)
+                    .clamp(1, 8) as u32;
+                chunk_ridge_subdiv = chunk_ridge_subdiv.max(ridge_subdiv);
+            }
+            _ => {}
         }
-        let mut expanded_bbox = sector.bounding_box(map);
-        let influence = sector
-            .properties
-            .get_float_default("ridge_plateau_width", 0.0)
-            .max(0.0)
-            + sector
-                .properties
-                .get_float_default("ridge_falloff_distance", 0.0)
-                .max(0.0);
-        if influence > 0.0 {
-            expanded_bbox.expand(Vec2::broadcast(influence * 2.0));
-        }
-        if !expanded_bbox.intersects(&chunk.bbox) {
-            continue;
-        }
-        let ridge_subdiv = sector
-            .properties
-            .get_int_default("ridge_subdiv", 1)
-            .clamp(1, 8) as u32;
-        chunk_ridge_subdiv = chunk_ridge_subdiv.max(ridge_subdiv);
     }
-    config.subdivisions = chunk_ridge_subdiv;
+    config.subdivisions = chunk_ridge_subdiv.max(chunk_exclusion_subdiv);
     let generator = TerrainGenerator::new(config);
 
     // Collect road tile definitions from linedefs.

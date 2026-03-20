@@ -903,13 +903,13 @@ impl TerrainGenerator {
             let h0 = all_vertices[i0].1;
             let h1 = all_vertices[i1].1;
             let h2 = all_vertices[i2].1;
-
             // Check if triangle is entirely inside any excluded sector
             let mut should_exclude = false;
 
             for &sector_id in excluded_sectors {
                 if let Some(sector) = map.find_sector(sector_id) {
-                    // Simple check: if all 3 vertices are inside the sector, exclude the triangle
+                    // Conservative exclusion: only drop triangles fully inside the room.
+                    // Higher terrain subdivision handles the boundary cleanly without outside holes.
                     if self.point_in_sector(p0, sector, map)
                         && self.point_in_sector(p1, sector, map)
                         && self.point_in_sector(p2, sector, map)

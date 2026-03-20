@@ -35,6 +35,8 @@ fn stairs_debug_log(message: impl FnOnce() -> String) {
 pub struct ChunkCollision {
     /// Static blocking volumes (walls, extruded surfaces)
     pub static_volumes: Vec<BlockingVolume>,
+    /// Exact static wall barriers for thin/diagonal walls
+    pub static_barriers: Vec<StaticBarrier>,
     /// Dynamic openings (doors, windows) with their GeoIds
     pub dynamic_openings: Vec<DynamicOpening>,
     /// Walkable floor regions
@@ -47,6 +49,15 @@ pub struct BlockingVolume {
     pub geo_id: GeoId,
     pub min: Vec3<f32>,
     pub max: Vec3<f32>,
+}
+
+#[derive(Clone, Debug)]
+pub struct StaticBarrier {
+    pub geo_id: GeoId,
+    pub start: Vec2<f32>,
+    pub end: Vec2<f32>,
+    pub min_y: f32,
+    pub max_y: f32,
 }
 
 /// A dynamic opening that can change state (door, window, etc.)
@@ -108,6 +119,7 @@ impl ChunkCollision {
     pub fn new() -> Self {
         Self {
             static_volumes: Vec::new(),
+            static_barriers: Vec::new(),
             dynamic_openings: Vec::new(),
             walkable_floors: Vec::new(),
         }
@@ -329,6 +341,32 @@ impl CollisionWorld {
                         return false;
                     }
                 }
+            }
+        }
+
+        for barrier in &chunk.static_barriers {
+            if position.y + radius >= barrier.min_y
+                && position.y - radius <= barrier.max_y
+                && self.point_to_segment_distance_2d(
+                    Vec2::new(position.x, position.z),
+                    barrier.start,
+                    barrier.end,
+                ) <= radius
+            {
+                stairs_debug_log(|| {
+                    format!(
+                        "[StairsDebug][blocked-barrier] pos=({:.3},{:.3},{:.3}) geo={:?} a=({:.3},{:.3}) b=({:.3},{:.3})",
+                        position.x,
+                        position.y,
+                        position.z,
+                        barrier.geo_id,
+                        barrier.start.x,
+                        barrier.start.y,
+                        barrier.end.x,
+                        barrier.end.y
+                    )
+                });
+                return true;
             }
         }
 
@@ -730,6 +768,17 @@ impl CollisionWorld {
             for dy in -1..=1 {
                 let check_chunk = Vec2::new(chunk_coords.x + dx, chunk_coords.y + dy);
                 if let Some(chunk_collision) = self.chunks.get(&check_chunk) {
+                    for barrier in &chunk_collision.static_barriers {
+                        if position.y + radius >= barrier.min_y
+                            && position.y - radius <= barrier.max_y
+                        {
+                            segments.push(CollisionSegment {
+                                geo_id: barrier.geo_id,
+                                start: barrier.start,
+                                end: barrier.end,
+                            });
+                        }
+                    }
                     for volume in &chunk_collision.static_volumes {
                         self.add_volume_segments(volume, &mut segments);
                     }

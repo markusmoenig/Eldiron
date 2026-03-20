@@ -269,6 +269,74 @@ Parameters:
 - `glass_tile_id`: glass material source (UUID or palette index).
   - if `glass_tile_id` is empty/unset, no glass mesh is generated and the opening remains a passable hole.
 
+### Cut Hole
+
+Convert one selected sector into a profile hole inside another selected sector.
+
+Use it in `GEOM` mode in 3D editor views with exactly two sectors selected on the same height plane:
+- the larger containing sector becomes the host surface
+- the contained sector becomes the cutout handle
+
+What it does:
+- creates or reuses the host surface profile
+- inserts the inner sector shape as a profile hole
+- hides the original cutout sector in world geometry
+- links the generated profile hole back to the source sector so edits can stay synchronized
+
+Notes:
+- this is the intended first step for shaft/stair workflows
+- after cutting, the visible opening is driven by the host surface profile, not by the original sector polygon
+
+### Build Shaft
+
+Build vertical shaft walls from a selected cutout handle sector.
+
+Use it in `GEOM` mode in 3D editor views with exactly one sector selected, and that sector must be a `Cut Hole` handle.
+
+Parameters:
+- `[action].direction`: `Down` or `Up`
+- `[action].depth`: shaft depth in world units
+- `[action].bottom_cap`: create a cap at the far end of the shaft
+
+Behavior:
+- generates wall sectors around the cutout perimeter
+- optionally generates a bottom/top cap sector
+- copies source material/shader/layer state from the handle sector
+- marks generated sectors so later tools can detect the shaft structure
+
+Notes:
+- default depth is `3.0`
+- the original cutout handle remains the control shape for rebuilding
+
+### Build Stairs
+
+Build a stair run between two selected linedefs.
+
+Use it in `GEOM` mode in 3D editor views with exactly two linedefs selected and no sectors selected.
+
+Selection rules:
+- the lower linedef becomes the stair start
+- the higher linedef becomes the stair end
+- both edges are aligned automatically before stair generation
+
+Parameters:
+- `[stairs].steps`: number of steps (`1..64`)
+- `[stairs].side_walls`: generate side walls along the stair run
+- `[material].tile_id`: default stair material
+- `[material].tread_tile_id`: optional tread override
+- `[material].riser_tile_id`: optional riser override
+- `[material].side_tile_id`: optional side-wall override
+
+Behavior:
+- creates generated stair sectors between the two selected edges
+- writes stair metadata/material overrides onto the generated geometry
+- if the stair connects to a `Build Shaft` opening, the matching top shaft wall is opened automatically
+
+Material fallback:
+- tread: `tread_tile_id` -> `tile_id` -> sector/source fallback
+- riser: `riser_tile_id` -> `tile_id` -> sector/source fallback
+- side walls: `side_tile_id` -> `tile_id` -> sector/source fallback
+
 ### Create Prop
 
 Create/edit parametric props on selected sectors (2D editor view with an active editing surface).
