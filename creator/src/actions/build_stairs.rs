@@ -8,10 +8,6 @@ pub struct BuildStairs {
 }
 
 impl BuildStairs {
-    fn debug_enabled() -> bool {
-        std::env::var_os("ELDIRON_STAIRS_DEBUG").is_some()
-    }
-
     fn parse_tile_source(text: &str) -> Option<Value> {
         let id = Uuid::parse_str(text.trim()).ok()?;
         Some(Value::Source(PixelSource::TileId(id)))
@@ -410,37 +406,6 @@ impl Action for BuildStairs {
         let bottom_y = a_avg_y.min(b_avg_y);
         let top_y = a_avg_y.max(b_avg_y);
         let rise = (top_y - bottom_y) / steps as f32;
-        if Self::debug_enabled() {
-            let min_x = b0.x.min(b1.x).min(t0.x).min(t1.x);
-            let max_x = b0.x.max(b1.x).max(t0.x).max(t1.x);
-            let min_z = b0.z.min(b1.z).min(t0.z).min(t1.z);
-            let max_z = b0.z.max(b1.z).max(t0.z).max(t1.z);
-            println!(
-                "[BuildStairs] linedefs=({}, {}) steps={} side_walls={} bottom=(({:.3},{:.3},{:.3}),({:.3},{:.3},{:.3})) top=(({:.3},{:.3},{:.3}),({:.3},{:.3},{:.3})) bbox=x({:.3}..{:.3}) z({:.3}..{:.3}) y({:.3}..{:.3})",
-                a,
-                b,
-                steps,
-                side_walls,
-                b0.x,
-                b0.y,
-                b0.z,
-                b1.x,
-                b1.y,
-                b1.z,
-                t0.x,
-                t0.y,
-                t0.z,
-                t1.x,
-                t1.y,
-                t1.z,
-                min_x,
-                max_x,
-                min_z,
-                max_z,
-                bottom_y,
-                top_y
-            );
-        }
 
         let mut created = Vec::new();
         let mut left_profile = Vec::with_capacity(steps + 1);
@@ -587,9 +552,6 @@ impl Action for BuildStairs {
                 }
             }
 
-            if Self::debug_enabled() {
-                println!("[BuildStairs] created_sectors={created:?}");
-            }
             map.selected_sectors = created;
             map.update_surfaces();
             Some(ProjectUndoAtom::MapEdit(

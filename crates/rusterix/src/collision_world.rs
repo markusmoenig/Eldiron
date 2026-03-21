@@ -1,8 +1,14 @@
 use pathfinding::prelude::astar;
 use rustc_hash::FxHashMap;
 use scenevm::GeoId;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use vek::{Vec2, Vec3};
+
+fn stairs_debug_enabled() -> bool {
+    matches!(
+        std::env::var("ELDIRON_STAIRS_DEBUG").ok().as_deref(),
+        Some("1") | Some("true") | Some("TRUE") | Some("yes") | Some("YES")
+    )
+}
 
 /// Manages collision data across all chunks in the world
 pub struct CollisionWorld {
@@ -12,22 +18,6 @@ pub struct CollisionWorld {
     dynamic_states: FxHashMap<GeoId, DynamicState>,
     /// Chunk size (must match rendering chunk size)
     chunk_size: i32,
-}
-
-static STAIRS_DEBUG_LOGS: AtomicUsize = AtomicUsize::new(0);
-
-fn stairs_debug_enabled() -> bool {
-    std::env::var_os("ELDIRON_STAIRS_DEBUG").is_some()
-}
-
-fn stairs_debug_log(message: impl FnOnce() -> String) {
-    if !stairs_debug_enabled() {
-        return;
-    }
-    let n = STAIRS_DEBUG_LOGS.fetch_add(1, Ordering::Relaxed);
-    if n < 5000 {
-        println!("{}", message());
-    }
 }
 
 /// Collision data for a single chunk
@@ -227,21 +217,21 @@ impl CollisionWorld {
             match closest_collision {
                 Some((distance, normal, geo_id)) => {
                     blocked = true;
-                    stairs_debug_log(|| {
-                        format!(
+                    if stairs_debug_enabled() {
+                        println!(
                             "[StairsDebug][blocked-segment] pos=({:.3},{:.3},{:.3}) move=({:.3},{:.3},{:.3}) geo={:?} dist={:.3} normal=({:.3},{:.3})",
-                            current_2d.x,
-                            current_pos.y,
-                            current_2d.y,
-                            remaining.x,
-                            0.0,
-                            remaining.y,
+                            start_pos.x,
+                            start_pos.y,
+                            start_pos.z,
+                            move_vector.x,
+                            move_vector.y,
+                            move_vector.z,
                             geo_id,
                             distance,
                             normal.x,
                             normal.y
-                        )
-                    });
+                        );
+                    }
 
                     // Move up to (just before) collision point
                     let move_dir = remaining.normalized();
@@ -326,17 +316,6 @@ impl CollisionWorld {
                         radius,
                     );
                     if in_polygon {
-                        stairs_debug_log(|| {
-                            format!(
-                                "[StairsDebug][passable-opening] pos=({:.3},{:.3},{:.3}) geo={:?} floor={:.3} ceil={:.3}",
-                                position.x,
-                                position.y,
-                                position.z,
-                                opening.geo_id,
-                                opening.floor_height,
-                                opening.ceiling_height
-                            )
-                        });
                         // Player is in a passable opening - don't check static volumes
                         return false;
                     }
@@ -345,27 +324,13 @@ impl CollisionWorld {
         }
 
         for barrier in &chunk.static_barriers {
-            if position.y + radius >= barrier.min_y
-                && position.y - radius <= barrier.max_y
+            if self.barrier_blocks_horizontal_motion(position, barrier)
                 && self.point_to_segment_distance_2d(
                     Vec2::new(position.x, position.z),
                     barrier.start,
                     barrier.end,
                 ) <= radius
             {
-                stairs_debug_log(|| {
-                    format!(
-                        "[StairsDebug][blocked-barrier] pos=({:.3},{:.3},{:.3}) geo={:?} a=({:.3},{:.3}) b=({:.3},{:.3})",
-                        position.x,
-                        position.y,
-                        position.z,
-                        barrier.geo_id,
-                        barrier.start.x,
-                        barrier.start.y,
-                        barrier.end.x,
-                        barrier.end.y
-                    )
-                });
                 return true;
             }
         }
@@ -373,21 +338,6 @@ impl CollisionWorld {
         // Check static volumes
         for volume in &chunk.static_volumes {
             if self.collides_with_aabb(position, radius, volume.min, volume.max) {
-                stairs_debug_log(|| {
-                    format!(
-                        "[StairsDebug][blocked-volume] pos=({:.3},{:.3},{:.3}) geo={:?} min=({:.3},{:.3},{:.3}) max=({:.3},{:.3},{:.3})",
-                        position.x,
-                        position.y,
-                        position.z,
-                        volume.geo_id,
-                        volume.min.x,
-                        volume.min.y,
-                        volume.min.z,
-                        volume.max.x,
-                        volume.max.y,
-                        volume.max.z
-                    )
-                });
                 return true;
             }
         }
@@ -417,17 +367,6 @@ impl CollisionWorld {
                         &opening.boundary_2d,
                         radius,
                     ) {
-                        stairs_debug_log(|| {
-                            format!(
-                                "[StairsDebug][blocked-opening] pos=({:.3},{:.3},{:.3}) geo={:?} floor={:.3} ceil={:.3}",
-                                position.x,
-                                position.y,
-                                position.z,
-                                opening.geo_id,
-                                opening.floor_height,
-                                opening.ceiling_height
-                            )
-                        });
                         return true;
                     }
                 }
@@ -471,12 +410,6 @@ impl CollisionWorld {
             let mut best_height: Option<f32> = None;
             for floor in &chunk_collision.walkable_floors {
                 if self.point_in_polygon_2d(position, &floor.polygon_2d, 0.0) {
-                    stairs_debug_log(|| {
-                        format!(
-                            "[StairsDebug][floor-hit] pos=({:.3},{:.3}) geo={:?} height={:.3}",
-                            position.x, position.y, floor.geo_id, floor.height
-                        )
-                    });
                     best_height = Some(match best_height {
                         Some(curr) => curr.max(floor.height),
                         None => floor.height,
@@ -542,8 +475,10 @@ impl CollisionWorld {
         let chunk_coords = self.world_to_chunk(position);
 
         if let Some(chunk_collision) = self.chunks.get(&chunk_coords) {
+            const SAME_LEVEL_EPS: f32 = 0.05;
             let mut best_up: Option<f32> = None;
             let mut best_up_delta = f32::INFINITY;
+            let mut best_same: Option<f32> = None;
             let mut best_down: Option<f32> = None;
             let mut best_down_delta = f32::INFINITY;
 
@@ -552,7 +487,7 @@ impl CollisionWorld {
                     continue;
                 }
                 let delta = floor.height - reference_y;
-                if delta >= -0.05 && delta <= max_step_height + 1e-3 {
+                if delta > SAME_LEVEL_EPS && delta <= max_step_height + 1e-3 {
                     if delta < best_up_delta {
                         best_up_delta = delta;
                         best_up = Some(floor.height);
@@ -561,7 +496,9 @@ impl CollisionWorld {
                     {
                         best_up = Some(floor.height);
                     }
-                } else if delta < -0.05 && delta.abs() <= max_step_height + 1e-3 {
+                } else if delta >= -SAME_LEVEL_EPS && delta <= SAME_LEVEL_EPS {
+                    best_same = Some(floor.height);
+                } else if delta < -SAME_LEVEL_EPS && delta.abs() <= max_step_height + 1e-3 {
                     let down_delta = delta.abs();
                     if down_delta < best_down_delta {
                         best_down_delta = down_delta;
@@ -574,7 +511,7 @@ impl CollisionWorld {
                 }
             }
 
-            return best_up.or(best_down);
+            return best_up.or(best_same).or(best_down);
         }
 
         None
@@ -614,6 +551,27 @@ impl CollisionWorld {
             max_step_height,
             0.05,
         );
+        let arrived = (to - Vec2::new(new_position.x, new_position.z)).magnitude() <= 0.05;
+        Some((new_position, arrived))
+    }
+
+    /// Direct local movement on floors without navgrid/path waypoint expansion.
+    /// Intended for short player input steps where pathfinding causes overshoot on stairs.
+    pub fn move_towards_on_floors_direct(
+        &self,
+        from: Vec2<f32>,
+        to: Vec2<f32>,
+        speed: f32,
+        radius: f32,
+        max_step_height: f32,
+        reference_y: f32,
+    ) -> Option<(Vec3<f32>, bool)> {
+        let base_height = self
+            .get_floor_height_reachable(from, reference_y, max_step_height)
+            .or_else(|| self.get_floor_height_reachable(to, reference_y, max_step_height))?;
+
+        let (new_position, _) =
+            self.step_towards_point(from, to, speed, radius, base_height, max_step_height, 0.05);
         let arrived = (to - Vec2::new(new_position.x, new_position.z)).magnitude() <= 0.05;
         Some((new_position, arrived))
     }
@@ -733,6 +691,18 @@ impl CollisionWorld {
                     move_height = next_floor;
                 }
             }
+            if stairs_debug_enabled() && (move_height - current.y).abs() > 0.001 {
+                println!(
+                    "[StairsDebug][step-floor] from=({:.3},{:.3},{:.3}) probe=({:.3},{:.3}) current_floor={:.3} move_height={:.3}",
+                    current.x,
+                    current.y,
+                    current.z,
+                    probe_2d.x,
+                    probe_2d.y,
+                    current_floor,
+                    move_height
+                );
+            }
             current.y = move_height;
 
             let (mut next, blocked) = self.move_distance(current, delta, radius);
@@ -741,6 +711,12 @@ impl CollisionWorld {
                 self.get_floor_height_reachable(next_2d, current.y, max_step_height)
             {
                 if (next_floor - current_floor).abs() <= max_step_height + 1e-3 {
+                    if stairs_debug_enabled() && (next_floor - next.y).abs() > 0.001 {
+                        println!(
+                            "[StairsDebug][land-floor] pos=({:.3},{:.3},{:.3}) next_floor={:.3} blocked={}",
+                            next.x, next.y, next.z, next_floor, blocked
+                        );
+                    }
                     next.y = next_floor;
                 }
             }
@@ -769,9 +745,7 @@ impl CollisionWorld {
                 let check_chunk = Vec2::new(chunk_coords.x + dx, chunk_coords.y + dy);
                 if let Some(chunk_collision) = self.chunks.get(&check_chunk) {
                     for barrier in &chunk_collision.static_barriers {
-                        if position.y + radius >= barrier.min_y
-                            && position.y - radius <= barrier.max_y
-                        {
+                        if self.barrier_blocks_horizontal_motion(position, barrier) {
                             segments.push(CollisionSegment {
                                 geo_id: barrier.geo_id,
                                 start: barrier.start,
@@ -780,7 +754,9 @@ impl CollisionWorld {
                         }
                     }
                     for volume in &chunk_collision.static_volumes {
-                        self.add_volume_segments(volume, &mut segments);
+                        if self.volume_blocks_horizontal_motion(position, radius, volume) {
+                            self.add_volume_segments(volume, &mut segments);
+                        }
                     }
 
                     for opening in &chunk_collision.dynamic_openings {
@@ -800,6 +776,43 @@ impl CollisionWorld {
         }
 
         segments
+    }
+
+    fn volume_blocks_horizontal_motion(
+        &self,
+        position: Vec3<f32>,
+        _radius: f32,
+        volume: &BlockingVolume,
+    ) -> bool {
+        const FEET_EPS: f32 = 0.02;
+        const ACTOR_HEIGHT: f32 = 1.7;
+        let body_top = position.y + ACTOR_HEIGHT;
+
+        if position.y >= volume.max.y - FEET_EPS {
+            return false;
+        }
+        if body_top <= volume.min.y + FEET_EPS {
+            return false;
+        }
+        true
+    }
+
+    fn barrier_blocks_horizontal_motion(
+        &self,
+        position: Vec3<f32>,
+        barrier: &StaticBarrier,
+    ) -> bool {
+        const FEET_EPS: f32 = 0.02;
+        const ACTOR_HEIGHT: f32 = 1.7;
+        let body_top = position.y + ACTOR_HEIGHT;
+
+        if position.y >= barrier.max_y - FEET_EPS {
+            return false;
+        }
+        if body_top <= barrier.min_y + FEET_EPS {
+            return false;
+        }
+        true
     }
 
     fn add_volume_segments(&self, volume: &BlockingVolume, segments: &mut Vec<CollisionSegment>) {
@@ -1115,12 +1128,6 @@ impl CollisionWorld {
 
     fn sample_floor_height(&self, position: Vec2<f32>, probe: f32) -> Option<f32> {
         if let Some(h) = self.get_floor_height(position) {
-            stairs_debug_log(|| {
-                format!(
-                    "[StairsDebug][sample-hit] pos=({:.3},{:.3}) probe={:.3} height={:.3}",
-                    position.x, position.y, probe, h
-                )
-            });
             return Some(h);
         }
 
@@ -1137,21 +1144,9 @@ impl CollisionWorld {
         ];
         for off in offsets {
             if let Some(h) = self.get_floor_height(position + off) {
-                stairs_debug_log(|| {
-                    format!(
-                        "[StairsDebug][sample-near] pos=({:.3},{:.3}) off=({:.3},{:.3}) probe={:.3} height={:.3}",
-                        position.x, position.y, off.x, off.y, probe, h
-                    )
-                });
                 return Some(h);
             }
         }
-        stairs_debug_log(|| {
-            format!(
-                "[StairsDebug][sample-miss] pos=({:.3},{:.3}) probe={:.3}",
-                position.x, position.y, probe
-            )
-        });
         None
     }
 

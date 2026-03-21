@@ -20,10 +20,6 @@ pub const DEFAULT_TILE_ID: &str = "27826750-a9e7-4346-994b-fb318b238452";
 
 pub struct D3ChunkBuilder {}
 
-fn stairs_debug_enabled() -> bool {
-    std::env::var_os("ELDIRON_STAIRS_DEBUG").is_some()
-}
-
 fn matches_preview_hide_pattern(name: &str, pattern: &str) -> bool {
     let name = name.trim();
     let pattern = pattern.trim();
@@ -1868,6 +1864,9 @@ impl ChunkBuilder for D3ChunkBuilder {
                     }
                 } else {
                     // Horizontal surface (floor/ceiling) - only add as walkable floor if facing up
+                    if stairs_generated && stairs_part == "tread" {
+                        continue;
+                    }
                     if normalized_y > 0.7 && !sector_has_stairs && !sector_is_ridge {
                         for floor_polygon in &walkable_polygons {
                             let floor_polygon = if stairs_generated && stairs_part == "tread" {
@@ -2197,6 +2196,9 @@ impl ChunkBuilder for D3ChunkBuilder {
                     let is_horizontal = normalized_y > 0.7;
 
                     if !is_horizontal {
+                        if stairs_generated && (stairs_part == "riser" || stairs_part == "tread") {
+                            continue;
+                        }
                         // Vertical wall - add blocking volume
                         let extrude_abs = surface.extrusion.depth.abs();
                         const MIN_THICKNESS: f32 = 0.1;
@@ -2275,6 +2277,9 @@ impl ChunkBuilder for D3ChunkBuilder {
                             }
                         }
                     } else if normalized_y > 0.7 && !sector_has_stairs && !sector_is_ridge {
+                        if stairs_generated && stairs_part == "tread" {
+                            continue;
+                        }
                         // Horizontal floor - add as walkable
                         collision.walkable_floors.push(WalkableFloor {
                             geo_id: GeoId::Sector(sector.id),
@@ -2579,22 +2584,6 @@ fn add_built_stairs_collision(
         let rise = ((t0.y + t1.y) * 0.5 - (b0.y + b1.y) * 0.5) / steps as f32;
         let bottom_y = (b0.y + b1.y) * 0.5;
         let top_y = (t0.y + t1.y) * 0.5;
-        let run_overlap = 1.0 / steps as f32 * 0.18;
-        if stairs_debug_enabled() {
-            println!(
-                "[StairsDebug][build] linedefs=({}, {}) steps={} bottom_y={:.3} top_y={:.3} chunk=({:.1},{:.1})-({:.1},{:.1})",
-                key.0,
-                key.1,
-                steps,
-                bottom_y,
-                top_y,
-                chunk_bbox.min.x,
-                chunk_bbox.min.y,
-                chunk_bbox.max.x,
-                chunk_bbox.max.y
-            );
-        }
-
         // Mark the stair-top lip as a passage so the collision solver can step
         // from the host floor into the first descending tread.
         let strip_norm = (0.9 / steps as f32).clamp(0.05, 0.22);
@@ -2635,30 +2624,76 @@ fn add_built_stairs_collision(
                 0.12,
             ),
         });
-        if stairs_debug_enabled() {
-            println!(
-                "[StairsDebug][open] sector={} a=({:.3},{:.3}) b=({:.3},{:.3}) c=({:.3},{:.3}) d=({:.3},{:.3})",
-                sector.id,
-                open_left_inner.x,
-                open_left_inner.z,
-                open_right_inner.x,
-                open_right_inner.z,
-                open_right_outer.x,
-                open_right_outer.z,
-                open_left_outer.x,
-                open_left_outer.z
-            );
-        }
+
+        // Matching transition strip at the low end so actors can step on/off
+        // the first tread without being trapped by the bottom riser blocker.
+        let bottom_inner_norm = strip_norm.clamp(0.05, 0.22);
+        let bottom_left_inner = lerp3(b0, t0, bottom_inner_norm);
+        let bottom_right_inner = lerp3(b1, t1, bottom_inner_norm);
+        let bottom_extension = 0.45;
+        let bottom_left_dir = (b0 - t0).try_normalized().unwrap_or(Vec3::zero());
+        let bottom_right_dir = (b1 - t1).try_normalized().unwrap_or(Vec3::zero());
+        let bottom_left_outer = b0 + bottom_left_dir * bottom_extension;
+        let bottom_right_outer = b1 + bottom_right_dir * bottom_extension;
+        let bottom_opening = inflate_walkable_polygon(
+            &[
+                Vec2::new(bottom_left_outer.x, bottom_left_outer.z),
+                Vec2::new(bottom_right_outer.x, bottom_right_outer.z),
+                Vec2::new(bottom_right_inner.x, bottom_right_inner.z),
+                Vec2::new(bottom_left_inner.x, bottom_left_inner.z),
+            ],
+            0.05,
+        );
+        collision.dynamic_openings.push(DynamicOpening {
+            geo_id: GeoId::Sector(sector.id),
+            item_blocking: Some(false),
+            boundary_2d: bottom_opening.clone(),
+            floor_height: bottom_y - 0.10,
+            ceiling_height: bottom_y + rise.abs() + 0.35,
+            opening_type: OpeningType::Passage,
+        });
+        collision.walkable_floors.push(WalkableFloor {
+            geo_id: GeoId::Sector(sector.id),
+            height: bottom_y,
+            polygon_2d: inflate_walkable_polygon(
+                &[
+                    Vec2::new(bottom_left_outer.x, bottom_left_outer.z),
+                    Vec2::new(bottom_right_outer.x, bottom_right_outer.z),
+                    Vec2::new(bottom_right_inner.x, bottom_right_inner.z),
+                    Vec2::new(bottom_left_inner.x, bottom_left_inner.z),
+                ],
+                0.05,
+            ),
+        });
 
         for i in 0..steps {
-            let t0f = ((i as f32 / steps as f32) - run_overlap).clamp(0.0, 1.0);
-            let t1f = (((i + 1) as f32 / steps as f32) + run_overlap).clamp(0.0, 1.0);
+            // Use asymmetric overlap:
+            // - extend tread fronts a bit farther down the run so upward traversal
+            //   can acquire the next step before contacting its riser
+            // - keep tread backs tight so descending does not "fall" to lower
+            //   treads too early and feel unnaturally fast
+            let front_overlap = if i == 0 {
+                1.0 / steps as f32 * 0.20
+            } else {
+                1.0 / steps as f32 * 0.10
+            };
+            let back_overlap = if i + 1 == steps {
+                1.0 / steps as f32 * 0.08
+            } else {
+                1.0 / steps as f32 * 0.03
+            };
+            let t0f = ((i as f32 / steps as f32) - front_overlap).clamp(0.0, 1.0);
+            let t1f = (((i + 1) as f32 / steps as f32) + back_overlap).clamp(0.0, 1.0);
+            let riser_t = i as f32 / steps as f32;
             let tread_y = bottom_y + (i + 1) as f32 * rise;
+            let lower_y = bottom_y + i as f32 * rise;
 
             let front_left = lerp3(b0, t0, t0f);
             let front_right = lerp3(b1, t1, t0f);
             let back_left = lerp3(b0, t0, t1f);
             let back_right = lerp3(b1, t1, t1f);
+            let riser_left = lerp3(b0, t0, riser_t);
+            let riser_right = lerp3(b1, t1, riser_t);
 
             collision.walkable_floors.push(WalkableFloor {
                 geo_id: GeoId::Sector(sector.id),
@@ -2670,24 +2705,29 @@ fn add_built_stairs_collision(
                         Vec2::new(back_right.x, back_right.z),
                         Vec2::new(back_left.x, back_left.z),
                     ],
-                    0.08,
+                    0.04,
                 ),
             });
-            if stairs_debug_enabled() {
-                println!(
-                    "[StairsDebug][step] sector={} step={} y={:.3} a=({:.3},{:.3}) b=({:.3},{:.3}) c=({:.3},{:.3}) d=({:.3},{:.3})",
-                    sector.id,
-                    i + 1,
-                    tread_y,
-                    front_left.x,
-                    front_left.z,
-                    front_right.x,
-                    front_right.z,
-                    back_right.x,
-                    back_right.z,
-                    back_left.x,
-                    back_left.z
-                );
+
+            // Reintroduce physical riser blockers so actors approaching from the
+            // low end cannot walk underneath the stair run. Use a single front-face
+            // barrier per riser instead of an AABB volume, otherwise the side edges
+            // of the box become unintended blockers while traversing the stairs.
+            // Keep underside protection to the very top riser only for now.
+            // This preserves traversal while still closing off the most obvious
+            // "walk under the staircase" case near the landing.
+            if i + 1 == steps {
+                let barrier_min_y = lower_y.min(tread_y);
+                let barrier_max_y = lower_y.max(tread_y);
+                collision
+                    .static_barriers
+                    .push(crate::collision_world::StaticBarrier {
+                        geo_id: GeoId::Sector(sector.id),
+                        start: Vec2::new(riser_left.x, riser_left.z),
+                        end: Vec2::new(riser_right.x, riser_right.z),
+                        min_y: barrier_min_y,
+                        max_y: barrier_max_y,
+                    });
             }
         }
     }

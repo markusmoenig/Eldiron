@@ -2,6 +2,7 @@ pub use crate::prelude::*;
 
 pub mod add_arch;
 pub mod apply_tile;
+pub mod build_room;
 pub mod build_shaft;
 pub mod build_stairs;
 pub mod clear_palette;

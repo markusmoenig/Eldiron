@@ -21,6 +21,13 @@ use std::sync::{LazyLock, RwLock};
 static REGIONCTX: LazyLock<RwLock<FxHashMap<u32, Arc<Mutex<RegionCtx>>>>> =
     LazyLock::new(|| RwLock::new(FxHashMap::default()));
 
+fn stairs_debug_enabled() -> bool {
+    matches!(
+        std::env::var("ELDIRON_STAIRS_DEBUG").ok().as_deref(),
+        Some("1") | Some("true") | Some("TRUE") | Some("yes") | Some("YES")
+    )
+}
+
 /// Register a new RegionCtx
 pub fn register_regionctx(id: u32, instance: Arc<Mutex<RegionCtx>>) {
     REGIONCTX.write().unwrap().insert(id, instance);
@@ -57,10 +64,6 @@ where
 // Global ID generator over all threads and regions.
 // 0 is reserved as NO_ID / None sentinel.
 static GLOBAL_ID_GEN: AtomicU32 = AtomicU32::new(1);
-
-fn stairs_debug_enabled() -> bool {
-    std::env::var_os("ELDIRON_STAIRS_DEBUG").is_some()
-}
 
 pub fn get_global_id() -> u32 {
     GLOBAL_ID_GEN.fetch_add(1, Ordering::Relaxed)
@@ -2279,18 +2282,6 @@ impl RegionInstance {
                         }
 
                         if let Some(coord) = coord {
-                            if stairs_debug_enabled() && entity.is_player() {
-                                println!(
-                                    "[StairsDebug][player-closein] entity={} pos=({:.3},{:.3},{:.3}) target=({:.3},{:.3}) radius={:.3}",
-                                    entity.id,
-                                    position.x,
-                                    entity.position.y,
-                                    position.y,
-                                    coord.x,
-                                    coord.y,
-                                    radius
-                                );
-                            }
                             let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                                 && ctx.collision_world.has_collision_data();
                             let (new_position, new_y, arrived) = if use_3d_nav {
@@ -2385,18 +2376,6 @@ impl RegionInstance {
 
                     with_regionctx(self.id, |ctx| {
                         let speed = self.movement_units_per_sec * speed * ctx.delta_time;
-                        if stairs_debug_enabled() && entity.is_player() {
-                            println!(
-                                "[StairsDebug][player-goto] entity={} pos=({:.3},{:.3},{:.3}) target=({:.3},{:.3}) radius={:.3}",
-                                entity.id,
-                                position.x,
-                                entity.position.y,
-                                position.y,
-                                coord.x,
-                                coord.y,
-                                radius
-                            );
-                        }
 
                         let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                             && ctx.collision_world.has_collision_data();
@@ -2646,19 +2625,6 @@ impl RegionInstance {
                                 let use_3d_nav = ctx.collision_world.has_collision_data()
                                     && (self.collision_mode == CollisionMode::Mesh
                                         || is_elevated_floor);
-                                if stairs_debug_enabled() && entity.is_player() {
-                                    println!(
-                                        "[StairsDebug][player-rwis] entity={} pos=({:.3},{:.3},{:.3}) target=({:.3},{:.3}) radius={:.3} use_3d_nav={}",
-                                        entity.id,
-                                        position.x,
-                                        entity.position.y,
-                                        position.y,
-                                        target.x,
-                                        target.y,
-                                        radius,
-                                        use_3d_nav
-                                    );
-                                }
 
                                 let mut mesh_blocked = false;
                                 let (new_position, new_y, mut arrived) = if use_3d_nav {
@@ -2929,18 +2895,6 @@ impl RegionInstance {
 
                             let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                                 && ctx.collision_world.has_collision_data();
-                            if stairs_debug_enabled() && entity.is_player() {
-                                println!(
-                                    "[StairsDebug][player-patrol] entity={} pos=({:.3},{:.3},{:.3}) target=({:.3},{:.3}) radius={:.3}",
-                                    entity.id,
-                                    position.x,
-                                    entity.position.y,
-                                    position.y,
-                                    target.x,
-                                    target.y,
-                                    radius
-                                );
-                            }
                             let (new_position, new_y, arrived) = if use_3d_nav {
                                 let (p, arrived) = ctx
                                     .collision_world
@@ -3383,23 +3337,6 @@ impl RegionInstance {
             let move_vector = entity.orientation * speed * dir;
             let position = entity.get_pos_xz();
             let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
-            let player_debug = stairs_debug_enabled() && entity.is_player();
-            if player_debug {
-                println!(
-                    "[StairsDebug][player-move] entity={} pos=({:.3},{:.3},{:.3}) orient=({:.3},{:.3}) dir={:.3} speed={:.3} move=({:.3},{:.3}) radius={:.3}",
-                    entity.id,
-                    position.x,
-                    entity.position.y,
-                    position.y,
-                    entity.orientation.x,
-                    entity.orientation.y,
-                    dir,
-                    speed,
-                    move_vector.x,
-                    move_vector.y,
-                    radius
-                );
-            }
 
             let mut new_position = position + move_vector;
 
@@ -3565,7 +3502,7 @@ impl RegionInstance {
                         let desired_dist = move_vec.magnitude();
                         if desired_dist > 1e-6 {
                             if let Some((end_pos, arrived)) =
-                                ctx.collision_world.move_towards_on_floors(
+                                ctx.collision_world.move_towards_on_floors_direct(
                                     position,
                                     new_position,
                                     desired_dist,
@@ -3574,7 +3511,7 @@ impl RegionInstance {
                                     entity.position.y,
                                 )
                             {
-                                if player_debug {
+                                if stairs_debug_enabled() {
                                     println!(
                                         "[StairsDebug][player-move-nav] entity={} from=({:.3},{:.3}) desired=({:.3},{:.3}) end=({:.3},{:.3},{:.3}) arrived={}",
                                         entity.id,
@@ -3600,16 +3537,16 @@ impl RegionInstance {
                                     move_vec_3d,
                                     radius,
                                 );
-                                if player_debug {
+                                if stairs_debug_enabled() {
                                     println!(
-                                        "[StairsDebug][player-move-fallback] entity={} from=({:.3},{:.3},{:.3}) desired=({:.3},{:.3},{:.3}) end=({:.3},{:.3},{:.3}) blocked={}",
+                                        "[StairsDebug][player-move-fallback] entity={} start=({:.3},{:.3},{:.3}) move=({:.3},{:.3},{:.3}) end=({:.3},{:.3},{:.3}) blocked={}",
                                         entity.id,
                                         start_pos.x,
                                         start_pos.y,
                                         start_pos.z,
-                                        start_pos.x + move_vec_3d.x,
-                                        start_pos.y + move_vec_3d.y,
-                                        start_pos.z + move_vec_3d.z,
+                                        move_vec_3d.x,
+                                        move_vec_3d.y,
+                                        move_vec_3d.z,
                                         collision_pos.x,
                                         collision_pos.y,
                                         collision_pos.z,
@@ -3633,15 +3570,27 @@ impl RegionInstance {
             };
 
             // Adjust vertical position based on collision floors/terrain at the final XZ.
+            if stairs_debug_enabled() {
+                println!(
+                    "[StairsDebug][player-final] entity={} pos=({:.3},{:.3},{:.3}) blocked={}",
+                    entity.id,
+                    entity.position.x,
+                    entity.position.y,
+                    entity.position.z,
+                    blocked
+                );
+            }
             let final_pos = entity.get_pos_xz();
 
             let mut base_y = None;
             if self.collision_mode == CollisionMode::Mesh
                 && ctx.collision_world.has_collision_data()
             {
-                base_y = ctx
-                    .collision_world
-                    .get_floor_height_reachable(final_pos, entity.position.y, 1.0);
+                base_y = ctx.collision_world.get_floor_height_reachable(
+                    final_pos,
+                    entity.position.y,
+                    1.0,
+                );
             }
             // Fallback to terrain if no floor found.
             if base_y.is_none() {
@@ -3655,17 +3604,6 @@ impl RegionInstance {
 
             if let Some(y) = base_y {
                 entity.position.y = y;
-            }
-            if player_debug {
-                let final_pos = entity.get_pos_xz();
-                println!(
-                    "[StairsDebug][player-final] entity={} pos=({:.3},{:.3},{:.3}) blocked={}",
-                    entity.id,
-                    final_pos.x,
-                    entity.position.y,
-                    final_pos.y,
-                    blocked
-                );
             }
 
             ctx.check_player_for_section_change(entity);
