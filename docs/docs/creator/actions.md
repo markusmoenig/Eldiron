@@ -308,6 +308,51 @@ Notes:
 - default depth is `3.0`
 - the original cutout handle remains the control shape for rebuilding
 
+### Build Room
+
+Build a room volume from a selected vertical wall sector.
+
+Use it in `GEOM` mode in 3D editor views with exactly one sector selected. The selected sector must be wall-like, not a floor/ceiling surface.
+
+Parameters:
+- `[action].room_type`: room footprint shape.
+  - `Rect`
+  - `Corridor`
+  - `Chamfered`
+  - `Octagon`
+- `[action].depth`: room depth measured inward from the selected wall.
+- `[action].height`: room interior height.
+- `[action].width_mode`: how room width is chosen.
+  - `Match Wall`
+  - `Expand`
+  - `Custom`
+- `[action].width`: width value used by `Expand` / `Custom`.
+- `[action].ceiling_mode`: `Flat` or `None`.
+- `[action].keep_original_wall`: keep the selected wall sector visible instead of opening the room front.
+- `[action].close_front_lip`: when the source wall is taller than the room opening, create a closing strip from room ceiling up to the original wall top.
+- `[material].room_tile_id`: shared fallback material for the whole generated room.
+- `[material].room_floor_tile_id`: optional floor override.
+- `[material].room_wall_tile_id`: optional wall override.
+- `[material].room_ceiling_tile_id`: optional ceiling override.
+
+Behavior:
+- creates a floor sector for the room footprint
+- creates wall sectors around the perimeter
+- optionally creates a ceiling sector
+- optionally creates a front lip sector above the opening
+- hides the original selected wall sector unless `keep_original_wall` is enabled
+- copies shader/layer/property context from the source sector onto generated sectors
+
+Material fallback:
+- floor: `room_floor_tile_id` -> `room_tile_id` -> source sector material
+- wall: `room_wall_tile_id` -> `room_tile_id` -> source sector material
+- ceiling: `room_ceiling_tile_id` -> `room_tile_id` -> source sector material
+- front lip: wall fallback chain
+
+Notes:
+- Build Room creates surfaces only; wall thickness should be added afterward with [Extrude Sector](/docs/creator/actions/#extrude-sector)
+- the room is generated relative to the selected wall’s direction and normal
+
 ### Build Stairs
 
 Build a stair run between two selected linedefs.

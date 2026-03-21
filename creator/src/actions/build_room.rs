@@ -191,14 +191,6 @@ impl Action for BuildRoom {
             1.0..=16.0,
             false,
         ));
-        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            "actionWallThickness".into(),
-            "".into(),
-            "".into(),
-            0.25,
-            0.0..=2.0,
-            false,
-        ));
         nodeui.add_item(TheNodeUIItem::Selector(
             "actionWidthMode".into(),
             "".into(),
@@ -227,7 +219,21 @@ impl Action for BuildRoom {
             "".into(),
             false,
         ));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "actionCloseFrontLip".into(),
+            "".into(),
+            "".into(),
+            false,
+        ));
         nodeui.add_item(TheNodeUIItem::OpenTree("material".into()));
+        nodeui.add_item(TheNodeUIItem::Text(
+            "actionRoomTileId".into(),
+            "".into(),
+            "".into(),
+            "".into(),
+            None,
+            false,
+        ));
         nodeui.add_item(TheNodeUIItem::Text(
             "actionRoomFloorTileId".into(),
             "".into(),
@@ -337,11 +343,6 @@ impl Action for BuildRoom {
             .get_f32_value("actionRoomHeight")
             .unwrap_or(source_height)
             .max(0.1);
-        let wall_thickness = self
-            .nodeui
-            .get_f32_value("actionWallThickness")
-            .unwrap_or(source_surface.extrusion.depth.abs())
-            .max(0.0);
         let width_mode = self.nodeui.get_i32_value("actionWidthMode").unwrap_or(0);
         let room_width = match width_mode {
             1 => {
@@ -362,6 +363,10 @@ impl Action for BuildRoom {
         let keep_original_wall = self
             .nodeui
             .get_bool_value("actionKeepOriginalWall")
+            .unwrap_or(false);
+        let close_front_lip = self
+            .nodeui
+            .get_bool_value("actionCloseFrontLip")
             .unwrap_or(false);
 
         let tangent = Vec2::new(b.x - a.x, b.z - a.z).normalized();
@@ -390,17 +395,20 @@ impl Action for BuildRoom {
 
         let mut wall_props = floor_props.clone();
         wall_props.set("room_part", Value::Str("wall".to_string()));
-        if let Some(v) = Self::parse_tile_source(
-            &self
-                .nodeui
-                .get_text_value("actionRoomWallTileId")
-                .unwrap_or_default(),
-        ) {
-            wall_props.set("source", v);
-        }
 
         let mut ceil_props = floor_props.clone();
         ceil_props.set("room_part", Value::Str("ceiling".to_string()));
+
+        if let Some(v) = Self::parse_tile_source(
+            &self
+                .nodeui
+                .get_text_value("actionRoomTileId")
+                .unwrap_or_default(),
+        ) {
+            floor_props.set("source", v.clone());
+            wall_props.set("source", v.clone());
+            ceil_props.set("source", v);
+        }
 
         if let Some(v) = Self::parse_tile_source(
             &self
@@ -413,11 +421,22 @@ impl Action for BuildRoom {
         if let Some(v) = Self::parse_tile_source(
             &self
                 .nodeui
+                .get_text_value("actionRoomWallTileId")
+                .unwrap_or_default(),
+        ) {
+            wall_props.set("source", v);
+        }
+        if let Some(v) = Self::parse_tile_source(
+            &self
+                .nodeui
                 .get_text_value("actionRoomCeilingTileId")
                 .unwrap_or_default(),
         ) {
             ceil_props.set("source", v);
         }
+
+        let mut lip_props = wall_props.clone();
+        lip_props.set("room_part", Value::Str("front_lip".to_string()));
 
         let floor_points: Vec<(f32, f32, f32)> = local_poly
             .iter()
@@ -466,14 +485,25 @@ impl Action for BuildRoom {
             if let Some(id) =
                 Self::create_polygon_sector(map, &wall, &wall_props, &shader, &layer, &wall_name)
             {
-                if wall_thickness > 0.001 {
-                    if let Some(surface) = map.get_surface_for_sector_id_mut(id) {
-                        surface.extrusion.enabled = true;
-                        surface.extrusion.depth = wall_thickness;
-                        surface.extrusion.cap_front = true;
-                        surface.extrusion.cap_back = true;
-                    }
-                }
+                created.push(id);
+            }
+        }
+
+        if !keep_original_wall && close_front_lip && wall_top_y > ceiling_y + 0.001 {
+            let lip = [
+                (a.x, a.z, ceiling_y),
+                (b.x, b.z, ceiling_y),
+                (b.x, b.z, wall_top_y),
+                (a.x, a.z, wall_top_y),
+            ];
+            let lip_name = if source_sector.name.is_empty() {
+                "Room Front Lip".to_string()
+            } else {
+                format!("{} Room Front Lip", source_sector.name)
+            };
+            if let Some(id) =
+                Self::create_polygon_sector(map, &lip, &lip_props, &shader, &layer, &lip_name)
+            {
                 created.push(id);
             }
         }

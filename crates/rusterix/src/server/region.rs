@@ -21,13 +21,6 @@ use std::sync::{LazyLock, RwLock};
 static REGIONCTX: LazyLock<RwLock<FxHashMap<u32, Arc<Mutex<RegionCtx>>>>> =
     LazyLock::new(|| RwLock::new(FxHashMap::default()));
 
-fn stairs_debug_enabled() -> bool {
-    matches!(
-        std::env::var("ELDIRON_STAIRS_DEBUG").ok().as_deref(),
-        Some("1") | Some("true") | Some("TRUE") | Some("yes") | Some("YES")
-    )
-}
-
 /// Register a new RegionCtx
 pub fn register_regionctx(id: u32, instance: Arc<Mutex<RegionCtx>>) {
     REGIONCTX.write().unwrap().insert(id, instance);
@@ -3511,20 +3504,6 @@ impl RegionInstance {
                                     entity.position.y,
                                 )
                             {
-                                if stairs_debug_enabled() {
-                                    println!(
-                                        "[StairsDebug][player-move-nav] entity={} from=({:.3},{:.3}) desired=({:.3},{:.3}) end=({:.3},{:.3},{:.3}) arrived={}",
-                                        entity.id,
-                                        position.x,
-                                        position.y,
-                                        new_position.x,
-                                        new_position.y,
-                                        end_pos.x,
-                                        end_pos.y,
-                                        end_pos.z,
-                                        arrived
-                                    );
-                                }
                                 entity.set_pos_xz(vek::Vec2::new(end_pos.x, end_pos.z));
                                 entity.position.y = end_pos.y;
                                 !arrived
@@ -3537,22 +3516,6 @@ impl RegionInstance {
                                     move_vec_3d,
                                     radius,
                                 );
-                                if stairs_debug_enabled() {
-                                    println!(
-                                        "[StairsDebug][player-move-fallback] entity={} start=({:.3},{:.3},{:.3}) move=({:.3},{:.3},{:.3}) end=({:.3},{:.3},{:.3}) blocked={}",
-                                        entity.id,
-                                        start_pos.x,
-                                        start_pos.y,
-                                        start_pos.z,
-                                        move_vec_3d.x,
-                                        move_vec_3d.y,
-                                        move_vec_3d.z,
-                                        collision_pos.x,
-                                        collision_pos.y,
-                                        collision_pos.z,
-                                        blocked
-                                    );
-                                }
                                 entity.set_pos_xz(vek::Vec2::new(collision_pos.x, collision_pos.z));
                                 blocked
                             }
@@ -3570,16 +3533,6 @@ impl RegionInstance {
             };
 
             // Adjust vertical position based on collision floors/terrain at the final XZ.
-            if stairs_debug_enabled() {
-                println!(
-                    "[StairsDebug][player-final] entity={} pos=({:.3},{:.3},{:.3}) blocked={}",
-                    entity.id,
-                    entity.position.x,
-                    entity.position.y,
-                    entity.position.z,
-                    blocked
-                );
-            }
             let final_pos = entity.get_pos_xz();
 
             let mut base_y = None;

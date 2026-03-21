@@ -3,13 +3,6 @@ use rustc_hash::FxHashMap;
 use scenevm::GeoId;
 use vek::{Vec2, Vec3};
 
-fn stairs_debug_enabled() -> bool {
-    matches!(
-        std::env::var("ELDIRON_STAIRS_DEBUG").ok().as_deref(),
-        Some("1") | Some("true") | Some("TRUE") | Some("yes") | Some("YES")
-    )
-}
-
 /// Manages collision data across all chunks in the world
 pub struct CollisionWorld {
     /// Collision data indexed by chunk coordinates
@@ -215,23 +208,8 @@ impl CollisionWorld {
             }
 
             match closest_collision {
-                Some((distance, normal, geo_id)) => {
+                Some((distance, normal, _geo_id)) => {
                     blocked = true;
-                    if stairs_debug_enabled() {
-                        println!(
-                            "[StairsDebug][blocked-segment] pos=({:.3},{:.3},{:.3}) move=({:.3},{:.3},{:.3}) geo={:?} dist={:.3} normal=({:.3},{:.3})",
-                            start_pos.x,
-                            start_pos.y,
-                            start_pos.z,
-                            move_vector.x,
-                            move_vector.y,
-                            move_vector.z,
-                            geo_id,
-                            distance,
-                            normal.x,
-                            normal.y
-                        );
-                    }
 
                     // Move up to (just before) collision point
                     let move_dir = remaining.normalized();
@@ -691,18 +669,6 @@ impl CollisionWorld {
                     move_height = next_floor;
                 }
             }
-            if stairs_debug_enabled() && (move_height - current.y).abs() > 0.001 {
-                println!(
-                    "[StairsDebug][step-floor] from=({:.3},{:.3},{:.3}) probe=({:.3},{:.3}) current_floor={:.3} move_height={:.3}",
-                    current.x,
-                    current.y,
-                    current.z,
-                    probe_2d.x,
-                    probe_2d.y,
-                    current_floor,
-                    move_height
-                );
-            }
             current.y = move_height;
 
             let (mut next, blocked) = self.move_distance(current, delta, radius);
@@ -711,12 +677,6 @@ impl CollisionWorld {
                 self.get_floor_height_reachable(next_2d, current.y, max_step_height)
             {
                 if (next_floor - current_floor).abs() <= max_step_height + 1e-3 {
-                    if stairs_debug_enabled() && (next_floor - next.y).abs() > 0.001 {
-                        println!(
-                            "[StairsDebug][land-floor] pos=({:.3},{:.3},{:.3}) next_floor={:.3} blocked={}",
-                            next.x, next.y, next.z, next_floor, blocked
-                        );
-                    }
                     next.y = next_floor;
                 }
             }
