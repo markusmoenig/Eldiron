@@ -29,7 +29,7 @@ Profile sectors are used for holes, windows, gates, recesses, reliefs, and other
 
 ## Assigning Tiles
 
-You can **assign tiles** to selected sectors with the [Apply Tile](../actions/#apply-tile) action.
+You can **assign tiles** to selected sectors with the **Apply Tile** button in the **Tile Picker** dock.
 
 ## Authoring
 

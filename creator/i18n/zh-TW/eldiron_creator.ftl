@@ -78,6 +78,8 @@ status_tilemap_clear_button = 清除目前選取
 status_tilemap_add_button = 新增目前選取的圖塊
 ## Tiles
 status_tiles_filter_edit = 顯示包含指定標籤的圖塊
+status_tiles_apply_tile = 將所選圖塊套用到目前選取的圖示槽位。
+status_tiles_clear_tile = 清除目前選取的圖示槽位。
 ## World Editor
 status_world_editor_brush_radius = 控制畫筆在世界單位中的大小
 status_world_editor_brush_falloff = 控制畫筆強度自中心衰減的速度

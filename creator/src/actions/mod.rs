@@ -1,4 +1,55 @@
 pub use crate::prelude::*;
+use rusterix::PixelSource;
+
+#[derive(Clone, Debug)]
+pub struct ActionMaterialSlot {
+    pub label: String,
+    pub source: Option<PixelSource>,
+}
+
+pub fn parse_tile_id_pixelsource(text: &str) -> Option<PixelSource> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if let Ok(id) = Uuid::parse_str(trimmed) {
+        return Some(PixelSource::TileId(id));
+    }
+    if let Ok(index) = trimmed.parse::<u16>() {
+        return Some(PixelSource::PaletteIndex(index));
+    }
+    None
+}
+
+pub fn source_to_text(source: Option<&Value>) -> String {
+    match source {
+        Some(Value::Source(PixelSource::TileId(id))) => id.to_string(),
+        Some(Value::Source(PixelSource::PaletteIndex(index))) => index.to_string(),
+        _ => String::new(),
+    }
+}
+
+pub fn set_nodeui_icon_tile_id(
+    nodeui: &mut TheNodeUI,
+    item_name: &str,
+    index: usize,
+    tile_id: Uuid,
+) {
+    if let Some(TheNodeUIItem::Icons(_, _, _, items)) = nodeui.get_item_mut(item_name)
+        && index < items.len()
+    {
+        items[index].2 = tile_id;
+    }
+}
+
+pub fn clear_nodeui_icon_tile_id(nodeui: &mut TheNodeUI, item_name: &str, index: usize) {
+    if let Some(TheNodeUIItem::Icons(_, _, _, items)) = nodeui.get_item_mut(item_name)
+        && index < items.len()
+    {
+        items[index].0 = TheRGBABuffer::new(TheDim::sized(36, 36));
+        items[index].2 = Uuid::nil();
+    }
+}
 
 pub mod add_arch;
 pub mod apply_tile;
@@ -104,6 +155,37 @@ pub trait Action: Send + Sync {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
+    }
+
+    fn hud_material_slots(
+        &self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+    ) -> Option<Vec<ActionMaterialSlot>> {
+        None
+    }
+
+    fn set_hud_material_from_tile(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        _slot_index: i32,
+        _tile_id: Uuid,
+    ) -> bool {
+        false
+    }
+
+    fn clear_hud_material_slot(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        _slot_index: i32,
+    ) -> bool {
+        false
+    }
+
+    fn preserves_hud_material_slots(&self) -> bool {
+        false
     }
 
     fn params(&self) -> TheNodeUI;

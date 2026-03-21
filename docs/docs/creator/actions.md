@@ -7,7 +7,12 @@ Actions do the real work in the **Eldiron Creator**. From maximizing the dock wi
 
 Actions listed in blue represent camera based actions, red actions are applicable to the current content of the **geometry editor**, while yellow actions are applicable to the content of the **dock widget**.
 
-If the **Automatic** mode is enabled, selecting an action (or changing the parameter of an action) will automatically execute it. If the automatic mode is disabled, you need to click the **Apply** button manually to execute the action.
+If the **Automatic** mode is enabled, selecting an action (or changing the parameter of an action) will automatically execute it. If the automatic mode is disabled, you need to click the **Apply** button manually to execute the action. Automatic mode is off by default.
+
+Tile assignment is no longer handled by `Apply Tile` / `Clear Tile` actions. Those are now buttons in the **Tile Picker** dock and operate on either:
+
+- the currently selected geometry material slot, or
+- the currently selected action material slot when the active Region action exposes HUD material slots.
 
 ---
 
@@ -577,16 +582,6 @@ Apply material values to every pixel of the tile textures. Params: *roughness*, 
 ### Remap Tile
 
 Map every pixel to the closest palette color while preserving alpha and leaving magenta (255,0,255) transparent pixels untouched.
-
-### Clear Tile
-
-Remove tile sources from selected sectors (clears the `source` property).
-
-### Apply Tile
-
-*Shortcut: Alt + A*
-
-Assign the selected tile to the selected sectors. Param: *mode* = repeat or scale. This applies to floor or ceiling depending on the active HUD icon.
 
 ## Visual Code
 

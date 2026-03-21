@@ -105,7 +105,7 @@ impl DockManager {
 
         let mut action_auto_button = TheCheckButton::new(TheId::named("Action Auto"));
         action_auto_button.set_status_text(&fl!("status_dock_action_auto"));
-        action_auto_button.set_value(TheValue::Bool(true));
+        action_auto_button.set_value(TheValue::Bool(false));
 
         let mut action_apply_button = TheTraybarButton::new(TheId::named("Action Apply"));
         action_apply_button.set_text(fl!("apply"));

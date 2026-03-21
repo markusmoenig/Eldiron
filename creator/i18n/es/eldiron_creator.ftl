@@ -78,6 +78,8 @@ status_tilemap_clear_button = Limpiar la selección actual.
 status_tilemap_add_button = Añadir la selección de baldosas actual.
 ## Tiles
 status_tiles_filter_edit = Mostrar baldosas que contengan las etiquetas dadas.
+status_tiles_apply_tile = Aplicar el mosaico seleccionado a la ranura de icono seleccionada.
+status_tiles_clear_tile = Limpiar la ranura de icono seleccionada.
 ## World Editor
 status_world_editor_brush_radius = Controla el tamaño del pincel en unidades de mundo.
 status_world_editor_brush_falloff = Controla qué tan rápido decae la intensidad del pincel desde el centro.

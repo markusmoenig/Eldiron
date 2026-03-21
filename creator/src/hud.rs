@@ -1,4 +1,4 @@
-use crate::editor::RUSTERIX;
+use crate::editor::{ACTIONLIST, RUSTERIX};
 use crate::prelude::*;
 use rusterix::ShapeStack;
 use rusterix::prelude::*;
@@ -36,6 +36,26 @@ pub struct Hud {
 }
 
 impl Hud {
+    fn active_action_material_slots(
+        &self,
+        map: &Map,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) -> Option<Vec<ActionMaterialSlot>> {
+        if server_ctx.get_map_context() != MapContext::Region {
+            return None;
+        }
+
+        if let Some(action_id) = server_ctx.curr_action_id
+            && let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id)
+            && action.is_applicable(map, ctx, server_ctx)
+            && let Some(slots) = action.hud_material_slots(map, server_ctx)
+        {
+            return Some(slots);
+        }
+        None
+    }
+
     fn clean_coord(v: f32) -> f32 {
         if v.abs() < 0.0005 { 0.0 } else { v }
     }
@@ -163,9 +183,12 @@ impl Hud {
 
         let icon_size = 40;
         let mut icons = 0;
+        let action_material_slots = self.active_action_material_slots(map, ctx, server_ctx);
 
         if server_ctx.get_map_context() == MapContext::Region {
-            icons = if self.mode == HudMode::Vertex {
+            icons = if let Some(slots) = &action_material_slots {
+                slots.len() as i32
+            } else if self.mode == HudMode::Vertex {
                 0
             } else if self.mode == HudMode::Linedef {
                 0
@@ -199,7 +222,7 @@ impl Hud {
                 buffer.pixels_mut(),
                 &(r.0, 1, r.2, 19),
                 stride,
-                &self.get_icon_text(i, server_ctx),
+                &self.get_icon_text(i, server_ctx, action_material_slots.as_deref()),
                 TheFontSettings {
                     size: 10.0,
                     ..Default::default()
@@ -219,7 +242,13 @@ impl Hud {
             );
 
             if let Some(id) = id {
-                let (tile, has_light) = self.get_icon(i, map, id, icon_size as usize);
+                let (tile, has_light) = self.get_icon(
+                    i,
+                    map,
+                    id,
+                    icon_size as usize,
+                    action_material_slots.as_deref(),
+                );
                 if let Some(tile) = tile {
                     let texture = tile.textures[0].resized(icon_size as usize, icon_size as usize);
                     ctx.draw.blend_slice(
@@ -943,8 +972,18 @@ impl Hud {
     }
 
     #[allow(clippy::collapsible_if)]
-    pub fn get_icon_text(&self, index: i32, server_ctx: &mut ServerContext) -> String {
+    pub fn get_icon_text(
+        &self,
+        index: i32,
+        server_ctx: &mut ServerContext,
+        action_material_slots: Option<&[ActionMaterialSlot]>,
+    ) -> String {
         let mut text: String = "".into();
+        if let Some(slots) = action_material_slots {
+            if let Some(slot) = slots.get(index as usize) {
+                return slot.label.clone();
+            }
+        }
         if server_ctx.get_map_context() == MapContext::Region {
             if self.mode == HudMode::Sector {
                 if index == 0 {
@@ -969,7 +1008,22 @@ impl Hud {
         map: &Map,
         id: u32,
         icon_size: usize,
+        action_material_slots: Option<&[ActionMaterialSlot]>,
     ) -> (Option<rusterix::Tile>, bool) {
+        if let Some(slots) = action_material_slots
+            && let Some(slot) = slots.get(index as usize)
+        {
+            if let Some(pixelsource) = &slot.source {
+                let props = ValueContainer::default();
+                if let Some(tile) =
+                    pixelsource.to_tile(&RUSTERIX.read().unwrap().assets, icon_size, &props, map)
+                {
+                    return (Some(tile), false);
+                }
+            }
+            return (None, false);
+        }
+
         if self.mode == HudMode::Sector {
             if let Some(sector) = map.find_sector(id) {
                 if index == 0 {

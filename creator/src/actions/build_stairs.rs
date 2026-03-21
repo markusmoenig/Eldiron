@@ -9,8 +9,7 @@ pub struct BuildStairs {
 
 impl BuildStairs {
     fn parse_tile_source(text: &str) -> Option<Value> {
-        let id = Uuid::parse_str(text.trim()).ok()?;
-        Some(Value::Source(PixelSource::TileId(id)))
+        Some(Value::Source(parse_tile_id_pixelsource(text)?))
     }
 
     fn create_polygon_sector(
@@ -81,6 +80,13 @@ impl BuildStairs {
             (bottom, (top.1, top.0))
         } else {
             (bottom, top)
+        }
+    }
+
+    fn parse_tile_pixelsource(text: &str) -> Option<PixelSource> {
+        match Self::parse_tile_source(text) {
+            Some(Value::Source(source)) => Some(source),
+            _ => None,
         }
     }
 }
@@ -189,31 +195,19 @@ impl Action for BuildStairs {
         );
         self.nodeui.set_text_value(
             "actionStairsTileId",
-            match sector.properties.get("stairs_tile_source") {
-                Some(Value::Source(PixelSource::TileId(id))) => id.to_string(),
-                _ => String::new(),
-            },
+            source_to_text(sector.properties.get("stairs_tile_source")),
         );
         self.nodeui.set_text_value(
             "actionStairsTreadTileId",
-            match sector.properties.get("stairs_tread_source") {
-                Some(Value::Source(PixelSource::TileId(id))) => id.to_string(),
-                _ => String::new(),
-            },
+            source_to_text(sector.properties.get("stairs_tread_source")),
         );
         self.nodeui.set_text_value(
             "actionStairsRiserTileId",
-            match sector.properties.get("stairs_riser_source") {
-                Some(Value::Source(PixelSource::TileId(id))) => id.to_string(),
-                _ => String::new(),
-            },
+            source_to_text(sector.properties.get("stairs_riser_source")),
         );
         self.nodeui.set_text_value(
             "actionStairsSideTileId",
-            match sector.properties.get("stairs_side_source") {
-                Some(Value::Source(PixelSource::TileId(id))) => id.to_string(),
-                _ => String::new(),
-            },
+            source_to_text(sector.properties.get("stairs_side_source")),
         );
     }
 
@@ -564,6 +558,90 @@ impl Action for BuildStairs {
 
     fn params(&self) -> TheNodeUI {
         self.nodeui.clone()
+    }
+
+    fn hud_material_slots(
+        &self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+    ) -> Option<Vec<ActionMaterialSlot>> {
+        let all = self
+            .nodeui
+            .get_text_value("actionStairsTileId")
+            .unwrap_or_default();
+        let tread = self
+            .nodeui
+            .get_text_value("actionStairsTreadTileId")
+            .unwrap_or_default();
+        let riser = self
+            .nodeui
+            .get_text_value("actionStairsRiserTileId")
+            .unwrap_or_default();
+        let side = self
+            .nodeui
+            .get_text_value("actionStairsSideTileId")
+            .unwrap_or_default();
+        let all_source = Self::parse_tile_pixelsource(&all);
+        Some(vec![
+            ActionMaterialSlot {
+                label: "STAIR".to_string(),
+                source: all_source.clone(),
+            },
+            ActionMaterialSlot {
+                label: "TREAD".to_string(),
+                source: Self::parse_tile_pixelsource(&tread).or(all_source.clone()),
+            },
+            ActionMaterialSlot {
+                label: "RISER".to_string(),
+                source: Self::parse_tile_pixelsource(&riser).or(all_source.clone()),
+            },
+            ActionMaterialSlot {
+                label: "SIDE".to_string(),
+                source: Self::parse_tile_pixelsource(&side).or(all_source),
+            },
+        ])
+    }
+
+    fn set_hud_material_from_tile(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+        tile_id: Uuid,
+    ) -> bool {
+        let value = tile_id.to_string();
+        match slot_index {
+            0 => self.nodeui.set_text_value("actionStairsTileId", value),
+            1 => self.nodeui.set_text_value("actionStairsTreadTileId", value),
+            2 => self.nodeui.set_text_value("actionStairsRiserTileId", value),
+            3 => self.nodeui.set_text_value("actionStairsSideTileId", value),
+            _ => return false,
+        }
+        true
+    }
+
+    fn clear_hud_material_slot(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+    ) -> bool {
+        match slot_index {
+            0 => self
+                .nodeui
+                .set_text_value("actionStairsTileId", String::new()),
+            1 => self
+                .nodeui
+                .set_text_value("actionStairsTreadTileId", String::new()),
+            2 => self
+                .nodeui
+                .set_text_value("actionStairsRiserTileId", String::new()),
+            3 => self
+                .nodeui
+                .set_text_value("actionStairsSideTileId", String::new()),
+            _ => return false,
+        }
+        true
     }
 
     fn handle_event(

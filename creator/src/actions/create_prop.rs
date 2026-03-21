@@ -767,6 +767,112 @@ impl Action for CreateProp {
         self.nodeui.clone()
     }
 
+    fn hud_material_slots(
+        &self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+    ) -> Option<Vec<ActionMaterialSlot>> {
+        let main_icon = self
+            .nodeui
+            .get_tile_id("actionMaterialTile", 0)
+            .unwrap_or(Uuid::nil());
+        let chair_icon = self
+            .nodeui
+            .get_tile_id("actionTableChairTile", 0)
+            .unwrap_or(Uuid::nil());
+        let mattress_icon = self
+            .nodeui
+            .get_tile_id("actionBedMattressTile", 0)
+            .unwrap_or(Uuid::nil());
+        Some(vec![
+            ActionMaterialSlot {
+                label: "MAIN".to_string(),
+                source: parse_source_from_text_or_tile(
+                    &self
+                        .nodeui
+                        .get_text_value("actionMaterialTileId")
+                        .unwrap_or_default(),
+                    main_icon,
+                ),
+            },
+            ActionMaterialSlot {
+                label: "CHAIR".to_string(),
+                source: parse_source_from_text_or_tile(
+                    &self
+                        .nodeui
+                        .get_text_value("actionTableChairTileId")
+                        .unwrap_or_default(),
+                    chair_icon,
+                ),
+            },
+            ActionMaterialSlot {
+                label: "MATT".to_string(),
+                source: parse_source_from_text_or_tile(
+                    &self
+                        .nodeui
+                        .get_text_value("actionBedMattressTileId")
+                        .unwrap_or_default(),
+                    mattress_icon,
+                ),
+            },
+        ])
+    }
+
+    fn set_hud_material_from_tile(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+        tile_id: Uuid,
+    ) -> bool {
+        match slot_index {
+            0 => {
+                self.nodeui
+                    .set_text_value("actionMaterialTileId", tile_id.to_string());
+                set_nodeui_icon_tile_id(&mut self.nodeui, "actionMaterialTile", 0, tile_id);
+            }
+            1 => {
+                self.nodeui
+                    .set_text_value("actionTableChairTileId", tile_id.to_string());
+                set_nodeui_icon_tile_id(&mut self.nodeui, "actionTableChairTile", 0, tile_id);
+            }
+            2 => {
+                self.nodeui
+                    .set_text_value("actionBedMattressTileId", tile_id.to_string());
+                set_nodeui_icon_tile_id(&mut self.nodeui, "actionBedMattressTile", 0, tile_id);
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    fn clear_hud_material_slot(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+    ) -> bool {
+        match slot_index {
+            0 => {
+                self.nodeui
+                    .set_text_value("actionMaterialTileId", String::new());
+                clear_nodeui_icon_tile_id(&mut self.nodeui, "actionMaterialTile", 0);
+            }
+            1 => {
+                self.nodeui
+                    .set_text_value("actionTableChairTileId", String::new());
+                clear_nodeui_icon_tile_id(&mut self.nodeui, "actionTableChairTile", 0);
+            }
+            2 => {
+                self.nodeui
+                    .set_text_value("actionBedMattressTileId", String::new());
+                clear_nodeui_icon_tile_id(&mut self.nodeui, "actionBedMattressTile", 0);
+            }
+            _ => return false,
+        }
+        true
+    }
+
     fn handle_event(
         &mut self,
         event: &TheEvent,

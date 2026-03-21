@@ -19,7 +19,7 @@ Before adding the tile(s) make sure you selected the role as needed (to be able 
 - **Anim**. Add the selected tiles as one animated tile.
 - **Multi**. Add the selected tiles as one big tile, containing multiple tiles.
 
-In the tile picker you can further edit tiles, both their meta data and their pixels, using the corresponding *Actions*. 
+In the tile picker you can further edit tiles, both their meta data and their pixels, using the corresponding *Actions*. The dock toolbar also contains **Apply Tile** and **Clear Tile** buttons for assigning or removing tile sources on map geometry and action material slots.
 
 Added tiles are shown with a slight gray overlay in the tileset editor, making it easy to see which files you already added. You can delete a tileset any time, already added tiles will not be affected.
 

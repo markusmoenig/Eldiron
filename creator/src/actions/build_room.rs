@@ -9,8 +9,14 @@ pub struct BuildRoom {
 
 impl BuildRoom {
     fn parse_tile_source(text: &str) -> Option<Value> {
-        let id = Uuid::parse_str(text.trim()).ok()?;
-        Some(Value::Source(PixelSource::TileId(id)))
+        Some(Value::Source(parse_tile_id_pixelsource(text)?))
+    }
+
+    fn parse_tile_pixelsource(text: &str) -> Option<PixelSource> {
+        match Self::parse_tile_source(text) {
+            Some(Value::Source(source)) => Some(source),
+            _ => None,
+        }
     }
 
     fn ordered_world_points(map: &Map, sector_id: u32) -> Option<Vec<Vec3<f32>>> {
@@ -562,5 +568,91 @@ impl Action for BuildRoom {
         _server_ctx: &mut ServerContext,
     ) -> bool {
         self.nodeui.handle_event(event)
+    }
+
+    fn hud_material_slots(
+        &self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+    ) -> Option<Vec<ActionMaterialSlot>> {
+        let room_text = self
+            .nodeui
+            .get_text_value("actionRoomTileId")
+            .unwrap_or_default();
+        let floor_text = self
+            .nodeui
+            .get_text_value("actionRoomFloorTileId")
+            .unwrap_or_default();
+        let wall_text = self
+            .nodeui
+            .get_text_value("actionRoomWallTileId")
+            .unwrap_or_default();
+        let ceiling_text = self
+            .nodeui
+            .get_text_value("actionRoomCeilingTileId")
+            .unwrap_or_default();
+
+        let room_source = Self::parse_tile_pixelsource(&room_text);
+
+        Some(vec![
+            ActionMaterialSlot {
+                label: "ROOM".to_string(),
+                source: room_source.clone(),
+            },
+            ActionMaterialSlot {
+                label: "FLOOR".to_string(),
+                source: Self::parse_tile_pixelsource(&floor_text).or(room_source.clone()),
+            },
+            ActionMaterialSlot {
+                label: "WALL".to_string(),
+                source: Self::parse_tile_pixelsource(&wall_text).or(room_source.clone()),
+            },
+            ActionMaterialSlot {
+                label: "CEIL".to_string(),
+                source: Self::parse_tile_pixelsource(&ceiling_text).or(room_source),
+            },
+        ])
+    }
+
+    fn set_hud_material_from_tile(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+        tile_id: Uuid,
+    ) -> bool {
+        let value = tile_id.to_string();
+        match slot_index {
+            0 => self.nodeui.set_text_value("actionRoomTileId", value),
+            1 => self.nodeui.set_text_value("actionRoomFloorTileId", value),
+            2 => self.nodeui.set_text_value("actionRoomWallTileId", value),
+            3 => self.nodeui.set_text_value("actionRoomCeilingTileId", value),
+            _ => return false,
+        }
+        true
+    }
+
+    fn clear_hud_material_slot(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+    ) -> bool {
+        match slot_index {
+            0 => self
+                .nodeui
+                .set_text_value("actionRoomTileId", String::new()),
+            1 => self
+                .nodeui
+                .set_text_value("actionRoomFloorTileId", String::new()),
+            2 => self
+                .nodeui
+                .set_text_value("actionRoomWallTileId", String::new()),
+            3 => self
+                .nodeui
+                .set_text_value("actionRoomCeilingTileId", String::new()),
+            _ => return false,
+        }
+        true
     }
 }

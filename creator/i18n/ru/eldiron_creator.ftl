@@ -78,6 +78,8 @@ status_tilemap_clear_button = Очистить текущий выбор.
 status_tilemap_add_button = Добавить текущий выбор тайлов.
 ## Tiles
 status_tiles_filter_edit = Показать тайлы, содержащие указанные теги.
+status_tiles_apply_tile = Применить выбранный тайл к выбранному слоту значка.
+status_tiles_clear_tile = Очистить выбранный слот значка.
 ## World Editor
 status_world_editor_brush_radius = Управляет размером кисти в мировых единицах.
 status_world_editor_brush_falloff = Определяет, как быстро сила кисти спадает от центра.

@@ -215,6 +215,65 @@ impl Action for Relief {
         self.nodeui.clone()
     }
 
+    fn hud_material_slots(
+        &self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+    ) -> Option<Vec<ActionMaterialSlot>> {
+        let cap = self
+            .nodeui
+            .get_tile_id("actionReliefTiles", 0)
+            .filter(|id| *id != Uuid::nil())
+            .map(PixelSource::TileId);
+        let side = self
+            .nodeui
+            .get_tile_id("actionReliefTiles", 1)
+            .filter(|id| *id != Uuid::nil())
+            .map(PixelSource::TileId);
+        Some(vec![
+            ActionMaterialSlot {
+                label: "CAP".to_string(),
+                source: cap,
+            },
+            ActionMaterialSlot {
+                label: "SIDE".to_string(),
+                source: side,
+            },
+        ])
+    }
+
+    fn set_hud_material_from_tile(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+        tile_id: Uuid,
+    ) -> bool {
+        if !(0..=1).contains(&slot_index) {
+            return false;
+        }
+        set_nodeui_icon_tile_id(
+            &mut self.nodeui,
+            "actionReliefTiles",
+            slot_index as usize,
+            tile_id,
+        );
+        true
+    }
+
+    fn clear_hud_material_slot(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+    ) -> bool {
+        if !(0..=1).contains(&slot_index) {
+            return false;
+        }
+        clear_nodeui_icon_tile_id(&mut self.nodeui, "actionReliefTiles", slot_index as usize);
+        true
+    }
+
     fn handle_event(
         &mut self,
         event: &TheEvent,

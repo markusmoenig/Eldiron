@@ -13,8 +13,7 @@ pub struct CreateRoof {
 
 impl CreateRoof {
     fn parse_tile_source(text: &str) -> Option<Value> {
-        let id = Uuid::parse_str(text.trim()).ok()?;
-        Some(Value::Source(PixelSource::TileId(id)))
+        Some(Value::Source(parse_tile_id_pixelsource(text)?))
     }
 
     fn apply_sector_roof(&self, map: &mut Map, sector_id: u32) -> bool {
@@ -307,6 +306,13 @@ impl CreateRoof {
 
         Some(sector_id)
     }
+
+    fn parse_tile_pixelsource(text: &str) -> Option<PixelSource> {
+        match Self::parse_tile_source(text) {
+            Some(Value::Source(source)) => Some(source),
+            _ => None,
+        }
+    }
 }
 
 impl Action for CreateRoof {
@@ -430,14 +436,8 @@ impl Action for CreateRoof {
             sector.properties.get_float_default("roof_overhang", 0.0),
         );
 
-        let tile_id_text = match sector.properties.get("roof_tile_source") {
-            Some(Value::Source(PixelSource::TileId(id))) => id.to_string(),
-            _ => String::new(),
-        };
-        let side_tile_id_text = match sector.properties.get("roof_side_source") {
-            Some(Value::Source(PixelSource::TileId(id))) => id.to_string(),
-            _ => String::new(),
-        };
+        let tile_id_text = source_to_text(sector.properties.get("roof_tile_source"));
+        let side_tile_id_text = source_to_text(sector.properties.get("roof_side_source"));
         self.nodeui.set_text_value("actionRoofTileId", tile_id_text);
         self.nodeui
             .set_text_value("actionRoofSideTileId", side_tile_id_text);
@@ -498,6 +498,68 @@ impl Action for CreateRoof {
 
     fn params(&self) -> TheNodeUI {
         self.nodeui.clone()
+    }
+
+    fn hud_material_slots(
+        &self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+    ) -> Option<Vec<ActionMaterialSlot>> {
+        let top = self
+            .nodeui
+            .get_text_value("actionRoofTileId")
+            .unwrap_or_default();
+        let side = self
+            .nodeui
+            .get_text_value("actionRoofSideTileId")
+            .unwrap_or_default();
+        Some(vec![
+            ActionMaterialSlot {
+                label: "TOP".to_string(),
+                source: Self::parse_tile_pixelsource(&top),
+            },
+            ActionMaterialSlot {
+                label: "SIDE".to_string(),
+                source: Self::parse_tile_pixelsource(&side),
+            },
+        ])
+    }
+
+    fn set_hud_material_from_tile(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+        tile_id: Uuid,
+    ) -> bool {
+        match slot_index {
+            0 => self
+                .nodeui
+                .set_text_value("actionRoofTileId", tile_id.to_string()),
+            1 => self
+                .nodeui
+                .set_text_value("actionRoofSideTileId", tile_id.to_string()),
+            _ => return false,
+        }
+        true
+    }
+
+    fn clear_hud_material_slot(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+    ) -> bool {
+        match slot_index {
+            0 => self
+                .nodeui
+                .set_text_value("actionRoofTileId", String::new()),
+            1 => self
+                .nodeui
+                .set_text_value("actionRoofSideTileId", String::new()),
+            _ => return false,
+        }
+        true
     }
 
     fn handle_event(

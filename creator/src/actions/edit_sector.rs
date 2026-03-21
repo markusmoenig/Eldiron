@@ -517,20 +517,16 @@ impl Action for EditSector {
             .nodeui
             .get_text_value("actionSectorTileId")
             .unwrap_or_default();
-        let terrain_tile_id = if let Ok(id) = Uuid::parse_str(tile_id_text.trim()) {
-            id
-        } else {
-            terrain_tile_id
-        };
+        let terrain_source = parse_tile_id_pixelsource(&tile_id_text).or_else(|| {
+            (terrain_tile_id != Uuid::nil()).then_some(PixelSource::TileId(terrain_tile_id))
+        });
         let ridge_water_tile_text = self
             .nodeui
             .get_text_value("actionSectorTerrainRidgeWaterTileId")
             .unwrap_or_default();
-        let ridge_water_tile_id = if let Ok(id) = Uuid::parse_str(ridge_water_tile_text.trim()) {
-            id
-        } else {
-            ridge_water_tile_id
-        };
+        let ridge_water_source = parse_tile_id_pixelsource(&ridge_water_tile_text).or_else(|| {
+            (ridge_water_tile_id != Uuid::nil()).then_some(PixelSource::TileId(ridge_water_tile_id))
+        });
         let iso_hide_on_enter = self
             .nodeui
             .get_text_value("actionIsoHideOnEnter")
@@ -632,18 +628,16 @@ impl Action for EditSector {
                         changed = true;
                     }
 
-                    match terrain_tile_id {
-                        id if id != Uuid::nil() => {
+                    match terrain_source {
+                        Some(source) => {
                             let has_changed = match sector.properties.get("terrain_source") {
-                                Some(Value::Source(PixelSource::TileId(existing))) => {
-                                    *existing != id
-                                }
+                                Some(Value::Source(existing)) => *existing != source,
                                 _ => true,
                             };
                             if has_changed {
                                 sector
                                     .properties
-                                    .set("terrain_source", Value::Source(PixelSource::TileId(id)));
+                                    .set("terrain_source", Value::Source(source));
                                 changed = true;
                             }
                         }
@@ -655,19 +649,16 @@ impl Action for EditSector {
                         }
                     }
 
-                    match ridge_water_tile_id {
-                        id if id != Uuid::nil() => {
+                    match ridge_water_source {
+                        Some(source) => {
                             let has_changed = match sector.properties.get("ridge_water_source") {
-                                Some(Value::Source(PixelSource::TileId(existing))) => {
-                                    *existing != id
-                                }
+                                Some(Value::Source(existing)) => *existing != source,
                                 _ => true,
                             };
                             if has_changed {
-                                sector.properties.set(
-                                    "ridge_water_source",
-                                    Value::Source(PixelSource::TileId(id)),
-                                );
+                                sector
+                                    .properties
+                                    .set("ridge_water_source", Value::Source(source));
                                 changed = true;
                             }
                         }

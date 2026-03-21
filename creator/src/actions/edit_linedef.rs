@@ -306,11 +306,8 @@ impl Action for EditLinedef {
             .nodeui
             .get_text_value("actionTileId")
             .unwrap_or_default();
-        let terrain_tile_id = if let Ok(id) = Uuid::parse_str(tile_id_text.trim()) {
-            Some(id)
-        } else {
-            terrain_tile_id
-        };
+        let terrain_source = parse_tile_id_pixelsource(&tile_id_text)
+            .or_else(|| terrain_tile_id.map(PixelSource::TileId));
 
         for linedef_id in map.selected_linedefs.clone() {
             if let Some(linedef) = map.find_linedef_mut(linedef_id) {
@@ -372,16 +369,16 @@ impl Action for EditLinedef {
                     );
                     changed = true;
                 }
-                match terrain_tile_id {
-                    Some(id) if id != Uuid::nil() => {
+                match terrain_source.as_ref() {
+                    Some(source) => {
                         let has_changed = match linedef.properties.get("terrain_source") {
-                            Some(Value::Source(PixelSource::TileId(existing))) => *existing != id,
+                            Some(Value::Source(existing)) => existing != source,
                             _ => true,
                         };
                         if has_changed {
                             linedef
                                 .properties
-                                .set("terrain_source", Value::Source(PixelSource::TileId(id)));
+                                .set("terrain_source", Value::Source(source.clone()));
                             changed = true;
                         }
                     }
@@ -408,6 +405,66 @@ impl Action for EditLinedef {
 
     fn params(&self) -> TheNodeUI {
         self.nodeui.clone()
+    }
+
+    fn hud_material_slots(
+        &self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+    ) -> Option<Vec<ActionMaterialSlot>> {
+        if !self.show_terrain {
+            return None;
+        }
+        let icon_id = self
+            .nodeui
+            .get_tile_id("actionTerrainTile", 0)
+            .unwrap_or(Uuid::nil());
+        Some(vec![ActionMaterialSlot {
+            label: "TERRAIN".to_string(),
+            source: {
+                let text = self
+                    .nodeui
+                    .get_text_value("actionTileId")
+                    .unwrap_or_default();
+                if let Some(source) = parse_tile_id_pixelsource(&text) {
+                    Some(source)
+                } else if icon_id != Uuid::nil() {
+                    Some(PixelSource::TileId(icon_id))
+                } else {
+                    None
+                }
+            },
+        }])
+    }
+
+    fn set_hud_material_from_tile(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+        tile_id: Uuid,
+    ) -> bool {
+        if !self.show_terrain || slot_index != 0 {
+            return false;
+        }
+        self.nodeui
+            .set_text_value("actionTileId", tile_id.to_string());
+        set_nodeui_icon_tile_id(&mut self.nodeui, "actionTerrainTile", 0, tile_id);
+        true
+    }
+
+    fn clear_hud_material_slot(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+    ) -> bool {
+        if !self.show_terrain || slot_index != 0 {
+            return false;
+        }
+        self.nodeui.set_text_value("actionTileId", String::new());
+        clear_nodeui_icon_tile_id(&mut self.nodeui, "actionTerrainTile", 0);
+        true
     }
 
     fn handle_event(

@@ -78,6 +78,8 @@ status_tilemap_clear_button = Die aktuelle Auswahl löschen.
 status_tilemap_add_button = Die aktuelle Kachelauswahl hinzufügen.
 ## Tiles
 status_tiles_filter_edit = Kacheln anzeigen, die die angegebenen Tags enthalten.
+status_tiles_apply_tile = Das ausgewählte Tile auf den ausgewählten Icon-Slot anwenden.
+status_tiles_clear_tile = Den ausgewählten Icon-Slot leeren.
 ## World Editor
 status_world_editor_brush_radius = Steuert die Größe des Pinsels in Welt-Einheiten.
 status_world_editor_brush_falloff = Steuert, wie schnell die Pinselstärke vom Zentrum abfällt.

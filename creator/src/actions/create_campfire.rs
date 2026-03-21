@@ -163,6 +163,13 @@ impl CreateCampfire {
 
         true
     }
+
+    fn parse_source_pixelsource(text: &str) -> Option<PixelSource> {
+        match Self::parse_tile_source(text) {
+            Some(Value::Source(source)) => Some(source),
+            _ => None,
+        }
+    }
 }
 
 impl Action for CreateCampfire {
@@ -407,6 +414,68 @@ impl Action for CreateCampfire {
 
     fn params(&self) -> TheNodeUI {
         self.nodeui.clone()
+    }
+
+    fn hud_material_slots(
+        &self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+    ) -> Option<Vec<ActionMaterialSlot>> {
+        let flame = self
+            .nodeui
+            .get_text_value("actionCampfireFlameTileId")
+            .unwrap_or_default();
+        let base = self
+            .nodeui
+            .get_text_value("actionCampfireBaseTileId")
+            .unwrap_or_default();
+        Some(vec![
+            ActionMaterialSlot {
+                label: "FLAME".to_string(),
+                source: Self::parse_source_pixelsource(&flame),
+            },
+            ActionMaterialSlot {
+                label: "BASE".to_string(),
+                source: Self::parse_source_pixelsource(&base),
+            },
+        ])
+    }
+
+    fn set_hud_material_from_tile(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+        tile_id: Uuid,
+    ) -> bool {
+        match slot_index {
+            0 => self
+                .nodeui
+                .set_text_value("actionCampfireFlameTileId", tile_id.to_string()),
+            1 => self
+                .nodeui
+                .set_text_value("actionCampfireBaseTileId", tile_id.to_string()),
+            _ => return false,
+        }
+        true
+    }
+
+    fn clear_hud_material_slot(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+    ) -> bool {
+        match slot_index {
+            0 => self
+                .nodeui
+                .set_text_value("actionCampfireFlameTileId", String::new()),
+            1 => self
+                .nodeui
+                .set_text_value("actionCampfireBaseTileId", String::new()),
+            _ => return false,
+        }
+        true
     }
 
     fn handle_event(

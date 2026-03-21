@@ -175,11 +175,8 @@ impl Action for GateDoor {
             .nodeui
             .get_text_value("actionBillboardTileId")
             .unwrap_or_default();
-        let cap = if let Ok(id) = Uuid::parse_str(cap_text.trim()) {
-            id
-        } else {
-            cap
-        };
+        let cap_source = parse_tile_id_pixelsource(&cap_text)
+            .or_else(|| (cap != Uuid::nil()).then_some(PixelSource::TileId(cap)));
 
         for sector_id in &map.selected_sectors.clone() {
             if let Some(sector) = map.find_sector_mut(*sector_id) {
@@ -189,11 +186,10 @@ impl Action for GateDoor {
                     .properties
                     .set("billboard_repeat_mode", Value::Int(repeat_mode));
 
-                if cap != Uuid::nil() {
-                    sector.properties.set(
-                        "billboard_source",
-                        Value::Source(rusterix::PixelSource::TileId(cap)),
-                    );
+                if let Some(cap_source) = cap_source.clone() {
+                    sector
+                        .properties
+                        .set("billboard_source", Value::Source(cap_source));
                 } else {
                     sector.properties.remove("billboard_source");
                 }

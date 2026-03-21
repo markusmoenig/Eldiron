@@ -5,7 +5,38 @@ sidebar_position: 3
 
 ![Tile Picker](/img/screenshots/dungeon3d_iso.png)
 
-The tile picker dock is open when working on maps, like regional maps or screens. The currently selected tile is used for example for the [Apply Tile](/docs/creator/actions/#apply-tile) sector based action and the [Rect](/docs/creator/tools/rect) tool.
+The tile picker dock is open when working on maps, like regional maps or screens. The currently selected tile is used by the **Apply Tile** button in the dock toolbar, by the **Clear Tile** button for removing a tile source, and by the [Rect](/docs/creator/tools/rect) tool.
+
+In Region geometry, these buttons work in two modes:
+
+- direct geometry mode: apply or clear the selected sector/linedef/vertex material source
+- action slot mode: if the current action exposes HUD material slots, apply or clear the currently selected HUD icon slot instead
+
+This is used by actions such as **Build Room**, where `ROOM`, `FLOOR`, `WALL`, and `CEIL` can be assigned directly from the tile picker before the action is applied.
+
+## Tile Picker Buttons
+
+### Apply Tile
+
+Apply the currently selected tile from the tile picker.
+
+Behavior:
+
+- in normal geometry editing, it assigns the tile to the currently selected geometry/material slot
+- in Region geometry, if the currently selected action exposes HUD material slots, it assigns the tile to the currently selected action icon slot instead
+- on screens, it keeps the existing screen-specific material assignment behavior
+
+Use this together with the HUD icon selection to decide which slot is being edited.
+
+### Clear Tile
+
+Clear the currently selected tile/material slot.
+
+Behavior:
+
+- in normal geometry editing, it removes the current geometry source assignment
+- in Region geometry, if the currently selected action exposes HUD material slots, it clears the currently selected action icon slot instead
+- on screens, it keeps the existing screen-specific material clearing behavior
 
 If **Authoring** mode is enabled in the tool strip, the tile picker is replaced by the **Authoring** dock for tile-backed map contexts. This lets you edit narrative metadata instead of tiles.
 

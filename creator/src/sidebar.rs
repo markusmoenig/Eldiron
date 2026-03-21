@@ -781,6 +781,15 @@ impl Sidebar {
                             self.show_action_toml_params(ui, ctx, server_ctx, action.as_ref());
                         }
                     }
+                } else if id.name == "Refresh Action Parameters" {
+                    if let Some(curr_action_id) = server_ctx.curr_action_id
+                        && let Some(action) = ACTIONLIST
+                            .write()
+                            .unwrap()
+                            .get_action_by_id_mut(curr_action_id)
+                    {
+                        self.show_action_toml_params(ui, ctx, server_ctx, action.as_ref());
+                    }
                 } else if id.name == "Update Action List" {
                     // Update the current action params (if any)
                     if let Some(curr_action_id) = server_ctx.curr_action_id {

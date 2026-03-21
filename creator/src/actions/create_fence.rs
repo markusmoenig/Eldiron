@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use rusterix::PixelSource;
 use std::str::FromStr;
 
 pub const CREATE_FENCE_ACTION_ID: &str = "1d4cc6df-66fd-4d28-a340-c702f696f7b8";
@@ -61,7 +60,7 @@ impl CreateFence {
             .nodeui
             .get_text_value("actionMaterialTileId")
             .unwrap_or_default();
-        let tile_id = Uuid::parse_str(tile_id_text.trim()).ok();
+        let tile_source = parse_tile_id_pixelsource(&tile_id_text);
 
         let Some(linedef) = map.find_linedef_mut(linedef_id) else {
             return false;
@@ -111,10 +110,10 @@ impl CreateFence {
             .properties
             .set("feature_lean_randomness", Value::Float(lean_randomness));
 
-        if let Some(id) = tile_id {
+        if let Some(source) = tile_source {
             linedef
                 .properties
-                .set("feature_source", Value::Source(PixelSource::TileId(id)));
+                .set("feature_source", Value::Source(source));
         } else {
             linedef.properties.remove("feature_source");
         }
@@ -340,10 +339,7 @@ impl Action for CreateFence {
                 .get_float_default("feature_lean_randomness", 1.0),
         );
 
-        let tile_id_text = match linedef.properties.get("feature_source") {
-            Some(Value::Source(PixelSource::TileId(id))) => id.to_string(),
-            _ => String::new(),
-        };
+        let tile_id_text = source_to_text(linedef.properties.get("feature_source"));
         self.nodeui
             .set_text_value("actionMaterialTileId", tile_id_text);
     }
@@ -375,6 +371,51 @@ impl Action for CreateFence {
 
     fn params(&self) -> TheNodeUI {
         self.nodeui.clone()
+    }
+
+    fn hud_material_slots(
+        &self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+    ) -> Option<Vec<ActionMaterialSlot>> {
+        Some(vec![ActionMaterialSlot {
+            label: "MAT".to_string(),
+            source: parse_tile_id_pixelsource(
+                &self
+                    .nodeui
+                    .get_text_value("actionMaterialTileId")
+                    .unwrap_or_default(),
+            ),
+        }])
+    }
+
+    fn set_hud_material_from_tile(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+        tile_id: Uuid,
+    ) -> bool {
+        if slot_index != 0 {
+            return false;
+        }
+        self.nodeui
+            .set_text_value("actionMaterialTileId", tile_id.to_string());
+        true
+    }
+
+    fn clear_hud_material_slot(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+    ) -> bool {
+        if slot_index != 0 {
+            return false;
+        }
+        self.nodeui
+            .set_text_value("actionMaterialTileId", String::new());
+        true
     }
 
     fn handle_event(

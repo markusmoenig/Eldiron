@@ -287,6 +287,105 @@ impl Action for Window {
         self.nodeui.clone()
     }
 
+    fn hud_material_slots(
+        &self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+    ) -> Option<Vec<ActionMaterialSlot>> {
+        let frame_icon_id = self
+            .nodeui
+            .get_tile_id("actionMaterialFrameTile", 0)
+            .unwrap_or(Uuid::nil());
+        let glass_icon_id = self
+            .nodeui
+            .get_tile_id("actionMaterialGlassTile", 0)
+            .unwrap_or(Uuid::nil());
+        let parse_source = |text: &str, fallback: Uuid| -> Option<PixelSource> {
+            let t = text.trim();
+            if !t.is_empty() {
+                if let Ok(id) = Uuid::parse_str(t) {
+                    return Some(PixelSource::TileId(id));
+                }
+                if let Ok(idx) = t.parse::<u16>() {
+                    return Some(PixelSource::PaletteIndex(idx));
+                }
+            }
+            if fallback != Uuid::nil() {
+                Some(PixelSource::TileId(fallback))
+            } else {
+                None
+            }
+        };
+
+        Some(vec![
+            ActionMaterialSlot {
+                label: "FRAME".to_string(),
+                source: parse_source(
+                    &self
+                        .nodeui
+                        .get_text_value("actionMaterialFrameTileId")
+                        .unwrap_or_default(),
+                    frame_icon_id,
+                ),
+            },
+            ActionMaterialSlot {
+                label: "GLASS".to_string(),
+                source: parse_source(
+                    &self
+                        .nodeui
+                        .get_text_value("actionMaterialGlassTileId")
+                        .unwrap_or_default(),
+                    glass_icon_id,
+                ),
+            },
+        ])
+    }
+
+    fn set_hud_material_from_tile(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+        tile_id: Uuid,
+    ) -> bool {
+        match slot_index {
+            0 => {
+                self.nodeui
+                    .set_text_value("actionMaterialFrameTileId", tile_id.to_string());
+                set_nodeui_icon_tile_id(&mut self.nodeui, "actionMaterialFrameTile", 0, tile_id);
+            }
+            1 => {
+                self.nodeui
+                    .set_text_value("actionMaterialGlassTileId", tile_id.to_string());
+                set_nodeui_icon_tile_id(&mut self.nodeui, "actionMaterialGlassTile", 0, tile_id);
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    fn clear_hud_material_slot(
+        &mut self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+        slot_index: i32,
+    ) -> bool {
+        match slot_index {
+            0 => {
+                self.nodeui
+                    .set_text_value("actionMaterialFrameTileId", String::new());
+                clear_nodeui_icon_tile_id(&mut self.nodeui, "actionMaterialFrameTile", 0);
+            }
+            1 => {
+                self.nodeui
+                    .set_text_value("actionMaterialGlassTileId", String::new());
+                clear_nodeui_icon_tile_id(&mut self.nodeui, "actionMaterialGlassTile", 0);
+            }
+            _ => return false,
+        }
+        true
+    }
+
     fn handle_event(
         &mut self,
         event: &TheEvent,

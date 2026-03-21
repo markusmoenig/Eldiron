@@ -408,11 +408,9 @@ impl Action for EditVertex {
             .nodeui
             .get_text_value("actionTerrainTileId")
             .unwrap_or_default();
-        let terrain_tile_id = if let Ok(id) = Uuid::parse_str(terrain_tile_id_text.trim()) {
-            id
-        } else {
-            terrain_tile_id
-        };
+        let terrain_source = parse_tile_id_pixelsource(&terrain_tile_id_text).or_else(|| {
+            (terrain_tile_id != Uuid::nil()).then_some(PixelSource::TileId(terrain_tile_id))
+        });
         let is_region_mode = server_ctx.get_map_context() == MapContext::Region;
 
         let tile_size = self.nodeui.get_f32_value("actionSize").unwrap_or(1.0);
@@ -425,11 +423,8 @@ impl Action for EditVertex {
             .nodeui
             .get_text_value("actionTileId")
             .unwrap_or_default();
-        let tile_id = if let Ok(id) = Uuid::parse_str(tile_id_text.trim()) {
-            id
-        } else {
-            tile_id
-        };
+        let source = parse_tile_id_pixelsource(&tile_id_text)
+            .or_else(|| (tile_id != Uuid::nil()).then_some(PixelSource::TileId(tile_id)));
 
         let x = self.nodeui.get_f32_value("actionVertexX").unwrap_or(0.0);
         let y = self.nodeui.get_f32_value("actionVertexY").unwrap_or(0.0);
@@ -468,18 +463,16 @@ impl Action for EditVertex {
                         changed = true;
                     }
 
-                    match terrain_tile_id {
-                        id if id != Uuid::nil() => {
+                    match terrain_source {
+                        Some(source) => {
                             let has_changed = match vertex.properties.get("terrain_source") {
-                                Some(Value::Source(PixelSource::TileId(existing))) => {
-                                    *existing != id
-                                }
+                                Some(Value::Source(existing)) => *existing != source,
                                 _ => true,
                             };
                             if has_changed {
                                 vertex
                                     .properties
-                                    .set("terrain_source", Value::Source(PixelSource::TileId(id)));
+                                    .set("terrain_source", Value::Source(source));
                                 changed = true;
                             }
                         }
@@ -500,16 +493,13 @@ impl Action for EditVertex {
                     changed = true;
                 }
 
-                if tile_id != Uuid::nil() {
+                if let Some(source) = source {
                     let has_changed = match vertex.properties.get("source") {
-                        Some(Value::Source(PixelSource::TileId(existing))) => *existing != tile_id,
+                        Some(Value::Source(existing)) => *existing != source,
                         _ => true,
                     };
                     if has_changed {
-                        vertex.properties.set(
-                            "source",
-                            Value::Source(rusterix::PixelSource::TileId(tile_id)),
-                        );
+                        vertex.properties.set("source", Value::Source(source));
                         changed = true;
                     }
                 } else if vertex.properties.contains("source") {

@@ -435,7 +435,6 @@ pub struct ServerContext {
 
     /// The currently selected action
     pub curr_action_id: Option<Uuid>,
-
     /// Automatially apply actions
     pub auto_action: bool,
 
@@ -597,7 +596,7 @@ impl ServerContext {
 
             editing_surface: None,
             curr_action_id: None,
-            auto_action: true,
+            auto_action: false,
 
             moved_entities: FxHashMap::default(),
             moved_items: FxHashMap::default(),

@@ -78,6 +78,8 @@ status_tilemap_clear_button = Clear the current selection.
 status_tilemap_add_button = Adds the current tile selection.
 ## Tiles
 status_tiles_filter_edit = Show tiles containing the given tags.
+status_tiles_apply_tile = Apply the selected tile to the selected icon slot.
+status_tiles_clear_tile = Clear the selected icon slot.
 ## World Editor
 status_world_editor_brush_radius = Controls the size of the brush in world units.
 status_world_editor_brush_falloff = Controls how quickly the brush strength fades from the center.

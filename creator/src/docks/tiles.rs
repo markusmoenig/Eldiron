@@ -1,5 +1,6 @@
+use crate::editor::{ACTIONLIST, RUSTERIX, TOOLLIST, UNDOMANAGER};
 use crate::prelude::*;
-use rusterix::{TileRole, VertexBlendPreset};
+use rusterix::{PixelSource, TileRole, VertexBlendPreset};
 
 pub struct TilesDock {
     pub tile_ids: FxHashMap<(i32, i32), Uuid>,
@@ -70,6 +71,18 @@ impl Dock for TilesDock {
         let mut spacer = TheSpacer::new(TheId::empty());
         spacer.limiter_mut().set_max_width(10);
         toolbar_hlayout.add_widget(Box::new(spacer));
+
+        toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+
+        let mut apply_button = TheTraybarButton::new(TheId::named("Tiles Dock Apply Tile"));
+        apply_button.set_text(fl!("action_apply_tile"));
+        apply_button.set_status_text(&fl!("status_tiles_apply_tile"));
+        toolbar_hlayout.add_widget(Box::new(apply_button));
+
+        let mut clear_button = TheTraybarButton::new(TheId::named("Tiles Dock Clear Tile"));
+        clear_button.set_text(fl!("action_clear_tile"));
+        clear_button.set_status_text(&fl!("status_tiles_clear_tile"));
+        toolbar_hlayout.add_widget(Box::new(clear_button));
 
         let mut zoom = TheSlider::new(TheId::named("Tiles Dock Zoom"));
         zoom.set_value(TheValue::Float(self.zoom));
@@ -208,6 +221,157 @@ impl Dock for TilesDock {
                         ctx.ui.clipboard = Some(TheValue::Text(txt.clone()));
                         let mut clipboard = arboard::Clipboard::new().unwrap();
                         clipboard.set_text(txt.clone()).unwrap();
+                    }
+                } else if id.name == "Tiles Dock Apply Tile" {
+                    if let Some(tile_id) = server_ctx.curr_tile_id {
+                        let mut applied_to_action = false;
+
+                        if server_ctx.get_map_context() == MapContext::Region
+                            && let Some(map) = project.get_map(server_ctx)
+                            && let Some(action_id) = server_ctx.curr_action_id
+                            && let Some(action) =
+                                ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
+                            && action.hud_material_slots(map, server_ctx).is_some()
+                            && action.set_hud_material_from_tile(
+                                map,
+                                server_ctx,
+                                server_ctx.selected_hud_icon_index,
+                                tile_id,
+                            )
+                        {
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Refresh Action Parameters"),
+                                TheValue::Empty,
+                            ));
+                            applied_to_action = true;
+                        }
+
+                        if !applied_to_action {
+                            let mut undo_atom: Option<ProjectUndoAtom> = None;
+                            let mut needs_scene_redraw = false;
+
+                            if let Some(map) = project.get_map_mut(server_ctx) {
+                                let mut changed = false;
+                                let prev = map.clone();
+
+                                for sector_id in map.selected_sectors.clone() {
+                                    if let Some(sector) = map.find_sector_mut(sector_id) {
+                                        let mut source = "source";
+                                        if server_ctx.pc.is_screen()
+                                            && server_ctx.selected_hud_icon_index == 1
+                                        {
+                                            source = "ceiling_source";
+                                        }
+                                        sector.properties.set(
+                                            source,
+                                            Value::Source(PixelSource::TileId(tile_id)),
+                                        );
+                                        changed = true;
+                                    }
+                                }
+
+                                if changed {
+                                    map.update_surfaces();
+                                    RUSTERIX.write().unwrap().set_dirty();
+                                    undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                        server_ctx.pc,
+                                        Box::new(prev),
+                                        Box::new(map.clone()),
+                                    ));
+                                    needs_scene_redraw = true;
+                                }
+                            }
+
+                            if needs_scene_redraw {
+                                crate::utils::scenemanager_render_map(project, server_ctx);
+                                TOOLLIST
+                                    .write()
+                                    .unwrap()
+                                    .update_geometry_overlay_3d(project, server_ctx);
+                            }
+
+                            if let Some(undo_atom) = undo_atom {
+                                UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Minimap"),
+                                    TheValue::Empty,
+                                ));
+                            }
+                        }
+                    }
+                } else if id.name == "Tiles Dock Clear Tile" {
+                    let mut cleared_action_slot = false;
+
+                    if server_ctx.get_map_context() == MapContext::Region
+                        && let Some(map) = project.get_map(server_ctx)
+                        && let Some(action_id) = server_ctx.curr_action_id
+                        && let Some(action) =
+                            ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
+                        && action.hud_material_slots(map, server_ctx).is_some()
+                        && action.clear_hud_material_slot(
+                            map,
+                            server_ctx,
+                            server_ctx.selected_hud_icon_index,
+                        )
+                    {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Refresh Action Parameters"),
+                            TheValue::Empty,
+                        ));
+                        cleared_action_slot = true;
+                    }
+
+                    if !cleared_action_slot {
+                        let mut undo_atom: Option<ProjectUndoAtom> = None;
+                        let mut needs_scene_redraw = false;
+
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            let mut changed = false;
+                            let prev = map.clone();
+
+                            for sector_id in map.selected_sectors.clone() {
+                                if let Some(sector) = map.find_sector_mut(sector_id) {
+                                    let mut source = "source";
+                                    if server_ctx.pc.is_screen()
+                                        && server_ctx.selected_hud_icon_index == 1
+                                    {
+                                        source = "ceiling_source";
+                                    }
+
+                                    if sector.properties.contains(source) {
+                                        sector.properties.remove(source);
+                                        changed = true;
+                                    }
+                                }
+                            }
+
+                            if changed {
+                                map.update_surfaces();
+                                RUSTERIX.write().unwrap().set_dirty();
+                                undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                    server_ctx.pc,
+                                    Box::new(prev),
+                                    Box::new(map.clone()),
+                                ));
+                                needs_scene_redraw = true;
+                            }
+                        }
+
+                        if needs_scene_redraw {
+                            crate::utils::scenemanager_render_map(project, server_ctx);
+                            TOOLLIST
+                                .write()
+                                .unwrap()
+                                .update_geometry_overlay_3d(project, server_ctx);
+                        }
+
+                        if let Some(undo_atom) = undo_atom {
+                            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Minimap"),
+                                TheValue::Empty,
+                            ));
+                        }
                     }
                 }
             }
