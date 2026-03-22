@@ -46,6 +46,7 @@ pub struct TheTextView {
     draw_background: bool,
     draw_border: bool,
     word_wrap: bool,
+    font_preference: TheFontPreference,
 
     // Interaction
     drag_start_index: usize,
@@ -106,6 +107,7 @@ impl TheWidget for TheTextView {
             draw_border: false,
             draw_background: false,
             word_wrap: true,
+            font_preference: TheFontPreference::Default,
 
             drag_start_index: 0,
             hover_coord: Vec2::zero(),
@@ -511,8 +513,11 @@ impl TheWidget for TheTextView {
                 );
             }
 
-            self.renderer
-                .prepare(&self.state.to_text(), TheFontPreference::Default, &ctx.draw);
+            self.renderer.prepare(
+                &self.state.to_text(),
+                self.font_preference.clone(),
+                &ctx.draw,
+            );
 
             shrinker.shrink_by(
                 -(self.renderer.padding.0 as i32),
@@ -617,7 +622,7 @@ impl TheWidget for TheTextView {
                 true,
                 buffer,
                 style,
-                TheFontPreference::Default,
+                self.font_preference.clone(),
                 &ctx.draw,
             );
         } else {
@@ -627,7 +632,7 @@ impl TheWidget for TheTextView {
                 true,
                 buffer,
                 style,
-                TheFontPreference::Default,
+                self.font_preference.clone(),
                 &self.styled_ranges,
                 &ctx.draw,
             );
@@ -677,6 +682,7 @@ pub trait TheTextViewTrait: TheWidget {
     fn set_text(&mut self, text: String);
     fn set_blocks(&mut self, blocks: Vec<TheTextViewBlock>);
     fn set_font_size(&mut self, font_size: f32);
+    fn set_font_preference(&mut self, preference: TheFontPreference);
     fn set_embedded(&mut self, embedded: bool);
     fn set_selectable(&mut self, selectable: bool);
     fn set_word_wrap(&mut self, word_wrap: bool);
@@ -730,6 +736,10 @@ impl TheTextViewTrait for TheTextView {
     }
     fn set_font_size(&mut self, font_size: f32) {
         self.renderer.set_font_size(font_size);
+        self.is_dirty = true;
+    }
+    fn set_font_preference(&mut self, preference: TheFontPreference) {
+        self.font_preference = preference;
         self.is_dirty = true;
     }
     fn set_embedded(&mut self, embedded: bool) {

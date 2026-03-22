@@ -159,6 +159,41 @@ pub fn display_name_for_entity(entity: &Entity) -> String {
         .unwrap_or_else(|| format!("Entity {}", entity.id))
 }
 
+fn entity_target_labels(entity: &Entity) -> Vec<String> {
+    let mut labels = Vec::new();
+
+    if let Some(name) = entity
+        .get_attr_string("name")
+        .filter(|s| !s.trim().is_empty())
+    {
+        labels.push(name);
+    }
+    if let Some(race) = entity
+        .get_attr_string("race")
+        .filter(|s| !s.trim().is_empty())
+    {
+        labels.push(race);
+    }
+    if let Some(class) = entity
+        .get_attr_string("class")
+        .filter(|s| !s.trim().is_empty())
+    {
+        labels.push(class);
+    }
+    if let Some(class_name) = entity
+        .get_attr_string("class_name")
+        .filter(|s| !s.trim().is_empty())
+    {
+        labels.push(class_name);
+    }
+
+    if labels.is_empty() {
+        labels.push(format!("Entity {}", entity.id));
+    }
+
+    labels
+}
+
 pub fn display_name_for_item(item: &Item) -> String {
     item.get_attr_string("name")
         .or_else(|| item.get_attr_string("class_name"))
@@ -505,6 +540,218 @@ pub fn render_player_inventory(map: &Map) -> Option<String> {
     Some(lines.join("\n"))
 }
 
+fn configured_attr_name(config_src: &str, key: &str, default: &str) -> String {
+    config_table(config_src)
+        .and_then(|config| {
+            config
+                .get("game")
+                .and_then(toml::Value::as_table)
+                .and_then(|game| game.get(key))
+                .and_then(toml::Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| default.to_string())
+}
+
+fn configured_slot_names(config_src: &str, key: &str) -> Vec<String> {
+    config_table(config_src)
+        .and_then(|config| {
+            config
+                .get("game")
+                .and_then(toml::Value::as_table)
+                .and_then(|game| game.get(key))
+                .and_then(toml::Value::as_array)
+                .map(|slots| {
+                    slots
+                        .iter()
+                        .filter_map(toml::Value::as_str)
+                        .map(|slot| slot.trim().to_ascii_lowercase())
+                        .filter(|slot| !slot.is_empty())
+                        .collect::<Vec<_>>()
+                })
+        })
+        .unwrap_or_default()
+}
+
+fn is_weapon_slot(config_src: &str, slot: &str) -> bool {
+    let normalized = slot.trim().to_ascii_lowercase();
+    let configured = configured_slot_names(config_src, "weapon_slots");
+    if !configured.is_empty() {
+        return configured
+            .iter()
+            .any(|configured| configured == &normalized);
+    }
+
+    matches!(
+        normalized.as_str(),
+        "main_hand" | "mainhand" | "weapon" | "hand_main" | "off_hand" | "offhand" | "hand_off"
+    )
+}
+
+fn is_gear_slot(config_src: &str, slot: &str) -> bool {
+    let normalized = slot.trim().to_ascii_lowercase();
+    let configured = configured_slot_names(config_src, "gear_slots");
+    if !configured.is_empty() {
+        return configured
+            .iter()
+            .any(|configured| configured == &normalized);
+    }
+
+    !is_weapon_slot(config_src, slot)
+}
+
+fn fmt_scalar(value: f32) -> String {
+    if (value - value.round()).abs() <= 0.0001 {
+        (value.round() as i32).to_string()
+    } else {
+        format!("{:.2}", value)
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    }
+}
+
+fn sum_equipped_attr(
+    entity: &Entity,
+    config_src: &str,
+    attr: &str,
+    filter: fn(&str, &str) -> bool,
+) -> f32 {
+    entity
+        .equipped
+        .iter()
+        .filter(|(slot, _)| filter(config_src, slot))
+        .map(|(_, item)| item.attributes.get_float_default(attr, 0.0))
+        .sum()
+}
+
+fn sum_all_equipped_attr(entity: &Entity, attr: &str) -> f32 {
+    entity
+        .equipped
+        .values()
+        .map(|item| item.attributes.get_float_default(attr, 0.0))
+        .sum()
+}
+
+fn resolve_player_attr(entity: &Entity, attr: &str, config_src: &str) -> String {
+    if let Some(inner) = attr.strip_prefix("WEAPON.") {
+        return fmt_scalar(sum_equipped_attr(entity, config_src, inner, is_weapon_slot));
+    }
+    if let Some(inner) = attr.strip_prefix("EQUIPPED.") {
+        return fmt_scalar(sum_all_equipped_attr(entity, inner));
+    }
+    if let Some(inner) = attr.strip_prefix("ARMOR.") {
+        return fmt_scalar(sum_equipped_attr(entity, config_src, inner, is_gear_slot));
+    }
+    if attr.eq_ignore_ascii_case("ATTACK") {
+        return fmt_scalar(sum_equipped_attr(entity, config_src, "DMG", is_weapon_slot));
+    }
+    if attr.eq_ignore_ascii_case("ARMOR") {
+        return fmt_scalar(sum_equipped_attr(entity, config_src, "ARMOR", is_gear_slot));
+    }
+    if attr.eq_ignore_ascii_case("LEVEL") {
+        let level_attr = configured_attr_name(config_src, "level", "LEVEL");
+        return format!(
+            "{}",
+            entity
+                .attributes
+                .get_float_default(&level_attr, 1.0)
+                .round() as i32
+        );
+    }
+    if attr.eq_ignore_ascii_case("EXPERIENCE") || attr.eq_ignore_ascii_case("EXP") {
+        let exp_attr = configured_attr_name(config_src, "experience", "EXP");
+        return format!(
+            "{}",
+            entity.attributes.get_float_default(&exp_attr, 0.0).round() as i32
+        );
+    }
+    if attr.eq_ignore_ascii_case("FUNDS") {
+        return format!(
+            "{}",
+            entity.attributes.get_float_default("FUNDS", 0.0).round() as i32
+        );
+    }
+
+    entity
+        .attributes
+        .get(attr)
+        .map(|value| format!("{}", value))
+        .unwrap_or_else(|| format!("PLAYER.{}", attr))
+}
+
+fn resolve_player_stats_template(authoring_src: &str) -> Option<String> {
+    config_table(authoring_src)
+        .and_then(|authoring| {
+            authoring
+                .get("text")
+                .and_then(toml::Value::as_table)
+                .and_then(|text| text.get("stats"))
+                .and_then(toml::Value::as_table)
+                .and_then(|stats| {
+                    stats
+                        .get("text")
+                        .and_then(toml::Value::as_str)
+                        .map(str::to_string)
+                        .or_else(|| {
+                            stats
+                                .get("lines")
+                                .and_then(toml::Value::as_array)
+                                .map(|lines| {
+                                    lines
+                                        .iter()
+                                        .filter_map(toml::Value::as_str)
+                                        .collect::<Vec<_>>()
+                                        .join("\n")
+                                })
+                        })
+                })
+        })
+        .filter(|text| !text.trim().is_empty())
+}
+
+fn render_player_template(template: &str, entity: &Entity, config_src: &str) -> String {
+    let mut out = String::new();
+    let mut rest = template;
+
+    while let Some(start) = rest.find('{') {
+        out.push_str(&rest[..start]);
+        let after_start = &rest[start + 1..];
+        if let Some(end) = after_start.find('}') {
+            let token = &after_start[..end];
+            if let Some(attr) = token.strip_prefix("PLAYER.") {
+                out.push_str(&resolve_player_attr(entity, attr, config_src));
+            } else {
+                out.push('{');
+                out.push_str(token);
+                out.push('}');
+            }
+            rest = &after_start[end + 1..];
+        } else {
+            out.push_str(&rest[start..]);
+            rest = "";
+        }
+    }
+
+    out.push_str(rest);
+    out
+}
+
+pub fn render_player_stats(map: &Map, authoring_src: &str, config_src: &str) -> Option<String> {
+    let (player, _) = current_player_and_sector(map)?;
+    let template = resolve_player_stats_template(authoring_src).unwrap_or_else(|| {
+        [
+            "STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}",
+            "EXP:\t{PLAYER.EXP}\tLEVEL:\t{PLAYER.LEVEL}",
+            "HP:\t{PLAYER.HP}\tG:\t{PLAYER.FUNDS}",
+            "ATK:\t{PLAYER.ATTACK}\tDEF:\t{PLAYER.ARMOR}",
+        ]
+        .join("\n")
+    });
+
+    Some(render_player_template(&template, player, config_src))
+}
+
 pub fn normalize_target_name(text: &str) -> String {
     text.trim()
         .to_ascii_lowercase()
@@ -548,7 +795,10 @@ pub fn resolve_text_target(map: &Map, sector: &Sector, query: &str) -> Result<Te
             continue;
         }
         let name = display_name_for_entity(entity);
-        if target_matches(&name, query) {
+        if entity_target_labels(entity)
+            .iter()
+            .any(|label| target_matches(label, query))
+        {
             matches.push((
                 name,
                 TextTarget::Entity {

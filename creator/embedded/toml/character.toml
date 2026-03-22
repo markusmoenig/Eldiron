@@ -2,6 +2,10 @@
 # Base strength of the character (uncomment to enable)
 # STR = 10
 
+# Optional gameplay identity metadata
+# race = "Orc"
+# class = "Warrior"
+
 # Whether the character is visible on the map
 visible = true
 

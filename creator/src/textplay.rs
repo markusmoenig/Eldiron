@@ -51,17 +51,12 @@ impl TextGameState {
         }
     }
 
-    fn debug_enabled() -> bool {
-        std::env::var("ELDIRON_TEXTPLAY_DEBUG")
-            .map(|v| v != "0")
-            .unwrap_or(false)
-    }
-
     fn setup_canvas_with_ids(output_id: &str, input_id: &str) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
         let mut output = TheTextView::new(TheId::named(output_id));
         output.set_font_size(13.0);
+        output.set_font_preference(TheFontPreference::Code);
         TheTextViewTrait::set_embedded(&mut output, true);
         output.set_selectable(true);
         output.set_word_wrap(true);
@@ -162,13 +157,6 @@ impl TextGameState {
             return false;
         }
 
-        if Self::debug_enabled() {
-            println!(
-                "[TextPlayDebug][handle-input] input={} command={:?}",
-                input_id, trimmed
-            );
-        }
-
         refresh_text_runtime_view(project);
 
         let colors = authoring_colors(&project.authoring);
@@ -201,13 +189,6 @@ impl TextGameState {
     ) {
         if !server_ctx.text_game_mode {
             return;
-        }
-
-        if Self::debug_enabled() {
-            println!(
-                "[TextPlayDebug][textgame-update] game_mode={} curr_region={}",
-                server_ctx.game_mode, server_ctx.curr_region
-            );
         }
 
         let outputs = if let Some(region) = current_region(project, server_ctx) {
@@ -261,6 +242,19 @@ impl TextGameState {
                     self.push_plain_line("Current region not found.");
                 }
             }
+            "stats" | "stat" => {
+                if let Some(region) = current_region(project, server_ctx) {
+                    if let Some(text) =
+                        sg::render_player_stats(&region.map, &project.authoring, &project.config)
+                    {
+                        self.push_plain_block(&text);
+                    } else {
+                        self.push_plain_line("No local player found.");
+                    }
+                } else {
+                    self.push_plain_line("Current region not found.");
+                }
+            }
             _ if matches!(direction, "north" | "south" | "east" | "west") => {
                 if move_by_direction(direction, project, server_ctx) {
                 } else {
@@ -273,6 +267,7 @@ impl TextGameState {
                         "Commands:",
                         "  look | l           Show the current room",
                         "  inventory | inv    Show your inventory",
+                        "  stats | stat       Show your character stats",
                         "  north | east | south | west",
                         "  n | e | s | w",
                         "                     Move through a text exit",
@@ -351,6 +346,7 @@ impl TextGameState {
         if text.trim().is_empty() {
             return;
         }
+        let text = expand_tabs(text, 8);
         self.blocks.push(TheTextViewBlock {
             text: format!("{}\n\n", text.trim_end()),
             style: TheTextStyle {
@@ -368,6 +364,7 @@ impl TextGameState {
         if text.trim().is_empty() {
             return;
         }
+        let text = expand_tabs(text, 8);
         self.blocks.push(TheTextViewBlock {
             text: format!("{}\n", text.trim_end()),
             style: TheTextStyle {
@@ -467,6 +464,33 @@ impl TextGameState {
             }
         }
     }
+}
+
+fn expand_tabs(text: &str, tab_width: usize) -> String {
+    let mut expanded = String::new();
+
+    for line in text.lines() {
+        let mut column = 0usize;
+        for ch in line.chars() {
+            if ch == '\t' {
+                let spaces = tab_width - (column % tab_width);
+                for _ in 0..spaces {
+                    expanded.push(' ');
+                }
+                column += spaces;
+            } else {
+                expanded.push(ch);
+                column += 1;
+            }
+        }
+        expanded.push('\n');
+    }
+
+    if !text.ends_with('\n') && expanded.ends_with('\n') {
+        expanded.pop();
+    }
+
+    expanded
 }
 
 fn current_region<'a>(

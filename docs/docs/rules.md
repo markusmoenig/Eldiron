@@ -168,6 +168,13 @@ Progression formulas can use:
 - `level`
 - any direct character attribute like `STR`, `INT`, `VIT`
 
+That also includes plain metadata-style character attributes if you store them in character data, for example:
+
+- `race = "Orc"`
+- `class = "Warrior"`
+
+These string attributes are useful for identity, targeting, and future rules organization, but they are not yet interpreted specially by the rules engine on their own.
+
 `attack()` reads its base value from `progression.damage`.
 
 ### Leveling Flow
@@ -235,6 +242,90 @@ Supported placeholders:
 - `{xp_total}`: new total experience after the gain
 
 These messages are only sent to player characters.
+
+## Race And Class Metadata
+
+Characters can define optional gameplay identity metadata directly in their data:
+
+```toml
+[attributes]
+name = "Grushnak"
+race = "Orc"
+class = "Warrior"
+```
+
+Use them like this:
+
+- `name`: this specific character's display identity
+- `race`: species or people, such as `Orc`, `Human`, or `Elf`
+- `class`: gameplay role or archetype, such as `Warrior`, `Mage`, or `Scout`
+
+- text gameplay can address characters by `name`, `race`, or `class`
+
+## Race And Class Rule Layers
+
+Rules can now define race-specific and class-specific progression and combat modifiers.
+
+```toml
+[progression.hp]
+base = 10
+per_level = 2
+
+[races.Orc.progression.hp]
+base = 2
+
+[classes.Warrior.progression.hp]
+per_level = 1
+
+[combat]
+outgoing_damage = "value + source.DMG"
+
+[races.Orc.combat]
+outgoing_damage = "value + 1"
+
+[classes.Warrior.combat.kinds.physical]
+outgoing_damage = "value + attacker.STR * 0.25"
+```
+
+### How They Combine
+
+For progression stats such as `hp`, `damage`, or other `progression.<stat>` entries:
+
+- `base` is added from base rules, race rules, and class rules
+- `per_level` is added from base rules, race rules, and class rules
+- `gain` is added from base rules, race rules, and class rules
+
+So race and class progression act as bonuses on top of the shared baseline.
+
+For `progression.level.xp_for_level`:
+
+- the most specific definition wins
+- class overrides race
+- race overrides the global base rule
+
+For combat and kill XP formulas:
+
+- the base rule runs first
+- then the race rule runs
+- then the class rule runs
+- each step receives the previous result as `value`
+
+That means race and class layers can add, multiply, clamp, or otherwise modify the shared result.
+
+Example:
+
+```toml
+[progression.xp]
+kill = "defender.LEVEL * 25"
+
+[races.Orc.progression.xp]
+kill = "value + 5"
+
+[classes.Warrior.progression.xp]
+kill = "value + attacker.LEVEL * 2"
+```
+
+If the base rule gives `50`, the race layer changes it to `55`, and the class layer can increase it again from there.
 
 ## Combat Values
 

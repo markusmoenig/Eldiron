@@ -338,25 +338,6 @@ impl Editor {
         }
     }
 
-    fn text_play_debug_enabled() -> bool {
-        std::env::var("ELDIRON_TEXTPLAY_DEBUG")
-            .map(|v| v != "0")
-            .unwrap_or(false)
-    }
-
-    fn log_text_play_debug(&self, stage: &str, details: &str) {
-        if Self::text_play_debug_enabled() {
-            println!(
-                "[TextPlayDebug][{}] game_mode={} text_mode={} curr_region={} {}",
-                stage,
-                self.server_ctx.game_mode,
-                self.server_ctx.text_game_mode,
-                self.server_ctx.curr_region,
-                details
-            );
-        }
-    }
-
     fn project_tab_title_for(
         project: &Project,
         project_path: &Option<PathBuf>,
@@ -1531,10 +1512,6 @@ impl TheTrait for Editor {
         let mut update_server_icons = false;
 
         if let Some((input_id, command)) = self.pending_text_game_command.take() {
-            self.log_text_play_debug(
-                "queue-drain",
-                &format!("input={} command={:?}", input_id, command),
-            );
             TEXTGAME.write().unwrap().handle_input(
                 &input_id,
                 &command,
@@ -1550,7 +1527,6 @@ impl TheTrait for Editor {
         if self.pending_text_game_runtime_flush {
             let is_running =
                 RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running;
-            self.log_text_play_debug("runtime-flush-start", &format!("is_running={}", is_running));
             if is_running && self.server_ctx.text_game_mode {
                 warmup_runtime(&mut RUSTERIX.write().unwrap(), &mut self.project, 1);
 
@@ -1558,15 +1534,6 @@ impl TheTrait for Editor {
                     let region_id = region.map.id;
                     let mut messages = RUSTERIX.write().unwrap().server.get_messages(&region_id);
                     let mut says = RUSTERIX.write().unwrap().server.get_says(&region_id);
-                    self.log_text_play_debug(
-                        "runtime-flush-update",
-                        &format!(
-                            "region_id={} messages={} says={}",
-                            region_id,
-                            messages.len(),
-                            says.len()
-                        ),
-                    );
 
                     TEXTGAME.write().unwrap().update(
                         &self.project,
@@ -1576,8 +1543,6 @@ impl TheTrait for Editor {
                         ui,
                         ctx,
                     );
-                } else {
-                    self.log_text_play_debug("runtime-flush-update", "no-region");
                 }
             }
             self.pending_text_game_runtime_flush = false;
@@ -1779,7 +1744,6 @@ impl TheTrait for Editor {
                         self.last_processed_log_len = log_text.len();
                     }
                     let mut refresh_visual_debug = false;
-                    let text_play_debug = Self::text_play_debug_enabled();
                     for r in &mut self.project.regions {
                         rusterix.server.apply_entities_items(&mut r.map);
 
@@ -1795,19 +1759,6 @@ impl TheTrait for Editor {
                             messages = rusterix.server.get_messages(&r.map.id);
                             says = rusterix.server.get_says(&r.map.id);
                             choices = rusterix.server.get_choices(&r.map.id);
-                            if text_play_debug {
-                                println!(
-                                    "[TextPlayDebug][redraw-update-region] game_mode={} text_mode={} curr_region={} region_id={} map={} messages={} says={} choices={}",
-                                    self.server_ctx.game_mode,
-                                    self.server_ctx.text_game_mode,
-                                    self.server_ctx.curr_region,
-                                    r.map.id,
-                                    r.map.name,
-                                    messages.len(),
-                                    says.len(),
-                                    choices.len()
-                                );
-                            }
 
                             if !self.server_ctx.game_mode {
                                 self.pending_game_messages.append(&mut messages);

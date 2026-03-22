@@ -61,6 +61,23 @@ blocking = true
 
 ---
 
+## `class`
+
+*Character-only attribute.*
+
+Optional gameplay role or archetype for a character.
+
+Use this for things like:
+
+- text targeting by class, for example `attack warrior`
+- future class-based rules, progression, or bonuses
+
+```toml
+class = "Warrior"
+```
+
+---
+
 ## `color`
 
 *Item-only attribute.*
@@ -513,6 +530,24 @@ Name of the character or item. Can override the template name.
 
 ```toml
 name = "Golden Key"
+```
+
+---
+
+## `race`
+
+*Character-only attribute.*
+
+Optional race/species identity for a character.
+
+Use this for things like:
+
+- text targeting by race, for example `look orc`
+- future race-based rules, progression, or bonuses
+- separating gameplay identity from the visible display name
+
+```toml
+race = "Orc"
 ```
 
 ---

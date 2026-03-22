@@ -6,7 +6,11 @@
 # Optional auto-messages live under [combat.messages]
 # Optional player combat audio lives under [combat.audio]
 # Progression stats live under [progression.<stat>]
-
+# Optional race/class layers can live under:
+# [races.<race>.progression.<stat>]
+# [classes.<class>.progression.<stat>]
+# [races.<race>.combat]
+# [classes.<class>.combat]
 [progression.damage]
 base = 1
 gain = "STR * 0.25"

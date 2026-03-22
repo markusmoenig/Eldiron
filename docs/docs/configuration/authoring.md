@@ -393,3 +393,42 @@ description = """
 A small crossroads of worn earth and scattered stones, marking the meeting point between harbor, home, and garden.
 """
 ```
+
+## Text Gameplay `stats`
+
+Text gameplay supports a `stats` command to show the current player stats.
+
+By default it uses a small built-in stat block. You can customize the output in **Game / Authoring**:
+
+```toml
+[text.stats]
+text = """
+STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}
+EXP:\t{PLAYER.EXP}\tLEVEL:\t{PLAYER.LEVEL}
+HP:\t{PLAYER.HP}\tG:\t{PLAYER.FUNDS}
+ATK:\t{PLAYER.ATTACK}\tDEF:\t{PLAYER.ARMOR}
+"""
+```
+
+You can also define the block as lines:
+
+```toml
+[text.stats]
+lines = [
+  "STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}",
+  "EXP:\t{PLAYER.EXP}\tLEVEL:\t{PLAYER.LEVEL}",
+  "HP:\t{PLAYER.HP}\tG:\t{PLAYER.FUNDS}",
+  "ATK:\t{PLAYER.ATTACK}\tDEF:\t{PLAYER.ARMOR}",
+]
+```
+
+Supported placeholders use the same `PLAYER.*` style as screen text widgets, including:
+
+- `PLAYER.<ATTR>`
+- `PLAYER.LEVEL`
+- `PLAYER.EXP`
+- `PLAYER.ATTACK`
+- `PLAYER.ARMOR`
+- `PLAYER.WEAPON.<ATTR>`
+- `PLAYER.EQUIPPED.<ATTR>`
+- `PLAYER.ARMOR.<ATTR>`

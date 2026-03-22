@@ -10,11 +10,13 @@
 - Added `progression.damage` so combat base damage can be derived from progression formulas instead of being hardcoded in scripts.
 - Added `gain_xp(...)`, automatic kill XP via `progression.xp.kill`, and `level_up` events when XP thresholds are crossed.
 - Added rules-driven progression messages for XP gain and leveling up, localized through the locale system.
+- Added `race` and `class` character metadata, including rule-layer support through `races.<race>` and `classes.<class>` for progression and combat formulas.
 
 ### Creator
 
 - Exposed `attack` and `gain_xp` in CodeGridFX.
 - Added config-aware `PLAYER.LEVEL`, `PLAYER.EXP`, and `PLAYER.EXPERIENCE` support for text widgets and localized text.
+- Added config-aware `PLAYER.FUNDS` support and a configurable `stats` text command driven from **Game / Authoring**.
 - Added tab-stop support for text widgets via `\\t` and `tab_width`, making aligned HUD/status layouts easier to build.
 - Added a persistent Authoring mode and dock for entering room, connection, entity, and item metadata as TOML, including starter templates and undo / redo support.
 - Added **Game / Authoring** for global startup text, exit presentation, terminal behavior, and text-style color configuration.
@@ -40,6 +42,7 @@
 - Added a first text-style terminal client that can load and play `.eldiron` projects without graphical assets.
 - Added authored room titles, descriptions, exits, entities, items, and corpse presentation to the terminal client.
 - Added terminal command aliases, realtime ticking, text exit navigation, and configured player-intent commands like `attack orc`.
+- Added text targeting by character `name`, `race`, and `class`, plus a configurable `stats` command for inspecting player attributes in text gameplay.
 - Added terminal presentation controls through **Game / Authoring**, including exit styles, message colors, character color rules, and auto-attack behavior.
 - Added shared text session/gameplay logic used by both the terminal client and the embedded Creator text-play mode.
 - Added text inventory display, nearby-attacker handling, corpse/item room fallback near sector boundaries, and drop/fall cues for newly dropped items.

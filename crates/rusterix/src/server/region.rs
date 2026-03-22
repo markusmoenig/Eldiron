@@ -5136,15 +5136,18 @@ pub(crate) fn apply_damage_direct(
     kill
 }
 
-fn combat_rule_expr<'a>(ctx: &'a RegionCtx, kind: &str, key: &str) -> Option<&'a str> {
+fn combat_rule_expr_from_root<'a>(
+    root: &'a toml::value::Table,
+    kind: &str,
+    key: &str,
+) -> Option<&'a str> {
     let kind_key = if key == "incoming_damage" {
         Some(["incoming_damage", "received_damage"])
     } else {
         None
     };
     if !kind.is_empty()
-        && let Some(expr) = ctx
-            .rules
+        && let Some(expr) = root
             .get("combat")
             .and_then(toml::Value::as_table)
             .and_then(|combat| combat.get("kinds"))
@@ -5162,8 +5165,7 @@ fn combat_rule_expr<'a>(ctx: &'a RegionCtx, kind: &str, key: &str) -> Option<&'a
     {
         return Some(expr);
     }
-    ctx.rules
-        .get("combat")
+    root.get("combat")
         .and_then(toml::Value::as_table)
         .and_then(|combat| {
             if let Some(keys) = kind_key {
@@ -5173,6 +5175,35 @@ fn combat_rule_expr<'a>(ctx: &'a RegionCtx, kind: &str, key: &str) -> Option<&'a
             }
         })
         .and_then(toml::Value::as_str)
+}
+
+fn combat_rule_expr<'a>(ctx: &'a RegionCtx, kind: &str, key: &str) -> Option<&'a str> {
+    combat_rule_expr_from_root(&ctx.rules, kind, key)
+}
+
+fn combat_rule_exprs<'a>(
+    ctx: &'a RegionCtx,
+    attacker: Option<&Entity>,
+    kind: &str,
+    key: &str,
+) -> Vec<&'a str> {
+    let mut exprs = Vec::new();
+    if let Some(expr) = combat_rule_expr(ctx, kind, key) {
+        exprs.push(expr);
+    }
+    if let Some(attacker) = attacker
+        && let Some(root) = race_rule_root(ctx, attacker)
+        && let Some(expr) = combat_rule_expr_from_root(root, kind, key)
+    {
+        exprs.push(expr);
+    }
+    if let Some(attacker) = attacker
+        && let Some(root) = class_rule_root(ctx, attacker)
+        && let Some(expr) = combat_rule_expr_from_root(root, kind, key)
+    {
+        exprs.push(expr);
+    }
+    exprs
 }
 
 fn active_locale(ctx: &RegionCtx) -> &str {
@@ -5715,18 +5746,6 @@ fn item_by_id<'a>(ctx: &'a RegionCtx, item_id: u32) -> Option<&'a Item> {
 }
 
 fn progression_kill_xp(ctx: &RegionCtx, from_id: u32, target_id: u32) -> i32 {
-    let Some(expr) = ctx
-        .rules
-        .get("progression")
-        .and_then(toml::Value::as_table)
-        .and_then(|progression| progression.get("xp"))
-        .and_then(toml::Value::as_table)
-        .and_then(|xp| xp.get("kill"))
-        .and_then(toml::Value::as_str)
-    else {
-        return 0;
-    };
-
     let attacker = ctx.map.entities.iter().find(|entity| entity.id == from_id);
     let defender = ctx
         .map
@@ -5734,13 +5753,62 @@ fn progression_kill_xp(ctx: &RegionCtx, from_id: u32, target_id: u32) -> i32 {
         .iter()
         .find(|entity| entity.id == target_id);
 
-    FormulaParser::new(expr, |name| {
-        resolve_combat_var(ctx, name, 0.0, attacker, defender, None)
-    })
-    .parse()
-    .filter(|value| value.is_finite())
-    .map(|value| value.round().max(0.0) as i32)
-    .unwrap_or(0)
+    let mut exprs = Vec::new();
+    if let Some(expr) = ctx
+        .rules
+        .get("progression")
+        .and_then(toml::Value::as_table)
+        .and_then(|progression| progression.get("xp"))
+        .and_then(toml::Value::as_table)
+        .and_then(|xp| xp.get("kill"))
+        .and_then(toml::Value::as_str)
+    {
+        exprs.push(expr);
+    }
+    if let Some(attacker) = attacker
+        && let Some(root) = race_rule_root(ctx, attacker)
+        && let Some(expr) = root
+            .get("progression")
+            .and_then(toml::Value::as_table)
+            .and_then(|progression| progression.get("xp"))
+            .and_then(toml::Value::as_table)
+            .and_then(|xp| xp.get("kill"))
+            .and_then(toml::Value::as_str)
+    {
+        exprs.push(expr);
+    }
+    if let Some(attacker) = attacker
+        && let Some(root) = class_rule_root(ctx, attacker)
+        && let Some(expr) = root
+            .get("progression")
+            .and_then(toml::Value::as_table)
+            .and_then(|progression| progression.get("xp"))
+            .and_then(toml::Value::as_table)
+            .and_then(|xp| xp.get("kill"))
+            .and_then(toml::Value::as_str)
+    {
+        exprs.push(expr);
+    }
+
+    if exprs.is_empty() {
+        return 0;
+    }
+
+    let mut current_value = 0.0;
+    for expr in exprs {
+        let Some(parsed) = FormulaParser::new(expr, |name| {
+            resolve_combat_var(ctx, name, current_value, attacker, defender, None)
+        })
+        .parse() else {
+            return 0;
+        };
+        if !parsed.is_finite() {
+            return 0;
+        }
+        current_value = parsed.max(0.0);
+    }
+
+    current_value.round().max(0.0) as i32
 }
 
 pub(crate) fn grant_experience(ctx: &mut RegionCtx, entity_id: u32, amount: i32) -> Vec<u32> {
@@ -6114,6 +6182,63 @@ fn progression_stat_table<'a>(ctx: &'a RegionCtx, stat: &str) -> Option<&'a toml
         .and_then(toml::Value::as_table)
 }
 
+fn entity_rule_identity(entity: &Entity, key: &str) -> Option<String> {
+    entity
+        .get_attr_string(key)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn race_rule_root<'a>(ctx: &'a RegionCtx, entity: &Entity) -> Option<&'a toml::value::Table> {
+    let race = entity_rule_identity(entity, "race")?;
+    ctx.rules
+        .get("races")
+        .and_then(toml::Value::as_table)
+        .and_then(|races| races.get(&race))
+        .and_then(toml::Value::as_table)
+}
+
+fn class_rule_root<'a>(ctx: &'a RegionCtx, entity: &Entity) -> Option<&'a toml::value::Table> {
+    let class = entity_rule_identity(entity, "class")?;
+    ctx.rules
+        .get("classes")
+        .and_then(toml::Value::as_table)
+        .and_then(|classes| classes.get(&class))
+        .and_then(toml::Value::as_table)
+}
+
+fn progression_stat_table_from_root<'a>(
+    root: &'a toml::value::Table,
+    stat: &str,
+) -> Option<&'a toml::value::Table> {
+    root.get("progression")
+        .and_then(toml::Value::as_table)
+        .and_then(|progression| progression.get(stat))
+        .and_then(toml::Value::as_table)
+}
+
+fn progression_stat_tables<'a>(
+    ctx: &'a RegionCtx,
+    entity: &Entity,
+    stat: &str,
+) -> Vec<&'a toml::value::Table> {
+    let mut tables = Vec::new();
+    if let Some(table) = progression_stat_table(ctx, stat) {
+        tables.push(table);
+    }
+    if let Some(root) = race_rule_root(ctx, entity)
+        && let Some(table) = progression_stat_table_from_root(root, stat)
+    {
+        tables.push(table);
+    }
+    if let Some(root) = class_rule_root(ctx, entity)
+        && let Some(table) = progression_stat_table_from_root(root, stat)
+    {
+        tables.push(table);
+    }
+    tables
+}
+
 fn progression_level_for_entity(ctx: &RegionCtx, entity: &Entity) -> f32 {
     entity
         .attributes
@@ -6144,8 +6269,11 @@ pub(crate) fn progression_xp_for_level(ctx: &RegionCtx, entity_id: u32, level: u
         .entities
         .iter()
         .find(|entity| entity.id == entity_id)?;
-    let table = progression_stat_table(ctx, "level")?;
-    let expr = table.get("xp_for_level").and_then(toml::Value::as_str)?;
+    let tables = progression_stat_tables(ctx, entity, "level");
+    let expr = tables
+        .iter()
+        .rev()
+        .find_map(|table| table.get("xp_for_level").and_then(toml::Value::as_str))?;
     FormulaParser::new(expr, |name| {
         if name == "level" {
             level as f32
@@ -6164,18 +6292,33 @@ pub(crate) fn progression_stat_value(ctx: &RegionCtx, entity_id: u32, stat: &str
         .entities
         .iter()
         .find(|entity| entity.id == entity_id)?;
-    let table = progression_stat_table(ctx, stat)?;
-    let base = progression_number(table.get("base"), 0.0);
-    let per_level = progression_number(table.get("per_level"), 0.0);
+    let tables = progression_stat_tables(ctx, entity, stat);
+    if tables.is_empty() {
+        return None;
+    }
+    let base = tables
+        .iter()
+        .map(|table| progression_number(table.get("base"), 0.0))
+        .sum::<f32>();
+    let per_level = tables
+        .iter()
+        .map(|table| progression_number(table.get("per_level"), 0.0))
+        .sum::<f32>();
     let level = progression_level_for_entity(ctx, entity);
     let levels_gained = (level - 1.0).max(0.0);
-    let gain = table
-        .get("gain")
-        .and_then(toml::Value::as_str)
-        .and_then(|expr| {
-            FormulaParser::new(expr, |name| resolve_progression_var(ctx, entity, name)).parse()
+    let gain = tables
+        .iter()
+        .map(|table| {
+            table
+                .get("gain")
+                .and_then(toml::Value::as_str)
+                .and_then(|expr| {
+                    FormulaParser::new(expr, |name| resolve_progression_var(ctx, entity, name))
+                        .parse()
+                })
+                .unwrap_or(0.0)
         })
-        .unwrap_or(0.0);
+        .sum::<f32>();
 
     Some((base + levels_gained * (per_level + gain)).max(0.0))
 }
@@ -6533,11 +6676,11 @@ fn evaluate_damage_rule(
     source_item_id: u32,
     key: &str,
 ) -> Option<i32> {
-    let Some(expr) = combat_rule_expr(ctx, kind, key) else {
-        return None;
-    };
-
     let attacker = ctx.map.entities.iter().find(|entity| entity.id == from_id);
+    let exprs = combat_rule_exprs(ctx, attacker, kind, key);
+    if exprs.is_empty() {
+        return None;
+    }
     let defender = ctx
         .map
         .entities
@@ -6550,16 +6693,20 @@ fn evaluate_damage_rule(
             None
         }
     });
-    let base_value = amount as f32;
+    let mut current_value = amount as f32;
 
-    let parsed = FormulaParser::new(expr, |name| {
-        resolve_combat_var(ctx, name, base_value, attacker, defender, source_item)
-    })
-    .parse();
+    for expr in exprs {
+        let parsed = FormulaParser::new(expr, |name| {
+            resolve_combat_var(ctx, name, current_value, attacker, defender, source_item)
+        })
+        .parse()?;
+        if !parsed.is_finite() {
+            return None;
+        }
+        current_value = parsed.max(0.0);
+    }
 
-    parsed
-        .filter(|value| value.is_finite())
-        .map(|value| value.round().max(0.0) as i32)
+    Some(current_value.round().max(0.0) as i32)
 }
 
 pub(crate) fn apply_damage_rules(

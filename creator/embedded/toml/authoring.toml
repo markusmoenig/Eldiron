@@ -62,3 +62,12 @@ cooldown_minutes_3d = 10
 
 # Whether the starting sector may also show its description automatically.
 show_on_startup = true
+
+# Optional text gameplay stats command template.
+# [text.stats]
+# text = """
+# STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}
+# EXP:\t{PLAYER.EXP}\tLEVEL:\t{PLAYER.LEVEL}
+# HP:\t{PLAYER.HP}\tG:\t{PLAYER.FUNDS}
+# ATK:\t{PLAYER.ATTACK}\tDEF:\t{PLAYER.ARMOR}
+# """
