@@ -6,6 +6,7 @@ pub mod data;
 pub mod data_editor;
 pub mod data_undo;
 pub mod log;
+pub mod text_play;
 pub mod tilemap;
 pub mod tiles;
 pub mod tiles_editor;

@@ -22,6 +22,8 @@ pub struct DockManager {
     pub editor_index: Option<usize>,
 
     pub supports_undo: bool,
+    pub auto_text_play_prev_dock: Option<String>,
+    pub auto_text_play_active: bool,
 }
 
 impl Default for DockManager {
@@ -58,6 +60,9 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::tilemap::TilemapDock::new());
         docks.insert("Tilemap".into(), dock);
 
+        let dock: Box<dyn Dock> = Box::new(crate::docks::text_play::TextPlayDock::new());
+        docks.insert("Text Play".into(), dock);
+
         Self {
             state: DockManagerState::Minimized,
             docks,
@@ -67,6 +72,8 @@ impl DockManager {
             index: 0,
             editor_index: None,
             supports_undo: false,
+            auto_text_play_prev_dock: None,
+            auto_text_play_active: false,
         }
     }
 
@@ -439,6 +446,62 @@ impl DockManager {
             }
         } else if let Some((_, dock)) = self.docks.get_index_mut(self.index) {
             dock.apply_debug_data(ui, ctx, project, server_ctx, debug);
+        }
+    }
+
+    pub fn sync_text_play_dock(
+        &mut self,
+        _ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+        is_running: bool,
+    ) {
+        let toollist = TOOLLIST.read().unwrap();
+        let current_tool_name = toollist.game_tools[toollist.curr_game_tool]
+            .id()
+            .name
+            .clone();
+        let in_game_tool_mode = server_ctx.game_mode || current_tool_name == "Game Tool";
+        let should_show = is_running
+            && server_ctx.text_game_mode
+            && !server_ctx.game_mode
+            && !toollist.editor_mode
+            && current_tool_name != "Game Tool"
+            && server_ctx.get_map_context() == MapContext::Region;
+        drop(toollist);
+
+        if should_show {
+            if !self.auto_text_play_active {
+                self.auto_text_play_prev_dock = if !self.dock.is_empty() && self.dock != "Text Play"
+                {
+                    Some(self.dock.clone())
+                } else {
+                    None
+                };
+                self.auto_text_play_active = true;
+            }
+
+            if self.dock != "Text Play" {
+                self.set_dock("Text Play".into(), _ui, ctx, project, server_ctx);
+            }
+        } else if self.auto_text_play_active {
+            if in_game_tool_mode {
+                self.auto_text_play_active = false;
+                self.auto_text_play_prev_dock = None;
+                return;
+            }
+
+            let restore_dock = self.auto_text_play_prev_dock.take();
+            self.auto_text_play_active = false;
+
+            if self.dock == "Text Play" {
+                if let Some(dock) = restore_dock {
+                    self.set_dock(dock, _ui, ctx, project, server_ctx);
+                } else {
+                    self.minimize(_ui, ctx);
+                }
+            }
         }
     }
 }

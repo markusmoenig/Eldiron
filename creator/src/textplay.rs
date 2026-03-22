@@ -1,7 +1,6 @@
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use rusterix::server::message::EntityAction;
-use shared::rusterix_utils::warmup_runtime;
 use shared::text_game as sg;
 use std::collections::BTreeSet;
 use toml::Table;
@@ -26,6 +25,7 @@ pub struct TextGameState {
     dirty: bool,
     appended_since_sync: bool,
     force_scroll_to_bottom: bool,
+    active_input_id: &'static str,
 }
 
 impl Default for TextGameState {
@@ -35,8 +35,10 @@ impl Default for TextGameState {
 }
 
 impl TextGameState {
-    pub const INPUT_ID: &'static str = "Text Game Input";
-    pub const OUTPUT_ID: &'static str = "Text Game Output";
+    pub const GAME_INPUT_ID: &'static str = "Text Game Input";
+    pub const GAME_OUTPUT_ID: &'static str = "Text Game Output";
+    pub const DOCK_INPUT_ID: &'static str = "Text Game Dock Input";
+    pub const DOCK_OUTPUT_ID: &'static str = "Text Game Dock Output";
 
     pub fn new() -> Self {
         Self {
@@ -45,13 +47,20 @@ impl TextGameState {
             dirty: false,
             appended_since_sync: false,
             force_scroll_to_bottom: false,
+            active_input_id: Self::GAME_INPUT_ID,
         }
     }
 
-    pub fn setup_canvas() -> TheCanvas {
+    fn debug_enabled() -> bool {
+        std::env::var("ELDIRON_TEXTPLAY_DEBUG")
+            .map(|v| v != "0")
+            .unwrap_or(false)
+    }
+
+    fn setup_canvas_with_ids(output_id: &str, input_id: &str) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
-        let mut output = TheTextView::new(TheId::named(Self::OUTPUT_ID));
+        let mut output = TheTextView::new(TheId::named(output_id));
         output.set_font_size(13.0);
         TheTextViewTrait::set_embedded(&mut output, true);
         output.set_selectable(true);
@@ -63,7 +72,7 @@ impl TextGameState {
         canvas.set_widget(output);
 
         let mut input_canvas = TheCanvas::default();
-        let mut input = TheTextLineEdit::new(TheId::named(Self::INPUT_ID));
+        let mut input = TheTextLineEdit::new(TheId::named(input_id));
         input.set_status_text("Enter a text gameplay command and press Return.");
         input.set_font_size(12.5);
         input.limiter_mut().set_max_height(24);
@@ -71,6 +80,14 @@ impl TextGameState {
         canvas.set_bottom(input_canvas);
 
         canvas
+    }
+
+    pub fn setup_canvas() -> TheCanvas {
+        Self::setup_canvas_with_ids(Self::GAME_OUTPUT_ID, Self::GAME_INPUT_ID)
+    }
+
+    pub fn setup_dock_canvas() -> TheCanvas {
+        Self::setup_canvas_with_ids(Self::DOCK_OUTPUT_ID, Self::DOCK_INPUT_ID)
     }
 
     pub fn reset(&mut self) {
@@ -81,47 +98,75 @@ impl TextGameState {
         self.force_scroll_to_bottom = true;
     }
 
-    pub fn activate(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+    fn activate_input(&mut self, input_id: &str, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.active_input_id = if input_id == Self::DOCK_INPUT_ID {
+            Self::DOCK_INPUT_ID
+        } else {
+            Self::GAME_INPUT_ID
+        };
         self.sync_output(ui, ctx);
-        ui.set_widget_value(Self::INPUT_ID, ctx, TheValue::Text(String::new()));
-        if let Some(widget) = ui.get_widget(Self::INPUT_ID) {
+        ui.set_widget_value(input_id, ctx, TheValue::Text(String::new()));
+        if let Some(widget) = ui.get_widget(input_id) {
             let id = widget.id().clone();
             ctx.ui.set_focus(&id);
         }
+    }
+
+    pub fn activate(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.activate_input(Self::GAME_INPUT_ID, ui, ctx);
+    }
+
+    pub fn activate_dock(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.activate_input(Self::DOCK_INPUT_ID, ui, ctx);
     }
 
     pub fn sync_output(&self, ui: &mut TheUI, ctx: &mut TheContext) {
         if !self.dirty {
             return;
         }
-        if let Some(view) = ui.get_text_view(Self::OUTPUT_ID) {
-            view.set_blocks(self.blocks.clone());
-            let output_focused = ctx
-                .ui
-                .focus
-                .as_ref()
-                .map(|id| id.name == Self::OUTPUT_ID)
-                .unwrap_or(false);
-            if (self.appended_since_sync || self.force_scroll_to_bottom) && !output_focused {
-                view.scroll_to_bottom();
+        for output_id in [Self::GAME_OUTPUT_ID, Self::DOCK_OUTPUT_ID] {
+            if let Some(view) = ui.get_text_view(output_id) {
+                view.set_blocks(self.blocks.clone());
+                let output_focused = ctx
+                    .ui
+                    .focus
+                    .as_ref()
+                    .map(|id| id.name == output_id)
+                    .unwrap_or(false);
+                if (self.appended_since_sync || self.force_scroll_to_bottom) && !output_focused {
+                    view.scroll_to_bottom();
+                }
+                view.set_needs_redraw(true);
+                ctx.ui.redraw_all = true;
             }
-            view.set_needs_redraw(true);
-            ctx.ui.redraw_all = true;
         }
     }
 
     pub fn handle_input(
         &mut self,
+        input_id: &str,
         command: &str,
         project: &mut Project,
         server_ctx: &ServerContext,
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) -> bool {
+        self.active_input_id = if input_id == Self::DOCK_INPUT_ID {
+            Self::DOCK_INPUT_ID
+        } else {
+            Self::GAME_INPUT_ID
+        };
         let trimmed = command.trim();
         if trimmed.is_empty() {
-            ui.set_widget_value(Self::INPUT_ID, ctx, TheValue::Text(String::new()));
+            ui.set_widget_value(input_id, ctx, TheValue::Text(String::new()));
             return false;
+        }
+
+        if Self::debug_enabled() {
+            println!(
+                "[TextPlayDebug][handle-input] input={} command={:?}",
+                input_id, trimmed
+            );
         }
 
         refresh_text_runtime_view(project);
@@ -137,8 +182,8 @@ impl TextGameState {
         self.dirty = false;
         self.appended_since_sync = false;
         self.force_scroll_to_bottom = false;
-        ui.set_widget_value(Self::INPUT_ID, ctx, TheValue::Text(String::new()));
-        if let Some(widget) = ui.get_widget(Self::INPUT_ID) {
+        ui.set_widget_value(input_id, ctx, TheValue::Text(String::new()));
+        if let Some(widget) = ui.get_widget(input_id) {
             let id = widget.id().clone();
             ctx.ui.set_focus(&id);
         }
@@ -154,8 +199,15 @@ impl TextGameState {
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) {
-        if !server_ctx.text_game_mode || !server_ctx.game_mode {
+        if !server_ctx.text_game_mode {
             return;
+        }
+
+        if Self::debug_enabled() {
+            println!(
+                "[TextPlayDebug][textgame-update] game_mode={} curr_region={}",
+                server_ctx.game_mode, server_ctx.curr_region
+            );
         }
 
         let outputs = if let Some(region) = current_region(project, server_ctx) {
@@ -211,13 +263,6 @@ impl TextGameState {
             }
             _ if matches!(direction, "north" | "south" | "east" | "west") => {
                 if move_by_direction(direction, project, server_ctx) {
-                    sync_text_runtime(project);
-                    if let Some(region) = current_region(project, server_ctx) {
-                        let outputs = self.session.after_movement(&region.map, &project.authoring);
-                        self.apply_outputs(project, server_ctx, &outputs);
-                    }
-                    let outputs = collect_pending_outputs(project, server_ctx, &mut self.session);
-                    self.apply_outputs(project, server_ctx, &outputs);
                 } else {
                     self.push_plain_line("You cannot go that way.");
                 }
@@ -244,13 +289,6 @@ impl TextGameState {
                 if target.is_empty() {
                     self.push_plain_line("Usage: go <direction or exit name>");
                 } else if move_by_exit_name(&target, project, server_ctx) {
-                    sync_text_runtime(project);
-                    if let Some(region) = current_region(project, server_ctx) {
-                        let outputs = self.session.after_movement(&region.map, &project.authoring);
-                        self.apply_outputs(project, server_ctx, &outputs);
-                    }
-                    let outputs = collect_pending_outputs(project, server_ctx, &mut self.session);
-                    self.apply_outputs(project, server_ctx, &outputs);
                 } else {
                     self.push_plain_line("No matching exit.");
                 }
@@ -268,14 +306,6 @@ impl TextGameState {
                             trigger_text_intent(project, server_ctx, intent, target)
                         {
                             self.push_plain_line(&error);
-                        } else {
-                            let outputs = sync_text_intent_runtime(
-                                project,
-                                server_ctx,
-                                &mut self.session,
-                                intent,
-                            );
-                            self.apply_outputs(project, server_ctx, &outputs);
                         }
                     } else if !intent.is_empty() {
                         RUSTERIX
@@ -283,7 +313,6 @@ impl TextGameState {
                             .unwrap()
                             .server
                             .local_player_action(EntityAction::Intent(intent.to_string()));
-                        sync_text_runtime(project);
                     } else {
                         self.push_plain_line("Usage: intent <name> [target]");
                     }
@@ -298,10 +327,6 @@ impl TextGameState {
                 if !verb.is_empty() && !target.is_empty() && supported_intents.contains(&verb) {
                     if let Some(error) = trigger_text_intent(project, server_ctx, &verb, target) {
                         self.push_plain_line(&error);
-                    } else {
-                        let outputs =
-                            sync_text_intent_runtime(project, server_ctx, &mut self.session, &verb);
-                        self.apply_outputs(project, server_ctx, &outputs);
                     }
                 } else {
                     self.push_plain_line("Unknown command. Type 'help' for available commands.");
@@ -317,6 +342,8 @@ impl TextGameState {
         let room = render_room_blocks(project, server_ctx, &colors);
         if !room.is_empty() {
             self.blocks.extend(room);
+            self.dirty = true;
+            self.appended_since_sync = true;
         }
     }
 
@@ -447,32 +474,6 @@ fn current_region<'a>(
     server_ctx: &ServerContext,
 ) -> Option<&'a shared::region::Region> {
     project.get_region_ctx(server_ctx)
-}
-
-fn collect_pending_outputs(
-    project: &Project,
-    server_ctx: &ServerContext,
-    session: &mut TextSession,
-) -> Vec<TextSessionOutput> {
-    let Some(region) = current_region(project, server_ctx) else {
-        return Vec::new();
-    };
-    let region_id = region.map.id;
-    let mut rusterix = RUSTERIX.write().unwrap();
-    session.collect(
-        &region.map,
-        &project.authoring,
-        rusterix.server.get_messages(&region_id),
-        rusterix.server.get_says(&region_id),
-        current_time_hour(project, server_ctx),
-        current_time_label(project, server_ctx),
-        authoring_auto_attack_mode(&project.authoring) == AutoAttackMode::OnAttack,
-    )
-}
-
-fn sync_text_runtime(project: &mut Project) {
-    let mut rusterix = RUSTERIX.write().unwrap();
-    warmup_runtime(&mut rusterix, project, 1);
 }
 
 fn refresh_text_runtime_view(project: &mut Project) {
@@ -785,21 +786,6 @@ fn trigger_text_intent(
     }
 
     None
-}
-
-fn sync_text_intent_runtime(
-    project: &mut Project,
-    server_ctx: &ServerContext,
-    session: &mut TextSession,
-    intent: &str,
-) -> Vec<TextSessionOutput> {
-    sync_text_runtime(project);
-    let mut outputs = collect_pending_outputs(project, server_ctx, session);
-    if outputs.is_empty() && !intent.trim().eq_ignore_ascii_case("look") {
-        sync_text_runtime(project);
-        outputs = collect_pending_outputs(project, server_ctx, session);
-    }
-    outputs
 }
 
 fn current_player_supported_intents(

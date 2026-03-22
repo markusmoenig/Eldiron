@@ -123,7 +123,10 @@ pub struct Editor {
     update_counter: usize,
     last_processed_log_len: usize,
     pending_game_messages: Vec<rusterix::server::Message>,
+    pending_game_says: Vec<TextGameSay>,
     pending_game_choices: Vec<rusterix::MultipleChoice>,
+    pending_text_game_command: Option<(String, String)>,
+    pending_text_game_runtime_flush: bool,
 
     build_values: ValueContainer,
     window_state: CreatorWindowState,
@@ -332,6 +335,25 @@ impl Editor {
                 }
                 EditorViewMode::D2 => {}
             }
+        }
+    }
+
+    fn text_play_debug_enabled() -> bool {
+        std::env::var("ELDIRON_TEXTPLAY_DEBUG")
+            .map(|v| v != "0")
+            .unwrap_or(false)
+    }
+
+    fn log_text_play_debug(&self, stage: &str, details: &str) {
+        if Self::text_play_debug_enabled() {
+            println!(
+                "[TextPlayDebug][{}] game_mode={} text_mode={} curr_region={} {}",
+                stage,
+                self.server_ctx.game_mode,
+                self.server_ctx.text_game_mode,
+                self.server_ctx.curr_region,
+                details
+            );
         }
     }
 
@@ -991,7 +1013,10 @@ impl TheTrait for Editor {
             update_counter: 0,
             last_processed_log_len: 0,
             pending_game_messages: Vec::new(),
+            pending_game_says: Vec::new(),
             pending_game_choices: Vec::new(),
+            pending_text_game_command: None,
+            pending_text_game_runtime_flush: false,
 
             build_values: ValueContainer::default(),
             window_state: Self::load_window_state(),
@@ -1505,6 +1530,60 @@ impl TheTrait for Editor {
         let mut redraw = false;
         let mut update_server_icons = false;
 
+        if let Some((input_id, command)) = self.pending_text_game_command.take() {
+            self.log_text_play_debug(
+                "queue-drain",
+                &format!("input={} command={:?}", input_id, command),
+            );
+            TEXTGAME.write().unwrap().handle_input(
+                &input_id,
+                &command,
+                &mut self.project,
+                &self.server_ctx,
+                ui,
+                ctx,
+            );
+            self.pending_text_game_runtime_flush = !command.trim().is_empty();
+            redraw = true;
+        }
+
+        if self.pending_text_game_runtime_flush {
+            let is_running =
+                RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running;
+            self.log_text_play_debug("runtime-flush-start", &format!("is_running={}", is_running));
+            if is_running && self.server_ctx.text_game_mode {
+                warmup_runtime(&mut RUSTERIX.write().unwrap(), &mut self.project, 1);
+
+                if let Some(region) = self.project.get_region_ctx(&self.server_ctx) {
+                    let region_id = region.map.id;
+                    let mut messages = RUSTERIX.write().unwrap().server.get_messages(&region_id);
+                    let mut says = RUSTERIX.write().unwrap().server.get_says(&region_id);
+                    self.log_text_play_debug(
+                        "runtime-flush-update",
+                        &format!(
+                            "region_id={} messages={} says={}",
+                            region_id,
+                            messages.len(),
+                            says.len()
+                        ),
+                    );
+
+                    TEXTGAME.write().unwrap().update(
+                        &self.project,
+                        &self.server_ctx,
+                        &mut messages,
+                        &mut says,
+                        ui,
+                        ctx,
+                    );
+                } else {
+                    self.log_text_play_debug("runtime-flush-update", "no-region");
+                }
+            }
+            self.pending_text_game_runtime_flush = false;
+            redraw = true;
+        }
+
         // Make sure on first startup the active tool is properly selected
         if self.update_counter == 0 {
             let mut toollist = TOOLLIST.write().unwrap();
@@ -1700,6 +1779,7 @@ impl TheTrait for Editor {
                         self.last_processed_log_len = log_text.len();
                     }
                     let mut refresh_visual_debug = false;
+                    let text_play_debug = Self::text_play_debug_enabled();
                     for r in &mut self.project.regions {
                         rusterix.server.apply_entities_items(&mut r.map);
 
@@ -1711,14 +1791,27 @@ impl TheTrait for Editor {
                                     widget.set_value(TheValue::Time(rusterix.client.server_time));
                                 }
                             }
-
                             rusterix::tile_builder(&mut r.map, &mut rusterix.assets);
                             messages = rusterix.server.get_messages(&r.map.id);
                             says = rusterix.server.get_says(&r.map.id);
                             choices = rusterix.server.get_choices(&r.map.id);
+                            if text_play_debug {
+                                println!(
+                                    "[TextPlayDebug][redraw-update-region] game_mode={} text_mode={} curr_region={} region_id={} map={} messages={} says={} choices={}",
+                                    self.server_ctx.game_mode,
+                                    self.server_ctx.text_game_mode,
+                                    self.server_ctx.curr_region,
+                                    r.map.id,
+                                    r.map.name,
+                                    messages.len(),
+                                    says.len(),
+                                    choices.len()
+                                );
+                            }
 
                             if !self.server_ctx.game_mode {
                                 self.pending_game_messages.append(&mut messages);
+                                self.pending_game_says.append(&mut says);
                                 self.pending_game_choices.append(&mut choices);
                             } else {
                                 if !self.pending_game_messages.is_empty() {
@@ -1726,6 +1819,11 @@ impl TheTrait for Editor {
                                         std::mem::take(&mut self.pending_game_messages);
                                     pending.append(&mut messages);
                                     messages = pending;
+                                }
+                                if !self.pending_game_says.is_empty() {
+                                    let mut pending = std::mem::take(&mut self.pending_game_says);
+                                    pending.append(&mut says);
+                                    says = pending;
                                 }
                                 if !self.pending_game_choices.is_empty() {
                                     let mut pending =
@@ -1768,7 +1866,26 @@ impl TheTrait for Editor {
                     }
                 }
             }
-            if self.server_ctx.game_mode && self.server_ctx.text_game_mode {
+            let is_running =
+                RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running;
+
+            DOCKMANAGER.write().unwrap().sync_text_play_dock(
+                ui,
+                ctx,
+                &self.project,
+                &mut self.server_ctx,
+                is_running,
+            );
+
+            if is_running && self.server_ctx.text_game_mode {
+                if !self.server_ctx.game_mode {
+                    if !self.pending_game_messages.is_empty() {
+                        messages = std::mem::take(&mut self.pending_game_messages);
+                    }
+                    if !self.pending_game_says.is_empty() {
+                        says = std::mem::take(&mut self.pending_game_says);
+                    }
+                }
                 TEXTGAME.write().unwrap().update(
                     &self.project,
                     &self.server_ctx,
@@ -1799,7 +1916,6 @@ impl TheTrait for Editor {
                     }
 
                     let rusterix = &mut RUSTERIX.write().unwrap();
-                    let is_running = rusterix.server.state == rusterix::ServerState::Running;
 
                     if is_running && self.server_ctx.game_mode {
                         let game_messages = if self.server_ctx.text_game_mode {
@@ -3269,15 +3385,16 @@ impl TheTrait for Editor {
                                 }
                             }
                         }
-                    } else if id.name == TextGameState::INPUT_ID {
+                    } else if id.name == TextGameState::GAME_INPUT_ID {
                         if let Some(command) = value.to_string() {
-                            TEXTGAME.write().unwrap().handle_input(
-                                &command,
-                                &mut self.project,
-                                &self.server_ctx,
-                                ui,
-                                ctx,
-                            );
+                            self.pending_text_game_command =
+                                Some((id.name.clone(), command.clone()));
+                            redraw = true;
+                        }
+                    } else if id.name == TextGameState::DOCK_INPUT_ID {
+                        if let Some(command) = value.to_string() {
+                            self.pending_text_game_command =
+                                Some((id.name.clone(), command.clone()));
                             redraw = true;
                         }
                     }
