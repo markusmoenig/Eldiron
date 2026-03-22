@@ -2625,46 +2625,10 @@ fn add_built_stairs_collision(
             ),
         });
 
-        // Matching transition strip at the low end so actors can step on/off
-        // the first tread without being trapped by the bottom riser blocker.
-        let bottom_inner_norm = strip_norm.clamp(0.05, 0.22);
-        let bottom_left_inner = lerp3(b0, t0, bottom_inner_norm);
-        let bottom_right_inner = lerp3(b1, t1, bottom_inner_norm);
-        let bottom_extension = 0.45;
-        let bottom_left_dir = (b0 - t0).try_normalized().unwrap_or(Vec3::zero());
-        let bottom_right_dir = (b1 - t1).try_normalized().unwrap_or(Vec3::zero());
-        let bottom_left_outer = b0 + bottom_left_dir * bottom_extension;
-        let bottom_right_outer = b1 + bottom_right_dir * bottom_extension;
-        let bottom_opening = inflate_walkable_polygon(
-            &[
-                Vec2::new(bottom_left_outer.x, bottom_left_outer.z),
-                Vec2::new(bottom_right_outer.x, bottom_right_outer.z),
-                Vec2::new(bottom_right_inner.x, bottom_right_inner.z),
-                Vec2::new(bottom_left_inner.x, bottom_left_inner.z),
-            ],
-            0.05,
-        );
-        collision.dynamic_openings.push(DynamicOpening {
-            geo_id: GeoId::Sector(sector.id),
-            item_blocking: Some(false),
-            boundary_2d: bottom_opening.clone(),
-            floor_height: bottom_y - 0.10,
-            ceiling_height: bottom_y + rise.abs() + 0.35,
-            opening_type: OpeningType::Passage,
-        });
-        collision.walkable_floors.push(WalkableFloor {
-            geo_id: GeoId::Sector(sector.id),
-            height: bottom_y,
-            polygon_2d: inflate_walkable_polygon(
-                &[
-                    Vec2::new(bottom_left_outer.x, bottom_left_outer.z),
-                    Vec2::new(bottom_right_outer.x, bottom_right_outer.z),
-                    Vec2::new(bottom_right_inner.x, bottom_right_inner.z),
-                    Vec2::new(bottom_left_inner.x, bottom_left_inner.z),
-                ],
-                0.05,
-            ),
-        });
+        // Do not create a special low-end passage strip.
+        // The first tread already reaches the low edge of the stair run.
+        // A dedicated passable strip here can bypass intended blockers when
+        // the stairs terminate into a wall instead of open floor.
 
         for i in 0..steps {
             // Use asymmetric overlap:

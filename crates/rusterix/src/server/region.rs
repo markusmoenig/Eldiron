@@ -79,6 +79,13 @@ fn map_spawn_height(map: &Map, pos: Vec2<f32>, preferred_y: Option<f32>) -> f32 
             .iter()
             .filter(|s| s.layer.is_none() && s.is_inside(map, pos))
         {
+            if map
+                .get_surface_for_sector_id(sector.id)
+                .map(|surface| surface.plane.normal.y.abs() <= 0.7)
+                .unwrap_or(true)
+            {
+                continue;
+            }
             if sector.properties.get_float_default("roof_height", 0.0) > 0.0 {
                 continue;
             }
@@ -132,6 +139,13 @@ fn sector_floor_height_below_or_nearest(
         .iter()
         .filter(|s| s.layer.is_none() && s.is_inside(map, pos))
     {
+        if map
+            .get_surface_for_sector_id(sector.id)
+            .map(|surface| surface.plane.normal.y.abs() <= 0.7)
+            .unwrap_or(true)
+        {
+            continue;
+        }
         // Roof sectors overlap the house footprint in XZ, but should not be used as walk floors.
         if sector.properties.get_float_default("roof_height", 0.0) > 0.0 {
             continue;
@@ -181,7 +195,6 @@ fn sector_floor_height_below_or_nearest(
 
     best_below.or(best_above)
 }
-
 use EntityAction::*;
 
 use super::data::{apply_entity_data, apply_item_data};

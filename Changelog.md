@@ -24,6 +24,9 @@
 - Added `GEOM / DETAIL` modes to the 3D editor HUD, separating world-geometry editing from direct surface-profile editing.
 - `Vertex`, `Linedef`, and `Sector` now support direct 3D detail editing on clicked wall, floor, and ceiling surfaces without switching into a separate editing-surface mode.
 - Removed the old `Set Editing Surface` workflow in favor of staying in the normal 3D view while editing profiles.
+- Added **Build Room** for generating room floor, wall, ceiling, and optional front-lip geometry from a selected wall sector.
+- Moved `Apply Tile` / `Clear Tile` from the action list into the **Tile Picker** dock as dedicated buttons.
+- Added action-aware tile assignment in Region geometry, so Tile Picker apply/clear can target HUD material slots exposed by actions such as **Build Room**.
 - Improved `TheTextView` and `TheListItem` with richer text/styling support used by the new text-play and starter-browser UI.
 
 ### Documentation
