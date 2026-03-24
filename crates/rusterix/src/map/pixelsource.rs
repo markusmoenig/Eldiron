@@ -24,6 +24,12 @@ pub enum PixelSource {
     #[default]
     Off,
     TileId(Uuid),
+    TileGroup(Uuid),
+    TileGroupMember {
+        group_id: Uuid,
+        member_index: u16,
+    },
+    ProceduralTile(Uuid),
     PaletteIndex(u16),
     MaterialId(Uuid),
     Sequence(String),
@@ -50,6 +56,7 @@ impl PixelSource {
     ) -> Option<Tile> {
         match self {
             TileId(id) => assets.tiles.get(id).cloned(),
+            TileGroup(_) | TileGroupMember { .. } | ProceduralTile(_) => None,
             PaletteIndex(index) => {
                 if let Some(Some(col)) = assets.palette.colors.get(*index as usize) {
                     let mut tile = Tile::from_texture(Texture::from_color(col.to_u8_array()));
@@ -141,6 +148,7 @@ impl PixelSource {
                     None
                 }
             }
+            TileGroup(_) | TileGroupMember { .. } | ProceduralTile(_) => None,
             PaletteIndex(index) => {
                 if let Some(Some(col)) = assets.palette.colors.get(*index as usize) {
                     let mut tile = Tile::from_texture(Texture::from_color(col.to_u8_array()));

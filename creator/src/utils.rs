@@ -203,13 +203,22 @@ pub fn set_code(
 
 /// Returns the currently active source
 pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<PixelSource> {
-    let mut source: Option<PixelSource> = None;
-
-    if let Some(id) = server_ctx.curr_tile_id {
-        source = Some(PixelSource::TileId(id));
+    if let Some(source) = server_ctx.curr_tile_source {
+        return Some(match source {
+            TileSource::SingleTile(id) => PixelSource::TileId(id),
+            TileSource::TileGroup(id) => PixelSource::TileGroup(id),
+            TileSource::TileGroupMember {
+                group_id,
+                member_index,
+            } => PixelSource::TileGroupMember {
+                group_id,
+                member_index,
+            },
+            TileSource::Procedural(id) => PixelSource::ProceduralTile(id),
+        });
     }
 
-    source
+    server_ctx.curr_tile_id.map(PixelSource::TileId)
 }
 
 pub fn extract_build_values_from_config(values: &mut ValueContainer) {

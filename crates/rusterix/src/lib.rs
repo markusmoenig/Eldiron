@@ -153,6 +153,7 @@ pub use crate::{
         softrig::{Keyform, SoftRig, SoftRigAnimator},
         surface::{BillboardAnimation, LoopOp, ProfileLoop, Surface},
         tile::{Tile, TileRole},
+        tilesource::{TileGroup, TileGroupMemberRef, TileSource},
         vertex::Vertex,
     },
     material_profile::MaterialProfile,
@@ -226,7 +227,8 @@ pub mod prelude {
     pub use crate::{GridShader, Shader, VGrayGradientShader};
     pub use crate::{
         Keyform, Light, LightType, Map, MapMeta, MapToolType, NoiseTarget, Particle,
-        ParticleEmitter, PixelSource, Sector, SoftRig, SoftRigAnimator, Tile, TileRole, Vertex,
+        ParticleEmitter, PixelSource, Sector, SoftRig, SoftRigAnimator, Tile, TileGroup,
+        TileGroupMemberRef, TileRole, TileSource, Vertex,
     };
     pub use crate::{Material, MaterialModifier, MaterialRole};
     pub use crate::{

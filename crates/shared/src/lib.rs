@@ -20,7 +20,7 @@ pub mod prelude {
     pub use crate::context::*;
     pub use crate::interaction::*;
     pub use crate::item::Item;
-    pub use crate::project::Project;
+    pub use crate::project::{NodeGroupAsset, Project};
     pub use crate::region::Region;
     pub use crate::screen::*;
     pub use crate::text_game::*;
@@ -29,7 +29,7 @@ pub mod prelude {
     pub use indexmap::IndexMap;
     pub use rusterix::{
         Avatar, AvatarAnimation, AvatarAnimationFrame, AvatarDirection, AvatarPerspective,
-        AvatarPerspectiveCount,
+        AvatarPerspectiveCount, TileGroup, TileGroupMemberRef, TileSource,
     };
 }
 

@@ -355,6 +355,9 @@ impl Sidebar {
         minimap_canvas.set_widget(minimap);
 
         let mut action_params_canvas = TheCanvas::default();
+        let mut action_stack = TheStackLayout::new(TheId::named("Sidebar Bottom Stack"));
+
+        let mut action_params_editor_canvas = TheCanvas::default();
         let mut textedit = TheTextAreaEdit::new(TheId::named("Action Params TOML"));
         if let Some(bytes) = crate::Embedded::get("parser/TOML.sublime-syntax")
             && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
@@ -372,7 +375,19 @@ impl Sidebar {
         textedit.display_line_number(false);
         textedit.use_global_statusbar(true);
         textedit.set_font_size(13.5);
-        action_params_canvas.set_widget(textedit);
+        action_params_editor_canvas.set_widget(textedit);
+        action_stack.add_canvas(action_params_editor_canvas);
+
+        let mut node_settings_canvas = TheCanvas::default();
+        let mut text_layout = TheTextLayout::new(TheId::named("Node Settings"));
+        text_layout.limiter_mut().set_max_width(self.width);
+        text_layout.set_text_margin(20);
+        text_layout.set_text_align(TheHorizontalAlign::Right);
+        node_settings_canvas.set_layout(text_layout);
+        action_stack.add_canvas(node_settings_canvas);
+
+        action_stack.set_index(0);
+        action_params_canvas.set_layout(action_stack);
 
         // let mut header = TheCanvas::new();
         // let mut switchbar = TheSwitchbar::new(TheId::named("Action Header"));
@@ -864,6 +879,9 @@ impl Sidebar {
                 } else if id.name == "Update Tiles" {
                     self.update_tiles(ui, ctx, project);
                 } else if id.name == "Show Node Settings" {
+                    if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
+                        stack.set_index(1);
+                    }
                     if let Some(tab) = ui.get_layout("Multi Tab") {
                         if let Some(tab) = tab.as_tab_layout() {
                             tab.set_index(1);
@@ -3810,6 +3828,9 @@ impl Sidebar {
     }
 
     fn show_empty_action_toml(&self, ui: &mut TheUI, _ctx: &mut TheContext) {
+        if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
+            stack.set_index(0);
+        }
         if let Some(widget) = ui.get_widget("Action Params TOML")
             && let Some(edit) = widget.as_text_area_edit()
             && !edit.text().is_empty()
@@ -3830,6 +3851,9 @@ impl Sidebar {
         _server_ctx: &ServerContext,
         action: &dyn Action,
     ) {
+        if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
+            stack.set_index(0);
+        }
         let toml_text = nodeui_to_toml(&action.params());
         if let Some(widget) = ui.get_widget("Action Params TOML")
             && let Some(edit) = widget.as_text_area_edit()

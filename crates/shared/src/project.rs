@@ -29,6 +29,43 @@ fn default_authoring() -> String {
     String::new()
 }
 
+fn default_tile_board_cols() -> i32 {
+    13
+}
+
+fn default_tile_board_rows() -> i32 {
+    9
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct NodeGroupAsset {
+    pub group_id: Uuid,
+    pub graph_id: Uuid,
+    #[serde(default)]
+    pub graph_name: String,
+    pub output_grid_width: u16,
+    pub output_grid_height: u16,
+    pub tile_pixel_width: u16,
+    pub tile_pixel_height: u16,
+    #[serde(default)]
+    pub graph_data: String,
+}
+
+impl NodeGroupAsset {
+    pub fn new(group_id: Uuid, output_grid_width: u16, output_grid_height: u16) -> Self {
+        Self {
+            group_id,
+            graph_id: Uuid::new_v4(),
+            graph_name: "New Node Graph".to_string(),
+            output_grid_width,
+            output_grid_height,
+            tile_pixel_width: 32,
+            tile_pixel_height: 32,
+            graph_data: String::new(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Project {
     pub name: String,
@@ -38,6 +75,30 @@ pub struct Project {
     /// Tiles in the project
     #[serde(default)]
     pub tiles: IndexMap<Uuid, rusterix::Tile>,
+
+    /// Spatial tile groups in the project.
+    #[serde(default)]
+    pub tile_groups: IndexMap<Uuid, rusterix::TileGroup>,
+
+    /// Node-backed tile groups keyed by tile-group id.
+    #[serde(default)]
+    pub tile_node_groups: IndexMap<Uuid, NodeGroupAsset>,
+
+    /// Persisted board positions for top-level single tiles in the tile picker.
+    #[serde(default)]
+    pub tile_board_tiles: IndexMap<Uuid, Vec2<i32>>,
+
+    /// Persisted board positions for top-level tile groups in the tile picker.
+    #[serde(default)]
+    pub tile_board_groups: IndexMap<Uuid, Vec2<i32>>,
+
+    /// Total board width in cells, including the trailing empty strip.
+    #[serde(default = "default_tile_board_cols")]
+    pub tile_board_cols: i32,
+
+    /// Total board height in cells, including the trailing empty strip.
+    #[serde(default = "default_tile_board_rows")]
+    pub tile_board_rows: i32,
 
     #[serde(default)]
     pub time: TheTime,
@@ -98,6 +159,12 @@ impl Project {
             tilemaps: vec![],
 
             tiles: IndexMap::default(),
+            tile_groups: IndexMap::default(),
+            tile_node_groups: IndexMap::default(),
+            tile_board_tiles: IndexMap::default(),
+            tile_board_groups: IndexMap::default(),
+            tile_board_cols: default_tile_board_cols(),
+            tile_board_rows: default_tile_board_rows(),
 
             time: TheTime::default(),
 
@@ -159,6 +226,54 @@ impl Project {
     /// Add Avatar
     pub fn add_avatar(&mut self, avatar: Avatar) {
         self.avatars.insert(avatar.id, avatar);
+    }
+
+    pub fn add_tile_group(&mut self, tile_group: rusterix::TileGroup) {
+        self.tile_groups.insert(tile_group.id, tile_group);
+    }
+
+    pub fn add_tile_node_group(&mut self, node_group: NodeGroupAsset) {
+        self.tile_node_groups
+            .insert(node_group.group_id, node_group);
+    }
+
+    pub fn is_tile_node_group(&self, id: &Uuid) -> bool {
+        self.tile_node_groups.contains_key(id)
+    }
+
+    pub fn remove_tile_group(&mut self, id: &Uuid) {
+        self.tile_groups.shift_remove(id);
+        self.tile_node_groups.shift_remove(id);
+        self.tile_board_groups.shift_remove(id);
+    }
+
+    pub fn tile_board_position(&self, source: rusterix::TileSource) -> Option<Vec2<i32>> {
+        match source {
+            rusterix::TileSource::SingleTile(id) => self.tile_board_tiles.get(&id).copied(),
+            rusterix::TileSource::TileGroup(id) => self.tile_board_groups.get(&id).copied(),
+            _ => None,
+        }
+    }
+
+    pub fn set_tile_board_position(&mut self, source: rusterix::TileSource, pos: Vec2<i32>) {
+        match source {
+            rusterix::TileSource::SingleTile(id) => {
+                self.tile_board_tiles.insert(id, pos);
+            }
+            rusterix::TileSource::TileGroup(id) => {
+                self.tile_board_groups.insert(id, pos);
+            }
+            _ => {}
+        }
+    }
+
+    pub fn ensure_tile_board_space(&mut self, pos: Vec2<i32>) {
+        if pos.x >= self.tile_board_cols - 1 {
+            self.tile_board_cols = pos.x + 2;
+        }
+        if pos.y >= self.tile_board_rows - 1 {
+            self.tile_board_rows = pos.y + 2;
+        }
     }
 
     /// Removes the given avatar from the project.

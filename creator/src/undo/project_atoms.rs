@@ -5,6 +5,7 @@ use theframework::prelude::*;
 #[derive(Clone, Debug)]
 pub enum ProjectUndoAtom {
     MapEdit(ProjectContext, Box<Map>, Box<Map>),
+    TilePickerEdit(Box<Project>, Box<Project>),
     AddRegion(Region),
     RemoveRegion(usize, Region),
     RenameRegion(Uuid, String, String),
@@ -59,6 +60,7 @@ impl ProjectUndoAtom {
     pub fn to_string(&self) -> String {
         match self {
             MapEdit(_, _, _) => "Map Edit".to_string(),
+            TilePickerEdit(_, _) => "Tile Picker Edit".to_string(),
             AddRegion(region) => format!("Add Region: {}", region.name),
             RemoveRegion(_, region) => format!("Remove Region: {}", region.name),
             RenameRegion(_, old, new) => format!("Rename Region: {} -> {}", old, new),
@@ -137,6 +139,13 @@ impl ProjectUndoAtom {
                         map.update_surfaces();
                     }
                 }
+            }
+            TilePickerEdit(old, _new) => {
+                *project = (*old.clone()).clone();
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Tilepicker"),
+                    TheValue::Empty,
+                ));
             }
             AddRegion(region) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
@@ -733,6 +742,13 @@ impl ProjectUndoAtom {
                         map.update_surfaces();
                     }
                 }
+            }
+            TilePickerEdit(_old, new) => {
+                *project = (*new.clone()).clone();
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Tilepicker"),
+                    TheValue::Empty,
+                ));
             }
             AddRegion(region) => {
                 // Add Region

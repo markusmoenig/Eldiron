@@ -7,7 +7,7 @@ use rusterix::TileRole;
 enum AddMode {
     Single,
     Anim,
-    Multi,
+    Group,
 }
 
 use AddMode::*;
@@ -91,7 +91,7 @@ impl Dock for TilemapDock {
             "Anim".to_string(),
             "Apply procedural materials.".to_string(),
         );
-        add_switch.add_text_status("Multi".to_string(), "Apply a color.".to_string());
+        add_switch.add_text_status("Group".to_string(), "Create a tile group.".to_string());
 
         add_switch.set_item_width(70);
         add_switch.set_index(0);
@@ -213,7 +213,7 @@ impl Dock for TilemapDock {
                     } else if *index == 1 {
                         self.add_mode = Anim;
                     } else {
-                        self.add_mode = Multi;
+                        self.add_mode = Group;
                     }
                     self.compute_preview(project, ui);
                     redraw = true;
@@ -275,6 +275,10 @@ impl Dock for TilemapDock {
                     self.clear(ui);
                 } else if id.name == "Tilemap Editor Add" {
                     let clear_selection = true;
+                    let selected_role = ui
+                        .get_drop_down_menu("Tilemap Editor Role")
+                        .map(|role_widget| TileRole::from_index(role_widget.selected_index() as u8))
+                        .unwrap_or(TileRole::Nature);
 
                     if let Some(editor) = ui
                         .canvas
@@ -282,6 +286,7 @@ impl Dock for TilemapDock {
                     {
                         if let Some(editor) = editor.as_rgba_layout() {
                             let mut tiles = vec![];
+                            let mut multi_group: Option<rusterix::TileGroup> = None;
 
                             if self.add_mode == Single {
                                 let sequence = editor
@@ -305,8 +310,7 @@ impl Dock for TilemapDock {
                                     .selection_as_sequence();
                                 tile.sequence = sequence;
                                 tiles.push(tile);
-                            } else if self.add_mode == Multi {
-                                let mut tile = Tile::default();
+                            } else if self.add_mode == Group {
                                 let dim = editor
                                     .rgba_view_mut()
                                     .as_rgba_view()
@@ -319,16 +323,31 @@ impl Dock for TilemapDock {
                                     grid_size = t.grid_size;
                                 }
 
-                                let region = TheRGBARegion::new(
-                                    dim.x as usize * grid_size as usize,
-                                    dim.y as usize * grid_size as usize,
-                                    dim.width as usize * grid_size as usize,
-                                    dim.height as usize * grid_size as usize,
-                                );
+                                let mut group =
+                                    rusterix::TileGroup::new(dim.width as u16, dim.height as u16);
 
-                                tile.sequence = TheRGBARegionSequence::new();
-                                tile.sequence.regions.push(region);
-                                tiles.push(tile);
+                                for y in 0..dim.height {
+                                    for x in 0..dim.width {
+                                        let region = TheRGBARegion::new(
+                                            (dim.x + x) as usize * grid_size as usize,
+                                            (dim.y + y) as usize * grid_size as usize,
+                                            grid_size as usize,
+                                            grid_size as usize,
+                                        );
+
+                                        let mut tile = Tile::default();
+                                        tile.sequence = TheRGBARegionSequence::new();
+                                        tile.sequence.regions.push(region);
+                                        group.members.push(rusterix::TileGroupMemberRef {
+                                            tile_id: tile.id,
+                                            x: x as u16,
+                                            y: y as u16,
+                                        });
+                                        tiles.push(tile);
+                                    }
+                                }
+
+                                multi_group = Some(group);
                             }
 
                             for mut tile in tiles {
@@ -345,12 +364,7 @@ impl Dock for TilemapDock {
                                 //     tile.blocking = block_widget.state() == TheWidgetState::Selected;
                                 // }
 
-                                if let Some(role_widget) =
-                                    ui.get_drop_down_menu("Tilemap Editor Role")
-                                {
-                                    let index = role_widget.selected_index();
-                                    tile.role = TileRole::from_index(index as u8);
-                                }
+                                tile.role = selected_role;
 
                                 // Only add if non-empty
                                 if !tile.sequence.regions.is_empty() {
@@ -445,6 +459,16 @@ impl Dock for TilemapDock {
                                     ));
                                     //self.update_tiles(ui, ctx, project);
                                 }
+                            }
+
+                            if let Some(group) = multi_group
+                                && !group.members.is_empty()
+                            {
+                                project.add_tile_group(group);
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Tilepicker"),
+                                    TheValue::Empty,
+                                ));
                             }
                         }
                     }

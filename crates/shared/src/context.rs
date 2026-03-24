@@ -383,6 +383,12 @@ pub struct ServerContext {
     /// The currently selected tile
     pub curr_tile_id: Option<Uuid>,
 
+    /// The currently selected assignable tile source.
+    pub curr_tile_source: Option<TileSource>,
+
+    /// The currently opened node-backed tile group editor, if any.
+    pub tile_node_group_id: Option<Uuid>,
+
     /// The current frame/texture index being edited in tile editor
     pub curr_tile_frame_index: usize,
 
@@ -571,6 +577,8 @@ impl ServerContext {
             interactions: FxHashMap::default(),
 
             curr_tile_id: None,
+            curr_tile_source: None,
+            tile_node_group_id: None,
             curr_tile_frame_index: 0,
 
             palette_opacity: 1.0,
@@ -745,6 +753,7 @@ impl ServerContext {
         self.curr_region = Uuid::nil();
         self.curr_grid_id = None;
         self.curr_screen = Uuid::nil();
+        self.tile_node_group_id = None;
         self.interactions.clear();
         self.moved_entities.clear();
         self.moved_items.clear();

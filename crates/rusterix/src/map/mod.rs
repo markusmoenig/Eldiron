@@ -10,6 +10,7 @@ pub mod sector;
 pub mod softrig;
 pub mod surface;
 pub mod tile;
+pub mod tilesource;
 pub mod vertex;
 
 use crate::{

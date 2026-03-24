@@ -1,20 +1,53 @@
 use crate::editor::{ACTIONLIST, RUSTERIX, TOOLLIST, UNDOMANAGER};
 use crate::prelude::*;
-use rusterix::{PixelSource, TileRole, VertexBlendPreset};
+use rusterix::{PixelSource, TileRole, TileSource, VertexBlendPreset};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const TILES_TAB_LAYOUT: &str = "Tiles Dock Tabs";
+const TILE_VIEW_ALL: &str = "Tiles Dock All View";
+const TILE_VIEW_TILES: &str = "Tiles Dock Tiles View";
+const TILE_VIEW_GROUPS: &str = "Tiles Dock Groups View";
+const TILE_VIEW_NAMES: [&str; 3] = [TILE_VIEW_ALL, TILE_VIEW_TILES, TILE_VIEW_GROUPS];
+const TILE_TAB_NAMES: [&str; 3] = ["All", "Tiles", "Groups"];
+const TILE_BOARD_COLS: i32 = 12;
+const TILE_BOARD_EXTRA_COLS: i32 = 1;
+const TILE_BOARD_EXTRA_ROWS: i32 = 1;
+const TILE_CELL_BASE: i32 = 40;
+
+#[derive(Clone, Copy)]
+struct TileBoardEntry {
+    source: TileSource,
+    span: Vec2<i32>,
+    pos: Option<Vec2<i32>>,
+}
+
+#[derive(Clone, Copy)]
+struct TileBoardPlacement {
+    source: TileSource,
+    rect: Vec4<i32>,
+}
 
 pub struct TilesDock {
-    pub tile_ids: FxHashMap<(i32, i32), Uuid>,
-
     pub filter: String,
     pub filter_role: u8,
     pub zoom: f32,
 
     pub curr_tile: Option<Uuid>,
+    pub curr_source: Option<TileSource>,
 
     pub tile_preview_mode: bool,
-    pub tile_hover_id: Uuid,
+    pub tile_hover_source: Option<TileSource>,
 
     blend_index: usize,
+    active_tab: usize,
+    tab_offset: [Vec2<i32>; 3],
+    placements: [Vec<TileBoardPlacement>; 3],
+    drag_pan: Option<(usize, Vec2<i32>, Vec2<i32>)>,
+    drag_item: Option<(usize, TileSource, Vec2<i32>, Vec2<i32>)>,
+    drag_drop_cell: Option<(usize, Vec2<i32>)>,
+    drag_hover_coord: Option<(usize, Vec2<i32>)>,
+    entered_group: Option<Uuid>,
+    last_group_click: Option<(Uuid, u128)>,
 }
 
 impl Dock for TilesDock {
@@ -23,23 +56,29 @@ impl Dock for TilesDock {
         Self: Sized,
     {
         Self {
-            tile_ids: FxHashMap::default(),
-            filter: "".to_string(),
+            filter: String::new(),
             filter_role: 0,
             zoom: 1.5,
             curr_tile: None,
-
+            curr_source: None,
             tile_preview_mode: false,
-            tile_hover_id: Uuid::nil(),
-
+            tile_hover_source: None,
             blend_index: 0,
+            active_tab: 0,
+            tab_offset: [Vec2::zero(), Vec2::zero(), Vec2::zero()],
+            placements: std::array::from_fn(|_| Vec::new()),
+            drag_pan: None,
+            drag_item: None,
+            drag_drop_cell: None,
+            drag_hover_coord: None,
+            entered_group: None,
+            last_group_click: None,
         }
     }
 
     fn setup(&mut self, _ctx: &mut TheContext) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
-        // Toolbar
         let mut toolbar_canvas = TheCanvas::default();
         let traybar_widget = TheTraybar::new(TheId::empty());
         toolbar_canvas.set_widget(traybar_widget);
@@ -52,11 +91,11 @@ impl Dock for TilesDock {
         toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
         toolbar_hlayout.set_padding(3);
         toolbar_hlayout.add_widget(Box::new(filter_text));
+
         let mut filter_edit = TheTextLineEdit::new(TheId::named("Tiles Dock Filter Edit"));
-        filter_edit.set_text("".to_string());
+        filter_edit.set_text(String::new());
         filter_edit.limiter_mut().set_max_size(Vec2::new(120, 18));
         filter_edit.set_font_size(12.5);
-        // filter_edit.set_embedded(true);
         filter_edit.set_status_text(&fl!("status_tiles_filter_edit"));
         filter_edit.set_continuous(true);
         toolbar_hlayout.add_widget(Box::new(filter_edit));
@@ -71,8 +110,29 @@ impl Dock for TilesDock {
         let mut spacer = TheSpacer::new(TheId::empty());
         spacer.limiter_mut().set_max_width(10);
         toolbar_hlayout.add_widget(Box::new(spacer));
-
         toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
+
+        let mut add_button = TheTraybarButton::new(TheId::named("Tiles Dock Add"));
+        add_button.set_icon_name("icon_role_add".to_string());
+        add_button.set_status_text("Add a tile source.");
+        add_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new(
+                    "Tile Group".to_string(),
+                    TheId::named("Tiles Dock Add Tile Group"),
+                ),
+                TheContextMenuItem::new(
+                    "Node Group".to_string(),
+                    TheId::named("Tiles Dock Add Node Group"),
+                ),
+                TheContextMenuItem::new(
+                    "Eldrin Source".to_string(),
+                    TheId::named("Tiles Dock Add Eldrin Source"),
+                ),
+            ],
+            ..Default::default()
+        }));
+        toolbar_hlayout.add_widget(Box::new(add_button));
 
         let mut apply_button = TheTraybarButton::new(TheId::named("Tiles Dock Apply Tile"));
         apply_button.set_text(fl!("action_apply_tile"));
@@ -80,42 +140,30 @@ impl Dock for TilesDock {
         toolbar_hlayout.add_widget(Box::new(apply_button));
 
         let mut clear_button = TheTraybarButton::new(TheId::named("Tiles Dock Clear Tile"));
-        clear_button.set_text(fl!("action_clear_tile"));
+        clear_button.set_text("Clear".to_string());
         clear_button.set_status_text(&fl!("status_tiles_clear_tile"));
         toolbar_hlayout.add_widget(Box::new(clear_button));
-
-        let mut zoom = TheSlider::new(TheId::named("Tiles Dock Zoom"));
-        zoom.set_value(TheValue::Float(self.zoom));
-        zoom.set_default_value(TheValue::Float(1.5));
-        zoom.set_range(TheValue::RangeF32(1.0..=3.0));
-        zoom.set_continuous(true);
-        zoom.limiter_mut().set_max_width(120);
-        toolbar_hlayout.add_widget(Box::new(zoom));
-        toolbar_hlayout.set_reverse_index(Some(1));
+        toolbar_hlayout.set_reverse_index(Some(2));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
         canvas.set_top(toolbar_canvas);
 
-        let mut rgba_layout = TheRGBALayout::new(TheId::named("Tiles Dock RGBA Layout"));
-        if let Some(rgba_view) = rgba_layout.rgba_view_mut().as_rgba_view() {
-            rgba_view.set_supports_external_zoom(true);
-            rgba_view.set_background([116, 116, 116, 255]);
-            rgba_view.set_grid(Some(24));
-            rgba_view.set_mode(TheRGBAViewMode::TilePicker);
-            let mut c = WHITE;
-            c[3] = 128;
-            rgba_view.set_hover_color(Some(c));
+        let mut tab_layout = TheTabLayout::new(TheId::named(TILES_TAB_LAYOUT));
+        for (tab_name, view_name) in TILE_TAB_NAMES.iter().zip(TILE_VIEW_NAMES.iter()) {
+            let mut tab_canvas = TheCanvas::new();
+            let render_view = TheRenderView::new(TheId::named(view_name));
+            tab_canvas.set_widget(render_view);
+            tab_layout.add_canvas((*tab_name).to_string(), tab_canvas);
         }
+        canvas.set_layout(tab_layout);
 
-        // Bottom toolbar
-        let mut toolbar_canvas = TheCanvas::default();
+        let mut bottom_toolbar_canvas = TheCanvas::default();
         let traybar_widget = TheTraybar::new(TheId::empty());
-        toolbar_canvas.set_widget(traybar_widget);
-        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
-        toolbar_hlayout.set_background_color(None);
-
-        toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
-        toolbar_hlayout.set_padding(3);
+        bottom_toolbar_canvas.set_widget(traybar_widget);
+        let mut bottom_toolbar_hlayout = TheHLayout::new(TheId::empty());
+        bottom_toolbar_hlayout.set_background_color(None);
+        bottom_toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
+        bottom_toolbar_hlayout.set_padding(3);
 
         let size = 24;
         for (index, p) in VertexBlendPreset::ALL.iter().enumerate() {
@@ -127,21 +175,17 @@ impl Dock for TilesDock {
             if index == 0 {
                 view.set_border_color(Some(WHITE));
             }
-            toolbar_hlayout.add_widget(Box::new(view));
+            bottom_toolbar_hlayout.add_widget(Box::new(view));
 
             if index == 2 || index == 6 || index == 10 || index == 14 {
                 let mut spacer = TheSpacer::new(TheId::empty());
                 spacer.limiter_mut().set_max_width(4);
-                toolbar_hlayout.add_widget(Box::new(spacer));
+                bottom_toolbar_hlayout.add_widget(Box::new(spacer));
             }
         }
 
-        toolbar_canvas.set_layout(toolbar_hlayout);
-        canvas.set_bottom(toolbar_canvas);
-
-        // ---
-
-        canvas.set_layout(rgba_layout);
+        bottom_toolbar_canvas.set_layout(bottom_toolbar_hlayout);
+        canvas.set_bottom(bottom_toolbar_canvas);
 
         canvas
     }
@@ -151,9 +195,11 @@ impl Dock for TilesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) {
-        self.set_tiles(&project.tiles, ui, ctx);
+        self.curr_tile = server_ctx.curr_tile_id;
+        self.curr_source = server_ctx.curr_tile_source;
+        self.render_views(ui, ctx, project);
     }
 
     fn handle_event(
@@ -166,17 +212,17 @@ impl Dock for TilesDock {
     ) -> bool {
         if server_ctx.help_mode {
             let open_tiles_help = match event {
-                TheEvent::TilePicked(id, _) => id.name == "Tiles Dock RGBA Layout View",
+                TheEvent::RenderViewClicked(id, _) => Self::tab_from_view_name(&id.name).is_some(),
                 TheEvent::StateChanged(id, state) if *state == TheWidgetState::Clicked => {
                     id.name == "Tiles"
-                        || id.name == "Tiles Dock RGBA Layout View"
+                        || Self::tab_from_view_name(&id.name).is_some()
                         || id.name.starts_with("Blend #")
                 }
                 TheEvent::MouseDown(coord) => ui
                     .get_widget_at_coord(*coord)
                     .map(|w| {
                         let name = &w.id().name;
-                        name == "Tiles Dock RGBA Layout View"
+                        Self::tab_from_view_name(name).is_some()
                             || name == "Tiles"
                             || name.starts_with("Blend #")
                     })
@@ -196,8 +242,35 @@ impl Dock for TilesDock {
 
         match event {
             TheEvent::WidgetResized(id, _) => {
-                if id.name == "Tiles Dock RGBA Layout View" {
-                    self.set_tiles(&project.tiles, ui, ctx);
+                if Self::tab_from_view_name(&id.name).is_some() {
+                    self.render_views(ui, ctx, project);
+                    redraw = true;
+                }
+            }
+            TheEvent::IndexChanged(id, index) => {
+                if id.name == format!("{TILES_TAB_LAYOUT} Tabbar") {
+                    self.active_tab = *index;
+                    self.render_views(ui, ctx, project);
+                    redraw = true;
+                }
+            }
+            TheEvent::ContextMenuSelected(widget_id, item_id) => {
+                if widget_id.name == "Tiles Dock Add" {
+                    if item_id.name == "Tiles Dock Add Tile Group" {
+                        self.create_empty_group(project, ui, ctx, server_ctx, false);
+                        self.render_views(ui, ctx, project);
+                        redraw = true;
+                    } else if item_id.name == "Tiles Dock Add Node Group" {
+                        self.create_empty_group(project, ui, ctx, server_ctx, true);
+                        self.render_views(ui, ctx, project);
+                        redraw = true;
+                    } else if item_id.name == "Tiles Dock Add Eldrin Source" {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::named("Tiles Dock Add"),
+                            "Eldrin Source is not implemented yet.".to_string(),
+                        ));
+                        redraw = true;
+                    }
                 }
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
@@ -215,15 +288,9 @@ impl Dock for TilesDock {
                         server_ctx.rect_blend_preset = VertexBlendPreset::from_index(index)
                             .unwrap_or(VertexBlendPreset::Solid);
                     }
-                } else if id.name == "Tiles Dock Tile Copy" {
-                    if let Some(tile_id) = self.curr_tile {
-                        let txt = format!("\"{tile_id}\"");
-                        ctx.ui.clipboard = Some(TheValue::Text(txt.clone()));
-                        let mut clipboard = arboard::Clipboard::new().unwrap();
-                        clipboard.set_text(txt.clone()).unwrap();
-                    }
                 } else if id.name == "Tiles Dock Apply Tile" {
-                    if let Some(tile_id) = server_ctx.curr_tile_id {
+                    let selected_source = crate::utils::get_source(ui, server_ctx);
+                    if let Some(source_value) = selected_source {
                         let mut applied_to_action = false;
 
                         if server_ctx.get_map_context() == MapContext::Region
@@ -232,6 +299,7 @@ impl Dock for TilesDock {
                             && let Some(action) =
                                 ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
                             && action.hud_material_slots(map, server_ctx).is_some()
+                            && let PixelSource::TileId(tile_id) = source_value
                             && action.set_hud_material_from_tile(
                                 map,
                                 server_ctx,
@@ -256,16 +324,15 @@ impl Dock for TilesDock {
 
                                 for sector_id in map.selected_sectors.clone() {
                                     if let Some(sector) = map.find_sector_mut(sector_id) {
-                                        let mut source = "source";
+                                        let mut source_key = "source";
                                         if server_ctx.pc.is_screen()
                                             && server_ctx.selected_hud_icon_index == 1
                                         {
-                                            source = "ceiling_source";
+                                            source_key = "ceiling_source";
                                         }
-                                        sector.properties.set(
-                                            source,
-                                            Value::Source(PixelSource::TileId(tile_id)),
-                                        );
+                                        sector
+                                            .properties
+                                            .set(source_key, Value::Source(source_value.clone()));
                                         changed = true;
                                     }
                                 }
@@ -376,166 +443,211 @@ impl Dock for TilesDock {
                 }
             }
             TheEvent::Resize => {
-                self.set_tiles(&project.tiles, ui, ctx);
+                self.render_views(ui, ctx, project);
+                redraw = true;
             }
-            TheEvent::TileDragStarted(id, pos, _offset) => {
-                if id.name == "Tiles Dock RGBA Layout View" {
-                    if let Some(tile_id) = self.tile_ids.get(&(pos.x, pos.y)) {
-                        if let Some(tile) = project.tiles.get(tile_id) {
-                            let mut drop = TheDrop::new(TheId::named_with_id("Tile", *tile_id));
-                            if !tile.is_empty() {
-                                let b = TheRGBABuffer::from(
-                                    tile.textures[0].data.clone(),
-                                    tile.textures[0].width as u32,
-                                    tile.textures[0].height as u32,
-                                );
-                                drop.set_image(b.scaled(
-                                    (tile.textures[0].width as f32 * self.zoom) as i32,
-                                    (tile.textures[0].height as f32 * self.zoom) as i32,
-                                ));
+            TheEvent::RenderViewClicked(id, coord) => {
+                if let Some(tab) = Self::tab_from_view_name(&id.name) {
+                    if let Some(top_level_source) = self.pick_top_level_source(tab, *coord) {
+                        let start_cell = self
+                            .source_board_cell(project, tab, top_level_source)
+                            .unwrap_or_else(|| {
+                                self.coord_to_board_cell(tab, *coord)
+                                    .unwrap_or(Vec2::zero())
+                            });
+                        let grab_offset = self
+                            .coord_to_board_cell(tab, *coord)
+                            .map(|cell| cell - start_cell)
+                            .unwrap_or(Vec2::zero());
+                        self.drag_item = Some((tab, top_level_source, start_cell, grab_offset));
+                        self.drag_drop_cell = self.coord_to_board_cell(tab, *coord).map(|cell| {
+                            let cell = cell - grab_offset;
+                            (tab, Vec2::new(cell.x.max(0), cell.y.max(0)))
+                        });
+                        self.drag_hover_coord = Some((tab, *coord));
+                        self.drag_pan = None;
+                        if let TileSource::TileGroup(group_id) = top_level_source {
+                            let now = SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .map(|d| d.as_millis())
+                                .unwrap_or(0);
+                            if let Some((last_id, last_time)) = self.last_group_click
+                                && last_id == group_id
+                                && now.saturating_sub(last_time) < 400
+                            {
+                                self.enter_group(group_id, ui, ctx, project);
                             }
-                            ctx.ui.set_drop(drop);
+                            self.last_group_click = Some((group_id, now));
                         }
+                    } else {
+                        self.drag_pan = Some((tab, *coord, self.tab_offset[tab]));
+                        self.drag_item = None;
+                        self.drag_drop_cell = None;
+                        self.drag_hover_coord = None;
                     }
-                }
-            }
-            TheEvent::TilePicked(id, pos) => {
-                if id.name == "Tiles Dock RGBA Layout View" {
-                    if let Some(tile_id) = self.tile_ids.get(&(pos.x, pos.y)) {
-                        server_ctx.curr_tile_id = Some(*tile_id);
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Tile Picked"),
-                            TheValue::Id(*tile_id),
-                        ));
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Action List"),
-                            TheValue::Empty,
-                        ));
-                        self.curr_tile = Some(*tile_id);
+                    if let Some(source) = self.pick_source(project, tab, *coord) {
+                        self.select_source(project, source, ui, ctx, server_ctx);
+                        self.render_views(ui, ctx, project);
                         redraw = true;
                     }
                 }
             }
-            TheEvent::LostHover(id) => {
-                if id.name == "Tiles Dock RGBA Layout View" {
-                    self.tile_preview_mode = false;
+            TheEvent::RenderViewDragged(id, coord) => {
+                if let Some(tab) = Self::tab_from_view_name(&id.name) {
+                    if let Some((drag_tab, _source, _start_cell, grab_offset)) = self.drag_item
+                        && drag_tab == tab
+                    {
+                        self.auto_scroll_drag(ui, tab, &id.name, *coord);
+                        self.drag_drop_cell = self.coord_to_board_cell(tab, *coord).map(|cell| {
+                            let cell = cell - grab_offset;
+                            (tab, Vec2::new(cell.x.max(0), cell.y.max(0)))
+                        });
+                        self.drag_hover_coord = Some((tab, *coord));
+                    } else if let Some((drag_tab, origin, start_offset)) = self.drag_pan
+                        && drag_tab == tab
+                    {
+                        let delta = *coord - origin;
+                        self.tab_offset[tab] = Vec2::new(
+                            (start_offset.x - delta.x).max(0),
+                            (start_offset.y - delta.y).max(0),
+                        );
+                    }
+                    self.render_views(ui, ctx, project);
+                    redraw = true;
+                }
+            }
+            TheEvent::RenderViewUp(id, coord) => {
+                if Self::tab_from_view_name(&id.name).is_some() {
+                    if let Some((tab, source, start_cell, _grab_offset)) = self.drag_item {
+                        let before = project.clone();
+                        let mut changed = false;
+                        if let Some(group_id) =
+                            self.pick_group_drop_target(project, tab, *coord, source)
+                        {
+                            changed =
+                                self.try_drop_into_group(project, tab, *coord, source, group_id);
+                        } else if let Some((drop_tab, cell)) = self.drag_drop_cell
+                            && drop_tab == tab
+                        {
+                            changed = self
+                                .try_move_with_displacement(project, tab, source, start_cell, cell);
+                            if !changed {
+                                project.set_tile_board_position(source, start_cell);
+                            }
+                        } else {
+                            project.set_tile_board_position(source, start_cell);
+                        }
+                        if changed {
+                            let after = project.clone();
+                            UNDOMANAGER.write().unwrap().add_undo(
+                                ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(after)),
+                                ctx,
+                            );
+                        }
+                    }
+                    self.drag_pan = None;
+                    self.drag_item = None;
+                    self.drag_drop_cell = None;
+                    self.drag_hover_coord = None;
+                    self.render_views(ui, ctx, project);
+                    redraw = true;
+                }
+            }
+            TheEvent::RenderViewHoverChanged(id, coord) => {
+                if let Some(tab) = Self::tab_from_view_name(&id.name) {
+                    self.tile_hover_source = self.pick_source(project, tab, *coord);
+                    self.tile_preview_mode = self.tile_hover_source.is_some();
+                    if let Some(source) = self.tile_hover_source {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            id.clone(),
+                            self.status_text_for_source(project, source),
+                        ));
+                    }
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Soft Update Minimap"),
                         TheValue::Empty,
                     ));
-                }
-            }
-            TheEvent::TileEditorHoverChanged(id, pos) => {
-                if id.name == "Tiles Dock RGBA Layout View" {
-                    if let Some(tile_id) = self.tile_ids.get(&(pos.x, pos.y)) {
-                        if let Some(tile) = project.get_tile(tile_id) {
-                            if tile.name.is_empty() {
-                                let text = format!(
-                                    "{}, Blocking: {}",
-                                    tile.role.to_string(),
-                                    if tile.blocking { "Yes" } else { "No" },
-                                );
-                                ctx.ui.send(TheEvent::SetStatusText(id.clone(), text));
-                            } else {
-                                let text = format!(
-                                    "{}, Blocking: {}, Tags: \"{}\"",
-                                    tile.role.to_string(),
-                                    if tile.blocking { "Yes" } else { "No" },
-                                    tile.name
-                                );
-                                ctx.ui.send(TheEvent::SetStatusText(id.clone(), text));
-                            }
-                        }
-
-                        self.tile_preview_mode = true;
-                        self.tile_hover_id = *tile_id;
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Soft Update Minimap"),
-                            TheValue::Empty,
-                        ));
-                    }
+                    self.render_views(ui, ctx, project);
                     redraw = true;
                 }
             }
-            TheEvent::TileEditorDelete(id, selected) => {
-                if id.name == "Tiles Dock RGBA Layout View" {
-                    for tile_pos in selected {
-                        if let Some(tile_id) = self.tile_ids.get(tile_pos) {
-                            project.remove_tile(tile_id);
-                        }
+            TheEvent::RenderViewLostHover(id) => {
+                if Self::tab_from_view_name(&id.name).is_some() {
+                    self.drag_pan = None;
+                    self.drag_item = None;
+                    self.drag_drop_cell = None;
+                    self.drag_hover_coord = None;
+                    self.tile_preview_mode = false;
+                    self.tile_hover_source = None;
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Soft Update Minimap"),
+                        TheValue::Empty,
+                    ));
+                    self.render_views(ui, ctx, project);
+                    redraw = true;
+                }
+            }
+            TheEvent::RenderViewScrollBy(id, delta) => {
+                if let Some(tab) = Self::tab_from_view_name(&id.name) {
+                    if ui.ctrl || ui.logo {
+                        let zoom_delta = (delta.y as f32) * 0.05;
+                        self.zoom = (self.zoom + zoom_delta).clamp(1.0, 3.0);
+                        ui.set_widget_value("Tiles Dock Zoom", ctx, TheValue::Float(self.zoom));
+                    } else {
+                        self.tab_offset[tab].x = (self.tab_offset[tab].x + delta.x).max(0);
+                        self.tab_offset[tab].y = (self.tab_offset[tab].y + delta.y).max(0);
                     }
-                    self.set_tiles(&project.tiles, ui, ctx);
+                    self.render_views(ui, ctx, project);
+                    if let Some(render_view) = ui.get_render_view(&id.name) {
+                        render_view.set_needs_redraw(true);
+                    }
+                    ctx.ui.redraw_all = true;
+                    redraw = true;
                 }
             }
-            TheEvent::Custom(id, _value) => {
+            TheEvent::KeyCodeDown(TheValue::KeyCode(key)) => {
+                if *key == TheKeyCode::Return {
+                    if let Some(TileSource::TileGroup(group_id)) = self.curr_source {
+                        self.enter_group(group_id, ui, ctx, project);
+                        redraw = true;
+                    }
+                } else if *key == TheKeyCode::Delete {
+                    if server_ctx.tile_node_group_id.is_none()
+                        && let Some(source) = self.curr_source
+                        && self.delete_source(project, source, ui, ctx, server_ctx)
+                    {
+                        redraw = true;
+                    }
+                } else if *key == TheKeyCode::Escape && self.entered_group.is_some() {
+                    self.leave_group(ui, ctx, project);
+                    redraw = true;
+                }
+            }
+            TheEvent::Custom(id, _) => {
                 if id.name == "Update Tilepicker" {
-                    self.set_tiles(&project.tiles, ui, ctx);
-                }
-            }
-            TheEvent::TileZoomBy(id, delta) => {
-                if id.name == "Tiles Dock RGBA Layout View" {
-                    self.zoom += *delta * 0.05;
-                    self.zoom = self.zoom.clamp(1.0, 3.0);
-                    self.set_tiles(&project.tiles, ui, ctx);
-                    ui.set_widget_value("Tiles Dock Zoom", ctx, TheValue::Float(self.zoom));
+                    self.render_views(ui, ctx, project);
+                    redraw = true;
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Tiles Dock Tile Role" {
-                    if let Some(tile_id) = self.curr_tile {
-                        if let Some(tile) = project.get_tile_mut(&tile_id) {
-                            if let TheValue::Int(role) = value {
-                                tile.role = TileRole::from_index(*role as u8);
-                            }
-                        }
-                    }
-                } else if id.name == "Tiles Dock Tile Tags" {
-                    if let Some(tile_id) = self.curr_tile {
-                        if let Some(tile) = project.get_tile_mut(&tile_id) {
-                            if let TheValue::Text(tags) = value {
-                                tile.name.clone_from(tags);
-                            }
-                        }
-                    }
-                } else if id.name == "Tiles Dock Tile Scale" {
-                    if let Some(tile_id) = self.curr_tile {
-                        if let Some(tile) = project.get_tile_mut(&tile_id) {
-                            if let Some(value) = value.to_f32() {
-                                tile.scale = value;
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Update Tiles"),
-                                    TheValue::Empty,
-                                ));
-                            }
-                        }
-                    }
-                } else if id.name == "Tiles Dock Tile Blocking" {
-                    if let Some(tile_id) = self.curr_tile {
-                        if let Some(tile) = project.get_tile_mut(&tile_id) {
-                            if let TheValue::Int(role) = value {
-                                tile.blocking = *role == 1;
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Update Tiles"),
-                                    TheValue::Empty,
-                                ));
-                            }
-                        }
-                    }
-                } else if id.name == "Tiles Dock Filter Edit" {
+                if id.name == "Tiles Dock Filter Edit" {
                     if let TheValue::Text(filter) = value {
                         self.filter = filter.to_lowercase();
-                        self.set_tiles(&project.tiles, ui, ctx);
+                        self.render_views(ui, ctx, project);
+                        redraw = true;
                     }
                 } else if id.name == "Tiles Dock Filter Role" {
                     if let TheValue::Int(filter) = value {
                         self.filter_role = *filter as u8;
-                        self.set_tiles(&project.tiles, ui, ctx);
+                        self.render_views(ui, ctx, project);
+                        redraw = true;
                     }
-                } else if id.name == "Tiles Dock Zoom" {
-                    if let TheValue::Float(zoom) = value {
-                        self.zoom = *zoom;
-                        self.set_tiles(&project.tiles, ui, ctx);
-                    }
+                } else if id.name == "Tiles Dock Zoom"
+                    && let TheValue::Float(zoom) = value
+                {
+                    self.zoom = *zoom;
+                    self.render_views(ui, ctx, project);
+                    redraw = true;
                 }
             }
             _ => {}
@@ -550,55 +662,12 @@ impl Dock for TilesDock {
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
     ) -> bool {
-        if !self.tile_preview_mode {
+        let Some(source) = self.tile_hover_source else {
             return false;
-        }
+        };
 
-        buffer.fill(BLACK);
-
-        if let Some(tile) = project.tiles.get(&self.tile_hover_id) {
-            let index = server_ctx.animation_counter % tile.textures.len();
-
-            let stride: usize = buffer.stride();
-
-            let src_pixels = &tile.textures[index].data;
-            let src_w = tile.textures[index].width as f32;
-            let src_h = tile.textures[index].height as f32;
-
-            let dim = buffer.dim();
-            let dst_w = dim.width as f32;
-            let dst_h = dim.height as f32;
-
-            // Compute scale
-            let scale = (dst_w / src_w).min(dst_h / src_h);
-
-            // Scaled dimensions
-            let draw_w = src_w * scale;
-            let draw_h = src_h * scale;
-
-            // Center
-            let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
-            let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
-
-            let dst_rect = (
-                offset_x,
-                offset_y,
-                draw_w.round() as usize,
-                draw_h.round() as usize,
-            );
-
-            ctx.draw.blend_scale_chunk(
-                buffer.pixels_mut(),
-                &dst_rect,
-                stride,
-                src_pixels,
-                &(src_w as usize, src_h as usize),
-            );
-
-            return true;
-        }
-
-        false
+        self.draw_source_preview(buffer, project, ctx, server_ctx, source);
+        true
     }
 
     fn supports_minimap_animation(&self) -> bool {
@@ -607,69 +676,1415 @@ impl Dock for TilesDock {
 }
 
 impl TilesDock {
-    /// Set the tiles for the picker.
-    pub fn set_tiles(
+    fn enter_group(
         &mut self,
-        tiles: &IndexMap<Uuid, rusterix::Tile>,
+        group_id: Uuid,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+        project: &Project,
     ) {
-        self.tile_ids.clear();
-        if let Some(editor) = ui.get_rgba_layout("Tiles Dock RGBA Layout") {
-            let width = editor.dim().width - 16;
-            let height = editor.dim().height - 16;
+        self.entered_group = Some(group_id);
+        self.active_tab = 2;
+        if let Some(layout) = ui
+            .canvas
+            .get_layout(Some(&TILES_TAB_LAYOUT.to_string()), None)
+            && let Some(tab_layout) = layout.as_tab_layout()
+        {
+            tab_layout.set_index(2);
+        }
+        self.tab_offset[2] = Vec2::zero();
+        if project.is_tile_node_group(&group_id) {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Open Tile Node Group Workflow"),
+                TheValue::Id(group_id),
+            ));
+        } else {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Close Tile Node Editor Skeleton"),
+                TheValue::Empty,
+            ));
+        }
+        self.render_views(ui, ctx, project);
+    }
 
-            if let Some(rgba_view) = editor.rgba_view_mut().as_rgba_view() {
-                let grid = (24_f32 * self.zoom) as i32;
+    fn leave_group(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
+        self.entered_group = None;
+        self.active_tab = 0;
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Close Tile Node Editor Skeleton"),
+            TheValue::Empty,
+        ));
+        if let Some(layout) = ui
+            .canvas
+            .get_layout(Some(&TILES_TAB_LAYOUT.to_string()), None)
+            && let Some(tab_layout) = layout.as_tab_layout()
+        {
+            tab_layout.set_index(0);
+        }
+        self.render_views(ui, ctx, project);
+    }
 
-                rgba_view.set_grid(Some(grid));
+    fn create_empty_group(
+        &mut self,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        node_backed: bool,
+    ) -> Uuid {
+        let mut group = rusterix::TileGroup::new(2, 2);
+        group.name = "New Group".to_string();
+        let group_id = group.id;
+        let create_tab = if self.active_tab == 1 {
+            2
+        } else {
+            self.active_tab
+        };
+        let pos = self.find_open_cell_for_span(project, create_tab, Vec2::new(2, 2));
+        project.ensure_tile_board_space(pos + Vec2::new(1, 1));
+        project.add_tile_group(group);
+        if node_backed {
+            project.add_tile_node_group(NodeGroupAsset::new(group_id, 2, 2));
+        }
+        project.set_tile_board_position(TileSource::TileGroup(group_id), pos);
+        if self.active_tab != create_tab {
+            self.active_tab = create_tab;
+            if let Some(layout) = ui
+                .canvas
+                .get_layout(Some(&TILES_TAB_LAYOUT.to_string()), None)
+                && let Some(tab_layout) = layout.as_tab_layout()
+            {
+                tab_layout.set_index(create_tab);
+            }
+        }
+        self.scroll_cell_into_view(ui, create_tab, pos, Vec2::new(2, 2));
+        self.select_source(
+            project,
+            TileSource::TileGroup(group_id),
+            ui,
+            ctx,
+            server_ctx,
+        );
+        group_id
+    }
 
-                let mut filtered_tiles = vec![];
+    fn group_grid_size(&self, group: &rusterix::TileGroup) -> Vec2<i32> {
+        let extra = if group.members.is_empty() { 0 } else { 1 };
+        Vec2::new(
+            group.width.max(1) as i32 + extra,
+            group.height.max(1) as i32 + extra,
+        )
+    }
 
-                for (_, t) in tiles {
-                    if t.tags.to_lowercase().contains(&self.filter)
-                        && (self.filter_role == 0
-                            || t.role == TileRole::from_index(self.filter_role - 1))
-                    {
-                        filtered_tiles.push(t);
+    fn source_span(&self, project: &Project, source: TileSource) -> Vec2<i32> {
+        match source {
+            TileSource::SingleTile(_) | TileSource::TileGroupMember { .. } => Vec2::new(1, 1),
+            TileSource::TileGroup(group_id) => project
+                .tile_groups
+                .get(&group_id)
+                .map(|group| self.group_grid_size(group))
+                .unwrap_or(Vec2::new(1, 1)),
+            TileSource::Procedural(_) => Vec2::new(1, 1),
+        }
+    }
+
+    fn clear_selection(&mut self, server_ctx: &mut ServerContext) {
+        self.curr_source = None;
+        self.curr_tile = None;
+        server_ctx.curr_tile_source = None;
+        server_ctx.curr_tile_id = None;
+    }
+
+    fn scroll_cell_into_view(
+        &mut self,
+        ui: &mut TheUI,
+        tab: usize,
+        cell_pos: Vec2<i32>,
+        cell_span: Vec2<i32>,
+    ) {
+        let Some(render_view) = ui.get_render_view(TILE_VIEW_NAMES[tab]) else {
+            return;
+        };
+        let dim = *render_view.dim();
+        let cell = ((TILE_CELL_BASE as f32) * self.zoom) as i32;
+        let cell = cell.max(TILE_CELL_BASE);
+        let margin = cell / 2;
+        let x0 = cell_pos.x * cell;
+        let y0 = cell_pos.y * cell;
+        let x1 = x0 + cell_span.x.max(1) * cell;
+        let y1 = y0 + cell_span.y.max(1) * cell;
+        let view_w = dim.width.max(cell);
+        let view_h = dim.height.max(cell);
+
+        if x0 - margin < self.tab_offset[tab].x {
+            self.tab_offset[tab].x = (x0 - margin).max(0);
+        } else if x1 + margin > self.tab_offset[tab].x + view_w {
+            self.tab_offset[tab].x = (x1 + margin - view_w).max(0);
+        }
+        if y0 - margin < self.tab_offset[tab].y {
+            self.tab_offset[tab].y = (y0 - margin).max(0);
+        } else if y1 + margin > self.tab_offset[tab].y + view_h {
+            self.tab_offset[tab].y = (y1 + margin - view_h).max(0);
+        }
+    }
+
+    fn auto_scroll_drag(&mut self, ui: &mut TheUI, tab: usize, view_name: &str, coord: Vec2<i32>) {
+        let Some(render_view) = ui.get_render_view(view_name) else {
+            return;
+        };
+        let dim = *render_view.dim();
+        let margin = 36;
+        let step = 28;
+
+        if coord.x < margin {
+            self.tab_offset[tab].x = (self.tab_offset[tab].x - step).max(0);
+        } else if coord.x > dim.width - margin {
+            self.tab_offset[tab].x += step;
+        }
+        if coord.y < margin {
+            self.tab_offset[tab].y = (self.tab_offset[tab].y - step).max(0);
+        } else if coord.y > dim.height - margin {
+            self.tab_offset[tab].y += step;
+        }
+    }
+
+    fn delete_source(
+        &mut self,
+        project: &mut Project,
+        source: TileSource,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        let before = project.clone();
+        match source {
+            TileSource::SingleTile(tile_id) => {
+                for group in project.tile_groups.values_mut() {
+                    group.members.retain(|member| member.tile_id != tile_id);
+                }
+                project.tile_board_tiles.shift_remove(&tile_id);
+                project.remove_tile(&tile_id);
+            }
+            TileSource::TileGroup(group_id) => {
+                let Some(group) = project.tile_groups.get(&group_id).cloned() else {
+                    return false;
+                };
+                for member in &group.members {
+                    project.tile_board_tiles.shift_remove(&member.tile_id);
+                    project.remove_tile(&member.tile_id);
+                }
+                project.remove_tile_group(&group_id);
+                if self.entered_group == Some(group_id) {
+                    self.entered_group = None;
+                }
+            }
+            TileSource::TileGroupMember {
+                group_id,
+                member_index,
+            } => {
+                let Some(group) = project.tile_groups.get_mut(&group_id) else {
+                    return false;
+                };
+                let Some(member) = group.members.get(member_index as usize).cloned() else {
+                    return false;
+                };
+                group.members.retain(|m| m.tile_id != member.tile_id);
+                project.tile_board_tiles.shift_remove(&member.tile_id);
+                project.remove_tile(&member.tile_id);
+            }
+            TileSource::Procedural(_) => return false,
+        }
+
+        self.clear_selection(server_ctx);
+        self.tile_hover_source = None;
+        self.tile_preview_mode = false;
+        let after = project.clone();
+        UNDOMANAGER.write().unwrap().add_undo(
+            ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(after)),
+            ctx,
+        );
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Tilepicker"),
+            TheValue::Empty,
+        ));
+        self.render_views(ui, ctx, project);
+        true
+    }
+
+    fn find_open_cell_for_span(&self, project: &Project, tab: usize, span: Vec2<i32>) -> Vec2<i32> {
+        let board_cols = project
+            .tile_board_cols
+            .max(TILE_BOARD_COLS + TILE_BOARD_EXTRA_COLS);
+        let pack_cols = (board_cols - TILE_BOARD_EXTRA_COLS).max(1);
+        let cell = ((TILE_CELL_BASE as f32) * self.zoom).max(TILE_CELL_BASE as f32) as i32;
+        let start = Vec2::new(
+            (self.tab_offset[tab].x / cell).max(0),
+            (self.tab_offset[tab].y / cell).max(0),
+        );
+        let mut occupied: FxHashSet<(i32, i32)> = FxHashSet::default();
+
+        for placement in &self.placements[tab] {
+            let cell_x = ((placement.rect.x + self.tab_offset[tab].x) / cell).max(0);
+            let cell_y = ((placement.rect.y + self.tab_offset[tab].y) / cell).max(0);
+            let span_x = (placement.rect.z / cell).max(1);
+            let span_y = (placement.rect.w / cell).max(1);
+            for dy in 0..span_y {
+                for dx in 0..span_x {
+                    occupied.insert((cell_x + dx, cell_y + dy));
+                }
+            }
+        }
+
+        for y in start.y..(project.tile_board_rows.max(8) + 32) {
+            for x in start.x.min((pack_cols - span.x).max(0))..=(pack_cols - span.x).max(0) {
+                let mut fits = true;
+                for dy in 0..span.y.max(1) {
+                    for dx in 0..span.x.max(1) {
+                        if occupied.contains(&(x + dx, y + dy)) {
+                            fits = false;
+                            break;
+                        }
+                    }
+                    if !fits {
+                        break;
                     }
                 }
-
-                if grid == 0 || width <= 0 {
-                    return;
+                if fits {
+                    return Vec2::new(x, y);
                 }
-                let tiles_per_row = width / grid;
-                let lines = filtered_tiles.len() as i32 / tiles_per_row + 1;
+            }
+        }
 
-                let mut buffer =
-                    TheRGBABuffer::new(TheDim::sized(width, (lines * grid).max(height)));
+        start
+    }
 
-                for (i, tile) in filtered_tiles.iter().enumerate() {
-                    let x = i as i32 % tiles_per_row;
-                    let y = i as i32 / tiles_per_row;
+    fn crop_texture_rgba(
+        src: &[u8],
+        src_size: (usize, usize),
+        crop: (usize, usize, usize, usize),
+    ) -> Vec<u8> {
+        let (src_w, _src_h) = src_size;
+        let (crop_x, crop_y, crop_w, crop_h) = crop;
+        let mut out = vec![0; crop_w * crop_h * 4];
 
-                    self.tile_ids.insert((x, y), tile.id);
-                    if !tile.textures.is_empty() {
-                        let tex = &tile.textures[0];
-                        let stride = buffer.stride();
-                        ctx.draw.blend_scale_chunk(
-                            buffer.pixels_mut(),
-                            &(
-                                x as usize * grid as usize,
-                                y as usize * grid as usize,
-                                grid as usize,
-                                grid as usize,
-                            ),
-                            stride,
-                            &tex.data,
-                            &(tex.width, tex.height),
+        for y in 0..crop_h {
+            let src_start = ((crop_y + y) * src_w + crop_x) * 4;
+            let src_end = src_start + crop_w * 4;
+            let dst_start = y * crop_w * 4;
+            out[dst_start..dst_start + crop_w * 4].copy_from_slice(&src[src_start..src_end]);
+        }
+
+        out
+    }
+
+    fn clip_rect(
+        buffer: &TheRGBABuffer,
+        rect: Vec4<i32>,
+        inset: i32,
+    ) -> Option<(usize, usize, usize, usize)> {
+        let x0 = (rect.x + inset).clamp(0, buffer.dim().width);
+        let y0 = (rect.y + inset).clamp(0, buffer.dim().height);
+        let x1 = (rect.x + rect.z - inset).clamp(0, buffer.dim().width);
+        let y1 = (rect.y + rect.w - inset).clamp(0, buffer.dim().height);
+
+        if x1 <= x0 || y1 <= y0 {
+            return None;
+        }
+
+        Some((
+            x0 as usize,
+            y0 as usize,
+            (x1 - x0) as usize,
+            (y1 - y0) as usize,
+        ))
+    }
+
+    fn render_views(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
+        for tab in 0..TILE_VIEW_NAMES.len() {
+            let Some(render_view) = ui.get_render_view(TILE_VIEW_NAMES[tab]) else {
+                continue;
+            };
+            let dim = *render_view.dim();
+            if dim.width <= 0 || dim.height <= 0 {
+                continue;
+            }
+
+            *render_view.render_buffer_mut() =
+                TheRGBABuffer::new(TheDim::new(0, 0, dim.width, dim.height));
+            let buffer = render_view.render_buffer_mut();
+            buffer.fill(BLACK);
+            self.placements[tab] = self.draw_tab(buffer, ctx, project, tab);
+            render_view.set_needs_redraw(true);
+        }
+        ctx.ui.redraw_all = true;
+    }
+
+    fn draw_tab(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        ctx: &mut TheContext,
+        project: &Project,
+        tab: usize,
+    ) -> Vec<TileBoardPlacement> {
+        let cell = ((TILE_CELL_BASE as f32) * self.zoom) as i32;
+        let cell = cell.max(TILE_CELL_BASE);
+        let width = buffer.dim().width.max(cell);
+        let height = buffer.dim().height.max(cell);
+        let board_cols = project
+            .tile_board_cols
+            .max(TILE_BOARD_COLS + TILE_BOARD_EXTRA_COLS);
+        let pack_cols = (board_cols - TILE_BOARD_EXTRA_COLS).max(1);
+
+        let entries = self.entries_for_tab(project, tab);
+        let mut placements = self.layout_entries(&entries, pack_cols, board_cols, cell);
+        let board_width = board_cols * cell;
+        let content_height = placements
+            .iter()
+            .map(|placement| placement.rect.y + placement.rect.w)
+            .max()
+            .unwrap_or(cell);
+        let board_rows = project
+            .tile_board_rows
+            .max(((content_height + cell - 1) / cell).max(1) + TILE_BOARD_EXTRA_ROWS);
+        let board_height = board_rows * cell;
+        self.tab_offset[tab].x = self.tab_offset[tab].x.min((board_width - width).max(0));
+        self.tab_offset[tab].y = self.tab_offset[tab].y.min((board_height - height).max(0));
+
+        let offset = self.tab_offset[tab];
+        let stride = buffer.stride();
+        let total_rows = board_rows.max(1);
+        let visible_rows = ((height + offset.y) / cell + 2).max(1);
+        let mut occupied: FxHashSet<(i32, i32)> = FxHashSet::default();
+        for placement in &placements {
+            let cell_x = placement.rect.x / cell;
+            let cell_y = placement.rect.y / cell;
+            let span_x = (placement.rect.z / cell).max(1);
+            let span_y = (placement.rect.w / cell).max(1);
+            for dy in 0..span_y {
+                for dx in 0..span_x {
+                    occupied.insert((cell_x + dx, cell_y + dy));
+                }
+            }
+        }
+
+        for row in 0..visible_rows.max(total_rows) {
+            for col in 0..board_cols {
+                if occupied.contains(&(col, row)) {
+                    continue;
+                }
+                let x = col * cell - offset.x;
+                let y = row * cell - offset.y;
+                if x >= width || x + cell <= 0 || y >= height || y + cell <= 0 {
+                    continue;
+                }
+                if let Some(rect) = Self::clip_rect(buffer, Vec4::new(x, y, cell, cell), 2) {
+                    ctx.draw
+                        .rect(buffer.pixels_mut(), &rect, stride, &[62, 62, 62, 255]);
+                    ctx.draw
+                        .rect_outline(buffer.pixels_mut(), &rect, stride, &[74, 74, 74, 255]);
+                }
+            }
+        }
+
+        for placement in &mut placements {
+            let screen_rect = Vec4::new(
+                placement.rect.x - offset.x,
+                placement.rect.y - offset.y,
+                placement.rect.z,
+                placement.rect.w,
+            );
+            if screen_rect.x >= width
+                || screen_rect.x + screen_rect.z <= 0
+                || screen_rect.y >= height
+                || screen_rect.y + screen_rect.w <= 0
+            {
+                placement.rect = screen_rect;
+                continue;
+            }
+
+            self.draw_entry(buffer, ctx, project, tab, screen_rect, placement.source);
+            placement.rect = screen_rect;
+        }
+
+        if tab == self.active_tab
+            && let Some((preview_tab, preview_cell)) = self.drag_drop_cell
+            && preview_tab == tab
+            && let Some((_, preview_source, _, _)) = self.drag_item
+        {
+            let span = self.source_span(project, preview_source);
+            let preview_rect = Vec4::new(
+                preview_cell.x * cell - offset.x,
+                preview_cell.y * cell - offset.y,
+                span.x * cell,
+                span.y * cell,
+            );
+            if let Some(outline_rect) = Self::clip_rect(buffer, preview_rect, 2) {
+                ctx.draw.rect_outline(
+                    buffer.pixels_mut(),
+                    &outline_rect,
+                    stride,
+                    &[220, 220, 220, 255],
+                );
+            }
+            self.draw_source_alpha(
+                buffer,
+                ctx,
+                project,
+                tab,
+                preview_rect,
+                preview_source,
+                0.55,
+            );
+        }
+
+        placements
+    }
+
+    fn entries_for_tab(&self, project: &Project, tab: usize) -> Vec<TileBoardEntry> {
+        let mut entries = Vec::new();
+        let grouped_tile_ids = self.grouped_tile_ids(project);
+
+        if tab == 0 || tab == 1 {
+            for (tile_id, tile) in &project.tiles {
+                if !grouped_tile_ids.contains(tile_id) && self.matches_tile(tile) {
+                    entries.push(TileBoardEntry {
+                        source: TileSource::SingleTile(*tile_id),
+                        span: Vec2::new(1, 1),
+                        pos: project.tile_board_position(TileSource::SingleTile(*tile_id)),
+                    });
+                }
+            }
+        }
+
+        if tab == 0 || tab == 2 {
+            for (group_id, group) in &project.tile_groups {
+                if tab == 2
+                    && let Some(entered_group) = self.entered_group
+                    && entered_group != *group_id
+                {
+                    continue;
+                }
+                if self.matches_group(project, group) {
+                    entries.push(TileBoardEntry {
+                        source: TileSource::TileGroup(*group_id),
+                        span: self.group_grid_size(group),
+                        pos: if tab == 2 && self.entered_group == Some(*group_id) {
+                            Some(Vec2::zero())
+                        } else {
+                            project.tile_board_position(TileSource::TileGroup(*group_id))
+                        },
+                    });
+                }
+            }
+        }
+
+        entries
+    }
+
+    fn layout_entries(
+        &self,
+        entries: &[TileBoardEntry],
+        pack_cols: i32,
+        board_cols: i32,
+        cell: i32,
+    ) -> Vec<TileBoardPlacement> {
+        let mut placements = Vec::with_capacity(entries.len());
+        let mut occupied: FxHashSet<(i32, i32)> = FxHashSet::default();
+        let mut ordered_entries = entries.to_vec();
+        ordered_entries.sort_by_key(|entry| entry.pos.is_none());
+
+        for entry in &ordered_entries {
+            let span_x = entry.span.x.clamp(1, board_cols);
+            let span_y = entry.span.y.max(1);
+            let mut placed = None;
+            if let Some(pos) = entry.pos {
+                let x = pos.x.max(0);
+                let y = pos.y.max(0);
+                if x + span_x <= board_cols {
+                    let mut fits = true;
+                    for dy in 0..span_y {
+                        for dx in 0..span_x {
+                            if occupied.contains(&(x + dx, y + dy)) {
+                                fits = false;
+                                break;
+                            }
+                        }
+                        if !fits {
+                            break;
+                        }
+                    }
+                    if fits {
+                        for dy in 0..span_y {
+                            for dx in 0..span_x {
+                                occupied.insert((x + dx, y + dy));
+                            }
+                        }
+                        placed = Some(Vec4::new(x * cell, y * cell, span_x * cell, span_y * cell));
+                    }
+                }
+            }
+
+            let mut y = 0;
+            while placed.is_none() {
+                for x in 0..=(pack_cols - span_x) {
+                    let mut fits = true;
+                    for dy in 0..span_y {
+                        for dx in 0..span_x {
+                            if occupied.contains(&(x + dx, y + dy)) {
+                                fits = false;
+                                break;
+                            }
+                        }
+                        if !fits {
+                            break;
+                        }
+                    }
+
+                    if fits {
+                        for dy in 0..span_y {
+                            for dx in 0..span_x {
+                                occupied.insert((x + dx, y + dy));
+                            }
+                        }
+                        placed = Some(Vec4::new(x * cell, y * cell, span_x * cell, span_y * cell));
+                        break;
+                    }
+                }
+                y += 1;
+            }
+
+            if let Some(rect) = placed {
+                placements.push(TileBoardPlacement {
+                    source: entry.source,
+                    rect,
+                });
+            }
+        }
+
+        placements
+    }
+
+    fn draw_entry(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        ctx: &mut TheContext,
+        project: &Project,
+        tab: usize,
+        rect: Vec4<i32>,
+        source: TileSource,
+    ) {
+        self.draw_source_alpha(buffer, ctx, project, tab, rect, source, 1.0);
+    }
+
+    fn draw_source_alpha(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        ctx: &mut TheContext,
+        project: &Project,
+        tab: usize,
+        rect: Vec4<i32>,
+        source: TileSource,
+        alpha: f32,
+    ) {
+        let stride = buffer.stride();
+        let fill = if Some(source) == self.tile_hover_source {
+            [92, 92, 92, 255]
+        } else {
+            [74, 74, 74, 255]
+        };
+        let outline = if Some(source) == self.tile_hover_source {
+            [210, 210, 210, 255]
+        } else if Some(source) == self.current_source() {
+            WHITE
+        } else {
+            [112, 112, 112, 255]
+        };
+        if matches!(source, TileSource::TileGroup(_))
+            && let Some(outer) = Self::clip_rect(buffer, rect, 2)
+        {
+            let fill = if alpha >= 1.0 {
+                fill
+            } else {
+                [
+                    fill[0],
+                    fill[1],
+                    fill[2],
+                    ((fill[3] as f32) * alpha).round().clamp(0.0, 255.0) as u8,
+                ]
+            };
+            ctx.draw.rect(buffer.pixels_mut(), &outer, stride, &fill);
+            ctx.draw
+                .rect_outline(buffer.pixels_mut(), &outer, stride, &outline);
+        } else if matches!(source, TileSource::SingleTile(_))
+            && (Some(source) == self.current_source() || Some(source) == self.tile_hover_source)
+            && let Some(outer) = Self::clip_rect(buffer, rect, 1)
+        {
+            ctx.draw
+                .rect_outline(buffer.pixels_mut(), &outer, stride, &outline);
+        }
+
+        match source {
+            TileSource::SingleTile(tile_id) => {
+                if let Some(tile) = project.tiles.get(&tile_id) {
+                    self.draw_tile_into_rect(buffer, ctx, tile, rect, 2);
+                }
+            }
+            TileSource::TileGroup(group_id) => {
+                if let Some(group) = project.tile_groups.get(&group_id) {
+                    let grid = self.group_grid_size(group);
+                    let grid_w = grid.x;
+                    let grid_h = grid.y;
+                    let cell_w = (rect.z / grid_w).max(1);
+                    let cell_h = (rect.w / grid_h).max(1);
+                    let mut occupied = FxHashSet::default();
+                    for member in &group.members {
+                        occupied.insert((member.x, member.y));
+                    }
+                    for y in 0..grid_h as u16 {
+                        for x in 0..grid_w as u16 {
+                            if occupied.contains(&(x, y)) {
+                                continue;
+                            }
+                            if let Some(slot_rect) = Self::clip_rect(
+                                buffer,
+                                Vec4::new(
+                                    rect.x + x as i32 * cell_w,
+                                    rect.y + y as i32 * cell_h,
+                                    cell_w,
+                                    cell_h,
+                                ),
+                                3,
+                            ) {
+                                let is_drop_target = self
+                                    .group_drop_cell(project, tab, group_id)
+                                    .map(|(tx, ty)| tx == x && ty == y)
+                                    .unwrap_or(false);
+                                ctx.draw.rect(
+                                    buffer.pixels_mut(),
+                                    &slot_rect,
+                                    stride,
+                                    if is_drop_target {
+                                        &[60, 60, 60, 255]
+                                    } else {
+                                        &[48, 48, 48, 255]
+                                    },
+                                );
+                                ctx.draw.rect_outline(
+                                    buffer.pixels_mut(),
+                                    &slot_rect,
+                                    stride,
+                                    if is_drop_target {
+                                        &[220, 220, 220, 255]
+                                    } else {
+                                        &[70, 70, 70, 255]
+                                    },
+                                );
+                            }
+                        }
+                    }
+                    for member in &group.members {
+                        if let Some(tile) = project.tiles.get(&member.tile_id) {
+                            let member_rect = Vec4::new(
+                                rect.x + member.x as i32 * cell_w,
+                                rect.y + member.y as i32 * cell_h,
+                                cell_w,
+                                cell_h,
+                            );
+                            self.draw_tile_into_rect_alpha(
+                                buffer,
+                                ctx,
+                                tile,
+                                member_rect,
+                                2,
+                                alpha,
+                            );
+                        }
+                    }
+                }
+            }
+            TileSource::TileGroupMember {
+                group_id,
+                member_index,
+            } => {
+                if let Some(group) = project.tile_groups.get(&group_id)
+                    && let Some(member) = group.members.get(member_index as usize)
+                    && let Some(tile) = project.tiles.get(&member.tile_id)
+                {
+                    self.draw_tile_into_rect(buffer, ctx, tile, rect, 2);
+                }
+            }
+            TileSource::Procedural(_) => {}
+        }
+    }
+
+    fn draw_tile_into_rect(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        ctx: &mut TheContext,
+        tile: &rusterix::Tile,
+        rect: Vec4<i32>,
+        padding: i32,
+    ) {
+        self.draw_tile_into_rect_alpha(buffer, ctx, tile, rect, padding, 1.0);
+    }
+
+    fn draw_tile_into_rect_alpha(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        ctx: &mut TheContext,
+        tile: &rusterix::Tile,
+        rect: Vec4<i32>,
+        padding: i32,
+        alpha: f32,
+    ) {
+        if tile.textures.is_empty() {
+            return;
+        }
+        let tex = &tile.textures[0];
+        let stride = buffer.stride();
+        let full_rect = Vec4::new(
+            rect.x + padding,
+            rect.y + padding,
+            (rect.z - padding * 2).max(1),
+            (rect.w - padding * 2).max(1),
+        );
+        let Some(draw_rect) = Self::clip_rect(buffer, rect, padding) else {
+            return;
+        };
+        let full_x0 = full_rect.x;
+        let full_y0 = full_rect.y;
+
+        let clip_x0 = draw_rect.0 as i32;
+        let clip_y0 = draw_rect.1 as i32;
+        let clip_x1 = clip_x0 + draw_rect.2 as i32;
+        let clip_y1 = clip_y0 + draw_rect.3 as i32;
+
+        let src_w = tex.width.max(1);
+        let src_h = tex.height.max(1);
+
+        let u0 = ((clip_x0 - full_x0) as f32 / full_rect.z as f32).clamp(0.0, 1.0);
+        let v0 = ((clip_y0 - full_y0) as f32 / full_rect.w as f32).clamp(0.0, 1.0);
+        let u1 = ((clip_x1 - full_x0) as f32 / full_rect.z as f32).clamp(0.0, 1.0);
+        let v1 = ((clip_y1 - full_y0) as f32 / full_rect.w as f32).clamp(0.0, 1.0);
+
+        let crop_x0 = ((u0 * src_w as f32).round() as usize).min(src_w.saturating_sub(1));
+        let crop_y0 = ((v0 * src_h as f32).round() as usize).min(src_h.saturating_sub(1));
+        let crop_x1 = ((u1 * src_w as f32).round() as usize).clamp(crop_x0 + 1, src_w);
+        let crop_y1 = ((v1 * src_h as f32).round() as usize).clamp(crop_y0 + 1, src_h);
+        let crop_w = crop_x1.saturating_sub(crop_x0).max(1);
+        let crop_h = crop_y1.saturating_sub(crop_y0).max(1);
+        let cropped = Self::crop_texture_rgba(
+            &tex.data,
+            (tex.width, tex.height),
+            (crop_x0, crop_y0, crop_w, crop_h),
+        );
+
+        ctx.draw.blend_scale_chunk_alpha(
+            buffer.pixels_mut(),
+            &draw_rect,
+            stride,
+            &cropped,
+            &(crop_w, crop_h),
+            alpha,
+        );
+    }
+
+    fn draw_source_preview(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        project: &Project,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+        source: TileSource,
+    ) {
+        buffer.fill(BLACK);
+        let stride = buffer.stride();
+
+        match source {
+            TileSource::SingleTile(tile_id) => {
+                if let Some(tile) = project.tiles.get(&tile_id)
+                    && !tile.textures.is_empty()
+                {
+                    let index = server_ctx.animation_counter % tile.textures.len();
+                    let tex = &tile.textures[index];
+                    let src_w = tex.width as f32;
+                    let src_h = tex.height as f32;
+                    let dst_w = buffer.dim().width as f32;
+                    let dst_h = buffer.dim().height as f32;
+                    let scale = (dst_w / src_w).min(dst_h / src_h);
+                    let draw_w = src_w * scale;
+                    let draw_h = src_h * scale;
+                    let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
+                    let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
+                    ctx.draw.blend_scale_chunk(
+                        buffer.pixels_mut(),
+                        &(
+                            offset_x,
+                            offset_y,
+                            draw_w.round() as usize,
+                            draw_h.round() as usize,
+                        ),
+                        stride,
+                        &tex.data,
+                        &(tex.width, tex.height),
+                    );
+                }
+            }
+            TileSource::TileGroup(group_id) => {
+                if let Some(group) = project.tile_groups.get(&group_id) {
+                    let grid = self.group_grid_size(group);
+                    let grid_w = grid.x;
+                    let grid_h = grid.y;
+                    let cell_w = (buffer.dim().width / grid_w).max(1);
+                    let cell_h = (buffer.dim().height / grid_h).max(1);
+                    for member in &group.members {
+                        if let Some(tile) = project.tiles.get(&member.tile_id)
+                            && !tile.textures.is_empty()
+                        {
+                            let index = server_ctx.animation_counter % tile.textures.len();
+                            let tex = &tile.textures[index];
+                            ctx.draw.blend_scale_chunk(
+                                buffer.pixels_mut(),
+                                &(
+                                    member.x as usize * cell_w as usize + 2,
+                                    member.y as usize * cell_h as usize + 2,
+                                    (cell_w - 4).max(1) as usize,
+                                    (cell_h - 4).max(1) as usize,
+                                ),
+                                stride,
+                                &tex.data,
+                                &(tex.width, tex.height),
+                            );
+                        }
+                    }
+                }
+            }
+            TileSource::TileGroupMember {
+                group_id,
+                member_index,
+            } => {
+                self.draw_source_preview(
+                    buffer,
+                    project,
+                    ctx,
+                    server_ctx,
+                    self.group_member_source(project, group_id, member_index),
+                );
+            }
+            TileSource::Procedural(_) => {}
+        }
+    }
+
+    fn group_member_source(
+        &self,
+        project: &Project,
+        group_id: Uuid,
+        member_index: u16,
+    ) -> TileSource {
+        if let Some(group) = project.tile_groups.get(&group_id)
+            && let Some(member) = group.members.get(member_index as usize)
+        {
+            return TileSource::SingleTile(member.tile_id);
+        }
+        TileSource::TileGroup(group_id)
+    }
+
+    fn current_source(&self) -> Option<TileSource> {
+        self.curr_source
+    }
+
+    fn grouped_tile_ids(&self, project: &Project) -> FxHashSet<Uuid> {
+        let mut ids = FxHashSet::default();
+        for group in project.tile_groups.values() {
+            for member in &group.members {
+                ids.insert(member.tile_id);
+            }
+        }
+        ids
+    }
+
+    fn pick_top_level_source(&self, tab: usize, coord: Vec2<i32>) -> Option<TileSource> {
+        self.placements[tab]
+            .iter()
+            .find(|placement| {
+                coord.x >= placement.rect.x
+                    && coord.x < placement.rect.x + placement.rect.z
+                    && coord.y >= placement.rect.y
+                    && coord.y < placement.rect.y + placement.rect.w
+            })
+            .map(|placement| placement.source)
+    }
+
+    fn overlapping_top_level_sources(
+        &self,
+        project: &Project,
+        tab: usize,
+        source: TileSource,
+        target_cell: Vec2<i32>,
+    ) -> Vec<TileSource> {
+        let target_span = self.source_span(project, source);
+        self.placements[tab]
+            .iter()
+            .filter_map(|placement| {
+                if placement.source == source {
+                    return None;
+                }
+                let other_cell = self.source_board_cell(project, tab, placement.source)?;
+                let other_span = self.source_span(project, placement.source);
+                let intersects = target_cell.x < other_cell.x + other_span.x
+                    && target_cell.x + target_span.x > other_cell.x
+                    && target_cell.y < other_cell.y + other_span.y
+                    && target_cell.y + target_span.y > other_cell.y;
+                intersects.then_some(placement.source)
+            })
+            .collect()
+    }
+
+    fn coord_to_board_cell(&self, tab: usize, coord: Vec2<i32>) -> Option<Vec2<i32>> {
+        let cell = ((TILE_CELL_BASE as f32) * self.zoom) as i32;
+        let cell = cell.max(TILE_CELL_BASE);
+        if cell <= 0 {
+            return None;
+        }
+        let board = coord + self.tab_offset[tab];
+        Some(Vec2::new((board.x / cell).max(0), (board.y / cell).max(0)))
+    }
+
+    fn source_board_cell(
+        &self,
+        project: &Project,
+        tab: usize,
+        source: TileSource,
+    ) -> Option<Vec2<i32>> {
+        let cell = ((TILE_CELL_BASE as f32) * self.zoom) as i32;
+        let cell = cell.max(TILE_CELL_BASE);
+        self.placements[tab]
+            .iter()
+            .find(|placement| placement.source == source)
+            .map(|placement| {
+                Vec2::new(
+                    ((placement.rect.x + self.tab_offset[tab].x) / cell).max(0),
+                    ((placement.rect.y + self.tab_offset[tab].y) / cell).max(0),
+                )
+            })
+            .or_else(|| project.tile_board_position(source))
+    }
+
+    fn can_place_source_at(
+        &self,
+        project: &Project,
+        tab: usize,
+        source: TileSource,
+        cell: Vec2<i32>,
+        ignore: Option<TileSource>,
+    ) -> bool {
+        let span = self.source_span(project, source);
+        if cell.x < 0 || cell.y < 0 {
+            return false;
+        }
+
+        for placement in &self.placements[tab] {
+            if placement.source == source || Some(placement.source) == ignore {
+                continue;
+            }
+            let other_cell = self
+                .source_board_cell(project, tab, placement.source)
+                .unwrap_or(Vec2::zero());
+            let other_span = self.source_span(project, placement.source);
+            let intersects = cell.x < other_cell.x + other_span.x
+                && cell.x + span.x > other_cell.x
+                && cell.y < other_cell.y + other_span.y
+                && cell.y + span.y > other_cell.y;
+            if intersects {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn try_move_with_displacement(
+        &self,
+        project: &mut Project,
+        tab: usize,
+        source: TileSource,
+        start_cell: Vec2<i32>,
+        target_cell: Vec2<i32>,
+    ) -> bool {
+        let displaced = self.overlapping_top_level_sources(project, tab, source, target_cell);
+        if displaced.is_empty() {
+            if self.can_place_source_at(project, tab, source, target_cell, None) {
+                let target_span = self.source_span(project, source);
+                project.ensure_tile_board_space(
+                    target_cell + Vec2::new(target_span.x - 1, target_span.y - 1),
+                );
+                project.set_tile_board_position(source, target_cell);
+                return true;
+            }
+            return false;
+        }
+
+        let mut new_positions: Vec<(TileSource, Vec2<i32>, Vec2<i32>)> = Vec::new();
+        for displaced_source in &displaced {
+            let Some(old_cell) = self.source_board_cell(project, tab, *displaced_source) else {
+                return false;
+            };
+            let offset = old_cell - target_cell;
+            let new_cell = start_cell + offset;
+            if new_cell.x < 0 || new_cell.y < 0 {
+                return false;
+            }
+            new_positions.push((*displaced_source, old_cell, new_cell));
+        }
+
+        let source_span = self.source_span(project, source);
+        for i in 0..new_positions.len() {
+            let (src_a, _old_a, cell_a) = new_positions[i];
+            let span_a = self.source_span(project, src_a);
+            let intersects_source = cell_a.x < target_cell.x + source_span.x
+                && cell_a.x + span_a.x > target_cell.x
+                && cell_a.y < target_cell.y + source_span.y
+                && cell_a.y + span_a.y > target_cell.y;
+            if intersects_source {
+                return false;
+            }
+            for j in (i + 1)..new_positions.len() {
+                let (src_b, _old_b, cell_b) = new_positions[j];
+                let span_b = self.source_span(project, src_b);
+                let intersects = cell_a.x < cell_b.x + span_b.x
+                    && cell_a.x + span_a.x > cell_b.x
+                    && cell_a.y < cell_b.y + span_b.y
+                    && cell_a.y + span_a.y > cell_b.y;
+                if intersects {
+                    return false;
+                }
+            }
+        }
+
+        for placement in &self.placements[tab] {
+            if placement.source == source || displaced.contains(&placement.source) {
+                continue;
+            }
+            let Some(other_cell) = self.source_board_cell(project, tab, placement.source) else {
+                continue;
+            };
+            let other_span = self.source_span(project, placement.source);
+            let source_intersects = target_cell.x < other_cell.x + other_span.x
+                && target_cell.x + source_span.x > other_cell.x
+                && target_cell.y < other_cell.y + other_span.y
+                && target_cell.y + source_span.y > other_cell.y;
+            if source_intersects {
+                return false;
+            }
+            for (displaced_source, _old_cell, new_cell) in &new_positions {
+                let displaced_span = self.source_span(project, *displaced_source);
+                let intersects = new_cell.x < other_cell.x + other_span.x
+                    && new_cell.x + displaced_span.x > other_cell.x
+                    && new_cell.y < other_cell.y + other_span.y
+                    && new_cell.y + displaced_span.y > other_cell.y;
+                if intersects {
+                    return false;
+                }
+            }
+        }
+
+        project
+            .ensure_tile_board_space(target_cell + Vec2::new(source_span.x - 1, source_span.y - 1));
+        project.set_tile_board_position(source, target_cell);
+        for (displaced_source, _old_cell, new_cell) in new_positions {
+            let displaced_span = self.source_span(project, displaced_source);
+            project.ensure_tile_board_space(
+                new_cell + Vec2::new(displaced_span.x - 1, displaced_span.y - 1),
+            );
+            project.set_tile_board_position(displaced_source, new_cell);
+        }
+        true
+    }
+
+    fn group_drop_cell(&self, project: &Project, tab: usize, group_id: Uuid) -> Option<(u16, u16)> {
+        let Some((hover_tab, coord)) = self.drag_hover_coord else {
+            return None;
+        };
+        if hover_tab != tab {
+            return None;
+        }
+        let Some(group) = project.tile_groups.get(&group_id) else {
+            return None;
+        };
+        let Some(placement) = self.placements[tab]
+            .iter()
+            .find(|placement| placement.source == TileSource::TileGroup(group_id))
+        else {
+            return None;
+        };
+        let grid = self.group_grid_size(group);
+        let grid_w = grid.x;
+        let grid_h = grid.y;
+        let cell_w = (placement.rect.z / grid_w).max(1);
+        let cell_h = (placement.rect.w / grid_h).max(1);
+        let local_x = ((coord.x - placement.rect.x) / cell_w).clamp(0, grid_w - 1) as u16;
+        let local_y = ((coord.y - placement.rect.y) / cell_h).clamp(0, grid_h - 1) as u16;
+        Some((local_x, local_y))
+    }
+
+    fn pick_group_drop_target(
+        &self,
+        project: &Project,
+        tab: usize,
+        coord: Vec2<i32>,
+        dragged_source: TileSource,
+    ) -> Option<Uuid> {
+        self.placements[tab]
+            .iter()
+            .find(|placement| {
+                placement.source != dragged_source
+                    && matches!(placement.source, TileSource::TileGroup(_))
+                    && coord.x >= placement.rect.x
+                    && coord.x < placement.rect.x + placement.rect.z
+                    && coord.y >= placement.rect.y
+                    && coord.y < placement.rect.y + placement.rect.w
+            })
+            .and_then(|placement| match placement.source {
+                TileSource::TileGroup(group_id) => {
+                    project.tile_groups.get(&group_id).map(|_| group_id)
+                }
+                _ => None,
+            })
+    }
+
+    fn try_drop_into_group(
+        &self,
+        project: &mut Project,
+        tab: usize,
+        coord: Vec2<i32>,
+        source: TileSource,
+        group_id: Uuid,
+    ) -> bool {
+        let TileSource::SingleTile(tile_id) = source else {
+            return false;
+        };
+        let Some(group) = project.tile_groups.get_mut(&group_id) else {
+            return false;
+        };
+        let Some(placement) = self.placements[tab]
+            .iter()
+            .find(|placement| placement.source == TileSource::TileGroup(group_id))
+        else {
+            return false;
+        };
+        let grid = self.group_grid_size(group);
+        let grid_w = grid.x;
+        let grid_h = grid.y;
+        let cell_w = (placement.rect.z / grid_w).max(1);
+        let cell_h = (placement.rect.w / grid_h).max(1);
+        let local_x = ((coord.x - placement.rect.x) / cell_w).clamp(0, grid_w - 1);
+        let local_y = ((coord.y - placement.rect.y) / cell_h).clamp(0, grid_h - 1);
+
+        if group
+            .members
+            .iter()
+            .any(|member| member.x as i32 == local_x && member.y as i32 == local_y)
+        {
+            return false;
+        }
+
+        group.members.push(rusterix::TileGroupMemberRef {
+            tile_id,
+            x: local_x as u16,
+            y: local_y as u16,
+        });
+        if local_x >= group.width as i32 {
+            group.width = local_x as u16 + 1;
+        }
+        if local_y >= group.height as i32 {
+            group.height = local_y as u16 + 1;
+        }
+        project.tile_board_tiles.shift_remove(&tile_id);
+        true
+    }
+
+    fn pick_source(&self, project: &Project, tab: usize, coord: Vec2<i32>) -> Option<TileSource> {
+        self.placements[tab]
+            .iter()
+            .find(|placement| {
+                coord.x >= placement.rect.x
+                    && coord.x < placement.rect.x + placement.rect.z
+                    && coord.y >= placement.rect.y
+                    && coord.y < placement.rect.y + placement.rect.w
+            })
+            .map(|placement| match placement.source {
+                TileSource::TileGroup(group_id) => {
+                    if let Some(group) = project.tile_groups.get(&group_id) {
+                        let cell_w = (placement.rect.z / group.width.max(1) as i32).max(1);
+                        let cell_h = (placement.rect.w / group.height.max(1) as i32).max(1);
+                        for (index, member) in group.members.iter().enumerate() {
+                            let member_rect = Vec4::new(
+                                placement.rect.x + member.x as i32 * cell_w,
+                                placement.rect.y + member.y as i32 * cell_h,
+                                cell_w,
+                                cell_h,
+                            );
+                            if coord.x >= member_rect.x + 2
+                                && coord.x < member_rect.x + member_rect.z - 2
+                                && coord.y >= member_rect.y + 2
+                                && coord.y < member_rect.y + member_rect.w - 2
+                            {
+                                return TileSource::TileGroupMember {
+                                    group_id,
+                                    member_index: index as u16,
+                                };
+                            }
+                        }
+                    }
+                    placement.source
+                }
+                _ => placement.source,
+            })
+    }
+
+    fn select_source(
+        &mut self,
+        project: &Project,
+        source: TileSource,
+        _ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        server_ctx.curr_tile_source = Some(source);
+        self.curr_source = Some(source);
+        match source {
+            TileSource::SingleTile(tile_id) => {
+                server_ctx.curr_tile_id = Some(tile_id);
+                self.curr_tile = Some(tile_id);
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Tile Picked"),
+                    TheValue::Id(tile_id),
+                ));
+            }
+            TileSource::TileGroupMember {
+                group_id,
+                member_index,
+            } => {
+                if let Some(group) = project.tile_groups.get(&group_id)
+                    && let Some(member) = group.members.get(member_index as usize)
+                {
+                    server_ctx.curr_tile_id = Some(member.tile_id);
+                    self.curr_tile = Some(member.tile_id);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Tile Picked"),
+                        TheValue::Id(member.tile_id),
+                    ));
+                } else {
+                    server_ctx.curr_tile_id = None;
+                    self.curr_tile = None;
+                }
+            }
+            TileSource::TileGroup(_) | TileSource::Procedural(_) => {
+                server_ctx.curr_tile_id = None;
+                self.curr_tile = None;
+            }
+        }
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Action List"),
+            TheValue::Empty,
+        ));
+    }
+
+    fn status_text_for_source(&self, project: &Project, source: TileSource) -> String {
+        match source {
+            TileSource::SingleTile(tile_id) => {
+                if let Some(tile) = project.tiles.get(&tile_id) {
+                    if tile.tags.is_empty() {
+                        format!(
+                            "{}, Blocking: {}",
+                            tile.role.to_string(),
+                            if tile.blocking { "Yes" } else { "No" },
+                        )
+                    } else {
+                        format!(
+                            "{}, Blocking: {}, Tags: \"{}\"",
+                            tile.role.to_string(),
+                            if tile.blocking { "Yes" } else { "No" },
+                            tile.tags
+                        )
+                    }
+                } else {
+                    "Tile".to_string()
+                }
+            }
+            TileSource::TileGroup(group_id) => {
+                if let Some(group) = project.tile_groups.get(&group_id) {
+                    if self.entered_group == Some(group_id) {
+                        return format!(
+                            "{} {}x{}, {} members. Press Esc to leave group.",
+                            if group.name.is_empty() {
+                                "Tile Group"
+                            } else {
+                                group.name.as_str()
+                            },
+                            group.width,
+                            group.height,
+                            group.members.len()
                         );
                     }
+                    let name = if group.name.is_empty() {
+                        "Tile Group"
+                    } else {
+                        group.name.as_str()
+                    };
+                    format!(
+                        "{} {}x{}, {} members. Double-click or press Return to enter.",
+                        name,
+                        group.width,
+                        group.height,
+                        group.members.len()
+                    )
+                } else {
+                    "Tile Group".to_string()
                 }
-
-                rgba_view.set_buffer(buffer);
             }
-            editor.relayout(ctx);
+            TileSource::TileGroupMember {
+                group_id,
+                member_index,
+            } => {
+                format!("Group Member {} in {}", member_index, group_id)
+            }
+            TileSource::Procedural(id) => format!("Procedural Source {}", id),
         }
+    }
+
+    fn matches_tile(&self, tile: &rusterix::Tile) -> bool {
+        tile.tags.to_lowercase().contains(&self.filter)
+            && (self.filter_role == 0 || tile.role == TileRole::from_index(self.filter_role - 1))
+    }
+
+    fn matches_group(&self, project: &Project, group: &rusterix::TileGroup) -> bool {
+        let filter_ok = self.filter.is_empty()
+            || group.name.to_lowercase().contains(&self.filter)
+            || group.tags.to_lowercase().contains(&self.filter)
+            || group.members.iter().any(|member| {
+                project
+                    .tiles
+                    .get(&member.tile_id)
+                    .map(|tile| tile.tags.to_lowercase().contains(&self.filter))
+                    .unwrap_or(false)
+            });
+
+        let role_ok = self.filter_role == 0
+            || group.members.iter().any(|member| {
+                project
+                    .tiles
+                    .get(&member.tile_id)
+                    .map(|tile| tile.role == TileRole::from_index(self.filter_role - 1))
+                    .unwrap_or(false)
+            });
+
+        filter_ok && role_ok
+    }
+
+    fn tab_from_view_name(name: &str) -> Option<usize> {
+        TILE_VIEW_NAMES
+            .iter()
+            .position(|view_name| *view_name == name)
     }
 }
