@@ -22,6 +22,7 @@ pub mod sidebar;
 pub mod textplay;
 pub mod toollist;
 pub mod tools;
+pub mod treasury;
 pub mod undo;
 pub mod utils;
 
@@ -49,6 +50,7 @@ pub mod prelude {
     pub use crate::sidebar::*;
     pub use crate::textplay::*;
     pub use crate::toollist::*;
+    pub use crate::treasury::*;
     pub use crate::undo::project_atoms::*;
     pub use crate::undo::project_helper::*;
     pub use crate::undo::project_undo::*;

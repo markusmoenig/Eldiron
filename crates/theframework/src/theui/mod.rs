@@ -766,8 +766,9 @@ impl TheUI {
                 if context.on_event(&event, ctx) {
                     redraw = true;
                     if let Some((menu_id, menu_item_id)) = context.get_hovered_id() {
+                        let event_menu_id = self.menu_widget_id.clone().unwrap_or(menu_id.clone());
                         ctx.ui.send(TheEvent::ContextMenuSelected(
-                            menu_id.clone(),
+                            event_menu_id,
                             menu_item_id.clone(),
                         ));
                         ctx.ui.send(TheEvent::StateChanged(

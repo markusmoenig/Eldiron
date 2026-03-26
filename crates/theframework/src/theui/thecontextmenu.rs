@@ -8,6 +8,7 @@ pub struct TheContextMenuItem {
     pub id: TheId,
     pub value: Option<TheValue>,
     pub sub_menu: Option<TheContextMenu>,
+    pub text_color: Option<RGBA>,
 
     pub accel: Option<TheAccelerator>,
 }
@@ -19,6 +20,7 @@ impl TheContextMenuItem {
             id,
             value: None,
             sub_menu: None,
+            text_color: None,
 
             accel: None,
         }
@@ -30,6 +32,7 @@ impl TheContextMenuItem {
             id,
             value: None,
             sub_menu: None,
+            text_color: None,
 
             accel: Some(accel),
         }
@@ -41,6 +44,7 @@ impl TheContextMenuItem {
             id,
             value: None,
             sub_menu: Some(sub_menu),
+            text_color: None,
 
             accel: None,
         }
@@ -49,6 +53,10 @@ impl TheContextMenuItem {
     /// Sets the sub menu.
     pub fn set_sub_menu(&mut self, menu: TheContextMenu) {
         self.sub_menu = Some(menu);
+    }
+
+    pub fn set_text_color(&mut self, color: RGBA) {
+        self.text_color = Some(color);
     }
 }
 
@@ -280,9 +288,10 @@ impl TheContextMenu {
             );
 
             let mut text_color = if is_disabled {
-                style.theme().color(ContextMenuTextDisabled)
+                *style.theme().color(ContextMenuTextDisabled)
             } else {
-                style.theme().color(ContextMenuTextNormal)
+                item.text_color
+                    .unwrap_or(*style.theme().color(ContextMenuTextNormal))
             };
 
             if Some(item.id.clone()) == self.hovered && !item.name.is_empty() && !is_disabled {
@@ -292,7 +301,7 @@ impl TheContextMenu {
                     ctx.width,
                     style.theme().color(ContextMenuHighlight),
                 );
-                text_color = style.theme().color(ContextMenuTextHighlight);
+                text_color = *style.theme().color(ContextMenuTextHighlight);
             }
 
             if item.name.is_empty() {
@@ -312,7 +321,7 @@ impl TheContextMenu {
                         size: 13.5,
                         ..Default::default()
                     },
-                    text_color,
+                    &text_color,
                     TheHorizontalAlign::Left,
                     TheVerticalAlign::Center,
                 );

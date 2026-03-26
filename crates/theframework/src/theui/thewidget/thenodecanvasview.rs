@@ -170,16 +170,8 @@ impl TheWidget for TheNodeCanvasView {
                         let displacement =
                             Vec2::new(coord.x - self.drag_start.x, coord.y - self.drag_start.y);
 
-                        // Move the selected node
                         self.canvas.nodes[index].position.x += displacement.x;
                         self.canvas.nodes[index].position.y += displacement.y;
-
-                        // Now find and move all connected nodes
-                        let connected_nodes = self.find_connected_nodes(index);
-                        for &connected_index in &connected_nodes {
-                            self.canvas.nodes[connected_index].position.x += displacement.x;
-                            self.canvas.nodes[connected_index].position.y += displacement.y;
-                        }
 
                         self.drag_start = *coord;
                         self.is_dirty = true;
@@ -590,12 +582,22 @@ impl TheWidget for TheNodeCanvasView {
             }
 
             if let Some(font) = &ctx.ui.font {
+                let title_color = node
+                    .outputs
+                    .first()
+                    .map(|terminal| self.color_for(&terminal.category_name).to_u8_array())
+                    .or_else(|| {
+                        node.inputs
+                            .first()
+                            .map(|terminal| self.color_for(&terminal.category_name).to_u8_array())
+                    })
+                    .unwrap_or([188, 188, 188, 255]);
                 nb.draw_text(
                     Vec2::new(12, 4),
                     font,
                     &node.name,
                     10.0,
-                    [188, 188, 188, 255],
+                    title_color,
                     TheHorizontalAlign::Left,
                     TheVerticalAlign::Top,
                 );
@@ -924,6 +926,17 @@ impl TheWidget for TheNodeCanvasView {
 }
 
 impl TheNodeCanvasView {
+    fn categories_compatible(source: &str, dest: &str) -> bool {
+        if source == dest {
+            return true;
+        }
+
+        matches!(
+            (source, dest),
+            ("ColorSocket", "FieldSocket") | ("FieldSocket", "ColorSocket")
+        )
+    }
+
     fn is_valid_connection(&self, connection: (u16, u8, u16, u8)) -> bool {
         let Some(source_node) = self.canvas.nodes.get(connection.0 as usize) else {
             return false;
@@ -938,7 +951,7 @@ impl TheNodeCanvasView {
             return false;
         };
 
-        source_terminal.category_name == dest_terminal.category_name
+        Self::categories_compatible(&source_terminal.category_name, &dest_terminal.category_name)
     }
 }
 

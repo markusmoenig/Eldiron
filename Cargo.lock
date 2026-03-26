@@ -1239,6 +1239,7 @@ dependencies = [
  "rayon",
  "rect_packer",
  "regex",
+ "rustc-hash 2.1.1",
  "rusterix",
  "scenevm",
  "serde",
@@ -5038,6 +5039,16 @@ dependencies = [
  "quick-error",
  "weezl",
  "zune-jpeg 0.4.21",
+]
+
+[[package]]
+name = "tilegraph-render"
+version = "0.9.1"
+dependencies = [
+ "eldiron-shared",
+ "image",
+ "serde_json",
+ "theframework",
 ]
 
 [[package]]

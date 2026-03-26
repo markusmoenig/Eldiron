@@ -37,6 +37,14 @@ fn default_tile_board_rows() -> i32 {
     9
 }
 
+fn default_tile_collection_name() -> String {
+    "New Collection".to_string()
+}
+
+fn default_tile_collection_version() -> String {
+    "0.1".to_string()
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct NodeGroupAsset {
     pub group_id: Uuid,
@@ -66,6 +74,69 @@ impl NodeGroupAsset {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum TileCollectionEntry {
+    SingleTile(Uuid),
+    TileGroup(Uuid),
+}
+
+impl TileCollectionEntry {
+    pub fn matches_source(&self, source: rusterix::TileSource) -> bool {
+        match (self, source) {
+            (Self::SingleTile(a), rusterix::TileSource::SingleTile(b)) => *a == b,
+            (Self::TileGroup(a), rusterix::TileSource::TileGroup(b)) => *a == b,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct TileCollectionAsset {
+    pub id: Uuid,
+    #[serde(default = "default_tile_collection_name")]
+    pub name: String,
+    #[serde(default)]
+    pub author: String,
+    #[serde(default = "default_tile_collection_version")]
+    pub version: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub entries: Vec<TileCollectionEntry>,
+}
+
+impl TileCollectionAsset {
+    pub fn new(name: String) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name,
+            author: String::new(),
+            version: default_tile_collection_version(),
+            description: String::new(),
+            entries: Vec::new(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct TileSubgraphAsset {
+    pub id: Uuid,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub graph_data: String,
+}
+
+impl TileSubgraphAsset {
+    pub fn new(name: String) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name,
+            graph_data: String::new(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Project {
     pub name: String,
@@ -83,6 +154,14 @@ pub struct Project {
     /// Node-backed tile groups keyed by tile-group id.
     #[serde(default)]
     pub tile_node_groups: IndexMap<Uuid, NodeGroupAsset>,
+
+    /// Custom top-level tile collections shown as tabs in the tile picker.
+    #[serde(default)]
+    pub tile_collections: IndexMap<Uuid, TileCollectionAsset>,
+
+    /// Reusable subgraphs for tile/node graph workflows.
+    #[serde(default)]
+    pub tile_subgraphs: IndexMap<Uuid, TileSubgraphAsset>,
 
     /// Persisted board positions for top-level single tiles in the tile picker.
     #[serde(default)]
@@ -161,6 +240,8 @@ impl Project {
             tiles: IndexMap::default(),
             tile_groups: IndexMap::default(),
             tile_node_groups: IndexMap::default(),
+            tile_collections: IndexMap::default(),
+            tile_subgraphs: IndexMap::default(),
             tile_board_tiles: IndexMap::default(),
             tile_board_groups: IndexMap::default(),
             tile_board_cols: default_tile_board_cols(),
@@ -237,14 +318,61 @@ impl Project {
             .insert(node_group.group_id, node_group);
     }
 
+    pub fn add_tile_collection(&mut self, collection: TileCollectionAsset) {
+        self.tile_collections.insert(collection.id, collection);
+    }
+
+    pub fn add_tile_subgraph(&mut self, subgraph: TileSubgraphAsset) {
+        self.tile_subgraphs.insert(subgraph.id, subgraph);
+    }
+
     pub fn is_tile_node_group(&self, id: &Uuid) -> bool {
         self.tile_node_groups.contains_key(id)
+    }
+
+    pub fn collection_contains_source(
+        &self,
+        collection_id: &Uuid,
+        source: rusterix::TileSource,
+    ) -> bool {
+        self.tile_collections
+            .get(collection_id)
+            .map(|collection| {
+                collection
+                    .entries
+                    .iter()
+                    .any(|entry| entry.matches_source(source))
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn add_source_to_collection(&mut self, collection_id: &Uuid, source: rusterix::TileSource) {
+        let Some(collection) = self.tile_collections.get_mut(collection_id) else {
+            return;
+        };
+        let entry = match source {
+            rusterix::TileSource::SingleTile(id) => TileCollectionEntry::SingleTile(id),
+            rusterix::TileSource::TileGroup(id) => TileCollectionEntry::TileGroup(id),
+            _ => return,
+        };
+        if !collection.entries.contains(&entry) {
+            collection.entries.push(entry);
+        }
+    }
+
+    pub fn remove_source_from_collections(&mut self, source: rusterix::TileSource) {
+        for collection in self.tile_collections.values_mut() {
+            collection
+                .entries
+                .retain(|entry| !entry.matches_source(source));
+        }
     }
 
     pub fn remove_tile_group(&mut self, id: &Uuid) {
         self.tile_groups.shift_remove(id);
         self.tile_node_groups.shift_remove(id);
         self.tile_board_groups.shift_remove(id);
+        self.remove_source_from_collections(rusterix::TileSource::TileGroup(*id));
     }
 
     pub fn tile_board_position(&self, source: rusterix::TileSource) -> Option<Vec2<i32>> {

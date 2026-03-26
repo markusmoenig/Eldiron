@@ -27,6 +27,8 @@ pub struct Sidebar {
     pub width: i32,
 
     curr_tilemap_uuid: Option<Uuid>,
+    curr_tile_collection_uuid: Option<Uuid>,
+    curr_treasury_package_slug: Option<String>,
 
     pub startup: bool,
 }
@@ -109,6 +111,8 @@ impl Sidebar {
             width: 380,
 
             curr_tilemap_uuid: None,
+            curr_tile_collection_uuid: None,
+            curr_treasury_package_slug: None,
 
             startup: true,
         }
@@ -385,6 +389,24 @@ impl Sidebar {
         text_layout.set_text_align(TheHorizontalAlign::Right);
         node_settings_canvas.set_layout(text_layout);
         action_stack.add_canvas(node_settings_canvas);
+
+        let mut collection_settings_canvas = TheCanvas::default();
+        let mut collection_text_layout = TheTextLayout::new(TheId::named("Collection Settings"));
+        collection_text_layout
+            .limiter_mut()
+            .set_max_width(self.width);
+        collection_text_layout.set_text_margin(20);
+        collection_text_layout.set_text_align(TheHorizontalAlign::Right);
+        collection_settings_canvas.set_layout(collection_text_layout);
+        action_stack.add_canvas(collection_settings_canvas);
+
+        let mut treasury_settings_canvas = TheCanvas::default();
+        let mut treasury_text_layout = TheTextLayout::new(TheId::named("Treasury Settings"));
+        treasury_text_layout.limiter_mut().set_max_width(self.width);
+        treasury_text_layout.set_text_margin(20);
+        treasury_text_layout.set_text_align(TheHorizontalAlign::Right);
+        treasury_settings_canvas.set_layout(treasury_text_layout);
+        action_stack.add_canvas(treasury_settings_canvas);
 
         action_stack.set_index(0);
         action_params_canvas.set_layout(action_stack);
@@ -728,7 +750,7 @@ impl Sidebar {
                     }
                 }
             }
-            TheEvent::Custom(id, _value) => {
+            TheEvent::Custom(id, value) => {
                 if id.name == "Editing Texture Updated" {
                     // Update the avatar perspective icon in the Project Tree
                     if let PixelEditingContext::AvatarFrame(
@@ -886,6 +908,50 @@ impl Sidebar {
                         if let Some(tab) = tab.as_tab_layout() {
                             tab.set_index(1);
                         }
+                    }
+                } else if id.name == "Show Collection Settings" {
+                    if let TheValue::Id(collection_id) = value {
+                        self.curr_tile_collection_uuid = Some(*collection_id);
+                        self.show_collection_settings(ui, ctx, project, *collection_id);
+                    }
+                } else if id.name == "Hide Collection Settings" {
+                    self.curr_tile_collection_uuid = None;
+                    if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack")
+                        && stack.index() == 2
+                    {
+                        stack.set_index(0);
+                    }
+                    if let Some(tab) = ui.get_layout("Multi Tab")
+                        && let Some(tab) = tab.as_tab_layout()
+                    {
+                        tab.set_index(1);
+                    }
+                } else if id.name == "Show Treasury Settings" {
+                    if let TheValue::List(values) = value
+                        && values.len() >= 5
+                    {
+                        let slug = values[0].to_string().unwrap_or_default();
+                        self.curr_treasury_package_slug = Some(slug);
+                        self.show_treasury_settings(
+                            ui,
+                            ctx,
+                            values[1].to_string().unwrap_or_default(),
+                            values[2].to_string().unwrap_or_default(),
+                            values[3].to_string().unwrap_or_default(),
+                            values[4].to_string().unwrap_or_default(),
+                        );
+                    }
+                } else if id.name == "Hide Treasury Settings" {
+                    self.curr_treasury_package_slug = None;
+                    if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack")
+                        && stack.index() == 3
+                    {
+                        stack.set_index(0);
+                    }
+                    if let Some(tab) = ui.get_layout("Multi Tab")
+                        && let Some(tab) = tab.as_tab_layout()
+                    {
+                        tab.set_index(1);
                     }
                 } else if id.name == "Update Content List" {
                     if server_ctx.get_map_context() == MapContext::Region {
@@ -1393,6 +1459,39 @@ impl Sidebar {
                     || id.name == "Region Content Dropdown"
                 {
                     self.apply_region(ui, ctx, Some(server_ctx.curr_region), project);
+                } else if let Some(collection_id) = self.curr_tile_collection_uuid
+                    && let Some(collection) = project.tile_collections.get_mut(&collection_id)
+                {
+                    let mut changed = false;
+                    if id.name == "tileCollectionName" {
+                        if let Some(text) = value.to_string() {
+                            collection.name = text;
+                            changed = true;
+                        }
+                    } else if id.name == "tileCollectionAuthor" {
+                        if let Some(text) = value.to_string() {
+                            collection.author = text;
+                            changed = true;
+                        }
+                    } else if id.name == "tileCollectionVersion" {
+                        if let Some(text) = value.to_string() {
+                            collection.version = text;
+                            changed = true;
+                        }
+                    } else if id.name == "tileCollectionDescription" {
+                        if let Some(text) = value.to_string() {
+                            collection.description = text;
+                            changed = true;
+                        }
+                    }
+                    if changed {
+                        self.show_collection_settings(ui, ctx, project, collection_id);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Tilepicker"),
+                            TheValue::Empty,
+                        ));
+                        redraw = true;
+                    }
                 }
             }
             TheEvent::FileRequesterResult(id, paths) => {
@@ -3841,6 +3940,126 @@ impl Sidebar {
             state.cursor.column = 0;
             state.selection.reset();
             TheTextAreaEditTrait::set_state(edit, state);
+        }
+    }
+
+    fn show_collection_settings(
+        &self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        collection_id: Uuid,
+    ) {
+        if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
+            stack.set_index(2);
+        }
+        if let Some(tab) = ui.get_layout("Multi Tab")
+            && let Some(tab) = tab.as_tab_layout()
+        {
+            tab.set_index(1);
+        }
+
+        let mut nodeui = TheNodeUI::default();
+        if let Some(collection) = project.tile_collections.get(&collection_id) {
+            nodeui.add_item(TheNodeUIItem::Text(
+                "tileCollectionName".into(),
+                "Name".into(),
+                "Set the collection name.".into(),
+                collection.name.clone(),
+                None,
+                false,
+            ));
+            nodeui.add_item(TheNodeUIItem::Text(
+                "tileCollectionAuthor".into(),
+                "Author".into(),
+                "Set the collection author.".into(),
+                collection.author.clone(),
+                None,
+                false,
+            ));
+            nodeui.add_item(TheNodeUIItem::Text(
+                "tileCollectionVersion".into(),
+                "Version".into(),
+                "Set the collection version.".into(),
+                collection.version.clone(),
+                None,
+                false,
+            ));
+            nodeui.add_item(TheNodeUIItem::Text(
+                "tileCollectionDescription".into(),
+                "Description".into(),
+                "Set the collection description.".into(),
+                collection.description.clone(),
+                None,
+                false,
+            ));
+        }
+
+        if let Some(layout) = ui.get_text_layout("Collection Settings") {
+            nodeui.apply_to_text_layout(layout);
+            ctx.ui.relayout = true;
+        }
+    }
+
+    fn show_treasury_settings(
+        &self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        name: String,
+        author: String,
+        version: String,
+        description: String,
+    ) {
+        if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
+            stack.set_index(3);
+        }
+        if let Some(tab) = ui.get_layout("Multi Tab")
+            && let Some(tab) = tab.as_tab_layout()
+        {
+            tab.set_index(1);
+        }
+
+        let mut nodeui = TheNodeUI::default();
+        nodeui.add_item(TheNodeUIItem::Text(
+            "treasuryPackageName".into(),
+            "Name".into(),
+            "Package name.".into(),
+            name,
+            None,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::Text(
+            "treasuryPackageAuthor".into(),
+            "Author".into(),
+            "Package author.".into(),
+            author,
+            None,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::Text(
+            "treasuryPackageVersion".into(),
+            "Version".into(),
+            "Package version.".into(),
+            version,
+            None,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::Text(
+            "treasuryPackageDescription".into(),
+            "Description".into(),
+            "Package description.".into(),
+            description,
+            None,
+            false,
+        ));
+
+        if let Some(layout) = ui.get_text_layout("Treasury Settings") {
+            nodeui.apply_to_text_layout(layout);
+            ctx.ui.set_disabled("treasuryPackageName");
+            ctx.ui.set_disabled("treasuryPackageAuthor");
+            ctx.ui.set_disabled("treasuryPackageVersion");
+            ctx.ui.set_disabled("treasuryPackageDescription");
+            ctx.ui.relayout = true;
         }
     }
 

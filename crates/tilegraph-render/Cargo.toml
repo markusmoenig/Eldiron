@@ -1,0 +1,19 @@
+[package]
+name = "tilegraph-render"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "CLI renderer for Eldiron portable tile node graphs."
+
+[[bin]]
+name = "tilegraph-render"
+path = "src/main.rs"
+
+[dependencies]
+shared = { path = "../shared", version = "0.9.1", package = "eldiron-shared", default-features = false }
+theframework.workspace = true
+serde_json = "1.0"
+image = { version = "0.25.8", default-features = false, features = ["png"] }

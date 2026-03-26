@@ -32,6 +32,7 @@ num_cpus = "1.16.0"
 vek = { version = "0.17", default-features = false, features = ["rgba"] }
 earcutr = "0.5"
 rect_packer = "0.2.1"
+rustc-hash = "2.1.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"

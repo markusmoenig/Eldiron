@@ -3,6 +3,7 @@ pub mod character;
 pub mod context;
 pub mod interaction;
 pub mod item;
+mod patterns;
 pub mod project;
 pub mod region;
 #[cfg(feature = "graphics")]
@@ -10,22 +11,34 @@ pub mod rusterix_utils;
 pub mod screen;
 pub mod text_game;
 pub mod text_session;
+pub mod tilegraph;
 pub mod tilemap;
+pub mod treasury;
 
 pub mod prelude {
-    pub use ::serde::{Deserialize, Serialize};
+    pub use serde::{Deserialize, Serialize};
 
     pub use crate::asset::*;
     pub use crate::character::Character;
     pub use crate::context::*;
     pub use crate::interaction::*;
     pub use crate::item::Item;
-    pub use crate::project::{NodeGroupAsset, Project};
+    pub use crate::project::{
+        NodeGroupAsset, Project, TileCollectionAsset, TileCollectionEntry, TileSubgraphAsset,
+    };
     pub use crate::region::Region;
     pub use crate::screen::*;
     pub use crate::text_game::*;
     pub use crate::text_session::*;
+    pub use crate::tilegraph::{
+        RenderedTileGraph, TileEvalContext, TileGraphRenderer, TileNodeGraphExchange,
+        TileNodeGraphState, TileNodeKind, TileNodeState,
+    };
     pub use crate::tilemap::{Tile, Tilemap};
+    pub use crate::treasury::{
+        TreasuryIndex, TreasuryIndexCategories, TreasuryPackageManifest, TreasuryPackageMetadata,
+        TreasuryPackageSummary, TreasuryTileCollectionPackage,
+    };
     pub use indexmap::IndexMap;
     pub use rusterix::{
         Avatar, AvatarAnimation, AvatarAnimationFrame, AvatarDirection, AvatarPerspective,
