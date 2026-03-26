@@ -267,6 +267,7 @@ impl NodeEditor {
         for (index, node) in self.graph.nodes.iter().enumerate() {
             let n = TheNode {
                 name: node.name(),
+                status_text: None,
                 position: node.position,
                 inputs: node.inputs(),
                 outputs: node.outputs(),

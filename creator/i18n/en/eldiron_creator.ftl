@@ -190,6 +190,7 @@ tool_rect = Rect Tool (R). Click to draw the current tile. Shift-click to delete
 tool_sector = Sector Tool (E).
 tool_vertex = Vertex Tool (V). 'Shift' + Click to create a new vertex.
 tool_entity = Entity Tool (Y). Place, move, select, and delete game entities.
+tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
 
 # Common
 all = All

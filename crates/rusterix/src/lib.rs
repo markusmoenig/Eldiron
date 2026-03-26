@@ -146,6 +146,11 @@ pub use crate::{
         linedef::Linedef,
         meta::MapMeta,
         mini::MapMini,
+        organic::{
+            OrganicBrushGraph, OrganicBrushNode, OrganicBushCluster, OrganicChannelBinding,
+            OrganicColumn, OrganicNodeKind, OrganicSpan, OrganicVineStroke, OrganicVolumeLayer,
+            default_organic_bush_clusters, default_organic_layers, default_organic_vine_strokes,
+        },
         particle::{Particle, ParticleEmitter},
         pixelsource::NoiseTarget,
         pixelsource::PixelSource,
@@ -226,9 +231,12 @@ pub mod prelude {
     pub use crate::{D3Camera, D3FirstPCamera, D3IsoCamera, D3OrbitCamera};
     pub use crate::{GridShader, Shader, VGrayGradientShader};
     pub use crate::{
-        Keyform, Light, LightType, Map, MapMeta, MapToolType, NoiseTarget, Particle,
+        Keyform, Light, LightType, Map, MapMeta, MapToolType, NoiseTarget, OrganicBrushGraph,
+        OrganicBrushNode, OrganicBushCluster, OrganicChannelBinding, OrganicColumn,
+        OrganicNodeKind, OrganicSpan, OrganicVineStroke, OrganicVolumeLayer, Particle,
         ParticleEmitter, PixelSource, Sector, SoftRig, SoftRigAnimator, Tile, TileGroup,
-        TileGroupMemberRef, TileRole, TileSource, Vertex,
+        TileGroupMemberRef, TileRole, TileSource, Vertex, default_organic_bush_clusters,
+        default_organic_layers, default_organic_vine_strokes,
     };
     pub use crate::{Material, MaterialModifier, MaterialRole};
     pub use crate::{

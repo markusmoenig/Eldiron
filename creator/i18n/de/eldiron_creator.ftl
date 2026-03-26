@@ -175,6 +175,7 @@ tool_rect = Rect-Tool (R). Klicken, um die aktuelle Kachel zu zeichnen. Shift-Kl
 tool_sector = Sektor-Tool (E).
 tool_vertex = Vertex-Tool (V). 'Shift' + Klick erstellt einen neuen Vertex.
 tool_entity = Entity-Tool (Y). Spiel-Entitäten platzieren, verschieben, auswählen und löschen.
+tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
 
 # Common
 all = Alle

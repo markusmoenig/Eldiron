@@ -1,4 +1,8 @@
-use crate::{Map, Sector};
+use crate::{
+    Map, OrganicBushCluster, OrganicVineStroke, OrganicVolumeLayer, Sector,
+    default_organic_bush_clusters, default_organic_layers, default_organic_vine_strokes,
+};
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vek::{Vec2, Vec3};
@@ -194,6 +198,18 @@ pub struct Surface {
     /// Uuid of the Profile
     pub profile: Option<Uuid>,
 
+    /// Surface-local organic paint volumes authored on top of this surface.
+    #[serde(default = "default_organic_layers")]
+    pub organic_layers: IndexMap<Uuid, OrganicVolumeLayer>,
+
+    /// Surface-local vine strokes authored on top of this surface.
+    #[serde(default = "default_organic_vine_strokes")]
+    pub organic_vine_strokes: Vec<OrganicVineStroke>,
+
+    /// Surface-local bush foliage clusters authored on top of this surface.
+    #[serde(default = "default_organic_bush_clusters")]
+    pub organic_bush_clusters: Vec<OrganicBushCluster>,
+
     /// Optional, the vertices of the surface in world coordinates, used in cases where we need to pass standalone surfaces.
     #[serde(skip)]
     pub world_vertices: Vec<Vec3<f32>>,
@@ -209,8 +225,47 @@ impl Surface {
             edit_uv: EditPlane::default(),
             extrusion: ExtrusionSpec::default(),
             profile: None,
+            organic_layers: IndexMap::default(),
+            organic_vine_strokes: Vec::new(),
+            organic_bush_clusters: Vec::new(),
             world_vertices: vec![],
         }
+    }
+
+    pub fn main_organic_layer_mut(&mut self) -> &mut OrganicVolumeLayer {
+        if self.organic_layers.is_empty() {
+            let layer = OrganicVolumeLayer::default();
+            let id = layer.id;
+            self.organic_layers.insert(id, layer);
+        }
+        self.organic_layers
+            .first_mut()
+            .map(|(_, layer)| layer)
+            .expect("surface organic layer must exist")
+    }
+
+    pub fn organic_layer_for_cell_size_mut(&mut self, cell_size: f32) -> &mut OrganicVolumeLayer {
+        let target = cell_size.max(0.05);
+        if let Some(id) = self
+            .organic_layers
+            .iter()
+            .find(|(_, layer)| (layer.cell_size - target).abs() <= 0.001)
+            .map(|(id, _)| *id)
+        {
+            return self
+                .organic_layers
+                .get_mut(&id)
+                .expect("surface organic layer must exist");
+        }
+
+        let mut layer = OrganicVolumeLayer::default();
+        layer.name = format!("Organic {:.2}", target);
+        layer.cell_size = target;
+        let id = layer.id;
+        self.organic_layers.insert(id, layer);
+        self.organic_layers
+            .get_mut(&id)
+            .expect("surface organic layer must exist")
     }
 
     /// Returns true if the surface has valid (finite) transform values

@@ -1,7 +1,11 @@
-use crate::Terrain;
 use crate::{
     Assets, BBox, Batch2D, Batch3D, Linedef, Map, PixelSource, ShapeFXModifierPass, Texture, Value,
 };
+use crate::{
+    OrganicBushCluster, OrganicVineStroke, OrganicVolumeLayer, Terrain,
+    default_organic_bush_clusters, default_organic_layers, default_organic_vine_strokes,
+};
+use indexmap::IndexMap;
 use theframework::prelude::*;
 use vek::Vec2;
 
@@ -30,6 +34,12 @@ pub struct TerrainChunk {
     pub sources: FxHashMap<(i32, i32), PixelSource>,
     #[serde(with = "vectorize")]
     pub blend_modes: FxHashMap<(i32, i32), TerrainBlendMode>,
+    #[serde(default = "default_organic_layers")]
+    pub organic_layers: IndexMap<Uuid, OrganicVolumeLayer>,
+    #[serde(default = "default_organic_vine_strokes")]
+    pub organic_vine_strokes: Vec<OrganicVineStroke>,
+    #[serde(default = "default_organic_bush_clusters")]
+    pub organic_bush_clusters: Vec<OrganicBushCluster>,
     pub dirty: bool,
 }
 
@@ -42,8 +52,47 @@ impl TerrainChunk {
             processed_heights: None,
             sources: FxHashMap::default(),
             blend_modes: FxHashMap::default(),
+            organic_layers: IndexMap::default(),
+            organic_vine_strokes: Vec::new(),
+            organic_bush_clusters: Vec::new(),
             dirty: true,
         }
+    }
+
+    pub fn main_organic_layer_mut(&mut self) -> &mut OrganicVolumeLayer {
+        if self.organic_layers.is_empty() {
+            let layer = OrganicVolumeLayer::default();
+            let id = layer.id;
+            self.organic_layers.insert(id, layer);
+        }
+        self.organic_layers
+            .first_mut()
+            .map(|(_, layer)| layer)
+            .expect("terrain organic layer must exist")
+    }
+
+    pub fn organic_layer_for_cell_size_mut(&mut self, cell_size: f32) -> &mut OrganicVolumeLayer {
+        let target = cell_size.max(0.05);
+        if let Some(id) = self
+            .organic_layers
+            .iter()
+            .find(|(_, layer)| (layer.cell_size - target).abs() <= 0.001)
+            .map(|(id, _)| *id)
+        {
+            return self
+                .organic_layers
+                .get_mut(&id)
+                .expect("terrain organic layer must exist");
+        }
+
+        let mut layer = OrganicVolumeLayer::default();
+        layer.name = format!("Organic {:.2}", target);
+        layer.cell_size = target;
+        let id = layer.id;
+        self.organic_layers.insert(id, layer);
+        self.organic_layers
+            .get_mut(&id)
+            .expect("terrain organic layer must exist")
     }
 
     pub fn world_to_local(&self, world: Vec2<i32>) -> Vec2<i32> {

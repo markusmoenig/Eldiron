@@ -4,6 +4,7 @@ pub mod light;
 pub mod linedef;
 pub mod meta;
 pub mod mini;
+pub mod organic;
 pub mod particle;
 pub mod pixelsource;
 pub mod sector;
@@ -14,8 +15,8 @@ pub mod tilesource;
 pub mod vertex;
 
 use crate::{
-    BBox, Keyform, MapMini, PixelSource, ShapeFXGraph, SoftRig, SoftRigAnimator, Surface, Terrain,
-    Value, ValueContainer,
+    BBox, Keyform, MapMini, OrganicBrushGraph, PixelSource, ShapeFXGraph, SoftRig, SoftRigAnimator,
+    Surface, Terrain, Value, ValueContainer,
 };
 use codegridfx::Module;
 use indexmap::IndexMap;
@@ -85,6 +86,8 @@ pub struct Map {
 
     #[serde(default)]
     pub shapefx_graphs: IndexMap<Uuid, ShapeFXGraph>,
+    #[serde(default)]
+    pub organic_brush_graphs: IndexMap<Uuid, OrganicBrushGraph>,
 
     pub sky_texture: Option<Uuid>,
 
@@ -174,6 +177,7 @@ impl Map {
             sectors: vec![],
 
             shapefx_graphs: IndexMap::default(),
+            organic_brush_graphs: IndexMap::default(),
             sky_texture: None,
 
             camera: MapCamera::TwoD,
@@ -1816,6 +1820,7 @@ impl Map {
             sectors: self.sectors.clone(),
 
             shapefx_graphs: self.shapefx_graphs.clone(),
+            organic_brush_graphs: self.organic_brush_graphs.clone(),
             sky_texture: None,
 
             camera: self.camera,

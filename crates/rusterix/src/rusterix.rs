@@ -470,6 +470,9 @@ impl Rusterix {
             all_tiles.entry(tile_id).or_insert_with(|| {
                 let mut t = Tile::from_texture(Texture::from_color(col.to_u8_array()));
                 t.id = tile_id;
+                for texture in &mut t.textures {
+                    texture.set_materials_all(1.0, 0.0, 1.0, 1.0);
+                }
                 t
             });
         }

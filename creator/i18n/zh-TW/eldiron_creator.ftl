@@ -175,6 +175,7 @@ tool_rect = 矩形工具 (R)。點擊繪製當前圖塊，按住 Shift 點擊刪
 tool_sector = 區域工具 (E)
 tool_vertex = 頂點工具 (V)。按住 'Shift' + 點擊可建立新頂點。
 tool_entity = 實體工具 (Y)。放置、移動、選擇和刪除遊戲實體。
+tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
 
 # Common
 all = 全部

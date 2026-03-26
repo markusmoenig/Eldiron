@@ -50,6 +50,10 @@ impl Terrain {
         })
     }
 
+    pub fn get_or_create_chunk_mut(&mut self, x: i32, y: i32) -> &mut TerrainChunk {
+        self.get_or_create_chunk(x, y)
+    }
+
     /// Get the unprocessed height at the given world coordinate
     pub fn get_height_unprocessed(&self, x: i32, y: i32) -> Option<f32> {
         let chunk_coords = self.get_chunk_coords(x, y);

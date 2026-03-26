@@ -118,6 +118,7 @@ impl ToolList {
             Box::new(LinedefTool::new()),
             Box::new(SectorTool::new()),
             Box::new(RectTool::new()),
+            Box::new(crate::tools::organic::OrganicTool::new()),
             Box::new(crate::tools::entity::EntityTool::new()),
             // Box::new(RenderTool::new()),
             // Box::new(TerrainTool::new()),
@@ -941,6 +942,20 @@ impl ToolList {
                 if id.name == "PolyView" {
                     if server_ctx.editor_view_mode == EditorViewMode::D2 {
                         // Map dragging handled by tools.
+                    }
+
+                    if server_ctx.editor_view_mode != EditorViewMode::D2
+                        && let Some(render_view) = ui.get_render_view("PolyView")
+                    {
+                        if let Some(rc) =
+                            self.get_geometry_hit(render_view, *coord, project, server_ctx)
+                        {
+                            server_ctx.geo_hit = Some(rc.0);
+                            server_ctx.geo_hit_pos = rc.1;
+                        } else {
+                            server_ctx.geo_hit = None;
+                            server_ctx.geo_hit_pos = Vec3::zero();
+                        }
                     }
 
                     if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
@@ -2053,7 +2068,15 @@ impl ToolList {
         let mut rusterix = RUSTERIX.write().unwrap();
 
         server_ctx.hover_cursor_3d = None;
+        server_ctx.hover_ray_dir_3d = None;
         server_ctx.hover_surface = None;
+        if let Some((_, ray_dir)) = rusterix.scene_handler.vm.ray_from_uv_with_size(
+            dim.width as u32,
+            dim.height as u32,
+            screen_uv,
+        ) {
+            server_ctx.hover_ray_dir_3d = Some(ray_dir);
+        }
         if let Some(raw) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
             dim.width as u32,
             dim.height as u32,

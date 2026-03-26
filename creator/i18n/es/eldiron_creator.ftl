@@ -175,6 +175,7 @@ tool_rect = Herramienta de rectángulo (R). Clic para dibujar la baldosa actual.
 tool_sector = Herramienta de sector (E).
 tool_vertex = Herramienta de vértice (V). 'Shift' + clic para crear un nuevo vértice.
 tool_entity = Herramienta de entidad (Y). Coloca, mueve, selecciona y elimina entidades del juego.
+tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
 
 # Common
 all = Todo

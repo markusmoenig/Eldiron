@@ -7,6 +7,7 @@ pub struct TheNodeTerminal {
 
 pub struct TheNode {
     pub name: String,
+    pub status_text: Option<String>,
     pub position: Vec2<i32>,
 
     pub inputs: Vec<TheNodeTerminal>,

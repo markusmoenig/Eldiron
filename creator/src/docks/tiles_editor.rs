@@ -3162,6 +3162,7 @@ impl TilesEditorDock {
                     TileNodeKind::OutputRoot => {
                         canvas.nodes.push(TheNode {
                             name: "Tile Group Output".to_string(),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![
                                 TheNodeTerminal {
@@ -3183,6 +3184,7 @@ impl TilesEditorDock {
                     TileNodeKind::GroupUV => {
                         canvas.nodes.push(TheNode {
                             name: "Group UV".to_string(),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![],
                             outputs: vec![TheNodeTerminal {
@@ -3198,6 +3200,7 @@ impl TilesEditorDock {
                     TileNodeKind::Scalar { value } => {
                         canvas.nodes.push(TheNode {
                             name: format!("Scalar {:.2}", value),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![],
                             outputs: vec![TheNodeTerminal {
@@ -3218,6 +3221,7 @@ impl TilesEditorDock {
                         };
                         canvas.nodes.push(TheNode {
                             name: name.to_string(),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![],
                             outputs: vec![TheNodeTerminal {
@@ -3233,6 +3237,7 @@ impl TilesEditorDock {
                     TileNodeKind::Color { color: _ } => {
                         canvas.nodes.push(TheNode {
                             name: "Color".to_string(),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![],
                             outputs: vec![TheNodeTerminal {
@@ -3248,6 +3253,7 @@ impl TilesEditorDock {
                     TileNodeKind::PaletteColor { index: _ } => {
                         canvas.nodes.push(TheNode {
                             name: "Palette Index".to_string(),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![],
                             outputs: vec![TheNodeTerminal {
@@ -3263,6 +3269,7 @@ impl TilesEditorDock {
                     TileNodeKind::Mix { factor } => {
                         canvas.nodes.push(TheNode {
                             name: format!("Mix {:.2}", factor),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![
                                 TheNodeTerminal {
@@ -3287,6 +3294,7 @@ impl TilesEditorDock {
                     TileNodeKind::Checker { .. } => {
                         canvas.nodes.push(TheNode {
                             name: "Checker".to_string(),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![
                                 TheNodeTerminal {
@@ -3311,6 +3319,7 @@ impl TilesEditorDock {
                     TileNodeKind::Noise { .. } => {
                         canvas.nodes.push(TheNode {
                             name: "Noise".to_string(),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![],
                             outputs: vec![TheNodeTerminal {
@@ -3326,6 +3335,7 @@ impl TilesEditorDock {
                     TileNodeKind::Voronoi { .. } => {
                         canvas.nodes.push(TheNode {
                             name: "Voronoi".to_string(),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![],
                             outputs: vec![TheNodeTerminal {
@@ -3341,6 +3351,7 @@ impl TilesEditorDock {
                     TileNodeKind::Offset { x, y } => {
                         canvas.nodes.push(TheNode {
                             name: format!("Offset {:.2},{:.2}", x, y),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![TheNodeTerminal {
                                 name: "In".to_string(),
@@ -3359,6 +3370,7 @@ impl TilesEditorDock {
                     TileNodeKind::Scale { x, y } => {
                         canvas.nodes.push(TheNode {
                             name: format!("Scale {:.2},{:.2}", x, y),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![TheNodeTerminal {
                                 name: "In".to_string(),
@@ -3377,6 +3389,7 @@ impl TilesEditorDock {
                     TileNodeKind::Repeat { repeat_x, repeat_y } => {
                         canvas.nodes.push(TheNode {
                             name: format!("Repeat {:.1}x{:.1}", repeat_x, repeat_y),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![TheNodeTerminal {
                                 name: "In".to_string(),
@@ -3395,6 +3408,7 @@ impl TilesEditorDock {
                     TileNodeKind::Rotate { angle } => {
                         canvas.nodes.push(TheNode {
                             name: format!("Rotate {:.0}", angle),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![TheNodeTerminal {
                                 name: "In".to_string(),
@@ -3417,6 +3431,7 @@ impl TilesEditorDock {
                     } => {
                         canvas.nodes.push(TheNode {
                             name: format!("Brick {}x{} {:.2}", columns, rows, offset),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![
                                 TheNodeTerminal {
@@ -3441,6 +3456,7 @@ impl TilesEditorDock {
                     TileNodeKind::Multiply => {
                         canvas.nodes.push(TheNode {
                             name: "Multiply".to_string(),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![
                                 TheNodeTerminal {
@@ -3465,6 +3481,7 @@ impl TilesEditorDock {
                     TileNodeKind::MakeMaterial => {
                         canvas.nodes.push(TheNode {
                             name: "Make Material".to_string(),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![
                                 TheNodeTerminal {
@@ -3505,6 +3522,7 @@ impl TilesEditorDock {
                                 "Material {:.2}/{:.2}/{:.2}/{:.2}",
                                 roughness, metallic, opacity, emissive
                             ),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![],
                             outputs: vec![TheNodeTerminal {
@@ -3520,6 +3538,7 @@ impl TilesEditorDock {
                     TileNodeKind::MaterialMix { factor } => {
                         canvas.nodes.push(TheNode {
                             name: format!("Material Mix {:.2}", factor),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![
                                 TheNodeTerminal {
@@ -3548,6 +3567,7 @@ impl TilesEditorDock {
                     TileNodeKind::MaskBlend { factor } => {
                         canvas.nodes.push(TheNode {
                             name: format!("Mask Blend {:.2}", factor),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![
                                 TheNodeTerminal {
@@ -3576,6 +3596,7 @@ impl TilesEditorDock {
                     TileNodeKind::Levels { low, high } => {
                         canvas.nodes.push(TheNode {
                             name: format!("Levels {:.2}-{:.2}", low, high),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![TheNodeTerminal {
                                 name: "In".to_string(),
@@ -3594,6 +3615,7 @@ impl TilesEditorDock {
                     TileNodeKind::Threshold { cutoff } => {
                         canvas.nodes.push(TheNode {
                             name: format!("Threshold {:.2}", cutoff),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![TheNodeTerminal {
                                 name: "In".to_string(),
@@ -3612,6 +3634,7 @@ impl TilesEditorDock {
                     TileNodeKind::Warp { amount } => {
                         canvas.nodes.push(TheNode {
                             name: format!("Warp {:.2}", amount),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![
                                 TheNodeTerminal {
@@ -3636,6 +3659,7 @@ impl TilesEditorDock {
                     TileNodeKind::Invert => {
                         canvas.nodes.push(TheNode {
                             name: "Invert".to_string(),
+                            status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![TheNodeTerminal {
                                 name: "In".to_string(),

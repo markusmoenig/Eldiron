@@ -203,26 +203,37 @@ impl TheWidget for TheNodeCanvasView {
                         ) {
                             if source_node_index != dest_node_index && source_output != dest_output
                             {
-                                if source_output {
-                                    self.canvas.connections.push((
+                                let connection = if source_output {
+                                    (
                                         source_node_index as u16,
                                         source_terminal_index,
                                         dest_node_index as u16,
                                         dest_terminal_index,
-                                    ));
+                                    )
                                 } else {
-                                    self.canvas.connections.push((
+                                    (
                                         dest_node_index as u16,
                                         dest_terminal_index,
                                         source_node_index as u16,
                                         source_terminal_index,
+                                    )
+                                };
+
+                                if self.is_valid_connection(connection)
+                                    && !self.canvas.connections.contains(&connection)
+                                {
+                                    self.canvas.connections.retain(
+                                        |(_, _, existing_dest_node, existing_dest_terminal)| {
+                                            *existing_dest_node != connection.2
+                                                || *existing_dest_terminal != connection.3
+                                        },
+                                    );
+                                    self.canvas.connections.push(connection);
+                                    ctx.ui.send(TheEvent::NodeConnectionAdded(
+                                        self.id().clone(),
+                                        self.canvas.connections.clone(),
                                     ));
                                 }
-
-                                ctx.ui.send(TheEvent::NodeConnectionAdded(
-                                    self.id().clone(),
-                                    self.canvas.connections.clone(),
-                                ));
                             }
                         }
                     }
@@ -306,6 +317,17 @@ impl TheWidget for TheNodeCanvasView {
                     self.is_dirty = true;
                     ctx.ui.set_hover(self.id());
                     redraw = true;
+                }
+                if let Some(index) = self.node_index_at(_coord) {
+                    if let Some(node) = self.canvas.nodes.get(index) {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            self.id().clone(),
+                            node.status_text.clone().unwrap_or_default(),
+                        ));
+                    }
+                } else {
+                    ctx.ui
+                        .send(TheEvent::SetStatusText(self.id().clone(), String::new()));
                 }
             }
             TheEvent::MouseWheel(delta) => {
@@ -898,6 +920,25 @@ impl TheWidget for TheNodeCanvasView {
 
     fn as_node_canvas_view(&mut self) -> Option<&mut dyn TheNodeCanvasViewTrait> {
         Some(self)
+    }
+}
+
+impl TheNodeCanvasView {
+    fn is_valid_connection(&self, connection: (u16, u8, u16, u8)) -> bool {
+        let Some(source_node) = self.canvas.nodes.get(connection.0 as usize) else {
+            return false;
+        };
+        let Some(dest_node) = self.canvas.nodes.get(connection.2 as usize) else {
+            return false;
+        };
+        let Some(source_terminal) = source_node.outputs.get(connection.1 as usize) else {
+            return false;
+        };
+        let Some(dest_terminal) = dest_node.inputs.get(connection.3 as usize) else {
+            return false;
+        };
+
+        source_terminal.category_name == dest_terminal.category_name
     }
 }
 

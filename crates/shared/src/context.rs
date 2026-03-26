@@ -412,6 +412,8 @@ pub struct ServerContext {
 
     /// The current 3d hover position
     pub hover_cursor_3d: Option<Vec3<f32>>,
+    /// Ray direction for the current 3D hover hit.
+    pub hover_ray_dir_3d: Option<Vec3<f32>>,
 
     /// The hovered surface resolved from the raw 3D scene hit, if any.
     pub hover_surface: Option<Surface>,
@@ -591,6 +593,7 @@ impl ServerContext {
             hover: (None, None, None),
             hover_cursor: None,
             hover_cursor_3d: None,
+            hover_ray_dir_3d: None,
             hover_surface: None,
             active_detail_surface: None,
             hover_height: None,
