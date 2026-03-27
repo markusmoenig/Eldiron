@@ -301,7 +301,7 @@ impl Dock for TilesEditorDock {
 
         let mut add_button = TheTraybarButton::new(TheId::named("Tile Node Add"));
         add_button.set_text("Add".to_string());
-        add_button.set_status_text("Add generator, pattern, compose, or subgraph nodes.");
+        add_button.set_status_text("Add source, layout, transform, sculpt, or compose nodes.");
         let mut generator_menu = TheContextMenu::default();
         generator_menu.id = TheId::named("Tile Node Add Generators");
         generator_menu.add(TheContextMenuItem::new(
@@ -321,10 +321,6 @@ impl Dock for TilesEditorDock {
             TheId::named("Tile Node Add Palette Color"),
         ));
         generator_menu.add(TheContextMenuItem::new(
-            "Material".to_string(),
-            TheId::named("Tile Node Add Material"),
-        ));
-        generator_menu.add(TheContextMenuItem::new(
             "Make Material".to_string(),
             TheId::named("Tile Node Add Make Material"),
         ));
@@ -333,20 +329,12 @@ impl Dock for TilesEditorDock {
             TheId::named("Tile Node Add Noise"),
         ));
         generator_menu.add(TheContextMenuItem::new(
-            "Voronoi".to_string(),
-            TheId::named("Tile Node Add Voronoi"),
-        ));
-        generator_menu.add(TheContextMenuItem::new(
             "Id Random".to_string(),
             TheId::named("Tile Node Add Id Random"),
         ));
         generator_menu.add(TheContextMenuItem::new(
-            "Box Divide".to_string(),
-            TheId::named("Tile Node Add Box Divide"),
-        ));
-        generator_menu.add(TheContextMenuItem::new(
-            "Brick".to_string(),
-            TheId::named("Tile Node Add Brick"),
+            "Gradient".to_string(),
+            TheId::named("Tile Node Add Gradient"),
         ));
 
         let mut palette_menu = TheContextMenu::default();
@@ -360,11 +348,23 @@ impl Dock for TilesEditorDock {
             TheId::named("Tile Node Add Nearest Palette"),
         ));
 
-        let mut pattern_menu = TheContextMenu::default();
-        pattern_menu.id = TheId::named("Tile Node Add Pattern");
-        pattern_menu.add(TheContextMenuItem::new(
-            "Gradient".to_string(),
-            TheId::named("Tile Node Add Gradient"),
+        let mut layout_menu = TheContextMenu::default();
+        layout_menu.id = TheId::named("Tile Node Add Layouts");
+        layout_menu.add(TheContextMenuItem::new(
+            "Voronoi".to_string(),
+            TheId::named("Tile Node Add Voronoi"),
+        ));
+        layout_menu.add(TheContextMenuItem::new(
+            "Box Divide".to_string(),
+            TheId::named("Tile Node Add Box Divide"),
+        ));
+        layout_menu.add(TheContextMenuItem::new(
+            "Brick".to_string(),
+            TheId::named("Tile Node Add Brick"),
+        ));
+        layout_menu.add(TheContextMenuItem::new(
+            "Disc".to_string(),
+            TheId::named("Tile Node Add Disc"),
         ));
 
         let mut transform_menu = TheContextMenu::default();
@@ -463,9 +463,9 @@ impl Dock for TilesEditorDock {
                 generator_menu,
             ),
             TheContextMenuItem::new_submenu(
-                "Pattern".to_string(),
-                TheId::named("Tile Node Add Pattern"),
-                pattern_menu,
+                "Layouts".to_string(),
+                TheId::named("Tile Node Add Layouts"),
+                layout_menu,
             ),
             TheContextMenuItem::new_submenu(
                 "Palette".to_string(),
@@ -694,6 +694,8 @@ impl Dock for TilesEditorDock {
                             scale: 0.2,
                             seed: 1,
                             jitter: 1.0,
+                            warp_amount: 0.0,
+                            falloff: 1.0,
                         });
                         return true;
                     } else if item_id.name == "Tile Node Add Id Random" {
@@ -701,10 +703,12 @@ impl Dock for TilesEditorDock {
                         return true;
                     } else if item_id.name == "Tile Node Add Box Divide" {
                         push_node(TileNodeKind::BoxDivide {
-                            scale: 6.0,
+                            scale: 1.0,
                             gap: 1.0,
                             rotation: 0.15,
                             rounding: 0.04,
+                            warp_amount: 0.0,
+                            falloff: 1.0,
                         });
                         return true;
                     } else if item_id.name == "Tile Node Add Repeat" {
@@ -733,6 +737,18 @@ impl Dock for TilesEditorDock {
                             columns: 6,
                             rows: 6,
                             offset: 0.5,
+                            warp_amount: 0.0,
+                            falloff: 1.0,
+                        });
+                        return true;
+                    } else if item_id.name == "Tile Node Add Disc" {
+                        push_node(TileNodeKind::Disc {
+                            scale: 0.2,
+                            seed: 1,
+                            jitter: 1.0,
+                            radius: 0.75,
+                            warp_amount: 0.0,
+                            falloff: 1.0,
                         });
                         return true;
                     } else if item_id.name == "Tile Node Add Levels" {
@@ -766,14 +782,6 @@ impl Dock for TilesEditorDock {
                     if item_id.name == "Tile Node Add Color" {
                         push_node(TileNodeKind::Color {
                             color: TheColor::from_u8_array_3([255, 255, 255]),
-                        });
-                        return true;
-                    } else if item_id.name == "Tile Node Add Material" {
-                        push_node(TileNodeKind::Material {
-                            roughness: 0.5,
-                            metallic: 0.0,
-                            opacity: 1.0,
-                            emissive: 0.0,
                         });
                         return true;
                     } else if item_id.name == "Tile Node Add Make Material" {
@@ -1274,11 +1282,12 @@ impl Dock for TilesEditorDock {
                                 gap,
                                 rotation,
                                 rounding,
+                                ..
                             } = &mut node.kind
                             && let Some(new_value) = value.to_f32()
                         {
                             let (target, new_value) = if id.name == "tileNodeBoxDivideScale" {
-                                (scale, new_value.clamp(1.0, 32.0))
+                                (scale, new_value.clamp(0.1, 3.0))
                             } else if id.name == "tileNodeBoxDivideGap" {
                                 (gap, new_value.clamp(0.0, 4.0))
                             } else if id.name == "tileNodeBoxDivideRotation" {
@@ -1390,15 +1399,14 @@ impl Dock for TilesEditorDock {
                                 graph_changed = true;
                             }
                         }
-                    } else if id.name == "tileNodeMaterialRoughness"
-                        || id.name == "tileNodeMaterialMetallic"
-                        || id.name == "tileNodeMaterialOpacity"
-                        || id.name == "tileNodeMaterialEmissive"
+                    } else if id.name == "tileNodeOutputRoughness"
+                        || id.name == "tileNodeOutputMetallic"
+                        || id.name == "tileNodeOutputOpacity"
+                        || id.name == "tileNodeOutputEmissive"
                     {
                         let mut state = self.node_graph_state_for_group(project, group_id);
-                        if let Some(index) = state.selected_node
-                            && let Some(node) = state.nodes.get_mut(index)
-                            && let TileNodeKind::Material {
+                        if let Some(node) = state.nodes.get_mut(0)
+                            && let TileNodeKind::OutputRoot {
                                 roughness,
                                 metallic,
                                 opacity,
@@ -1407,11 +1415,11 @@ impl Dock for TilesEditorDock {
                             && let Some(new_value) = value.to_f32()
                         {
                             let new_value = new_value.clamp(0.0, 1.0);
-                            let target = if id.name == "tileNodeMaterialRoughness" {
+                            let target = if id.name == "tileNodeOutputRoughness" {
                                 roughness
-                            } else if id.name == "tileNodeMaterialMetallic" {
+                            } else if id.name == "tileNodeOutputMetallic" {
                                 metallic
-                            } else if id.name == "tileNodeMaterialOpacity" {
+                            } else if id.name == "tileNodeOutputOpacity" {
                                 opacity
                             } else {
                                 emissive
@@ -1541,6 +1549,8 @@ impl Dock for TilesEditorDock {
                     } else if id.name == "tileNodeBrickColumns"
                         || id.name == "tileNodeBrickRows"
                         || id.name == "tileNodeBrickOffset"
+                        || id.name == "tileNodeBrickWarpAmount"
+                        || id.name == "tileNodeBrickFalloff"
                     {
                         let mut state = self.node_graph_state_for_group(project, group_id);
                         if let Some(index) = state.selected_node
@@ -1549,6 +1559,8 @@ impl Dock for TilesEditorDock {
                                 columns,
                                 rows,
                                 offset,
+                                warp_amount,
+                                falloff,
                             } = &mut node.kind
                         {
                             let mut changed = false;
@@ -1560,6 +1572,22 @@ impl Dock for TilesEditorDock {
                                         changed = true;
                                     }
                                 }
+                            } else if id.name == "tileNodeBrickWarpAmount" {
+                                if let Some(new_warp_amount) = value.to_f32() {
+                                    let new_warp_amount = new_warp_amount.clamp(0.0, 0.25);
+                                    if (*warp_amount - new_warp_amount).abs() > f32::EPSILON {
+                                        *warp_amount = new_warp_amount;
+                                        changed = true;
+                                    }
+                                }
+                            } else if id.name == "tileNodeBrickFalloff" {
+                                if let Some(new_falloff) = value.to_f32() {
+                                    let new_falloff = new_falloff.clamp(0.1, 4.0);
+                                    if (*falloff - new_falloff).abs() > f32::EPSILON {
+                                        *falloff = new_falloff;
+                                        changed = true;
+                                    }
+                                }
                             } else if let Some(new_value) = value.to_i32() {
                                 let new_value = new_value.clamp(1, 64) as u16;
                                 if id.name == "tileNodeBrickColumns" && *columns != new_value {
@@ -1567,6 +1595,56 @@ impl Dock for TilesEditorDock {
                                     changed = true;
                                 } else if id.name == "tileNodeBrickRows" && *rows != new_value {
                                     *rows = new_value;
+                                    changed = true;
+                                }
+                            }
+                            if changed {
+                                self.store_node_graph_state(project, group_id, &state);
+                                graph_changed = true;
+                            }
+                        }
+                    } else if id.name == "tileNodeDiscScale"
+                        || id.name == "tileNodeDiscSeed"
+                        || id.name == "tileNodeDiscJitter"
+                        || id.name == "tileNodeDiscRadius"
+                        || id.name == "tileNodeDiscWarpAmount"
+                        || id.name == "tileNodeDiscFalloff"
+                    {
+                        let mut state = self.node_graph_state_for_group(project, group_id);
+                        if let Some(index) = state.selected_node
+                            && let Some(node) = state.nodes.get_mut(index)
+                            && let TileNodeKind::Disc {
+                                scale,
+                                seed,
+                                jitter,
+                                radius,
+                                warp_amount,
+                                falloff,
+                            } = &mut node.kind
+                        {
+                            let mut changed = false;
+                            if id.name == "tileNodeDiscSeed" {
+                                if let Some(new_seed) = value.to_i32() {
+                                    let new_seed = new_seed.clamp(0, 9999) as u32;
+                                    if *seed != new_seed {
+                                        *seed = new_seed;
+                                        changed = true;
+                                    }
+                                }
+                            } else if let Some(new_value) = value.to_f32() {
+                                let (target, new_value) = if id.name == "tileNodeDiscScale" {
+                                    (scale, new_value.clamp(0.01, 1.0))
+                                } else if id.name == "tileNodeDiscJitter" {
+                                    (jitter, new_value.clamp(0.0, 1.0))
+                                } else if id.name == "tileNodeDiscRadius" {
+                                    (radius, new_value.clamp(0.05, 1.0))
+                                } else if id.name == "tileNodeDiscWarpAmount" {
+                                    (warp_amount, new_value.clamp(0.0, 0.25))
+                                } else {
+                                    (falloff, new_value.clamp(0.1, 4.0))
+                                };
+                                if (*target - new_value).abs() > f32::EPSILON {
+                                    *target = new_value;
                                     changed = true;
                                 }
                             }
@@ -1613,6 +1691,73 @@ impl Dock for TilesEditorDock {
                             let new_jitter = new_jitter.clamp(0.0, 1.0);
                             if (*jitter - new_jitter).abs() > f32::EPSILON {
                                 *jitter = new_jitter;
+                                self.store_node_graph_state(project, group_id, &state);
+                                graph_changed = true;
+                            }
+                        }
+                    } else if id.name == "tileNodeVoronoiWarpAmount" {
+                        let mut state = self.node_graph_state_for_group(project, group_id);
+                        if let Some(index) = state.selected_node
+                            && let Some(node) = state.nodes.get_mut(index)
+                            && let TileNodeKind::Voronoi { warp_amount, .. } = &mut node.kind
+                            && let Some(new_warp_amount) = value.to_f32()
+                        {
+                            let new_warp_amount = new_warp_amount.clamp(0.0, 0.25);
+                            if (*warp_amount - new_warp_amount).abs() > f32::EPSILON {
+                                *warp_amount = new_warp_amount;
+                                self.store_node_graph_state(project, group_id, &state);
+                                graph_changed = true;
+                            }
+                        }
+                    } else if id.name == "tileNodeVoronoiFalloff" {
+                        let mut state = self.node_graph_state_for_group(project, group_id);
+                        if let Some(index) = state.selected_node
+                            && let Some(node) = state.nodes.get_mut(index)
+                            && let TileNodeKind::Voronoi { falloff, .. } = &mut node.kind
+                            && let Some(new_falloff) = value.to_f32()
+                        {
+                            let new_falloff = new_falloff.clamp(0.1, 4.0);
+                            if (*falloff - new_falloff).abs() > f32::EPSILON {
+                                *falloff = new_falloff;
+                                self.store_node_graph_state(project, group_id, &state);
+                                graph_changed = true;
+                            }
+                        }
+                    } else if id.name == "tileNodeBoxDivideScale"
+                        || id.name == "tileNodeBoxDivideGap"
+                        || id.name == "tileNodeBoxDivideRotation"
+                        || id.name == "tileNodeBoxDivideRounding"
+                        || id.name == "tileNodeBoxDivideWarpAmount"
+                        || id.name == "tileNodeBoxDivideFalloff"
+                    {
+                        let mut state = self.node_graph_state_for_group(project, group_id);
+                        if let Some(index) = state.selected_node
+                            && let Some(node) = state.nodes.get_mut(index)
+                            && let TileNodeKind::BoxDivide {
+                                scale,
+                                gap,
+                                rotation,
+                                rounding,
+                                warp_amount,
+                                falloff,
+                            } = &mut node.kind
+                            && let Some(new_value) = value.to_f32()
+                        {
+                            let (target, new_value) = if id.name == "tileNodeBoxDivideScale" {
+                                (scale, new_value.clamp(0.1, 3.0))
+                            } else if id.name == "tileNodeBoxDivideGap" {
+                                (gap, new_value.clamp(0.0, 4.0))
+                            } else if id.name == "tileNodeBoxDivideRotation" {
+                                (rotation, new_value.clamp(0.0, 2.0))
+                            } else if id.name == "tileNodeBoxDivideRounding" {
+                                (rounding, new_value.clamp(0.0, 0.5))
+                            } else if id.name == "tileNodeBoxDivideWarpAmount" {
+                                (warp_amount, new_value.clamp(0.0, 0.25))
+                            } else {
+                                (falloff, new_value.clamp(0.1, 4.0))
+                            };
+                            if (*target - new_value).abs() > f32::EPSILON {
+                                *target = new_value;
                                 self.store_node_graph_state(project, group_id, &state);
                                 graph_changed = true;
                             }
@@ -2303,6 +2448,77 @@ impl TilesEditorDock {
                 .and_then(|index| graph_state.nodes.get(index))
                 .map(|node| &node.kind)
             {
+                Some(TileNodeKind::OutputRoot {
+                    roughness,
+                    metallic,
+                    opacity,
+                    emissive,
+                }) => {
+                    nodeui.add_item(TheNodeUIItem::Text(
+                        "tileNodeGraphName".into(),
+                        "Graph Name".into(),
+                        "Set the name of the procedural graph.".into(),
+                        node_group.graph_name.clone(),
+                        None,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::OpenTree("output".into()));
+                    nodeui.add_item(TheNodeUIItem::Text(
+                        "tileNodeGroupSize".into(),
+                        "Group Size".into(),
+                        "Set the output group size as WxH, for example 2x2 or 5x10.".into(),
+                        format!(
+                            "{}x{}",
+                            node_group.output_grid_width, node_group.output_grid_height
+                        ),
+                        None,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::Text(
+                        "tileNodePixelSize".into(),
+                        "Tile Pixel Size".into(),
+                        "Set the output tile pixel size as WxH, for example 32x32.".into(),
+                        format!(
+                            "{}x{}",
+                            node_group.tile_pixel_width, node_group.tile_pixel_height
+                        ),
+                        None,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeOutputRoughness".into(),
+                        "Roughness".into(),
+                        "Default output roughness when the input is not connected.".into(),
+                        *roughness,
+                        0.0..=1.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeOutputMetallic".into(),
+                        "Metallic".into(),
+                        "Default output metallic when the input is not connected.".into(),
+                        *metallic,
+                        0.0..=1.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeOutputOpacity".into(),
+                        "Opacity".into(),
+                        "Default output opacity when the input is not connected.".into(),
+                        *opacity,
+                        0.0..=1.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeOutputEmissive".into(),
+                        "Emissive".into(),
+                        "Default output emissive when the input is not connected.".into(),
+                        *emissive,
+                        0.0..=1.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::CloseTree);
+                }
                 Some(TileNodeKind::Subgraph { subgraph_id }) => {
                     let name = project
                         .tile_subgraphs
@@ -2427,6 +2643,8 @@ impl TilesEditorDock {
                     scale,
                     seed,
                     jitter,
+                    warp_amount,
+                    falloff,
                 }) => {
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "tileNodeVoronoiScale".into(),
@@ -2452,19 +2670,37 @@ impl TilesEditorDock {
                         0.0..=1.0,
                         false,
                     ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeVoronoiWarpAmount".into(),
+                        "Warp".into(),
+                        "How strongly the optional warp input distorts Voronoi space.".into(),
+                        *warp_amount,
+                        0.0..=0.25,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeVoronoiFalloff".into(),
+                        "Falloff".into(),
+                        "How quickly the seam-to-center height ramp rises.".into(),
+                        *falloff,
+                        0.1..=4.0,
+                        false,
+                    ));
                 }
                 Some(TileNodeKind::BoxDivide {
                     scale,
                     gap,
                     rotation,
                     rounding,
+                    warp_amount,
+                    falloff,
                 }) => {
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "tileNodeBoxDivideScale".into(),
                         "Scale".into(),
                         "Subdivision scale.".into(),
                         *scale,
-                        1.0..=32.0,
+                        0.1..=3.0,
                         false,
                     ));
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
@@ -2489,6 +2725,22 @@ impl TilesEditorDock {
                         "Cell corner rounding.".into(),
                         *rounding,
                         0.0..=0.5,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeBoxDivideWarpAmount".into(),
+                        "Warp".into(),
+                        "How strongly the optional warp input distorts box-divide space.".into(),
+                        *warp_amount,
+                        0.0..=0.25,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeBoxDivideFalloff".into(),
+                        "Falloff".into(),
+                        "How quickly the seam-to-center height ramp rises.".into(),
+                        *falloff,
+                        0.1..=4.0,
                         false,
                     ));
                 }
@@ -2578,6 +2830,8 @@ impl TilesEditorDock {
                     columns,
                     rows,
                     offset,
+                    warp_amount,
+                    falloff,
                 }) => {
                     nodeui.add_item(TheNodeUIItem::IntEditSlider(
                         "tileNodeBrickColumns".into(),
@@ -2603,6 +2857,79 @@ impl TilesEditorDock {
                         0.0..=1.0,
                         false,
                     ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeBrickWarpAmount".into(),
+                        "Warp".into(),
+                        "How strongly the optional warp input distorts brick space.".into(),
+                        *warp_amount,
+                        0.0..=0.25,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeBrickFalloff".into(),
+                        "Falloff".into(),
+                        "How quickly the seam-to-center brick height ramp rises.".into(),
+                        *falloff,
+                        0.1..=4.0,
+                        false,
+                    ));
+                }
+                Some(TileNodeKind::Disc {
+                    scale,
+                    seed,
+                    jitter,
+                    radius,
+                    warp_amount,
+                    falloff,
+                }) => {
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeDiscScale".into(),
+                        "Scale".into(),
+                        "Disc layout scale.".into(),
+                        *scale,
+                        0.01..=1.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::IntEditSlider(
+                        "tileNodeDiscSeed".into(),
+                        "Seed".into(),
+                        "Disc layout seed.".into(),
+                        *seed as i32,
+                        0..=9999,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeDiscJitter".into(),
+                        "Jitter".into(),
+                        "Disc center jitter inside each cell.".into(),
+                        *jitter,
+                        0.0..=1.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeDiscRadius".into(),
+                        "Radius".into(),
+                        "Disc radius relative to the cell.".into(),
+                        *radius,
+                        0.05..=1.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeDiscWarpAmount".into(),
+                        "Warp".into(),
+                        "How strongly the optional warp input distorts disc space.".into(),
+                        *warp_amount,
+                        0.0..=0.25,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeDiscFalloff".into(),
+                        "Falloff".into(),
+                        "How quickly the disc height ramp rises.".into(),
+                        *falloff,
+                        0.1..=4.0,
+                        false,
+                    ));
                 }
                 Some(TileNodeKind::MaskBlend { factor }) => {
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
@@ -2615,45 +2942,6 @@ impl TilesEditorDock {
                     ));
                 }
                 Some(TileNodeKind::MakeMaterial) => {}
-                Some(TileNodeKind::Material {
-                    roughness,
-                    metallic,
-                    opacity,
-                    emissive,
-                }) => {
-                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-                        "tileNodeMaterialRoughness".into(),
-                        "Roughness".into(),
-                        "Material roughness.".into(),
-                        *roughness,
-                        0.0..=1.0,
-                        false,
-                    ));
-                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-                        "tileNodeMaterialMetallic".into(),
-                        "Metallic".into(),
-                        "Material metallic.".into(),
-                        *metallic,
-                        0.0..=1.0,
-                        false,
-                    ));
-                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-                        "tileNodeMaterialOpacity".into(),
-                        "Opacity".into(),
-                        "Material opacity.".into(),
-                        *opacity,
-                        0.0..=1.0,
-                        false,
-                    ));
-                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-                        "tileNodeMaterialEmissive".into(),
-                        "Emissive".into(),
-                        "Material emissive.".into(),
-                        *emissive,
-                        0.0..=1.0,
-                        false,
-                    ));
-                }
                 Some(TileNodeKind::MaterialMix { factor }) => {
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "tileNodeMaterialMixFactor".into(),
@@ -2800,7 +3088,7 @@ impl TilesEditorDock {
         };
         let state = self.node_graph_state_for_group(project, group_id);
         let preview_node = state.selected_node.unwrap_or(0);
-        let preview = self.render_node_preview(project, &state, preview_node, 256, 160);
+        let preview = self.render_node_preview(project, &state, preview_node, 384, 240);
         self.set_large_node_preview_overlay(ui, Some(preview));
     }
 
@@ -2851,17 +3139,17 @@ impl TilesEditorDock {
             .connections
             .retain(|(_, _, dest_node, _)| *dest_node != 0 || node_index == 0);
         if node_index != 0 {
-            let terminal = if preview_state.preview_mode == 1 {
-                1
-            } else {
-                0
-            };
+            let (src_terminal, dest_terminal) = Self::preview_connection_for_node(
+                preview_state.preview_mode,
+                &preview_state,
+                node_index,
+            );
             preview_state
                 .connections
                 .retain(|(_, _, dest_node, _)| !(*dest_node == 0));
             preview_state
                 .connections
-                .push((node_index as u16, terminal, 0, terminal));
+                .push((node_index as u16, src_terminal, 0, dest_terminal));
         }
 
         let exchange = TileNodeGraphExchange {
@@ -2876,6 +3164,25 @@ impl TilesEditorDock {
         };
         let resolver = ProjectTileSubgraphResolver { project };
         Some(flatten_graph_exchange_with(&exchange, &resolver))
+    }
+
+    fn preview_connection_for_node(
+        preview_mode: u8,
+        state: &TileNodeGraphState,
+        node_index: usize,
+    ) -> (u8, u8) {
+        if preview_mode == 1 {
+            return (0, 2);
+        }
+        match state.nodes.get(node_index).map(|node| &node.kind) {
+            Some(
+                TileNodeKind::Voronoi { .. }
+                | TileNodeKind::Brick { .. }
+                | TileNodeKind::Disc { .. }
+                | TileNodeKind::BoxDivide { .. },
+            ) => (1, 0),
+            _ => (0, 0),
+        }
     }
 
     fn render_node_group_tiles(&self, project: &mut Project, group_id: Uuid) {
@@ -2904,6 +3211,8 @@ impl TilesEditorDock {
         node_group: &NodeGroupAsset,
         rendered: shared::tilegraph::RenderedTileGraph,
     ) {
+        let sheet_width = rendered.grid_width * rendered.tile_width;
+        let sheet_height = rendered.grid_height * rendered.tile_height;
         let mut render_members = Vec::new();
         if let Some(group) = project.tile_groups.get_mut(&group_id) {
             group.width = node_group.output_grid_width;
@@ -2979,6 +3288,45 @@ impl TilesEditorDock {
                 let texture = &mut tile.textures[0];
                 texture.data.copy_from_slice(&pixels);
                 texture.data_ext = Some(materials);
+                let tile_x = idx % rendered.grid_width;
+                let tile_y = idx / rendered.grid_width;
+                let origin_x = tile_x * rendered.tile_width;
+                let origin_y = tile_y * rendered.tile_height;
+                let period_x = sheet_width.saturating_sub(1).max(1) as isize;
+                let period_y = sheet_height.saturating_sub(1).max(1) as isize;
+                let sample_h = |xx: isize, yy: isize| -> f32 {
+                    let sx = xx.rem_euclid(period_x) as usize;
+                    let sy = yy.rem_euclid(period_y) as usize;
+                    rendered.sheet_height[sy * sheet_width + sx] as f32 / 255.0
+                };
+                let strength = 0.35f32;
+                for py in 0..rendered.tile_height {
+                    for px in 0..rendered.tile_width {
+                        let gx = (origin_x + px) as isize;
+                        let gy = (origin_y + py) as isize;
+                        let tl = sample_h(gx - 1, gy - 1);
+                        let tc = sample_h(gx, gy - 1);
+                        let tr = sample_h(gx + 1, gy - 1);
+                        let cl = sample_h(gx - 1, gy);
+                        let cr = sample_h(gx + 1, gy);
+                        let bl = sample_h(gx - 1, gy + 1);
+                        let bc = sample_h(gx, gy + 1);
+                        let br = sample_h(gx + 1, gy + 1);
+
+                        let dx = ((-tl) + tr + (-2.0 * cl) + (2.0 * cr) + (-bl) + br) * strength;
+                        let dy = ((-tl) + (-2.0 * tc) + (-tr) + bl + (2.0 * bc) + br) * strength;
+                        let nx = -dx;
+                        let ny = -dy;
+                        let nz = 1.0f32;
+                        let len = (nx * nx + ny * ny + nz * nz).sqrt();
+                        let (nx, ny) = if len > 0.0 {
+                            (nx / len, ny / len)
+                        } else {
+                            (0.0, 0.0)
+                        };
+                        texture.set_normal(px as u32, py as u32, nx, ny);
+                    }
+                }
             }
         }
     }
@@ -3135,7 +3483,7 @@ impl TilesEditorDock {
             for (node_index, node) in state.nodes.iter().enumerate() {
                 let preview = self.render_node_preview(project, &state, node_index, 111, 104);
                 match &node.kind {
-                    TileNodeKind::OutputRoot => {
+                    TileNodeKind::OutputRoot { .. } => {
                         canvas.nodes.push(TheNode {
                             name: "Tile Group Output".to_string(),
                             status_text: None,
@@ -3146,8 +3494,24 @@ impl TilesEditorDock {
                                     category_name: "ColorSocket".to_string(),
                                 },
                                 TheNodeTerminal {
-                                    name: "Material".to_string(),
-                                    category_name: "MaterialSocket".to_string(),
+                                    name: "Height".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Roughness".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Metallic".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Opacity".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Emissive".to_string(),
+                                    category_name: "FieldSocket".to_string(),
                                 },
                             ],
                             outputs: vec![],
@@ -3484,7 +3848,10 @@ impl TilesEditorDock {
                             name: "Voronoi".to_string(),
                             status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
-                            inputs: vec![],
+                            inputs: vec![TheNodeTerminal {
+                                name: "Warp".to_string(),
+                                category_name: "FieldSocket".to_string(),
+                            }],
                             outputs: vec![
                                 TheNodeTerminal {
                                     name: "Center".to_string(),
@@ -3528,17 +3895,35 @@ impl TilesEditorDock {
                         scale,
                         gap,
                         rounding,
+                        warp_amount,
+                        falloff,
                         ..
                     } => {
                         canvas.nodes.push(TheNode {
-                            name: format!("Box Divide {:.1}/{:.1}/{:.2}", scale, gap, rounding),
+                            name: format!(
+                                "Box Divide {:.1}/{:.1}/{:.2}/{:.2}/{:.2}",
+                                scale, gap, rounding, warp_amount, falloff
+                            ),
                             status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
-                            inputs: vec![],
-                            outputs: vec![TheNodeTerminal {
-                                name: "Mask".to_string(),
+                            inputs: vec![TheNodeTerminal {
+                                name: "Warp".to_string(),
                                 category_name: "FieldSocket".to_string(),
                             }],
+                            outputs: vec![
+                                TheNodeTerminal {
+                                    name: "Center".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Height".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Cell Id".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                            ],
                             preview,
                             supports_preview: true,
                             preview_is_open: true,
@@ -3650,25 +4035,72 @@ impl TilesEditorDock {
                         columns,
                         rows,
                         offset,
+                        warp_amount,
+                        falloff,
                     } => {
                         canvas.nodes.push(TheNode {
-                            name: format!("Brick {}x{} {:.2}", columns, rows, offset),
+                            name: format!(
+                                "Brick {}x{} {:.2}/{:.2}/{:.2}",
+                                columns, rows, offset, warp_amount, falloff
+                            ),
                             status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
-                            inputs: vec![
-                                TheNodeTerminal {
-                                    name: "A".to_string(),
-                                    category_name: "ColorSocket".to_string(),
-                                },
-                                TheNodeTerminal {
-                                    name: "B".to_string(),
-                                    category_name: "ColorSocket".to_string(),
-                                },
-                            ],
-                            outputs: vec![TheNodeTerminal {
-                                name: "Color".to_string(),
+                            inputs: vec![TheNodeTerminal {
+                                name: "Warp".to_string(),
                                 category_name: "FieldSocket".to_string(),
                             }],
+                            outputs: vec![
+                                TheNodeTerminal {
+                                    name: "Center".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Height".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Cell Id".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                            ],
+                            preview,
+                            supports_preview: true,
+                            preview_is_open: true,
+                            can_be_deleted: true,
+                        });
+                    }
+                    TileNodeKind::Disc {
+                        scale,
+                        radius,
+                        warp_amount,
+                        falloff,
+                        ..
+                    } => {
+                        canvas.nodes.push(TheNode {
+                            name: format!(
+                                "Disc {:.2}/{:.2}/{:.2}/{:.2}",
+                                scale, radius, warp_amount, falloff
+                            ),
+                            status_text: None,
+                            position: Vec2::new(node.position.0, node.position.1),
+                            inputs: vec![TheNodeTerminal {
+                                name: "Warp".to_string(),
+                                category_name: "FieldSocket".to_string(),
+                            }],
+                            outputs: vec![
+                                TheNodeTerminal {
+                                    name: "Center".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Height".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Cell Id".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                            ],
                             preview,
                             supports_preview: true,
                             preview_is_open: true,
@@ -3741,10 +4173,13 @@ impl TilesEditorDock {
                     } => {
                         canvas.nodes.push(TheNode {
                             name: format!(
-                                "Material {:.2}/{:.2}/{:.2}/{:.2}",
+                                "Legacy Material {:.2}/{:.2}/{:.2}/{:.2}",
                                 roughness, metallic, opacity, emissive
                             ),
-                            status_text: None,
+                            status_text: Some(
+                                "Legacy node. Use the output node material inputs instead."
+                                    .to_string(),
+                            ),
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![],
                             outputs: vec![TheNodeTerminal {

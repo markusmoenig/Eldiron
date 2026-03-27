@@ -621,8 +621,9 @@ impl Texture {
                     + (1.0 * br);
 
                 // Build normal; Z up
-                let nx = -gx;
-                let ny = -gy;
+                let strength = 0.35;
+                let nx = -gx * strength;
+                let ny = -gy * strength;
                 let nz = 1.0;
                 let len = (nx * nx + ny * ny + nz * nz).sqrt();
                 let (nx, ny) = if len > 0.0 {
@@ -632,6 +633,65 @@ impl Texture {
                 };
 
                 // Store normal in data_ext, preserving material data
+                self.set_normal(x as u32, y as u32, nx, ny);
+            }
+        }
+    }
+
+    /// Generates normals from an external grayscale height field and stores them in the unified
+    /// data_ext format, preserving any existing material data.
+    ///
+    /// `height` must contain one byte per pixel in row-major order.
+    pub fn generate_normals_from_height(&mut self, height: &[u8], wrap: bool) {
+        if height.len() != self.width * self.height {
+            return;
+        }
+        self.ensure_data_ext();
+        let w = self.width as i32;
+        let h = self.height as i32;
+        let width = self.width;
+
+        let mut height_f32 = vec![0.0f32; width * self.height];
+        for (src, dst) in height.iter().zip(height_f32.iter_mut()) {
+            *dst = *src as f32 / 255.0;
+        }
+
+        let sample_h = |height: &[f32], xx: i32, yy: i32| -> f32 {
+            let (mut sx, mut sy) = (xx, yy);
+            if wrap {
+                sx = ((sx % w) + w) % w;
+                sy = ((sy % h) + h) % h;
+            } else {
+                sx = sx.clamp(0, w - 1);
+                sy = sy.clamp(0, h - 1);
+            }
+            height[(sy as usize) * width + (sx as usize)]
+        };
+
+        for y in 0..h {
+            for x in 0..w {
+                let tl = sample_h(&height_f32, x - 1, y - 1);
+                let tc = sample_h(&height_f32, x, y - 1);
+                let tr = sample_h(&height_f32, x + 1, y - 1);
+                let cl = sample_h(&height_f32, x - 1, y);
+                let cr = sample_h(&height_f32, x + 1, y);
+                let bl = sample_h(&height_f32, x - 1, y + 1);
+                let bc = sample_h(&height_f32, x, y + 1);
+                let br = sample_h(&height_f32, x + 1, y + 1);
+
+                let gx = (-tl) + tr + (-2.0 * cl) + (2.0 * cr) + (-bl) + br;
+                let gy = (-tl) + (-2.0 * tc) + (-tr) + bl + (2.0 * bc) + br;
+
+                let strength = 0.35;
+                let nx = -gx * strength;
+                let ny = -gy * strength;
+                let nz = 1.0;
+                let len = (nx * nx + ny * ny + nz * nz).sqrt();
+                let (nx, ny) = if len > 0.0 {
+                    (nx / len, ny / len)
+                } else {
+                    (0.0, 0.0)
+                };
                 self.set_normal(x as u32, y as u32, nx, ny);
             }
         }

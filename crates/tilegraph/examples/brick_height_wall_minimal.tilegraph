@@ -1,5 +1,5 @@
 version = 1
-name = "Voronoi Warped Height"
+name = "Brick Warped Height"
 grid = "3x3"
 tile_size = "32x32"
 
@@ -25,13 +25,13 @@ colors = [
   "#c0d1cc",
 ]
 
-[node.voronoi.main]
+[node.brick.main]
 pos = [60, 140]
-scale = 0.08
-seed = 11
-jitter = 0.90
-warp_amount = 0.045
-falloff = 1.35
+columns = 6
+rows = 6
+offset = 0.5
+warp_amount = 0.035
+falloff = 1.4
 warp = "noise.main:field"
 
 [node.noise.main]
@@ -42,8 +42,8 @@ wrap = true
 
 [node.output.main]
 pos = [300, 140]
-color = "voronoi.main:height"
-height = "voronoi.main:height"
+color = "brick.main:height"
+height = "brick.main:height"
 roughness = 0.9
 metallic = 0.0
 opacity = 1.0

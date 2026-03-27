@@ -150,6 +150,8 @@ fn node_kind_from_doc(
             scale: table_f32(table, "scale", 0.2),
             seed: table_u32(table, "seed", 1),
             jitter: table_f32(table, "jitter", 1.0),
+            warp_amount: table_f32(table, "warp_amount", 0.0),
+            falloff: table_f32(table, "falloff", 1.0),
         },
         "blur" => TileNodeKind::Blur {
             radius: table_f32(table, "radius", 0.012),
@@ -167,6 +169,32 @@ fn node_kind_from_doc(
             scale: table_f32(table, "scale", 0.25),
             seed: table_u32(table, "seed", 1),
             wrap: table_bool(table, "wrap", false),
+        },
+        "brick" => TileNodeKind::Brick {
+            columns: table_u32(table, "columns", 6) as u16,
+            rows: table_u32(table, "rows", 6) as u16,
+            offset: table_f32(table, "offset", 0.5),
+            warp_amount: table_f32(table, "warp_amount", 0.0),
+            falloff: table_f32(table, "falloff", 1.0),
+        },
+        "disc" => TileNodeKind::Disc {
+            scale: table_f32(table, "scale", 0.2),
+            seed: table_u32(table, "seed", 1),
+            jitter: table_f32(table, "jitter", 1.0),
+            radius: table_f32(table, "radius", 0.75),
+            warp_amount: table_f32(table, "warp_amount", 0.0),
+            falloff: table_f32(table, "falloff", 1.0),
+        },
+        "box_divide" => TileNodeKind::BoxDivide {
+            scale: table_f32(table, "scale", 1.0),
+            gap: table_f32(table, "gap", 1.0),
+            rotation: table_f32(table, "rotation", 0.15),
+            rounding: table_f32(table, "rounding", 0.04),
+            warp_amount: table_f32(table, "warp_amount", 0.0),
+            falloff: table_f32(table, "falloff", 1.0),
+        },
+        "warp" => TileNodeKind::Warp {
+            amount: table_f32(table, "amount", 0.1),
         },
         "multiply" => TileNodeKind::Multiply,
         "subtract" => TileNodeKind::Subtract,
@@ -195,11 +223,36 @@ fn input_index(kind: &str, input: &str) -> Option<u8> {
     match kind {
         "output" => match input {
             "color" => Some(0),
-            "material" => Some(1),
+            "height" => Some(1),
+            "roughness" => Some(2),
+            "metallic" => Some(3),
+            "opacity" => Some(4),
+            "emissive" => Some(5),
+            _ => None,
+        },
+        "voronoi" => match input {
+            "warp" => Some(0),
+            _ => None,
+        },
+        "brick" => match input {
+            "warp" => Some(0),
+            _ => None,
+        },
+        "disc" => match input {
+            "warp" => Some(0),
+            _ => None,
+        },
+        "box_divide" => match input {
+            "warp" => Some(0),
             _ => None,
         },
         "blur" | "slope_blur" | "levels" | "threshold" | "curve" => match input {
             "in" => Some(0),
+            _ => None,
+        },
+        "warp" => match input {
+            "in" => Some(0),
+            "warp" => Some(1),
             _ => None,
         },
         "id_random" => match input {
@@ -218,6 +271,24 @@ fn input_index(kind: &str, input: &str) -> Option<u8> {
 fn output_index(kind: &str, output: &str) -> Option<u8> {
     match kind {
         "voronoi" => match output {
+            "center" => Some(0),
+            "height" => Some(1),
+            "cell_id" | "id" => Some(2),
+            _ => None,
+        },
+        "brick" => match output {
+            "center" => Some(0),
+            "height" => Some(1),
+            "cell_id" | "id" => Some(2),
+            _ => None,
+        },
+        "disc" => match output {
+            "center" => Some(0),
+            "height" => Some(1),
+            "cell_id" | "id" => Some(2),
+            _ => None,
+        },
+        "box_divide" => match output {
             "center" => Some(0),
             "height" => Some(1),
             "cell_id" | "id" => Some(2),
@@ -249,7 +320,7 @@ impl TileGraphDocument {
         let (tile_w, tile_h) = parse_dim_string(&self.tile_size, 32);
 
         let mut nodes = vec![TileNodeState {
-            kind: TileNodeKind::OutputRoot,
+            kind: TileNodeKind::default_output_root(),
             position: (420, 40),
             bypass: false,
             mute: false,
@@ -261,7 +332,41 @@ impl TileGraphDocument {
         for graph_node in self.iter_nodes() {
             let path = graph_node.path();
             if graph_node.kind == "output" {
-                for key in ["color", "material"] {
+                if let Some(output_root) = nodes.first_mut() {
+                    if let TileNodeKind::OutputRoot {
+                        roughness,
+                        metallic,
+                        opacity,
+                        emissive,
+                    } = &mut output_root.kind
+                    {
+                        if let Some(v) =
+                            graph_node.table.get("roughness").and_then(|v| v.as_float())
+                        {
+                            *roughness = v as f32;
+                        }
+                        if let Some(v) = graph_node.table.get("metallic").and_then(|v| v.as_float())
+                        {
+                            *metallic = v as f32;
+                        }
+                        if let Some(v) = graph_node.table.get("opacity").and_then(|v| v.as_float())
+                        {
+                            *opacity = v as f32;
+                        }
+                        if let Some(v) = graph_node.table.get("emissive").and_then(|v| v.as_float())
+                        {
+                            *emissive = v as f32;
+                        }
+                    }
+                }
+                for key in [
+                    "color",
+                    "height",
+                    "roughness",
+                    "metallic",
+                    "opacity",
+                    "emissive",
+                ] {
                     if let Some(value) = graph_node.table.get(key).and_then(|v| v.as_str()) {
                         output_refs.push((key.to_string(), value.to_string()));
                     }
@@ -537,19 +642,22 @@ impl TileGraphDocument {
 
 fn export_kind_name(kind: &TileNodeKind) -> Option<&'static str> {
     match kind {
-        TileNodeKind::OutputRoot => Some("output"),
+        TileNodeKind::OutputRoot { .. } => Some("output"),
         TileNodeKind::Voronoi { .. } => Some("voronoi"),
         TileNodeKind::Blur { .. } => Some("blur"),
         TileNodeKind::SlopeBlur { .. } => Some("slope_blur"),
         TileNodeKind::Levels { .. } => Some("levels"),
         TileNodeKind::IdRandom => Some("id_random"),
         TileNodeKind::Noise { .. } => Some("noise"),
+        TileNodeKind::Brick { .. } => Some("brick"),
+        TileNodeKind::Disc { .. } => Some("disc"),
+        TileNodeKind::BoxDivide { .. } => Some("box_divide"),
+        TileNodeKind::Warp { .. } => Some("warp"),
         TileNodeKind::Multiply => Some("multiply"),
         TileNodeKind::Subtract => Some("subtract"),
         TileNodeKind::Add => Some("add"),
         TileNodeKind::Min => Some("min"),
         TileNodeKind::Max => Some("max"),
-        TileNodeKind::Material { .. } => Some("material"),
         TileNodeKind::Scalar { .. } => Some("scalar"),
         _ => None,
     }
@@ -559,11 +667,36 @@ fn export_input_name(kind: &str, input: u8) -> Option<&'static str> {
     match kind {
         "output" => match input {
             0 => Some("color"),
-            1 => Some("material"),
+            1 => Some("height"),
+            2 => Some("roughness"),
+            3 => Some("metallic"),
+            4 => Some("opacity"),
+            5 => Some("emissive"),
+            _ => None,
+        },
+        "voronoi" => match input {
+            0 => Some("warp"),
+            _ => None,
+        },
+        "brick" => match input {
+            0 => Some("warp"),
+            _ => None,
+        },
+        "disc" => match input {
+            0 => Some("warp"),
+            _ => None,
+        },
+        "box_divide" => match input {
+            0 => Some("warp"),
             _ => None,
         },
         "blur" | "slope_blur" | "levels" | "threshold" | "curve" => match input {
             0 => Some("in"),
+            _ => None,
+        },
+        "warp" => match input {
+            0 => Some("in"),
+            1 => Some("warp"),
             _ => None,
         },
         "id_random" => match input {
@@ -582,6 +715,24 @@ fn export_input_name(kind: &str, input: u8) -> Option<&'static str> {
 fn export_output_port_name(kind: &str, output: u8) -> Option<&'static str> {
     match kind {
         "voronoi" => match output {
+            0 => Some("center"),
+            1 => Some("height"),
+            2 => Some("cell_id"),
+            _ => None,
+        },
+        "brick" => match output {
+            0 => Some("center"),
+            1 => Some("height"),
+            2 => Some("cell_id"),
+            _ => None,
+        },
+        "disc" => match output {
+            0 => Some("center"),
+            1 => Some("height"),
+            2 => Some("cell_id"),
+            _ => None,
+        },
+        "box_divide" => match output {
             0 => Some("center"),
             1 => Some("height"),
             2 => Some("cell_id"),
@@ -613,14 +764,35 @@ fn export_node_table(
     );
 
     match kind {
+        TileNodeKind::OutputRoot {
+            roughness,
+            metallic,
+            opacity,
+            emissive,
+        } => {
+            table.insert(
+                "roughness".to_string(),
+                toml::Value::Float(*roughness as f64),
+            );
+            table.insert("metallic".to_string(), toml::Value::Float(*metallic as f64));
+            table.insert("opacity".to_string(), toml::Value::Float(*opacity as f64));
+            table.insert("emissive".to_string(), toml::Value::Float(*emissive as f64));
+        }
         TileNodeKind::Voronoi {
             scale,
             seed,
             jitter,
+            warp_amount,
+            falloff,
         } => {
             table.insert("scale".to_string(), toml::Value::Float(*scale as f64));
             table.insert("seed".to_string(), toml::Value::Integer(*seed as i64));
             table.insert("jitter".to_string(), toml::Value::Float(*jitter as f64));
+            table.insert(
+                "warp_amount".to_string(),
+                toml::Value::Float(*warp_amount as f64),
+            );
+            table.insert("falloff".to_string(), toml::Value::Float(*falloff as f64));
         }
         TileNodeKind::Blur { radius } => {
             table.insert("radius".to_string(), toml::Value::Float(*radius as f64));
@@ -637,6 +809,61 @@ fn export_node_table(
             table.insert("scale".to_string(), toml::Value::Float(*scale as f64));
             table.insert("seed".to_string(), toml::Value::Integer(*seed as i64));
             table.insert("wrap".to_string(), toml::Value::Boolean(*wrap));
+        }
+        TileNodeKind::Brick {
+            columns,
+            rows,
+            offset,
+            warp_amount,
+            falloff,
+        } => {
+            table.insert("columns".to_string(), toml::Value::Integer(*columns as i64));
+            table.insert("rows".to_string(), toml::Value::Integer(*rows as i64));
+            table.insert("offset".to_string(), toml::Value::Float(*offset as f64));
+            table.insert(
+                "warp_amount".to_string(),
+                toml::Value::Float(*warp_amount as f64),
+            );
+            table.insert("falloff".to_string(), toml::Value::Float(*falloff as f64));
+        }
+        TileNodeKind::Disc {
+            scale,
+            seed,
+            jitter,
+            radius,
+            warp_amount,
+            falloff,
+        } => {
+            table.insert("scale".to_string(), toml::Value::Float(*scale as f64));
+            table.insert("seed".to_string(), toml::Value::Integer(*seed as i64));
+            table.insert("jitter".to_string(), toml::Value::Float(*jitter as f64));
+            table.insert("radius".to_string(), toml::Value::Float(*radius as f64));
+            table.insert(
+                "warp_amount".to_string(),
+                toml::Value::Float(*warp_amount as f64),
+            );
+            table.insert("falloff".to_string(), toml::Value::Float(*falloff as f64));
+        }
+        TileNodeKind::BoxDivide {
+            scale,
+            gap,
+            rotation,
+            rounding,
+            warp_amount,
+            falloff,
+        } => {
+            table.insert("scale".to_string(), toml::Value::Float(*scale as f64));
+            table.insert("gap".to_string(), toml::Value::Float(*gap as f64));
+            table.insert("rotation".to_string(), toml::Value::Float(*rotation as f64));
+            table.insert("rounding".to_string(), toml::Value::Float(*rounding as f64));
+            table.insert(
+                "warp_amount".to_string(),
+                toml::Value::Float(*warp_amount as f64),
+            );
+            table.insert("falloff".to_string(), toml::Value::Float(*falloff as f64));
+        }
+        TileNodeKind::Warp { amount } => {
+            table.insert("amount".to_string(), toml::Value::Float(*amount as f64));
         }
         TileNodeKind::Material {
             roughness,

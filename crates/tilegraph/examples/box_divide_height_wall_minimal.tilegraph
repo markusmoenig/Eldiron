@@ -1,5 +1,5 @@
 version = 1
-name = "Voronoi Warped Height"
+name = "Box Divide Warped Height"
 grid = "3x3"
 tile_size = "32x32"
 
@@ -25,12 +25,13 @@ colors = [
   "#c0d1cc",
 ]
 
-[node.voronoi.main]
+[node.box_divide.main]
 pos = [60, 140]
-scale = 0.08
-seed = 11
-jitter = 0.90
-warp_amount = 0.045
+scale = 1.0
+gap = 0.6
+rotation = 0.15
+rounding = 0.04
+warp_amount = 0.03
 falloff = 1.35
 warp = "noise.main:field"
 
@@ -42,8 +43,8 @@ wrap = true
 
 [node.output.main]
 pos = [300, 140]
-color = "voronoi.main:height"
-height = "voronoi.main:height"
+color = "box_divide.main:height"
+height = "box_divide.main:height"
 roughness = 0.9
 metallic = 0.0
 opacity = 1.0

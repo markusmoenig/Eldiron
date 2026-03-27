@@ -71,12 +71,28 @@ fn box_divide(p: Vec2<f32>, gap: f32, rotation: f32, rounding: f32) -> (f32, f32
 
 fn default_tile_node_nodes() -> Vec<TileNodeState> {
     vec![TileNodeState {
-        kind: TileNodeKind::OutputRoot,
+        kind: TileNodeKind::default_output_root(),
         position: (420, 40),
         bypass: false,
         mute: false,
         solo: false,
     }]
+}
+
+fn default_voronoi_warp_amount() -> f32 {
+    0.0
+}
+
+fn default_voronoi_falloff() -> f32 {
+    1.0
+}
+
+fn default_layout_warp_amount() -> f32 {
+    0.0
+}
+
+fn default_layout_falloff() -> f32 {
+    1.0
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -124,7 +140,7 @@ pub struct TileNodeState {
 impl Default for TileNodeState {
     fn default() -> Self {
         Self {
-            kind: TileNodeKind::OutputRoot,
+            kind: TileNodeKind::default_output_root(),
             position: (420, 40),
             bypass: false,
             mute: false,
@@ -135,7 +151,16 @@ impl Default for TileNodeState {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum TileNodeKind {
-    OutputRoot,
+    OutputRoot {
+        #[serde(default = "default_output_roughness")]
+        roughness: f32,
+        #[serde(default = "default_output_metallic")]
+        metallic: f32,
+        #[serde(default = "default_output_opacity")]
+        opacity: f32,
+        #[serde(default = "default_output_emissive")]
+        emissive: f32,
+    },
     Subgraph {
         subgraph_id: Uuid,
     },
@@ -171,12 +196,20 @@ pub enum TileNodeKind {
         scale: f32,
         seed: u32,
         jitter: f32,
+        #[serde(default = "default_voronoi_warp_amount")]
+        warp_amount: f32,
+        #[serde(default = "default_voronoi_falloff")]
+        falloff: f32,
     },
     BoxDivide {
         scale: f32,
         gap: f32,
         rotation: f32,
         rounding: f32,
+        #[serde(default = "default_layout_warp_amount")]
+        warp_amount: f32,
+        #[serde(default = "default_layout_falloff")]
+        falloff: f32,
     },
     Offset {
         x: f32,
@@ -201,6 +234,20 @@ pub enum TileNodeKind {
         columns: u16,
         rows: u16,
         offset: f32,
+        #[serde(default = "default_layout_warp_amount")]
+        warp_amount: f32,
+        #[serde(default = "default_layout_falloff")]
+        falloff: f32,
+    },
+    Disc {
+        scale: f32,
+        seed: u32,
+        jitter: f32,
+        radius: f32,
+        #[serde(default = "default_layout_warp_amount")]
+        warp_amount: f32,
+        #[serde(default = "default_layout_falloff")]
+        falloff: f32,
     },
     IdRandom,
     Min,
@@ -246,7 +293,34 @@ pub enum TileNodeKind {
 
 impl Default for TileNodeKind {
     fn default() -> Self {
-        Self::OutputRoot
+        Self::default_output_root()
+    }
+}
+
+fn default_output_roughness() -> f32 {
+    0.9
+}
+
+fn default_output_metallic() -> f32 {
+    0.0
+}
+
+fn default_output_opacity() -> f32 {
+    1.0
+}
+
+fn default_output_emissive() -> f32 {
+    0.0
+}
+
+impl TileNodeKind {
+    pub fn default_output_root() -> Self {
+        Self::OutputRoot {
+            roughness: default_output_roughness(),
+            metallic: default_output_metallic(),
+            opacity: default_output_opacity(),
+            emissive: default_output_emissive(),
+        }
     }
 }
 
@@ -299,12 +373,12 @@ impl TileNodeGraphState {
             self.nodes = default_tile_node_nodes();
         } else if !matches!(
             self.nodes.first().map(|n| &n.kind),
-            Some(TileNodeKind::OutputRoot)
+            Some(TileNodeKind::OutputRoot { .. })
         ) {
             self.nodes.insert(
                 0,
                 TileNodeState {
-                    kind: TileNodeKind::OutputRoot,
+                    kind: TileNodeKind::default_output_root(),
                     position: (420, 40),
                     bypass: false,
                     mute: false,
@@ -345,8 +419,10 @@ pub struct RenderedTileGraph {
     pub tile_height: usize,
     pub sheet_color: Vec<u8>,
     pub sheet_material: Vec<u8>,
+    pub sheet_height: Vec<u8>,
     pub tiles_color: Vec<Vec<u8>>,
     pub tiles_material: Vec<Vec<u8>>,
+    pub tiles_height: Vec<Vec<u8>>,
 }
 
 pub trait TileGraphSubgraphResolver {
@@ -525,26 +601,39 @@ impl TileGraphRenderer {
         let sheet_height = tile_height * grid_height;
         let mut sheet_color = vec![0_u8; sheet_width * sheet_height * 4];
         let mut sheet_material = vec![0_u8; sheet_width * sheet_height * 4];
+        let mut sheet_height_data = vec![0_u8; sheet_width * sheet_height];
         let tile_count = grid_width * grid_height;
-        let rendered_tiles: Vec<(Vec<u8>, Vec<u8>)> = (0..tile_count)
+        let rendered_tiles: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> = (0..tile_count)
             .into_par_iter()
             .map(|tile_index| {
                 let cell_x = tile_index % grid_width;
                 let cell_y = tile_index / grid_width;
                 let mut tile_color = vec![0_u8; tile_width * tile_height * 4];
                 let mut tile_material = vec![0_u8; tile_width * tile_height * 4];
+                let mut tile_height_data = vec![0_u8; tile_width * tile_height];
 
                 for py in 0..tile_height {
                     for px in 0..tile_width {
+                        let u = if tile_width <= 1 {
+                            0.5
+                        } else {
+                            px as f32 / (tile_width - 1) as f32
+                        };
+                        let v = if tile_height <= 1 {
+                            0.5
+                        } else {
+                            py as f32 / (tile_height - 1) as f32
+                        };
                         let eval = TileEvalContext {
                             cell_x: cell_x as u16,
                             cell_y: cell_y as u16,
                             group_width: graph.output_grid_width.max(1),
                             group_height: graph.output_grid_height.max(1),
-                            // Sample at pixel centers so adjacent tiles share a continuous
-                            // group-space field without duplicating the border sample.
-                            u: (px as f32 + 0.5) / tile_width.max(1) as f32,
-                            v: (py as f32 + 0.5) / tile_height.max(1) as f32,
+                            // Sample the full 0..1 tile span inclusively so adjacent tiles
+                            // duplicate their shared border texels and stitch cleanly when
+                            // used as separate atlas tiles on surfaces.
+                            u,
+                            v,
                         };
 
                         let color = self
@@ -552,6 +641,7 @@ impl TileGraphRenderer {
                             .unwrap_or_else(|| TheColor::from_u8_array_3([96, 96, 96]))
                             .to_u8_array();
                         let material = self.evaluate_output_material(&state, eval);
+                        let height = self.evaluate_output_height(&state, eval);
 
                         let i = (py * tile_width + px) * 4;
                         tile_color[i..i + 4].copy_from_slice(&color);
@@ -559,17 +649,21 @@ impl TileGraphRenderer {
                         tile_material[i + 1] = unit_to_u8(material.1);
                         tile_material[i + 2] = unit_to_u8(material.2);
                         tile_material[i + 3] = unit_to_u8(material.3);
+                        tile_height_data[py * tile_width + px] = unit_to_u8(height);
                     }
                 }
 
-                (tile_color, tile_material)
+                (tile_color, tile_material, tile_height_data)
             })
             .collect();
 
         let mut tiles_color = Vec::with_capacity(tile_count);
         let mut tiles_material = Vec::with_capacity(tile_count);
+        let mut tiles_height = Vec::with_capacity(tile_count);
 
-        for (tile_index, (tile_color, tile_material)) in rendered_tiles.into_iter().enumerate() {
+        for (tile_index, (tile_color, tile_material, tile_height_data)) in
+            rendered_tiles.into_iter().enumerate()
+        {
             let cell_x = tile_index % grid_width;
             let cell_y = tile_index / grid_width;
 
@@ -584,10 +678,17 @@ impl TileGraphRenderer {
                     .copy_from_slice(&tile_color[src_row_start..src_row_end]);
                 sheet_material[dst_row_start..dst_row_end]
                     .copy_from_slice(&tile_material[src_row_start..src_row_end]);
+                let src_h_row_start = py * tile_width;
+                let src_h_row_end = src_h_row_start + tile_width;
+                let dst_h_row_start = sy * sheet_width + sx;
+                let dst_h_row_end = dst_h_row_start + tile_width;
+                sheet_height_data[dst_h_row_start..dst_h_row_end]
+                    .copy_from_slice(&tile_height_data[src_h_row_start..src_h_row_end]);
             }
 
             tiles_color.push(tile_color);
             tiles_material.push(tile_material);
+            tiles_height.push(tile_height_data);
         }
 
         RenderedTileGraph {
@@ -597,9 +698,36 @@ impl TileGraphRenderer {
             tile_height,
             sheet_color,
             sheet_material,
+            sheet_height: sheet_height_data,
             tiles_color,
             tiles_material,
+            tiles_height,
         }
+    }
+
+    fn evaluate_output_height(&self, state: &TileNodeGraphState, eval: TileEvalContext) -> f32 {
+        self.evaluate_output_height_internal(
+            state,
+            eval,
+            &mut FxHashSet::default(),
+            &mut FxHashSet::default(),
+        )
+        .unwrap_or(0.5)
+        .clamp(0.0, 1.0)
+    }
+
+    fn evaluate_output_height_internal(
+        &self,
+        state: &TileNodeGraphState,
+        eval: TileEvalContext,
+        visiting: &mut FxHashSet<usize>,
+        visiting_subgraphs: &mut FxHashSet<Uuid>,
+    ) -> Option<f32> {
+        self.evaluate_connected_scalar(state, 0, 1, eval, visiting, visiting_subgraphs)
+            .or_else(|| {
+                self.evaluate_connected_color(state, 0, 0, eval, visiting, visiting_subgraphs)
+                    .map(Self::color_to_mask)
+            })
     }
 
     fn palette_color(&self, index: u16) -> Option<TheColor> {
@@ -715,7 +843,7 @@ impl TileGraphRenderer {
             return None;
         }
         let result = state.nodes.get(node_index).and_then(|node| {
-            if node.bypass && !matches!(node.kind, TileNodeKind::OutputRoot) {
+            if node.bypass && !matches!(node.kind, TileNodeKind::OutputRoot { .. }) {
                 if let Some(value) = self.evaluate_connected_material(
                     state,
                     node_index,
@@ -728,7 +856,12 @@ impl TileGraphRenderer {
                 }
             }
             match &node.kind {
-                TileNodeKind::OutputRoot => {
+                TileNodeKind::OutputRoot {
+                    roughness,
+                    metallic,
+                    opacity,
+                    emissive,
+                } => {
                     if let Some(solo) = self.solo_node_index(state)
                         && solo != node_index
                     {
@@ -740,14 +873,24 @@ impl TileGraphRenderer {
                             visiting_subgraphs,
                         )
                     } else {
-                        self.evaluate_connected_material(
-                            state,
-                            node_index,
-                            1,
-                            eval,
-                            visiting,
-                            visiting_subgraphs,
-                        )
+                        let mut channel = |input_terminal: u8, default: f32| -> f32 {
+                            self.evaluate_connected_scalar(
+                                state,
+                                node_index,
+                                input_terminal,
+                                eval,
+                                visiting,
+                                visiting_subgraphs,
+                            )
+                            .unwrap_or(default)
+                            .clamp(0.0, 1.0)
+                        };
+                        Some((
+                            channel(2, *roughness),
+                            channel(3, *metallic),
+                            channel(4, *opacity),
+                            channel(5, *emissive),
+                        ))
                     }
                 }
                 TileNodeKind::Subgraph { subgraph_id } => {
@@ -912,6 +1055,38 @@ impl TileGraphRenderer {
             })
     }
 
+    fn voronoi_warp_vector(
+        &self,
+        state: &TileNodeGraphState,
+        node_index: usize,
+        eval: TileEvalContext,
+        amount: f32,
+        visiting: &mut FxHashSet<usize>,
+        visiting_subgraphs: &mut FxHashSet<Uuid>,
+    ) -> Vec2<f32> {
+        if amount <= f32::EPSILON || self.input_connection(state, node_index, 0).is_none() {
+            return Vec2::new(0.0, 0.0);
+        }
+
+        let sx = self
+            .evaluate_connected_scalar(state, node_index, 0, eval, visiting, visiting_subgraphs)
+            .unwrap_or(0.5);
+        let wrapped_u = (eval.group_u() + 0.173).rem_euclid(1.0);
+        let wrapped_v = (eval.group_v() + 0.317).rem_euclid(1.0);
+        let sy = self
+            .evaluate_connected_scalar(
+                state,
+                node_index,
+                0,
+                eval.with_group_uv(wrapped_u, wrapped_v),
+                visiting,
+                visiting_subgraphs,
+            )
+            .unwrap_or(sx);
+
+        Vec2::new((sx - 0.5) * 2.0 * amount, (sy - 0.5) * 2.0 * amount)
+    }
+
     fn evaluate_connected_material(
         &self,
         state: &TileNodeGraphState,
@@ -978,7 +1153,11 @@ impl TileGraphRenderer {
             if node.mute {
                 return Some(TheColor::from_u8_array([0, 0, 0, 0]));
             }
-            if node.bypass && !matches!(node.kind, TileNodeKind::OutputRoot | TileNodeKind::GroupUV)
+            if node.bypass
+                && !matches!(
+                    node.kind,
+                    TileNodeKind::OutputRoot { .. } | TileNodeKind::GroupUV
+                )
             {
                 if let Some(color) = self.evaluate_connected_color(
                     state,
@@ -992,7 +1171,7 @@ impl TileGraphRenderer {
                 }
             }
             match &node.kind {
-                TileNodeKind::OutputRoot => {
+                TileNodeKind::OutputRoot { .. } => {
                     if let Some(solo) = self.solo_node_index(state)
                         && solo != node_index
                     {
@@ -1124,25 +1303,35 @@ impl TileGraphRenderer {
                 }
                 TileNodeKind::Noise { scale, seed, wrap } => {
                     let s = (*scale).clamp(0.0, 1.0).max(0.0001);
-                    let repeat = (s * 64.0).round().max(1.0) as i32;
-                    let mut nx = (eval.group_u() * repeat as f32).floor() as i32;
-                    let mut ny = (eval.group_v() * repeat as f32).floor() as i32;
-                    if *wrap {
-                        nx = nx.rem_euclid(repeat);
-                        ny = ny.rem_euclid(repeat);
-                    }
-                    let v = unit_to_u8(Self::hash2(nx, ny, *seed));
+                    let frequency = (s * 64.0).round().max(1.0) as i32;
+                    let v = unit_to_u8(Self::value_noise(
+                        eval.group_u(),
+                        eval.group_v(),
+                        frequency,
+                        *seed,
+                        *wrap,
+                    ));
                     Some(TheColor::from_u8_array([v, v, v, 255]))
                 }
                 TileNodeKind::Voronoi {
                     scale,
                     seed,
                     jitter,
+                    warp_amount,
+                    falloff,
                 } => {
+                    let warp = self.voronoi_warp_vector(
+                        state,
+                        node_index,
+                        eval,
+                        warp_amount.clamp(0.0, 0.25),
+                        visiting,
+                        visiting_subgraphs,
+                    );
                     let value = match output_terminal {
-                        1 => Self::voronoi_distance(eval, *scale, *seed, *jitter),
-                        2 => Self::voronoi_cell_id(eval, *scale, *seed, *jitter),
-                        _ => Self::voronoi(eval, *scale, *seed, *jitter),
+                        1 => Self::voronoi_height(eval, warp, *scale, *seed, *jitter, *falloff),
+                        2 => Self::voronoi_cell_id(eval, warp, *scale, *seed, *jitter),
+                        _ => Self::voronoi_center(eval, warp, *scale, *seed, *jitter),
                     };
                     let v = unit_to_u8(value);
                     Some(TheColor::from_u8_array([v, v, v, 255]))
@@ -1152,11 +1341,28 @@ impl TileGraphRenderer {
                     gap,
                     rotation,
                     rounding,
+                    warp_amount,
+                    falloff,
                 } => {
-                    let uv = Vec2::new(eval.group_u(), eval.group_v()) * scale.max(1.0);
-                    let (dist, _id) =
-                        box_divide(uv, gap.clamp(0.0, 4.0), *rotation, rounding.clamp(0.0, 0.5));
-                    let value = (1.0 - (dist.max(0.0) * 12.0)).clamp(0.0, 1.0);
+                    let warp = self.voronoi_warp_vector(
+                        state,
+                        node_index,
+                        eval,
+                        warp_amount.clamp(0.0, 0.25),
+                        visiting,
+                        visiting_subgraphs,
+                    );
+                    let value = match output_terminal {
+                        1 => Self::box_divide_height(
+                            eval, warp, *scale, *gap, *rotation, *rounding, *falloff,
+                        ),
+                        2 => {
+                            Self::box_divide_cell_id(eval, warp, *scale, *gap, *rotation, *rounding)
+                        }
+                        _ => {
+                            Self::box_divide_center(eval, warp, *scale, *gap, *rotation, *rounding)
+                        }
+                    };
                     let v = unit_to_u8(value);
                     Some(TheColor::from_u8_array([v, v, v, 255]))
                 }
@@ -1251,41 +1457,50 @@ impl TileGraphRenderer {
                     columns,
                     rows,
                     offset,
+                    warp_amount,
+                    falloff,
                 } => {
-                    let cols = (*columns).max(1) as f32;
-                    let rows = (*rows).max(1) as f32;
-                    let gu = eval.group_u() * cols;
-                    let gv = eval.group_v() * rows;
-                    let row = gv.floor() as i32;
-                    let brick_x = gu + if row & 1 == 1 { *offset } else { 0.0 };
-                    let a = self
-                        .input_connection_source(state, node_index, 0)
-                        .and_then(|src| {
-                            self.evaluate_node_color_internal(
-                                state,
-                                src,
-                                eval,
-                                visiting,
-                                visiting_subgraphs,
-                            )
-                        })
-                        .unwrap_or_else(|| TheColor::from_u8_array_3([255, 255, 255]));
-                    let b = self
-                        .input_connection_source(state, node_index, 1)
-                        .and_then(|src| {
-                            self.evaluate_node_color_internal(
-                                state,
-                                src,
-                                eval,
-                                visiting,
-                                visiting_subgraphs,
-                            )
-                        })
-                        .unwrap_or_else(|| TheColor::from_u8_array_3([0, 0, 0]));
-                    let local_x = brick_x.fract();
-                    let local_y = gv.fract();
-                    let mortar = local_x < 0.08 || local_y < 0.08;
-                    if mortar { Some(b) } else { Some(a) }
+                    let warp = self.voronoi_warp_vector(
+                        state,
+                        node_index,
+                        eval,
+                        warp_amount.clamp(0.0, 0.25),
+                        visiting,
+                        visiting_subgraphs,
+                    );
+                    let value = match output_terminal {
+                        1 => Self::brick_height(eval, warp, *columns, *rows, *offset, *falloff),
+                        2 => Self::brick_cell_id(eval, warp, *columns, *rows, *offset),
+                        _ => Self::brick_center(eval, warp, *columns, *rows, *offset),
+                    };
+                    let v = unit_to_u8(value);
+                    Some(TheColor::from_u8_array([v, v, v, 255]))
+                }
+                TileNodeKind::Disc {
+                    scale,
+                    seed,
+                    jitter,
+                    radius,
+                    warp_amount,
+                    falloff,
+                } => {
+                    let warp = self.voronoi_warp_vector(
+                        state,
+                        node_index,
+                        eval,
+                        warp_amount.clamp(0.0, 0.25),
+                        visiting,
+                        visiting_subgraphs,
+                    );
+                    let value = match output_terminal {
+                        1 => {
+                            Self::disc_height(eval, warp, *scale, *seed, *jitter, *radius, *falloff)
+                        }
+                        2 => Self::disc_cell_id(eval, warp, *scale, *seed, *jitter),
+                        _ => Self::disc_center(eval, warp, *scale, *seed, *jitter, *radius),
+                    };
+                    let v = unit_to_u8(value);
+                    Some(TheColor::from_u8_array([v, v, v, 255]))
                 }
                 TileNodeKind::IdRandom => {
                     let id = self
@@ -1786,15 +2001,63 @@ impl TileGraphRenderer {
         ((n ^ (n >> 16)) & 0x00ff_ffff) as f32 / 0x00ff_ffff as f32
     }
 
+    fn smoothstep_unit(t: f32) -> f32 {
+        let t = t.clamp(0.0, 1.0);
+        t * t * (3.0 - 2.0 * t)
+    }
+
+    fn value_noise(u: f32, v: f32, frequency: i32, seed: u32, wrap: bool) -> f32 {
+        let frequency = frequency.max(1);
+        let (u, v) = if wrap {
+            (u.rem_euclid(1.0), v.rem_euclid(1.0))
+        } else {
+            (u, v)
+        };
+        let x = u * frequency as f32;
+        let y = v * frequency as f32;
+        let x0 = x.floor() as i32;
+        let y0 = y.floor() as i32;
+        let x1 = x0 + 1;
+        let y1 = y0 + 1;
+        let fx = Self::smoothstep_unit(x.fract());
+        let fy = Self::smoothstep_unit(y.fract());
+
+        let sample = |ix: i32, iy: i32| -> f32 {
+            let (sx, sy) = if wrap {
+                (ix.rem_euclid(frequency), iy.rem_euclid(frequency))
+            } else {
+                (ix, iy)
+            };
+            Self::hash2(sx, sy, seed)
+        };
+
+        let v00 = sample(x0, y0);
+        let v10 = sample(x1, y0);
+        let v01 = sample(x0, y1);
+        let v11 = sample(x1, y1);
+        let vx0 = v00 * (1.0 - fx) + v10 * fx;
+        let vx1 = v01 * (1.0 - fx) + v11 * fx;
+        (vx0 * (1.0 - fy) + vx1 * fy).clamp(0.0, 1.0)
+    }
+
     fn remap_unit(value: f32, low: f32, high: f32) -> f32 {
         let span = (high - low).max(0.000_1);
         ((value - low) / span).clamp(0.0, 1.0)
     }
 
-    fn voronoi_data(eval: TileEvalContext, scale: f32, seed: u32, jitter: f32) -> (f32, f32, f32) {
+    fn voronoi_data(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        scale: f32,
+        seed: u32,
+        jitter: f32,
+        falloff: f32,
+    ) -> (f32, f32, f32) {
         let repeat = ((scale.clamp(0.01, 1.0) * 16.0).round() as i32).max(1);
-        let x = eval.group_u() * repeat as f32;
-        let y = eval.group_v() * repeat as f32;
+        let u = (eval.group_u() + warp.x).rem_euclid(1.0);
+        let v = (eval.group_v() + warp.y).rem_euclid(1.0);
+        let x = u * repeat as f32;
+        let y = v * repeat as f32;
         let cell_x = x.floor() as i32;
         let cell_y = y.floor() as i32;
         let frac_x = x.fract();
@@ -1825,20 +2088,238 @@ impl TileGraphRenderer {
         }
         let center = (1.0 - (min_dist / 1.4142)).clamp(0.0, 1.0);
         let edge_distance = ((second_dist - min_dist) / second_dist.max(0.0001)).clamp(0.0, 1.0);
+        let height = edge_distance.powf(falloff.clamp(0.1, 4.0));
         let id = Self::hash2(nearest.0, nearest.1, seed ^ 0x51f1_5e11);
-        (center, edge_distance, id)
+        (center, height, id)
     }
 
-    fn voronoi(eval: TileEvalContext, scale: f32, seed: u32, jitter: f32) -> f32 {
-        Self::voronoi_data(eval, scale, seed, jitter).0
+    fn voronoi_center(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        scale: f32,
+        seed: u32,
+        jitter: f32,
+    ) -> f32 {
+        Self::voronoi_data(eval, warp, scale, seed, jitter, 1.0).0
     }
 
-    fn voronoi_distance(eval: TileEvalContext, scale: f32, seed: u32, jitter: f32) -> f32 {
-        Self::voronoi_data(eval, scale, seed, jitter).1
+    fn voronoi_height(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        scale: f32,
+        seed: u32,
+        jitter: f32,
+        falloff: f32,
+    ) -> f32 {
+        Self::voronoi_data(eval, warp, scale, seed, jitter, falloff).1
     }
 
-    fn voronoi_cell_id(eval: TileEvalContext, scale: f32, seed: u32, jitter: f32) -> f32 {
-        Self::voronoi_data(eval, scale, seed, jitter).2
+    fn voronoi_cell_id(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        scale: f32,
+        seed: u32,
+        jitter: f32,
+    ) -> f32 {
+        Self::voronoi_data(eval, warp, scale, seed, jitter, 1.0).2
+    }
+
+    fn brick_data(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        columns: u16,
+        rows: u16,
+        offset: f32,
+        falloff: f32,
+    ) -> (f32, f32, f32) {
+        let cols = columns.max(1) as i32;
+        let rows = rows.max(1) as i32;
+        let u = (eval.group_u() + warp.x).rem_euclid(1.0);
+        let v = (eval.group_v() + warp.y).rem_euclid(1.0);
+        let gv = v * rows as f32;
+        let row = gv.floor() as i32;
+        let gu = u * cols as f32 + if row & 1 == 1 { offset } else { 0.0 };
+        let brick_x = gu.rem_euclid(cols as f32);
+        let col = brick_x.floor() as i32;
+        let local_x = brick_x.fract();
+        let local_y = gv.fract();
+
+        let dx = ((local_x - 0.5).abs() * 2.0).clamp(0.0, 1.0);
+        let dy = ((local_y - 0.5).abs() * 2.0).clamp(0.0, 1.0);
+        let center = (1.0 - ((dx * dx + dy * dy).sqrt() / 1.4142)).clamp(0.0, 1.0);
+
+        let edge =
+            (local_x.min(1.0 - local_x).min(local_y.min(1.0 - local_y)) * 2.0).clamp(0.0, 1.0);
+        let height = edge.powf(falloff.clamp(0.1, 4.0));
+
+        let id = Self::hash2(col.rem_euclid(cols), row.rem_euclid(rows), 0x61c8_8647);
+        (center, height, id)
+    }
+
+    fn brick_center(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        columns: u16,
+        rows: u16,
+        offset: f32,
+    ) -> f32 {
+        Self::brick_data(eval, warp, columns, rows, offset, 1.0).0
+    }
+
+    fn brick_height(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        columns: u16,
+        rows: u16,
+        offset: f32,
+        falloff: f32,
+    ) -> f32 {
+        Self::brick_data(eval, warp, columns, rows, offset, falloff).1
+    }
+
+    fn brick_cell_id(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        columns: u16,
+        rows: u16,
+        offset: f32,
+    ) -> f32 {
+        Self::brick_data(eval, warp, columns, rows, offset, 1.0).2
+    }
+
+    fn disc_data(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        scale: f32,
+        seed: u32,
+        jitter: f32,
+        radius: f32,
+        falloff: f32,
+    ) -> (f32, f32, f32) {
+        let repeat = ((scale.clamp(0.01, 1.0) * 16.0).round() as i32).max(1);
+        let u = (eval.group_u() + warp.x).rem_euclid(1.0);
+        let v = (eval.group_v() + warp.y).rem_euclid(1.0);
+        let x = u * repeat as f32;
+        let y = v * repeat as f32;
+        let cell_x = x.floor() as i32;
+        let cell_y = y.floor() as i32;
+        let frac_x = x.fract();
+        let frac_y = y.fract();
+        let jitter = jitter.clamp(0.0, 1.0);
+        let radius = radius.clamp(0.05, 1.0);
+
+        let mut min_dist = f32::MAX;
+        let mut nearest = (cell_x, cell_y);
+        for oy in -1..=1 {
+            for ox in -1..=1 {
+                let sx = cell_x + ox;
+                let sy = cell_y + oy;
+                let wx = sx.rem_euclid(repeat);
+                let wy = sy.rem_euclid(repeat);
+                let px = 0.5 + (Self::hash2(wx, wy, seed) - 0.5) * jitter;
+                let py = 0.5 + (Self::hash2(wx, wy, seed ^ 0x9e37_79b9) - 0.5) * jitter;
+                let dx = ox as f32 + px - frac_x;
+                let dy = oy as f32 + py - frac_y;
+                let dist = (dx * dx + dy * dy).sqrt();
+                if dist < min_dist {
+                    min_dist = dist;
+                    nearest = (wx, wy);
+                }
+            }
+        }
+
+        let radius_cells = 0.5 * radius;
+        let center = (1.0 - (min_dist / radius_cells.max(0.0001))).clamp(0.0, 1.0);
+        let height = center.powf(falloff.clamp(0.1, 4.0));
+        let id = Self::hash2(nearest.0, nearest.1, seed ^ 0x2f6e_2b1d);
+        (center, height, id)
+    }
+
+    fn disc_center(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        scale: f32,
+        seed: u32,
+        jitter: f32,
+        radius: f32,
+    ) -> f32 {
+        Self::disc_data(eval, warp, scale, seed, jitter, radius, 1.0).0
+    }
+
+    fn disc_height(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        scale: f32,
+        seed: u32,
+        jitter: f32,
+        radius: f32,
+        falloff: f32,
+    ) -> f32 {
+        Self::disc_data(eval, warp, scale, seed, jitter, radius, falloff).1
+    }
+
+    fn disc_cell_id(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        scale: f32,
+        seed: u32,
+        jitter: f32,
+    ) -> f32 {
+        Self::disc_data(eval, warp, scale, seed, jitter, 1.0, 1.0).2
+    }
+
+    fn box_divide_data(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        scale: f32,
+        gap: f32,
+        rotation: f32,
+        rounding: f32,
+        falloff: f32,
+    ) -> (f32, f32, f32) {
+        let u = (eval.group_u() + warp.x).rem_euclid(1.0);
+        let v = (eval.group_v() + warp.y).rem_euclid(1.0);
+        let uv = Vec2::new(u, v) * scale.max(0.1);
+        let (dist, id) = box_divide(uv, gap.clamp(0.0, 4.0), rotation, rounding.clamp(0.0, 0.5));
+        let center = (1.0 - (dist.abs() * 6.0)).clamp(0.0, 1.0);
+        let height = (1.0 - (dist.max(0.0) * 12.0))
+            .clamp(0.0, 1.0)
+            .powf(falloff.clamp(0.1, 4.0));
+        (center, height, id)
+    }
+
+    fn box_divide_center(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        scale: f32,
+        gap: f32,
+        rotation: f32,
+        rounding: f32,
+    ) -> f32 {
+        Self::box_divide_data(eval, warp, scale, gap, rotation, rounding, 1.0).0
+    }
+
+    fn box_divide_height(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        scale: f32,
+        gap: f32,
+        rotation: f32,
+        rounding: f32,
+        falloff: f32,
+    ) -> f32 {
+        Self::box_divide_data(eval, warp, scale, gap, rotation, rounding, falloff).1
+    }
+
+    fn box_divide_cell_id(
+        eval: TileEvalContext,
+        warp: Vec2<f32>,
+        scale: f32,
+        gap: f32,
+        rotation: f32,
+        rounding: f32,
+    ) -> f32 {
+        Self::box_divide_data(eval, warp, scale, gap, rotation, rounding, 1.0).2
     }
 }
 
