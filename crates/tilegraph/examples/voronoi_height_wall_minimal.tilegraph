@@ -1,0 +1,98 @@
+version = 1
+name = "Voronoi Height Wall Minimal"
+grid = "3x3"
+tile_size = "32x32"
+
+[palette]
+name = "Steam Lords"
+link = "https://lospec.com/palette-list/steam-lords"
+colors = [
+  "#213b25",
+  "#3a604a",
+  "#4f7754",
+  "#a19f7c",
+  "#77744f",
+  "#775c4f",
+  "#603b3a",
+  "#3b2137",
+  "#170e19",
+  "#2f213b",
+  "#433a60",
+  "#4f5277",
+  "#65738c",
+  "#7c94a1",
+  "#a0b9ba",
+  "#c0d1cc",
+]
+
+[node.voronoi.main]
+pos = [60, 140]
+scale = 0.28
+seed = 11
+jitter = 0.92
+
+[node.blur.main]
+pos = [240, 60]
+in = "voronoi.main:height"
+radius = 0.014
+
+[node.levels.main]
+pos = [420, 60]
+in = "blur.main:field"
+level = 0.58
+width = 0.72
+
+[node.levels.band]
+pos = [620, 60]
+in = "levels.main:field"
+level = 0.46
+width = 0.28
+
+[node.id_random.main]
+pos = [240, 240]
+id = "voronoi.main:cell_id"
+
+[node.levels.mask]
+pos = [420, 240]
+in = "id_random.main:field"
+level = 0.55
+width = 0.75
+
+[node.noise.main]
+pos = [420, 400]
+scale = 0.22
+seed = 5
+wrap = true
+
+[node.multiply.detail]
+pos = [620, 320]
+a = "noise.main:field"
+b = "levels.mask:field"
+
+[node.multiply.band]
+pos = [820, 220]
+a = "multiply.detail:field"
+b = "levels.band:field"
+
+[node.subtract.main]
+pos = [1020, 140]
+a = "levels.main:field"
+b = "multiply.band:field"
+
+[node.levels.final]
+pos = [1220, 140]
+in = "subtract.main:field"
+level = 0.50
+width = 0.85
+
+[node.material.main]
+pos = [1220, 320]
+roughness = 0.9
+metallic = 0.0
+opacity = 1.0
+emissive = 0.0
+
+[node.output.main]
+pos = [1440, 140]
+color = "levels.final:field"
+material = "material.main:material"

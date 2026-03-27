@@ -1,9 +1,9 @@
 use image::RgbaImage;
-use shared::prelude::*;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use theframework::prelude::*;
+use tilegraph::{RenderedTileGraph, TileGraphDocument, TileGraphRenderer, TileNodeGraphExchange};
 
 fn save_png(path: &Path, width: u32, height: u32, pixels: Vec<u8>) -> Result<(), String> {
     let image = RgbaImage::from_raw(width, height, pixels)
@@ -37,7 +37,7 @@ fn default_steam_lords_palette() -> Vec<TheColor> {
 
 fn print_usage() {
     eprintln!(
-        "Usage: tilegraph-render <graph.eldiron_graph> [output_dir] [--palette #RRGGBB,#RRGGBB,...]"
+        "Usage: tilegraph-cli <graph.eldiron_graph|graph.tilegraph> [output_dir] [--palette #RRGGBB,#RRGGBB,...]"
     );
 }
 
@@ -88,6 +88,20 @@ fn write_rendered_sheet_png(output_file: &Path, rendered: RenderedTileGraph) -> 
     save_png(output_file, sheet_width, sheet_height, rendered.sheet_color)
 }
 
+fn load_graph_from_text(input_path: &Path, text: &str) -> Result<TileNodeGraphExchange, String> {
+    let is_tilegraph = input_path
+        .file_name()
+        .and_then(|f| f.to_str())
+        .map(|f| f.ends_with(".tilegraph") || f.ends_with(".tilegraph.toml"))
+        .unwrap_or(false);
+    if is_tilegraph {
+        return TileGraphDocument::from_toml_str(text)
+            .and_then(|doc| doc.to_exchange())
+            .map_err(|e| e.to_string());
+    }
+    serde_json::from_str(text).map_err(|e| e.to_string())
+}
+
 fn main() {
     if let Err(err) = run() {
         eprintln!("{err}");
@@ -117,9 +131,9 @@ fn run() -> Result<(), String> {
         }
     }
 
-    let text = fs::read_to_string(&input).map_err(|e| e.to_string())?;
-    let mut graph: TileNodeGraphExchange =
-        serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let input_path = PathBuf::from(&input);
+    let text = fs::read_to_string(&input_path).map_err(|e| e.to_string())?;
+    let mut graph = load_graph_from_text(&input_path, &text)?;
     graph.graph_state.ensure_root();
     if palette.is_empty() && !graph.palette_colors.is_empty() {
         palette = graph.palette_colors.clone();
@@ -130,7 +144,6 @@ fn run() -> Result<(), String> {
 
     let renderer = TileGraphRenderer::new(palette);
     let rendered = renderer.render_graph(&graph);
-    let input_path = PathBuf::from(&input);
     let output_path = output_path.map(PathBuf::from);
 
     if let Some(path) = output_path {
@@ -145,7 +158,18 @@ fn run() -> Result<(), String> {
             path.display()
         );
     } else {
-        let output_file = input_path.with_extension("png");
+        let output_file = if input.ends_with(".tilegraph") || input.ends_with(".tilegraph.toml") {
+            let file_name = input_path
+                .file_name()
+                .and_then(|f| f.to_str())
+                .unwrap_or("graph.tilegraph");
+            let stem = file_name
+                .trim_end_matches(".tilegraph.toml")
+                .trim_end_matches(".tilegraph");
+            input_path.with_file_name(format!("{stem}.png"))
+        } else {
+            input_path.with_extension("png")
+        };
         write_rendered_sheet_png(&output_file, rendered)?;
         println!(
             "Rendered '{}' to {}",

@@ -206,15 +206,23 @@ pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<PixelSo
     if let Some(source) = server_ctx.curr_tile_source {
         return Some(match source {
             TileSource::SingleTile(id) => PixelSource::TileId(id),
-            TileSource::TileGroup(id) => PixelSource::TileGroup(id),
+            TileSource::TileGroup(id) => server_ctx
+                .curr_tile_id
+                .map(PixelSource::TileId)
+                .unwrap_or(PixelSource::TileGroup(id)),
             TileSource::TileGroupMember {
                 group_id,
                 member_index,
-            } => PixelSource::TileGroupMember {
-                group_id,
-                member_index,
-            },
-            TileSource::Procedural(id) => PixelSource::ProceduralTile(id),
+            } => server_ctx.curr_tile_id.map(PixelSource::TileId).unwrap_or(
+                PixelSource::TileGroupMember {
+                    group_id,
+                    member_index,
+                },
+            ),
+            TileSource::Procedural(id) => server_ctx
+                .curr_tile_id
+                .map(PixelSource::TileId)
+                .unwrap_or(PixelSource::ProceduralTile(id)),
         });
     }
 

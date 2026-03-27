@@ -1458,11 +1458,7 @@ impl Tool for LinedefTool {
             TheEvent::StateChanged(id, state) => {
                 #[allow(clippy::collapsible_if)]
                 if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
-                    // Apply a source
-                    let mut source: Option<Value> = None;
-                    if let Some(id) = server_ctx.curr_tile_id {
-                        source = Some(Value::Source(PixelSource::TileId(id)));
-                    }
+                    let source = crate::utils::get_source(_ui, server_ctx).map(Value::Source);
 
                     /*else if server_ctx.curr_map_tool_helper == MapToolHelper::MaterialPicker {
                         if let Some(id) = server_ctx.curr_material_id {

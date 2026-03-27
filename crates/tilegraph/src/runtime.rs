@@ -1,8 +1,73 @@
-use crate::patterns::box_divide;
-use crate::project::NodeGroupAsset;
 use rayon::prelude::*;
 use rustc_hash::FxHashSet;
 use theframework::prelude::*;
+
+#[inline(always)]
+fn hash21(p: Vec2<f32>) -> f32 {
+    let mut p3 = Vec3::new(
+        (p.x * 0.1031).fract(),
+        (p.y * 0.1031).fract(),
+        (p.x * 0.1031).fract(),
+    );
+    let dot = p3.dot(Vec3::new(p3.y + 33.333, p3.z + 33.333, p3.x + 33.333));
+
+    p3.x += dot;
+    p3.y += dot;
+    p3.z += dot;
+
+    ((p3.x + p3.y) * p3.z).fract()
+}
+
+fn rot(a: f32) -> Mat2<f32> {
+    Mat2::new(a.cos(), -a.sin(), a.sin(), a.cos())
+}
+
+fn box_divide(p: Vec2<f32>, gap: f32, rotation: f32, rounding: f32) -> (f32, f32) {
+    fn s_box(p: Vec2<f32>, b: Vec2<f32>, r: f32) -> f32 {
+        let d = p.map(|v| v.abs()) - b + Vec2::new(r, r);
+        d.x.max(d.y).min(0.0) + (d.map(|v| v.max(0.0))).magnitude() - r
+    }
+
+    let mut p = p;
+    let ip = p.map(|v| v.floor());
+    p -= ip;
+
+    let mut l = Vec2::new(1.0, 1.0);
+    let mut last_l;
+    let mut r = hash21(ip);
+
+    for _ in 0..6 {
+        r = (l + Vec2::new(r, r)).dot(Vec2::new(123.71, 439.43)).fract() * 0.4 + 0.3;
+
+        last_l = l;
+        if l.x > l.y {
+            p = Vec2::new(p.y, p.x);
+            l = Vec2::new(l.y, l.x);
+        }
+
+        if p.x < r {
+            l.x /= r;
+            p.x /= r;
+        } else {
+            l.x /= 1.0 - r;
+            p.x = (p.x - r) / (1.0 - r);
+        }
+
+        if last_l.x > last_l.y {
+            p = Vec2::new(p.y, p.x);
+            l = Vec2::new(l.y, l.x);
+        }
+    }
+    p -= 0.5;
+
+    let id = hash21(ip + l);
+    p = rot((id - 0.5) * rotation) * p;
+
+    let th = l * 0.02 * gap;
+    let c = s_box(p, Vec2::new(0.5, 0.5) - th, rounding);
+
+    (c, id)
+}
 
 fn default_tile_node_nodes() -> Vec<TileNodeState> {
     vec![TileNodeState {
@@ -140,6 +205,8 @@ pub enum TileNodeKind {
     IdRandom,
     Min,
     Max,
+    Add,
+    Subtract,
     Multiply,
     MakeMaterial,
     Material {
@@ -249,15 +316,22 @@ impl TileNodeGraphState {
 }
 
 impl TileNodeGraphExchange {
-    pub fn from_node_group(node_group: &NodeGroupAsset, graph_state: TileNodeGraphState) -> Self {
+    pub fn new(
+        graph_name: String,
+        output_grid_width: u16,
+        output_grid_height: u16,
+        tile_pixel_width: u16,
+        tile_pixel_height: u16,
+        graph_state: TileNodeGraphState,
+    ) -> Self {
         Self {
             version: 1,
-            graph_name: node_group.graph_name.clone(),
+            graph_name,
             palette_colors: vec![],
-            output_grid_width: node_group.output_grid_width,
-            output_grid_height: node_group.output_grid_height,
-            tile_pixel_width: node_group.tile_pixel_width,
-            tile_pixel_height: node_group.tile_pixel_height,
+            output_grid_width,
+            output_grid_height,
+            tile_pixel_width,
+            tile_pixel_height,
             graph_state,
         }
     }
@@ -467,8 +541,10 @@ impl TileGraphRenderer {
                             cell_y: cell_y as u16,
                             group_width: graph.output_grid_width.max(1),
                             group_height: graph.output_grid_height.max(1),
-                            u: px as f32 / (tile_width.max(1) - 1).max(1) as f32,
-                            v: py as f32 / (tile_height.max(1) - 1).max(1) as f32,
+                            // Sample at pixel centers so adjacent tiles share a continuous
+                            // group-space field without duplicating the border sample.
+                            u: (px as f32 + 0.5) / tile_width.max(1) as f32,
+                            v: (py as f32 + 0.5) / tile_height.max(1) as f32,
                         };
 
                         let color = self
@@ -1285,6 +1361,64 @@ impl TileGraphRenderer {
                         (None, None) => None,
                     }
                 }
+                TileNodeKind::Add => {
+                    let a = self.evaluate_connected_color(
+                        state,
+                        node_index,
+                        0,
+                        eval,
+                        visiting,
+                        visiting_subgraphs,
+                    );
+                    let b = self.evaluate_connected_color(
+                        state,
+                        node_index,
+                        1,
+                        eval,
+                        visiting,
+                        visiting_subgraphs,
+                    );
+                    match (a, b) {
+                        (Some(a), Some(b)) => {
+                            let av = Self::color_to_mask(a);
+                            let bv = Self::color_to_mask(b);
+                            let v = unit_to_u8((av + bv).clamp(0.0, 1.0));
+                            Some(TheColor::from_u8_array([v, v, v, 255]))
+                        }
+                        (Some(a), None) => Some(a),
+                        (None, Some(b)) => Some(b),
+                        (None, None) => None,
+                    }
+                }
+                TileNodeKind::Subtract => {
+                    let a = self.evaluate_connected_color(
+                        state,
+                        node_index,
+                        0,
+                        eval,
+                        visiting,
+                        visiting_subgraphs,
+                    );
+                    let b = self.evaluate_connected_color(
+                        state,
+                        node_index,
+                        1,
+                        eval,
+                        visiting,
+                        visiting_subgraphs,
+                    );
+                    match (a, b) {
+                        (Some(a), Some(b)) => {
+                            let av = Self::color_to_mask(a);
+                            let bv = Self::color_to_mask(b);
+                            let v = unit_to_u8((av - bv).clamp(0.0, 1.0));
+                            Some(TheColor::from_u8_array([v, v, v, 255]))
+                        }
+                        (Some(a), None) => Some(a),
+                        (None, Some(_)) => Some(TheColor::from_u8_array([0, 0, 0, 255])),
+                        (None, None) => None,
+                    }
+                }
                 TileNodeKind::Multiply => {
                     let a = self.evaluate_connected_color(
                         state,
@@ -1691,9 +1825,8 @@ impl TileGraphRenderer {
         }
         let center = (1.0 - (min_dist / 1.4142)).clamp(0.0, 1.0);
         let edge_distance = ((second_dist - min_dist) / second_dist.max(0.0001)).clamp(0.0, 1.0);
-        let height = (center.powf(0.82) * 0.62 + edge_distance.powf(0.72) * 0.38).clamp(0.0, 1.0);
         let id = Self::hash2(nearest.0, nearest.1, seed ^ 0x51f1_5e11);
-        (center, height, id)
+        (center, edge_distance, id)
     }
 
     fn voronoi(eval: TileEvalContext, scale: f32, seed: u32, jitter: f32) -> f32 {

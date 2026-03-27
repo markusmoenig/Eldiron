@@ -73,6 +73,7 @@ pub struct TilesDock {
     drag_drop_cell: Option<(usize, Vec2<i32>)>,
     drag_hover_coord: Option<(usize, Vec2<i32>)>,
     entered_group: Option<Uuid>,
+    entered_group_saved_offset: Option<(usize, Vec2<i32>)>,
     last_group_click: Option<(Uuid, u128)>,
 }
 
@@ -102,6 +103,7 @@ impl Dock for TilesDock {
             drag_drop_cell: None,
             drag_hover_coord: None,
             entered_group: None,
+            entered_group_saved_offset: None,
             last_group_click: None,
         }
     }
@@ -379,6 +381,14 @@ impl Dock for TilesDock {
                     } else if item_id.name == "Tiles Dock Add To Collection" {
                         if let Some(source) = self.curr_source {
                             project.add_source_to_collection(&item_id.uuid, source);
+                            let target_tab = self
+                                .tab_specs(project)
+                                .iter()
+                                .position(|spec| spec.kind == TileTabKind::Collection(item_id.uuid))
+                                .unwrap_or(self.active_tab);
+                            let span = self.source_span(project, source);
+                            let pos = self.find_open_cell_for_span(project, target_tab, span);
+                            project.set_collection_tile_board_position(&item_id.uuid, source, pos);
                             self.sync_tabs(ui, ctx, project);
                             self.sync_collection_menu(ui, project);
                             self.sync_sidebar(ctx, project);
@@ -395,6 +405,15 @@ impl Dock for TilesDock {
                             collection
                                 .entries
                                 .retain(|entry| !entry.matches_source(source));
+                            match source {
+                                TileSource::SingleTile(id) => {
+                                    collection.tile_board_tiles.shift_remove(&id);
+                                }
+                                TileSource::TileGroup(id) => {
+                                    collection.tile_board_groups.shift_remove(&id);
+                                }
+                                _ => {}
+                            }
                             self.sync_collection_menu(ui, project);
                             self.sync_sidebar(ctx, project);
                             self.render_views(ui, ctx, project);
@@ -665,7 +684,9 @@ impl Dock for TilesDock {
             }
             TheEvent::RenderViewClicked(id, coord) => {
                 if let Some(tab) = Self::tab_from_view_name(&id.name) {
-                    if let Some(top_level_source) = self.pick_top_level_source(tab, *coord) {
+                    if self.entered_group.is_none()
+                        && let Some(top_level_source) = self.pick_top_level_source(tab, *coord)
+                    {
                         let start_cell = self
                             .source_board_cell(project, tab, top_level_source)
                             .unwrap_or_else(|| {
@@ -711,7 +732,8 @@ impl Dock for TilesDock {
             }
             TheEvent::RenderViewDragged(id, coord) => {
                 if let Some(tab) = Self::tab_from_view_name(&id.name) {
-                    if let Some((drag_tab, _source, _start_cell, grab_offset)) = self.drag_item
+                    if self.entered_group.is_none()
+                        && let Some((drag_tab, _source, _start_cell, grab_offset)) = self.drag_item
                         && drag_tab == tab
                     {
                         self.auto_scroll_drag(ui, tab, &id.name, *coord);
@@ -735,7 +757,9 @@ impl Dock for TilesDock {
             }
             TheEvent::RenderViewUp(id, coord) => {
                 if Self::tab_from_view_name(&id.name).is_some() {
-                    if let Some((tab, source, start_cell, _grab_offset)) = self.drag_item {
+                    if self.entered_group.is_none()
+                        && let Some((tab, source, start_cell, _grab_offset)) = self.drag_item
+                    {
                         let before = project.clone();
                         let mut changed = false;
                         if let Some(group_id) =
@@ -749,10 +773,10 @@ impl Dock for TilesDock {
                             changed = self
                                 .try_move_with_displacement(project, tab, source, start_cell, cell);
                             if !changed {
-                                project.set_tile_board_position(source, start_cell);
+                                self.set_board_position_for_tab(project, tab, source, start_cell);
                             }
                         } else {
-                            project.set_tile_board_position(source, start_cell);
+                            self.set_board_position_for_tab(project, tab, source, start_cell);
                         }
                         if changed {
                             let after = project.clone();
@@ -1099,9 +1123,17 @@ impl TilesDock {
     ) {
         self.entered_group = Some(group_id);
         self.ensure_tab_state(self.tab_specs(project).len());
+        if self.entered_group_saved_offset.is_none() && self.active_tab < self.tab_offset.len() {
+            self.entered_group_saved_offset =
+                Some((self.active_tab, self.tab_offset[self.active_tab]));
+        }
         if self.active_tab < self.tab_offset.len() {
             self.tab_offset[self.active_tab] = Vec2::zero();
         }
+        self.drag_pan = None;
+        self.drag_item = None;
+        self.drag_drop_cell = None;
+        self.drag_hover_coord = None;
         if project.is_tile_node_group(&group_id) {
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Open Tile Node Group Workflow"),
@@ -1118,6 +1150,15 @@ impl TilesDock {
 
     fn leave_group(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
         self.entered_group = None;
+        if let Some((tab, offset)) = self.entered_group_saved_offset.take()
+            && tab < self.tab_offset.len()
+        {
+            self.tab_offset[tab] = offset;
+        }
+        self.drag_pan = None;
+        self.drag_item = None;
+        self.drag_drop_cell = None;
+        self.drag_hover_coord = None;
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Close Tile Node Editor Skeleton"),
             TheValue::Empty,
@@ -1148,6 +1189,11 @@ impl TilesDock {
         }
         if let TileTabKind::Collection(collection_id) = self.current_tab_kind(project) {
             project.add_source_to_collection(&collection_id, TileSource::TileGroup(group_id));
+            project.set_collection_tile_board_position(
+                &collection_id,
+                TileSource::TileGroup(group_id),
+                pos,
+            );
         }
         project.set_tile_board_position(TileSource::TileGroup(group_id), pos);
         if self.active_tab != create_tab {
@@ -1621,7 +1667,7 @@ impl TilesDock {
                     entries.push(TileBoardEntry {
                         source,
                         span: Vec2::new(1, 1),
-                        pos: project.tile_board_position(source),
+                        pos: self.board_position_for_tab(project, tab, source),
                     });
                 }
             }
@@ -1631,7 +1677,7 @@ impl TilesDock {
                     entries.push(TileBoardEntry {
                         source,
                         span: self.group_grid_size(project, group),
-                        pos: project.tile_board_position(source),
+                        pos: self.board_position_for_tab(project, tab, source),
                     });
                 }
             }
@@ -1772,14 +1818,6 @@ impl TilesDock {
                 ]
             };
             ctx.draw.rect(buffer.pixels_mut(), &outer, stride, &fill);
-            ctx.draw
-                .rect_outline(buffer.pixels_mut(), &outer, stride, &outline);
-        } else if matches!(source, TileSource::SingleTile(_))
-            && (Some(source) == self.current_source() || Some(source) == self.tile_hover_source)
-            && let Some(outer) = Self::clip_rect(buffer, rect, 1)
-        {
-            ctx.draw
-                .rect_outline(buffer.pixels_mut(), &outer, stride, &outline);
         }
 
         match source {
@@ -1862,6 +1900,36 @@ impl TilesDock {
                             );
                         }
                     }
+                    for (index, member) in group.members.iter().enumerate() {
+                        let member_source = TileSource::TileGroupMember {
+                            group_id,
+                            member_index: index as u16,
+                        };
+                        if Some(member_source) == self.current_source()
+                            || Some(member_source) == self.tile_hover_source
+                        {
+                            let member_rect = Vec4::new(
+                                rect.x + member.x as i32 * cell_w,
+                                rect.y + member.y as i32 * cell_h,
+                                cell_w,
+                                cell_h,
+                            );
+                            if let Some(outer) = Self::clip_rect(buffer, member_rect, 2) {
+                                let member_outline =
+                                    if Some(member_source) == self.tile_hover_source {
+                                        [210, 210, 210, 255]
+                                    } else {
+                                        WHITE
+                                    };
+                                ctx.draw.rect_outline(
+                                    buffer.pixels_mut(),
+                                    &outer,
+                                    stride,
+                                    &member_outline,
+                                );
+                            }
+                        }
+                    }
                 }
             }
             TileSource::TileGroupMember {
@@ -1909,6 +1977,25 @@ impl TilesDock {
                         );
                     }
                 }
+            }
+        }
+
+        if !matches!(source, TileSource::Procedural(_))
+            && ((matches!(source, TileSource::TileGroup(_))
+                && (Some(source) == self.current_source()
+                    || Some(source) == self.tile_hover_source))
+                || (matches!(source, TileSource::SingleTile(_))
+                    && (Some(source) == self.current_source()
+                        || Some(source) == self.tile_hover_source)))
+        {
+            let inset = if matches!(source, TileSource::TileGroup(_)) {
+                2
+            } else {
+                1
+            };
+            if let Some(outer) = Self::clip_rect(buffer, rect, inset) {
+                ctx.draw
+                    .rect_outline(buffer.pixels_mut(), &outer, stride, &outline);
             }
         }
     }
@@ -2163,7 +2250,48 @@ impl TilesDock {
                     ((placement.rect.y + self.tab_offset[tab].y) / cell).max(0),
                 )
             })
-            .or_else(|| project.tile_board_position(source))
+            .or_else(|| self.board_position_for_tab(project, tab, source))
+    }
+
+    fn board_position_for_tab(
+        &self,
+        project: &Project,
+        tab: usize,
+        source: TileSource,
+    ) -> Option<Vec2<i32>> {
+        match self
+            .tab_specs(project)
+            .get(tab)
+            .map(|spec| spec.kind)
+            .unwrap_or(TileTabKind::Project)
+        {
+            TileTabKind::Collection(collection_id) => project
+                .collection_tile_board_position(&collection_id, source)
+                .or_else(|| project.tile_board_position(source)),
+            _ => project.tile_board_position(source),
+        }
+    }
+
+    fn set_board_position_for_tab(
+        &self,
+        project: &mut Project,
+        tab: usize,
+        source: TileSource,
+        pos: Vec2<i32>,
+    ) {
+        match self
+            .tab_specs(project)
+            .get(tab)
+            .map(|spec| spec.kind)
+            .unwrap_or(TileTabKind::Project)
+        {
+            TileTabKind::Collection(collection_id) => {
+                project.set_collection_tile_board_position(&collection_id, source, pos);
+            }
+            _ => {
+                project.set_tile_board_position(source, pos);
+            }
+        }
     }
 
     fn can_place_source_at(
@@ -2214,7 +2342,7 @@ impl TilesDock {
                 project.ensure_tile_board_space(
                     target_cell + Vec2::new(target_span.x - 1, target_span.y - 1),
                 );
-                project.set_tile_board_position(source, target_cell);
+                self.set_board_position_for_tab(project, tab, source, target_cell);
                 return true;
             }
             return false;
@@ -2286,13 +2414,13 @@ impl TilesDock {
 
         project
             .ensure_tile_board_space(target_cell + Vec2::new(source_span.x - 1, source_span.y - 1));
-        project.set_tile_board_position(source, target_cell);
+        self.set_board_position_for_tab(project, tab, source, target_cell);
         for (displaced_source, _old_cell, new_cell) in new_positions {
             let displaced_span = self.source_span(project, displaced_source);
             project.ensure_tile_board_space(
                 new_cell + Vec2::new(displaced_span.x - 1, displaced_span.y - 1),
             );
-            project.set_tile_board_position(displaced_source, new_cell);
+            self.set_board_position_for_tab(project, tab, displaced_source, new_cell);
         }
         true
     }
@@ -2492,7 +2620,22 @@ impl TilesDock {
                     self.curr_tile = None;
                 }
             }
-            TileSource::TileGroup(_) | TileSource::Procedural(_) => {
+            TileSource::TileGroup(group_id) => {
+                let representative = project
+                    .tile_groups
+                    .get(&group_id)
+                    .and_then(|group| group.members.first())
+                    .map(|member| member.tile_id);
+                server_ctx.curr_tile_id = representative;
+                self.curr_tile = representative;
+                if let Some(tile_id) = representative {
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Tile Picked"),
+                        TheValue::Id(tile_id),
+                    ));
+                }
+            }
+            TileSource::Procedural(_) => {
                 server_ctx.curr_tile_id = None;
                 self.curr_tile = None;
             }

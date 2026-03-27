@@ -2,8 +2,9 @@ use crate::docks::tiles_editor_undo::*;
 use crate::editor::{TOOLLIST, UNDOMANAGER};
 use crate::prelude::*;
 use shared::tilegraph::{
-    TileGraphSubgraphResolver as SharedTileGraphSubgraphResolver, TileNodeGraphExchange,
-    TileNodeGraphState, TileNodeKind, TileNodeState, flatten_graph_exchange_with,
+    TileGraphDocument, TileGraphSubgraphResolver as SharedTileGraphSubgraphResolver,
+    TileNodeGraphExchange, TileNodeGraphState, TileNodeKind, TileNodeState,
+    flatten_graph_exchange_with,
 };
 
 const TILE_NODE_CANVAS_VIEW: &str = "Tile Node Skeleton Graph View";
@@ -404,6 +405,14 @@ impl Dock for TilesEditorDock {
             TheId::named("Tile Node Add Max"),
         ));
         compose_menu.add(TheContextMenuItem::new(
+            "Add".to_string(),
+            TheId::named("Tile Node Add Add"),
+        ));
+        compose_menu.add(TheContextMenuItem::new(
+            "Subtract".to_string(),
+            TheId::named("Tile Node Add Subtract"),
+        ));
+        compose_menu.add(TheContextMenuItem::new(
             "Multiply".to_string(),
             TheId::named("Tile Node Add Multiply"),
         ));
@@ -779,6 +788,12 @@ impl Dock for TilesEditorDock {
                     } else if item_id.name == "Tile Node Add Max" {
                         push_node(TileNodeKind::Max);
                         return true;
+                    } else if item_id.name == "Tile Node Add Add" {
+                        push_node(TileNodeKind::Add);
+                        return true;
+                    } else if item_id.name == "Tile Node Add Subtract" {
+                        push_node(TileNodeKind::Subtract);
+                        return true;
                     } else if item_id.name == "Tile Node Add Checker" {
                         push_node(TileNodeKind::Checker { scale: 8 });
                         return true;
@@ -865,7 +880,11 @@ impl Dock for TilesEditorDock {
                             "Import Tile Node Graph".into(),
                             TheFileExtension::new(
                                 "Eldiron Tile Node Graph".into(),
-                                vec!["eldiron_graph".to_string(), "json".to_string()],
+                                vec![
+                                    "tilegraph".to_string(),
+                                    "eldiron_graph".to_string(),
+                                    "json".to_string(),
+                                ],
                             ),
                         );
                         return true;
@@ -877,7 +896,7 @@ impl Dock for TilesEditorDock {
                             "Export Tile Node Graph".into(),
                             TheFileExtension::new(
                                 "Eldiron Tile Node Graph".into(),
-                                vec!["eldiron_graph".to_string()],
+                                vec!["tilegraph".to_string()],
                             ),
                         );
                         return true;
@@ -2366,6 +2385,8 @@ impl TilesEditorDock {
                 }
                 Some(TileNodeKind::Min) => {}
                 Some(TileNodeKind::Max) => {}
+                Some(TileNodeKind::Add) => {}
+                Some(TileNodeKind::Subtract) => {}
                 Some(TileNodeKind::Checker { scale }) => {
                     nodeui.add_item(TheNodeUIItem::IntEditSlider(
                         "tileNodeCheckerScale".into(),
@@ -2950,7 +2971,14 @@ impl TilesEditorDock {
         state: &TileNodeGraphState,
     ) -> Option<shared::tilegraph::TileNodeGraphExchange> {
         let resolver = ProjectTileSubgraphResolver { project };
-        let exchange = TileNodeGraphExchange::from_node_group(node_group, state.clone());
+        let exchange = TileNodeGraphExchange::new(
+            node_group.graph_name.clone(),
+            node_group.output_grid_width,
+            node_group.output_grid_height,
+            node_group.tile_pixel_width,
+            node_group.tile_pixel_height,
+            state.clone(),
+        );
         Some(flatten_graph_exchange_with(&exchange, &resolver))
     }
 
@@ -2971,8 +2999,12 @@ impl TilesEditorDock {
         let Some(node_group) = project.tile_node_groups.get(&group_id) else {
             return Err("Node group not found.".to_string());
         };
-        let mut exchange = TileNodeGraphExchange::from_node_group(
-            node_group,
+        let mut exchange = TileNodeGraphExchange::new(
+            node_group.graph_name.clone(),
+            node_group.output_grid_width,
+            node_group.output_grid_height,
+            node_group.tile_pixel_width,
+            node_group.tile_pixel_height,
             self.node_graph_state_for_group(project, group_id),
         );
         exchange.palette_colors = project
@@ -2981,11 +3013,16 @@ impl TilesEditorDock {
             .iter()
             .filter_map(|color| color.clone())
             .collect();
-        let text = serde_json::to_string_pretty(&exchange).map_err(|e| e.to_string())?;
+        let mut document =
+            TileGraphDocument::from_exchange(&exchange).map_err(|e| e.to_string())?;
+        if let Some(palette) = &mut document.palette {
+            palette.name = Some("Project Palette".to_string());
+        }
+        let text = document.to_toml_pretty().map_err(|e| e.to_string())?;
         let path = if path.extension().is_some() {
             path.to_path_buf()
         } else {
-            path.with_extension("eldiron_graph")
+            path.with_extension("tilegraph")
         };
         std::fs::write(&path, text).map_err(|e| e.to_string())?;
         Ok(path)
@@ -2998,8 +3035,17 @@ impl TilesEditorDock {
         path: &std::path::Path,
     ) -> Result<(), String> {
         let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-        let mut exchange: TileNodeGraphExchange =
-            serde_json::from_str(&text).map_err(|e| e.to_string())?;
+        let is_tilegraph = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("tilegraph"));
+        let mut exchange: TileNodeGraphExchange = if is_tilegraph {
+            TileGraphDocument::from_toml_str(&text)
+                .and_then(|doc| doc.to_exchange())
+                .map_err(|e| e.to_string())?
+        } else {
+            serde_json::from_str(&text).map_err(|e| e.to_string())?
+        };
         exchange.graph_state.ensure_root();
 
         let Some(node_group) = project.tile_node_groups.get_mut(&group_id) else {
@@ -3301,6 +3347,56 @@ impl TilesEditorDock {
                     TileNodeKind::Max => {
                         canvas.nodes.push(TheNode {
                             name: "Max".to_string(),
+                            status_text: None,
+                            position: Vec2::new(node.position.0, node.position.1),
+                            inputs: vec![
+                                TheNodeTerminal {
+                                    name: "A".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "B".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                            ],
+                            outputs: vec![TheNodeTerminal {
+                                name: "Field".to_string(),
+                                category_name: "FieldSocket".to_string(),
+                            }],
+                            preview,
+                            supports_preview: true,
+                            preview_is_open: true,
+                            can_be_deleted: true,
+                        });
+                    }
+                    TileNodeKind::Add => {
+                        canvas.nodes.push(TheNode {
+                            name: "Add".to_string(),
+                            status_text: None,
+                            position: Vec2::new(node.position.0, node.position.1),
+                            inputs: vec![
+                                TheNodeTerminal {
+                                    name: "A".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "B".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                            ],
+                            outputs: vec![TheNodeTerminal {
+                                name: "Field".to_string(),
+                                category_name: "FieldSocket".to_string(),
+                            }],
+                            preview,
+                            supports_preview: true,
+                            preview_is_open: true,
+                            can_be_deleted: true,
+                        });
+                    }
+                    TileNodeKind::Subtract => {
+                        canvas.nodes.push(TheNode {
+                            name: "Subtract".to_string(),
                             status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
                             inputs: vec![

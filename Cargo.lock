@@ -1245,6 +1245,7 @@ dependencies = [
  "serde",
  "serde_json",
  "theframework",
+ "tilegraph",
  "toml 0.9.11+spec-1.1.0",
  "vectorize",
  "vek",
@@ -5042,13 +5043,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "tilegraph-render"
+name = "tilegraph"
 version = "0.9.1"
 dependencies = [
- "eldiron-shared",
+ "rayon",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
+ "theframework",
+ "toml 0.9.11+spec-1.1.0",
+]
+
+[[package]]
+name = "tilegraph-cli"
+version = "0.9.1"
+dependencies = [
  "image",
  "serde_json",
  "theframework",
+ "tilegraph",
+ "toml 0.9.11+spec-1.1.0",
 ]
 
 [[package]]

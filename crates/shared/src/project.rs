@@ -103,6 +103,10 @@ pub struct TileCollectionAsset {
     pub description: String,
     #[serde(default)]
     pub entries: Vec<TileCollectionEntry>,
+    #[serde(default)]
+    pub tile_board_tiles: IndexMap<Uuid, Vec2<i32>>,
+    #[serde(default)]
+    pub tile_board_groups: IndexMap<Uuid, Vec2<i32>>,
 }
 
 impl TileCollectionAsset {
@@ -114,6 +118,8 @@ impl TileCollectionAsset {
             version: default_tile_collection_version(),
             description: String::new(),
             entries: Vec::new(),
+            tile_board_tiles: IndexMap::default(),
+            tile_board_groups: IndexMap::default(),
         }
     }
 }
@@ -365,6 +371,15 @@ impl Project {
             collection
                 .entries
                 .retain(|entry| !entry.matches_source(source));
+            match source {
+                rusterix::TileSource::SingleTile(id) => {
+                    collection.tile_board_tiles.shift_remove(&id);
+                }
+                rusterix::TileSource::TileGroup(id) => {
+                    collection.tile_board_groups.shift_remove(&id);
+                }
+                _ => {}
+            }
         }
     }
 
@@ -383,6 +398,19 @@ impl Project {
         }
     }
 
+    pub fn collection_tile_board_position(
+        &self,
+        collection_id: &Uuid,
+        source: rusterix::TileSource,
+    ) -> Option<Vec2<i32>> {
+        let collection = self.tile_collections.get(collection_id)?;
+        match source {
+            rusterix::TileSource::SingleTile(id) => collection.tile_board_tiles.get(&id).copied(),
+            rusterix::TileSource::TileGroup(id) => collection.tile_board_groups.get(&id).copied(),
+            _ => None,
+        }
+    }
+
     pub fn set_tile_board_position(&mut self, source: rusterix::TileSource, pos: Vec2<i32>) {
         match source {
             rusterix::TileSource::SingleTile(id) => {
@@ -390,6 +418,26 @@ impl Project {
             }
             rusterix::TileSource::TileGroup(id) => {
                 self.tile_board_groups.insert(id, pos);
+            }
+            _ => {}
+        }
+    }
+
+    pub fn set_collection_tile_board_position(
+        &mut self,
+        collection_id: &Uuid,
+        source: rusterix::TileSource,
+        pos: Vec2<i32>,
+    ) {
+        let Some(collection) = self.tile_collections.get_mut(collection_id) else {
+            return;
+        };
+        match source {
+            rusterix::TileSource::SingleTile(id) => {
+                collection.tile_board_tiles.insert(id, pos);
+            }
+            rusterix::TileSource::TileGroup(id) => {
+                collection.tile_board_groups.insert(id, pos);
             }
             _ => {}
         }

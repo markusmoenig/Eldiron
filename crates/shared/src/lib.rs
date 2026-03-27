@@ -3,7 +3,6 @@ pub mod character;
 pub mod context;
 pub mod interaction;
 pub mod item;
-mod patterns;
 pub mod project;
 pub mod region;
 #[cfg(feature = "graphics")]
@@ -11,9 +10,9 @@ pub mod rusterix_utils;
 pub mod screen;
 pub mod text_game;
 pub mod text_session;
-pub mod tilegraph;
 pub mod tilemap;
 pub mod treasury;
+pub use tilegraph;
 
 pub mod prelude {
     pub use serde::{Deserialize, Serialize};

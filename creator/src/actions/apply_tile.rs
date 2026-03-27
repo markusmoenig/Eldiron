@@ -1,6 +1,5 @@
 use crate::editor::DOCKMANAGER;
 use crate::prelude::*;
-use rusterix::PixelSource;
 
 pub struct ApplyTile {
     id: TheId,
@@ -51,7 +50,7 @@ impl Action for ApplyTile {
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
         !map.selected_sectors.is_empty()
             && DOCKMANAGER.read().unwrap().dock == "Tiles"
-            && server_ctx.curr_tile_id.is_some()
+            && (server_ctx.curr_tile_source.is_some() || server_ctx.curr_tile_id.is_some())
     }
 
     fn apply(
@@ -74,7 +73,7 @@ impl Action for ApplyTile {
             _ => 1,
         };
 
-        if let Some(tile_id) = server_ctx.curr_tile_id {
+        if let Some(source_value) = crate::utils::get_source(_ui, server_ctx) {
             for sector_id in &map.selected_sectors.clone() {
                 if let Some(sector) = map.find_sector_mut(*sector_id) {
                     let mut source = "source";
@@ -87,7 +86,7 @@ impl Action for ApplyTile {
 
                     sector
                         .properties
-                        .set(source, Value::Source(PixelSource::TileId(tile_id)));
+                        .set(source, Value::Source(source_value.clone()));
                     sector.properties.set("tile_mode", Value::Int(mode));
                     changed = true;
                 }

@@ -28,6 +28,7 @@ indexmap = { version = "2", features = ["serde"], default-features = true }
 noiselib = "0.2.3"
 regex = "1"
 num_cpus = "1.16.0"
+tilegraph = { path = "../tilegraph", version = "0.9.1" }
 
 vek = { version = "0.17", default-features = false, features = ["rgba"] }
 earcutr = "0.5"

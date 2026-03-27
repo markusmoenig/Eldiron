@@ -503,11 +503,7 @@ impl Tool for RectTool {
             TheEvent::StateChanged(id, state) => {
                 #[allow(clippy::collapsible_if)]
                 if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
-                    let mut source: Option<Value> = None;
-
-                    if let Some(id) = server_ctx.curr_tile_id {
-                        source = Some(Value::Source(PixelSource::TileId(id)));
-                    }
+                    let source = crate::utils::get_source(_ui, server_ctx).map(Value::Source);
 
                     if let Some(source) = source {
                         if let Some(map) = project.get_map_mut(server_ctx) {
