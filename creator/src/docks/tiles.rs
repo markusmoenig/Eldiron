@@ -525,8 +525,9 @@ impl Dock for TilesDock {
                         }
                         return true;
                     }
-                    let selected_source = crate::utils::get_source(ui, server_ctx);
-                    if let Some(source_value) = selected_source {
+                    let selected_source =
+                        crate::utils::get_surface_apply_source(project, server_ctx);
+                    if let Some(selected_source) = selected_source {
                         let mut applied_to_action = false;
 
                         if server_ctx.get_map_context() == MapContext::Region
@@ -535,12 +536,14 @@ impl Dock for TilesDock {
                             && let Some(action) =
                                 ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
                             && action.hud_material_slots(map, server_ctx).is_some()
-                            && let PixelSource::TileId(tile_id) = source_value
+                            && let crate::utils::SurfaceApplySource::Direct(PixelSource::TileId(
+                                tile_id,
+                            )) = &selected_source
                             && action.set_hud_material_from_tile(
                                 map,
                                 server_ctx,
                                 server_ctx.selected_hud_icon_index,
-                                tile_id,
+                                *tile_id,
                             )
                         {
                             ctx.ui.send(TheEvent::Custom(
@@ -559,18 +562,18 @@ impl Dock for TilesDock {
                                 let prev = map.clone();
 
                                 for sector_id in map.selected_sectors.clone() {
-                                    if let Some(sector) = map.find_sector_mut(sector_id) {
-                                        let mut source_key = "source";
-                                        if server_ctx.pc.is_screen()
-                                            && server_ctx.selected_hud_icon_index == 1
-                                        {
-                                            source_key = "ceiling_source";
-                                        }
-                                        sector
-                                            .properties
-                                            .set(source_key, Value::Source(source_value.clone()));
-                                        changed = true;
+                                    let mut source_key = "source";
+                                    if server_ctx.pc.is_screen()
+                                        && server_ctx.selected_hud_icon_index == 1
+                                    {
+                                        source_key = "ceiling_source";
                                     }
+                                    changed |= crate::utils::apply_surface_source_to_sector(
+                                        map,
+                                        sector_id,
+                                        source_key,
+                                        &selected_source,
+                                    );
                                 }
 
                                 if changed {
@@ -633,19 +636,16 @@ impl Dock for TilesDock {
                             let prev = map.clone();
 
                             for sector_id in map.selected_sectors.clone() {
-                                if let Some(sector) = map.find_sector_mut(sector_id) {
-                                    let mut source = "source";
-                                    if server_ctx.pc.is_screen()
-                                        && server_ctx.selected_hud_icon_index == 1
-                                    {
-                                        source = "ceiling_source";
-                                    }
-
-                                    if sector.properties.contains(source) {
-                                        sector.properties.remove(source);
-                                        changed = true;
-                                    }
+                                let mut source = "source";
+                                if server_ctx.pc.is_screen()
+                                    && server_ctx.selected_hud_icon_index == 1
+                                {
+                                    source = "ceiling_source";
                                 }
+
+                                changed |= crate::utils::clear_surface_source_on_sector(
+                                    map, sector_id, source,
+                                );
                             }
 
                             if changed {

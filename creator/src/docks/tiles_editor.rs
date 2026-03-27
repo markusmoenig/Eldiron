@@ -2287,6 +2287,7 @@ impl TilesEditorDock {
             layout.clear();
             ctx.ui.relayout = true;
         }
+        self.set_large_node_preview_overlay(ui, None);
     }
 
     fn set_selected_node_ui(&self, project: &Project, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -2783,6 +2784,24 @@ impl TilesEditorDock {
             nodeui.apply_to_text_layout(layout);
             ctx.ui.relayout = true;
         }
+        self.sync_large_node_preview(project, ui);
+    }
+
+    fn set_large_node_preview_overlay(&self, ui: &mut TheUI, overlay: Option<TheRGBABuffer>) {
+        if let Some(node_view) = ui.get_node_canvas_view(TILE_NODE_CANVAS_VIEW) {
+            node_view.set_overlay(overlay);
+        }
+    }
+
+    fn sync_large_node_preview(&self, project: &Project, ui: &mut TheUI) {
+        let Some(group_id) = self.current_node_group_id else {
+            self.set_large_node_preview_overlay(ui, None);
+            return;
+        };
+        let state = self.node_graph_state_for_group(project, group_id);
+        let preview_node = state.selected_node.unwrap_or(0);
+        let preview = self.render_node_preview(project, &state, preview_node, 256, 160);
+        self.set_large_node_preview_overlay(ui, Some(preview));
     }
 
     fn render_node_preview(
@@ -3993,6 +4012,7 @@ impl TilesEditorDock {
                     .unwrap_or(0);
                 drop_down.set_selected_index(index);
             }
+            self.sync_large_node_preview(project, ui);
         }
         self.set_node_group_canvas(project, ui);
         ctx.ui.relayout = true;

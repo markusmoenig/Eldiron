@@ -93,6 +93,15 @@ const DUMMY_TILE_FRAME: TileFramePod = TileFramePod {
     ofs: [0.0, 0.0],
     scale: [0.0, 0.0],
 };
+
+fn poly_uses_clamped_uv(poly: &crate::Poly3D) -> bool {
+    poly.uvs
+        .iter()
+        .all(|uv| uv[0] >= -0.001 && uv[0] <= 1.001 && uv[1] >= -0.001 && uv[1] <= 1.001)
+}
+
+const TILE_INDEX_CLAMP_UV_FLAG_RUST: u32 = 0x4000_0000u32;
+
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct LightPod {
@@ -5448,11 +5457,14 @@ impl VM {
                         let base = v3.len() as u32;
 
                         // Get blend texture index if available
-                        let tile_index2 = if let Some(tid2) = poly.tile_id2 {
+                        let mut tile_index2 = if let Some(tid2) = poly.tile_id2 {
                             self.shared_atlas.tile_index(&tid2).unwrap_or(tile_index)
                         } else {
                             tile_index
                         };
+                        if poly_uses_clamped_uv(poly) {
+                            tile_index2 |= TILE_INDEX_CLAMP_UV_FLAG_RUST;
+                        }
 
                         // Validate blend_weights length matches vertices
                         let has_valid_blend = poly.tile_id2.is_some()
@@ -5864,11 +5876,14 @@ impl VM {
                         }
 
                         let base = v3.len() as u32;
-                        let tile_index2 = if let Some(tid2) = poly.tile_id2 {
+                        let mut tile_index2 = if let Some(tid2) = poly.tile_id2 {
                             self.shared_atlas.tile_index(&tid2).unwrap_or(tile_index)
                         } else {
                             tile_index
                         };
+                        if poly_uses_clamped_uv(poly) {
+                            tile_index2 |= TILE_INDEX_CLAMP_UV_FLAG_RUST;
+                        }
                         let has_valid_blend = poly.tile_id2.is_some()
                             && poly.blend_weights.len() == poly.vertices.len();
 

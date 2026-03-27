@@ -4,7 +4,7 @@ use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
-use rusterix::{Assets, PixelSource, Surface, Value};
+use rusterix::{Assets, Surface};
 use scenevm::GeoId;
 use std::str::FromStr;
 use vek::Vec2;
@@ -1310,19 +1310,20 @@ impl Tool for SectorTool {
             TheEvent::StateChanged(id, state) => {
                 #[allow(clippy::collapsible_if)]
                 if id.name == "Apply Map Properties" && *state == TheWidgetState::Clicked {
-                    let source = crate::utils::get_source(_ui, server_ctx).map(Value::Source);
+                    let source = crate::utils::get_surface_apply_source(project, server_ctx);
 
                     if let Some(source) = source {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             let _prev = map.clone();
                             for sector_id in &map.selected_sectors.clone() {
-                                if let Some(sector) = map.find_sector_mut(*sector_id) {
-                                    if self.hud.selected_icon_index == 0 {
-                                        sector.properties.set("source", source.clone());
-                                    } else if self.hud.selected_icon_index == 1 {
-                                        sector.properties.set("ceiling_source", source.clone());
-                                    }
-                                }
+                                let source_key = if self.hud.selected_icon_index == 0 {
+                                    "source"
+                                } else {
+                                    "ceiling_source"
+                                };
+                                crate::utils::apply_surface_source_to_sector(
+                                    map, *sector_id, source_key, &source,
+                                );
                             }
 
                             if server_ctx.get_map_context() == MapContext::Region {
@@ -1339,25 +1340,29 @@ impl Tool for SectorTool {
                     if let Some(map) = project.get_map_mut(server_ctx) {
                         let _prev = map.clone();
                         for sector_id in map.selected_sectors.clone() {
-                            if let Some(sector) = map.find_sector_mut(sector_id) {
-                                if self.hud.selected_icon_index == 0 {
-                                    if sector.properties.contains("floor_light") {
-                                        sector.properties.remove("floor_light");
-                                    } else {
-                                        sector
-                                            .properties
-                                            .set("source", Value::Source(PixelSource::Off));
-                                    }
-                                } else if self.hud.selected_icon_index == 1 {
-                                    if sector.properties.contains("ceiling_light") {
-                                        sector.properties.remove("ceiling_light");
-                                    } else {
-                                        sector
-                                            .properties
-                                            .set("ceiling_source", Value::Source(PixelSource::Off));
-                                    }
-                                }
+                            if let Some(sector) = map.find_sector_mut(sector_id)
+                                && self.hud.selected_icon_index == 0
+                                && sector.properties.contains("floor_light")
+                            {
+                                sector.properties.remove("floor_light");
+                                continue;
                             }
+                            if let Some(sector) = map.find_sector_mut(sector_id)
+                                && self.hud.selected_icon_index == 1
+                                && sector.properties.contains("ceiling_light")
+                            {
+                                sector.properties.remove("ceiling_light");
+                                continue;
+                            }
+
+                            let source_key = if self.hud.selected_icon_index == 0 {
+                                "source"
+                            } else {
+                                "ceiling_source"
+                            };
+                            crate::utils::clear_surface_source_on_sector(
+                                map, sector_id, source_key,
+                            );
                         }
 
                         if server_ctx.get_map_context() == MapContext::Region {
