@@ -1,5 +1,5 @@
 version = 1
-name = "Brick Warped Height"
+name = "Bricks & Tiles Warped Height"
 grid = "3x3"
 tile_size = "32x32"
 
@@ -27,8 +27,9 @@ colors = [
 
 [node.brick.main]
 pos = [60, 140]
-columns = 6
-rows = 6
+columns = 4
+rows = 4
+staggered = true
 offset = 0.5
 warp_amount = 0.035
 falloff = 1.4

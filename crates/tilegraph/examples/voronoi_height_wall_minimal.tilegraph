@@ -27,7 +27,7 @@ colors = [
 
 [node.voronoi.main]
 pos = [60, 140]
-scale = 0.08
+scale = 0.50
 seed = 11
 jitter = 0.90
 warp_amount = 0.045

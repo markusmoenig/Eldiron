@@ -27,12 +27,12 @@ colors = [
 
 [node.box_divide.main]
 pos = [60, 140]
-scale = 1.0
-gap = 0.6
-rotation = 0.15
-rounding = 0.04
-warp_amount = 0.03
-falloff = 1.35
+scale = 0.8
+gap = 0.35
+rotation = 0.10
+rounding = 0.08
+warp_amount = 0.025
+falloff = 1.25
 warp = "noise.main:field"
 
 [node.noise.main]

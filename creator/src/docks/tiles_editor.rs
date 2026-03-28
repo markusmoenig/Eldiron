@@ -359,7 +359,7 @@ impl Dock for TilesEditorDock {
             TheId::named("Tile Node Add Box Divide"),
         ));
         layout_menu.add(TheContextMenuItem::new(
-            "Brick".to_string(),
+            "Bricks & Tiles".to_string(),
             TheId::named("Tile Node Add Brick"),
         ));
         layout_menu.add(TheContextMenuItem::new(
@@ -691,7 +691,7 @@ impl Dock for TilesEditorDock {
                         return true;
                     } else if item_id.name == "Tile Node Add Voronoi" {
                         push_node(TileNodeKind::Voronoi {
-                            scale: 0.2,
+                            scale: 0.5,
                             seed: 1,
                             jitter: 1.0,
                             warp_amount: 0.0,
@@ -734,8 +734,9 @@ impl Dock for TilesEditorDock {
                         return true;
                     } else if item_id.name == "Tile Node Add Brick" {
                         push_node(TileNodeKind::Brick {
-                            columns: 6,
-                            rows: 6,
+                            columns: 4,
+                            rows: 4,
+                            staggered: true,
                             offset: 0.5,
                             warp_amount: 0.0,
                             falloff: 1.0,
@@ -743,7 +744,7 @@ impl Dock for TilesEditorDock {
                         return true;
                     } else if item_id.name == "Tile Node Add Disc" {
                         push_node(TileNodeKind::Disc {
-                            scale: 0.2,
+                            scale: 0.5,
                             seed: 1,
                             jitter: 1.0,
                             radius: 0.75,
@@ -1287,11 +1288,11 @@ impl Dock for TilesEditorDock {
                             && let Some(new_value) = value.to_f32()
                         {
                             let (target, new_value) = if id.name == "tileNodeBoxDivideScale" {
-                                (scale, new_value.clamp(0.1, 3.0))
+                                (scale, new_value.clamp(0.1, 2.0))
                             } else if id.name == "tileNodeBoxDivideGap" {
-                                (gap, new_value.clamp(0.0, 4.0))
+                                (gap, new_value.clamp(0.0, 2.0))
                             } else if id.name == "tileNodeBoxDivideRotation" {
-                                (rotation, new_value.clamp(0.0, 2.0))
+                                (rotation, new_value.clamp(0.0, 1.0))
                             } else {
                                 (rounding, new_value.clamp(0.0, 0.5))
                             };
@@ -1548,6 +1549,7 @@ impl Dock for TilesEditorDock {
                         }
                     } else if id.name == "tileNodeBrickColumns"
                         || id.name == "tileNodeBrickRows"
+                        || id.name == "tileNodeBrickMode"
                         || id.name == "tileNodeBrickOffset"
                         || id.name == "tileNodeBrickWarpAmount"
                         || id.name == "tileNodeBrickFalloff"
@@ -1558,13 +1560,22 @@ impl Dock for TilesEditorDock {
                             && let TileNodeKind::Brick {
                                 columns,
                                 rows,
+                                staggered,
                                 offset,
                                 warp_amount,
                                 falloff,
                             } = &mut node.kind
                         {
                             let mut changed = false;
-                            if id.name == "tileNodeBrickOffset" {
+                            if id.name == "tileNodeBrickMode" {
+                                if let Some(mode) = value.to_i32() {
+                                    let new_staggered = mode != 0;
+                                    if *staggered != new_staggered {
+                                        *staggered = new_staggered;
+                                        changed = true;
+                                    }
+                                }
+                            } else if id.name == "tileNodeBrickOffset" {
                                 if let Some(new_offset) = value.to_f32() {
                                     let new_offset = new_offset.clamp(0.0, 1.0);
                                     if (*offset - new_offset).abs() > f32::EPSILON {
@@ -1589,7 +1600,7 @@ impl Dock for TilesEditorDock {
                                     }
                                 }
                             } else if let Some(new_value) = value.to_i32() {
-                                let new_value = new_value.clamp(1, 64) as u16;
+                                let new_value = new_value.clamp(1, 16) as u16;
                                 if id.name == "tileNodeBrickColumns" && *columns != new_value {
                                     *columns = new_value;
                                     changed = true;
@@ -1744,11 +1755,11 @@ impl Dock for TilesEditorDock {
                             && let Some(new_value) = value.to_f32()
                         {
                             let (target, new_value) = if id.name == "tileNodeBoxDivideScale" {
-                                (scale, new_value.clamp(0.1, 3.0))
+                                (scale, new_value.clamp(0.1, 2.0))
                             } else if id.name == "tileNodeBoxDivideGap" {
-                                (gap, new_value.clamp(0.0, 4.0))
+                                (gap, new_value.clamp(0.0, 2.0))
                             } else if id.name == "tileNodeBoxDivideRotation" {
-                                (rotation, new_value.clamp(0.0, 2.0))
+                                (rotation, new_value.clamp(0.0, 1.0))
                             } else if id.name == "tileNodeBoxDivideRounding" {
                                 (rounding, new_value.clamp(0.0, 0.5))
                             } else if id.name == "tileNodeBoxDivideWarpAmount" {
@@ -2648,10 +2659,10 @@ impl TilesEditorDock {
                 }) => {
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "tileNodeVoronoiScale".into(),
-                        "Scale".into(),
-                        "Voronoi cell scale.".into(),
+                        "Density".into(),
+                        "Voronoi cell density across the full output group.".into(),
                         *scale,
-                        0.01..=1.0,
+                        0.05..=2.0,
                         false,
                     ));
                     nodeui.add_item(TheNodeUIItem::IntEditSlider(
@@ -2697,32 +2708,32 @@ impl TilesEditorDock {
                 }) => {
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "tileNodeBoxDivideScale".into(),
-                        "Scale".into(),
-                        "Subdivision scale.".into(),
+                        "Density".into(),
+                        "Subdivision density across the full output group.".into(),
                         *scale,
-                        0.1..=3.0,
+                        0.1..=2.0,
                         false,
                     ));
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "tileNodeBoxDivideGap".into(),
-                        "Gap".into(),
-                        "Gap or mortar width.".into(),
+                        "Mortar".into(),
+                        "Subdivision seam or mortar width.".into(),
                         *gap,
-                        0.0..=4.0,
-                        false,
-                    ));
-                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-                        "tileNodeBoxDivideRotation".into(),
-                        "Rotation".into(),
-                        "Per-cell rotation amount.".into(),
-                        *rotation,
                         0.0..=2.0,
                         false,
                     ));
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeBoxDivideRotation".into(),
+                        "Variation".into(),
+                        "Per-cell angle variation.".into(),
+                        *rotation,
+                        0.0..=1.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "tileNodeBoxDivideRounding".into(),
-                        "Rounding".into(),
-                        "Cell corner rounding.".into(),
+                        "Softness".into(),
+                        "Subdivision corner softness.".into(),
                         *rounding,
                         0.0..=0.5,
                         false,
@@ -2829,30 +2840,38 @@ impl TilesEditorDock {
                 Some(TileNodeKind::Brick {
                     columns,
                     rows,
+                    staggered,
                     offset,
                     warp_amount,
                     falloff,
                 }) => {
+                    nodeui.add_item(TheNodeUIItem::Selector(
+                        "tileNodeBrickMode".into(),
+                        "Mode".into(),
+                        "Choose aligned tiles or staggered bricks.".into(),
+                        vec!["Tile".into(), "Brick".into()],
+                        if *staggered { 1 } else { 0 },
+                    ));
                     nodeui.add_item(TheNodeUIItem::IntEditSlider(
                         "tileNodeBrickColumns".into(),
-                        "Columns".into(),
-                        "Brick columns.".into(),
+                        "Density X".into(),
+                        "Brick columns across the full output group.".into(),
                         *columns as i32,
-                        1..=64,
+                        1..=16,
                         false,
                     ));
                     nodeui.add_item(TheNodeUIItem::IntEditSlider(
                         "tileNodeBrickRows".into(),
-                        "Rows".into(),
-                        "Brick rows.".into(),
+                        "Density Y".into(),
+                        "Brick rows across the full output group.".into(),
                         *rows as i32,
-                        1..=64,
+                        1..=16,
                         false,
                     ));
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "tileNodeBrickOffset".into(),
                         "Offset".into(),
-                        "Odd-row offset.".into(),
+                        "Odd-row offset when in Brick mode.".into(),
                         *offset,
                         0.0..=1.0,
                         false,
@@ -2884,10 +2903,10 @@ impl TilesEditorDock {
                 }) => {
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "tileNodeDiscScale".into(),
-                        "Scale".into(),
-                        "Disc layout scale.".into(),
+                        "Density".into(),
+                        "Disc layout density across the full output group.".into(),
                         *scale,
-                        0.01..=1.0,
+                        0.05..=2.0,
                         false,
                     ));
                     nodeui.add_item(TheNodeUIItem::IntEditSlider(
@@ -4034,14 +4053,20 @@ impl TilesEditorDock {
                     TileNodeKind::Brick {
                         columns,
                         rows,
+                        staggered,
                         offset,
                         warp_amount,
                         falloff,
                     } => {
                         canvas.nodes.push(TheNode {
                             name: format!(
-                                "Brick {}x{} {:.2}/{:.2}/{:.2}",
-                                columns, rows, offset, warp_amount, falloff
+                                "Bricks & Tiles {}x{} {:.2}/{:.2}/{:.2} [{}]",
+                                columns,
+                                rows,
+                                offset,
+                                warp_amount,
+                                falloff,
+                                if *staggered { "Brick" } else { "Tile" },
                             ),
                             status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),

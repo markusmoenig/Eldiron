@@ -27,7 +27,7 @@ colors = [
 
 [node.disc.main]
 pos = [60, 140]
-scale = 0.20
+scale = 0.50
 seed = 11
 jitter = 0.90
 radius = 0.78

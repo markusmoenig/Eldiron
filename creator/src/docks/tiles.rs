@@ -153,10 +153,6 @@ impl Dock for TilesDock {
                     "Node Group".to_string(),
                     TheId::named("Tiles Dock Add Node Group"),
                 ),
-                TheContextMenuItem::new(
-                    "Eldrin Source".to_string(),
-                    TheId::named("Tiles Dock Add Eldrin Source"),
-                ),
             ],
             ..Default::default()
         }));
@@ -306,12 +302,6 @@ impl Dock for TilesDock {
                     } else if item_id.name == "Tiles Dock Add Node Group" {
                         self.create_empty_group(project, ui, ctx, server_ctx, true);
                         self.render_views(ui, ctx, project);
-                        redraw = true;
-                    } else if item_id.name == "Tiles Dock Add Eldrin Source" {
-                        ctx.ui.send(TheEvent::SetStatusText(
-                            TheId::named("Tiles Dock Add"),
-                            "Eldrin Source is not implemented yet.".to_string(),
-                        ));
                         redraw = true;
                     }
                 } else if widget_id.name == "Tiles Dock Collections" {

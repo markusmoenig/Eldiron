@@ -271,6 +271,14 @@ impl DockManager {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
+        if self.dock == "Tiles"
+            && server_ctx.tile_node_group_id.is_none()
+            && let Some(TileSource::TileGroup(group_id)) = server_ctx.curr_tile_source
+            && project.is_tile_node_group(&group_id)
+        {
+            server_ctx.tile_node_group_id = Some(group_id);
+        }
+
         let use_editor_canvas = if self.dock == "Data" {
             matches!(server_ctx.pc, ProjectContext::CharacterPreviewRigging(_))
         } else {

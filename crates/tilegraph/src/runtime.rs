@@ -95,6 +95,10 @@ fn default_layout_falloff() -> f32 {
     1.0
 }
 
+fn default_brick_staggered() -> bool {
+    true
+}
+
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct TileNodeGraphState {
     #[serde(default = "default_tile_node_nodes")]
@@ -233,6 +237,8 @@ pub enum TileNodeKind {
     Brick {
         columns: u16,
         rows: u16,
+        #[serde(default = "default_brick_staggered")]
+        staggered: bool,
         offset: f32,
         #[serde(default = "default_layout_warp_amount")]
         warp_amount: f32,
@@ -1456,6 +1462,7 @@ impl TileGraphRenderer {
                 TileNodeKind::Brick {
                     columns,
                     rows,
+                    staggered,
                     offset,
                     warp_amount,
                     falloff,
@@ -1469,9 +1476,11 @@ impl TileGraphRenderer {
                         visiting_subgraphs,
                     );
                     let value = match output_terminal {
-                        1 => Self::brick_height(eval, warp, *columns, *rows, *offset, *falloff),
-                        2 => Self::brick_cell_id(eval, warp, *columns, *rows, *offset),
-                        _ => Self::brick_center(eval, warp, *columns, *rows, *offset),
+                        1 => Self::brick_height(
+                            eval, warp, *columns, *rows, *staggered, *offset, *falloff,
+                        ),
+                        2 => Self::brick_cell_id(eval, warp, *columns, *rows, *staggered, *offset),
+                        _ => Self::brick_center(eval, warp, *columns, *rows, *staggered, *offset),
                     };
                     let v = unit_to_u8(value);
                     Some(TheColor::from_u8_array([v, v, v, 255]))
@@ -2045,6 +2054,10 @@ impl TileGraphRenderer {
         ((value - low) / span).clamp(0.0, 1.0)
     }
 
+    fn layout_repeat_from_scale(scale: f32) -> i32 {
+        ((scale.clamp(0.05, 2.0) * 6.0).round() as i32).max(1)
+    }
+
     fn voronoi_data(
         eval: TileEvalContext,
         warp: Vec2<f32>,
@@ -2053,7 +2066,7 @@ impl TileGraphRenderer {
         jitter: f32,
         falloff: f32,
     ) -> (f32, f32, f32) {
-        let repeat = ((scale.clamp(0.01, 1.0) * 16.0).round() as i32).max(1);
+        let repeat = Self::layout_repeat_from_scale(scale);
         let u = (eval.group_u() + warp.x).rem_euclid(1.0);
         let v = (eval.group_v() + warp.y).rem_euclid(1.0);
         let x = u * repeat as f32;
@@ -2129,6 +2142,7 @@ impl TileGraphRenderer {
         warp: Vec2<f32>,
         columns: u16,
         rows: u16,
+        staggered: bool,
         offset: f32,
         falloff: f32,
     ) -> (f32, f32, f32) {
@@ -2138,7 +2152,12 @@ impl TileGraphRenderer {
         let v = (eval.group_v() + warp.y).rem_euclid(1.0);
         let gv = v * rows as f32;
         let row = gv.floor() as i32;
-        let gu = u * cols as f32 + if row & 1 == 1 { offset } else { 0.0 };
+        let gu = u * cols as f32
+            + if staggered && row & 1 == 1 {
+                offset
+            } else {
+                0.0
+            };
         let brick_x = gu.rem_euclid(cols as f32);
         let col = brick_x.floor() as i32;
         let local_x = brick_x.fract();
@@ -2161,9 +2180,10 @@ impl TileGraphRenderer {
         warp: Vec2<f32>,
         columns: u16,
         rows: u16,
+        staggered: bool,
         offset: f32,
     ) -> f32 {
-        Self::brick_data(eval, warp, columns, rows, offset, 1.0).0
+        Self::brick_data(eval, warp, columns, rows, staggered, offset, 1.0).0
     }
 
     fn brick_height(
@@ -2171,10 +2191,11 @@ impl TileGraphRenderer {
         warp: Vec2<f32>,
         columns: u16,
         rows: u16,
+        staggered: bool,
         offset: f32,
         falloff: f32,
     ) -> f32 {
-        Self::brick_data(eval, warp, columns, rows, offset, falloff).1
+        Self::brick_data(eval, warp, columns, rows, staggered, offset, falloff).1
     }
 
     fn brick_cell_id(
@@ -2182,9 +2203,10 @@ impl TileGraphRenderer {
         warp: Vec2<f32>,
         columns: u16,
         rows: u16,
+        staggered: bool,
         offset: f32,
     ) -> f32 {
-        Self::brick_data(eval, warp, columns, rows, offset, 1.0).2
+        Self::brick_data(eval, warp, columns, rows, staggered, offset, 1.0).2
     }
 
     fn disc_data(
@@ -2196,7 +2218,7 @@ impl TileGraphRenderer {
         radius: f32,
         falloff: f32,
     ) -> (f32, f32, f32) {
-        let repeat = ((scale.clamp(0.01, 1.0) * 16.0).round() as i32).max(1);
+        let repeat = Self::layout_repeat_from_scale(scale);
         let u = (eval.group_u() + warp.x).rem_euclid(1.0);
         let v = (eval.group_v() + warp.y).rem_euclid(1.0);
         let x = u * repeat as f32;

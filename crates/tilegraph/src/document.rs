@@ -173,6 +173,7 @@ fn node_kind_from_doc(
         "brick" => TileNodeKind::Brick {
             columns: table_u32(table, "columns", 6) as u16,
             rows: table_u32(table, "rows", 6) as u16,
+            staggered: table_bool(table, "staggered", true),
             offset: table_f32(table, "offset", 0.5),
             warp_amount: table_f32(table, "warp_amount", 0.0),
             falloff: table_f32(table, "falloff", 1.0),
@@ -813,12 +814,14 @@ fn export_node_table(
         TileNodeKind::Brick {
             columns,
             rows,
+            staggered,
             offset,
             warp_amount,
             falloff,
         } => {
             table.insert("columns".to_string(), toml::Value::Integer(*columns as i64));
             table.insert("rows".to_string(), toml::Value::Integer(*rows as i64));
+            table.insert("staggered".to_string(), toml::Value::Boolean(*staggered));
             table.insert("offset".to_string(), toml::Value::Float(*offset as f64));
             table.insert(
                 "warp_amount".to_string(),
