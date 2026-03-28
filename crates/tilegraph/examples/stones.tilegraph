@@ -1,0 +1,133 @@
+version = 1
+name = "Voronoi Disc Detail"
+grid = "3x3"
+tile_size = "32x32"
+
+[palette]
+name = "CC-29"
+link = "https://lospec.com/palette-list/cc-29"
+colors = [
+    "#f2f0e5",
+    "#b8b5b9",
+    "#868188",
+    "#646365",
+    "#45444f",
+    "#3a3858",
+    "#212123",
+    "#352b42",
+    "#43436a",
+    "#4b80ca",
+    "#68c2d3",
+    "#a2dcc7",
+    "#ede19e",
+    "#d3a068",
+    "#b45252",
+    "#6a536e",
+    "#4b4158",
+    "#80493a",
+    "#a77b5b",
+    "#e5ceb4",
+    "#c2d368",
+    "#8ab060",
+    "#567b79",
+    "#4e584a",
+    "#7b7243",
+    "#b2b47e",
+    "#edc8c4",
+    "#cf8acb",
+    "#5f556a",
+]
+
+[node.colorize4.main]
+auto_range = true
+color_1 = 7
+color_2 = 15
+color_3 = 2
+color_4 = 19
+dither = false
+in = "subtract.main:field"
+pixel_size = 1
+pos = [
+    689,
+    17,
+]
+
+[node.disc.main]
+falloff = 1.503999948501587
+jitter = 0.8199999928474426
+pos = [
+    331,
+    245,
+]
+radius = 0.2800000011920929
+radius_in = "id_random.main:field"
+scale = 1.0
+seed = 21
+warp = "noise.main:field"
+warp_amount = 0.14000000059604645
+
+[node.height_shape.main]
+bias = 0.11999999731779099
+contrast = 1.5499999523162842
+in = "voronoi.main:height"
+plateau = 1.399999976158142
+pos = [
+    387,
+    15,
+]
+warp_amount = 0.0
+
+[node.id_random.main]
+id = "voronoi.main:cell_id"
+pos = [
+    338,
+    211,
+]
+
+[node.multiply.main]
+a = "disc.main:height"
+b = "scalar.main:field"
+pos = [
+    684,
+    432,
+]
+
+[node.noise.main]
+pos = [
+    10,
+    59,
+]
+scale = 0.18000000715255737
+seed = 7
+wrap = true
+
+[node.output.main]
+color = "colorize4.main:field"
+height = "subtract.main:field"
+
+[node.scalar.main]
+pos = [
+    498,
+    434,
+]
+value = 0.5529999732971191
+
+[node.subtract.main]
+a = "height_shape.main:field"
+b = "multiply.main:field"
+pos = [
+    534,
+    211,
+]
+
+[node.voronoi.main]
+falloff = 0.36000001430511475
+jitter = 0.5929999947547913
+pos = [
+    176,
+    -3,
+]
+scale = 0.3490000069141388
+seed = 11
+warp = "noise.main:field"
+warp_amount = 0.03500000014901161

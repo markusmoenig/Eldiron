@@ -1,5 +1,6 @@
 use rayon::prelude::*;
 use rustc_hash::FxHashSet;
+use std::sync::RwLock;
 use theframework::prelude::*;
 
 #[inline(always)]
@@ -73,6 +74,7 @@ fn default_tile_node_nodes() -> Vec<TileNodeState> {
     vec![TileNodeState {
         kind: TileNodeKind::default_output_root(),
         position: (420, 40),
+        preview_open: true,
         bypass: false,
         mute: false,
         solo: false,
@@ -95,7 +97,39 @@ fn default_layout_falloff() -> f32 {
     1.0
 }
 
+fn default_height_shape_rim() -> f32 {
+    0.0
+}
+
 fn default_brick_staggered() -> bool {
+    true
+}
+
+fn default_colorize4_color_1() -> u16 {
+    0
+}
+
+fn default_colorize4_color_2() -> u16 {
+    1
+}
+
+fn default_colorize4_color_3() -> u16 {
+    2
+}
+
+fn default_colorize4_color_4() -> u16 {
+    3
+}
+
+fn default_colorize4_pixel_size() -> u16 {
+    1
+}
+
+fn default_colorize4_dither() -> bool {
+    false
+}
+
+fn default_colorize4_auto_range() -> bool {
     true
 }
 
@@ -113,12 +147,21 @@ pub struct TileNodeGraphState {
     pub preview_mode: u8,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum TileGraphPaletteSource {
+    #[default]
+    Local,
+    Project,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TileNodeGraphExchange {
     #[serde(default)]
     pub version: u32,
     #[serde(default)]
     pub graph_name: String,
+    #[serde(default)]
+    pub palette_source: TileGraphPaletteSource,
     #[serde(default)]
     pub palette_colors: Vec<TheColor>,
     pub output_grid_width: u16,
@@ -133,6 +176,8 @@ pub struct TileNodeGraphExchange {
 pub struct TileNodeState {
     pub kind: TileNodeKind,
     pub position: (i32, i32),
+    #[serde(default = "default_node_preview_open")]
+    pub preview_open: bool,
     #[serde(default)]
     pub bypass: bool,
     #[serde(default)]
@@ -146,11 +191,16 @@ impl Default for TileNodeState {
         Self {
             kind: TileNodeKind::default_output_root(),
             position: (420, 40),
+            preview_open: true,
             bypass: false,
             mute: false,
             solo: false,
         }
     }
+}
+
+fn default_node_preview_open() -> bool {
+    true
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -171,6 +221,22 @@ pub enum TileNodeKind {
     GroupUV,
     Scalar {
         value: f32,
+    },
+    Colorize4 {
+        #[serde(default = "default_colorize4_color_1")]
+        color_1: u16,
+        #[serde(default = "default_colorize4_color_2")]
+        color_2: u16,
+        #[serde(default = "default_colorize4_color_3")]
+        color_3: u16,
+        #[serde(default = "default_colorize4_color_4")]
+        color_4: u16,
+        #[serde(default = "default_colorize4_pixel_size")]
+        pixel_size: u16,
+        #[serde(default = "default_colorize4_dither")]
+        dither: bool,
+        #[serde(default = "default_colorize4_auto_range")]
+        auto_range: bool,
     },
     Color {
         color: TheColor,
@@ -278,6 +344,15 @@ pub enum TileNodeKind {
         level: f32,
         width: f32,
     },
+    HeightShape {
+        contrast: f32,
+        bias: f32,
+        plateau: f32,
+        #[serde(default = "default_height_shape_rim")]
+        rim: f32,
+        #[serde(default = "default_layout_warp_amount")]
+        warp_amount: f32,
+    },
     Threshold {
         cutoff: f32,
     },
@@ -336,6 +411,8 @@ pub struct TileEvalContext {
     pub cell_y: u16,
     pub group_width: u16,
     pub group_height: u16,
+    pub tile_pixel_width: u16,
+    pub tile_pixel_height: u16,
     pub u: f32,
     pub v: f32,
 }
@@ -361,6 +438,8 @@ impl TileEvalContext {
             cell_y,
             group_width: self.group_width,
             group_height: self.group_height,
+            tile_pixel_width: self.tile_pixel_width,
+            tile_pixel_height: self.tile_pixel_height,
             u: gx.fract(),
             v: gy.fract(),
         }
@@ -386,6 +465,7 @@ impl TileNodeGraphState {
                 TileNodeState {
                     kind: TileNodeKind::default_output_root(),
                     position: (420, 40),
+                    preview_open: true,
                     bypass: false,
                     mute: false,
                     solo: false,
@@ -407,6 +487,7 @@ impl TileNodeGraphExchange {
         Self {
             version: 1,
             graph_name,
+            palette_source: TileGraphPaletteSource::Local,
             palette_colors: vec![],
             output_grid_width,
             output_grid_height,
@@ -587,11 +668,15 @@ fn remap_sub_index(index: u16, sub_map: &[Option<u16>], _base: u16) -> Option<u1
 
 pub struct TileGraphRenderer {
     palette: Vec<TheColor>,
+    colorize4_ranges: RwLock<Vec<Option<(f32, f32)>>>,
 }
 
 impl TileGraphRenderer {
     pub fn new(palette: Vec<TheColor>) -> Self {
-        Self { palette }
+        Self {
+            palette,
+            colorize4_ranges: RwLock::new(Vec::new()),
+        }
     }
 
     pub fn render_graph(&self, graph: &TileNodeGraphExchange) -> RenderedTileGraph {
@@ -605,9 +690,65 @@ impl TileGraphRenderer {
 
         let sheet_width = tile_width * grid_width;
         let sheet_height = tile_height * grid_height;
+        let colorize4_ranges = self.compute_colorize4_ranges(
+            &state,
+            graph,
+            grid_width,
+            grid_height,
+            tile_width,
+            tile_height,
+        );
+        if let Ok(mut ranges) = self.colorize4_ranges.write() {
+            *ranges = colorize4_ranges;
+        }
         let mut sheet_color = vec![0_u8; sheet_width * sheet_height * 4];
         let mut sheet_material = vec![0_u8; sheet_width * sheet_height * 4];
         let mut sheet_height_data = vec![0_u8; sheet_width * sheet_height];
+
+        for sy in 0..sheet_height {
+            for sx in 0..sheet_width {
+                let gx = if sheet_width <= 1 {
+                    0.5
+                } else {
+                    sx as f32 / (sheet_width - 1) as f32
+                };
+                let gy = if sheet_height <= 1 {
+                    0.5
+                } else {
+                    sy as f32 / (sheet_height - 1) as f32
+                };
+                let scaled_x = gx * grid_width as f32;
+                let scaled_y = gy * grid_height as f32;
+                let cell_x = scaled_x.floor().min((grid_width - 1) as f32) as u16;
+                let cell_y = scaled_y.floor().min((grid_height - 1) as f32) as u16;
+                let local_u = (scaled_x - cell_x as f32).clamp(0.0, 1.0);
+                let local_v = (scaled_y - cell_y as f32).clamp(0.0, 1.0);
+                let eval = TileEvalContext {
+                    cell_x,
+                    cell_y,
+                    group_width: graph.output_grid_width.max(1),
+                    group_height: graph.output_grid_height.max(1),
+                    tile_pixel_width: graph.tile_pixel_width.max(1),
+                    tile_pixel_height: graph.tile_pixel_height.max(1),
+                    u: local_u,
+                    v: local_v,
+                };
+                let color = self
+                    .evaluate_node_color(&state, 0, eval, &mut FxHashSet::default())
+                    .unwrap_or_else(|| TheColor::from_u8_array_3([96, 96, 96]))
+                    .to_u8_array();
+                let material = self.evaluate_output_material(&state, eval);
+                let height = self.evaluate_output_height(&state, eval);
+                let i = (sy * sheet_width + sx) * 4;
+                sheet_color[i..i + 4].copy_from_slice(&color);
+                sheet_material[i] = unit_to_u8(material.0);
+                sheet_material[i + 1] = unit_to_u8(material.1);
+                sheet_material[i + 2] = unit_to_u8(material.2);
+                sheet_material[i + 3] = unit_to_u8(material.3);
+                sheet_height_data[sy * sheet_width + sx] = unit_to_u8(height);
+            }
+        }
+
         let tile_count = grid_width * grid_height;
         let rendered_tiles: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> = (0..tile_count)
             .into_par_iter()
@@ -635,6 +776,8 @@ impl TileGraphRenderer {
                             cell_y: cell_y as u16,
                             group_width: graph.output_grid_width.max(1),
                             group_height: graph.output_grid_height.max(1),
+                            tile_pixel_width: graph.tile_pixel_width.max(1),
+                            tile_pixel_height: graph.tile_pixel_height.max(1),
                             // Sample the full 0..1 tile span inclusively so adjacent tiles
                             // duplicate their shared border texels and stitch cleanly when
                             // used as separate atlas tiles on surfaces.
@@ -667,31 +810,9 @@ impl TileGraphRenderer {
         let mut tiles_material = Vec::with_capacity(tile_count);
         let mut tiles_height = Vec::with_capacity(tile_count);
 
-        for (tile_index, (tile_color, tile_material, tile_height_data)) in
+        for (_tile_index, (tile_color, tile_material, tile_height_data)) in
             rendered_tiles.into_iter().enumerate()
         {
-            let cell_x = tile_index % grid_width;
-            let cell_y = tile_index / grid_width;
-
-            for py in 0..tile_height {
-                let sx = cell_x * tile_width;
-                let sy = cell_y * tile_height + py;
-                let src_row_start = py * tile_width * 4;
-                let src_row_end = src_row_start + tile_width * 4;
-                let dst_row_start = (sy * sheet_width + sx) * 4;
-                let dst_row_end = dst_row_start + tile_width * 4;
-                sheet_color[dst_row_start..dst_row_end]
-                    .copy_from_slice(&tile_color[src_row_start..src_row_end]);
-                sheet_material[dst_row_start..dst_row_end]
-                    .copy_from_slice(&tile_material[src_row_start..src_row_end]);
-                let src_h_row_start = py * tile_width;
-                let src_h_row_end = src_h_row_start + tile_width;
-                let dst_h_row_start = sy * sheet_width + sx;
-                let dst_h_row_end = dst_h_row_start + tile_width;
-                sheet_height_data[dst_h_row_start..dst_h_row_end]
-                    .copy_from_slice(&tile_height_data[src_h_row_start..src_h_row_end]);
-            }
-
             tiles_color.push(tile_color);
             tiles_material.push(tile_material);
             tiles_height.push(tile_height_data);
@@ -762,6 +883,112 @@ impl TileGraphRenderer {
             }
         }
         best
+    }
+
+    fn colorize4_palette_color(
+        &self,
+        slot: usize,
+        color_1: u16,
+        color_2: u16,
+        color_3: u16,
+        color_4: u16,
+    ) -> TheColor {
+        let index = match slot {
+            0 => color_1,
+            1 => color_2,
+            2 => color_3,
+            _ => color_4,
+        };
+        self.palette_color(index)
+            .unwrap_or_else(|| TheColor::from_u8_array([255, 255, 255, 255]))
+    }
+
+    fn bayer4(x: usize, y: usize) -> f32 {
+        const BAYER: [[u8; 4]; 4] = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+        BAYER[y & 3][x & 3] as f32 / 16.0
+    }
+
+    fn colorize4_range(&self, node_index: usize) -> Option<(f32, f32)> {
+        self.colorize4_ranges
+            .read()
+            .ok()
+            .and_then(|ranges| ranges.get(node_index).copied().flatten())
+    }
+
+    fn compute_colorize4_ranges(
+        &self,
+        state: &TileNodeGraphState,
+        graph: &TileNodeGraphExchange,
+        grid_width: usize,
+        grid_height: usize,
+        tile_width: usize,
+        tile_height: usize,
+    ) -> Vec<Option<(f32, f32)>> {
+        let mut ranges = vec![None; state.nodes.len()];
+        for (node_index, node) in state.nodes.iter().enumerate() {
+            let TileNodeKind::Colorize4 { auto_range, .. } = &node.kind else {
+                continue;
+            };
+            if !*auto_range || self.input_connection(state, node_index, 0).is_none() {
+                continue;
+            }
+
+            let mut min_v = f32::INFINITY;
+            let mut max_v = f32::NEG_INFINITY;
+
+            for cell_y in 0..grid_height {
+                for cell_x in 0..grid_width {
+                    for py in 0..tile_height {
+                        for px in 0..tile_width {
+                            let u = if tile_width <= 1 {
+                                0.5
+                            } else {
+                                px as f32 / (tile_width - 1) as f32
+                            };
+                            let v = if tile_height <= 1 {
+                                0.5
+                            } else {
+                                py as f32 / (tile_height - 1) as f32
+                            };
+                            let eval = TileEvalContext {
+                                cell_x: cell_x as u16,
+                                cell_y: cell_y as u16,
+                                group_width: graph.output_grid_width.max(1),
+                                group_height: graph.output_grid_height.max(1),
+                                tile_pixel_width: graph.tile_pixel_width.max(1),
+                                tile_pixel_height: graph.tile_pixel_height.max(1),
+                                u,
+                                v,
+                            };
+                            if let Some(color) = self.evaluate_connected_color(
+                                state,
+                                node_index,
+                                0,
+                                eval,
+                                &mut FxHashSet::default(),
+                                &mut FxHashSet::default(),
+                            ) {
+                                let value = Self::color_to_mask(color).clamp(0.0, 1.0);
+                                min_v = min_v.min(value);
+                                max_v = max_v.max(value);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if min_v.is_finite() && max_v.is_finite() {
+                if (max_v - min_v).abs() < 1e-5 {
+                    let center = min_v.clamp(0.0, 1.0);
+                    let lo = (center - 0.5).clamp(0.0, 1.0);
+                    let hi = (center + 0.5).clamp(0.0, 1.0);
+                    ranges[node_index] = Some((lo, hi.max(lo + 1e-5)));
+                } else {
+                    ranges[node_index] = Some((min_v, max_v));
+                }
+            }
+        }
+        ranges
     }
 
     fn evaluate_output_material(
@@ -1061,21 +1288,33 @@ impl TileGraphRenderer {
             })
     }
 
-    fn voronoi_warp_vector(
+    fn connected_warp_vector(
         &self,
         state: &TileNodeGraphState,
         node_index: usize,
+        input_terminal: u8,
         eval: TileEvalContext,
         amount: f32,
         visiting: &mut FxHashSet<usize>,
         visiting_subgraphs: &mut FxHashSet<Uuid>,
     ) -> Vec2<f32> {
-        if amount <= f32::EPSILON || self.input_connection(state, node_index, 0).is_none() {
+        if amount <= f32::EPSILON
+            || self
+                .input_connection(state, node_index, input_terminal)
+                .is_none()
+        {
             return Vec2::new(0.0, 0.0);
         }
 
         let sx = self
-            .evaluate_connected_scalar(state, node_index, 0, eval, visiting, visiting_subgraphs)
+            .evaluate_connected_scalar(
+                state,
+                node_index,
+                input_terminal,
+                eval,
+                visiting,
+                visiting_subgraphs,
+            )
             .unwrap_or(0.5);
         let wrapped_u = (eval.group_u() + 0.173).rem_euclid(1.0);
         let wrapped_v = (eval.group_v() + 0.317).rem_euclid(1.0);
@@ -1083,7 +1322,7 @@ impl TileGraphRenderer {
             .evaluate_connected_scalar(
                 state,
                 node_index,
-                0,
+                input_terminal,
                 eval.with_group_uv(wrapped_u, wrapped_v),
                 visiting,
                 visiting_subgraphs,
@@ -1214,6 +1453,72 @@ impl TileGraphRenderer {
                     let v = unit_to_u8(*value);
                     Some(TheColor::from_u8_array([v, v, v, 255]))
                 }
+                TileNodeKind::Colorize4 {
+                    color_1,
+                    color_2,
+                    color_3,
+                    color_4,
+                    pixel_size,
+                    dither,
+                    auto_range,
+                } => {
+                    let quantized_eval = if *pixel_size > 1 {
+                        let px_size = (*pixel_size).max(1) as f32;
+                        let tile_w = eval.tile_pixel_width.max(1) as f32;
+                        let tile_h = eval.tile_pixel_height.max(1) as f32;
+                        let x = (eval.u * (tile_w - 1.0)).round();
+                        let y = (eval.v * (tile_h - 1.0)).round();
+                        let qx =
+                            ((x / px_size).floor() * px_size).clamp(0.0, (tile_w - 1.0).max(0.0));
+                        let qy =
+                            ((y / px_size).floor() * px_size).clamp(0.0, (tile_h - 1.0).max(0.0));
+                        let u = if tile_w <= 1.0 {
+                            0.5
+                        } else {
+                            qx / (tile_w - 1.0)
+                        };
+                        let v = if tile_h <= 1.0 {
+                            0.5
+                        } else {
+                            qy / (tile_h - 1.0)
+                        };
+                        TileEvalContext { u, v, ..eval }
+                    } else {
+                        eval
+                    };
+                    self.evaluate_connected_color(
+                        state,
+                        node_index,
+                        0,
+                        quantized_eval,
+                        visiting,
+                        visiting_subgraphs,
+                    )
+                    .map(|color| {
+                        let mut t = Self::color_to_mask(color).clamp(0.0, 1.0);
+                        if *auto_range
+                            && let Some((min_v, max_v)) = self.colorize4_range(node_index)
+                        {
+                            let width = (max_v - min_v).max(1e-5);
+                            t = ((t - min_v) / width).clamp(0.0, 1.0);
+                        }
+                        t = t.clamp(0.0, 0.999_999);
+                        if *dither {
+                            let x = (quantized_eval.u
+                                * (quantized_eval.tile_pixel_width.max(1) - 1) as f32)
+                                .round()
+                                .max(0.0) as usize;
+                            let y = (quantized_eval.v
+                                * (quantized_eval.tile_pixel_height.max(1) - 1) as f32)
+                                .round()
+                                .max(0.0) as usize;
+                            let threshold = Self::bayer4(x, y) - 0.5;
+                            t = (t + threshold * 0.18).clamp(0.0, 0.999_999);
+                        }
+                        let slot = (t * 4.0).floor() as usize;
+                        self.colorize4_palette_color(slot, *color_1, *color_2, *color_3, *color_4)
+                    })
+                }
                 TileNodeKind::Gradient { mode } => {
                     let gu = eval.group_u().clamp(0.0, 1.0);
                     let gv = eval.group_v().clamp(0.0, 1.0);
@@ -1326,9 +1631,10 @@ impl TileGraphRenderer {
                     warp_amount,
                     falloff,
                 } => {
-                    let warp = self.voronoi_warp_vector(
+                    let warp = self.connected_warp_vector(
                         state,
                         node_index,
+                        0,
                         eval,
                         warp_amount.clamp(0.0, 0.25),
                         visiting,
@@ -1350,9 +1656,10 @@ impl TileGraphRenderer {
                     warp_amount,
                     falloff,
                 } => {
-                    let warp = self.voronoi_warp_vector(
+                    let warp = self.connected_warp_vector(
                         state,
                         node_index,
+                        0,
                         eval,
                         warp_amount.clamp(0.0, 0.25),
                         visiting,
@@ -1467,9 +1774,10 @@ impl TileGraphRenderer {
                     warp_amount,
                     falloff,
                 } => {
-                    let warp = self.voronoi_warp_vector(
+                    let warp = self.connected_warp_vector(
                         state,
                         node_index,
+                        0,
                         eval,
                         warp_amount.clamp(0.0, 0.25),
                         visiting,
@@ -1493,20 +1801,63 @@ impl TileGraphRenderer {
                     warp_amount,
                     falloff,
                 } => {
-                    let warp = self.voronoi_warp_vector(
+                    let warp = self.connected_warp_vector(
                         state,
                         node_index,
+                        0,
                         eval,
                         warp_amount.clamp(0.0, 0.25),
                         visiting,
                         visiting_subgraphs,
                     );
+                    let density = self
+                        .evaluate_connected_scalar(
+                            state,
+                            node_index,
+                            1,
+                            eval,
+                            visiting,
+                            visiting_subgraphs,
+                        )
+                        .unwrap_or(*scale)
+                        .clamp(0.05, 2.0);
+                    let jitter = self
+                        .evaluate_connected_scalar(
+                            state,
+                            node_index,
+                            2,
+                            eval,
+                            visiting,
+                            visiting_subgraphs,
+                        )
+                        .unwrap_or(*jitter)
+                        .clamp(0.0, 1.0);
+                    let radius = self
+                        .evaluate_connected_scalar(
+                            state,
+                            node_index,
+                            3,
+                            eval,
+                            visiting,
+                            visiting_subgraphs,
+                        )
+                        .unwrap_or(*radius)
+                        .clamp(0.05, 1.0);
+                    let falloff = self
+                        .evaluate_connected_scalar(
+                            state,
+                            node_index,
+                            4,
+                            eval,
+                            visiting,
+                            visiting_subgraphs,
+                        )
+                        .unwrap_or(*falloff)
+                        .clamp(0.1, 4.0);
                     let value = match output_terminal {
-                        1 => {
-                            Self::disc_height(eval, warp, *scale, *seed, *jitter, *radius, *falloff)
-                        }
-                        2 => Self::disc_cell_id(eval, warp, *scale, *seed, *jitter),
-                        _ => Self::disc_center(eval, warp, *scale, *seed, *jitter, *radius),
+                        1 => Self::disc_height(eval, warp, density, *seed, jitter, radius, falloff),
+                        2 => Self::disc_cell_id(eval, warp, density, *seed, jitter),
+                        _ => Self::disc_center(eval, warp, density, *seed, jitter, radius),
                     };
                     let v = unit_to_u8(value);
                     Some(TheColor::from_u8_array([v, v, v, 255]))
@@ -1745,6 +2096,116 @@ impl TileGraphRenderer {
                         let high = (level + half).clamp(0.0, 1.0);
                         let v = unit_to_u8(Self::remap_unit(Self::color_to_mask(color), low, high));
                         TheColor::from_u8_array([v, v, v, 255])
+                    }),
+                TileNodeKind::HeightShape {
+                    contrast,
+                    bias,
+                    plateau,
+                    rim,
+                    warp_amount,
+                } => self
+                    .evaluate_connected_color(
+                        state,
+                        node_index,
+                        0,
+                        eval,
+                        visiting,
+                        visiting_subgraphs,
+                    )
+                    .map(|fallback| {
+                        let warp = self.connected_warp_vector(
+                            state,
+                            node_index,
+                            1,
+                            eval,
+                            warp_amount.clamp(0.0, 0.25),
+                            visiting,
+                            visiting_subgraphs,
+                        );
+                        let input = self
+                            .evaluate_connected_color(
+                                state,
+                                node_index,
+                                0,
+                                eval.with_group_uv(
+                                    (eval.group_u() + warp.x).rem_euclid(1.0),
+                                    (eval.group_v() + warp.y).rem_euclid(1.0),
+                                ),
+                                visiting,
+                                visiting_subgraphs,
+                            )
+                            .unwrap_or(fallback);
+                        let mut v = Self::color_to_mask(input).clamp(0.0, 1.0);
+                        let contrast = self
+                            .evaluate_connected_scalar(
+                                state,
+                                node_index,
+                                2,
+                                eval,
+                                visiting,
+                                visiting_subgraphs,
+                            )
+                            .unwrap_or(*contrast)
+                            .clamp(0.1, 4.0);
+                        v = ((v - 0.5) * contrast + 0.5).clamp(0.0, 1.0);
+
+                        let bias = self
+                            .evaluate_connected_scalar(
+                                state,
+                                node_index,
+                                3,
+                                eval,
+                                visiting,
+                                visiting_subgraphs,
+                            )
+                            .unwrap_or(*bias)
+                            .clamp(-1.0, 1.0);
+                        if bias < 0.0 {
+                            let power = (1.0 + (-bias * 3.0)).clamp(1.0, 4.0);
+                            v = v.powf(power);
+                        } else if bias > 0.0 {
+                            let power = (1.0 + (bias * 3.0)).clamp(1.0, 4.0);
+                            v = 1.0 - (1.0 - v).powf(power);
+                        }
+
+                        let plateau = self
+                            .evaluate_connected_scalar(
+                                state,
+                                node_index,
+                                4,
+                                eval,
+                                visiting,
+                                visiting_subgraphs,
+                            )
+                            .unwrap_or(*plateau)
+                            .clamp(0.0, 3.0);
+                        let rim = self
+                            .evaluate_connected_scalar(
+                                state,
+                                node_index,
+                                5,
+                                eval,
+                                visiting,
+                                visiting_subgraphs,
+                            )
+                            .unwrap_or(*rim)
+                            .clamp(0.0, 4.0);
+                        if rim > 0.0 {
+                            let shoulder = (4.0 * v * (1.0 - v)).clamp(0.0, 1.0);
+                            v = (v - shoulder * rim * 0.18).clamp(0.0, 1.0);
+                        }
+                        if plateau > 0.0 {
+                            let top = (1.0 - plateau * 0.18).clamp(0.35, 0.999);
+                            if v > top {
+                                let t = ((v - top) / (1.0 - top).max(0.0001)).clamp(0.0, 1.0);
+                                let flatten = (0.2 / (1.0 + plateau * 1.2)).clamp(0.03, 0.2);
+                                let curve = t * t * (3.0 - 2.0 * t);
+                                v = top + curve * (1.0 - top) * flatten;
+                            }
+                        }
+
+                        let out = unit_to_u8(v);
+                        TheColor::from_u8_array([out, out, out, 255])
                     }),
                 TileNodeKind::Threshold { cutoff } => self
                     .evaluate_connected_color(

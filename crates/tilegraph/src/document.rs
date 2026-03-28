@@ -3,7 +3,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use theframework::prelude::TheColor;
 
-use crate::{TileNodeGraphExchange, TileNodeGraphState, TileNodeKind, TileNodeState};
+use crate::{
+    TileGraphPaletteSource, TileNodeGraphExchange, TileNodeGraphState, TileNodeKind, TileNodeState,
+};
 
 #[derive(Debug)]
 pub enum TileGraphError {
@@ -86,6 +88,8 @@ pub struct TileGraphDocument {
     #[serde(default)]
     pub tile_size: String,
     #[serde(default)]
+    pub palette_source: Option<String>,
+    #[serde(default)]
     pub palette: Option<PaletteDocument>,
     #[serde(default)]
     pub node: BTreeMap<String, BTreeMap<String, toml::Table>>,
@@ -164,6 +168,22 @@ fn node_kind_from_doc(
             level: table_f32(table, "level", 0.5),
             width: table_f32(table, "width", 0.5),
         },
+        "height_shape" => TileNodeKind::HeightShape {
+            contrast: table_f32(table, "contrast", 1.4),
+            bias: table_f32(table, "bias", 0.0),
+            plateau: table_f32(table, "plateau", 0.2),
+            rim: table_f32(table, "rim", 0.0),
+            warp_amount: table_f32(table, "warp_amount", 0.0),
+        },
+        "colorize4" => TileNodeKind::Colorize4 {
+            color_1: table_u32(table, "color_1", 0) as u16,
+            color_2: table_u32(table, "color_2", 1) as u16,
+            color_3: table_u32(table, "color_3", 2) as u16,
+            color_4: table_u32(table, "color_4", 3) as u16,
+            pixel_size: table_u32(table, "pixel_size", 1) as u16,
+            dither: table_bool(table, "dither", false),
+            auto_range: table_bool(table, "auto_range", true),
+        },
         "id_random" => TileNodeKind::IdRandom,
         "noise" => TileNodeKind::Noise {
             scale: table_f32(table, "scale", 0.25),
@@ -241,10 +261,27 @@ fn input_index(kind: &str, input: &str) -> Option<u8> {
         },
         "disc" => match input {
             "warp" => Some(0),
+            "density_in" => Some(1),
+            "jitter_in" => Some(2),
+            "radius_in" => Some(3),
+            "falloff_in" => Some(4),
             _ => None,
         },
         "box_divide" => match input {
             "warp" => Some(0),
+            _ => None,
+        },
+        "height_shape" => match input {
+            "in" => Some(0),
+            "warp" => Some(1),
+            "contrast_in" => Some(2),
+            "bias_in" => Some(3),
+            "plateau_in" => Some(4),
+            "rim_in" => Some(5),
+            _ => None,
+        },
+        "colorize4" => match input {
+            "in" => Some(0),
             _ => None,
         },
         "blur" | "slope_blur" | "levels" | "threshold" | "curve" => match input {
@@ -323,6 +360,7 @@ impl TileGraphDocument {
         let mut nodes = vec![TileNodeState {
             kind: TileNodeKind::default_output_root(),
             position: (420, 40),
+            preview_open: true,
             bypass: false,
             mute: false,
             solo: false,
@@ -333,6 +371,11 @@ impl TileGraphDocument {
         for graph_node in self.iter_nodes() {
             let path = graph_node.path();
             if graph_node.kind == "output" {
+                if let Some(pos) = graph_node.position()
+                    && let Some(output_root) = nodes.first_mut()
+                {
+                    output_root.position = pos;
+                }
                 if let Some(output_root) = nodes.first_mut() {
                     if let TileNodeKind::OutputRoot {
                         roughness,
@@ -380,6 +423,7 @@ impl TileGraphDocument {
                 nodes.push(TileNodeState {
                     kind,
                     position: pos,
+                    preview_open: true,
                     bypass: false,
                     mute: false,
                     solo: false,
@@ -467,6 +511,15 @@ impl TileGraphDocument {
         Ok(TileNodeGraphExchange {
             version: self.version,
             graph_name: self.name.clone(),
+            palette_source: match self
+                .palette_source
+                .as_deref()
+                .map(|s| s.trim().to_ascii_lowercase())
+                .as_deref()
+            {
+                Some("project") => TileGraphPaletteSource::Project,
+                _ => TileGraphPaletteSource::Local,
+            },
             palette_colors: self
                 .palette
                 .as_ref()
@@ -501,6 +554,10 @@ impl TileGraphDocument {
                 exchange.tile_pixel_width.max(1),
                 exchange.tile_pixel_height.max(1)
             ),
+            palette_source: Some(match exchange.palette_source {
+                TileGraphPaletteSource::Local => "local".to_string(),
+                TileGraphPaletteSource::Project => "project".to_string(),
+            }),
             palette: (!exchange.palette_colors.is_empty()).then(|| PaletteDocument {
                 name: None,
                 link: None,
@@ -519,6 +576,13 @@ impl TileGraphDocument {
         let mut per_kind_counts: BTreeMap<&'static str, usize> = BTreeMap::new();
         let mut paths: Vec<Option<String>> = vec![None; state.nodes.len()];
         paths[0] = Some("output.main".to_string());
+        if let Some(root) = state.nodes.first() {
+            let output_table = export_node_table(&root.kind, root.position)?;
+            doc.node
+                .entry("output".to_string())
+                .or_default()
+                .insert("main".to_string(), output_table);
+        }
 
         for (index, node) in state.nodes.iter().enumerate().skip(1) {
             let kind = export_kind_name(&node.kind).ok_or_else(|| {
@@ -648,6 +712,8 @@ fn export_kind_name(kind: &TileNodeKind) -> Option<&'static str> {
         TileNodeKind::Blur { .. } => Some("blur"),
         TileNodeKind::SlopeBlur { .. } => Some("slope_blur"),
         TileNodeKind::Levels { .. } => Some("levels"),
+        TileNodeKind::HeightShape { .. } => Some("height_shape"),
+        TileNodeKind::Colorize4 { .. } => Some("colorize4"),
         TileNodeKind::IdRandom => Some("id_random"),
         TileNodeKind::Noise { .. } => Some("noise"),
         TileNodeKind::Brick { .. } => Some("brick"),
@@ -685,10 +751,27 @@ fn export_input_name(kind: &str, input: u8) -> Option<&'static str> {
         },
         "disc" => match input {
             0 => Some("warp"),
+            1 => Some("density_in"),
+            2 => Some("jitter_in"),
+            3 => Some("radius_in"),
+            4 => Some("falloff_in"),
             _ => None,
         },
         "box_divide" => match input {
             0 => Some("warp"),
+            _ => None,
+        },
+        "height_shape" => match input {
+            0 => Some("in"),
+            1 => Some("warp"),
+            2 => Some("contrast_in"),
+            3 => Some("bias_in"),
+            4 => Some("plateau_in"),
+            5 => Some("rim_in"),
+            _ => None,
+        },
+        "colorize4" => match input {
+            0 => Some("in"),
             _ => None,
         },
         "blur" | "slope_blur" | "levels" | "threshold" | "curve" => match input {
@@ -805,6 +888,42 @@ fn export_node_table(
         TileNodeKind::Levels { level, width } => {
             table.insert("level".to_string(), toml::Value::Float(*level as f64));
             table.insert("width".to_string(), toml::Value::Float(*width as f64));
+        }
+        TileNodeKind::HeightShape {
+            contrast,
+            bias,
+            plateau,
+            rim,
+            warp_amount,
+        } => {
+            table.insert("contrast".to_string(), toml::Value::Float(*contrast as f64));
+            table.insert("bias".to_string(), toml::Value::Float(*bias as f64));
+            table.insert("plateau".to_string(), toml::Value::Float(*plateau as f64));
+            table.insert("rim".to_string(), toml::Value::Float(*rim as f64));
+            table.insert(
+                "warp_amount".to_string(),
+                toml::Value::Float(*warp_amount as f64),
+            );
+        }
+        TileNodeKind::Colorize4 {
+            color_1,
+            color_2,
+            color_3,
+            color_4,
+            pixel_size,
+            dither,
+            auto_range,
+        } => {
+            table.insert("color_1".to_string(), toml::Value::Integer(*color_1 as i64));
+            table.insert("color_2".to_string(), toml::Value::Integer(*color_2 as i64));
+            table.insert("color_3".to_string(), toml::Value::Integer(*color_3 as i64));
+            table.insert("color_4".to_string(), toml::Value::Integer(*color_4 as i64));
+            table.insert(
+                "pixel_size".to_string(),
+                toml::Value::Integer((*pixel_size).max(1) as i64),
+            );
+            table.insert("dither".to_string(), toml::Value::Boolean(*dither));
+            table.insert("auto_range".to_string(), toml::Value::Boolean(*auto_range));
         }
         TileNodeKind::Noise { scale, seed, wrap } => {
             table.insert("scale".to_string(), toml::Value::Float(*scale as f64));

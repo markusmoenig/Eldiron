@@ -2,6 +2,7 @@ use crate::prelude::*;
 use indexmap::IndexMap;
 pub use rusterix::map::*;
 use theframework::prelude::*;
+use tilegraph::TileGraphPaletteSource;
 
 /// The default target fps for the game.
 fn default_target_fps() -> u32 {
@@ -45,7 +46,7 @@ fn default_tile_collection_version() -> String {
     "0.1".to_string()
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct NodeGroupAsset {
     pub group_id: Uuid,
     pub graph_id: Uuid,
@@ -56,11 +57,20 @@ pub struct NodeGroupAsset {
     pub tile_pixel_width: u16,
     pub tile_pixel_height: u16,
     #[serde(default)]
+    pub palette_source: TileGraphPaletteSource,
+    #[serde(default)]
+    pub palette_colors: Vec<TheColor>,
+    #[serde(default)]
     pub graph_data: String,
 }
 
 impl NodeGroupAsset {
-    pub fn new(group_id: Uuid, output_grid_width: u16, output_grid_height: u16) -> Self {
+    pub fn new(
+        group_id: Uuid,
+        output_grid_width: u16,
+        output_grid_height: u16,
+        palette_colors: Vec<TheColor>,
+    ) -> Self {
         Self {
             group_id,
             graph_id: Uuid::new_v4(),
@@ -69,6 +79,8 @@ impl NodeGroupAsset {
             output_grid_height,
             tile_pixel_width: 32,
             tile_pixel_height: 32,
+            palette_source: TileGraphPaletteSource::Local,
+            palette_colors,
             graph_data: String::new(),
         }
     }

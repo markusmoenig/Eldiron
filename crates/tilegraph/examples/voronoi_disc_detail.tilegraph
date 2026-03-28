@@ -1,0 +1,85 @@
+version = 1
+name = "Voronoi Disc Detail"
+grid = "3x3"
+tile_size = "32x32"
+
+[palette]
+name = "Steam Lords"
+link = "https://lospec.com/palette-list/steam-lords"
+colors = [
+  "#213b25",
+  "#3a604a",
+  "#4f7754",
+  "#a19f7c",
+  "#77744f",
+  "#775c4f",
+  "#603b3a",
+  "#3b2137",
+  "#170e19",
+  "#2f213b",
+  "#433a60",
+  "#4f5277",
+  "#65738c",
+  "#7c94a1",
+  "#a0b9ba",
+  "#c0d1cc",
+]
+
+[node.noise.main]
+pos = [60, 280]
+scale = 0.18
+seed = 7
+wrap = true
+
+[node.voronoi.main]
+pos = [60, 120]
+scale = 0.50
+seed = 11
+jitter = 0.90
+warp_amount = 0.035
+falloff = 1.30
+warp = "noise.main:field"
+
+[node.height_shape.main]
+pos = [240, 120]
+in = "voronoi.main:height"
+contrast = 1.55
+bias = 0.12
+plateau = 1.40
+
+[node.id_random.main]
+pos = [240, 420]
+id = "voronoi.main:cell_id"
+
+[node.disc.detail]
+pos = [240, 320]
+scale = 1.10
+seed = 21
+jitter = 0.82
+radius = 0.28
+warp_amount = 0.0
+falloff = 1.45
+radius_in = "id_random.main:field"
+
+[node.scalar.detail_amount]
+pos = [420, 320]
+value = 0.12
+
+[node.multiply.detail]
+pos = [560, 320]
+a = "disc.detail:height"
+b = "scalar.detail_amount:field"
+
+[node.subtract.main]
+pos = [560, 120]
+a = "height_shape.main:field"
+b = "multiply.detail:field"
+
+[node.output.main]
+pos = [760, 120]
+color = "subtract.main:field"
+height = "subtract.main:field"
+roughness = 0.9
+metallic = 0.0
+opacity = 1.0
+emissive = 0.0

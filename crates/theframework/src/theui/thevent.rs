@@ -85,6 +85,7 @@ pub enum TheEvent {
     // Nodes
     NodeSelectedIndexChanged(TheId, Option<usize>),
     NodeDragged(TheId, usize, Vec2<i32>),
+    NodePreviewToggled(TheId, usize, bool),
     NodeConnectionAdded(TheId, Vec<(u16, u8, u16, u8)>),
     NodeConnectionRemoved(TheId, Vec<(u16, u8, u16, u8)>),
     NodeDeleted(TheId, usize, Vec<(u16, u8, u16, u8)>),

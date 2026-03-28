@@ -740,7 +740,9 @@ impl Editor {
 
         for (_, tile) in project.tiles.iter_mut() {
             for texture in &mut tile.textures {
-                texture.generate_normals(true);
+                if texture.data_ext.is_none() {
+                    texture.generate_normals(true);
+                }
             }
         }
 

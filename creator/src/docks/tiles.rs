@@ -1175,7 +1175,13 @@ impl TilesDock {
         project.ensure_tile_board_space(pos + Vec2::new(1, 1));
         project.add_tile_group(group);
         if node_backed {
-            project.add_tile_node_group(NodeGroupAsset::new(group_id, 2, 2));
+            let palette_colors = project
+                .palette
+                .colors
+                .iter()
+                .filter_map(|color| color.clone())
+                .collect();
+            project.add_tile_node_group(NodeGroupAsset::new(group_id, 2, 2, palette_colors));
         }
         if let TileTabKind::Collection(collection_id) = self.current_tab_kind(project) {
             project.add_source_to_collection(&collection_id, TileSource::TileGroup(group_id));

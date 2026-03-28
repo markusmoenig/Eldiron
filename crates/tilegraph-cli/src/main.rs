@@ -25,10 +25,13 @@ fn parse_palette_arg(value: &str) -> Vec<TheColor> {
         .collect()
 }
 
-fn default_steam_lords_palette() -> Vec<TheColor> {
+// CC-29 palette: https://lospec.com/palette-list/cc-29
+fn default_cc29_palette() -> Vec<TheColor> {
     [
-        "#213b25", "#3a604a", "#4f7754", "#a19f7c", "#77744f", "#775c4f", "#603b3a", "#3b2137",
-        "#170e19", "#2f213b", "#433a60", "#4f5277", "#65738c", "#7c94a1", "#a0b9ba", "#c0d1cc",
+        "#f2f0e5", "#b8b5b9", "#868188", "#646365", "#45444f", "#3a3858", "#212123", "#352b42",
+        "#43436a", "#4b80ca", "#68c2d3", "#a2dcc7", "#ede19e", "#d3a068", "#b45252", "#6a536e",
+        "#4b4158", "#80493a", "#a77b5b", "#e5ceb4", "#c2d368", "#8ab060", "#567b79", "#4e584a",
+        "#7b7243", "#b2b47e", "#edc8c4", "#cf8acb", "#5f556a",
     ]
     .into_iter()
     .map(TheColor::from_hex)
@@ -139,7 +142,7 @@ fn run() -> Result<(), String> {
         palette = graph.palette_colors.clone();
     }
     if palette.is_empty() {
-        palette = default_steam_lords_palette();
+        palette = default_cc29_palette();
     }
 
     let renderer = TileGraphRenderer::new(palette);

@@ -1,5 +1,5 @@
 version = 1
-name = "Voronoi Warped Height"
+name = "Voronoi Colorize4"
 grid = "3x3"
 tile_size = "32x32"
 
@@ -41,6 +41,15 @@ contrast = 1.55
 bias = 0.15
 plateau = 1.35
 
+[node.colorize4.main]
+pos = [420, 140]
+in = "height_shape.main:field"
+color_1 = 8
+color_2 = 6
+color_3 = 3
+color_4 = 15
+pixel_size = 1
+
 [node.noise.main]
 pos = [60, 280]
 scale = 0.18
@@ -48,8 +57,8 @@ seed = 7
 wrap = true
 
 [node.output.main]
-pos = [420, 140]
-color = "height_shape.main:field"
+pos = [620, 140]
+color = "colorize4.main:color"
 height = "height_shape.main:field"
 roughness = 0.9
 metallic = 0.0

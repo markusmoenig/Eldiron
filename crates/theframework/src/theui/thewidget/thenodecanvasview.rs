@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use zeno::{Mask, Stroke};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -58,6 +59,8 @@ pub struct TheNodeCanvasView {
     action_changed: bool,
 
     overlay: Option<TheRGBABuffer>,
+    last_mouse_down_time: Instant,
+    last_mouse_down_coord: Vec2<i32>,
 }
 
 impl TheWidget for TheNodeCanvasView {
@@ -94,6 +97,8 @@ impl TheWidget for TheNodeCanvasView {
             action_changed: false,
 
             overlay: None,
+            last_mouse_down_time: Instant::now(),
+            last_mouse_down_coord: Vec2::zero(),
         }
     }
 
@@ -107,6 +112,8 @@ impl TheWidget for TheNodeCanvasView {
         // println!("event ({}): {:?}", self.widget_id.name, event);
         match event {
             TheEvent::MouseDown(coord) => {
+                let is_double_click = self.last_mouse_down_time.elapsed().as_millis() < 500
+                    && self.last_mouse_down_coord == *coord;
                 if self.state == TheWidgetState::Selected {
                     self.state = TheWidgetState::None;
                     ctx.ui.send_widget_state_changed(self.id(), self.state);
@@ -128,6 +135,48 @@ impl TheWidget for TheNodeCanvasView {
                             self.id().clone(),
                             self.canvas.selected_node,
                         ));
+                    }
+
+                    if is_double_click {
+                        if let Some(node_rect) = self.node_rects.get(index) {
+                            let title_rect =
+                                TheDim::new(node_rect.x, node_rect.y, node_rect.width, 19);
+                            if title_rect.contains(*coord) {
+                                if let Some(node) = self.canvas.nodes.get_mut(index) {
+                                    let open = !node.preview_is_open;
+                                    node.preview_is_open = open;
+                                    self.is_dirty = true;
+                                    redraw = true;
+                                    ctx.ui.send(TheEvent::NodePreviewToggled(
+                                        self.id().clone(),
+                                        index,
+                                        open,
+                                    ));
+                                }
+                                self.action = TheNodeAction::None;
+                                self.last_mouse_down_time = Instant::now();
+                                self.last_mouse_down_coord = *coord;
+                                return redraw;
+                            }
+                        }
+                    }
+
+                    if let Some(preview_rect) = self.preview_rect_for_node(index)
+                        && preview_rect.contains(*coord)
+                    {
+                        if let Some(node) = self.canvas.nodes.get_mut(index) {
+                            let open = !node.preview_is_open;
+                            node.preview_is_open = open;
+                            self.is_dirty = true;
+                            redraw = true;
+                            ctx.ui.send(TheEvent::NodePreviewToggled(
+                                self.id().clone(),
+                                index,
+                                open,
+                            ));
+                        }
+                        self.action = TheNodeAction::None;
+                        return redraw;
                     }
 
                     if let Some(terminal) = self.terminal_at(
@@ -153,6 +202,8 @@ impl TheWidget for TheNodeCanvasView {
                     self.action = TheNodeAction::CutConnection;
                     self.drag_start = *coord;
                 }
+                self.last_mouse_down_time = Instant::now();
+                self.last_mouse_down_coord = *coord;
             }
             TheEvent::MouseDragged(coord) => {
                 if let TheNodeAction::CutConnection = self.action {
@@ -504,14 +555,13 @@ impl TheWidget for TheNodeCanvasView {
                     }
 
                     if let Some(overlay) = &self.overlay {
-                        //let w = overlay.dim().width;
-                        let h = overlay.dim().height;
+                        let ow = overlay.dim().width.max(1);
+                        let oh = overlay.dim().height.max(1);
+                        let sample_x = (xx + self.canvas.offset.x).rem_euclid(ow);
+                        let sample_y = (yy + self.canvas.offset.y).rem_euclid(oh);
 
-                        if yy > height - h && xx < width as i32 {
-                            let y = height - h;
-                            if let Some(c) = overlay.get_pixel(xx, yy - y) {
-                                color = mix_color(&color, &c, c[3] as f32 / 255.0);
-                            }
+                        if let Some(c) = overlay.get_pixel(sample_x, sample_y) {
+                            color = mix_color(&color, &c, c[3] as f32 / 255.0);
                         }
                     }
 
@@ -871,7 +921,7 @@ impl TheWidget for TheNodeCanvasView {
                     self.render_buffer.dim().width as u32,
                     self.render_buffer.dim().height as u32,
                 )
-                .style(Stroke::new(1.5))
+                .style(Stroke::new(2.6))
                 .render_into(&mut line_mask, None);
 
             ctx.draw.blend_mask(
@@ -926,6 +976,30 @@ impl TheWidget for TheNodeCanvasView {
 }
 
 impl TheNodeCanvasView {
+    fn preview_rect_for_node(&self, node_index: usize) -> Option<TheDim> {
+        let node = self.canvas.nodes.get(node_index)?;
+        if !node.supports_preview || !node.preview_is_open {
+            return None;
+        }
+        let max_terminals = node.inputs.len().max(node.outputs.len()) as i32;
+        let body_height = 7 + max_terminals * 10 + (max_terminals - 1) * 4 + 7;
+        let mut node_height = 19 + body_height + 19;
+        let preview_height = 118;
+        node_height += preview_height;
+        let dim = TheDim::new(
+            node.position.x - self.canvas.offset.x,
+            node.position.y - self.canvas.offset.y,
+            self.canvas.node_width,
+            node_height,
+        );
+        Some(TheDim::new(
+            dim.x + 2,
+            dim.y + (node_height - 19 - preview_height),
+            self.canvas.node_width - 4,
+            preview_height,
+        ))
+    }
+
     fn categories_compatible(source: &str, dest: &str) -> bool {
         if source == dest {
             return true;
@@ -960,6 +1034,7 @@ pub trait TheNodeCanvasViewTrait: TheWidget {
     fn set_canvas(&mut self, canvas: TheNodeCanvas);
     fn set_overlay(&mut self, overlay: Option<TheRGBABuffer>);
     fn set_node_preview(&mut self, index: usize, buffer: TheRGBABuffer);
+    fn set_node_preview_open(&mut self, index: usize, open: bool);
     fn fill_node_ui_images(&mut self, ctx: &mut TheContext);
     fn node_index_at(&self, coord: &Vec2<i32>) -> Option<usize>;
     fn terminal_at(&self, node_index: usize, coord: Vec2<i32>) -> Option<(bool, u8)>;
@@ -995,6 +1070,12 @@ impl TheNodeCanvasViewTrait for TheNodeCanvasView {
     fn set_node_preview(&mut self, index: usize, buffer: TheRGBABuffer) {
         if !self.canvas.nodes.is_empty() {
             self.canvas.nodes[index].preview = buffer;
+            self.is_dirty = true;
+        }
+    }
+    fn set_node_preview_open(&mut self, index: usize, open: bool) {
+        if let Some(node) = self.canvas.nodes.get_mut(index) {
+            node.preview_is_open = open;
             self.is_dirty = true;
         }
     }
