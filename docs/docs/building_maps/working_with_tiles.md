@@ -19,18 +19,34 @@ Before adding the tile(s) make sure you selected the role as needed (to be able 
 - **Anim**. Add the selected tiles as one animated tile.
 - **Multi**. Add the selected tiles as one big tile, containing multiple tiles.
 
-In the tile picker you can further edit tiles, both their meta data and their pixels, using the corresponding *Actions*. The dock toolbar also contains **Apply Tile** and **Clear Tile** buttons for assigning or removing tile sources on map geometry and action material slots.
+In the tile picker you can further edit tile sources and assign them to geometry. The dock toolbar contains **Apply Tile** and **Clear Tile** for assigning or removing tile sources on map geometry and action material slots.
+
+The tile picker can now contain:
+
+- single tiles
+- tile groups
+- node groups
 
 Added tiles are shown with a slight gray overlay in the tileset editor, making it easy to see which files you already added. You can delete a tileset any time, already added tiles will not be affected.
 
 Once you added tiles they are visible in the tile picker and ready to use in 2D and 3D.
 
-## Using the built-in Tile Editor
+## Using The Integrated Editors
 
 In the tile picker you can use the [New Tile](/docs/creator/actions/#new-tile) or [Duplicate Tile](/docs/creator/actions/#duplicate-tile) actions to create new tiles.
 
-Selecting a tile and activating the [Edit / Maximize](/docs/creator/actions/#edit--maximize) action opens the integrated tile editor which has its own set of tools.
+Selecting a tile and activating the [Edit / Maximize](/docs/creator/actions/#edit--maximize) action opens the integrated **pixel tile editor**.
+
+Selecting a node group and maximizing opens the **tile node graph editor** instead.
+
+Node graphs can also import other node graphs as reusable layers, which is useful for building modular materials such as stones with soil, moss, or grass overlays.
 
 Drawing pixels uses the currently selected color in the project tree palette. There are various palette based actions available like [Clear Palette](/docs/creator/actions/#clear-palette) or [Import Palette](/docs/creator/actions/#import-palette).
 
 Editing tiles auto-updates them on the map. Undo is supported for each tile individually.
+
+See:
+
+- [Tile Picker](/docs/creator/docks/tile_picker_editor)
+- [Pixel Tile Editor](/docs/creator/docks/pixel_tile_editor)
+- [Tile Node Graph](/docs/creator/docks/tile_node_graph)

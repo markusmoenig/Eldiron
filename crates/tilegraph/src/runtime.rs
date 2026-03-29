@@ -215,8 +215,12 @@ pub enum TileNodeKind {
         #[serde(default = "default_output_emissive")]
         emissive: f32,
     },
-    Subgraph {
-        subgraph_id: Uuid,
+    LayerInput {
+        name: String,
+        value: f32,
+    },
+    ImportLayer {
+        source: String,
     },
     GroupUV,
     Scalar {
@@ -513,21 +517,40 @@ pub struct RenderedTileGraph {
 }
 
 pub trait TileGraphSubgraphResolver {
-    fn resolve_subgraph_state(&self, subgraph_id: Uuid) -> Option<TileNodeGraphState>;
+    fn resolve_subgraph_state(&self, source: &str) -> Option<TileNodeGraphState>;
+
+    fn resolve_subgraph_exchange(&self, source: &str) -> Option<TileNodeGraphExchange> {
+        self.resolve_subgraph_state(source)
+            .map(|graph_state| TileNodeGraphExchange {
+                version: 1,
+                graph_name: String::new(),
+                palette_source: TileGraphPaletteSource::Local,
+                palette_colors: Vec::new(),
+                output_grid_width: 1,
+                output_grid_height: 1,
+                tile_pixel_width: 32,
+                tile_pixel_height: 32,
+                graph_state,
+            })
+    }
 }
 
 pub struct NoTileGraphSubgraphs;
 
 impl TileGraphSubgraphResolver for NoTileGraphSubgraphs {
-    fn resolve_subgraph_state(&self, _subgraph_id: Uuid) -> Option<TileNodeGraphState> {
+    fn resolve_subgraph_state(&self, _source: &str) -> Option<TileNodeGraphState> {
         None
     }
 }
 
 #[derive(Clone, Copy, Default)]
 struct FlatSubgraphOutputs {
-    color: Option<u16>,
-    material: Option<u16>,
+    outputs: [Option<u16>; 6],
+}
+
+#[derive(Clone, Default)]
+struct FlatSubgraphInputs {
+    inputs: Vec<Option<u16>>,
 }
 
 pub fn flatten_graph_exchange_with<R: TileGraphSubgraphResolver>(
@@ -535,7 +558,13 @@ pub fn flatten_graph_exchange_with<R: TileGraphSubgraphResolver>(
     resolver: &R,
 ) -> TileNodeGraphExchange {
     let mut flattened = graph.clone();
-    flattened.graph_state = flatten_graph_state_with(&graph.graph_state, resolver);
+    flattened.graph_state = flatten_graph_state_recursive(
+        &graph.graph_state,
+        resolver,
+        &mut FxHashSet::default(),
+        graph.palette_source,
+        &graph.palette_colors,
+    );
     flattened
 }
 
@@ -545,18 +574,28 @@ pub fn flatten_graph_state_with<R: TileGraphSubgraphResolver>(
 ) -> TileNodeGraphState {
     let mut state = state.clone();
     state.ensure_root();
-    flatten_graph_state_recursive(&state, resolver, &mut FxHashSet::default())
+    flatten_graph_state_recursive(
+        &state,
+        resolver,
+        &mut FxHashSet::default(),
+        TileGraphPaletteSource::Local,
+        &[],
+    )
 }
 
 fn flatten_graph_state_recursive<R: TileGraphSubgraphResolver>(
     state: &TileNodeGraphState,
     resolver: &R,
-    stack: &mut FxHashSet<Uuid>,
+    stack: &mut FxHashSet<String>,
+    target_palette_source: TileGraphPaletteSource,
+    target_palette: &[TheColor],
 ) -> TileNodeGraphState {
     let mut nodes = Vec::new();
     let mut node_map: Vec<Option<u16>> = vec![None; state.nodes.len()];
     let mut subgraph_outputs: Vec<FlatSubgraphOutputs> =
         vec![FlatSubgraphOutputs::default(); state.nodes.len()];
+    let mut subgraph_inputs: Vec<FlatSubgraphInputs> =
+        vec![FlatSubgraphInputs::default(); state.nodes.len()];
     let mut connections = Vec::new();
 
     if let Some(root) = state.nodes.first() {
@@ -566,32 +605,49 @@ fn flatten_graph_state_recursive<R: TileGraphSubgraphResolver>(
 
     for (old_index, node) in state.nodes.iter().enumerate().skip(1) {
         match &node.kind {
-            TileNodeKind::Subgraph { subgraph_id } => {
-                if !stack.insert(*subgraph_id) {
+            TileNodeKind::ImportLayer { source } => {
+                if !stack.insert(source.clone()) {
                     continue;
                 }
-                let Some(sub_state) = resolver.resolve_subgraph_state(*subgraph_id) else {
-                    stack.remove(subgraph_id);
+                let Some(mut sub_exchange) = resolver.resolve_subgraph_exchange(source) else {
+                    stack.remove(source);
                     continue;
                 };
-                let sub_flat = flatten_graph_state_recursive(&sub_state, resolver, stack);
-                stack.remove(subgraph_id);
+                sub_exchange.graph_state.ensure_root();
+                remap_exchange_palette_for_instancing(
+                    &mut sub_exchange,
+                    target_palette_source,
+                    target_palette,
+                );
+                let sub_flat = flatten_graph_state_recursive(
+                    &sub_exchange.graph_state,
+                    resolver,
+                    stack,
+                    target_palette_source,
+                    target_palette,
+                );
+                stack.remove(source);
 
                 let base = nodes.len() as u16;
                 let mut sub_map: Vec<Option<u16>> = vec![None; sub_flat.nodes.len()];
+                let mut input_slots = Vec::new();
                 for (sub_index, sub_node) in sub_flat.nodes.iter().enumerate().skip(1) {
                     let new_index = nodes.len() as u16;
                     nodes.push(sub_node.clone());
                     sub_map[sub_index] = Some(new_index);
+                    if matches!(sub_node.kind, TileNodeKind::LayerInput { .. }) {
+                        input_slots.push(Some(new_index));
+                    }
                 }
 
-                let color_src = input_connection_source(&sub_flat, 0, 0)
-                    .and_then(|src| remap_sub_index(src, &sub_map, base));
-                let material_src = input_connection_source(&sub_flat, 0, 1)
-                    .and_then(|src| remap_sub_index(src, &sub_map, base));
-                subgraph_outputs[old_index] = FlatSubgraphOutputs {
-                    color: color_src,
-                    material: material_src,
+                let mut outputs = [None; 6];
+                for (terminal, slot) in outputs.iter_mut().enumerate() {
+                    *slot = input_connection_source(&sub_flat, 0, terminal as u8)
+                        .and_then(|src| remap_sub_index(src, &sub_map, base));
+                }
+                subgraph_outputs[old_index] = FlatSubgraphOutputs { outputs };
+                subgraph_inputs[old_index] = FlatSubgraphInputs {
+                    inputs: input_slots,
                 };
 
                 for (src_node, src_terminal, dest_node, dest_terminal) in &sub_flat.connections {
@@ -616,20 +672,34 @@ fn flatten_graph_state_recursive<R: TileGraphSubgraphResolver>(
     for (src_node, src_terminal, dest_node, dest_terminal) in &state.connections {
         let src = if matches!(
             state.nodes.get(*src_node as usize).map(|n| &n.kind),
-            Some(TileNodeKind::Subgraph { .. })
+            Some(TileNodeKind::ImportLayer { .. })
         ) {
             let outputs = subgraph_outputs[*src_node as usize];
-            if *src_terminal == 1 {
-                outputs.material
-            } else {
-                outputs.color
-            }
+            outputs.outputs.get(*src_terminal as usize).and_then(|v| *v)
         } else {
             node_map.get(*src_node as usize).and_then(|v| *v)
         };
-        let dest = node_map.get(*dest_node as usize).and_then(|v| *v);
+        let dest = if matches!(
+            state.nodes.get(*dest_node as usize).map(|n| &n.kind),
+            Some(TileNodeKind::ImportLayer { .. })
+        ) {
+            subgraph_inputs
+                .get(*dest_node as usize)
+                .and_then(|i| i.inputs.get(*dest_terminal as usize))
+                .and_then(|v| *v)
+        } else {
+            node_map.get(*dest_node as usize).and_then(|v| *v)
+        };
         if let (Some(src), Some(dest)) = (src, dest) {
-            connections.push((src, *src_terminal, dest, *dest_terminal));
+            let target_terminal = if matches!(
+                nodes.get(dest as usize).map(|n| &n.kind),
+                Some(TileNodeKind::LayerInput { .. })
+            ) {
+                0
+            } else {
+                *dest_terminal
+            };
+            connections.push((src, *src_terminal, dest, target_terminal));
         }
     }
 
@@ -642,6 +712,91 @@ fn flatten_graph_state_recursive<R: TileGraphSubgraphResolver>(
             .and_then(|index| node_map.get(index).and_then(|v| *v).map(|v| v as usize)),
         preview_mode: state.preview_mode,
     }
+}
+
+fn remap_exchange_palette_for_instancing(
+    exchange: &mut TileNodeGraphExchange,
+    target_palette_source: TileGraphPaletteSource,
+    target_palette: &[TheColor],
+) {
+    if exchange.palette_source != TileGraphPaletteSource::Local
+        || exchange.palette_colors.is_empty()
+        || target_palette.is_empty()
+    {
+        exchange.palette_source = target_palette_source;
+        if !target_palette.is_empty() {
+            exchange.palette_colors = target_palette.to_vec();
+        }
+        return;
+    }
+
+    for node in &mut exchange.graph_state.nodes {
+        match &mut node.kind {
+            TileNodeKind::PaletteColor { index } => {
+                *index = nearest_palette_index(
+                    palette_color_for_index(&exchange.palette_colors, *index),
+                    target_palette,
+                ) as u16;
+            }
+            TileNodeKind::Colorize4 {
+                color_1,
+                color_2,
+                color_3,
+                color_4,
+                ..
+            } => {
+                *color_1 = nearest_palette_index(
+                    palette_color_for_index(&exchange.palette_colors, *color_1),
+                    target_palette,
+                ) as u16;
+                *color_2 = nearest_palette_index(
+                    palette_color_for_index(&exchange.palette_colors, *color_2),
+                    target_palette,
+                ) as u16;
+                *color_3 = nearest_palette_index(
+                    palette_color_for_index(&exchange.palette_colors, *color_3),
+                    target_palette,
+                ) as u16;
+                *color_4 = nearest_palette_index(
+                    palette_color_for_index(&exchange.palette_colors, *color_4),
+                    target_palette,
+                ) as u16;
+            }
+            _ => {}
+        }
+    }
+
+    exchange.palette_source = target_palette_source;
+    exchange.palette_colors = target_palette.to_vec();
+}
+
+fn palette_color_for_index(palette: &[TheColor], index: u16) -> TheColor {
+    palette
+        .get(index as usize)
+        .cloned()
+        .or_else(|| palette.last().cloned())
+        .unwrap_or_else(|| TheColor::from_u8_array([0, 0, 0, 255]))
+}
+
+fn nearest_palette_index(color: TheColor, palette: &[TheColor]) -> usize {
+    if palette.is_empty() {
+        return 0;
+    }
+    let src = color.to_u8_array();
+    let mut best = 0usize;
+    let mut best_dist = i64::MAX;
+    for (i, candidate) in palette.iter().enumerate() {
+        let c = candidate.to_u8_array();
+        let dr = src[0] as i64 - c[0] as i64;
+        let dg = src[1] as i64 - c[1] as i64;
+        let db = src[2] as i64 - c[2] as i64;
+        let dist = dr * dr + dg * dg + db * db;
+        if dist < best_dist {
+            best_dist = dist;
+            best = i;
+        }
+    }
+    best
 }
 
 fn input_connection_source(
@@ -1051,6 +1206,16 @@ impl TileGraphRenderer {
             .get(node_index)
             .and_then(|node| match &node.kind {
                 TileNodeKind::Scalar { value } => Some(*value),
+                TileNodeKind::LayerInput { value, .. } => self
+                    .evaluate_connected_scalar(
+                        state,
+                        node_index,
+                        0,
+                        eval,
+                        visiting,
+                        visiting_subgraphs,
+                    )
+                    .or(Some(*value)),
                 _ => self
                     .evaluate_node_color_output_internal(
                         state,
@@ -1126,10 +1291,7 @@ impl TileGraphRenderer {
                         ))
                     }
                 }
-                TileNodeKind::Subgraph { subgraph_id } => {
-                    let _ = visiting_subgraphs.insert(*subgraph_id);
-                    None
-                }
+                TileNodeKind::ImportLayer { .. } => None,
                 TileNodeKind::Material {
                     roughness,
                     metallic,
@@ -1439,10 +1601,20 @@ impl TileGraphRenderer {
                         )
                     }
                 }
-                TileNodeKind::Subgraph { subgraph_id } => {
-                    let _ = visiting_subgraphs.insert(*subgraph_id);
-                    None
-                }
+                TileNodeKind::LayerInput { value, .. } => self
+                    .evaluate_connected_color(
+                        state,
+                        node_index,
+                        0,
+                        eval,
+                        visiting,
+                        visiting_subgraphs,
+                    )
+                    .or_else(|| {
+                        let v = unit_to_u8(*value);
+                        Some(TheColor::from_u8_array([v, v, v, 255]))
+                    }),
+                TileNodeKind::ImportLayer { .. } => None,
                 TileNodeKind::GroupUV => Some(TheColor::from_u8_array([
                     unit_to_u8(eval.group_u()),
                     unit_to_u8(eval.group_v()),

@@ -6,7 +6,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Human-readable graph format and core document model for Eldiron tile graphs."
+description = "Human-readable graph format, runtime, and CLI for Eldiron tile graphs."
 
 [dependencies]
 theframework = { path = "../theframework", version = "0.9.1", default-features = false }
@@ -15,3 +15,4 @@ serde_json = "1.0"
 toml = "0.9"
 rayon = "1"
 rustc-hash = "2.1.1"
+image = { version = "0.25.8", default-features = false, features = ["png"] }

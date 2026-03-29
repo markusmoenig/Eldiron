@@ -59,6 +59,7 @@ pub struct TheNodeCanvasView {
     action_changed: bool,
 
     overlay: Option<TheRGBABuffer>,
+    overlay_tiled: bool,
     last_mouse_down_time: Instant,
     last_mouse_down_coord: Vec2<i32>,
 }
@@ -97,6 +98,7 @@ impl TheWidget for TheNodeCanvasView {
             action_changed: false,
 
             overlay: None,
+            overlay_tiled: true,
             last_mouse_down_time: Instant::now(),
             last_mouse_down_coord: Vec2::zero(),
         }
@@ -554,20 +556,30 @@ impl TheWidget for TheNodeCanvasView {
                         color = [81, 81, 81, 255];
                     }
 
-                    if let Some(overlay) = &self.overlay {
-                        let ow = overlay.dim().width.max(1);
-                        let oh = overlay.dim().height.max(1);
-                        let sample_x = (xx + self.canvas.offset.x).rem_euclid(ow);
-                        let sample_y = (yy + self.canvas.offset.y).rem_euclid(oh);
+                    if self.overlay_tiled {
+                        if let Some(overlay) = &self.overlay {
+                            let ow = overlay.dim().width.max(1);
+                            let oh = overlay.dim().height.max(1);
+                            let sample_x = (xx + self.canvas.offset.x).rem_euclid(ow);
+                            let sample_y = (yy + self.canvas.offset.y).rem_euclid(oh);
 
-                        if let Some(c) = overlay.get_pixel(sample_x, sample_y) {
-                            color = mix_color(&color, &c, c[3] as f32 / 255.0);
+                            if let Some(c) = overlay.get_pixel(sample_x, sample_y) {
+                                color = mix_color(&color, &c, c[3] as f32 / 255.0);
+                            }
                         }
                     }
 
                     pixel.copy_from_slice(&color);
                 }
             });
+
+        if !self.overlay_tiled {
+            if let Some(overlay) = &self.overlay {
+                let x = 12;
+                let y = (self.render_buffer.dim().height - overlay.dim().height - 12).max(12);
+                self.render_buffer.copy_into(x, y, overlay);
+            }
+        }
 
         let rbw = self.render_buffer.dim().width as usize;
         let rbh = self.render_buffer.dim().height as usize;
@@ -1033,6 +1045,7 @@ pub trait TheNodeCanvasViewTrait: TheWidget {
     fn find_connected_nodes(&self, node_index: usize) -> Vec<usize>;
     fn set_canvas(&mut self, canvas: TheNodeCanvas);
     fn set_overlay(&mut self, overlay: Option<TheRGBABuffer>);
+    fn set_overlay_tiled(&mut self, tiled: bool);
     fn set_node_preview(&mut self, index: usize, buffer: TheRGBABuffer);
     fn set_node_preview_open(&mut self, index: usize, open: bool);
     fn fill_node_ui_images(&mut self, ctx: &mut TheContext);
@@ -1065,6 +1078,10 @@ impl TheNodeCanvasViewTrait for TheNodeCanvasView {
     }
     fn set_overlay(&mut self, overlay: Option<TheRGBABuffer>) {
         self.overlay = overlay;
+        self.is_dirty = true;
+    }
+    fn set_overlay_tiled(&mut self, tiled: bool) {
+        self.overlay_tiled = tiled;
         self.is_dirty = true;
     }
     fn set_node_preview(&mut self, index: usize, buffer: TheRGBABuffer) {

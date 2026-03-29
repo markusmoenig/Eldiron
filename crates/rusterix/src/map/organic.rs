@@ -1,443 +1,9 @@
 use crate::PixelSource;
 use indexmap::IndexMap;
+pub use organicgraph::{OrganicBrushGraph, OrganicBrushNode, OrganicNodeKind};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vek::Vec2;
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct OrganicBrushGraph {
-    #[serde(default = "Uuid::new_v4")]
-    pub id: Uuid,
-    #[serde(default = "default_graph_name")]
-    pub name: String,
-    #[serde(default = "default_organic_nodes")]
-    pub nodes: Vec<OrganicBrushNode>,
-    #[serde(default)]
-    pub connections: Vec<(u16, u8, u16, u8)>,
-    #[serde(default)]
-    pub selected_node: Option<usize>,
-    #[serde(default)]
-    pub scroll_offset: Vec2<i32>,
-}
-
-impl Default for OrganicBrushGraph {
-    fn default() -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            name: default_graph_name(),
-            nodes: default_organic_nodes(),
-            connections: default_organic_connections(),
-            selected_node: Some(5),
-            scroll_offset: Vec2::zero(),
-        }
-    }
-}
-
-impl OrganicBrushGraph {
-    pub fn preset_moss() -> Self {
-        Self::from_recipe(
-            "Moss",
-            OrganicBrushRecipe {
-                shape: OrganicBrushShape::Blob {
-                    radius: 0.24,
-                    softness: 0.92,
-                },
-                noise: Some((0.38, 0.16, 19)),
-                scatter_count: 18,
-                scatter_jitter: 0.28,
-                height_depth: 0.07,
-                height_falloff: 0.96,
-                material_channel: 0,
-                output_radius: 0.68,
-                output_flow: 0.96,
-                output_jitter: 0.08,
-                output_depth: 0.08,
-                output_cell_size: 0.10,
-            },
-        )
-    }
-
-    pub fn preset_mud() -> Self {
-        Self::from_recipe(
-            "Mud",
-            OrganicBrushRecipe {
-                shape: OrganicBrushShape::Blob {
-                    radius: 0.72,
-                    softness: 0.78,
-                },
-                noise: Some((0.22, 0.18, 7)),
-                scatter_count: 4,
-                scatter_jitter: 0.22,
-                height_depth: 0.1,
-                height_falloff: 0.92,
-                material_channel: 1,
-                output_radius: 0.95,
-                output_flow: 0.95,
-                output_jitter: 0.1,
-                output_depth: 0.11,
-                output_cell_size: 0.18,
-            },
-        )
-    }
-
-    pub fn preset_grass() -> Self {
-        Self::from_recipe(
-            "Grass",
-            OrganicBrushRecipe {
-                shape: OrganicBrushShape::Blob {
-                    radius: 0.2,
-                    softness: 0.62,
-                },
-                noise: Some((0.45, 0.22, 13)),
-                scatter_count: 18,
-                scatter_jitter: 0.78,
-                height_depth: 0.42,
-                height_falloff: 0.18,
-                material_channel: 0,
-                output_radius: 0.58,
-                output_flow: 0.82,
-                output_jitter: 0.34,
-                output_depth: 0.46,
-                output_cell_size: 0.12,
-            },
-        )
-    }
-
-    pub fn preset_vines() -> Self {
-        Self::from_recipe(
-            "Vines",
-            OrganicBrushRecipe {
-                shape: OrganicBrushShape::Line {
-                    length: 2.8,
-                    width: 0.10,
-                    softness: 0.72,
-                },
-                noise: Some((0.6, 0.3, 23)),
-                scatter_count: 1,
-                scatter_jitter: 0.0,
-                height_depth: 0.18,
-                height_falloff: 0.58,
-                material_channel: 0,
-                output_radius: 0.38,
-                output_flow: 0.88,
-                output_jitter: 0.03,
-                output_depth: 0.18,
-                output_cell_size: 0.08,
-            },
-        )
-    }
-
-    pub fn preset_bush() -> Self {
-        let mut graph = Self::from_recipe(
-            "Bush",
-            OrganicBrushRecipe {
-                shape: OrganicBrushShape::Bush {
-                    radius: 0.34,
-                    height: 1.15,
-                    layers: 5,
-                    taper: 0.58,
-                    breakup: 0.22,
-                    softness: 0.72,
-                },
-                noise: Some((0.32, 0.18, 31)),
-                scatter_count: 1,
-                scatter_jitter: 0.0,
-                height_depth: 1.0,
-                height_falloff: 0.82,
-                material_channel: 0,
-                output_radius: 0.88,
-                output_flow: 1.0,
-                output_jitter: 0.06,
-                output_depth: 0.92,
-                output_cell_size: 0.14,
-            },
-        );
-        for node in &mut graph.nodes {
-            if let OrganicNodeKind::PaletteRange { count, mode, .. } = &mut node.kind {
-                *count = 3;
-                *mode = 2;
-            }
-        }
-        graph
-    }
-
-    fn from_recipe(name: &str, recipe: OrganicBrushRecipe) -> Self {
-        let mut nodes = vec![OrganicBrushNode::new(
-            match recipe.shape {
-                OrganicBrushShape::Blob { radius, softness } => {
-                    OrganicNodeKind::CircleMask { radius, softness }
-                }
-                OrganicBrushShape::Bush {
-                    radius,
-                    height,
-                    layers,
-                    taper,
-                    breakup,
-                    softness,
-                } => OrganicNodeKind::BushShape {
-                    radius,
-                    height,
-                    layers,
-                    taper,
-                    breakup,
-                    softness,
-                },
-                OrganicBrushShape::Line {
-                    length,
-                    width,
-                    softness,
-                } => OrganicNodeKind::LineShape {
-                    length,
-                    width,
-                    softness,
-                },
-            },
-            Vec2::new(200, 36),
-        )];
-        let mut connections = Vec::new();
-
-        let mut shape_source_index = 0u16;
-        if let Some((scale, strength, seed)) = recipe.noise {
-            nodes.push(OrganicBrushNode::new(
-                OrganicNodeKind::Noise {
-                    scale,
-                    strength,
-                    seed,
-                },
-                Vec2::new(410, 28),
-            ));
-            connections.push((0, 0, 1, 0));
-            shape_source_index = 1;
-        }
-
-        let scatter_index = nodes.len() as u16;
-        nodes.push(OrganicBrushNode::new(
-            OrganicNodeKind::Scatter {
-                count: recipe.scatter_count,
-                jitter: recipe.scatter_jitter,
-            },
-            Vec2::new(620, 36),
-        ));
-        connections.push((shape_source_index, 0, scatter_index, 0));
-
-        let palette_index = nodes.len() as u16;
-        nodes.push(OrganicBrushNode::new(
-            OrganicNodeKind::PaletteRange {
-                start: 0,
-                count: 1,
-                mode: 0,
-            },
-            Vec2::new(420, 330),
-        ));
-        let material_index = nodes.len() as u16;
-        nodes.push(OrganicBrushNode::new(
-            OrganicNodeKind::Material {
-                channel: recipe.material_channel,
-            },
-            Vec2::new(640, 330),
-        ));
-        connections.push((palette_index, 0, material_index, 0));
-
-        let growth_index = nodes.len() as u16;
-        nodes.push(OrganicBrushNode::new(
-            OrganicNodeKind::HeightProfile {
-                depth: recipe.height_depth,
-                falloff: recipe.height_falloff,
-            },
-            Vec2::new(620, 185),
-        ));
-
-        let output_index = nodes.len() as u16;
-        nodes.push(OrganicBrushNode::new(
-            OrganicNodeKind::OutputVolume {
-                radius: recipe.output_radius,
-                flow: recipe.output_flow,
-                jitter: recipe.output_jitter,
-                depth: recipe.output_depth,
-                cell_size: recipe.output_cell_size,
-            },
-            Vec2::new(900, 108),
-        ));
-
-        connections.push((scatter_index, 0, output_index, 0));
-        connections.push((material_index, 0, output_index, 1));
-        connections.push((growth_index, 0, output_index, 2));
-
-        Self {
-            id: Uuid::new_v4(),
-            name: format!("{} Brush", name),
-            nodes,
-            connections,
-            selected_node: Some(output_index as usize),
-            scroll_offset: Vec2::zero(),
-        }
-    }
-}
-
-struct OrganicBrushRecipe {
-    shape: OrganicBrushShape,
-    noise: Option<(f32, f32, i32)>,
-    scatter_count: i32,
-    scatter_jitter: f32,
-    height_depth: f32,
-    height_falloff: f32,
-    material_channel: i32,
-    output_radius: f32,
-    output_flow: f32,
-    output_jitter: f32,
-    output_depth: f32,
-    output_cell_size: f32,
-}
-
-enum OrganicBrushShape {
-    Blob {
-        radius: f32,
-        softness: f32,
-    },
-    Bush {
-        radius: f32,
-        height: f32,
-        layers: i32,
-        taper: f32,
-        breakup: f32,
-        softness: f32,
-    },
-    Line {
-        length: f32,
-        width: f32,
-        softness: f32,
-    },
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct OrganicBrushNode {
-    pub kind: OrganicNodeKind,
-    pub position: Vec2<i32>,
-}
-
-impl OrganicBrushNode {
-    pub fn new(kind: OrganicNodeKind, position: Vec2<i32>) -> Self {
-        Self { kind, position }
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum OrganicNodeKind {
-    SurfaceInput,
-    CircleMask {
-        radius: f32,
-        softness: f32,
-    },
-    CanopyShape {
-        radius: f32,
-        lobes: i32,
-        spread: f32,
-        softness: f32,
-    },
-    BushShape {
-        radius: f32,
-        height: f32,
-        layers: i32,
-        taper: f32,
-        breakup: f32,
-        softness: f32,
-    },
-    LineShape {
-        length: f32,
-        width: f32,
-        softness: f32,
-    },
-    Noise {
-        scale: f32,
-        strength: f32,
-        seed: i32,
-    },
-    Scatter {
-        count: i32,
-        jitter: f32,
-    },
-    HeightProfile {
-        depth: f32,
-        falloff: f32,
-    },
-    PaletteRange {
-        start: i32,
-        count: i32,
-        mode: i32,
-    },
-    Material {
-        channel: i32,
-    },
-    OutputVolume {
-        radius: f32,
-        flow: f32,
-        jitter: f32,
-        depth: f32,
-        cell_size: f32,
-    },
-}
-
-fn default_graph_name() -> String {
-    "Default Organic Brush".to_string()
-}
-
-fn default_organic_nodes() -> Vec<OrganicBrushNode> {
-    vec![
-        OrganicBrushNode::new(
-            OrganicNodeKind::CircleMask {
-                radius: 0.55,
-                softness: 0.35,
-            },
-            Vec2::new(200, 36),
-        ),
-        OrganicBrushNode::new(
-            OrganicNodeKind::Scatter {
-                count: 5,
-                jitter: 0.35,
-            },
-            Vec2::new(420, 28),
-        ),
-        OrganicBrushNode::new(
-            OrganicNodeKind::HeightProfile {
-                depth: 0.4,
-                falloff: 0.5,
-            },
-            Vec2::new(420, 188),
-        ),
-        OrganicBrushNode::new(
-            OrganicNodeKind::PaletteRange {
-                start: 0,
-                count: 1,
-                mode: 0,
-            },
-            Vec2::new(260, 340),
-        ),
-        OrganicBrushNode::new(
-            OrganicNodeKind::Material { channel: 0 },
-            Vec2::new(500, 340),
-        ),
-        OrganicBrushNode::new(
-            OrganicNodeKind::OutputVolume {
-                radius: 0.6,
-                flow: 1.0,
-                jitter: 0.15,
-                depth: 0.45,
-                cell_size: 0.25,
-            },
-            Vec2::new(780, 108),
-        ),
-    ]
-}
-
-fn default_organic_connections() -> Vec<(u16, u8, u16, u8)> {
-    vec![
-        (0, 0, 1, 0),
-        (3, 0, 4, 0),
-        (1, 0, 5, 0),
-        (4, 0, 5, 1),
-        (2, 0, 5, 2),
-    ]
-}
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct OrganicChannelBinding {
@@ -530,6 +96,32 @@ pub fn default_organic_vine_strokes() -> Vec<OrganicVineStroke> {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub enum OrganicGrowthShape {
+    Bush,
+    Tree,
+}
+
+fn default_growth_shape() -> OrganicGrowthShape {
+    OrganicGrowthShape::Bush
+}
+
+fn default_growth_lobes() -> i32 {
+    0
+}
+
+fn default_growth_spread() -> f32 {
+    0.0
+}
+
+fn default_growth_trunk_height() -> f32 {
+    0.0
+}
+
+fn default_growth_trunk_radius() -> f32 {
+    0.0
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct OrganicBushCluster {
     pub center: Vec2<f32>,
     pub anchor_offset: f32,
@@ -541,6 +133,16 @@ pub struct OrganicBushCluster {
     pub channel: i32,
     pub source: Option<PixelSource>,
     pub grow_positive: bool,
+    #[serde(default = "default_growth_shape")]
+    pub shape: OrganicGrowthShape,
+    #[serde(default = "default_growth_lobes")]
+    pub canopy_lobes: i32,
+    #[serde(default = "default_growth_spread")]
+    pub canopy_spread: f32,
+    #[serde(default = "default_growth_trunk_height")]
+    pub trunk_height: f32,
+    #[serde(default = "default_growth_trunk_radius")]
+    pub trunk_radius: f32,
 }
 
 pub fn default_organic_bush_clusters() -> Vec<OrganicBushCluster> {

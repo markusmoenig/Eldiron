@@ -630,6 +630,11 @@ impl Editor {
         *redraw = true;
 
         *PALETTE.write().unwrap() = self.project.palette.clone();
+        {
+            let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.assets.palette = self.project.palette.clone();
+            rusterix.set_tiles(self.project.tiles.clone(), true);
+        }
         SCENEMANAGER
             .write()
             .unwrap()
@@ -2803,6 +2808,11 @@ impl TheTrait for Editor {
                             let prev = self.project.palette.clone();
                             self.project.palette.load_from_txt(contents);
                             *PALETTE.write().unwrap() = self.project.palette.clone();
+                            {
+                                let mut rusterix = RUSTERIX.write().unwrap();
+                                rusterix.assets.palette = self.project.palette.clone();
+                                rusterix.set_tiles(self.project.tiles.clone(), true);
+                            }
 
                             if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
                                 let index = palette_picker.index();

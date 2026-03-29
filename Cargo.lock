@@ -1206,6 +1206,7 @@ dependencies = [
  "indexmap 2.13.0",
  "lazy_static",
  "open",
+ "organicgraph",
  "png 0.18.0",
  "rand",
  "rayon",
@@ -3490,6 +3491,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "organicgraph"
+version = "0.9.1"
+dependencies = [
+ "image",
+ "serde",
+ "serde_json",
+ "toml 0.9.11+spec-1.1.0",
+ "uuid",
+ "vek",
+]
+
+[[package]]
 name = "owned_ttf_parser"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4261,6 +4274,7 @@ dependencies = [
  "nalgebra",
  "noiselib",
  "ordered-float",
+ "organicgraph",
  "pathfinding",
  "rand",
  "rayon",
@@ -5046,22 +5060,12 @@ dependencies = [
 name = "tilegraph"
 version = "0.9.1"
 dependencies = [
+ "image",
  "rayon",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
  "theframework",
- "toml 0.9.11+spec-1.1.0",
-]
-
-[[package]]
-name = "tilegraph-cli"
-version = "0.9.1"
-dependencies = [
- "image",
- "serde_json",
- "theframework",
- "tilegraph",
  "toml 0.9.11+spec-1.1.0",
 ]
 

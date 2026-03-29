@@ -1,16 +1,19 @@
-use crate::editor::{DOCKMANAGER, RUSTERIX, SCENEMANAGER};
+use crate::editor::{DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
+use organicgraph::{OrganicBrushGraph, OrganicNodeKind};
+use rusterix::PixelSource;
 use rusterix::Surface;
 use rusterix::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
-use rusterix::{OrganicNodeKind, PixelSource};
+use rusterix::map::organic::OrganicGrowthShape;
 use scenevm::GeoId;
 use std::collections::HashSet;
 
 #[derive(Clone)]
 struct OrganicBrushEval {
     valid: bool,
+    output_mode: OrganicOutputMode,
     radius: f32,
     flow: f32,
     jitter: f32,
@@ -39,10 +42,40 @@ struct OrganicBrushEval {
     noise_seed: i32,
     channel: i32,
     material_source: Option<PixelSource>,
+    palette_indices: Vec<u16>,
     palette_start: i32,
     palette_count: i32,
     palette_mode: i32,
     stroke_seed: i32,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum OrganicOutputMode {
+    Paint,
+    Growth,
+    Path,
+}
+
+impl OrganicBrushEval {
+    fn uses_growth_output(&self) -> bool {
+        matches!(self.output_mode, OrganicOutputMode::Growth)
+    }
+
+    fn uses_path_output(&self) -> bool {
+        matches!(self.output_mode, OrganicOutputMode::Path)
+    }
+
+    fn supports_line_paint(&self) -> bool {
+        self.use_line_shape && !self.uses_growth_output() && !self.uses_path_output()
+    }
+
+    fn supports_path_paint(&self) -> bool {
+        self.use_line_shape && self.uses_path_output()
+    }
+
+    fn supports_growth_spawn(&self) -> bool {
+        self.uses_growth_output() && (self.use_bush_shape || self.use_canopy_shape)
+    }
 }
 
 pub struct OrganicTool {
@@ -111,6 +144,10 @@ impl Tool for OrganicTool {
                 server_ctx.hover_cursor = None;
                 server_ctx.hover_cursor_3d = None;
                 self.cancel_stroke(map_from_project(project, server_ctx));
+                let palette = project.palette.clone();
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    Self::normalize_default_graph_palette(map, &palette);
+                }
 
                 let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
                 if current_dock != "Organic" {
@@ -225,6 +262,115 @@ impl Tool for OrganicTool {
 }
 
 impl OrganicTool {
+    fn normalize_default_graph_palette(map: &mut Map, palette: &ThePalette) {
+        let active = match map.properties.get("organic_brush_active_graph") {
+            Some(Value::Id(id)) => Some(*id),
+            _ => map.organic_brush_graphs.first().map(|(id, _)| *id),
+        };
+        let Some(id) = active else {
+            return;
+        };
+        let Some(graph) = map.organic_brush_graphs.get_mut(&id) else {
+            return;
+        };
+        if graph.name != "Default Paint Brush" {
+            return;
+        }
+
+        let targets = [
+            TheColor::from("#415835"),
+            TheColor::from("#567b43"),
+            TheColor::from("#7ea25a"),
+            TheColor::from("#b2c776"),
+        ];
+
+        for node in &mut graph.nodes {
+            if let OrganicNodeKind::PaletteColors {
+                color_1,
+                color_2,
+                color_3,
+                color_4,
+                mode,
+            } = &mut node.kind
+            {
+                *color_1 = palette.find_closest_color_index(&targets[0]).unwrap_or(0) as i32;
+                *color_2 = palette.find_closest_color_index(&targets[1]).unwrap_or(0) as i32;
+                *color_3 = palette.find_closest_color_index(&targets[2]).unwrap_or(0) as i32;
+                *color_4 = palette.find_closest_color_index(&targets[3]).unwrap_or(0) as i32;
+                *mode = 0;
+            }
+        }
+    }
+
+    fn preset_default_indices(name: &str) -> Option<[u16; 4]> {
+        match name {
+            "Default Paint Brush" | "Moss Brush" => Some([4, 8, 10, 12]),
+            "Mud Brush" => Some([17, 18, 19, 13]),
+            "Grass Brush" => Some([20, 21, 22, 11]),
+            "Bush Brush" => Some([21, 23, 24, 25]),
+            "Tree Brush" => Some([23, 21, 20, 25]),
+            _ => None,
+        }
+    }
+
+    fn preset_palette_targets(name: &str) -> Option<[TheColor; 4]> {
+        match name {
+            "Default Paint Brush" | "Moss Brush" => Some([
+                TheColor::from("#415835"),
+                TheColor::from("#567b43"),
+                TheColor::from("#7ea25a"),
+                TheColor::from("#b2c776"),
+            ]),
+            "Mud Brush" => Some([
+                TheColor::from("#4f382a"),
+                TheColor::from("#6e4f38"),
+                TheColor::from("#8e7050"),
+                TheColor::from("#b59a73"),
+            ]),
+            "Grass Brush" => Some([
+                TheColor::from("#4f7a39"),
+                TheColor::from("#4f7a39"),
+                TheColor::from("#7ea653"),
+                TheColor::from("#b2c776"),
+            ]),
+            "Bush Brush" => Some([
+                TheColor::from("#3f6a43"),
+                TheColor::from("#3f6a43"),
+                TheColor::from("#638b55"),
+                TheColor::from("#9fb36d"),
+            ]),
+            "Tree Brush" => Some([
+                TheColor::from("#3f6a43"),
+                TheColor::from("#638b55"),
+                TheColor::from("#9fb36d"),
+                TheColor::from("#b2c776"),
+            ]),
+            _ => None,
+        }
+    }
+
+    fn maybe_normalize_preset_palette(
+        graph_name: &str,
+        palette_indices: &mut Vec<u16>,
+        palette_mode: &mut i32,
+    ) {
+        let Some(defaults) = Self::preset_default_indices(graph_name) else {
+            return;
+        };
+        if palette_indices.as_slice() != defaults {
+            return;
+        }
+        let Some(targets) = Self::preset_palette_targets(graph_name) else {
+            return;
+        };
+        let palette = PALETTE.read().unwrap().clone();
+        *palette_indices = targets
+            .iter()
+            .map(|color| palette.find_closest_color_index(color).unwrap_or(0) as u16)
+            .collect();
+        *palette_mode = 0;
+    }
+
     fn begin_stroke_if_needed(&mut self, map: &Map) {
         if self.stroke_active {
             return;
@@ -300,7 +446,9 @@ impl OrganicTool {
         let mut brush = Self::evaluate_brush(map);
         brush.stroke_seed = stroke_seed;
         let hit_pos = server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
-        if brush.use_line_shape && last_stroke_hit_pos.is_none() {
+        if (brush.supports_line_paint() || brush.supports_path_paint())
+            && last_stroke_hit_pos.is_none()
+        {
             *last_stroke_hit_pos = Some(hit_pos);
             return false;
         }
@@ -310,7 +458,7 @@ impl OrganicTool {
         let start = last_stroke_hit_pos.unwrap_or(hit_pos);
         let delta = hit_pos - start;
         let dist = delta.magnitude();
-        if brush.use_line_shape && dist > 0.0001 {
+        if (brush.supports_line_paint() || brush.supports_path_paint()) && dist > 0.0001 {
             Self::mark_dirty_chunks(dirty_chunks, map, start, brush.radius.max(brush.depth));
             Self::mark_dirty_chunks(dirty_chunks, map, hit_pos, brush.radius.max(brush.depth));
             let changed =
@@ -355,8 +503,14 @@ impl OrganicTool {
             if let Some(surface_ref) = map.surfaces.get(&surface.id)
                 && Self::should_redirect_surface_to_terrain(map, surface_ref)
             {
-                return Self::paint_terrain_line(
+                return Self::paint_terrain_line(map, start_pos, end_pos, brush.clone(), erase);
+            }
+            if brush.supports_path_paint() {
+                return Self::paint_surface_path(
                     map,
+                    server_ctx,
+                    surface.id,
+                    surface.sector_id,
                     start_pos,
                     end_pos,
                     brush.clone(),
@@ -372,17 +526,40 @@ impl OrganicTool {
                 start_pos,
                 end_pos,
                 brush.clone(),
-                vine_seq,
                 erase,
             );
         }
 
         match server_ctx.geo_hit {
             Some(GeoId::Terrain(_, _)) => {
-                Self::paint_terrain_line(map, start_pos, end_pos, brush.clone(), vine_seq, erase)
+                if brush.supports_path_paint() {
+                    Self::paint_terrain_path(
+                        map,
+                        start_pos,
+                        end_pos,
+                        brush.clone(),
+                        vine_seq,
+                        erase,
+                    )
+                } else {
+                    Self::paint_terrain_line(map, start_pos, end_pos, brush.clone(), erase)
+                }
             }
             Some(GeoId::Sector(_)) => false,
-            _ => Self::paint_terrain_line(map, start_pos, end_pos, brush.clone(), vine_seq, erase),
+            _ => {
+                if brush.supports_path_paint() {
+                    Self::paint_terrain_path(
+                        map,
+                        start_pos,
+                        end_pos,
+                        brush.clone(),
+                        vine_seq,
+                        erase,
+                    )
+                } else {
+                    Self::paint_terrain_line(map, start_pos, end_pos, brush.clone(), erase)
+                }
+            }
         }
     }
 
@@ -394,6 +571,11 @@ impl OrganicTool {
         stroke_dir_world: Option<Vec3<f32>>,
         erase: bool,
     ) -> bool {
+        if (brush.supports_line_paint() || brush.supports_path_paint())
+            && stroke_dir_world.is_none()
+        {
+            return false;
+        }
         if let Some(surface) = server_ctx
             .active_detail_surface
             .as_ref()
@@ -428,6 +610,7 @@ impl OrganicTool {
     fn evaluate_brush(map: &Map) -> OrganicBrushEval {
         let mut out = OrganicBrushEval {
             valid: true,
+            output_mode: OrganicOutputMode::Paint,
             radius: Self::output_radius(map),
             flow: Self::output_flow(map),
             jitter: Self::output_jitter(map),
@@ -456,6 +639,7 @@ impl OrganicTool {
             noise_seed: 1,
             channel: 0,
             material_source: None,
+            palette_indices: vec![0],
             palette_start: 0,
             palette_count: 1,
             palette_mode: 0,
@@ -465,20 +649,25 @@ impl OrganicTool {
         if let Some(id) = Self::active_graph_id(map)
             && let Some(graph) = map.organic_brush_graphs.get(&id)
         {
+            let graph_name = graph.name.clone();
             if let Some(output_index) = Self::active_output_node_index(graph) {
-                if let OrganicNodeKind::OutputVolume {
-                    radius,
-                    flow,
-                    jitter,
-                    depth,
-                    cell_size,
-                } = graph.nodes[output_index].kind
-                {
-                    out.radius = radius.max(0.05);
-                    out.flow = flow.clamp(0.05, 1.0);
-                    out.jitter = jitter.clamp(0.0, 1.0);
-                    out.depth = depth.max(0.01);
-                    out.cell_size = cell_size.max(0.05);
+                out.output_mode = if graph.nodes[output_index].kind.is_growth_output() {
+                    OrganicOutputMode::Growth
+                } else if graph.nodes[output_index].kind.is_path_output() {
+                    OrganicOutputMode::Path
+                } else {
+                    OrganicOutputMode::Paint
+                };
+                if let Some(params) = graph.nodes[output_index].kind.output_params() {
+                    out.radius = params.radius.max(0.05);
+                    out.flow = params.flow.clamp(0.05, 1.0);
+                    out.jitter = params.jitter.clamp(0.0, 1.0);
+                    out.depth = params.depth.max(0.01);
+                    out.cell_size = params.cell_size.max(0.05);
+                    out.channel = params.channel.clamp(0, 3);
+                    out.palette_start = params.palette_start.clamp(0, 255);
+                    out.palette_count = params.palette_count.clamp(1, 16);
+                    out.palette_mode = params.palette_mode.clamp(0, 2);
                 }
 
                 let shape_nodes = Self::collect_branch_nodes(graph, output_index, 0, |kind| {
@@ -495,7 +684,9 @@ impl OrganicTool {
                 let material_nodes = Self::collect_branch_nodes(graph, output_index, 1, |kind| {
                     matches!(
                         kind,
-                        OrganicNodeKind::Material { .. } | OrganicNodeKind::PaletteRange { .. }
+                        OrganicNodeKind::Material { .. }
+                            | OrganicNodeKind::PaletteRange { .. }
+                            | OrganicNodeKind::PaletteColors { .. }
                     )
                 });
                 let growth_nodes = Self::collect_branch_nodes(graph, output_index, 2, |kind| {
@@ -581,22 +772,54 @@ impl OrganicTool {
                             out.palette_start = (*start).clamp(0, 255);
                             out.palette_count = (*count).clamp(1, 16);
                             out.palette_mode = (*mode).clamp(0, 2);
-                            out.material_source =
-                                Some(PixelSource::PaletteIndex(out.palette_start as u16));
+                        }
+                        OrganicNodeKind::PaletteColors {
+                            color_1,
+                            color_2,
+                            color_3,
+                            color_4,
+                            mode,
+                        } => {
+                            out.palette_indices = vec![
+                                (*color_1).clamp(0, 255) as u16,
+                                (*color_2).clamp(0, 255) as u16,
+                                (*color_3).clamp(0, 255) as u16,
+                                (*color_4).clamp(0, 255) as u16,
+                            ];
+                            out.palette_mode = (*mode).clamp(0, 2);
                         }
                         _ => {}
                     }
+                }
+                if out.palette_indices.is_empty() {
+                    out.palette_indices = if out.palette_count <= 1 {
+                        vec![out.palette_start.clamp(0, 255) as u16]
+                    } else {
+                        (0..out.palette_count.clamp(1, 16))
+                            .map(|i| (out.palette_start + i).clamp(0, 255) as u16)
+                            .collect()
+                    };
+                }
+                Self::maybe_normalize_preset_palette(
+                    &graph_name,
+                    &mut out.palette_indices,
+                    &mut out.palette_mode,
+                );
+                out.material_source = Some(PixelSource::PaletteIndex(out.palette_indices[0]));
+
+                if out.uses_growth_output() {
+                    out.valid = out.supports_growth_spawn();
                 }
             }
         }
         out
     }
 
-    fn active_output_node_index(graph: &rusterix::OrganicBrushGraph) -> Option<usize> {
+    fn active_output_node_index(graph: &OrganicBrushGraph) -> Option<usize> {
         if let Some(index) = graph.selected_node
             && matches!(
                 graph.nodes.get(index).map(|node| &node.kind),
-                Some(OrganicNodeKind::OutputVolume { .. })
+                Some(kind) if kind.is_output()
             )
         {
             return Some(index);
@@ -607,14 +830,11 @@ impl OrganicTool {
             .iter()
             .enumerate()
             .rev()
-            .find_map(|(index, node)| match node.kind {
-                OrganicNodeKind::OutputVolume { .. } => Some(index),
-                _ => None,
-            })
+            .find_map(|(index, node)| node.kind.is_output().then_some(index))
     }
 
     fn collect_branch_nodes<F>(
-        graph: &rusterix::OrganicBrushGraph,
+        graph: &OrganicBrushGraph,
         dst_node: usize,
         dst_terminal: u8,
         allow: F,
@@ -628,7 +848,7 @@ impl OrganicTool {
     }
 
     fn collect_upstream_nodes_filtered<F>(
-        graph: &rusterix::OrganicBrushGraph,
+        graph: &OrganicBrushGraph,
         dst_node: usize,
         dst_terminal: u8,
         allow: F,
@@ -670,8 +890,11 @@ impl OrganicTool {
             OrganicNodeKind::Scatter { .. } => 2,
             OrganicNodeKind::HeightProfile { .. } => 1,
             OrganicNodeKind::PaletteRange { .. } => 0,
+            OrganicNodeKind::PaletteColors { .. } => 0,
             OrganicNodeKind::Material { .. } => 1,
-            OrganicNodeKind::OutputVolume { .. } => 3,
+            OrganicNodeKind::OutputPaint { .. }
+            | OrganicNodeKind::OutputGrowth { .. }
+            | OrganicNodeKind::OutputPath { .. } => 3,
         }
     }
 
@@ -799,7 +1022,7 @@ impl OrganicTool {
             server_ctx.hover_ray_dir_3d,
         );
         let anchor_offset = signed_dist;
-        if brush.use_bush_shape {
+        if brush.supports_growth_spawn() {
             let changed = Self::paint_surface_bush(
                 surface,
                 local,
@@ -839,7 +1062,6 @@ impl OrganicTool {
         start_pos: Vec3<f32>,
         end_pos: Vec3<f32>,
         brush: OrganicBrushEval,
-        vine_seq: &mut i32,
         erase: bool,
     ) -> bool {
         let source = map
@@ -864,22 +1086,8 @@ impl OrganicTool {
             server_ctx.hover_ray_dir_3d,
         );
         let anchor_offset = signed_dist;
-        if brush.use_line_shape {
-            let changed = Self::paint_surface_vine(
-                surface,
-                start_local,
-                end_local,
-                anchor_offset,
-                &brush,
-                source,
-                vine_seq,
-                grow_positive,
-                erase,
-            );
-            if changed {
-                map.changed += 1;
-            }
-            return changed;
+        if brush.uses_growth_output() {
+            return false;
         }
         let layer = surface.organic_layer_for_cell_size_mut(brush.cell_size);
         let changed = Self::apply_graph_line(
@@ -889,6 +1097,55 @@ impl OrganicTool {
             anchor_offset,
             &brush,
             source,
+            grow_positive,
+            erase,
+        );
+        if changed {
+            map.changed += 1;
+        }
+        changed
+    }
+
+    fn paint_surface_path(
+        map: &mut Map,
+        server_ctx: &ServerContext,
+        surface_id: Uuid,
+        sector_id: u32,
+        start_pos: Vec3<f32>,
+        end_pos: Vec3<f32>,
+        brush: OrganicBrushEval,
+        vine_seq: &mut i32,
+        erase: bool,
+    ) -> bool {
+        let source = map
+            .find_sector(sector_id)
+            .and_then(|sector| sector.properties.get_default_source().cloned());
+        let Some((start_local, end_local)) = map.surfaces.get(&surface_id).map(|surface| {
+            (
+                surface.uv_to_tile_local(surface.world_to_uv(start_pos), map),
+                surface.uv_to_tile_local(surface.world_to_uv(end_pos), map),
+            )
+        }) else {
+            return false;
+        };
+        let Some(surface) = map.surfaces.get_mut(&surface_id) else {
+            return false;
+        };
+        let surface_normal = surface.normal();
+        let signed_dist = (end_pos - surface.plane.origin).dot(surface_normal);
+        let grow_positive = Self::resolve_surface_growth_side(
+            signed_dist,
+            surface_normal,
+            server_ctx.hover_ray_dir_3d,
+        );
+        let changed = Self::paint_vine_segments(
+            &mut surface.organic_vine_strokes,
+            start_local,
+            end_local,
+            signed_dist,
+            &brush,
+            source,
+            vine_seq,
             grow_positive,
             erase,
         );
@@ -910,13 +1167,16 @@ impl OrganicTool {
         let source = map.terrain.get_source(cell.x, cell.y).cloned();
         let chunk = map.terrain.get_or_create_chunk_mut(cell.x, cell.y);
         let origin = chunk.origin.map(|v| v as f32);
-        if brush.use_bush_shape {
+        if brush.supports_growth_spawn() {
             let changed = Self::paint_terrain_bush(chunk, world - origin, &brush, source, erase);
             if changed {
                 chunk.mark_dirty();
                 map.changed += 1;
             }
             return changed;
+        }
+        if brush.uses_growth_output() {
+            return false;
         }
         let layer = chunk.organic_layer_for_cell_size_mut(brush.cell_size);
         let local_dir = stroke_dir_world.and_then(|dir| {
@@ -946,24 +1206,20 @@ impl OrganicTool {
         start_pos: Vec3<f32>,
         end_pos: Vec3<f32>,
         brush: OrganicBrushEval,
-        vine_seq: &mut i32,
         erase: bool,
     ) -> bool {
         let start_world = Vec2::new(start_pos.x, start_pos.z);
         let end_world = Vec2::new(end_pos.x, end_pos.z);
-        if brush.use_line_shape {
-            let changed = Self::paint_terrain_vine_world(
-                map,
-                start_world,
-                end_world,
-                &brush,
-                vine_seq,
-                erase,
-            );
+        if brush.supports_line_paint() {
+            let changed =
+                Self::paint_terrain_line_world(map, start_world, end_world, &brush, erase);
             if changed {
                 map.changed += 1;
             }
             return changed;
+        }
+        if brush.uses_growth_output() {
+            return false;
         }
         let cell = Vec2::new(end_world.x.floor() as i32, end_world.y.floor() as i32);
         let source = map.terrain.get_source(cell.x, cell.y).cloned();
@@ -987,14 +1243,16 @@ impl OrganicTool {
         changed
     }
 
-    fn paint_terrain_vine_world(
+    fn paint_terrain_path(
         map: &mut Map,
-        start_world: Vec2<f32>,
-        end_world: Vec2<f32>,
-        brush: &OrganicBrushEval,
+        start_pos: Vec3<f32>,
+        end_pos: Vec3<f32>,
+        brush: OrganicBrushEval,
         vine_seq: &mut i32,
         erase: bool,
     ) -> bool {
+        let start_world = Vec2::new(start_pos.x, start_pos.z);
+        let end_world = Vec2::new(end_pos.x, end_pos.z);
         let delta = end_world - start_world;
         let dist = delta.magnitude();
         if dist <= 0.0001 {
@@ -1016,15 +1274,15 @@ impl OrganicTool {
             let source = map.terrain.get_source(cell.x, cell.y).cloned();
             let chunk = map.terrain.get_or_create_chunk_mut(cell.x, cell.y);
             let origin = chunk.origin.map(|v| v as f32);
-            let local_start = seg_start_world - origin;
-            let local_end = seg_end_world - origin;
-            let seg_changed = Self::paint_terrain_vine(
-                chunk,
-                local_start,
-                local_end,
-                brush,
+            let seg_changed = Self::paint_vine_segments(
+                &mut chunk.organic_vine_strokes,
+                seg_start_world - origin,
+                seg_end_world - origin,
+                0.0,
+                &brush,
                 source,
                 vine_seq,
+                true,
                 erase,
             );
             if seg_changed {
@@ -1033,126 +1291,10 @@ impl OrganicTool {
             }
         }
 
-        changed
-    }
-
-    fn paint_surface_vine(
-        surface: &mut Surface,
-        start: Vec2<f32>,
-        end: Vec2<f32>,
-        anchor_offset: f32,
-        brush: &OrganicBrushEval,
-        source: Option<PixelSource>,
-        vine_seq: &mut i32,
-        grow_positive: bool,
-        erase: bool,
-    ) -> bool {
-        Self::paint_vine_segments(
-            &mut surface.organic_vine_strokes,
-            start,
-            end,
-            anchor_offset,
-            brush,
-            source,
-            vine_seq,
-            grow_positive,
-            erase,
-        )
-    }
-
-    fn paint_surface_bush(
-        surface: &mut Surface,
-        center: Vec2<f32>,
-        anchor_offset: f32,
-        brush: &OrganicBrushEval,
-        source: Option<PixelSource>,
-        grow_positive: bool,
-        erase: bool,
-    ) -> bool {
-        Self::paint_bush_clusters(
-            &mut surface.organic_bush_clusters,
-            center,
-            anchor_offset,
-            brush,
-            source,
-            grow_positive,
-            erase,
-        )
-    }
-
-    fn paint_terrain_bush(
-        chunk: &mut rusterix::TerrainChunk,
-        center: Vec2<f32>,
-        brush: &OrganicBrushEval,
-        source: Option<PixelSource>,
-        erase: bool,
-    ) -> bool {
-        Self::paint_bush_clusters(
-            &mut chunk.organic_bush_clusters,
-            center,
-            0.0,
-            brush,
-            source,
-            true,
-            erase,
-        )
-    }
-
-    fn paint_bush_clusters(
-        clusters: &mut Vec<rusterix::OrganicBushCluster>,
-        center: Vec2<f32>,
-        anchor_offset: f32,
-        brush: &OrganicBrushEval,
-        source: Option<PixelSource>,
-        grow_positive: bool,
-        erase: bool,
-    ) -> bool {
-        let radius = (brush.radius * brush.circle_radius).max(0.08);
-        let height = (brush.depth * brush.bush_height).max(0.12);
-        if erase {
-            let before = clusters.len();
-            let threshold = radius * 1.25;
-            clusters.retain(|cluster| (cluster.center - center).magnitude() > threshold);
-            return before != clusters.len();
+        if changed {
+            map.changed += 1;
         }
-
-        let resolved_source =
-            Self::resolve_brush_source(brush, source, Some(clusters.len() as i32), center);
-        clusters.push(rusterix::OrganicBushCluster {
-            center,
-            anchor_offset,
-            radius,
-            height,
-            layers: brush.bush_layers.max(2),
-            taper: brush.bush_taper,
-            breakup: brush.bush_breakup,
-            channel: brush.channel,
-            source: resolved_source,
-            grow_positive,
-        });
-        true
-    }
-
-    fn paint_terrain_vine(
-        chunk: &mut rusterix::TerrainChunk,
-        start: Vec2<f32>,
-        end: Vec2<f32>,
-        brush: &OrganicBrushEval,
-        source: Option<PixelSource>,
-        vine_seq: &mut i32,
-        erase: bool,
-    ) -> bool {
-        Self::paint_vine_segments(
-            &mut chunk.organic_vine_strokes,
-            start,
-            end,
-            0.0,
-            brush,
-            source,
-            vine_seq,
-            true,
-            erase,
-        )
+        changed
     }
 
     fn paint_vine_segments(
@@ -1169,7 +1311,7 @@ impl OrganicTool {
         if (end - start).magnitude() <= 0.0001 {
             return false;
         }
-        let width = (brush.line_width * brush.radius).max(0.02);
+        let width = (brush.line_width * brush.radius).max(0.05);
         let depth = (brush.depth * brush.height_depth).max(0.02);
         if erase {
             let before = strokes.len();
@@ -1186,38 +1328,24 @@ impl OrganicTool {
         let delta = end - start;
         let dist = delta.magnitude();
         let dir = delta / dist;
-        let segment_len = (width * 2.5).max(0.10);
-        let segments = (dist / segment_len).ceil().max(1.0) as usize;
-        let mut changed = false;
-        for i in 0..segments {
-            let t0 = i as f32 / segments as f32;
-            let t1 = (i + 1) as f32 / segments as f32;
-            let seg_start = start + dir * (dist * t0);
-            let seg_end = start + dir * (dist * t1);
-            let resolved_source = Self::resolve_brush_source(
-                brush,
-                source.clone(),
-                Some(strokes.len() as i32 + i as i32),
-                (seg_start + seg_end) * 0.5,
-            );
-            strokes.push(rusterix::OrganicVineStroke {
-                stroke_id: brush.stroke_seed,
-                seq: *vine_seq,
-                start: seg_start,
-                end: seg_end,
-                anchor_offset,
-                width,
-                depth,
-                channel: brush.channel,
-                source: resolved_source,
-                grow_positive,
-                cap_start: false,
-                cap_end: false,
-            });
-            *vine_seq += 1;
-            changed = true;
-        }
-        changed
+        let stroke_source =
+            Self::resolve_brush_source(brush, source.clone(), Some(brush.stroke_seed), start);
+        strokes.push(rusterix::OrganicVineStroke {
+            stroke_id: brush.stroke_seed,
+            seq: *vine_seq,
+            start,
+            end: start + dir * dist,
+            anchor_offset,
+            width,
+            depth,
+            channel: brush.channel,
+            source: stroke_source,
+            grow_positive,
+            cap_start: false,
+            cap_end: false,
+        });
+        *vine_seq += 1;
+        true
     }
 
     fn finalize_vine_stroke_caps(map: &mut Map, stroke_seed: i32) {
@@ -1321,13 +1449,153 @@ impl OrganicTool {
         (p - (a + ab * t)).magnitude()
     }
 
+    fn paint_terrain_line_world(
+        map: &mut Map,
+        start_world: Vec2<f32>,
+        end_world: Vec2<f32>,
+        brush: &OrganicBrushEval,
+        erase: bool,
+    ) -> bool {
+        let delta = end_world - start_world;
+        let dist = delta.magnitude();
+        if dist <= 0.0001 {
+            return false;
+        }
+
+        let width = (brush.line_width * brush.radius).max(0.02);
+        let segment_len = (width * 2.5).max(0.10);
+        let segments = (dist / segment_len).ceil().max(1.0) as usize;
+        let mut changed = false;
+
+        for i in 0..segments {
+            let t0 = i as f32 / segments as f32;
+            let t1 = (i + 1) as f32 / segments as f32;
+            let seg_start_world = start_world + delta * t0;
+            let seg_end_world = start_world + delta * t1;
+            let mid_world = (seg_start_world + seg_end_world) * 0.5;
+            let cell = Vec2::new(mid_world.x.floor() as i32, mid_world.y.floor() as i32);
+            let source = map.terrain.get_source(cell.x, cell.y).cloned();
+            let chunk = map.terrain.get_or_create_chunk_mut(cell.x, cell.y);
+            let origin = chunk.origin.map(|v| v as f32);
+            let local_start = seg_start_world - origin;
+            let local_end = seg_end_world - origin;
+            let layer = chunk.organic_layer_for_cell_size_mut(brush.cell_size);
+            let seg_changed = Self::apply_graph_line(
+                layer,
+                local_start,
+                local_end,
+                0.0,
+                brush,
+                source,
+                true,
+                erase,
+            );
+            if seg_changed {
+                chunk.mark_dirty();
+                changed = true;
+            }
+        }
+
+        changed
+    }
+
+    fn paint_surface_bush(
+        surface: &mut Surface,
+        center: Vec2<f32>,
+        anchor_offset: f32,
+        brush: &OrganicBrushEval,
+        source: Option<PixelSource>,
+        grow_positive: bool,
+        erase: bool,
+    ) -> bool {
+        Self::paint_bush_clusters(
+            &mut surface.organic_bush_clusters,
+            center,
+            anchor_offset,
+            brush,
+            source,
+            grow_positive,
+            erase,
+        )
+    }
+
+    fn paint_terrain_bush(
+        chunk: &mut rusterix::TerrainChunk,
+        center: Vec2<f32>,
+        brush: &OrganicBrushEval,
+        source: Option<PixelSource>,
+        erase: bool,
+    ) -> bool {
+        Self::paint_bush_clusters(
+            &mut chunk.organic_bush_clusters,
+            center,
+            0.0,
+            brush,
+            source,
+            true,
+            erase,
+        )
+    }
+
+    fn paint_bush_clusters(
+        clusters: &mut Vec<rusterix::OrganicBushCluster>,
+        center: Vec2<f32>,
+        anchor_offset: f32,
+        brush: &OrganicBrushEval,
+        source: Option<PixelSource>,
+        grow_positive: bool,
+        erase: bool,
+    ) -> bool {
+        let radius = (brush.radius * brush.circle_radius).max(0.08);
+        let height = (brush.depth * brush.bush_height).max(0.12);
+        if erase {
+            let before = clusters.len();
+            let threshold = radius * 1.25;
+            clusters.retain(|cluster| (cluster.center - center).magnitude() > threshold);
+            return before != clusters.len();
+        }
+
+        let resolved_source =
+            Self::resolve_brush_source(brush, source, Some(clusters.len() as i32), center);
+        clusters.push(rusterix::OrganicBushCluster {
+            center,
+            anchor_offset,
+            radius,
+            height,
+            layers: brush.bush_layers.max(2),
+            taper: brush.bush_taper,
+            breakup: brush.bush_breakup,
+            channel: brush.channel,
+            source: resolved_source,
+            grow_positive,
+            shape: if brush.use_canopy_shape {
+                OrganicGrowthShape::Tree
+            } else {
+                OrganicGrowthShape::Bush
+            },
+            canopy_lobes: brush.canopy_lobes.max(3),
+            canopy_spread: brush.canopy_spread.clamp(0.0, 1.0),
+            trunk_height: if brush.use_canopy_shape {
+                (height * (0.52 + brush.canopy_spread * 0.12)).max(0.18)
+            } else {
+                0.0
+            },
+            trunk_radius: if brush.use_canopy_shape {
+                (radius * (0.12 + (1.0 - brush.canopy_spread) * 0.05)).max(0.03)
+            } else {
+                0.0
+            },
+        });
+        true
+    }
+
     fn output_depth(map: &Map) -> f32 {
         if let Some(id) = Self::active_graph_id(map)
             && let Some(graph) = map.organic_brush_graphs.get(&id)
         {
             for node in graph.nodes.iter().rev() {
-                if let OrganicNodeKind::OutputVolume { depth, .. } = node.kind {
-                    return depth.max(0.01);
+                if let Some(params) = node.kind.output_params() {
+                    return params.depth.max(0.01);
                 }
             }
         }
@@ -1340,8 +1608,8 @@ impl OrganicTool {
             && let Some(graph) = map.organic_brush_graphs.get(&id)
         {
             for node in graph.nodes.iter().rev() {
-                if let OrganicNodeKind::OutputVolume { radius, .. } = node.kind {
-                    return radius.max(0.05);
+                if let Some(params) = node.kind.output_params() {
+                    return params.radius.max(0.05);
                 }
             }
         }
@@ -1354,8 +1622,8 @@ impl OrganicTool {
             && let Some(graph) = map.organic_brush_graphs.get(&id)
         {
             for node in graph.nodes.iter().rev() {
-                if let OrganicNodeKind::OutputVolume { flow, .. } = node.kind {
-                    return flow.clamp(0.05, 1.0);
+                if let Some(params) = node.kind.output_params() {
+                    return params.flow.clamp(0.05, 1.0);
                 }
             }
         }
@@ -1367,8 +1635,8 @@ impl OrganicTool {
             && let Some(graph) = map.organic_brush_graphs.get(&id)
         {
             for node in graph.nodes.iter().rev() {
-                if let OrganicNodeKind::OutputVolume { jitter, .. } = node.kind {
-                    return jitter.clamp(0.0, 1.0);
+                if let Some(params) = node.kind.output_params() {
+                    return params.jitter.clamp(0.0, 1.0);
                 }
             }
         }
@@ -1380,16 +1648,28 @@ impl OrganicTool {
         brush: &OrganicBrushEval,
         host_source: Option<PixelSource>,
         variant: Option<i32>,
-        _pos: Vec2<f32>,
+        pos: Vec2<f32>,
     ) -> Option<PixelSource> {
-        if brush.palette_count <= 1 {
+        if brush.palette_indices.len() <= 1 {
             return brush.material_source.clone().or(host_source);
         }
-        let count = brush.palette_count.max(1);
+        let count = brush.palette_indices.len() as i32;
         let pick = match brush.palette_mode {
             1 => {
-                let seed = brush.stroke_seed ^ brush.noise_seed;
-                seed.rem_euclid(count)
+                if count <= 1 {
+                    0
+                } else {
+                    let px = (pos.x * 10.0).round() as i32;
+                    let py = (pos.y * 10.0).round() as i32;
+                    let seed = px.wrapping_mul(374_761_393)
+                        ^ py.wrapping_mul(668_265_263)
+                        ^ brush.noise_seed;
+                    if seed.rem_euclid(5) == 0 {
+                        1 + seed.rem_euclid((count - 1).max(1))
+                    } else {
+                        0
+                    }
+                }
             }
             2 => {
                 let seed = variant.unwrap_or(0) ^ brush.noise_seed;
@@ -1398,7 +1678,7 @@ impl OrganicTool {
             _ => 0,
         };
         Some(PixelSource::PaletteIndex(
-            (brush.palette_start + pick).clamp(0, 255) as u16,
+            brush.palette_indices[pick as usize],
         ))
     }
 
@@ -1411,8 +1691,8 @@ impl OrganicTool {
             && let Some(graph) = map.organic_brush_graphs.get(&id)
         {
             for node in graph.nodes.iter().rev() {
-                if let OrganicNodeKind::OutputVolume { cell_size, .. } = node.kind {
-                    return cell_size.max(0.05);
+                if let Some(params) = node.kind.output_params() {
+                    return params.cell_size.max(0.05);
                 }
             }
         }
@@ -1441,10 +1721,10 @@ impl OrganicTool {
         }
         let scatter_count = brush.scatter_count.max(1) as usize;
         let base_radius = (brush.radius * brush.circle_radius).max(layer.cell_size * 0.5);
-        let base_depth = (brush.depth * brush.height_depth).max(layer.cell_size * 0.20);
+        let base_depth = (brush.depth * brush.height_depth).max(layer.cell_size * 0.28);
         let shallow_spread = base_depth <= layer.cell_size * 0.95 && scatter_count > 1;
         let dab_radius = if scatter_count > 1 {
-            let scale = if shallow_spread { 0.92 } else { 0.72 };
+            let scale = if shallow_spread { 0.96 } else { 0.82 };
             (base_radius * scale).max(layer.cell_size * 0.5)
         } else {
             base_radius
@@ -1480,9 +1760,9 @@ impl OrganicTool {
                 let layer_center = center + lateral_offset;
                 let layer_radius =
                     (bush_radius * radius_scale * (1.0 + noise * 0.10)).max(layer.cell_size * 0.65);
-                let layer_depth = (base_depth * (0.92 - t * 0.18)).max(layer.cell_size * 0.24);
+                let layer_depth = (base_depth * (0.98 - t * 0.16)).max(layer.cell_size * 0.28);
                 let layer_anchor = anchor_offset + bush_height * t * 0.72;
-                let layer_flow = (brush.flow / layer_count as f32).clamp(0.08, 0.4);
+                let layer_flow = (brush.flow / layer_count as f32).clamp(0.12, 0.55);
                 changed |= if erase {
                     layer.erase_sphere(
                         layer_center,
@@ -1637,25 +1917,25 @@ impl OrganicTool {
             );
             let dab_flow = if scatter_count > 1 {
                 if shallow_spread {
-                    (brush.flow / (scatter_count as f32).sqrt()).clamp(0.03, 1.0)
+                    (brush.flow / (scatter_count as f32).sqrt()).clamp(0.08, 1.0)
                 } else {
-                    (brush.flow / scatter_count as f32).clamp(0.02, 1.0)
+                    (brush.flow / scatter_count as f32).clamp(0.06, 1.0)
                 }
             } else {
                 brush.flow
             };
             let dab_depth = if scatter_count > 1 {
-                let scale = if shallow_spread { 0.95 } else { 0.85 };
-                (base_depth * scale).max(layer.cell_size * 0.20)
+                let scale = if shallow_spread { 1.0 } else { 0.92 };
+                (base_depth * scale).max(layer.cell_size * 0.24)
             } else {
                 base_depth
-            } * (1.0 + noise * 0.35);
-            let dab_radius = (dab_radius * (1.0 + noise * 0.25)).max(layer.cell_size * 0.5);
+            } * (1.0 + noise * 0.42);
+            let dab_radius = (dab_radius * (1.0 + noise * 0.32)).max(layer.cell_size * 0.5);
 
             if brush.use_line_shape {
-                let half_len = (brush.line_length * brush.radius * 0.5).max(layer.cell_size * 0.5);
-                let width = (brush.line_width * brush.radius).max(layer.cell_size * 0.5);
-                let steps = ((half_len * 2.0) / (width * 0.75).max(layer.cell_size * 0.5))
+                let half_len = (brush.line_length * brush.radius * 0.5).max(layer.cell_size * 0.6);
+                let width = (brush.line_width * brush.radius).max(layer.cell_size * 0.55);
+                let steps = ((half_len * 2.0) / (width * 0.65).max(layer.cell_size * 0.45))
                     .ceil()
                     .max(1.0) as usize;
                 for step_index in 0..=steps {
@@ -1684,7 +1964,7 @@ impl OrganicTool {
                             dab_depth,
                             brush.line_softness,
                             brush.height_falloff,
-                            dab_flow / (steps as f32 + 1.0),
+                            (dab_flow * 1.35 / (steps as f32 + 1.0)).clamp(0.04, 0.4),
                             brush.channel,
                             source.clone(),
                             grow_positive,
@@ -1752,18 +2032,15 @@ impl OrganicTool {
             );
         }
 
-        let dir = delta / dist;
-        let width = (brush.line_width * brush.radius).max(layer.cell_size * 0.5);
-        let cap = (brush.line_length * brush.radius * 0.1).max(width * 0.5);
-        let start_inset = (width * 0.5).min(dist * 0.5);
-        let line_start = start + dir * start_inset;
-        let line_end = end + dir * cap;
+        let width = (brush.line_width * brush.radius).max(layer.cell_size * 0.55);
+        let line_start = start;
+        let line_end = end;
         let total = (line_end - line_start).magnitude();
         if total <= 0.0001 {
             return Self::apply_graph_dabs(
                 layer,
                 end,
-                Some(dir),
+                Some(delta / dist),
                 anchor_offset,
                 brush,
                 host_source,
@@ -1775,8 +2052,8 @@ impl OrganicTool {
         let noise = Self::organic_noise(midpoint, brush);
         let source = Self::resolve_brush_source(brush, host_source, Some(0), midpoint);
         let depth =
-            (brush.depth * brush.height_depth).max(layer.cell_size * 0.20) * (1.0 + noise * 0.20);
-        let radius = (width * (1.0 + noise * 0.08)).max(layer.cell_size * 0.5);
+            (brush.depth * brush.height_depth).max(layer.cell_size * 0.26) * (1.0 + noise * 0.28);
+        let radius = (width * (1.0 + noise * 0.14)).max(layer.cell_size * 0.55);
 
         if erase {
             layer.erase_capsule(
@@ -1798,7 +2075,7 @@ impl OrganicTool {
                 depth,
                 brush.line_softness,
                 brush.height_falloff,
-                brush.flow.clamp(0.02, 1.0),
+                brush.flow.clamp(0.08, 1.0),
                 brush.channel,
                 source,
                 grow_positive,

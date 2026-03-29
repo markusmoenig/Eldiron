@@ -122,7 +122,11 @@ impl TilePickerTool {
         }
 
         *PALETTE.write().unwrap() = project.palette.clone();
-        RUSTERIX.write().unwrap().assets.palette = project.palette.clone();
+        {
+            let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.assets.palette = project.palette.clone();
+            rusterix.set_tiles(project.tiles.clone(), true);
+        }
 
         true
     }

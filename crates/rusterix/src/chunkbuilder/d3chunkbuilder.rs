@@ -4,6 +4,7 @@ use crate::chunkbuilder::surface_mesh_builder::{
 };
 use crate::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 use crate::collision_world::{BlockingVolume, DynamicOpening, OpeningType, WalkableFloor};
+use crate::map::organic::OrganicGrowthShape;
 use crate::{
     Assets, Batch3D, Chunk, ChunkBuilder, Item, Map, PixelSource, Value, ValueContainer,
     VertexBlendPreset,
@@ -4011,17 +4012,15 @@ where
     runs
 }
 
-fn build_vine_ribbon_pairs(points: &[Vec2<f32>], half_width: f32) -> Vec<(Vec2<f32>, Vec2<f32>)> {
+fn build_vine_ribbon_pairs(
+    points: &[Vec2<f32>],
+    half_width: f32,
+    taper_start: bool,
+    taper_end: bool,
+) -> Vec<(Vec2<f32>, Vec2<f32>)> {
     if points.len() < 2 {
         return Vec::new();
     }
-
-    let mut cumulative = vec![0.0f32; points.len()];
-    for i in 1..points.len() {
-        cumulative[i] = cumulative[i - 1] + (points[i] - points[i - 1]).magnitude();
-    }
-    let total_len = *cumulative.last().unwrap_or(&0.0);
-    let taper_len = (half_width * 6.0).max(0.06);
 
     let mut pairs = Vec::with_capacity(points.len());
     for i in 0..points.len() {
@@ -4047,24 +4046,18 @@ fn build_vine_ribbon_pairs(points: &[Vec2<f32>], half_width: f32) -> Vec<(Vec2<f
         };
         let tangent = (prev_n + next_n).try_normalized().unwrap_or(next_n);
         let perp = Vec2::new(-tangent.y, tangent.x);
-        let endpoint_inset = if i == 0 || i + 1 == points.len() {
-            (half_width * 0.5).min(prev.magnitude().max(next.magnitude()) * 0.5)
-        } else {
-            0.0
-        };
-        let center = if i == 0 {
-            points[i] + tangent * endpoint_inset
-        } else if i + 1 == points.len() {
-            points[i] - tangent * endpoint_inset
+        let center = if i == 0 && !taper_start {
+            points[i] - next_n * (half_width * 0.9)
+        } else if i + 1 == points.len() && !taper_end {
+            points[i] + prev_n * (half_width * 0.9)
         } else {
             points[i]
         };
-        let dist_from_start = cumulative[i];
-        let dist_from_end = total_len - cumulative[i];
-        let taper_start = (dist_from_start / taper_len).clamp(0.0, 1.0);
-        let taper_end = (dist_from_end / taper_len).clamp(0.0, 1.0);
-        let taper = taper_start.min(taper_end);
-        let local_half_width = half_width * taper.max(0.05);
+        let local_half_width = if (i == 0 && taper_start) || (i + 1 == points.len() && taper_end) {
+            half_width * 0.12
+        } else {
+            half_width
+        };
         pairs.push((
             center - perp * local_half_width,
             center + perp * local_half_width,
@@ -4081,39 +4074,24 @@ fn render_vine_run_top<F>(
     points: &[Vec2<f32>],
     half_width: f32,
     desired_normal: Vec3<f32>,
+    taper_start: bool,
+    taper_end: bool,
     world_at: F,
 ) where
     F: Fn(Vec2<f32>) -> Vec3<f32>,
 {
-    let pairs2 = build_vine_ribbon_pairs(points, half_width);
+    let pairs2 = build_vine_ribbon_pairs(points, half_width, taper_start, taper_end);
     if pairs2.len() < 2 {
         return;
     }
-    let start_dir = (points[1] - points[0])
-        .try_normalized()
-        .unwrap_or(Vec2::new(1.0, 0.0));
-    let end_dir = (points[points.len() - 1] - points[points.len() - 2])
-        .try_normalized()
-        .unwrap_or(start_dir);
-    let tip_len = (half_width * 1.5).max(0.01);
-    let start_tip = points[0] - start_dir * tip_len;
-    let end_tip = points[points.len() - 1] + end_dir * tip_len;
-
-    let mut vertices = Vec::with_capacity(2 + pairs2.len() * 2);
-    let mut uvs = Vec::with_capacity(2 + pairs2.len() * 2);
+    let mut vertices = Vec::with_capacity(pairs2.len() * 2);
+    let mut uvs = Vec::with_capacity(pairs2.len() * 2);
     let mut indices = Vec::new();
     let pair_centers: Vec<Vec2<f32>> = pairs2
         .iter()
         .map(|(left, right)| (*left + *right) * 0.5)
         .collect();
-
-    vertices.push({
-        let p = world_at(start_tip);
-        [p.x, p.y, p.z, 1.0]
-    });
-    uvs.push([0.0, 0.5]);
-
-    let mut acc = tip_len;
+    let mut acc = 0.0;
     for (i, (left, right)) in pairs2.iter().enumerate() {
         if i > 0 {
             let prev_center = pair_centers[i - 1];
@@ -4127,29 +4105,13 @@ fn render_vine_run_top<F>(
         uvs.push([acc, 1.0]);
         uvs.push([acc, 0.0]);
     }
-
-    let end_tip_index = vertices.len();
-    vertices.push({
-        let p = world_at(end_tip);
-        [p.x, p.y, p.z, 1.0]
-    });
-    uvs.push([acc + tip_len, 0.5]);
-
-    if pairs2.len() >= 1 {
-        indices.push((0usize, 1usize, 2usize));
-    }
     for i in 0..pairs2.len().saturating_sub(1) {
-        let a = 1 + i * 2;
+        let a = i * 2;
         let b = a + 1;
         let c = a + 3;
         let d = a + 2;
         indices.push((a, d, c));
         indices.push((a, c, b));
-    }
-    if pairs2.len() >= 1 {
-        let a = 1 + (pairs2.len() - 1) * 2;
-        let b = a + 1;
-        indices.push((a, end_tip_index, b));
     }
 
     push_organic_top_mesh(
@@ -4163,42 +4125,29 @@ fn render_vine_run_top<F>(
     );
 }
 
-fn render_bush_cluster(
+fn emit_oriented_box(
     vmchunk: &mut scenevm::Chunk,
     geo: GeoId,
     tile_id: Uuid,
     center: Vec3<f32>,
-    axis: Vec3<f32>,
     right: Vec3<f32>,
     forward: Vec3<f32>,
-    radius: f32,
-    height: f32,
-    layers: i32,
-    taper: f32,
-    breakup: f32,
+    up: Vec3<f32>,
+    half_right: f32,
+    half_forward: f32,
+    half_up: f32,
 ) {
-    let up = axis.normalized();
-    let base_right = right.normalized();
-    let base_forward = forward.normalized();
-    let layer_count = layers.max(3) as usize;
-    let voxel_size = (radius * 0.34).clamp(0.05, 0.18);
-    let half = voxel_size * 0.5;
+    let p000 = center - right * half_right - forward * half_forward - up * half_up;
+    let p001 = center - right * half_right - forward * half_forward + up * half_up;
+    let p010 = center - right * half_right + forward * half_forward - up * half_up;
+    let p011 = center - right * half_right + forward * half_forward + up * half_up;
+    let p100 = center + right * half_right - forward * half_forward - up * half_up;
+    let p101 = center + right * half_right - forward * half_forward + up * half_up;
+    let p110 = center + right * half_right + forward * half_forward - up * half_up;
+    let p111 = center + right * half_right + forward * half_forward + up * half_up;
 
-    let emit_box = |vmchunk: &mut scenevm::Chunk, c: Vec3<f32>| {
-        let p000 = c + (-base_right - base_forward - up) * half;
-        let p001 = c + (-base_right - base_forward + up) * half;
-        let p010 = c + (-base_right + base_forward - up) * half;
-        let p011 = c + (-base_right + base_forward + up) * half;
-        let p100 = c + (base_right - base_forward - up) * half;
-        let p101 = c + (base_right - base_forward + up) * half;
-        let p110 = c + (base_right + base_forward - up) * half;
-        let p111 = c + (base_right + base_forward + up) * half;
-
-        let push_face = |vmchunk: &mut scenevm::Chunk,
-                         a: Vec3<f32>,
-                         b: Vec3<f32>,
-                         c: Vec3<f32>,
-                         d: Vec3<f32>| {
+    let push_face =
+        |vmchunk: &mut scenevm::Chunk, a: Vec3<f32>, b: Vec3<f32>, c: Vec3<f32>, d: Vec3<f32>| {
             let vertices = vec![
                 [a.x, a.y, a.z, 1.0],
                 [b.x, b.y, b.z, 1.0],
@@ -4215,14 +4164,31 @@ fn render_bush_cluster(
             vmchunk.add_poly_3d(geo, tile_id, vertices, uvs, indices, 0, true);
         };
 
-        push_face(vmchunk, p001, p101, p111, p011);
-        push_face(vmchunk, p000, p010, p110, p100);
-        push_face(vmchunk, p000, p001, p011, p010);
-        push_face(vmchunk, p100, p110, p111, p101);
-        push_face(vmchunk, p010, p011, p111, p110);
-        push_face(vmchunk, p000, p100, p101, p001);
-    };
+    push_face(vmchunk, p001, p101, p111, p011);
+    push_face(vmchunk, p000, p010, p110, p100);
+    push_face(vmchunk, p000, p001, p011, p010);
+    push_face(vmchunk, p100, p110, p111, p101);
+    push_face(vmchunk, p010, p011, p111, p110);
+    push_face(vmchunk, p000, p100, p101, p001);
+}
 
+fn emit_growth_blob(
+    vmchunk: &mut scenevm::Chunk,
+    geo: GeoId,
+    tile_id: Uuid,
+    center: Vec3<f32>,
+    up: Vec3<f32>,
+    base_right: Vec3<f32>,
+    base_forward: Vec3<f32>,
+    radius: f32,
+    height: f32,
+    layers: i32,
+    taper: f32,
+    breakup: f32,
+) {
+    let layer_count = layers.max(3) as usize;
+    let voxel_size = (radius * 0.34).clamp(0.05, 0.18);
+    let half = voxel_size * 0.5;
     let max_ring = ((radius / voxel_size).ceil() as i32).max(1);
     let breakup_seed = (center.x * 17.13 + center.y * 9.71 + center.z * 5.19).sin();
 
@@ -4268,8 +4234,126 @@ fn render_bush_cluster(
                         + base_right * (gx as f32 * voxel_size)
                         + base_forward * (gy as f32 * voxel_size)
                         + up * (lift as f32 * voxel_size * 0.72);
-                    emit_box(vmchunk, c);
+                    emit_oriented_box(
+                        vmchunk,
+                        geo,
+                        tile_id,
+                        c,
+                        base_right,
+                        base_forward,
+                        up,
+                        half,
+                        half,
+                        half,
+                    );
                 }
+            }
+        }
+    }
+}
+
+fn render_bush_cluster(
+    vmchunk: &mut scenevm::Chunk,
+    geo: GeoId,
+    tile_id: Uuid,
+    center: Vec3<f32>,
+    axis: Vec3<f32>,
+    right: Vec3<f32>,
+    forward: Vec3<f32>,
+    radius: f32,
+    height: f32,
+    layers: i32,
+    taper: f32,
+    breakup: f32,
+    shape: OrganicGrowthShape,
+    canopy_lobes: i32,
+    canopy_spread: f32,
+    trunk_height: f32,
+    trunk_radius: f32,
+) {
+    let up = axis.normalized();
+    let base_right = right.normalized();
+    let base_forward = forward.normalized();
+    match shape {
+        OrganicGrowthShape::Bush => {
+            emit_growth_blob(
+                vmchunk,
+                geo,
+                tile_id,
+                center,
+                up,
+                base_right,
+                base_forward,
+                radius,
+                height,
+                layers,
+                taper,
+                breakup,
+            );
+        }
+        OrganicGrowthShape::Tree => {
+            let trunk_h = trunk_height.max(height * 0.45).max(0.18);
+            let trunk_r = trunk_radius.max(radius * 0.12).max(0.03);
+            let trunk_segments = ((trunk_h / 0.12).ceil() as i32).clamp(2, 8);
+            for i in 0..trunk_segments {
+                let t = (i as f32 + 0.5) / trunk_segments as f32;
+                let c = center + up * (trunk_h * t);
+                let seg_scale = (1.0 - t * 0.22).max(0.72);
+                emit_oriented_box(
+                    vmchunk,
+                    geo,
+                    tile_id,
+                    c,
+                    base_right,
+                    base_forward,
+                    up,
+                    trunk_r * seg_scale,
+                    trunk_r * seg_scale,
+                    (trunk_h / trunk_segments as f32) * 0.55,
+                );
+            }
+
+            let crown_center = center + up * trunk_h;
+            let crown_radius = (radius * (0.72 + canopy_spread * 0.32)).max(trunk_r * 2.5);
+            let crown_height = (height - trunk_h).max(radius * 0.4);
+            emit_growth_blob(
+                vmchunk,
+                geo,
+                tile_id,
+                crown_center,
+                up,
+                base_right,
+                base_forward,
+                crown_radius * 0.72,
+                crown_height * 0.85,
+                layers.max(3),
+                taper * 0.65,
+                breakup * 0.7,
+            );
+
+            let lobe_count = canopy_lobes.max(3) as usize;
+            let ring = crown_radius * (0.22 + canopy_spread * 0.30);
+            let lobe_radius = crown_radius * (0.34 - canopy_spread * 0.06).max(0.20);
+            for i in 0..lobe_count {
+                let a = i as f32 / lobe_count as f32 * std::f32::consts::TAU;
+                let lobe_center = crown_center
+                    + base_right * (a.cos() * ring)
+                    + base_forward * (a.sin() * ring)
+                    + up * ((a * 1.7).sin() * crown_height * 0.10 + crown_height * 0.08);
+                emit_growth_blob(
+                    vmchunk,
+                    geo,
+                    tile_id,
+                    lobe_center,
+                    up,
+                    base_right,
+                    base_forward,
+                    lobe_radius,
+                    crown_height * 0.52,
+                    (layers - 1).max(3),
+                    0.35,
+                    breakup * 0.9,
+                );
             }
         }
     }
@@ -4332,6 +4416,8 @@ fn generate_organic_volumes(
                 &points,
                 first.width * 0.5,
                 normal * sign,
+                first.cap_start,
+                run[run.len() - 1].cap_end,
                 world_at,
             );
         }
@@ -4365,6 +4451,11 @@ fn generate_organic_volumes(
                 bush.layers,
                 bush.taper,
                 bush.breakup,
+                bush.shape.clone(),
+                bush.canopy_lobes,
+                bush.canopy_spread,
+                bush.trunk_height,
+                bush.trunk_radius,
             );
         }
 
@@ -5127,6 +5218,8 @@ fn generate_organic_volumes(
                 &points,
                 first.width * 0.5,
                 Vec3::unit_y() * sign,
+                first.cap_start,
+                run[run.len() - 1].cap_end,
                 world_at,
             );
         }
@@ -5167,6 +5260,11 @@ fn generate_organic_volumes(
                 bush.layers,
                 bush.taper,
                 bush.breakup,
+                bush.shape.clone(),
+                bush.canopy_lobes,
+                bush.canopy_spread,
+                bush.trunk_height,
+                bush.trunk_radius,
             );
         }
         for layer in terrain_chunk.organic_layers.values() {

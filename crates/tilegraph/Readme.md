@@ -1,3 +1,74 @@
+# tilegraph
+
+`tilegraph` is [Eldiron’s](https://crates.io/crates/eldiron-creator) procedural tile graph crate for creating retro, wrapping tiles and tile groups for walls, floors, and other repeating surfaces.
+
+![stones output](examples/stones.png)
+
+It contains:
+
+- the human-readable `.tilegraph` document format
+- the graph runtime and evaluator
+- the renderer for grouped procedural tile output
+- the `tilegraph` CLI binary for rendering `.tilegraph` files
+
+## What It Is
+
+`tilegraph` is built around a height-first workflow for procedural retro tile generation.
+
+Typical flow:
+
+1. layout nodes generate a structural field such as `Height`, `Center`, and `Cell Id`
+2. shaping nodes sculpt the height field
+3. color nodes map the result to palette colors
+4. output writes color, height, and material channels
+
+The resulting graph can generate:
+
+- a single tile
+- a tile group such as `2x2` or `3x3`
+- matching height-driven normals and packed material data
+
+## Format
+
+The portable graph format is TOML-based and intended to stay readable and diffable.
+
+Node definitions look like:
+
+```toml
+[node.voronoi.main]
+scale = 0.349
+seed = 11
+```
+
+Connections are embedded directly in node fields:
+
+```toml
+[node.output.main]
+color = "colorize4.main:field"
+height = "subtract.main:field"
+```
+
+## CLI
+
+The package also contains a CLI binary:
+
+```bash
+cargo run -p tilegraph -- crates/tilegraph/examples/stones.tilegraph
+```
+
+This renders the graph to:
+
+- `sheet_color.png`
+- `sheet_material.png`
+- per-tile output images
+
+If no output directory is provided, it writes a single PNG next to the input file.
+
+## Example
+
+Below is the current `stones.tilegraph` example included with the crate.
+
+```toml
 version = 1
 name = "Voronoi Stones"
 grid = "3x3"
@@ -121,3 +192,4 @@ colors = [
     "#7b7243", "#b2b47e", "#edc8c4",
     "#cf8acb", "#5f556a",
 ]
+```

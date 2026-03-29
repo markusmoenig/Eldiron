@@ -1,0 +1,83 @@
+version = 1
+name = "Layered Stones"
+grid = "3x3"
+tile_size = "32x32"
+palette_source = "local"
+
+[node.levels.main]
+in = "noise.main:field"
+level = 0.48
+pos = [
+    209,
+    212,
+]
+width = 0.42
+
+[node.import_layer.main]
+pos = [
+    33,
+    32,
+]
+source = "stones"
+
+[node.import_layer.2]
+input_1 = "levels.main:field"
+pos = [
+    371,
+    179,
+]
+source = "soil_overlay"
+
+[node.mask_blend.main]
+a = "import_layer.main:color"
+b = "import_layer.2:color"
+factor = 1.0
+mask = "levels.main:field"
+pos = [
+    637,
+    54,
+]
+
+[node.noise.main]
+pos = [
+    30,
+    213,
+]
+scale = 0.13
+seed = 31
+wrap = true
+
+[node.output.main]
+color = "mask_blend.main:field"
+emissive = 0.0
+height = "add.main:field"
+metallic = 0.0
+opacity = 1.0
+pos = [
+    1010,
+    136,
+]
+roughness = 0.9
+
+[node.add.main]
+a = "import_layer.main:height"
+b = "import_layer.2:height"
+pos = [
+    651,
+    274,
+]
+
+[palette]
+name = "Local Palette"
+colors = [
+    "#f2f0e5", "#b8b5b9", "#868188",
+    "#646365", "#45444f", "#3a3858",
+    "#212123", "#352b42", "#43436a",
+    "#4b80ca", "#68c2d3", "#a2dcc7",
+    "#ede19e", "#d3a068", "#b45252",
+    "#6a536e", "#4b4158", "#80493a",
+    "#a77b5b", "#e5ceb4", "#c2d368",
+    "#8ab060", "#567b79", "#4e584a",
+    "#7b7243", "#b2b47e", "#edc8c4",
+    "#cf8acb", "#5f556a",
+]

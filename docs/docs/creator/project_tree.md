@@ -47,7 +47,13 @@ Before adding the tile(s) make sure you selected the role as needed (to be able 
 - **Anim**. Add the selected tiles as one animated tile.
 - **Multi**. Add the selected tiles as one big tile, containing multiple tiles.
 
-In the tile picker you can further edit tiles, both their meta data and their pixels, using the corresponding *Actions*. The tile picker toolbar also provides **Apply Tile** and **Clear Tile** for map geometry and action material slots.
+In the tile picker you can further edit and organize tile sources. The tile picker toolbar also provides **Apply Tile** and **Clear Tile** for map geometry and action material slots.
+
+The tile picker can contain:
+
+- single tiles
+- tile groups
+- node groups
 
 Added tiles are shown with a slight gray overlay in the tileset editor, making it easy to see which files you already added. You can delete a tileset any time, already added tiles will not be affected.
 

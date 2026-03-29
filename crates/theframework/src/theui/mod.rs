@@ -804,6 +804,24 @@ impl TheUI {
 
         self.mouse_capture_id = None;
 
+        if let Some(id) = &ctx.ui.overlay {
+            let overlay_hit =
+                if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {
+                    Some((widget.id().clone(), widget.dim().to_local(coord)))
+                } else {
+                    None
+                };
+            if let Some((widget_id, local_coord)) = overlay_hit {
+                self.mouse_capture_id = Some(widget_id.clone());
+                if let Some(widget) = self.get_widget_abs(None, Some(&widget_id.uuid)) {
+                    let event = TheEvent::MouseDown(local_coord);
+                    redraw = widget.on_event(&event, ctx);
+                }
+                self.process_events(ctx);
+                return redraw;
+            }
+        }
+
         let mut mouse_capture_id: Option<TheId> = None;
         if let Some(widget) = self.get_widget_at_coord(coord) {
             mouse_capture_id = Some(widget.id().clone());
@@ -1408,6 +1426,14 @@ impl TheUI {
         if let Some(view) = self.canvas.get_widget(Some(&name.to_string()), None) {
             if let Some(nodes) = view.as_node_canvas_view() {
                 nodes.set_overlay(overlay);
+            }
+        }
+    }
+
+    pub fn set_node_overlay_tiled(&mut self, name: &str, tiled: bool) {
+        if let Some(view) = self.canvas.get_widget(Some(&name.to_string()), None) {
+            if let Some(nodes) = view.as_node_canvas_view() {
+                nodes.set_overlay_tiled(tiled);
             }
         }
     }

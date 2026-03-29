@@ -147,9 +147,9 @@ pub use crate::{
         meta::MapMeta,
         mini::MapMini,
         organic::{
-            OrganicBrushGraph, OrganicBrushNode, OrganicBushCluster, OrganicChannelBinding,
-            OrganicColumn, OrganicNodeKind, OrganicSpan, OrganicVineStroke, OrganicVolumeLayer,
-            default_organic_bush_clusters, default_organic_layers, default_organic_vine_strokes,
+            OrganicBushCluster, OrganicChannelBinding, OrganicColumn, OrganicSpan,
+            OrganicVineStroke, OrganicVolumeLayer, default_organic_bush_clusters,
+            default_organic_layers, default_organic_vine_strokes,
         },
         particle::{Particle, ParticleEmitter},
         pixelsource::NoiseTarget,
@@ -201,6 +201,7 @@ pub use crate::{
     value_toml::{ValueGroups, ValueTomlLoader},
     vertexblend::VertexBlendPreset,
 };
+pub use organicgraph::{OrganicBrushGraph, OrganicBrushNode, OrganicNodeKind};
 
 // Prelude
 pub mod prelude {

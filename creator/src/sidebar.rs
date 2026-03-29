@@ -1438,7 +1438,11 @@ impl Sidebar {
                         }
                     }
                     *PALETTE.write().unwrap() = project.palette.clone();
-                    RUSTERIX.write().unwrap().assets.palette = project.palette.clone();
+                    {
+                        let mut rusterix = RUSTERIX.write().unwrap();
+                        rusterix.assets.palette = project.palette.clone();
+                        rusterix.set_tiles(project.tiles.clone(), true);
+                    }
                 } else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
                     if let Some(id) = self.curr_tilemap_uuid {
                         self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
@@ -1997,7 +2001,11 @@ impl Sidebar {
                         }
 
                         *PALETTE.write().unwrap() = project.palette.clone();
-                        RUSTERIX.write().unwrap().assets.palette = project.palette.clone();
+                        {
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            rusterix.assets.palette = project.palette.clone();
+                            rusterix.set_tiles(project.tiles.clone(), true);
+                        }
 
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Soft Update Minimap"),
@@ -3209,7 +3217,11 @@ impl Sidebar {
             *CONFIG.write().unwrap() = toml;
         }
         CONFIGEDITOR.write().unwrap().read_defaults();
-        RUSTERIX.write().unwrap().assets.palette = project.palette.clone();
+        {
+            let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.assets.palette = project.palette.clone();
+            rusterix.set_tiles(project.tiles.clone(), true);
+        }
 
         // ctx.ui.send(TheEvent::Custom(
         //     TheId::named("Update Tilepicker"),

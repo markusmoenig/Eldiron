@@ -16,6 +16,7 @@ pub mod themenubar;
 pub mod themenubarbutton;
 pub mod themenubarseparator;
 pub mod thenodecanvasview;
+pub mod thepaletteindexpicker;
 pub mod thepalettepicker;
 pub mod therenderview;
 pub mod thergbaview;
@@ -115,6 +116,9 @@ pub mod prelude {
     pub use crate::theui::thewidget::thedirectionpicker::TheDirectionPicker;
     pub use crate::theui::thewidget::thenodecanvasview::{
         TheNodeCanvasView, TheNodeCanvasViewTrait,
+    };
+    pub use crate::theui::thewidget::thepaletteindexpicker::{
+        ThePaletteIndexPicker, ThePaletteIndexPickerTrait,
     };
     pub use crate::theui::thewidget::thepalettepicker::{ThePalettePicker, ThePalettePickerTrait};
     pub use crate::theui::thewidget::theseparator::TheSeparator;
@@ -384,6 +388,11 @@ pub trait TheWidget: Send {
 
     /// Attempts to cast to ThePalettePickerTrait. Only valid for ThePalettePicker.
     fn as_palette_picker(&mut self) -> Option<&mut dyn ThePalettePickerTrait> {
+        None
+    }
+
+    /// Attempts to cast to ThePaletteIndexPickerTrait. Only valid for ThePaletteIndexPicker.
+    fn as_palette_index_picker(&mut self) -> Option<&mut dyn ThePaletteIndexPickerTrait> {
         None
     }
 

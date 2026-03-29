@@ -19,6 +19,8 @@ pub enum TheNodeUIItem {
     IntEditSlider(String, String, String, i32, RangeInclusive<i32>, bool),
     /// Palette Slider: Id, Name, Status, Value, ThePalette, Continuous
     PaletteSlider(String, String, String, i32, ThePalette, bool),
+    /// Palette Index Picker: Id, Name, Status, Value, ThePalette
+    PaletteIndexPicker(String, String, String, i32, ThePalette),
     /// Int Slider: Id, Name, Status, Value, Range, DefaultValue, Continuous
     IntSlider(String, String, String, i32, RangeInclusive<i32>, i32, bool),
     /// Button: Id, Name, Status, LayoutText
@@ -48,6 +50,7 @@ impl TheNodeUIItem {
             TheNodeUIItem::FloatSlider(id, _, _, _, _, _, _) => id,
             TheNodeUIItem::IntEditSlider(id, _, _, _, _, _) => id,
             TheNodeUIItem::PaletteSlider(id, _, _, _, _, _) => id,
+            TheNodeUIItem::PaletteIndexPicker(id, _, _, _, _) => id,
             TheNodeUIItem::IntSlider(id, _, _, _, _, _, _) => id,
             TheNodeUIItem::Button(id, _, _, _) => id,
             TheNodeUIItem::ColorPicker(id, _, _, _, _) => id,
@@ -192,6 +195,9 @@ impl TheNodeUI {
                         return Some(*value);
                     }
                     Selector(_, _, _, _, value) => {
+                        return Some(*value);
+                    }
+                    PaletteIndexPicker(_, _, _, value, _) => {
                         return Some(*value);
                     }
                     _ => {}
@@ -443,6 +449,23 @@ impl TheNodeUI {
                         node.add_widget(Box::new(item));
                     }
                 }
+                PaletteIndexPicker(id, name, status, value, palette) => {
+                    let mut picker = ThePaletteIndexPicker::new(TheId::named(id));
+                    picker.set_selected_index(*value);
+                    picker.set_palette(palette.clone());
+                    picker.set_status_text(status);
+
+                    let mut item = TheTreeItem::new(TheId::named("PaletteIndexPicker"));
+                    item.set_text(name.clone());
+                    item.add_widget_column(200, Box::new(picker));
+                    item.set_status_text(status);
+
+                    if let Some(ref mut g) = group {
+                        g.add_widget(Box::new(item));
+                    } else {
+                        node.add_widget(Box::new(item));
+                    }
+                }
                 IntSlider(id, name, status, value, range, default_value, continous) => {
                     let mut slider = TheSlider::new(TheId::named(id));
                     slider.set_value(TheValue::Int(*value));
@@ -577,6 +600,13 @@ impl TheNodeUI {
                     slider.set_palette(palette.clone());
                     layout.add_pair(name.clone(), Box::new(slider));
                 }
+                PaletteIndexPicker(id, name, status, value, palette) => {
+                    let mut picker = ThePaletteIndexPicker::new(TheId::named(id));
+                    picker.set_selected_index(*value);
+                    picker.set_palette(palette.clone());
+                    picker.set_status_text(status);
+                    layout.add_pair(name.clone(), Box::new(picker));
+                }
                 IntSlider(id, name, status, value, range, default_value, continous) => {
                     let mut slider = TheSlider::new(TheId::named(id));
                     slider.set_value(TheValue::Int(*value));
@@ -656,6 +686,12 @@ impl TheNodeUI {
                             }
                         }
                         IntSlider(_, _, _, value, _, _, _) => {
+                            if let TheValue::Int(v) = event_value {
+                                *value = *v;
+                                updated = true;
+                            }
+                        }
+                        PaletteIndexPicker(_, _, _, value, _) => {
                             if let TheValue::Int(v) = event_value {
                                 *value = *v;
                                 updated = true;

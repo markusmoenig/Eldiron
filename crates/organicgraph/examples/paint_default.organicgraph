@@ -1,0 +1,30 @@
+id = "7b1d7d87-3e9f-4c3d-8e5e-8248ae58a100"
+name = "Default Paint Brush"
+selected_node = 4
+connections = [
+  [0, 0, 1, 0],
+  [1, 0, 4, 0],
+  [2, 0, 4, 2],
+  [3, 0, 4, 1],
+]
+scroll_offset = { x = 0, y = 0 }
+
+[[nodes]]
+position = { x = 200, y = 36 }
+kind = { CircleMask = { radius = 0.55, softness = 0.35 } }
+
+[[nodes]]
+position = { x = 420, y = 28 }
+kind = { Scatter = { count = 6, jitter = 0.35 } }
+
+[[nodes]]
+position = { x = 420, y = 188 }
+kind = { HeightProfile = { depth = 0.4, falloff = 0.5 } }
+
+[[nodes]]
+position = { x = 420, y = 288 }
+kind = { PaletteColors = { color_1 = 0, color_2 = 1, color_3 = 2, color_4 = 3, mode = 1 } }
+
+[[nodes]]
+position = { x = 700, y = 108 }
+kind = { OutputPaint = { radius = 0.6, flow = 1.0, jitter = 0.15, depth = 0.45, cell_size = 0.25, channel = 0, palette_start = 0, palette_count = 1, palette_mode = 0 } }

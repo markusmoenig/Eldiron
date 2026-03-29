@@ -537,7 +537,12 @@ All tile actions require the **Tiles** dock to be active.
 
 *Shortcut: Ctrl/Cmd + [*
 
-Maximize the active dock. The Tile Picker reveals the pixel editor when maximized.
+Maximize the active dock.
+
+For the **Tile Picker**, this is context-sensitive:
+
+- if a tile is selected, it opens the **pixel tile editor**
+- if a node group is selected, it opens the **tile node graph editor**
 
 ### Minimize
 

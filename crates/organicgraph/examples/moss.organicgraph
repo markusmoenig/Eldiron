@@ -1,0 +1,35 @@
+id = "d8f1b2a4-4d48-4c0d-ae6b-f7b4b4b4b401"
+name = "Moss Brush"
+selected_node = 5
+connections = [
+  [0, 0, 1, 0],
+  [1, 0, 2, 0],
+  [2, 0, 5, 0],
+  [3, 0, 5, 2],
+  [4, 0, 5, 1],
+]
+scroll_offset = { x = 0, y = 0 }
+
+[[nodes]]
+position = { x = 200, y = 36 }
+kind = { CircleMask = { radius = 0.24, softness = 0.92 } }
+
+[[nodes]]
+position = { x = 410, y = 28 }
+kind = { Noise = { scale = 0.38, strength = 0.16, seed = 19 } }
+
+[[nodes]]
+position = { x = 620, y = 36 }
+kind = { Scatter = { count = 18, jitter = 0.28 } }
+
+[[nodes]]
+position = { x = 620, y = 185 }
+kind = { HeightProfile = { depth = 0.07, falloff = 0.96 } }
+
+[[nodes]]
+position = { x = 620, y = 300 }
+kind = { PaletteColors = { color_1 = 4, color_2 = 8, color_3 = 10, color_4 = 12, mode = 2 } }
+
+[[nodes]]
+position = { x = 900, y = 108 }
+kind = { OutputPaint = { radius = 0.68, flow = 0.96, jitter = 0.08, depth = 0.08, cell_size = 0.10, channel = 0, palette_start = 0, palette_count = 1, palette_mode = 0 } }

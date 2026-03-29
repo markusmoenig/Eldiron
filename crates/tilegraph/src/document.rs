@@ -143,6 +143,11 @@ fn table_bool(table: &toml::Table, key: &str, default: bool) -> bool {
         .unwrap_or(default)
 }
 
+fn rounded_float(value: f32) -> toml::Value {
+    let rounded = ((value as f64) * 1000.0).round() / 1000.0;
+    toml::Value::Float(rounded)
+}
+
 fn node_kind_from_doc(
     kind: &str,
     table: &toml::Table,
@@ -217,6 +222,9 @@ fn node_kind_from_doc(
         "warp" => TileNodeKind::Warp {
             amount: table_f32(table, "amount", 0.1),
         },
+        "mask_blend" => TileNodeKind::MaskBlend {
+            factor: table_f32(table, "factor", 1.0),
+        },
         "multiply" => TileNodeKind::Multiply,
         "subtract" => TileNodeKind::Subtract,
         "add" => TileNodeKind::Add,
@@ -227,6 +235,21 @@ fn node_kind_from_doc(
             metallic: table_f32(table, "metallic", 0.0),
             opacity: table_f32(table, "opacity", 1.0),
             emissive: table_f32(table, "emissive", 0.0),
+        },
+        "import_layer" => TileNodeKind::ImportLayer {
+            source: table
+                .get("source")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string(),
+        },
+        "layer_input" => TileNodeKind::LayerInput {
+            name: table
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Input")
+                .to_string(),
+            value: table_f32(table, "value", 0.5),
         },
         "scalar" => TileNodeKind::Scalar {
             value: table_f32(table, "value", 0.5),
@@ -249,6 +272,14 @@ fn input_index(kind: &str, input: &str) -> Option<u8> {
             "metallic" => Some(3),
             "opacity" => Some(4),
             "emissive" => Some(5),
+            _ => None,
+        },
+        "import_layer" => input
+            .strip_prefix("input_")
+            .and_then(|s| s.parse::<u8>().ok())
+            .and_then(|n| n.checked_sub(1)),
+        "layer_input" => match input {
+            "in" => Some(0),
             _ => None,
         },
         "voronoi" => match input {
@@ -293,6 +324,12 @@ fn input_index(kind: &str, input: &str) -> Option<u8> {
             "warp" => Some(1),
             _ => None,
         },
+        "mask_blend" => match input {
+            "a" => Some(0),
+            "b" => Some(1),
+            "mask" => Some(2),
+            _ => None,
+        },
         "id_random" => match input {
             "id" => Some(0),
             _ => None,
@@ -308,6 +345,15 @@ fn input_index(kind: &str, input: &str) -> Option<u8> {
 
 fn output_index(kind: &str, output: &str) -> Option<u8> {
     match kind {
+        "import_layer" => match output {
+            "color" => Some(0),
+            "height" => Some(1),
+            "roughness" => Some(2),
+            "metallic" => Some(3),
+            "opacity" => Some(4),
+            "emissive" => Some(5),
+            _ => None,
+        },
         "voronoi" => match output {
             "center" => Some(0),
             "height" => Some(1),
@@ -350,7 +396,8 @@ impl TileGraphDocument {
     }
 
     pub fn to_toml_pretty(&self) -> Result<String, TileGraphError> {
-        Ok(toml::to_string_pretty(self)?)
+        let text = toml::to_string_pretty(self)?;
+        Ok(reformat_tilegraph_toml(&text))
     }
 
     pub fn to_exchange(&self) -> Result<TileNodeGraphExchange, TileGraphError> {
@@ -653,12 +700,18 @@ impl TileGraphDocument {
             let (dest_kind, dest_name) = dest_path.split_once('.').ok_or_else(|| {
                 TileGraphError::InvalidGraph(format!("invalid destination path: {dest_path}"))
             })?;
-            let input_name = export_input_name(dest_kind, *dest_terminal).ok_or_else(|| {
-                TileGraphError::InvalidGraph(format!(
-                    "unsupported input terminal {} for {}",
-                    dest_terminal, dest_kind
-                ))
-            })?;
+            let input_name = if dest_kind == "import_layer" {
+                format!("input_{}", *dest_terminal as usize + 1)
+            } else {
+                export_input_name(dest_kind, *dest_terminal)
+                    .ok_or_else(|| {
+                        TileGraphError::InvalidGraph(format!(
+                            "unsupported input terminal {} for {}",
+                            dest_terminal, dest_kind
+                        ))
+                    })?
+                    .to_string()
+            };
 
             let table = doc
                 .node
@@ -669,7 +722,7 @@ impl TileGraphDocument {
                         "missing destination table for {dest_kind}.{dest_name}"
                     ))
                 })?;
-            table.insert(input_name.to_string(), toml::Value::String(reference));
+            table.insert(input_name, toml::Value::String(reference));
         }
 
         Ok(doc)
@@ -705,6 +758,84 @@ impl TileGraphDocument {
     }
 }
 
+fn reformat_tilegraph_toml(input: &str) -> String {
+    let lines: Vec<&str> = input.lines().collect();
+    let mut palette_start = None;
+    let mut palette_end = None;
+
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim() == "[palette]" {
+            palette_start = Some(i);
+            continue;
+        }
+        if palette_start.is_some() && line.starts_with('[') && line.trim() != "[palette]" {
+            palette_end = Some(i);
+            break;
+        }
+    }
+
+    let Some(start) = palette_start else {
+        return input.to_string();
+    };
+    let end = palette_end.unwrap_or(lines.len());
+
+    let mut output = String::new();
+    for line in &lines[..start] {
+        output.push_str(line);
+        output.push('\n');
+    }
+    for line in &lines[end..] {
+        output.push_str(line);
+        output.push('\n');
+    }
+    while output.ends_with("\n\n\n") {
+        output.pop();
+    }
+    if !output.ends_with("\n\n") {
+        if output.ends_with('\n') {
+            output.push('\n');
+        } else {
+            output.push_str("\n\n");
+        }
+    }
+
+    let palette_lines = &lines[start..end];
+    let mut i = 0;
+    while i < palette_lines.len() {
+        let line = palette_lines[i];
+        if line.trim() == "colors = [" {
+            output.push_str("colors = [\n");
+            i += 1;
+            let mut colors = Vec::new();
+            while i < palette_lines.len() && palette_lines[i].trim() != "]" {
+                let trimmed = palette_lines[i].trim().trim_end_matches(',');
+                if !trimmed.is_empty() {
+                    colors.push(trimmed.to_string());
+                }
+                i += 1;
+            }
+            for chunk in colors.chunks(3) {
+                output.push_str("    ");
+                for (idx, color) in chunk.iter().enumerate() {
+                    if idx > 0 {
+                        output.push(' ');
+                    }
+                    output.push_str(color);
+                    output.push(',');
+                }
+                output.push('\n');
+            }
+            output.push_str("]\n");
+        } else {
+            output.push_str(line);
+            output.push('\n');
+        }
+        i += 1;
+    }
+
+    output
+}
+
 fn export_kind_name(kind: &TileNodeKind) -> Option<&'static str> {
     match kind {
         TileNodeKind::OutputRoot { .. } => Some("output"),
@@ -720,6 +851,9 @@ fn export_kind_name(kind: &TileNodeKind) -> Option<&'static str> {
         TileNodeKind::Disc { .. } => Some("disc"),
         TileNodeKind::BoxDivide { .. } => Some("box_divide"),
         TileNodeKind::Warp { .. } => Some("warp"),
+        TileNodeKind::MaskBlend { .. } => Some("mask_blend"),
+        TileNodeKind::ImportLayer { .. } => Some("import_layer"),
+        TileNodeKind::LayerInput { .. } => Some("layer_input"),
         TileNodeKind::Multiply => Some("multiply"),
         TileNodeKind::Subtract => Some("subtract"),
         TileNodeKind::Add => Some("add"),
@@ -783,6 +917,16 @@ fn export_input_name(kind: &str, input: u8) -> Option<&'static str> {
             1 => Some("warp"),
             _ => None,
         },
+        "mask_blend" => match input {
+            0 => Some("a"),
+            1 => Some("b"),
+            2 => Some("mask"),
+            _ => None,
+        },
+        "layer_input" => match input {
+            0 => Some("in"),
+            _ => None,
+        },
         "id_random" => match input {
             0 => Some("id"),
             _ => None,
@@ -798,6 +942,15 @@ fn export_input_name(kind: &str, input: u8) -> Option<&'static str> {
 
 fn export_output_port_name(kind: &str, output: u8) -> Option<&'static str> {
     match kind {
+        "import_layer" => match output {
+            0 => Some("color"),
+            1 => Some("height"),
+            2 => Some("roughness"),
+            3 => Some("metallic"),
+            4 => Some("opacity"),
+            5 => Some("emissive"),
+            _ => None,
+        },
         "voronoi" => match output {
             0 => Some("center"),
             1 => Some("height"),
@@ -827,6 +980,10 @@ fn export_output_port_name(kind: &str, output: u8) -> Option<&'static str> {
             _ => None,
         },
         "output" => None,
+        "layer_input" => match output {
+            0 => Some("field"),
+            _ => None,
+        },
         _ => match output {
             0 => Some("field"),
             _ => None,
@@ -854,13 +1011,10 @@ fn export_node_table(
             opacity,
             emissive,
         } => {
-            table.insert(
-                "roughness".to_string(),
-                toml::Value::Float(*roughness as f64),
-            );
-            table.insert("metallic".to_string(), toml::Value::Float(*metallic as f64));
-            table.insert("opacity".to_string(), toml::Value::Float(*opacity as f64));
-            table.insert("emissive".to_string(), toml::Value::Float(*emissive as f64));
+            table.insert("roughness".to_string(), rounded_float(*roughness));
+            table.insert("metallic".to_string(), rounded_float(*metallic));
+            table.insert("opacity".to_string(), rounded_float(*opacity));
+            table.insert("emissive".to_string(), rounded_float(*emissive));
         }
         TileNodeKind::Voronoi {
             scale,
@@ -869,25 +1023,22 @@ fn export_node_table(
             warp_amount,
             falloff,
         } => {
-            table.insert("scale".to_string(), toml::Value::Float(*scale as f64));
+            table.insert("scale".to_string(), rounded_float(*scale));
             table.insert("seed".to_string(), toml::Value::Integer(*seed as i64));
-            table.insert("jitter".to_string(), toml::Value::Float(*jitter as f64));
-            table.insert(
-                "warp_amount".to_string(),
-                toml::Value::Float(*warp_amount as f64),
-            );
-            table.insert("falloff".to_string(), toml::Value::Float(*falloff as f64));
+            table.insert("jitter".to_string(), rounded_float(*jitter));
+            table.insert("warp_amount".to_string(), rounded_float(*warp_amount));
+            table.insert("falloff".to_string(), rounded_float(*falloff));
         }
         TileNodeKind::Blur { radius } => {
-            table.insert("radius".to_string(), toml::Value::Float(*radius as f64));
+            table.insert("radius".to_string(), rounded_float(*radius));
         }
         TileNodeKind::SlopeBlur { radius, amount } => {
-            table.insert("radius".to_string(), toml::Value::Float(*radius as f64));
-            table.insert("amount".to_string(), toml::Value::Float(*amount as f64));
+            table.insert("radius".to_string(), rounded_float(*radius));
+            table.insert("amount".to_string(), rounded_float(*amount));
         }
         TileNodeKind::Levels { level, width } => {
-            table.insert("level".to_string(), toml::Value::Float(*level as f64));
-            table.insert("width".to_string(), toml::Value::Float(*width as f64));
+            table.insert("level".to_string(), rounded_float(*level));
+            table.insert("width".to_string(), rounded_float(*width));
         }
         TileNodeKind::HeightShape {
             contrast,
@@ -896,14 +1047,11 @@ fn export_node_table(
             rim,
             warp_amount,
         } => {
-            table.insert("contrast".to_string(), toml::Value::Float(*contrast as f64));
-            table.insert("bias".to_string(), toml::Value::Float(*bias as f64));
-            table.insert("plateau".to_string(), toml::Value::Float(*plateau as f64));
-            table.insert("rim".to_string(), toml::Value::Float(*rim as f64));
-            table.insert(
-                "warp_amount".to_string(),
-                toml::Value::Float(*warp_amount as f64),
-            );
+            table.insert("contrast".to_string(), rounded_float(*contrast));
+            table.insert("bias".to_string(), rounded_float(*bias));
+            table.insert("plateau".to_string(), rounded_float(*plateau));
+            table.insert("rim".to_string(), rounded_float(*rim));
+            table.insert("warp_amount".to_string(), rounded_float(*warp_amount));
         }
         TileNodeKind::Colorize4 {
             color_1,
@@ -926,7 +1074,7 @@ fn export_node_table(
             table.insert("auto_range".to_string(), toml::Value::Boolean(*auto_range));
         }
         TileNodeKind::Noise { scale, seed, wrap } => {
-            table.insert("scale".to_string(), toml::Value::Float(*scale as f64));
+            table.insert("scale".to_string(), rounded_float(*scale));
             table.insert("seed".to_string(), toml::Value::Integer(*seed as i64));
             table.insert("wrap".to_string(), toml::Value::Boolean(*wrap));
         }
@@ -941,12 +1089,9 @@ fn export_node_table(
             table.insert("columns".to_string(), toml::Value::Integer(*columns as i64));
             table.insert("rows".to_string(), toml::Value::Integer(*rows as i64));
             table.insert("staggered".to_string(), toml::Value::Boolean(*staggered));
-            table.insert("offset".to_string(), toml::Value::Float(*offset as f64));
-            table.insert(
-                "warp_amount".to_string(),
-                toml::Value::Float(*warp_amount as f64),
-            );
-            table.insert("falloff".to_string(), toml::Value::Float(*falloff as f64));
+            table.insert("offset".to_string(), rounded_float(*offset));
+            table.insert("warp_amount".to_string(), rounded_float(*warp_amount));
+            table.insert("falloff".to_string(), rounded_float(*falloff));
         }
         TileNodeKind::Disc {
             scale,
@@ -956,15 +1101,12 @@ fn export_node_table(
             warp_amount,
             falloff,
         } => {
-            table.insert("scale".to_string(), toml::Value::Float(*scale as f64));
+            table.insert("scale".to_string(), rounded_float(*scale));
             table.insert("seed".to_string(), toml::Value::Integer(*seed as i64));
-            table.insert("jitter".to_string(), toml::Value::Float(*jitter as f64));
-            table.insert("radius".to_string(), toml::Value::Float(*radius as f64));
-            table.insert(
-                "warp_amount".to_string(),
-                toml::Value::Float(*warp_amount as f64),
-            );
-            table.insert("falloff".to_string(), toml::Value::Float(*falloff as f64));
+            table.insert("jitter".to_string(), rounded_float(*jitter));
+            table.insert("radius".to_string(), rounded_float(*radius));
+            table.insert("warp_amount".to_string(), rounded_float(*warp_amount));
+            table.insert("falloff".to_string(), rounded_float(*falloff));
         }
         TileNodeKind::BoxDivide {
             scale,
@@ -974,18 +1116,18 @@ fn export_node_table(
             warp_amount,
             falloff,
         } => {
-            table.insert("scale".to_string(), toml::Value::Float(*scale as f64));
-            table.insert("gap".to_string(), toml::Value::Float(*gap as f64));
-            table.insert("rotation".to_string(), toml::Value::Float(*rotation as f64));
-            table.insert("rounding".to_string(), toml::Value::Float(*rounding as f64));
-            table.insert(
-                "warp_amount".to_string(),
-                toml::Value::Float(*warp_amount as f64),
-            );
-            table.insert("falloff".to_string(), toml::Value::Float(*falloff as f64));
+            table.insert("scale".to_string(), rounded_float(*scale));
+            table.insert("gap".to_string(), rounded_float(*gap));
+            table.insert("rotation".to_string(), rounded_float(*rotation));
+            table.insert("rounding".to_string(), rounded_float(*rounding));
+            table.insert("warp_amount".to_string(), rounded_float(*warp_amount));
+            table.insert("falloff".to_string(), rounded_float(*falloff));
         }
         TileNodeKind::Warp { amount } => {
-            table.insert("amount".to_string(), toml::Value::Float(*amount as f64));
+            table.insert("amount".to_string(), rounded_float(*amount));
+        }
+        TileNodeKind::MaskBlend { factor } => {
+            table.insert("factor".to_string(), rounded_float(*factor));
         }
         TileNodeKind::Material {
             roughness,
@@ -993,16 +1135,20 @@ fn export_node_table(
             opacity,
             emissive,
         } => {
-            table.insert(
-                "roughness".to_string(),
-                toml::Value::Float(*roughness as f64),
-            );
-            table.insert("metallic".to_string(), toml::Value::Float(*metallic as f64));
-            table.insert("opacity".to_string(), toml::Value::Float(*opacity as f64));
-            table.insert("emissive".to_string(), toml::Value::Float(*emissive as f64));
+            table.insert("roughness".to_string(), rounded_float(*roughness));
+            table.insert("metallic".to_string(), rounded_float(*metallic));
+            table.insert("opacity".to_string(), rounded_float(*opacity));
+            table.insert("emissive".to_string(), rounded_float(*emissive));
+        }
+        TileNodeKind::ImportLayer { source } => {
+            table.insert("source".to_string(), toml::Value::String(source.clone()));
+        }
+        TileNodeKind::LayerInput { name, value } => {
+            table.insert("name".to_string(), toml::Value::String(name.clone()));
+            table.insert("value".to_string(), rounded_float(*value));
         }
         TileNodeKind::Scalar { value } => {
-            table.insert("value".to_string(), toml::Value::Float(*value as f64));
+            table.insert("value".to_string(), rounded_float(*value));
         }
         TileNodeKind::IdRandom
         | TileNodeKind::Multiply

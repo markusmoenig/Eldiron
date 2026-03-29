@@ -1,0 +1,35 @@
+id = "2f6d98d2-62f6-4d87-9f4e-2f8cbb52a941"
+name = "Tree Brush"
+selected_node = 5
+connections = [
+  [0, 0, 1, 0],
+  [1, 0, 2, 0],
+  [2, 0, 5, 0],
+  [3, 0, 5, 2],
+  [4, 0, 5, 1],
+]
+scroll_offset = { x = 0, y = 0 }
+
+[[nodes]]
+position = { x = 200, y = 36 }
+kind = { CanopyShape = { radius = 0.54, lobes = 5, spread = 0.48, softness = 0.70 } }
+
+[[nodes]]
+position = { x = 410, y = 28 }
+kind = { Noise = { scale = 0.28, strength = 0.14, seed = 37 } }
+
+[[nodes]]
+position = { x = 620, y = 36 }
+kind = { Scatter = { count = 1, jitter = 0.0 } }
+
+[[nodes]]
+position = { x = 620, y = 185 }
+kind = { HeightProfile = { depth = 1.25, falloff = 0.76 } }
+
+[[nodes]]
+position = { x = 620, y = 300 }
+kind = { PaletteColors = { color_1 = 23, color_2 = 21, color_3 = 20, color_4 = 25, mode = 0 } }
+
+[[nodes]]
+position = { x = 900, y = 108 }
+kind = { OutputGrowth = { radius = 0.74, flow = 1.0, jitter = 0.04, depth = 1.30, cell_size = 0.14, channel = 0, palette_start = 0, palette_count = 1, palette_mode = 0 } }

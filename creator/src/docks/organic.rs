@@ -1,6 +1,6 @@
 use crate::editor::PALETTE;
 use crate::prelude::*;
-use rusterix::{OrganicBrushGraph, OrganicBrushNode, OrganicNodeKind};
+use organicgraph::{OrganicBrushGraph, OrganicBrushNode, OrganicNodeKind};
 
 const ORGANIC_CANVAS_VIEW: &str = "Organic Brush NodeCanvas";
 const ORGANIC_SETTINGS_LAYOUT: &str = "Organic Brush Settings";
@@ -8,7 +8,6 @@ const ORGANIC_SURFACE_BUTTON: &str = "Organic Dock Surface Nodes";
 const ORGANIC_SHAPE_BUTTON: &str = "Organic Dock Shape Nodes";
 const ORGANIC_PLACEMENT_BUTTON: &str = "Organic Dock Placement Nodes";
 const ORGANIC_GROWTH_BUTTON: &str = "Organic Dock Growth Nodes";
-const ORGANIC_MATERIAL_BUTTON: &str = "Organic Dock Material Nodes";
 const ORGANIC_OUTPUT_BUTTON: &str = "Organic Dock Output Nodes";
 const ORGANIC_PRESET_BUTTON: &str = "Organic Dock Presets";
 const ORGANIC_RESET_BUTTON: &str = "Organic Dock Reset Graph";
@@ -25,8 +24,11 @@ fn organic_node_name(kind: &OrganicNodeKind) -> &'static str {
         OrganicNodeKind::Scatter { .. } => "Repeat",
         OrganicNodeKind::HeightProfile { .. } => "Growth Profile",
         OrganicNodeKind::PaletteRange { .. } => "Palette Range",
+        OrganicNodeKind::PaletteColors { .. } => "Palette Colors",
         OrganicNodeKind::Material { .. } => "Material",
-        OrganicNodeKind::OutputVolume { .. } => "Output Volume",
+        OrganicNodeKind::OutputPaint { .. } => "Output Paint",
+        OrganicNodeKind::OutputGrowth { .. } => "Output Growth",
+        OrganicNodeKind::OutputPath { .. } => "Output Path",
     }
 }
 
@@ -59,9 +61,18 @@ fn organic_node_status_text(kind: &OrganicNodeKind) -> &'static str {
         OrganicNodeKind::PaletteRange { .. } => {
             "Provides a palette range source for the material branch, with optional variation."
         }
+        OrganicNodeKind::PaletteColors { .. } => {
+            "Chooses explicit palette colors and how the brush varies between them."
+        }
         OrganicNodeKind::Material { .. } => "Chooses which material channel the brush writes into.",
-        OrganicNodeKind::OutputVolume { .. } => {
-            "Final brush output. Controls stroke scale, deposition strength, resolution, and growth depth."
+        OrganicNodeKind::OutputPaint { .. } => {
+            "Final paint output. Controls stamp scale, deposition strength, and paint resolution."
+        }
+        OrganicNodeKind::OutputGrowth { .. } => {
+            "Final growth output. Controls spawn scale, growth depth, and cluster resolution."
+        }
+        OrganicNodeKind::OutputPath { .. } => {
+            "Future path-growth output for vines, roots, and branch-like strokes."
         }
     }
 }
@@ -79,10 +90,6 @@ fn organic_node_inputs(kind: &OrganicNodeKind) -> Vec<TheNodeTerminal> {
         name: name.to_string(),
         category_name: "Growth".to_string(),
     };
-    let material = |name: &str| TheNodeTerminal {
-        name: name.to_string(),
-        category_name: "Material".to_string(),
-    };
     match kind {
         OrganicNodeKind::SurfaceInput => Vec::new(),
         OrganicNodeKind::CircleMask { .. } => Vec::new(),
@@ -93,9 +100,19 @@ fn organic_node_inputs(kind: &OrganicNodeKind) -> Vec<TheNodeTerminal> {
         OrganicNodeKind::Scatter { .. } => vec![shape("Shape"), placement("Placement")],
         OrganicNodeKind::HeightProfile { .. } => vec![growth("Growth")],
         OrganicNodeKind::PaletteRange { .. } => Vec::new(),
-        OrganicNodeKind::Material { .. } => vec![material("Material")],
-        OrganicNodeKind::OutputVolume { .. } => {
-            vec![shape("Shape"), material("Material"), growth("Growth")]
+        OrganicNodeKind::PaletteColors { .. } => Vec::new(),
+        OrganicNodeKind::Material { .. } => Vec::new(),
+        OrganicNodeKind::OutputPaint { .. }
+        | OrganicNodeKind::OutputGrowth { .. }
+        | OrganicNodeKind::OutputPath { .. } => {
+            vec![
+                shape("Shape"),
+                TheNodeTerminal {
+                    name: "Palette".to_string(),
+                    category_name: "Output".to_string(),
+                },
+                growth("Growth"),
+            ]
         }
     }
 }
@@ -109,10 +126,6 @@ fn organic_node_outputs(kind: &OrganicNodeKind) -> Vec<TheNodeTerminal> {
         name: name.to_string(),
         category_name: "Growth".to_string(),
     };
-    let material = |name: &str| TheNodeTerminal {
-        name: name.to_string(),
-        category_name: "Material".to_string(),
-    };
     match kind {
         OrganicNodeKind::SurfaceInput => Vec::new(),
         OrganicNodeKind::CircleMask { .. } => vec![shape("Shape")],
@@ -122,9 +135,15 @@ fn organic_node_outputs(kind: &OrganicNodeKind) -> Vec<TheNodeTerminal> {
         OrganicNodeKind::Noise { .. } => vec![shape("Shape")],
         OrganicNodeKind::Scatter { .. } => vec![shape("Shape")],
         OrganicNodeKind::HeightProfile { .. } => vec![growth("Growth")],
-        OrganicNodeKind::PaletteRange { .. } => vec![material("Material")],
-        OrganicNodeKind::Material { .. } => vec![material("Material")],
-        OrganicNodeKind::OutputVolume { .. } => Vec::new(),
+        OrganicNodeKind::PaletteRange { .. } => Vec::new(),
+        OrganicNodeKind::PaletteColors { .. } => vec![TheNodeTerminal {
+            name: "Palette".to_string(),
+            category_name: "Output".to_string(),
+        }],
+        OrganicNodeKind::Material { .. } => Vec::new(),
+        OrganicNodeKind::OutputPaint { .. }
+        | OrganicNodeKind::OutputGrowth { .. }
+        | OrganicNodeKind::OutputPath { .. } => Vec::new(),
     }
 }
 
@@ -134,6 +153,16 @@ pub struct OrganicDock {
     categories: FxHashMap<String, TheColor>,
 }
 
+#[derive(Clone, Copy)]
+enum OrganicPresetKind {
+    Moss,
+    Mud,
+    Grass,
+    PathVines,
+    Bush,
+    Tree,
+}
+
 impl OrganicDock {
     fn default_categories() -> FxHashMap<String, TheColor> {
         let mut categories = FxHashMap::default();
@@ -141,7 +170,6 @@ impl OrganicDock {
         categories.insert("Shape".into(), TheColor::from("#4c8bf5"));
         categories.insert("Placement".into(), TheColor::from("#0aa37f"));
         categories.insert("Growth".into(), TheColor::from("#64a6a8"));
-        categories.insert("Material".into(), TheColor::from("#b86bc8"));
         categories.insert("Output".into(), TheColor::from("#d47f4a"));
         categories
     }
@@ -158,17 +186,120 @@ impl OrganicDock {
             {
                 self.active_graph_id = id;
                 self.graph = graph.clone();
+                if let Some(preset) = Self::preset_kind_for_graph_name(&self.graph.name) {
+                    Self::retarget_preset_palette(&mut self.graph, project, preset);
+                }
                 return;
             }
 
             if let Some((id, graph)) = map.organic_brush_graphs.first() {
                 self.active_graph_id = *id;
                 self.graph = graph.clone();
+                if let Some(preset) = Self::preset_kind_for_graph_name(&self.graph.name) {
+                    Self::retarget_preset_palette(&mut self.graph, project, preset);
+                }
                 return;
             }
         }
         self.graph = OrganicBrushGraph::default();
+        Self::retarget_preset_palette(&mut self.graph, project, OrganicPresetKind::Moss);
         self.active_graph_id = self.graph.id;
+    }
+
+    fn preset_kind_for_graph_name(name: &str) -> Option<OrganicPresetKind> {
+        match name {
+            "Default Paint Brush" | "Moss Brush" => Some(OrganicPresetKind::Moss),
+            "Mud Brush" => Some(OrganicPresetKind::Mud),
+            "Grass Brush" => Some(OrganicPresetKind::Grass),
+            "Vines Brush" => Some(OrganicPresetKind::PathVines),
+            "Bush Brush" => Some(OrganicPresetKind::Bush),
+            "Tree Brush" => Some(OrganicPresetKind::Tree),
+            _ => None,
+        }
+    }
+
+    fn preset_palette_mode(kind: OrganicPresetKind) -> i32 {
+        match kind {
+            OrganicPresetKind::Moss => 0,
+            OrganicPresetKind::Mud => 0,
+            OrganicPresetKind::Grass => 0,
+            OrganicPresetKind::PathVines => 0,
+            OrganicPresetKind::Bush => 0,
+            OrganicPresetKind::Tree => 0,
+        }
+    }
+
+    fn preset_palette_targets(kind: OrganicPresetKind) -> [TheColor; 4] {
+        match kind {
+            OrganicPresetKind::Moss => [
+                TheColor::from("#415835"),
+                TheColor::from("#567b43"),
+                TheColor::from("#7ea25a"),
+                TheColor::from("#b2c776"),
+            ],
+            OrganicPresetKind::Mud => [
+                TheColor::from("#4f382a"),
+                TheColor::from("#6e4f38"),
+                TheColor::from("#8e7050"),
+                TheColor::from("#b59a73"),
+            ],
+            OrganicPresetKind::Grass => [
+                TheColor::from("#4f7a39"),
+                TheColor::from("#4f7a39"),
+                TheColor::from("#7ea653"),
+                TheColor::from("#b2c776"),
+            ],
+            OrganicPresetKind::PathVines => [
+                TheColor::from("#415835"),
+                TheColor::from("#567b43"),
+                TheColor::from("#62724a"),
+                TheColor::from("#8c9061"),
+            ],
+            OrganicPresetKind::Bush => [
+                TheColor::from("#3f6a43"),
+                TheColor::from("#3f6a43"),
+                TheColor::from("#638b55"),
+                TheColor::from("#9fb36d"),
+            ],
+            OrganicPresetKind::Tree => [
+                TheColor::from("#3f6a43"),
+                TheColor::from("#638b55"),
+                TheColor::from("#9fb36d"),
+                TheColor::from("#b2c776"),
+            ],
+        }
+    }
+
+    fn retarget_preset_palette(
+        graph: &mut OrganicBrushGraph,
+        project: &Project,
+        preset: OrganicPresetKind,
+    ) {
+        let target = Self::preset_palette_targets(preset);
+        let map_index = |color: TheColor| -> i32 {
+            project
+                .palette
+                .find_closest_color_index(&color)
+                .map(|idx| idx as i32)
+                .unwrap_or(0)
+        };
+
+        for node in &mut graph.nodes {
+            if let OrganicNodeKind::PaletteColors {
+                color_1,
+                color_2,
+                color_3,
+                color_4,
+                mode,
+            } = &mut node.kind
+            {
+                *color_1 = map_index(target[0].clone());
+                *color_2 = map_index(target[1].clone());
+                *color_3 = map_index(target[2].clone());
+                *color_4 = map_index(target[3].clone());
+                *mode = Self::preset_palette_mode(preset);
+            }
+        }
     }
 
     fn save_state_to_map(&self, project: &mut Project, server_ctx: &ServerContext) {
@@ -211,6 +342,7 @@ impl OrganicDock {
 
     fn sync_canvas(&self, ui: &mut TheUI) {
         ui.set_node_canvas(ORGANIC_CANVAS_VIEW, self.graph_to_canvas());
+        ui.set_node_overlay_tiled(ORGANIC_CANVAS_VIEW, false);
     }
 
     fn sync_preview_overlay(&self, ui: &mut TheUI) {
@@ -218,271 +350,11 @@ impl OrganicDock {
     }
 
     fn render_preview_overlay(&self) -> TheRGBABuffer {
-        let size = 156;
-        let mut buffer = TheRGBABuffer::new(TheDim::sized(size, size));
-        buffer.fill([0, 0, 0, 0]);
-
-        let panel = TheDim::new(6, 6, size - 12, size - 12);
-        for y in panel.y..panel.y + panel.height {
-            for x in panel.x..panel.x + panel.width {
-                let color = if x == panel.x
-                    || y == panel.y
-                    || x == panel.x + panel.width - 1
-                    || y == panel.y + panel.height - 1
-                {
-                    [190, 190, 190, 255]
-                } else if x == panel.x + 1
-                    || y == panel.y + 1
-                    || x == panel.x + panel.width - 2
-                    || y == panel.y + panel.height - 2
-                {
-                    [48, 48, 48, 255]
-                } else {
-                    [22, 28, 24, 235]
-                };
-                buffer.set_pixel(x, y, &color);
-            }
-        }
-
-        let mut radius = 0.6_f32;
-        let mut flow = 1.0_f32;
-        let mut jitter = 0.15_f32;
-        let mut circle_radius = 1.0_f32;
-        let mut circle_softness = 0.35_f32;
-        let mut canopy_lobes = 0_i32;
-        let mut canopy_spread = 0.0_f32;
-        let mut bush_layers = 0_i32;
-        let mut bush_taper = 0.0_f32;
-        let mut scatter_count = 1_i32;
-        let mut scatter_jitter = 0.0_f32;
-        let mut height_depth = 1.0_f32;
-        let mut height_falloff = 0.5_f32;
-
-        for node in &self.graph.nodes {
-            match node.kind {
-                OrganicNodeKind::CircleMask {
-                    radius: r,
-                    softness,
-                } => {
-                    circle_radius = r.max(0.05);
-                    circle_softness = softness.clamp(0.0, 1.0);
-                }
-                OrganicNodeKind::CanopyShape {
-                    radius: r,
-                    lobes,
-                    spread,
-                    softness,
-                } => {
-                    circle_radius = r.max(0.05);
-                    circle_softness = softness.clamp(0.0, 1.0);
-                    canopy_lobes = lobes.max(3);
-                    canopy_spread = spread.clamp(0.0, 1.0);
-                }
-                OrganicNodeKind::BushShape {
-                    radius: r,
-                    layers,
-                    taper,
-                    softness,
-                    ..
-                } => {
-                    circle_radius = r.max(0.05);
-                    circle_softness = softness.clamp(0.0, 1.0);
-                    bush_layers = layers.max(2);
-                    bush_taper = taper.clamp(0.0, 1.0);
-                }
-                OrganicNodeKind::LineShape {
-                    length,
-                    width,
-                    softness,
-                } => {
-                    circle_radius = (length.max(width) * 0.5).max(0.05);
-                    circle_softness = softness.clamp(0.0, 1.0);
-                }
-                OrganicNodeKind::Scatter { count, jitter: j } => {
-                    scatter_count = count.max(1);
-                    scatter_jitter = j.clamp(0.0, 1.0);
-                }
-                OrganicNodeKind::HeightProfile { depth, falloff } => {
-                    height_depth = depth.max(0.05);
-                    height_falloff = falloff.clamp(0.0, 1.0);
-                }
-                OrganicNodeKind::OutputVolume {
-                    radius: r,
-                    flow: f,
-                    jitter: j,
-                    ..
-                } => {
-                    radius = r.max(0.05);
-                    flow = f.clamp(0.05, 1.0);
-                    jitter = j.clamp(0.0, 1.0);
-                }
-                OrganicNodeKind::SurfaceInput
-                | OrganicNodeKind::Noise { .. }
-                | OrganicNodeKind::PaletteRange { .. }
-                | OrganicNodeKind::Material { .. } => {}
-            }
-        }
-
-        let center = Vec2::new(size as f32 * 0.5, size as f32 * 0.5);
-        let base_radius = (radius * circle_radius).clamp(0.05, 4.0) * 28.0;
-        let scatter_count = scatter_count.max(1) as usize;
-        let dab_radius = if scatter_count > 1 {
-            base_radius * 0.72
-        } else {
-            base_radius
-        };
-
-        if bush_layers > 0 {
-            let layer_count = bush_layers as usize;
-            for i in 0..layer_count {
-                let t = if layer_count <= 1 {
-                    0.0
-                } else {
-                    i as f32 / (layer_count - 1) as f32
-                };
-                let radius_scale = 1.0 - t * bush_taper * 0.55;
-                let y_bias = (0.5 - t) * base_radius * 0.28;
-                Self::paint_preview_dab(
-                    &mut buffer,
-                    center + Vec2::new(0.0, y_bias),
-                    dab_radius * radius_scale,
-                    flow,
-                    circle_softness,
-                    height_falloff,
-                    height_depth,
-                );
-            }
-        } else if canopy_lobes > 0 {
-            Self::paint_preview_dab(
-                &mut buffer,
-                center,
-                dab_radius * 0.95,
-                flow,
-                circle_softness,
-                height_falloff,
-                height_depth,
-            );
-            let lobe_radius = dab_radius * (0.78 - canopy_spread * 0.18);
-            let lobe_ring = base_radius * (0.30 + canopy_spread * 0.35);
-            for i in 0..canopy_lobes as usize {
-                let angle = i as f32 / canopy_lobes as f32 * std::f32::consts::TAU;
-                let offset = Vec2::new(angle.cos(), angle.sin()) * lobe_ring;
-                Self::paint_preview_dab(
-                    &mut buffer,
-                    center + offset,
-                    lobe_radius,
-                    flow,
-                    circle_softness,
-                    height_falloff,
-                    height_depth,
-                );
-            }
-        } else {
-            for i in 0..scatter_count {
-                let offset = Self::preview_scatter_offset(
-                    i,
-                    scatter_count,
-                    jitter,
-                    scatter_jitter,
-                    base_radius,
-                );
-                Self::paint_preview_dab(
-                    &mut buffer,
-                    center + offset,
-                    dab_radius,
-                    flow,
-                    circle_softness,
-                    height_falloff,
-                    height_depth,
-                );
-            }
-        }
-
-        for x in (panel.x + 12)..(panel.x + panel.width - 12) {
-            buffer.set_pixel(x, size / 2, &[80, 96, 86, 255]);
-        }
-        for y in (panel.y + 12)..(panel.y + panel.height - 12) {
-            buffer.set_pixel(size / 2, y, &[80, 96, 86, 255]);
-        }
-
-        buffer.draw_disc(
-            &TheDim::new(size / 2 - 3, size / 2 - 3, 6, 6),
-            &[230, 230, 210, 220],
-            1.0,
-            &[30, 30, 24, 255],
-        );
-
+        let preview = self.graph.render_preview(156);
+        let mut buffer =
+            TheRGBABuffer::new(TheDim::sized(preview.width as i32, preview.height as i32));
+        buffer.pixels_mut().copy_from_slice(&preview.pixels);
         buffer
-    }
-
-    fn preview_scatter_offset(
-        index: usize,
-        count: usize,
-        jitter: f32,
-        scatter_jitter: f32,
-        base_radius: f32,
-    ) -> Vec2<f32> {
-        if count <= 1 {
-            return Vec2::zero();
-        }
-        let angle = (index as f32 * 2.3999632) + jitter * std::f32::consts::PI;
-        let ring = ((index + 1) as f32 / count as f32).sqrt();
-        let amount = base_radius * scatter_jitter * (0.15 + jitter * 0.35);
-        Vec2::new(angle.cos(), angle.sin()) * (ring * amount)
-    }
-
-    fn paint_preview_dab(
-        buffer: &mut TheRGBABuffer,
-        center: Vec2<f32>,
-        radius: f32,
-        flow: f32,
-        edge_softness: f32,
-        height_falloff: f32,
-        height_depth: f32,
-    ) {
-        let min_x = (center.x - radius).floor().max(0.0) as i32;
-        let max_x = (center.x + radius)
-            .ceil()
-            .min((buffer.dim().width - 1) as f32) as i32;
-        let min_y = (center.y - radius).floor().max(0.0) as i32;
-        let max_y = (center.y + radius)
-            .ceil()
-            .min((buffer.dim().height - 1) as f32) as i32;
-
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
-                let p = Vec2::new(x as f32 + 0.5, y as f32 + 0.5);
-                let dist = (p - center).magnitude();
-                if dist > radius {
-                    continue;
-                }
-                let radial = 1.0 - (dist / radius).clamp(0.0, 1.0);
-                let softness = edge_softness.clamp(0.0, 0.999);
-                let edge = if softness <= 0.001 {
-                    if radial > 0.0 { 1.0 } else { 0.0 }
-                } else {
-                    let start = 1.0 - softness;
-                    if radial >= start {
-                        1.0
-                    } else {
-                        (radial / start.max(0.001)).clamp(0.0, 1.0)
-                    }
-                };
-                let falloff = radial.powf((1.0 - height_falloff.clamp(0.0, 1.0)) * 2.0 + 0.5);
-                let alpha = (edge * flow * 180.0).clamp(0.0, 255.0) as u8;
-                let shade =
-                    (60.0 + falloff * height_depth.clamp(0.2, 2.0) * 130.0).clamp(0.0, 255.0) as u8;
-                if let Some(existing) = buffer.get_pixel(x, y) {
-                    let out = [
-                        existing[0].max(shade / 2),
-                        existing[1].max(shade),
-                        existing[2].max(shade / 3),
-                        existing[3].max(alpha),
-                    ];
-                    buffer.set_pixel(x, y, &out);
-                }
-            }
-        }
     }
 
     fn clear_selected_node_ui(&self, ui: &mut TheUI, ctx: &mut TheContext) {
@@ -742,11 +614,55 @@ impl OrganicDock {
                         false,
                     ));
                 }
+                OrganicNodeKind::PaletteColors {
+                    color_1,
+                    color_2,
+                    color_3,
+                    color_4,
+                    mode,
+                } => {
+                    let palette = PALETTE.read().unwrap().clone();
+                    nodeui.add_item(TheNodeUIItem::PaletteIndexPicker(
+                        "organicNodePaletteColor1".into(),
+                        "Color 1".into(),
+                        "Primary palette color for this brush.".into(),
+                        *color_1,
+                        palette.clone(),
+                    ));
+                    nodeui.add_item(TheNodeUIItem::PaletteIndexPicker(
+                        "organicNodePaletteColor2".into(),
+                        "Color 2".into(),
+                        "Secondary palette color for this brush.".into(),
+                        *color_2,
+                        palette.clone(),
+                    ));
+                    nodeui.add_item(TheNodeUIItem::PaletteIndexPicker(
+                        "organicNodePaletteColor3".into(),
+                        "Color 3".into(),
+                        "Third palette color for this brush.".into(),
+                        *color_3,
+                        palette.clone(),
+                    ));
+                    nodeui.add_item(TheNodeUIItem::PaletteIndexPicker(
+                        "organicNodePaletteColor4".into(),
+                        "Color 4".into(),
+                        "Fourth palette color for this brush.".into(),
+                        *color_4,
+                        palette,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::Selector(
+                        "organicNodePaletteColorsMode".into(),
+                        "Mode".into(),
+                        "How the brush varies across the chosen colors.".into(),
+                        vec!["Fixed".into(), "Accent".into(), "Per Dab".into()],
+                        (*mode).clamp(0, 2),
+                    ));
+                }
                 OrganicNodeKind::Material { channel } => {
                     nodeui.add_item(TheNodeUIItem::Selector(
                         "organicNodeMaterialChannel".into(),
                         "Channel".into(),
-                        "Target material channel for the painted volume.".into(),
+                        "Legacy material channel node.".into(),
                         vec![
                             "Foliage".into(),
                             "Soil".into(),
@@ -756,19 +672,39 @@ impl OrganicDock {
                         (*channel).clamp(0, 3),
                     ));
                 }
-                OrganicNodeKind::OutputVolume {
+                OrganicNodeKind::OutputPaint {
                     radius,
                     flow,
                     jitter,
                     depth,
                     cell_size,
+                    channel,
+                    ..
+                }
+                | OrganicNodeKind::OutputGrowth {
+                    radius,
+                    flow,
+                    jitter,
+                    depth,
+                    cell_size,
+                    channel,
+                    ..
+                }
+                | OrganicNodeKind::OutputPath {
+                    radius,
+                    flow,
+                    jitter,
+                    depth,
+                    cell_size,
+                    channel,
+                    ..
                 } => {
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "organicNodeOutputRadius".into(),
                         "Radius".into(),
                         "Brush radius in local paint space.".into(),
                         *radius,
-                        0.05..=4.0,
+                        0.05..=1.0,
                         false,
                     ));
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
@@ -802,6 +738,18 @@ impl OrganicDock {
                         *cell_size,
                         0.05..=1.0,
                         false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::Selector(
+                        "organicNodeOutputChannel".into(),
+                        "Channel".into(),
+                        "Target host material channel for this brush output.".into(),
+                        vec![
+                            "Foliage".into(),
+                            "Soil".into(),
+                            "Stone".into(),
+                            "Accent".into(),
+                        ],
+                        (*channel).clamp(0, 3),
                     ));
                 }
             }
@@ -917,31 +865,29 @@ impl Dock for OrganicDock {
         }));
         toolbar_hlayout.add_widget(Box::new(growth_button));
 
-        let mut material_button = TheTraybarButton::new(TheId::named(ORGANIC_MATERIAL_BUTTON));
-        material_button.set_text("Material".to_string());
-        material_button.set_custom_color(Some(TheColor::from_u8_array_3([184, 107, 200])));
-        material_button.set_status_text("Add material assignment nodes.");
-        material_button.set_context_menu(Some(TheContextMenu {
-            items: vec![
-                TheContextMenuItem::new(
-                    "Palette Range".into(),
-                    TheId::named("Organic Add Palette Range"),
-                ),
-                TheContextMenuItem::new("Material".into(), TheId::named("Organic Add Material")),
-            ],
-            ..Default::default()
-        }));
-        toolbar_hlayout.add_widget(Box::new(material_button));
-
         let mut output_button = TheTraybarButton::new(TheId::named(ORGANIC_OUTPUT_BUTTON));
         output_button.set_text("Output".to_string());
         output_button.set_custom_color(Some(TheColor::from_u8_array_3([214, 134, 96])));
         output_button.set_status_text("Add final output nodes.");
         output_button.set_context_menu(Some(TheContextMenu {
-            items: vec![TheContextMenuItem::new(
-                "Output Volume".into(),
-                TheId::named("Organic Add Output"),
-            )],
+            items: vec![
+                TheContextMenuItem::new(
+                    "Palette Colors".into(),
+                    TheId::named("Organic Add Palette Colors"),
+                ),
+                TheContextMenuItem::new(
+                    "Paint Output".into(),
+                    TheId::named("Organic Add Paint Output"),
+                ),
+                TheContextMenuItem::new(
+                    "Growth Output".into(),
+                    TheId::named("Organic Add Growth Output"),
+                ),
+                TheContextMenuItem::new(
+                    "Path Output".into(),
+                    TheId::named("Organic Add Path Output"),
+                ),
+            ],
             ..Default::default()
         }));
         toolbar_hlayout.add_widget(Box::new(output_button));
@@ -960,11 +906,18 @@ impl Dock for OrganicDock {
         preset_button.set_status_text("Load a usable organic brush preset.");
         preset_button.set_context_menu(Some(TheContextMenu {
             items: vec![
-                TheContextMenuItem::new("Moss".into(), TheId::named("Organic Preset Moss")),
-                TheContextMenuItem::new("Mud".into(), TheId::named("Organic Preset Mud")),
-                TheContextMenuItem::new("Grass".into(), TheId::named("Organic Preset Grass")),
-                TheContextMenuItem::new("Vines".into(), TheId::named("Organic Preset Vines")),
-                TheContextMenuItem::new("Bush".into(), TheId::named("Organic Preset Bush")),
+                TheContextMenuItem::new("Paint: Moss".into(), TheId::named("Organic Preset Moss")),
+                TheContextMenuItem::new("Paint: Mud".into(), TheId::named("Organic Preset Mud")),
+                TheContextMenuItem::new(
+                    "Paint: Grass".into(),
+                    TheId::named("Organic Preset Grass"),
+                ),
+                TheContextMenuItem::new(
+                    "Path: Vines".into(),
+                    TheId::named("Organic Preset Path Vines"),
+                ),
+                TheContextMenuItem::new("Growth: Bush".into(), TheId::named("Organic Preset Bush")),
+                TheContextMenuItem::new("Growth: Tree".into(), TheId::named("Organic Preset Tree")),
             ],
             ..Default::default()
         }));
@@ -982,7 +935,7 @@ impl Dock for OrganicDock {
 
         let mut settings_canvas = TheCanvas::default();
         let mut text_layout = TheTextLayout::new(TheId::named(ORGANIC_SETTINGS_LAYOUT));
-        text_layout.limiter_mut().set_max_width(250);
+        text_layout.limiter_mut().set_max_width(290);
         text_layout.set_text_margin(20);
         text_layout.set_text_align(TheHorizontalAlign::Right);
         settings_canvas.set_layout(text_layout);
@@ -1032,7 +985,6 @@ impl Dock for OrganicDock {
                     || id.name == ORGANIC_SHAPE_BUTTON
                     || id.name == ORGANIC_PLACEMENT_BUTTON
                     || id.name == ORGANIC_GROWTH_BUTTON
-                    || id.name == ORGANIC_MATERIAL_BUTTON
                     || id.name == ORGANIC_OUTPUT_BUTTON =>
             {
                 let kind = match item.name.as_str() {
@@ -1073,18 +1025,45 @@ impl Dock for OrganicDock {
                         depth: 0.4,
                         falloff: 0.5,
                     },
-                    "Organic Add Palette Range" => OrganicNodeKind::PaletteRange {
-                        start: 0,
-                        count: 1,
-                        mode: 0,
+                    "Organic Add Palette Colors" => OrganicNodeKind::PaletteColors {
+                        color_1: 0,
+                        color_2: 1,
+                        color_3: 2,
+                        color_4: 3,
+                        mode: 1,
                     },
-                    "Organic Add Material" => OrganicNodeKind::Material { channel: 0 },
-                    "Organic Add Output" => OrganicNodeKind::OutputVolume {
+                    "Organic Add Paint Output" => OrganicNodeKind::OutputPaint {
                         radius: 0.6,
                         flow: 1.0,
                         jitter: 0.15,
                         depth: 0.45,
                         cell_size: 0.25,
+                        channel: 0,
+                        palette_start: 0,
+                        palette_count: 1,
+                        palette_mode: 0,
+                    },
+                    "Organic Add Growth Output" => OrganicNodeKind::OutputGrowth {
+                        radius: 0.6,
+                        flow: 1.0,
+                        jitter: 0.15,
+                        depth: 0.45,
+                        cell_size: 0.25,
+                        channel: 0,
+                        palette_start: 0,
+                        palette_count: 1,
+                        palette_mode: 0,
+                    },
+                    "Organic Add Path Output" => OrganicNodeKind::OutputPath {
+                        radius: 0.6,
+                        flow: 1.0,
+                        jitter: 0.15,
+                        depth: 0.45,
+                        cell_size: 0.25,
+                        channel: 0,
+                        palette_start: 0,
+                        palette_count: 1,
+                        palette_mode: 0,
                     },
                     _ => return false,
                 };
@@ -1094,14 +1073,24 @@ impl Dock for OrganicDock {
                 true
             }
             TheEvent::ContextMenuSelected(id, item) if id.name == ORGANIC_PRESET_BUTTON => {
-                self.graph = match item.name.as_str() {
-                    "Organic Preset Moss" => OrganicBrushGraph::preset_moss(),
-                    "Organic Preset Mud" => OrganicBrushGraph::preset_mud(),
-                    "Organic Preset Grass" => OrganicBrushGraph::preset_grass(),
-                    "Organic Preset Vines" => OrganicBrushGraph::preset_vines(),
-                    "Organic Preset Bush" => OrganicBrushGraph::preset_bush(),
+                let preset = match item.name.as_str() {
+                    "Organic Preset Moss" => OrganicPresetKind::Moss,
+                    "Organic Preset Mud" => OrganicPresetKind::Mud,
+                    "Organic Preset Grass" => OrganicPresetKind::Grass,
+                    "Organic Preset Path Vines" => OrganicPresetKind::PathVines,
+                    "Organic Preset Bush" => OrganicPresetKind::Bush,
+                    "Organic Preset Tree" => OrganicPresetKind::Tree,
                     _ => return false,
                 };
+                self.graph = match preset {
+                    OrganicPresetKind::Moss => OrganicBrushGraph::preset_moss(),
+                    OrganicPresetKind::Mud => OrganicBrushGraph::preset_mud(),
+                    OrganicPresetKind::Grass => OrganicBrushGraph::preset_grass(),
+                    OrganicPresetKind::PathVines => OrganicBrushGraph::preset_path_vines(),
+                    OrganicPresetKind::Bush => OrganicBrushGraph::preset_bush(),
+                    OrganicPresetKind::Tree => OrganicBrushGraph::preset_tree(),
+                };
+                Self::retarget_preset_palette(&mut self.graph, project, preset);
                 self.active_graph_id = self.graph.id;
                 self.sync_canvas(ui);
                 self.sync_preview_overlay(ui);
@@ -1113,6 +1102,7 @@ impl Dock for OrganicDock {
                 if id.name == ORGANIC_RESET_BUTTON =>
             {
                 self.graph = OrganicBrushGraph::default();
+                Self::retarget_preset_palette(&mut self.graph, project, OrganicPresetKind::Moss);
                 self.sync_canvas(ui);
                 self.sync_preview_overlay(ui);
                 self.save_state_to_map(project, server_ctx);
@@ -1343,7 +1333,57 @@ impl Dock for OrganicDock {
                             save_graph = true;
                         }
                         (
-                            OrganicNodeKind::OutputVolume { radius, .. },
+                            OrganicNodeKind::PaletteColors { color_1, .. },
+                            "organicNodePaletteColor1",
+                            v,
+                        ) => {
+                            if let Some(new_index) = v.to_i32() {
+                                *color_1 = new_index.clamp(0, 255);
+                                save_graph = true;
+                            }
+                        }
+                        (
+                            OrganicNodeKind::PaletteColors { color_2, .. },
+                            "organicNodePaletteColor2",
+                            v,
+                        ) => {
+                            if let Some(new_index) = v.to_i32() {
+                                *color_2 = new_index.clamp(0, 255);
+                                save_graph = true;
+                            }
+                        }
+                        (
+                            OrganicNodeKind::PaletteColors { color_3, .. },
+                            "organicNodePaletteColor3",
+                            v,
+                        ) => {
+                            if let Some(new_index) = v.to_i32() {
+                                *color_3 = new_index.clamp(0, 255);
+                                save_graph = true;
+                            }
+                        }
+                        (
+                            OrganicNodeKind::PaletteColors { color_4, .. },
+                            "organicNodePaletteColor4",
+                            v,
+                        ) => {
+                            if let Some(new_index) = v.to_i32() {
+                                *color_4 = new_index.clamp(0, 255);
+                                save_graph = true;
+                            }
+                        }
+                        (
+                            OrganicNodeKind::PaletteColors { mode, .. },
+                            "organicNodePaletteColorsMode",
+                            TheValue::Int(v),
+                        ) => {
+                            *mode = (*v).clamp(0, 2);
+                            save_graph = true;
+                        }
+                        (
+                            OrganicNodeKind::OutputPaint { radius, .. }
+                            | OrganicNodeKind::OutputGrowth { radius, .. }
+                            | OrganicNodeKind::OutputPath { radius, .. },
                             "organicNodeOutputRadius",
                             TheValue::FloatRange(v, _),
                         ) => {
@@ -1351,7 +1391,9 @@ impl Dock for OrganicDock {
                             save_graph = true;
                         }
                         (
-                            OrganicNodeKind::OutputVolume { flow, .. },
+                            OrganicNodeKind::OutputPaint { flow, .. }
+                            | OrganicNodeKind::OutputGrowth { flow, .. }
+                            | OrganicNodeKind::OutputPath { flow, .. },
                             "organicNodeOutputFlow",
                             TheValue::FloatRange(v, _),
                         ) => {
@@ -1359,7 +1401,9 @@ impl Dock for OrganicDock {
                             save_graph = true;
                         }
                         (
-                            OrganicNodeKind::OutputVolume { jitter, .. },
+                            OrganicNodeKind::OutputPaint { jitter, .. }
+                            | OrganicNodeKind::OutputGrowth { jitter, .. }
+                            | OrganicNodeKind::OutputPath { jitter, .. },
                             "organicNodeOutputJitter",
                             TheValue::FloatRange(v, _),
                         ) => {
@@ -1367,7 +1411,9 @@ impl Dock for OrganicDock {
                             save_graph = true;
                         }
                         (
-                            OrganicNodeKind::OutputVolume { depth, .. },
+                            OrganicNodeKind::OutputPaint { depth, .. }
+                            | OrganicNodeKind::OutputGrowth { depth, .. }
+                            | OrganicNodeKind::OutputPath { depth, .. },
                             "organicNodeOutputDepth",
                             TheValue::FloatRange(v, _),
                         ) => {
@@ -1375,11 +1421,55 @@ impl Dock for OrganicDock {
                             save_graph = true;
                         }
                         (
-                            OrganicNodeKind::OutputVolume { cell_size, .. },
+                            OrganicNodeKind::OutputPaint { cell_size, .. }
+                            | OrganicNodeKind::OutputGrowth { cell_size, .. }
+                            | OrganicNodeKind::OutputPath { cell_size, .. },
                             "organicNodeOutputCellSize",
                             TheValue::FloatRange(v, _),
                         ) => {
                             *cell_size = *v;
+                            save_graph = true;
+                        }
+                        (
+                            OrganicNodeKind::OutputPaint { channel, .. }
+                            | OrganicNodeKind::OutputGrowth { channel, .. }
+                            | OrganicNodeKind::OutputPath { channel, .. },
+                            "organicNodeOutputChannel",
+                            TheValue::Int(v),
+                        ) => {
+                            *channel = (*v).clamp(0, 3);
+                            save_graph = true;
+                        }
+                        (
+                            OrganicNodeKind::OutputPaint { palette_start, .. }
+                            | OrganicNodeKind::OutputGrowth { palette_start, .. }
+                            | OrganicNodeKind::OutputPath { palette_start, .. },
+                            "organicNodeOutputPaletteStart",
+                            v,
+                        ) => {
+                            if let Some(new_index) = v.to_i32() {
+                                *palette_start = new_index.clamp(0, 255);
+                                save_graph = true;
+                            }
+                        }
+                        (
+                            OrganicNodeKind::OutputPaint { palette_count, .. }
+                            | OrganicNodeKind::OutputGrowth { palette_count, .. }
+                            | OrganicNodeKind::OutputPath { palette_count, .. },
+                            "organicNodeOutputPaletteCount",
+                            TheValue::IntRange(v, _),
+                        ) => {
+                            *palette_count = (*v).clamp(1, 16);
+                            save_graph = true;
+                        }
+                        (
+                            OrganicNodeKind::OutputPaint { palette_mode, .. }
+                            | OrganicNodeKind::OutputGrowth { palette_mode, .. }
+                            | OrganicNodeKind::OutputPath { palette_mode, .. },
+                            "organicNodeOutputPaletteMode",
+                            TheValue::Int(v),
+                        ) => {
+                            *palette_mode = (*v).clamp(0, 2);
                             save_graph = true;
                         }
                         (

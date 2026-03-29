@@ -136,25 +136,6 @@ impl TileCollectionAsset {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct TileSubgraphAsset {
-    pub id: Uuid,
-    #[serde(default)]
-    pub name: String,
-    #[serde(default)]
-    pub graph_data: String,
-}
-
-impl TileSubgraphAsset {
-    pub fn new(name: String) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            name,
-            graph_data: String::new(),
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Project {
     pub name: String,
@@ -176,10 +157,6 @@ pub struct Project {
     /// Custom top-level tile collections shown as tabs in the tile picker.
     #[serde(default)]
     pub tile_collections: IndexMap<Uuid, TileCollectionAsset>,
-
-    /// Reusable subgraphs for tile/node graph workflows.
-    #[serde(default)]
-    pub tile_subgraphs: IndexMap<Uuid, TileSubgraphAsset>,
 
     /// Persisted board positions for top-level single tiles in the tile picker.
     #[serde(default)]
@@ -259,7 +236,6 @@ impl Project {
             tile_groups: IndexMap::default(),
             tile_node_groups: IndexMap::default(),
             tile_collections: IndexMap::default(),
-            tile_subgraphs: IndexMap::default(),
             tile_board_tiles: IndexMap::default(),
             tile_board_groups: IndexMap::default(),
             tile_board_cols: default_tile_board_cols(),
@@ -338,10 +314,6 @@ impl Project {
 
     pub fn add_tile_collection(&mut self, collection: TileCollectionAsset) {
         self.tile_collections.insert(collection.id, collection);
-    }
-
-    pub fn add_tile_subgraph(&mut self, subgraph: TileSubgraphAsset) {
-        self.tile_subgraphs.insert(subgraph.id, subgraph);
     }
 
     pub fn is_tile_node_group(&self, id: &Uuid) -> bool {

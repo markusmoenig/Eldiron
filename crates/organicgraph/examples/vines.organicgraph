@@ -1,0 +1,35 @@
+id = "6af846f4-4d1a-4f67-8ff0-7c1f9b8d2201"
+name = "Vines Brush"
+selected_node = 5
+connections = [
+  [0, 0, 1, 0],
+  [1, 0, 2, 0],
+  [2, 0, 5, 0],
+  [3, 0, 5, 2],
+  [4, 0, 5, 1],
+]
+scroll_offset = { x = 0, y = 0 }
+
+[[nodes]]
+position = { x = 200, y = 36 }
+kind = { LineShape = { length = 2.8, width = 0.18, softness = 0.34 } }
+
+[[nodes]]
+position = { x = 410, y = 28 }
+kind = { Noise = { scale = 0.48, strength = 0.18, seed = 23 } }
+
+[[nodes]]
+position = { x = 620, y = 36 }
+kind = { Scatter = { count = 1, jitter = 0.0 } }
+
+[[nodes]]
+position = { x = 620, y = 185 }
+kind = { HeightProfile = { depth = 0.36, falloff = 0.42 } }
+
+[[nodes]]
+position = { x = 620, y = 300 }
+kind = { PaletteColors = { color_1 = 23, color_2 = 22, color_3 = 21, color_4 = 24, mode = 0 } }
+
+[[nodes]]
+position = { x = 900, y = 108 }
+kind = { OutputPath = { radius = 0.58, flow = 0.90, jitter = 0.08, depth = 0.18, cell_size = 0.10, channel = 0, palette_start = 0, palette_count = 1, palette_mode = 0 } }

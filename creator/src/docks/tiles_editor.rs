@@ -20,21 +20,73 @@ struct ProjectTileSubgraphResolver<'a> {
     project: &'a Project,
 }
 
+fn normalize_layer_source_key(value: &str) -> String {
+    value
+        .trim()
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .split('_')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("_")
+}
+
 impl SharedTileGraphSubgraphResolver for ProjectTileSubgraphResolver<'_> {
     fn resolve_subgraph_state(
         &self,
-        subgraph_id: Uuid,
+        source: &str,
     ) -> Option<shared::tilegraph::TileNodeGraphState> {
+        let source_key = normalize_layer_source_key(source);
         self.project
-            .tile_subgraphs
-            .get(&subgraph_id)
-            .and_then(|subgraph| {
-                serde_json::from_str::<shared::tilegraph::TileNodeGraphState>(&subgraph.graph_data)
+            .tile_node_groups
+            .values()
+            .find(|group| {
+                let name = group.graph_name.trim();
+                name == source.trim() || normalize_layer_source_key(name) == source_key
+            })
+            .and_then(|group| {
+                serde_json::from_str::<shared::tilegraph::TileNodeGraphState>(&group.graph_data)
                     .ok()
             })
             .map(|mut state| {
                 state.ensure_root();
                 state
+            })
+    }
+
+    fn resolve_subgraph_exchange(
+        &self,
+        source: &str,
+    ) -> Option<shared::tilegraph::TileNodeGraphExchange> {
+        let source_key = normalize_layer_source_key(source);
+        self.project
+            .tile_node_groups
+            .values()
+            .find(|group| {
+                let name = group.graph_name.trim();
+                name == source.trim() || normalize_layer_source_key(name) == source_key
+            })
+            .and_then(|group| {
+                self.resolve_subgraph_state(source).map(|graph_state| {
+                    shared::tilegraph::TileNodeGraphExchange {
+                        version: 1,
+                        graph_name: group.graph_name.clone(),
+                        palette_source: group.palette_source,
+                        palette_colors: group.palette_colors.clone(),
+                        output_grid_width: group.output_grid_width.max(1),
+                        output_grid_height: group.output_grid_height.max(1),
+                        tile_pixel_width: group.tile_pixel_width.max(1),
+                        tile_pixel_height: group.tile_pixel_height.max(1),
+                        graph_state,
+                    }
+                })
             })
     }
 }
@@ -465,6 +517,14 @@ impl Dock for TilesEditorDock {
             "Invert".to_string(),
             TheId::named("Tile Node Add Invert"),
         ));
+        utility_menu.add(TheContextMenuItem::new(
+            "Layer Input".to_string(),
+            TheId::named("Tile Node Add Layer Input"),
+        ));
+        utility_menu.add(TheContextMenuItem::new(
+            "Import Layer".to_string(),
+            TheId::named("Tile Node Add Import Layer"),
+        ));
 
         let add_items = vec![
             TheContextMenuItem::new_submenu(
@@ -504,16 +564,17 @@ impl Dock for TilesEditorDock {
         }));
         toolbar_hlayout.add_widget(Box::new(add_button));
 
-        let mut subgraph_button = TheTraybarButton::new(TheId::named("Tile Node Subgraphs"));
-        subgraph_button.set_text("Subgraphs".to_string());
-        subgraph_button
-            .set_status_text("Add a saved reusable subgraph asset as a node in the current graph.");
-        toolbar_hlayout.add_widget(Box::new(subgraph_button));
+        let mut import_layer_button = TheTraybarButton::new(TheId::named("Tile Node Import Layer"));
+        import_layer_button.set_text("Layers".to_string());
+        import_layer_button.set_status_text(
+            "Add another node graph as a reusable imported layer node by graph name.",
+        );
+        toolbar_hlayout.add_widget(Box::new(import_layer_button));
 
         let mut graph_button = TheTraybarButton::new(TheId::named("Tile Node Graph"));
         graph_button.set_text("Graph".to_string());
         graph_button.set_status_text(
-            "Import, export, or save the current node graph as a reusable subgraph.",
+            "Import, export, or save the current node graph as a reusable layer asset.",
         );
         let mut graph_menu = TheContextMenu::default();
         graph_menu.add(TheContextMenuItem::new(
@@ -523,11 +584,6 @@ impl Dock for TilesEditorDock {
         graph_menu.add(TheContextMenuItem::new(
             "Export Graph...".to_string(),
             TheId::named("Tile Node Export Graph"),
-        ));
-        graph_menu.add_separator();
-        graph_menu.add(TheContextMenuItem::new(
-            "Save Subgraph".to_string(),
-            TheId::named("Tile Node Save Subgraph"),
         ));
         graph_menu.add_separator();
         graph_menu.add(TheContextMenuItem::new(
@@ -825,6 +881,17 @@ impl Dock for TilesEditorDock {
                     } else if item_id.name == "Tile Node Add Invert" {
                         push_node(TileNodeKind::Invert);
                         return true;
+                    } else if item_id.name == "Tile Node Add Layer Input" {
+                        push_node(TileNodeKind::LayerInput {
+                            name: "Mask".to_string(),
+                            value: 0.5,
+                        });
+                        return true;
+                    } else if item_id.name == "Tile Node Add Import Layer" {
+                        push_node(TileNodeKind::ImportLayer {
+                            source: String::new(),
+                        });
+                        return true;
                     }
                     if item_id.name == "Tile Node Add Color" {
                         push_node(TileNodeKind::Color {
@@ -890,9 +957,9 @@ impl Dock for TilesEditorDock {
                     }
                     return false;
                 } else if self.mode == TilesEditorMode::NodeSkeleton
-                    && id.name == "Tile Node Subgraphs"
+                    && id.name == "Tile Node Import Layer"
                     && let Some(group_id) = self.current_node_group_id
-                    && item_id.name == "Tile Node Add Subgraph"
+                    && item_id.name == "Tile Node Add Import Layer"
                 {
                     let before = project.clone();
                     let mut state = self.node_graph_state_for_group(project, group_id);
@@ -900,10 +967,13 @@ impl Dock for TilesEditorDock {
                         state.offset.0 + 260,
                         state.offset.1 + 60 + (state.nodes.len() as i32 - 1) * 32,
                     );
+                    let source = project
+                        .tile_node_groups
+                        .get(&item_id.uuid)
+                        .map(|group| group.graph_name.trim().to_string())
+                        .unwrap_or_default();
                     state.nodes.push(TileNodeState {
-                        kind: TileNodeKind::Subgraph {
-                            subgraph_id: item_id.uuid,
-                        },
+                        kind: TileNodeKind::ImportLayer { source },
                         position: new_pos,
                         preview_open: true,
                         bypass: false,
@@ -923,25 +993,7 @@ impl Dock for TilesEditorDock {
                     return true;
                 } else if self.mode == TilesEditorMode::NodeSkeleton && id.name == "Tile Node Graph"
                 {
-                    if item_id.name == "Tile Node Save Subgraph"
-                        && let Some(group_id) = self.current_node_group_id
-                        && let Some(node_group) = project.tile_node_groups.get(&group_id)
-                    {
-                        let mut name = node_group.graph_name.trim().to_string();
-                        if name.is_empty() {
-                            name = "Subgraph".to_string();
-                        }
-                        let state = self.node_graph_state_for_group(project, group_id);
-                        let mut subgraph = TileSubgraphAsset::new(format!("{name} Subgraph"));
-                        subgraph.graph_data = serde_json::to_string(&state).unwrap_or_default();
-                        project.add_tile_subgraph(subgraph);
-                        ctx.ui.send(TheEvent::SetStatusText(
-                            id.clone(),
-                            "Saved the current node graph as a reusable subgraph asset."
-                                .to_string(),
-                        ));
-                        return true;
-                    } else if item_id.name == "Tile Node Import Graph" {
+                    if item_id.name == "Tile Node Import Graph" {
                         ctx.ui.open_file_requester(
                             TheId::named("Tile Node Import Graph File"),
                             "Import Tile Node Graph".into(),
@@ -1339,6 +1391,44 @@ impl Dock for TilesEditorDock {
                             let new_value = new_value.clamp(0.0, 1.0);
                             if (*scalar - new_value).abs() > f32::EPSILON {
                                 *scalar = new_value;
+                                self.store_node_graph_state(project, group_id, &state);
+                                graph_changed = true;
+                            }
+                        }
+                    } else if id.name == "tileNodeImportLayerSource" {
+                        let mut state = self.node_graph_state_for_group(project, group_id);
+                        if let Some(index) = state.selected_node
+                            && let Some(node) = state.nodes.get_mut(index)
+                            && let TileNodeKind::ImportLayer { source } = &mut node.kind
+                            && let Some(new_source) = value.to_string()
+                            && *source != new_source
+                        {
+                            *source = new_source;
+                            self.store_node_graph_state(project, group_id, &state);
+                            graph_changed = true;
+                        }
+                    } else if id.name == "tileNodeLayerInputName" {
+                        let mut state = self.node_graph_state_for_group(project, group_id);
+                        if let Some(index) = state.selected_node
+                            && let Some(node) = state.nodes.get_mut(index)
+                            && let TileNodeKind::LayerInput { name, .. } = &mut node.kind
+                            && let Some(new_name) = value.to_string()
+                            && *name != new_name
+                        {
+                            *name = new_name;
+                            self.store_node_graph_state(project, group_id, &state);
+                            graph_changed = true;
+                        }
+                    } else if id.name == "tileNodeLayerInputValue" {
+                        let mut state = self.node_graph_state_for_group(project, group_id);
+                        if let Some(index) = state.selected_node
+                            && let Some(node) = state.nodes.get_mut(index)
+                            && let TileNodeKind::LayerInput { value: default, .. } = &mut node.kind
+                            && let Some(new_value) = value.to_f32()
+                        {
+                            let new_value = new_value.clamp(0.0, 1.0);
+                            if (*default - new_value).abs() > f32::EPSILON {
+                                *default = new_value;
                                 self.store_node_graph_state(project, group_id, &state);
                                 graph_changed = true;
                             }
@@ -2769,28 +2859,35 @@ impl TilesEditorDock {
                     ));
                     nodeui.add_item(TheNodeUIItem::CloseTree);
                 }
-                Some(TileNodeKind::Subgraph { subgraph_id }) => {
-                    let name = project
-                        .tile_subgraphs
-                        .get(subgraph_id)
-                        .map(|s| {
-                            if s.name.is_empty() {
-                                "Subgraph".to_string()
-                            } else {
-                                s.name.clone()
-                            }
-                        })
-                        .unwrap_or_else(|| "Missing Subgraph".to_string());
+                Some(TileNodeKind::ImportLayer { source }) => {
                     nodeui.add_item(TheNodeUIItem::Text(
-                        "tileNodeSubgraphName".into(),
-                        "Subgraph".into(),
-                        "This node evaluates a saved reusable subgraph asset.".into(),
-                        name,
+                        "tileNodeImportLayerSource".into(),
+                        "Source".into(),
+                        "Name of another node graph in the project, or a relative .tilegraph path in external files.".into(),
+                        source.clone(),
                         None,
-                        true,
+                        false,
                     ));
                 }
                 Some(TileNodeKind::GroupUV) => {}
+                Some(TileNodeKind::LayerInput { name, value }) => {
+                    nodeui.add_item(TheNodeUIItem::Text(
+                        "tileNodeLayerInputName".into(),
+                        "Name".into(),
+                        "Name of the reusable layer input terminal.".into(),
+                        name.clone(),
+                        None,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeLayerInputValue".into(),
+                        "Default".into(),
+                        "Fallback value when the layer input is not connected.".into(),
+                        *value,
+                        0.0..=1.0,
+                        false,
+                    ));
+                }
                 Some(TileNodeKind::Scalar { value }) => {
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "tileNodeScalarValue".into(),
@@ -3856,7 +3953,7 @@ impl TilesEditorDock {
         state: &TileNodeGraphState,
     ) -> Option<shared::tilegraph::TileNodeGraphExchange> {
         let resolver = ProjectTileSubgraphResolver { project };
-        let exchange = TileNodeGraphExchange::new(
+        let mut exchange = TileNodeGraphExchange::new(
             node_group.graph_name.clone(),
             node_group.output_grid_width,
             node_group.output_grid_height,
@@ -3864,10 +3961,9 @@ impl TilesEditorDock {
             node_group.tile_pixel_height,
             state.clone(),
         );
-        let mut exchange = flatten_graph_exchange_with(&exchange, &resolver);
         exchange.palette_source = node_group.palette_source;
         exchange.palette_colors = node_group.palette_colors.clone();
-        Some(exchange)
+        Some(flatten_graph_exchange_with(&exchange, &resolver))
     }
 
     fn node_graph_state_for_group(&self, project: &Project, group_id: Uuid) -> TileNodeGraphState {
@@ -3875,6 +3971,54 @@ impl TilesEditorDock {
             .tile_node_groups
             .get(&group_id)
             .map(|node_group| TileNodeGraphState::from_graph_data(&node_group.graph_data))
+            .unwrap_or_default()
+    }
+
+    fn imported_layer_exchange(
+        &self,
+        project: &Project,
+        source: &str,
+    ) -> Option<TileNodeGraphExchange> {
+        let source_key = normalize_layer_source_key(source);
+        project
+            .tile_node_groups
+            .values()
+            .find(|group| {
+                let name = group.graph_name.trim();
+                name == source.trim() || normalize_layer_source_key(name) == source_key
+            })
+            .and_then(|group| {
+                serde_json::from_str::<TileNodeGraphState>(&group.graph_data)
+                    .ok()
+                    .map(|graph_state| {
+                        let mut exchange = TileNodeGraphExchange::new(
+                            group.graph_name.clone(),
+                            group.output_grid_width.max(1),
+                            group.output_grid_height.max(1),
+                            group.tile_pixel_width.max(1),
+                            group.tile_pixel_height.max(1),
+                            graph_state,
+                        );
+                        exchange.palette_source = group.palette_source;
+                        exchange.palette_colors = self.effective_node_group_palette(project, group);
+                        exchange
+                    })
+            })
+    }
+
+    fn imported_layer_input_names(&self, project: &Project, source: &str) -> Vec<String> {
+        self.imported_layer_exchange(project, source)
+            .map(|exchange| {
+                exchange
+                    .graph_state
+                    .nodes
+                    .iter()
+                    .filter_map(|node| match &node.kind {
+                        TileNodeKind::LayerInput { name, .. } => Some(name.clone()),
+                        _ => None,
+                    })
+                    .collect()
+            })
             .unwrap_or_default()
     }
 
@@ -4050,31 +4194,49 @@ impl TilesEditorDock {
                             can_be_deleted: false,
                         });
                     }
-                    TileNodeKind::Subgraph { subgraph_id } => {
-                        let name = project
-                            .tile_subgraphs
-                            .get(subgraph_id)
-                            .map(|s| {
-                                if s.name.is_empty() {
-                                    "Subgraph".to_string()
-                                } else {
-                                    s.name.clone()
-                                }
+                    TileNodeKind::ImportLayer { source } => {
+                        let name = if source.trim().is_empty() {
+                            "Import Layer".to_string()
+                        } else {
+                            source.clone()
+                        };
+                        let inputs = self
+                            .imported_layer_input_names(project, source)
+                            .into_iter()
+                            .map(|name| TheNodeTerminal {
+                                name,
+                                category_name: "FieldSocket".to_string(),
                             })
-                            .unwrap_or_else(|| "Missing Subgraph".to_string());
+                            .collect();
                         canvas.nodes.push(TheNode {
                             name,
                             status_text: None,
                             position: Vec2::new(node.position.0, node.position.1),
-                            inputs: vec![],
+                            inputs,
                             outputs: vec![
                                 TheNodeTerminal {
                                     name: "Color".to_string(),
                                     category_name: "ColorSocket".to_string(),
                                 },
                                 TheNodeTerminal {
-                                    name: "Material".to_string(),
-                                    category_name: "MaterialSocket".to_string(),
+                                    name: "Height".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Roughness".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Metallic".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Opacity".to_string(),
+                                    category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Emissive".to_string(),
+                                    category_name: "FieldSocket".to_string(),
                                 },
                             ],
                             preview,
@@ -4092,6 +4254,29 @@ impl TilesEditorDock {
                             outputs: vec![TheNodeTerminal {
                                 name: "Color".to_string(),
                                 category_name: "CoordSocket".to_string(),
+                            }],
+                            preview,
+                            supports_preview: true,
+                            preview_is_open: true,
+                            can_be_deleted: true,
+                        });
+                    }
+                    TileNodeKind::LayerInput { name, .. } => {
+                        canvas.nodes.push(TheNode {
+                            name: if name.is_empty() {
+                                "Layer Input".to_string()
+                            } else {
+                                format!("In: {name}")
+                            },
+                            status_text: None,
+                            position: Vec2::new(node.position.0, node.position.1),
+                            inputs: vec![TheNodeTerminal {
+                                name: "In".to_string(),
+                                category_name: "FieldSocket".to_string(),
+                            }],
+                            outputs: vec![TheNodeTerminal {
+                                name: "Field".to_string(),
+                                category_name: "FieldSocket".to_string(),
                             }],
                             preview,
                             supports_preview: true,
@@ -4977,24 +5162,26 @@ impl TilesEditorDock {
 
     fn refresh_node_group_ui(&self, project: &Project, ui: &mut TheUI, ctx: &mut TheContext) {
         if let Some(group_id) = self.current_node_group_id {
-            if let Some(widget) = ui.get_widget("Tile Node Subgraphs") {
-                let items = if project.tile_subgraphs.is_empty() {
+            if let Some(widget) = ui.get_widget("Tile Node Import Layer") {
+                let current_group_id = self.current_node_group_id;
+                let items = if project.tile_node_groups.is_empty() {
                     vec![TheContextMenuItem::new(
-                        "No Saved Subgraphs".to_string(),
-                        TheId::named("Tile Node No Subgraph"),
+                        "No Other Graphs".to_string(),
+                        TheId::named("Tile Node No Import Layer"),
                     )]
                 } else {
                     project
-                        .tile_subgraphs
-                        .values()
-                        .map(|subgraph| {
+                        .tile_node_groups
+                        .iter()
+                        .filter(|(id, _)| Some(**id) != current_group_id)
+                        .map(|(id, group)| {
                             TheContextMenuItem::new(
-                                if subgraph.name.is_empty() {
-                                    "Subgraph".to_string()
+                                if group.graph_name.trim().is_empty() {
+                                    "Unnamed Graph".to_string()
                                 } else {
-                                    subgraph.name.clone()
+                                    group.graph_name.clone()
                                 },
-                                TheId::named_with_id("Tile Node Add Subgraph", subgraph.id),
+                                TheId::named_with_id("Tile Node Add Import Layer", *id),
                             )
                         })
                         .collect()

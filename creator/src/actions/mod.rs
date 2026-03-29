@@ -250,6 +250,7 @@ fn root_table_prefix(nodeui: &TheNodeUI) -> Option<String> {
             | TheNodeUIItem::FloatSlider(id, _, _, _, _, _, _)
             | TheNodeUIItem::IntEditSlider(id, _, _, _, _, _)
             | TheNodeUIItem::PaletteSlider(id, _, _, _, _, _)
+            | TheNodeUIItem::PaletteIndexPicker(id, _, _, _, _)
             | TheNodeUIItem::IntSlider(id, _, _, _, _, _, _)
             | TheNodeUIItem::ColorPicker(id, _, _, _, _)
             | TheNodeUIItem::Checkbox(id, _, _, _) => {
@@ -510,6 +511,7 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
             }
             TheNodeUIItem::IntEditSlider(id, _, _, value, _, _)
             | TheNodeUIItem::PaletteSlider(id, _, _, value, _, _)
+            | TheNodeUIItem::PaletteIndexPicker(id, _, _, value, _)
             | TheNodeUIItem::IntSlider(id, _, _, value, _, _, _) => {
                 let action_key = action_param_key(id);
                 let key =
@@ -721,6 +723,7 @@ pub fn apply_toml_to_nodeui(nodeui: &mut TheNodeUI, source: &str) -> Result<(), 
             }
             TheNodeUIItem::IntEditSlider(id, _, _, _, _, _)
             | TheNodeUIItem::PaletteSlider(id, _, _, _, _, _)
+            | TheNodeUIItem::PaletteIndexPicker(id, _, _, _, _)
             | TheNodeUIItem::IntSlider(id, _, _, _, _, _, _) => {
                 let action_key = action_param_key(&id);
                 let table = if section_stack.is_empty() {
@@ -812,6 +815,7 @@ pub fn nodeui_to_value_pairs(nodeui: &TheNodeUI) -> Vec<(String, TheValue)> {
             }
             TheNodeUIItem::IntEditSlider(id, _, _, value, _, _)
             | TheNodeUIItem::PaletteSlider(id, _, _, value, _, _)
+            | TheNodeUIItem::PaletteIndexPicker(id, _, _, value, _)
             | TheNodeUIItem::IntSlider(id, _, _, value, _, _, _) => {
                 out.push((id.clone(), TheValue::Int(*value)));
             }
