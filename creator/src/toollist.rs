@@ -118,6 +118,7 @@ impl ToolList {
             Box::new(LinedefTool::new()),
             Box::new(SectorTool::new()),
             Box::new(RectTool::new()),
+            Box::new(crate::tools::builder::BuilderTool::new()),
             Box::new(crate::tools::organic::OrganicTool::new()),
             Box::new(crate::tools::entity::EntityTool::new()),
             // Box::new(RenderTool::new()),
@@ -154,7 +155,7 @@ impl ToolList {
                 let mut b = TheToolListButton::new(tool.id());
 
                 b.set_icon_name(tool.icon_name());
-                b.set_status_text(&tool.info());
+                b.set_status_text(&Self::status_text_with_accel(tool.info(), tool.accel()));
                 if index == self.curr_editor_tool {
                     b.set_state(TheWidgetState::Selected);
                 }
@@ -166,7 +167,7 @@ impl ToolList {
                 let mut b = TheToolListButton::new(tool.id());
 
                 b.set_icon_name(tool.icon_name());
-                b.set_status_text(&tool.info());
+                b.set_status_text(&Self::status_text_with_accel(tool.info(), tool.accel()));
                 if index == self.curr_game_tool {
                     b.set_state(TheWidgetState::Selected);
                 }
@@ -193,6 +194,36 @@ impl ToolList {
                 text_play.set_state(TheWidgetState::Selected);
             }
             list.add_widget(Box::new(text_play));
+        }
+    }
+
+    fn status_text_with_accel(info: String, accel: Option<char>) -> String {
+        if let Some(accel) = accel {
+            format!("{info} ({accel})")
+        } else {
+            info
+        }
+    }
+
+    fn enforce_builder_dock(
+        &self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        if self.editor_mode {
+            return;
+        }
+        if self.game_tools[self.curr_game_tool].id().name != "Builder Tool" {
+            return;
+        }
+        let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
+        if current_dock == "Tiles" {
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Builder".into(), ui, ctx, project, server_ctx);
         }
     }
 
@@ -1266,6 +1297,8 @@ impl ToolList {
                 .get_current_tool()
                 .handle_event(event, ui, ctx, project, server_ctx);
         }
+
+        self.enforce_builder_dock(ui, ctx, project, server_ctx);
 
         redraw
     }

@@ -6,10 +6,11 @@ use crate::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 use crate::collision_world::{BlockingVolume, DynamicOpening, OpeningType, WalkableFloor};
 use crate::map::organic::OrganicGrowthShape;
 use crate::{
-    Assets, Batch3D, Chunk, ChunkBuilder, Item, Map, PixelSource, Value, ValueContainer,
+    Assets, BBox, Batch3D, Chunk, ChunkBuilder, Item, Map, PixelSource, Value, ValueContainer,
     VertexBlendPreset,
 };
 use crate::{BillboardAnimation, GeometrySource, LoopOp, ProfileLoop, RepeatMode, Sector};
+use buildergraph::{BuilderGraph, BuilderPrimitive};
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::GeoId;
 use std::str::FromStr;
@@ -700,11 +701,23 @@ impl ChunkBuilder for D3ChunkBuilder {
             let roof_name = sector
                 .properties
                 .get_str_default("roof_name", String::new());
+            let builder_hide_host = sector
+                .properties
+                .get_bool_default("builder_hide_host", false)
+                && !sector
+                    .properties
+                    .get_str_default("builder_graph_data", String::new())
+                    .trim()
+                    .is_empty()
+                && sector
+                    .properties
+                    .get_str_default("builder_graph_target", "sector".to_string())
+                    == "sector";
             let hidden_by_preview = preview_hide_patterns.iter().any(|pattern| {
                 matches_preview_hide_pattern(&sector.name, pattern)
                     || (!roof_name.is_empty() && matches_preview_hide_pattern(&roof_name, pattern))
             });
-            if !visible || hidden_by_preview {
+            if !visible || hidden_by_preview || builder_hide_host {
                 hidden.insert(GeoId::Sector(sector.id));
             }
 
@@ -716,9 +729,28 @@ impl ChunkBuilder for D3ChunkBuilder {
             let sector_feature = sector
                 .properties
                 .get_str_default("sector_feature", "None".to_string());
+            let builder_replace_surface = sector
+                .properties
+                .get_str_default("builder_surface_mode", String::new())
+                == "replace"
+                && !sector
+                    .properties
+                    .get_str_default("builder_graph_data", String::new())
+                    .trim()
+                    .is_empty()
+                && sector
+                    .properties
+                    .get_str_default("builder_graph_target", "sector".to_string())
+                    == "sector";
             // Roof sectors generate their own roof geometry path. Skip the base upward cap
             // so we don't render an extra flat roof layer below gables.
             if sector_feature == "Roof" && surface.plane.normal.y > 0.7 {
+                continue;
+            }
+            if builder_hide_host {
+                continue;
+            }
+            if builder_replace_surface && surface.plane.normal.y > 0.7 {
                 continue;
             }
 
@@ -752,7 +784,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                 }
                 let extrude_abs = surface.extrusion.depth.abs();
                 let (base_holes, feature_loops) =
-                    split_loops_for_base(&outer_loop, &hole_loops, extrude_abs);
+                    split_loops_for_base(surface, map, &outer_loop, &hole_loops, extrude_abs);
                 let profile_bias_vec = if sector
                     .properties
                     .get_bool_default("generated_profile", false)
@@ -1617,7 +1649,10 @@ impl ChunkBuilder for D3ChunkBuilder {
         // Build optional non-destructive linedef features (palisade, fence, ...).
         generate_sector_stairs(map, assets, chunk, vmchunk);
         generate_sector_campfires(map, assets, chunk, vmchunk);
+        generate_sector_builder_features(map, assets, chunk, vmchunk);
         generate_sector_roofs(map, assets, chunk, vmchunk);
+        generate_vertex_builder_features(map, assets, chunk, vmchunk);
+        generate_builder_linedef_features(map, assets, chunk, vmchunk);
         generate_linedef_features(map, assets, chunk, vmchunk);
 
         // Generate terrain for this chunk
@@ -2918,6 +2953,493 @@ fn add_tri(mesh_indices: &mut Vec<(usize, usize, usize)>, a: usize, b: usize, c:
 fn add_quad(mesh_indices: &mut Vec<(usize, usize, usize)>, a: usize, b: usize, c: usize, d: usize) {
     add_tri(mesh_indices, a, b, c);
     add_tri(mesh_indices, a, c, d);
+}
+
+fn add_quad_reversed(
+    mesh_indices: &mut Vec<(usize, usize, usize)>,
+    a: usize,
+    b: usize,
+    c: usize,
+    d: usize,
+) {
+    add_tri(mesh_indices, a, d, c);
+    add_tri(mesh_indices, a, c, b);
+}
+
+fn rotate_vec3_y(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
+    let (s, c) = angle.sin_cos();
+    Vec3::new(v.x * c - v.z * s, v.y, v.x * s + v.z * c)
+}
+
+fn add_builder_box_mesh(
+    mesh_vertices: &mut Vec<[f32; 4]>,
+    mesh_uvs: &mut Vec<[f32; 2]>,
+    mesh_indices: &mut Vec<(usize, usize, usize)>,
+    center: Vec3<f32>,
+    size: Vec3<f32>,
+    local_rotation_y: f32,
+    along: Vec3<f32>,
+    up: Vec3<f32>,
+    outward: Vec3<f32>,
+) {
+    let hx = size.x * 0.5;
+    let hy = size.y * 0.5;
+    let hz = size.z * 0.5;
+    let local = [
+        Vec3::new(-hx, -hy, -hz),
+        Vec3::new(hx, -hy, -hz),
+        Vec3::new(hx, -hy, hz),
+        Vec3::new(-hx, -hy, hz),
+        Vec3::new(-hx, hy, -hz),
+        Vec3::new(hx, hy, -hz),
+        Vec3::new(hx, hy, hz),
+        Vec3::new(-hx, hy, hz),
+    ];
+    let mut ids = [0usize; 8];
+    for (i, p) in local.iter().enumerate() {
+        let r = rotate_vec3_y(*p, local_rotation_y);
+        let world = center + along * r.x + up * r.y + outward * r.z;
+        ids[i] = add_vertex(mesh_vertices, mesh_uvs, world);
+    }
+
+    let faces = [
+        (0usize, 1usize, 5usize, 4usize),
+        (1usize, 2usize, 6usize, 5usize),
+        (2usize, 3usize, 7usize, 6usize),
+        (3usize, 0usize, 4usize, 7usize),
+        (4usize, 5usize, 6usize, 7usize),
+        (0usize, 3usize, 2usize, 1usize),
+    ];
+    for (a, b, c, d) in faces {
+        add_quad_reversed(mesh_indices, ids[a], ids[b], ids[c], ids[d]);
+    }
+}
+
+fn emit_builder_linedef_group_meshes(
+    graph: &BuilderGraph,
+    host_id: u32,
+    host_source: Option<&Value>,
+    hosts: &[(Vec3<f32>, Vec3<f32>)],
+    assets: &Assets,
+    vmchunk: &mut scenevm::Chunk,
+) -> bool {
+    if hosts.is_empty() {
+        return false;
+    }
+    let spec = graph.output_spec();
+    if spec.target != buildergraph::BuilderOutputTarget::Linedef {
+        return false;
+    }
+
+    let midpoint = |a: Vec3<f32>, b: Vec3<f32>| (a + b) * 0.5;
+    let first_mid = midpoint(hosts[0].0, hosts[0].1);
+    let last_mid = midpoint(hosts[hosts.len() - 1].0, hosts[hosts.len() - 1].1);
+    let origin = (first_mid + last_mid) * 0.5;
+
+    let mut along = Vec3::new(last_mid.x - first_mid.x, 0.0, last_mid.z - first_mid.z);
+    let span_length = along.magnitude().max(1e-5);
+    if along.magnitude() <= 1e-5 {
+        along = Vec3::new(
+            hosts[0].1.x - hosts[0].0.x,
+            0.0,
+            hosts[0].1.z - hosts[0].0.z,
+        );
+    }
+    if along.magnitude() <= 1e-5 {
+        along = Vec3::new(1.0, 0.0, 0.0);
+    } else {
+        along = along.normalized();
+    }
+
+    let mut outward = Vec3::zero();
+    for (a, b) in hosts {
+        let seg = Vec3::new(b.x - a.x, 0.0, b.z - a.z);
+        if seg.magnitude() > 1e-5 {
+            let dir = seg.normalized();
+            outward += Vec3::new(-dir.z, 0.0, dir.x);
+        }
+    }
+    if outward.magnitude() <= 1e-5 {
+        outward = Vec3::new(-along.z, 0.0, along.x);
+    } else {
+        outward = outward.normalized();
+    }
+    let up = Vec3::new(0.0, 1.0, 0.0);
+
+    let Ok(assembly) = graph.evaluate() else {
+        return false;
+    };
+    if assembly.primitives.is_empty() {
+        return false;
+    }
+
+    let default_tile_id = Uuid::from_str(DEFAULT_TILE_ID).unwrap();
+    let tile_id = match host_source {
+        Some(Value::Source(ps)) => ps.tile_from_tile_list(assets).map(|tile| tile.id),
+        _ => None,
+    }
+    .unwrap_or(default_tile_id);
+
+    let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
+    let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
+    let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
+
+    for primitive in assembly.primitives {
+        match primitive {
+            BuilderPrimitive::Box {
+                size,
+                transform,
+                host_position_normalized,
+                host_scale_x_normalized,
+                ..
+            } => {
+                let sx = if host_scale_x_normalized {
+                    transform.scale.x * span_length
+                } else {
+                    transform.scale.x
+                };
+                let scaled = Vec3::new(
+                    size.x * sx,
+                    size.y * transform.scale.y,
+                    size.z * transform.scale.z,
+                );
+                let tx = if host_position_normalized {
+                    transform.translation.x * span_length
+                } else {
+                    transform.translation.x
+                };
+                let center = origin
+                    + along * tx
+                    + up * (transform.translation.y + scaled.y * 0.5)
+                    + outward * transform.translation.z;
+                add_builder_box_mesh(
+                    &mut mesh_vertices,
+                    &mut mesh_uvs,
+                    &mut mesh_indices,
+                    center,
+                    scaled,
+                    transform.rotation_y,
+                    along,
+                    up,
+                    outward,
+                );
+            }
+        }
+    }
+
+    if mesh_indices.is_empty() {
+        return false;
+    }
+
+    vmchunk.add_poly_3d(
+        GeoId::Linedef(host_id),
+        tile_id,
+        mesh_vertices,
+        mesh_uvs,
+        mesh_indices,
+        0,
+        true,
+    );
+    true
+}
+
+fn generate_builder_linedef_features(
+    map: &Map,
+    assets: &Assets,
+    chunk: &Chunk,
+    vmchunk: &mut scenevm::Chunk,
+) {
+    let mut grouped: FxHashMap<Uuid, Vec<(u32, Vec3<f32>, Vec3<f32>, Option<Value>, String, i32)>> =
+        FxHashMap::default();
+
+    for linedef in &map.linedefs {
+        let builder_graph_data = linedef
+            .properties
+            .get_str_default("builder_graph_data", String::new());
+        if builder_graph_data.trim().is_empty() {
+            continue;
+        }
+        let Ok(graph) = BuilderGraph::from_text(&builder_graph_data) else {
+            continue;
+        };
+        if graph.output_spec().target != buildergraph::BuilderOutputTarget::Linedef {
+            continue;
+        }
+        let Some(v0) = map.get_vertex_3d(linedef.start_vertex) else {
+            continue;
+        };
+        let Some(v1) = map.get_vertex_3d(linedef.end_vertex) else {
+            continue;
+        };
+        let line_mid = Vec2::new((v0.x + v1.x) * 0.5, (v0.z + v1.z) * 0.5);
+        if !chunk.bbox.contains(line_mid) {
+            continue;
+        }
+        let group_id = match linedef.properties.get("builder_graph_group_id") {
+            Some(Value::Id(id)) => *id,
+            _ => match linedef.properties.get("builder_graph_id") {
+                Some(Value::Id(id)) => *id,
+                _ => graph.id,
+            },
+        };
+        let group_order = linedef
+            .properties
+            .get_int_default("builder_graph_group_order", linedef.id as i32);
+        grouped.entry(group_id).or_default().push((
+            linedef.id,
+            v0,
+            v1,
+            linedef.properties.get("source").cloned(),
+            builder_graph_data,
+            group_order,
+        ));
+    }
+
+    for (_group_id, entries) in grouped {
+        if entries.is_empty() {
+            continue;
+        }
+        let Ok(graph) = BuilderGraph::from_text(&entries[0].4) else {
+            continue;
+        };
+        let host_refs = graph.output_spec().host_refs.max(1) as usize;
+        if host_refs == 1 {
+            for (linedef_id, v0, v1, source, _graph_data, _) in entries.iter() {
+                let _ = emit_builder_linedef_group_meshes(
+                    &graph,
+                    *linedef_id,
+                    source.as_ref(),
+                    &[(*v0, *v1)],
+                    assets,
+                    vmchunk,
+                );
+            }
+            continue;
+        }
+
+        let mut sorted = entries;
+        sorted.sort_by_key(|entry| entry.5);
+        for group in sorted.chunks(host_refs) {
+            if group.len() < 2 {
+                continue;
+            }
+            let host_id = group[0].0;
+            let source = group[0].3.as_ref();
+            let hosts: Vec<(Vec3<f32>, Vec3<f32>)> =
+                group.iter().map(|entry| (entry.1, entry.2)).collect();
+            let _ =
+                emit_builder_linedef_group_meshes(&graph, host_id, source, &hosts, assets, vmchunk);
+        }
+    }
+}
+
+fn emit_builder_vertex_meshes(
+    graph: &BuilderGraph,
+    host_id: u32,
+    host_source: Option<&Value>,
+    hosts: &[Vec3<f32>],
+    assets: &Assets,
+    vmchunk: &mut scenevm::Chunk,
+) -> bool {
+    if hosts.is_empty() {
+        return false;
+    }
+
+    let spec = graph.output_spec();
+    if spec.target != buildergraph::BuilderOutputTarget::VertexPair {
+        return false;
+    }
+
+    let origin = if hosts.len() == 1 {
+        hosts[0]
+    } else {
+        (hosts[0] + hosts[hosts.len() - 1]) * 0.5
+    };
+
+    let along = if hosts.len() >= 2 {
+        let delta = Vec3::new(
+            hosts[hosts.len() - 1].x - hosts[0].x,
+            0.0,
+            hosts[hosts.len() - 1].z - hosts[0].z,
+        );
+        if delta.magnitude() > 1e-5 {
+            delta.normalized()
+        } else {
+            Vec3::new(1.0, 0.0, 0.0)
+        }
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
+    let span_length = if hosts.len() >= 2 {
+        Vec3::new(
+            hosts[hosts.len() - 1].x - hosts[0].x,
+            0.0,
+            hosts[hosts.len() - 1].z - hosts[0].z,
+        )
+        .magnitude()
+        .max(1e-5)
+    } else {
+        1.0
+    };
+    let outward = Vec3::new(-along.z, 0.0, along.x);
+    let up = Vec3::new(0.0, 1.0, 0.0);
+
+    let Ok(assembly) = graph.evaluate() else {
+        return false;
+    };
+    if assembly.primitives.is_empty() {
+        return false;
+    }
+
+    let default_tile_id = Uuid::from_str(DEFAULT_TILE_ID).unwrap();
+    let tile_id = match host_source {
+        Some(Value::Source(ps)) => ps.tile_from_tile_list(assets).map(|tile| tile.id),
+        _ => None,
+    }
+    .unwrap_or(default_tile_id);
+
+    let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
+    let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
+    let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
+
+    for primitive in assembly.primitives {
+        match primitive {
+            BuilderPrimitive::Box {
+                size,
+                transform,
+                host_position_normalized,
+                host_scale_x_normalized,
+                ..
+            } => {
+                let sx = if host_scale_x_normalized {
+                    transform.scale.x * span_length
+                } else {
+                    transform.scale.x
+                };
+                let scaled = Vec3::new(
+                    size.x * sx,
+                    size.y * transform.scale.y,
+                    size.z * transform.scale.z,
+                );
+                let tx = if host_position_normalized {
+                    transform.translation.x * span_length
+                } else {
+                    transform.translation.x
+                };
+                let center = origin
+                    + along * tx
+                    + up * (transform.translation.y + scaled.y * 0.5)
+                    + outward * transform.translation.z;
+                add_builder_box_mesh(
+                    &mut mesh_vertices,
+                    &mut mesh_uvs,
+                    &mut mesh_indices,
+                    center,
+                    scaled,
+                    transform.rotation_y,
+                    along,
+                    up,
+                    outward,
+                );
+            }
+        }
+    }
+
+    if mesh_indices.is_empty() {
+        return false;
+    }
+
+    vmchunk.add_poly_3d(
+        GeoId::Vertex(host_id),
+        tile_id,
+        mesh_vertices,
+        mesh_uvs,
+        mesh_indices,
+        0,
+        true,
+    );
+    true
+}
+
+fn generate_vertex_builder_features(
+    map: &Map,
+    assets: &Assets,
+    chunk: &Chunk,
+    vmchunk: &mut scenevm::Chunk,
+) {
+    let mut grouped: FxHashMap<Uuid, Vec<(u32, Vec3<f32>, Option<Value>, String, i32)>> =
+        FxHashMap::default();
+
+    for vertex in &map.vertices {
+        let builder_graph_data = vertex
+            .properties
+            .get_str_default("builder_graph_data", String::new());
+        if builder_graph_data.trim().is_empty() {
+            continue;
+        }
+        let Ok(graph) = BuilderGraph::from_text(&builder_graph_data) else {
+            continue;
+        };
+        if graph.output_spec().target != buildergraph::BuilderOutputTarget::VertexPair {
+            continue;
+        }
+        let pos = Vec3::new(vertex.x, vertex.z, vertex.y);
+        if !chunk.bbox.contains(Vec2::new(pos.x, pos.z)) {
+            continue;
+        }
+        let group_id = match vertex.properties.get("builder_graph_group_id") {
+            Some(Value::Id(id)) => *id,
+            _ => match vertex.properties.get("builder_graph_id") {
+                Some(Value::Id(id)) => *id,
+                _ => graph.id,
+            },
+        };
+        let group_order = vertex
+            .properties
+            .get_int_default("builder_graph_group_order", vertex.id as i32);
+        grouped.entry(group_id).or_default().push((
+            vertex.id,
+            pos,
+            vertex.properties.get("source").cloned(),
+            builder_graph_data,
+            group_order,
+        ));
+    }
+
+    for (_group_id, entries) in grouped {
+        if entries.is_empty() {
+            continue;
+        }
+        let Ok(graph) = BuilderGraph::from_text(&entries[0].3) else {
+            continue;
+        };
+        let host_refs = graph.output_spec().host_refs.max(1) as usize;
+        if host_refs == 1 {
+            for (host_id, pos, source, _, _) in entries.iter() {
+                let _ = emit_builder_vertex_meshes(
+                    &graph,
+                    *host_id,
+                    source.as_ref(),
+                    &[*pos],
+                    assets,
+                    vmchunk,
+                );
+            }
+        } else {
+            let mut sorted = entries;
+            sorted.sort_by_key(|entry| entry.4);
+            for group in sorted.chunks(host_refs) {
+                if group.len() < 2 {
+                    continue;
+                }
+                let host_id = group[0].0;
+                let source = group[0].2.as_ref();
+                let hosts: Vec<Vec3<f32>> = group.iter().map(|entry| entry.1).collect();
+                let _ =
+                    emit_builder_vertex_meshes(&graph, host_id, source, &hosts, assets, vmchunk);
+            }
+        }
+    }
 }
 
 fn add_ring(
@@ -6268,10 +6790,6 @@ fn generate_sector_campfires(
             continue;
         }
 
-        let flame_tile = source_to_tile_id(&sector.properties, "campfire_flame_source", assets)
-            .or_else(|| source_to_tile_id(&sector.properties, "cap_source", assets))
-            .or_else(|| source_to_tile_id(&sector.properties, "source", assets))
-            .unwrap_or(default_tile_id);
         let base_tile = source_to_tile_id(&sector.properties, "campfire_base_source", assets)
             .or_else(|| source_to_tile_id(&sector.properties, "source", assets))
             .unwrap_or(default_tile_id);
@@ -6312,8 +6830,6 @@ fn generate_sector_campfires(
 
         let cx = center.x;
         let cz = center.z;
-        let y0 = best_base_y + 0.02;
-        let y1 = y0 + flame_height;
         let base_half = (flame_width * 0.45).max(0.05);
         let log_count = sector
             .properties
@@ -6452,35 +6968,108 @@ fn generate_sector_campfires(
             vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
             Vec3::new(0.0, 1.0, 0.0),
         );
+    }
+}
 
-        // Billboard flame: crossed vertical quads in the center.
-        let flame_half_w = (flame_width * 0.5).max(0.03);
-        for i in 0..3 {
-            let ang = (i as f32 / 3.0) * std::f32::consts::PI;
-            let dx = ang.cos() * flame_half_w;
-            let dz = ang.sin() * flame_half_w;
-            let flame = vec![
-                [cx - dx, y0, cz - dz, 1.0],
-                [cx + dx, y0, cz + dz, 1.0],
-                [cx + dx, y1, cz + dz, 1.0],
-                [cx - dx, y1, cz - dz, 1.0],
-            ];
-            let mut normal = Vec3::new(-dz, 0.0, dx);
-            let n_len = normal.magnitude();
-            if n_len > 1e-6 {
-                normal /= n_len;
-            } else {
-                normal = Vec3::new(0.0, 0.0, 1.0);
-            }
-            push_quad_with_winding(
-                vmchunk,
-                GeoId::Sector(sector.id),
-                flame_tile,
-                flame,
-                vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
-                normal,
-            );
+fn generate_sector_builder_features(
+    map: &Map,
+    assets: &Assets,
+    chunk: &mut Chunk,
+    vmchunk: &mut scenevm::Chunk,
+) {
+    for sector in &map.sectors {
+        let builder_graph_data = sector
+            .properties
+            .get_str_default("builder_graph_data", String::new());
+        if builder_graph_data.trim().is_empty() {
+            continue;
         }
+        if sector
+            .properties
+            .get_str_default("builder_graph_target", "sector".to_string())
+            != "sector"
+        {
+            continue;
+        }
+
+        let bbox = sector.bounding_box(map);
+        if !bbox.intersects(&chunk.bbox) {
+            continue;
+        }
+
+        let mut best_surface: Option<crate::Surface> = None;
+        let mut best_loop_uv: Option<Vec<Vec2<f32>>> = None;
+        let mut best_y = f32::NEG_INFINITY;
+        for surface in map.surfaces.values() {
+            if surface.sector_id != sector.id || surface.plane.normal.y <= 0.7 {
+                continue;
+            }
+            let Some(loop_uv) = surface.sector_loop_uv(map) else {
+                continue;
+            };
+            if loop_uv.len() < 3 || surface.plane.origin.y <= best_y {
+                continue;
+            }
+            best_y = surface.plane.origin.y;
+            best_surface = Some(surface.clone());
+            best_loop_uv = Some(loop_uv);
+        }
+
+        let (surface, loop_uv) =
+            if let (Some(surface), Some(loop_uv)) = (best_surface, best_loop_uv) {
+                (surface, loop_uv)
+            } else {
+                let mut synthetic_surface = crate::Surface::new(sector.id);
+                synthetic_surface.calculate_geometry(map);
+
+                if synthetic_surface.plane.normal.y < 0.0 {
+                    synthetic_surface.plane.normal = -synthetic_surface.plane.normal;
+                    synthetic_surface.frame.normal = -synthetic_surface.frame.normal;
+                    synthetic_surface.frame.up = -synthetic_surface.frame.up;
+                    synthetic_surface.edit_uv.up = synthetic_surface.frame.up;
+                }
+
+                let Some(loop_uv) = synthetic_surface.sector_loop_uv(map) else {
+                    continue;
+                };
+
+                (synthetic_surface, loop_uv)
+            };
+
+        let mut min_uv = loop_uv[0];
+        let mut max_uv = loop_uv[0];
+        for uv in &loop_uv {
+            min_uv.x = min_uv.x.min(uv.x);
+            min_uv.y = min_uv.y.min(uv.y);
+            max_uv.x = max_uv.x.max(uv.x);
+            max_uv.y = max_uv.y.max(uv.y);
+        }
+
+        let profile_target = sector.properties.get_int_default("profile_target", 0);
+        let base_extrusion = if profile_target == 1 {
+            surface.extrusion.depth.abs()
+        } else {
+            0.0
+        };
+        // Builder sector assemblies are authored as positive-up features above the host surface.
+        // Do not reuse the profile loop recess/relief sign convention here.
+        let direction = 1.0;
+
+        let _ = emit_builder_sector_meshes(
+            &builder_graph_data,
+            min_uv,
+            max_uv,
+            base_extrusion,
+            direction,
+            &surface,
+            map,
+            sector,
+            chunk,
+            vmchunk,
+            assets,
+            None,
+            profile_target,
+        );
     }
 }
 
@@ -7454,6 +8043,40 @@ fn generate_terrain(
     config.subdivisions = chunk_ridge_subdiv.max(chunk_exclusion_subdiv);
     let generator = TerrainGenerator::new(config);
 
+    let mut builder_replace_polygons: Vec<(BBox, Vec<Vec2<f32>>)> = Vec::new();
+    for sector in &map.sectors {
+        if sector
+            .properties
+            .get_str_default("builder_graph_target", "sector".to_string())
+            != "sector"
+        {
+            continue;
+        }
+        let builder_replace_surface = sector
+            .properties
+            .get_str_default("builder_surface_mode", String::new())
+            == "replace";
+        if !builder_replace_surface {
+            continue;
+        }
+        if sector
+            .properties
+            .get_str_default("builder_graph_data", String::new())
+            .trim()
+            .is_empty()
+        {
+            continue;
+        }
+        let Some((verts, _)) = sector.generate_geometry(map) else {
+            continue;
+        };
+        let polygon: Vec<Vec2<f32>> = verts.into_iter().map(|v| Vec2::new(v[0], v[1])).collect();
+        if polygon.len() < 3 {
+            continue;
+        }
+        builder_replace_polygons.push((sector.bounding_box(map), polygon));
+    }
+
     // Collect road tile definitions from linedefs.
     let mut road_tile_linedefs: Vec<(Vec2<f32>, Vec2<f32>, f32, f32, Uuid, bool)> = Vec::new();
     for linedef in &map.linedefs {
@@ -7563,6 +8186,14 @@ fn generate_terrain(
                 // Calculate triangle center from UVs (which are in world space)
                 let center_u = (uvs[i0][0] + uvs[i1][0] + uvs[i2][0]) / 3.0;
                 let center_v = (uvs[i0][1] + uvs[i1][1] + uvs[i2][1]) / 3.0;
+                let center = Vec2::new(center_u, center_v);
+
+                if builder_replace_polygons
+                    .iter()
+                    .any(|entry| entry.0.contains(center) && point_in_polygon_2d(center, &entry.1))
+                {
+                    continue;
+                }
 
                 // Get tile coordinates (can be negative)
                 let tile_x = center_u.floor() as i32;
@@ -8035,6 +8666,8 @@ fn generate_terrain(
 /// Classify profile loops: only true holes (cutouts and through-recesses) are subtracted from the base;
 /// shallow recesses and reliefs are handled as feature meshes.
 fn split_loops_for_base<'a>(
+    surface: &crate::Surface,
+    map: &'a Map,
     _outer: &'a ProfileLoop,
     holes: &'a [ProfileLoop],
     extrude_depth_abs: f32,
@@ -8045,8 +8678,44 @@ fn split_loops_for_base<'a>(
     for h in holes {
         match h.op {
             LoopOp::None => {
-                // Pure cutout → subtract from base; no feature meshes needed
-                base_holes.push(h);
+                let builder_profile_sector = h.origin_profile_sector.and_then(|origin| {
+                    surface.profile.and_then(|profile_id| {
+                        map.profiles
+                            .get(&profile_id)
+                            .and_then(|profile_map| profile_map.find_sector(origin))
+                    })
+                });
+                let is_builder_feature = builder_profile_sector
+                    .map(|ps| {
+                        !ps.properties
+                            .get_str_default("builder_graph_data", String::new())
+                            .trim()
+                            .is_empty()
+                            && ps
+                                .properties
+                                .get_str_default("builder_graph_target", "sector".to_string())
+                                == "sector"
+                    })
+                    .unwrap_or(false);
+                let builder_hide_host = builder_profile_sector
+                    .map(|ps| ps.properties.get_bool_default("builder_hide_host", false))
+                    .unwrap_or(false);
+                let builder_replace_surface = builder_profile_sector
+                    .map(|ps| {
+                        ps.properties
+                            .get_str_default("builder_surface_mode", String::new())
+                            == "replace"
+                    })
+                    .unwrap_or(false);
+                if is_builder_feature {
+                    if builder_replace_surface && !builder_hide_host {
+                        base_holes.push(h);
+                    }
+                    feature_loops.push(h);
+                } else {
+                    // Pure cutout -> subtract from base; no feature meshes needed
+                    base_holes.push(h);
+                }
             }
             LoopOp::Recess { .. } => {
                 if extrude_depth_abs <= eps {
@@ -8265,6 +8934,26 @@ fn ensure_cw(poly: &mut [vek::Vec2<f32>]) {
     if polygon_area(poly) > 0.0 {
         poly.reverse();
     }
+}
+
+fn point_in_polygon_2d(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> bool {
+    if polygon.len() < 3 {
+        return false;
+    }
+    let mut inside = false;
+    let mut j = polygon.len() - 1;
+    for i in 0..polygon.len() {
+        let pi = polygon[i];
+        let pj = polygon[j];
+        let intersects = ((pi.y > point.y) != (pj.y > point.y))
+            && (point.x
+                < (pj.x - pi.x) * (point.y - pi.y) / ((pj.y - pi.y).abs().max(1e-6)) + pi.x);
+        if intersects {
+            inside = !inside;
+        }
+        j = i;
+    }
+    inside
 }
 
 /// Triangulate an outer polygon with holes in UV space using earcutr.
@@ -8656,6 +9345,11 @@ fn emit_feature_meshes(
                 && let Some(tex) = assets.tile_index(&default_id)
             {
                 batch.source = PixelSource::StaticTileIndex(tex);
+            } else {
+                // Scene VM always has a checker tile for DEFAULT_TILE_ID, but the software batch
+                // path only renders visible output when the batch source is concrete. Keep Builder
+                // fallback geometry visible even when the checker tile is not present in assets.
+                batch.source = PixelSource::Pixel([180, 180, 180, 255]);
             }
             vmchunk.add_poly_3d(
                 GeoId::Sector(sector.id),
@@ -8670,6 +9364,130 @@ fn emit_feature_meshes(
 
         chunk.batches3d.push(batch);
     }
+}
+
+fn emit_builder_sector_meshes(
+    graph_text: &str,
+    min_uv: Vec2<f32>,
+    max_uv: Vec2<f32>,
+    base_extrusion: f32,
+    _direction: f32,
+    surface: &crate::Surface,
+    map: &Map,
+    sector: &Sector,
+    _chunk: &mut Chunk,
+    vmchunk: &mut scenevm::Chunk,
+    assets: &Assets,
+    loop_origin: Option<u32>,
+    _profile_target: i32,
+) -> bool {
+    let builder_geo_id = scenevm::GeoId::Unknown(0xB100_0000u32 ^ sector.id);
+    let Ok(graph) = BuilderGraph::from_text(graph_text) else {
+        return false;
+    };
+    let Ok(assembly) = graph.evaluate() else {
+        return false;
+    };
+    if assembly.primitives.is_empty() {
+        return false;
+    }
+
+    let default_tile_id = Uuid::from_str(DEFAULT_TILE_ID).unwrap();
+    let tile_id = if let Some(Value::Source(pixelsource)) =
+        feature_pixelsource(surface, map, sector, loop_origin, "source")
+    {
+        pixelsource
+            .tile_from_tile_list(assets)
+            .map(|tile| tile.id)
+            .unwrap_or(default_tile_id)
+    } else {
+        default_tile_id
+    };
+
+    let center_uv = Vec2::new((min_uv.x + max_uv.x) * 0.5, (min_uv.y + max_uv.y) * 0.5);
+    let sector_size = max_uv - min_uv;
+    let along = surface.edit_uv.right.normalized();
+    let mut upward = surface.frame.normal.normalized();
+    if upward.y < 0.0 {
+        upward = -upward;
+    }
+    let mut outward = along.cross(upward);
+    if outward.magnitude() <= 1e-5 {
+        outward = surface.edit_uv.up;
+    }
+    if outward.y < 0.0 {
+        outward = -outward;
+    }
+    outward = outward.normalized();
+
+    let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
+    let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
+    let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
+
+    for primitive in assembly.primitives {
+        match primitive {
+            BuilderPrimitive::Box {
+                size,
+                transform,
+                host_position_normalized,
+                host_scale_x_normalized,
+                host_scale_z_normalized,
+            } => {
+                let sx = if host_scale_x_normalized {
+                    transform.scale.x * sector_size.x
+                } else {
+                    transform.scale.x
+                };
+                let sz = if host_scale_z_normalized {
+                    transform.scale.z * sector_size.y
+                } else {
+                    transform.scale.z
+                };
+                let scaled = Vec3::new(size.x * sx, size.y * transform.scale.y, size.z * sz);
+                let offset_uv = Vec2::new(
+                    if host_position_normalized {
+                        transform.translation.x * sector_size.x
+                    } else {
+                        transform.translation.x
+                    },
+                    if host_position_normalized {
+                        transform.translation.z * sector_size.y
+                    } else {
+                        transform.translation.z
+                    },
+                );
+                let base_world =
+                    surface.uv_to_world(center_uv + offset_uv) + upward * base_extrusion;
+                let center = base_world + upward * (transform.translation.y + scaled.y * 0.5);
+                add_builder_box_mesh(
+                    &mut mesh_vertices,
+                    &mut mesh_uvs,
+                    &mut mesh_indices,
+                    center,
+                    scaled,
+                    transform.rotation_y,
+                    along,
+                    upward,
+                    outward,
+                );
+            }
+        }
+    }
+
+    if mesh_indices.is_empty() {
+        return false;
+    }
+
+    vmchunk.add_poly_3d(
+        builder_geo_id,
+        tile_id,
+        mesh_vertices,
+        mesh_uvs,
+        mesh_indices,
+        0,
+        true,
+    );
+    true
 }
 
 /// Process a feature loop using the SurfaceAction trait system
@@ -9041,6 +9859,57 @@ fn process_feature_loop_with_action(
         }
 
         return Some(());
+    }
+
+    if let Some(origin) = feature_loop.origin_profile_sector
+        && let Some(profile_id) = surface.profile
+        && let Some(profile_map) = map.profiles.get(&profile_id)
+        && let Some(ps) = profile_map.find_sector(origin)
+    {
+        let builder_graph_data = ps
+            .properties
+            .get_str_default("builder_graph_data", String::new());
+        let builder_target = ps
+            .properties
+            .get_str_default("builder_graph_target", "sector".to_string());
+        if !builder_graph_data.trim().is_empty()
+            && builder_target == "sector"
+            && feature_loop.path.len() >= 3
+        {
+            let profile_target =
+                feature_profile_target(surface, map, sector, feature_loop.origin_profile_sector);
+            let base_extrusion = if profile_target == 1 {
+                surface.extrusion.depth.abs()
+            } else {
+                0.0
+            };
+
+            let mut min_uv = feature_loop.path[0];
+            let mut max_uv = feature_loop.path[0];
+            for uv in &feature_loop.path {
+                min_uv.x = min_uv.x.min(uv.x);
+                min_uv.y = min_uv.y.min(uv.y);
+                max_uv.x = max_uv.x.max(uv.x);
+                max_uv.y = max_uv.y.max(uv.y);
+            }
+
+            let _ = emit_builder_sector_meshes(
+                &builder_graph_data,
+                min_uv,
+                max_uv,
+                base_extrusion,
+                1.0,
+                surface,
+                map,
+                sector,
+                chunk,
+                vmchunk,
+                assets,
+                feature_loop.origin_profile_sector,
+                profile_target,
+            );
+            return Some(());
+        }
     }
 
     // "Create Props" table mode: build tabletop + legs instead of a full block.

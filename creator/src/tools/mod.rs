@@ -6,6 +6,7 @@ use rusterix::Assets;
 // pub mod data;
 pub mod game;
 // pub mod info;
+pub mod builder;
 pub mod linedef;
 pub mod organic;
 pub mod rect;

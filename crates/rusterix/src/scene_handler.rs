@@ -2,8 +2,8 @@ use std::{hash::Hasher, str::FromStr};
 
 use crate::{
     Assets, AvatarDirection, AvatarShadingOptions, BillboardAnimation, BillboardMetadata, D3Camera,
-    Item, Map, PixelSource, RenderSettings, Texture, Tile, Value,
-    avatar_builder::AvatarRuntimeBuilder,
+    Item, Map, ParticleEmitter, PixelSource, RenderSettings, Texture, Tile, Value,
+    avatar_builder::AvatarRuntimeBuilder, chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
 };
 use indexmap::IndexMap;
 use rust_embed::EmbeddedFile;
@@ -77,6 +77,7 @@ pub struct SceneHandler {
     pub(crate) billboard_anim_states: FxHashMap<GeoId, BillboardAnimState>,
     // Per-item animation phase starts for one-shot impact effects.
     impact_anim_starts: FxHashMap<GeoId, u32>,
+    campfire_emitters: FxHashMap<u32, ParticleEmitter>,
 
     // Local render-frame counter for timing animations at fixed FPS
     frame_counter: usize,
@@ -100,6 +101,118 @@ impl Default for SceneHandler {
 }
 
 impl SceneHandler {
+    fn rebuild_campfire_particles(
+        &mut self,
+        map: &Map,
+        camera: &dyn D3Camera,
+        assets: &Assets,
+    ) -> bool {
+        let mut top_floor_y_by_sector: FxHashMap<u32, f32> = FxHashMap::default();
+        for surface in map.surfaces.values() {
+            if surface.plane.normal.y.abs() <= 0.7 {
+                continue;
+            }
+            top_floor_y_by_sector
+                .entry(surface.sector_id)
+                .and_modify(|y| {
+                    if surface.plane.origin.y > *y {
+                        *y = surface.plane.origin.y;
+                    }
+                })
+                .or_insert(surface.plane.origin.y);
+        }
+
+        let basis = camera.basis_vectors();
+        let dt = (1.0 / self.render_fps.max(1.0)).clamp(0.005, 0.1);
+        let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
+        let mut has_particles = false;
+
+        for sector in &map.sectors {
+            let feature = sector
+                .properties
+                .get_str_default("sector_feature", "None".to_string());
+            if feature != "Campfire" {
+                continue;
+            }
+
+            let flame_height = sector
+                .properties
+                .get_float_default("campfire_flame_height", 0.8)
+                .max(0.0);
+            let flame_width = sector
+                .properties
+                .get_float_default("campfire_flame_width", 0.45)
+                .max(0.05);
+            if flame_height <= 0.0 {
+                continue;
+            }
+
+            let flame_tile_id = sector
+                .properties
+                .get_source("campfire_flame_source")
+                .and_then(|source| source.tile_from_tile_list(assets))
+                .map(|tile| tile.id)
+                .or_else(|| {
+                    sector
+                        .properties
+                        .get_source("source")
+                        .and_then(|source| source.tile_from_tile_list(assets))
+                        .map(|tile| tile.id)
+                })
+                .unwrap_or_else(|| Uuid::from_str(DEFAULT_TILE_ID).unwrap());
+
+            let Some(center) = sector.center(map) else {
+                continue;
+            };
+            let base_y = top_floor_y_by_sector
+                .get(&sector.id)
+                .copied()
+                .unwrap_or(0.0);
+            let origin = Vec3::new(center.x, base_y + 0.05, center.y);
+            active_emitters.insert(sector.id);
+
+            let emitter = self
+                .campfire_emitters
+                .entry(sector.id)
+                .or_insert_with(|| ParticleEmitter::new(origin, Vec3::new(0.0, 1.0, 0.0)));
+            emitter.origin = origin;
+            emitter.direction = Vec3::new(0.0, 1.0, 0.0);
+            emitter.spread = 0.75;
+            emitter.rate = 28.0 + flame_height * 16.0;
+            emitter.color = [255, 180, 90, 255];
+            emitter.color_variation = 25;
+            emitter.lifetime_range = (0.4, 0.95);
+            emitter.radius_range = (
+                (flame_width * 0.35).max(0.12),
+                (flame_width * 0.85).max(0.28),
+            );
+            emitter.speed_range = (flame_height * 0.75, flame_height * 1.6);
+            emitter.update(dt);
+
+            for (index, particle) in emitter.particles.iter().enumerate() {
+                has_particles = true;
+                let opacity = (particle.lifetime / emitter.lifetime_range.1).clamp(0.0, 1.0);
+                let size = (particle.radius * 2.8).max(0.08);
+                let center = particle.pos + Vec3::new(0.0, size * 0.35, 0.0);
+                let dynamic = DynamicObject::billboard_tile(
+                    GeoId::Unknown(sector.id.saturating_mul(1024).saturating_add(index as u32)),
+                    flame_tile_id,
+                    center,
+                    basis.1,
+                    basis.2,
+                    size,
+                    size * 2.1,
+                )
+                .with_opacity(opacity);
+                self.vm.execute(Atom::AddDynamic { object: dynamic });
+            }
+        }
+
+        self.campfire_emitters
+            .retain(|sector_id, _| active_emitters.contains(sector_id));
+        has_particles
+    }
+
     #[inline]
     fn impact_anim_start_for_item(&mut self, geo_id: GeoId, item: &Item) -> Option<u32> {
         if item.attributes.get_bool_default("spell_impacting", false) {
@@ -130,6 +243,7 @@ impl SceneHandler {
         self.billboards.clear();
         self.billboard_anim_states.clear();
         self.impact_anim_starts.clear();
+        self.campfire_emitters.clear();
         self.mark_dynamics_dirty();
     }
 
@@ -140,6 +254,7 @@ impl SceneHandler {
         self.billboards.clear();
         self.billboard_anim_states.clear();
         self.impact_anim_starts.clear();
+        self.campfire_emitters.clear();
         self.mark_dynamics_dirty();
     }
 
@@ -281,6 +396,7 @@ impl SceneHandler {
             billboards: FxHashMap::default(),
             billboard_anim_states: FxHashMap::default(),
             impact_anim_starts: FxHashMap::default(),
+            campfire_emitters: FxHashMap::default(),
             frame_counter: 0,
             avatar_builder: AvatarRuntimeBuilder::default(),
             last_dynamics_hash_2d: None,
@@ -911,6 +1027,7 @@ impl SceneHandler {
                 skin_enabled: self.settings.avatar_skin_shading_enabled,
             });
         self.frame_counter = self.frame_counter.wrapping_add(1);
+        let has_active_campfire_particles = !self.campfire_emitters.is_empty();
         let has_active_render_billboard_anim = self
             .billboard_anim_states
             .values()
@@ -919,6 +1036,7 @@ impl SceneHandler {
         if self.dynamics_ready_3d
             && self.last_dynamics_hash_3d == Some(current_hash)
             && !has_active_render_billboard_anim
+            && !has_active_campfire_particles
         {
             return;
         }
@@ -927,6 +1045,7 @@ impl SceneHandler {
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
         self.add_sector_campfire_lights(map);
+        let _has_campfire_particles = self.rebuild_campfire_particles(map, camera, assets);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
 

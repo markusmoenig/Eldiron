@@ -39,6 +39,9 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::tiles::TilesDock::new());
         docks.insert("Tiles".into(), dock);
 
+        let dock: Box<dyn Dock> = Box::new(crate::docks::builder::BuilderDock::new());
+        docks.insert("Builder".into(), dock);
+
         let dock: Box<dyn Dock> = Box::new(crate::docks::authoring::AuthoringDock::new());
         docks.insert("Authoring".into(), dock);
 
@@ -254,6 +257,14 @@ impl DockManager {
         let index = stack.add_canvas(tiles_editor_canvas);
         self.editor_canvases.insert("Tiles".to_string(), index);
         self.editor_docks.insert("Tiles".to_string(), tiles_editor);
+
+        let mut builder_editor: Box<dyn Dock> =
+            Box::new(crate::docks::builder_editor::BuilderEditorDock::new());
+        let builder_editor_canvas = builder_editor.setup(ctx);
+        let index = stack.add_canvas(builder_editor_canvas);
+        self.editor_canvases.insert("Builder".to_string(), index);
+        self.editor_docks
+            .insert("Builder".to_string(), builder_editor);
 
         let mut data_editor: Box<dyn Dock> =
             Box::new(crate::docks::data_editor::DataEditorDock::new());

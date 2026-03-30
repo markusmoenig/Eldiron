@@ -1,0 +1,17 @@
+[package]
+name = "buildergraph"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Human-readable graph format, runtime, and CLI for Eldiron builder graphs."
+
+[dependencies]
+image = "0.25.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.9"
+uuid = { version = "1.1.2", features = ["v4", "fast-rng", "macro-diagnostics", "serde", "js"] }
+vek = { version = "0.17.1", default-features = true }

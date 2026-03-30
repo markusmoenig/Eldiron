@@ -1,6 +1,6 @@
 [workspace]
 
-members = ["creator", "run-wasm", "crates/shared", "clients/client", "clients/client-wgpu", "clients/client-terminal", "crates/rusterix", "crates/rusterix/rusteria", "crates/rusterix/codegridfx/lib", "crates/theframework", "crates/scenevm", "crates/tilegraph", "crates/organicgraph"]
+members = ["creator", "run-wasm", "crates/shared", "clients/client", "clients/client-wgpu", "clients/client-terminal", "crates/rusterix", "crates/rusterix/rusteria", "crates/rusterix/codegridfx/lib", "crates/theframework", "crates/scenevm", "crates/tilegraph", "crates/organicgraph", "crates/buildergraph"]
 resolver = "2"
 
 [workspace.dependencies]

@@ -12,17 +12,24 @@ pub mod text_game;
 pub mod text_session;
 pub mod tilemap;
 pub mod treasury;
+pub use buildergraph;
 pub use tilegraph;
 
 pub mod prelude {
     pub use serde::{Deserialize, Serialize};
 
     pub use crate::asset::*;
+    pub use crate::buildergraph::{
+        BuilderAnchor, BuilderAssembly, BuilderGraph, BuilderNode, BuilderNodeKind,
+        BuilderOutputTarget, BuilderPrimitive, BuilderTransform,
+    };
     pub use crate::character::Character;
     pub use crate::context::*;
     pub use crate::interaction::*;
     pub use crate::item::Item;
-    pub use crate::project::{NodeGroupAsset, Project, TileCollectionAsset, TileCollectionEntry};
+    pub use crate::project::{
+        BuilderGraphAsset, NodeGroupAsset, Project, TileCollectionAsset, TileCollectionEntry,
+    };
     pub use crate::region::Region;
     pub use crate::screen::*;
     pub use crate::text_game::*;

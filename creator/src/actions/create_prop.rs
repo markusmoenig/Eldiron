@@ -657,6 +657,9 @@ impl Action for CreateProp {
                     sector.properties.remove("bed_headboard_side");
                     sector.properties.remove("bed_headboard_height");
                     sector.properties.remove("bed_mattress_source");
+                    sector.properties.remove("builder_graph_id");
+                    sector.properties.remove("builder_graph_name");
+                    sector.properties.remove("builder_graph_data");
 
                     if bookcase_books {
                         let palette_index = (8 + (sector.id % 24)) as u16;
@@ -687,6 +690,9 @@ impl Action for CreateProp {
                     sector.properties.remove("bed_headboard_side");
                     sector.properties.remove("bed_headboard_height");
                     sector.properties.remove("bed_mattress_source");
+                    sector.properties.remove("builder_graph_id");
+                    sector.properties.remove("builder_graph_name");
+                    sector.properties.remove("builder_graph_data");
                 } else if prop_type == 4 {
                     sector
                         .properties
@@ -708,6 +714,9 @@ impl Action for CreateProp {
                     sector.properties.remove("book_source");
                     sector.properties.remove("barrel_bulge");
                     sector.properties.remove("barrel_segments");
+                    sector.properties.remove("builder_graph_id");
+                    sector.properties.remove("builder_graph_name");
+                    sector.properties.remove("builder_graph_data");
                     if let Some(source) = bed_mattress_source.clone().or(table_source.clone()) {
                         sector
                             .properties
@@ -732,6 +741,9 @@ impl Action for CreateProp {
                     sector.properties.remove("bed_headboard_side");
                     sector.properties.remove("bed_headboard_height");
                     sector.properties.remove("bed_mattress_source");
+                    sector.properties.remove("builder_graph_id");
+                    sector.properties.remove("builder_graph_name");
+                    sector.properties.remove("builder_graph_data");
                 }
 
                 if let Some(source) = table_source.clone() {

@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use buildergraph::BuilderGraph;
 use indexmap::IndexMap;
 pub use rusterix::map::*;
 use theframework::prelude::*;
@@ -44,6 +45,32 @@ fn default_tile_collection_name() -> String {
 
 fn default_tile_collection_version() -> String {
     "0.1".to_string()
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct BuilderGraphAsset {
+    pub id: Uuid,
+    pub graph_id: Uuid,
+    #[serde(default)]
+    pub graph_name: String,
+    #[serde(default)]
+    pub graph_data: String,
+}
+
+impl BuilderGraphAsset {
+    pub fn new(name: String) -> Self {
+        let graph = BuilderGraph::preset_table();
+        Self {
+            id: Uuid::new_v4(),
+            graph_id: graph.id,
+            graph_name: if name.is_empty() {
+                graph.name.clone()
+            } else {
+                name
+            },
+            graph_data: graph.to_toml_string().unwrap_or_default(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -154,6 +181,10 @@ pub struct Project {
     #[serde(default)]
     pub tile_node_groups: IndexMap<Uuid, NodeGroupAsset>,
 
+    /// Standalone builder graphs for props and assemblies.
+    #[serde(default)]
+    pub builder_graphs: IndexMap<Uuid, BuilderGraphAsset>,
+
     /// Custom top-level tile collections shown as tabs in the tile picker.
     #[serde(default)]
     pub tile_collections: IndexMap<Uuid, TileCollectionAsset>,
@@ -235,6 +266,7 @@ impl Project {
             tiles: IndexMap::default(),
             tile_groups: IndexMap::default(),
             tile_node_groups: IndexMap::default(),
+            builder_graphs: IndexMap::default(),
             tile_collections: IndexMap::default(),
             tile_board_tiles: IndexMap::default(),
             tile_board_groups: IndexMap::default(),
@@ -310,6 +342,10 @@ impl Project {
     pub fn add_tile_node_group(&mut self, node_group: NodeGroupAsset) {
         self.tile_node_groups
             .insert(node_group.group_id, node_group);
+    }
+
+    pub fn add_builder_graph(&mut self, builder_graph: BuilderGraphAsset) {
+        self.builder_graphs.insert(builder_graph.id, builder_graph);
     }
 
     pub fn add_tile_collection(&mut self, collection: TileCollectionAsset) {

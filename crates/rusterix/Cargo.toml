@@ -16,6 +16,7 @@ scenevm = { path = "../scenevm", version = "0.9.1", default-features = false }
 rusteria.workspace = true
 codegridfx.workspace = true
 organicgraph = { path = "../organicgraph", version = "0.9.1" }
+buildergraph = { path = "../buildergraph", version = "0.9.1" }
 
 fontdue = "0.9.3"
 rayon = "1.10"

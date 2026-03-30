@@ -402,6 +402,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "buildergraph"
+version = "0.9.1"
+dependencies = [
+ "image",
+ "serde",
+ "serde_json",
+ "toml 0.9.11+spec-1.1.0",
+ "uuid",
+ "vek",
+]
+
+[[package]]
 name = "built"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1229,6 +1241,7 @@ dependencies = [
 name = "eldiron-shared"
 version = "0.9.1"
 dependencies = [
+ "buildergraph",
  "codegridfx",
  "earcutr",
  "fontdue",
@@ -4257,6 +4270,7 @@ name = "rusterix"
 version = "0.9.1"
 dependencies = [
  "bincode",
+ "buildergraph",
  "bvh",
  "codegridfx",
  "console_error_panic_hook",
