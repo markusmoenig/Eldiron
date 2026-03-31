@@ -199,7 +199,12 @@ impl ToolList {
 
     fn status_text_with_accel(info: String, accel: Option<char>) -> String {
         if let Some(accel) = accel {
-            format!("{info} ({accel})")
+            let marker = format!("({accel})");
+            if info.contains(&marker) {
+                info
+            } else {
+                format!("{info} ({accel})")
+            }
         } else {
             info
         }

@@ -58,8 +58,22 @@ pub struct BuilderGraphAsset {
 }
 
 impl BuilderGraphAsset {
-    pub fn new(name: String) -> Self {
+    pub fn new_table(name: String) -> Self {
         let graph = BuilderGraph::preset_table();
+        Self {
+            id: Uuid::new_v4(),
+            graph_id: graph.id,
+            graph_name: if name.is_empty() {
+                graph.name.clone()
+            } else {
+                name
+            },
+            graph_data: graph.to_toml_string().unwrap_or_default(),
+        }
+    }
+
+    pub fn new_empty(name: String) -> Self {
+        let graph = BuilderGraph::empty_named(name.clone());
         Self {
             id: Uuid::new_v4(),
             graph_id: graph.id,

@@ -1,11 +1,12 @@
 use crate::editor::{RUSTERIX, TOOLLIST};
 use crate::prelude::*;
 use rusterix::Surface;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const BUILDER_TAB_LAYOUT: &str = "Builder Dock Tabs";
 const BUILDER_VIEW_PREFIX: &str = "Builder Dock View ";
-const BUILDER_CARD_W: i32 = 150;
-const BUILDER_CARD_H: i32 = 110;
+const BUILDER_CARD_W: i32 = 164;
+const BUILDER_CARD_H: i32 = 118;
 const BUILDER_CARD_GAP: i32 = 12;
 const BUILDER_PADDING: i32 = 12;
 
@@ -40,6 +41,7 @@ pub struct BuilderDock {
     selected: Option<Uuid>,
     hovered: Option<Uuid>,
     placements: Vec<Vec<BuilderCardPlacement>>,
+    last_asset_click: Option<(Uuid, u128)>,
 }
 
 impl Dock for BuilderDock {
@@ -52,6 +54,7 @@ impl Dock for BuilderDock {
             selected: None,
             hovered: None,
             placements: vec![Vec::new(), Vec::new(), Vec::new()],
+            last_asset_click: None,
         }
     }
 
@@ -67,7 +70,7 @@ impl Dock for BuilderDock {
         toolbar_hlayout.set_padding(3);
 
         let mut title = TheText::new(TheId::named("Builder Dock Title"));
-        title.set_text("Builder Picker".to_string());
+        title.set_text(fl!("builder_picker_title"));
         title.set_text_size(12.5);
         toolbar_hlayout.add_widget(Box::new(title));
 
@@ -75,24 +78,37 @@ impl Dock for BuilderDock {
         toolbar_hlayout.add_widget(Box::new(spacer));
 
         let mut new_button = TheTraybarButton::new(TheId::named("Builder Dock New"));
-        new_button.set_text("New".to_string());
-        new_button.set_status_text("Create a new builder graph asset.");
+        new_button.set_text(fl!("new"));
+        new_button.set_status_text(&fl!("status_builder_new"));
+        new_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new(
+                    "Empty".to_string(),
+                    TheId::named("Builder Dock New Empty"),
+                ),
+                TheContextMenuItem::new(
+                    "Table".to_string(),
+                    TheId::named("Builder Dock New Table"),
+                ),
+            ],
+            ..Default::default()
+        }));
         toolbar_hlayout.add_widget(Box::new(new_button));
 
         let mut collections_button =
             TheTraybarButton::new(TheId::named("Builder Dock Collections"));
-        collections_button.set_text("Collections".to_string());
-        collections_button.set_status_text("Builder collections will be added here later.");
+        collections_button.set_text(fl!("collections"));
+        collections_button.set_status_text(&fl!("status_builder_collections"));
         toolbar_hlayout.add_widget(Box::new(collections_button));
 
         let mut apply_button = TheTraybarButton::new(TheId::named("Builder Dock Apply Build"));
-        apply_button.set_text("Apply Build".to_string());
-        apply_button.set_status_text("Apply the selected builder graph to the selected hosts.");
+        apply_button.set_text(fl!("builder_apply_build"));
+        apply_button.set_status_text(&fl!("status_builder_apply_build"));
         toolbar_hlayout.add_widget(Box::new(apply_button));
 
         let mut clear_button = TheTraybarButton::new(TheId::named("Builder Dock Clear Build"));
-        clear_button.set_text("Clear".to_string());
-        clear_button.set_status_text("Clear the builder graph from the selected hosts.");
+        clear_button.set_text(fl!("clear"));
+        clear_button.set_status_text(&fl!("status_builder_clear_build"));
         toolbar_hlayout.add_widget(Box::new(clear_button));
 
         toolbar_hlayout.set_reverse_index(Some(2));
@@ -157,13 +173,22 @@ impl Dock for BuilderDock {
                 {
                     match kind {
                         BuilderCardKind::Asset(asset_id) => {
-                            let open_editor = self.selected == Some(asset_id);
                             self.selected = Some(asset_id);
                             server_ctx.curr_builder_graph_id = Some(asset_id);
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Builder Selection Changed"),
                                 TheValue::Id(asset_id),
                             ));
+                            let now = SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .map(|d| d.as_millis())
+                                .unwrap_or(0);
+                            let open_editor = matches!(
+                                self.last_asset_click,
+                                Some((last_id, last_time))
+                                    if last_id == asset_id && now.saturating_sub(last_time) < 400
+                            );
+                            self.last_asset_click = Some((asset_id, now));
                             if open_editor {
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Open Builder Graph Workflow"),
@@ -198,8 +223,11 @@ impl Dock for BuilderDock {
                         ctx.ui.send(TheEvent::SetStatusText(
                             id.clone(),
                             format!(
-                                "Select builder asset '{}'. Click again or press Return to open.",
-                                asset.graph_name
+                                "{}",
+                                fl!(
+                                    "status_builder_select_asset",
+                                    asset_name = asset.graph_name.clone()
+                                )
                             ),
                         ));
                     }
@@ -214,10 +242,16 @@ impl Dock for BuilderDock {
                     redraw = true;
                 }
             }
-            TheEvent::StateChanged(id, TheWidgetState::Clicked)
-                if id.name == "Builder Dock New" =>
-            {
-                let asset = BuilderGraphAsset::new(Self::next_builder_name(project));
+            TheEvent::ContextMenuSelected(id, item) if id.name == "Builder Dock New" => {
+                let asset = match item.name.as_str() {
+                    "Builder Dock New Empty" => {
+                        BuilderGraphAsset::new_empty(Self::next_builder_name(project, false))
+                    }
+                    "Builder Dock New Table" => {
+                        BuilderGraphAsset::new_table(Self::next_builder_name(project, true))
+                    }
+                    _ => return false,
+                };
                 let asset_id = asset.id;
                 project.add_builder_graph(asset);
                 self.selected = Some(asset_id);
@@ -233,7 +267,20 @@ impl Dock for BuilderDock {
                 if id.name == "Builder Dock Apply Build" =>
             {
                 if let Some(asset_id) = self.selected.or(server_ctx.curr_builder_graph_id) {
-                    self.activate_asset(asset_id, ui, ctx, project, server_ctx);
+                    let mut applied_to_item_slot = false;
+                    if let Some(asset) = project.builder_graphs.get(&asset_id).cloned()
+                        && let Some(map) = project.get_map_mut(server_ctx)
+                    {
+                        applied_to_item_slot = crate::actions::apply_builder_item_to_selection(
+                            map,
+                            server_ctx,
+                            server_ctx.selected_hud_icon_index,
+                            &asset,
+                        );
+                    }
+                    if !applied_to_item_slot {
+                        self.activate_asset(asset_id, ui, ctx, project, server_ctx);
+                    }
                     RUSTERIX.write().unwrap().set_dirty();
                     crate::utils::scenemanager_render_map(project, server_ctx);
                     TOOLLIST
@@ -251,7 +298,17 @@ impl Dock for BuilderDock {
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "Builder Dock Clear Build" =>
             {
-                self.clear_selected_hosts(project, server_ctx);
+                let mut cleared_item_slot = false;
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    cleared_item_slot = crate::actions::clear_builder_item_from_selection(
+                        map,
+                        server_ctx,
+                        server_ctx.selected_hud_icon_index,
+                    );
+                }
+                if !cleared_item_slot {
+                    self.clear_selected_hosts(project, server_ctx);
+                }
                 RUSTERIX.write().unwrap().set_dirty();
                 crate::utils::scenemanager_render_map(project, server_ctx);
                 TOOLLIST
@@ -365,7 +422,7 @@ impl BuilderDock {
                     .rect_outline(buffer.pixels_mut(), &card, stride, &outline);
             }
 
-            let preview_rect = Vec4::new(rect.x + 8, rect.y + 8, rect.z - 16, 48);
+            let preview_rect = Vec4::new(rect.x + 8, rect.y + 8, rect.z - 16, 66);
             if let Some(preview) = Self::clip_rect(buffer, preview_rect, 0) {
                 ctx.draw
                     .rect(buffer.pixels_mut(), &preview, stride, &[44, 44, 44, 255]);
@@ -376,7 +433,7 @@ impl BuilderDock {
 
             let title_rect = (
                 (rect.x + 8).max(0) as usize,
-                (rect.y + 60).max(0) as usize,
+                (rect.y + 78).max(0) as usize,
                 (rect.z - 16).max(1) as usize,
                 18usize,
             );
@@ -396,9 +453,9 @@ impl BuilderDock {
 
             let body_rect = (
                 (rect.x + 8).max(0) as usize,
-                (rect.y + 78).max(0) as usize,
+                (rect.y + 96).max(0) as usize,
                 (rect.z - 16).max(1) as usize,
-                (rect.w - 16 - 62).max(18) as usize,
+                14usize,
             );
             ctx.draw.text_rect_blend(
                 buffer.pixels_mut(),
@@ -525,24 +582,23 @@ impl BuilderDock {
     fn description_for_asset(asset: &BuilderGraphAsset) -> String {
         if let Ok(graph) = BuilderGraph::from_text(&asset.graph_data) {
             let spec = graph.output_spec();
-            if let Ok(assembly) = graph.evaluate() {
-                format!(
-                    "{:?} x{}, {} primitives, {} anchors.",
-                    spec.target,
-                    spec.host_refs,
-                    assembly.primitives.len(),
-                    assembly.anchors.len()
-                )
+            let target = match spec.target {
+                BuilderOutputTarget::Sector => "Sector",
+                BuilderOutputTarget::VertexPair => "Vertex",
+                BuilderOutputTarget::Linedef => "Linedef",
+            };
+            if spec.host_refs > 1 {
+                format!("{target} x{}", spec.host_refs)
             } else {
-                "Invalid builder graph.".to_string()
+                target.to_string()
             }
         } else {
             "Invalid builder graph.".to_string()
         }
     }
 
-    fn next_builder_name(project: &Project) -> String {
-        let base = "Table".to_string();
+    fn next_builder_name(project: &Project, table: bool) -> String {
+        let base = if table { "Table" } else { "Empty" }.to_string();
         if !project
             .builder_graphs
             .values()

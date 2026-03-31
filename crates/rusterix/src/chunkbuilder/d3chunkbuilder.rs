@@ -10,7 +10,7 @@ use crate::{
     VertexBlendPreset,
 };
 use crate::{BillboardAnimation, GeometrySource, LoopOp, ProfileLoop, RepeatMode, Sector};
-use buildergraph::{BuilderGraph, BuilderPrimitive};
+use buildergraph::{BuilderAssembly, BuilderAttachmentKind, BuilderGraph, BuilderPrimitive};
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::GeoId;
 use std::str::FromStr;
@@ -3015,10 +3015,181 @@ fn add_builder_box_mesh(
     }
 }
 
+fn normalize_builder_material_key(name: &str) -> String {
+    let mut out = String::new();
+    let mut prev_is_sep = false;
+    for (i, ch) in name.chars().enumerate() {
+        if ch.is_ascii_alphanumeric() {
+            if ch.is_ascii_uppercase() {
+                if i > 0 && !prev_is_sep {
+                    out.push('_');
+                }
+                out.push(ch.to_ascii_lowercase());
+            } else {
+                out.push(ch.to_ascii_lowercase());
+            }
+            prev_is_sep = false;
+        } else if !prev_is_sep && !out.is_empty() {
+            out.push('_');
+            prev_is_sep = true;
+        }
+    }
+    out.trim_matches('_').to_string()
+}
+
+fn builder_item_graph_data_key(name: &str) -> String {
+    format!(
+        "builder_item_{}_graph_data",
+        normalize_builder_material_key(name)
+    )
+}
+
+fn resolve_builder_material_tile_id(
+    properties: &ValueContainer,
+    fallback_source: Option<&Value>,
+    material_slot: Option<&str>,
+    assets: &Assets,
+) -> Uuid {
+    let default_tile_id = Uuid::from_str(DEFAULT_TILE_ID).unwrap();
+    if let Some(material_slot) = material_slot {
+        let key = format!(
+            "builder_material_{}",
+            normalize_builder_material_key(material_slot)
+        );
+        if let Some(Value::Source(ps)) = properties.get(&key) {
+            return ps
+                .tile_from_tile_list(assets)
+                .map(|tile| tile.id)
+                .unwrap_or(default_tile_id);
+        }
+    }
+    match fallback_source {
+        Some(Value::Source(ps)) => ps
+            .tile_from_tile_list(assets)
+            .map(|tile| tile.id)
+            .unwrap_or(default_tile_id),
+        _ => default_tile_id,
+    }
+}
+
+fn emit_builder_attached_item_graphs(
+    assembly: &BuilderAssembly,
+    host_properties: &ValueContainer,
+    parent_host_dims: Vec2<f32>,
+    origin: Vec3<f32>,
+    along: Vec3<f32>,
+    up: Vec3<f32>,
+    outward: Vec3<f32>,
+    geo_id: GeoId,
+    assets: &Assets,
+    vmchunk: &mut scenevm::Chunk,
+) {
+    for anchor in &assembly.anchors {
+        if anchor.kind != BuilderAttachmentKind::Item {
+            continue;
+        }
+        let Some(graph_text) = host_properties.get_str(&builder_item_graph_data_key(&anchor.name))
+        else {
+            continue;
+        };
+        let Ok(graph) = BuilderGraph::from_text(graph_text) else {
+            continue;
+        };
+        let Ok(child_assembly) = graph.evaluate() else {
+            continue;
+        };
+        for primitive in child_assembly.primitives {
+            match primitive {
+                BuilderPrimitive::Box {
+                    size,
+                    transform,
+                    material_slot,
+                    host_position_normalized,
+                    host_scale_x_normalized,
+                    host_scale_z_normalized,
+                } => {
+                    let sx = if host_scale_x_normalized {
+                        transform.scale.x
+                    } else {
+                        transform.scale.x
+                    };
+                    let sz = if host_scale_z_normalized {
+                        transform.scale.z
+                    } else {
+                        transform.scale.z
+                    };
+                    let scaled = Vec3::new(size.x * sx, size.y * transform.scale.y, size.z * sz);
+                    let anchor_tx = if anchor.host_position_normalized {
+                        anchor.transform.translation.x * parent_host_dims.x
+                    } else {
+                        anchor.transform.translation.x
+                    };
+                    let anchor_tz = if anchor.host_position_normalized {
+                        anchor.transform.translation.z * parent_host_dims.y
+                    } else {
+                        anchor.transform.translation.z
+                    };
+                    let child_tx = if host_position_normalized {
+                        transform.translation.x
+                    } else {
+                        transform.translation.x
+                    };
+                    let child_tz = if host_position_normalized {
+                        transform.translation.z
+                    } else {
+                        transform.translation.z
+                    };
+                    let local_anchor = rotate_vec3_y(
+                        Vec3::new(anchor_tx, anchor.transform.translation.y, anchor_tz),
+                        0.0,
+                    );
+                    let local_child = rotate_vec3_y(
+                        Vec3::new(child_tx, transform.translation.y + scaled.y * 0.5, child_tz),
+                        anchor.transform.rotation_y,
+                    );
+                    let center = origin
+                        + along * (local_anchor.x + local_child.x)
+                        + up * (local_anchor.y + local_child.y)
+                        + outward * (local_anchor.z + local_child.z);
+                    let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
+                    let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
+                    let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
+                    add_builder_box_mesh(
+                        &mut mesh_vertices,
+                        &mut mesh_uvs,
+                        &mut mesh_indices,
+                        center,
+                        scaled,
+                        anchor.transform.rotation_y + transform.rotation_y,
+                        along,
+                        up,
+                        outward,
+                    );
+                    let tile_id = resolve_builder_material_tile_id(
+                        host_properties,
+                        host_properties.get("source"),
+                        material_slot.as_deref(),
+                        assets,
+                    );
+                    vmchunk.add_poly_3d(
+                        geo_id,
+                        tile_id,
+                        mesh_vertices,
+                        mesh_uvs,
+                        mesh_indices,
+                        0,
+                        true,
+                    );
+                }
+            }
+        }
+    }
+}
+
 fn emit_builder_linedef_group_meshes(
     graph: &BuilderGraph,
     host_id: u32,
-    host_source: Option<&Value>,
+    host_properties: &ValueContainer,
     hosts: &[(Vec3<f32>, Vec3<f32>)],
     assets: &Assets,
     vmchunk: &mut scenevm::Chunk,
@@ -3073,27 +3244,17 @@ fn emit_builder_linedef_group_meshes(
         return false;
     }
 
-    let default_tile_id = Uuid::from_str(DEFAULT_TILE_ID).unwrap();
-    let tile_id = match host_source {
-        Some(Value::Source(ps)) => ps.tile_from_tile_list(assets).map(|tile| tile.id),
-        _ => None,
-    }
-    .unwrap_or(default_tile_id);
-
-    let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
-    let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
-    let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
-
-    for primitive in assembly.primitives {
+    for primitive in &assembly.primitives {
         match primitive {
             BuilderPrimitive::Box {
                 size,
                 transform,
+                material_slot,
                 host_position_normalized,
                 host_scale_x_normalized,
                 ..
             } => {
-                let sx = if host_scale_x_normalized {
+                let sx = if *host_scale_x_normalized {
                     transform.scale.x * span_length
                 } else {
                     transform.scale.x
@@ -3103,7 +3264,7 @@ fn emit_builder_linedef_group_meshes(
                     size.y * transform.scale.y,
                     size.z * transform.scale.z,
                 );
-                let tx = if host_position_normalized {
+                let tx = if *host_position_normalized {
                     transform.translation.x * span_length
                 } else {
                     transform.translation.x
@@ -3112,6 +3273,9 @@ fn emit_builder_linedef_group_meshes(
                     + along * tx
                     + up * (transform.translation.y + scaled.y * 0.5)
                     + outward * transform.translation.z;
+                let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
+                let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
+                let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
                 add_builder_box_mesh(
                     &mut mesh_vertices,
                     &mut mesh_uvs,
@@ -3123,22 +3287,36 @@ fn emit_builder_linedef_group_meshes(
                     up,
                     outward,
                 );
+                let tile_id = resolve_builder_material_tile_id(
+                    host_properties,
+                    host_properties.get("source"),
+                    material_slot.as_deref(),
+                    assets,
+                );
+                vmchunk.add_poly_3d(
+                    GeoId::Linedef(host_id),
+                    tile_id,
+                    mesh_vertices,
+                    mesh_uvs,
+                    mesh_indices,
+                    0,
+                    true,
+                );
             }
         }
     }
 
-    if mesh_indices.is_empty() {
-        return false;
-    }
-
-    vmchunk.add_poly_3d(
-        GeoId::Linedef(host_id),
-        tile_id,
-        mesh_vertices,
-        mesh_uvs,
-        mesh_indices,
-        0,
-        true,
+    emit_builder_attached_item_graphs(
+        &assembly,
+        host_properties,
+        Vec2::new(span_length, 1.0),
+        origin,
+        along,
+        up,
+        outward,
+        GeoId::Vertex(host_id),
+        assets,
+        vmchunk,
     );
     true
 }
@@ -3149,8 +3327,10 @@ fn generate_builder_linedef_features(
     chunk: &Chunk,
     vmchunk: &mut scenevm::Chunk,
 ) {
-    let mut grouped: FxHashMap<Uuid, Vec<(u32, Vec3<f32>, Vec3<f32>, Option<Value>, String, i32)>> =
-        FxHashMap::default();
+    let mut grouped: FxHashMap<
+        Uuid,
+        Vec<(u32, Vec3<f32>, Vec3<f32>, ValueContainer, String, i32)>,
+    > = FxHashMap::default();
 
     for linedef in &map.linedefs {
         let builder_graph_data = linedef
@@ -3189,7 +3369,7 @@ fn generate_builder_linedef_features(
             linedef.id,
             v0,
             v1,
-            linedef.properties.get("source").cloned(),
+            linedef.properties.clone(),
             builder_graph_data,
             group_order,
         ));
@@ -3204,11 +3384,11 @@ fn generate_builder_linedef_features(
         };
         let host_refs = graph.output_spec().host_refs.max(1) as usize;
         if host_refs == 1 {
-            for (linedef_id, v0, v1, source, _graph_data, _) in entries.iter() {
+            for (linedef_id, v0, v1, properties, _graph_data, _) in entries.iter() {
                 let _ = emit_builder_linedef_group_meshes(
                     &graph,
                     *linedef_id,
-                    source.as_ref(),
+                    properties,
                     &[(*v0, *v1)],
                     assets,
                     vmchunk,
@@ -3224,11 +3404,12 @@ fn generate_builder_linedef_features(
                 continue;
             }
             let host_id = group[0].0;
-            let source = group[0].3.as_ref();
+            let properties = &group[0].3;
             let hosts: Vec<(Vec3<f32>, Vec3<f32>)> =
                 group.iter().map(|entry| (entry.1, entry.2)).collect();
-            let _ =
-                emit_builder_linedef_group_meshes(&graph, host_id, source, &hosts, assets, vmchunk);
+            let _ = emit_builder_linedef_group_meshes(
+                &graph, host_id, properties, &hosts, assets, vmchunk,
+            );
         }
     }
 }
@@ -3236,7 +3417,7 @@ fn generate_builder_linedef_features(
 fn emit_builder_vertex_meshes(
     graph: &BuilderGraph,
     host_id: u32,
-    host_source: Option<&Value>,
+    host_properties: &ValueContainer,
     hosts: &[Vec3<f32>],
     assets: &Assets,
     vmchunk: &mut scenevm::Chunk,
@@ -3291,27 +3472,17 @@ fn emit_builder_vertex_meshes(
         return false;
     }
 
-    let default_tile_id = Uuid::from_str(DEFAULT_TILE_ID).unwrap();
-    let tile_id = match host_source {
-        Some(Value::Source(ps)) => ps.tile_from_tile_list(assets).map(|tile| tile.id),
-        _ => None,
-    }
-    .unwrap_or(default_tile_id);
-
-    let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
-    let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
-    let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
-
-    for primitive in assembly.primitives {
+    for primitive in &assembly.primitives {
         match primitive {
             BuilderPrimitive::Box {
                 size,
                 transform,
+                material_slot,
                 host_position_normalized,
                 host_scale_x_normalized,
                 ..
             } => {
-                let sx = if host_scale_x_normalized {
+                let sx = if *host_scale_x_normalized {
                     transform.scale.x * span_length
                 } else {
                     transform.scale.x
@@ -3321,7 +3492,7 @@ fn emit_builder_vertex_meshes(
                     size.y * transform.scale.y,
                     size.z * transform.scale.z,
                 );
-                let tx = if host_position_normalized {
+                let tx = if *host_position_normalized {
                     transform.translation.x * span_length
                 } else {
                     transform.translation.x
@@ -3330,6 +3501,9 @@ fn emit_builder_vertex_meshes(
                     + along * tx
                     + up * (transform.translation.y + scaled.y * 0.5)
                     + outward * transform.translation.z;
+                let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
+                let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
+                let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
                 add_builder_box_mesh(
                     &mut mesh_vertices,
                     &mut mesh_uvs,
@@ -3341,22 +3515,35 @@ fn emit_builder_vertex_meshes(
                     up,
                     outward,
                 );
+                let tile_id = resolve_builder_material_tile_id(
+                    host_properties,
+                    host_properties.get("source"),
+                    material_slot.as_deref(),
+                    assets,
+                );
+                vmchunk.add_poly_3d(
+                    GeoId::Vertex(host_id),
+                    tile_id,
+                    mesh_vertices,
+                    mesh_uvs,
+                    mesh_indices,
+                    0,
+                    true,
+                );
             }
         }
     }
-
-    if mesh_indices.is_empty() {
-        return false;
-    }
-
-    vmchunk.add_poly_3d(
-        GeoId::Vertex(host_id),
-        tile_id,
-        mesh_vertices,
-        mesh_uvs,
-        mesh_indices,
-        0,
-        true,
+    emit_builder_attached_item_graphs(
+        &assembly,
+        host_properties,
+        Vec2::new(span_length, 1.0),
+        origin,
+        along,
+        up,
+        outward,
+        GeoId::Linedef(host_id),
+        assets,
+        vmchunk,
     );
     true
 }
@@ -3367,7 +3554,7 @@ fn generate_vertex_builder_features(
     chunk: &Chunk,
     vmchunk: &mut scenevm::Chunk,
 ) {
-    let mut grouped: FxHashMap<Uuid, Vec<(u32, Vec3<f32>, Option<Value>, String, i32)>> =
+    let mut grouped: FxHashMap<Uuid, Vec<(u32, Vec3<f32>, ValueContainer, String, i32)>> =
         FxHashMap::default();
 
     for vertex in &map.vertices {
@@ -3400,7 +3587,7 @@ fn generate_vertex_builder_features(
         grouped.entry(group_id).or_default().push((
             vertex.id,
             pos,
-            vertex.properties.get("source").cloned(),
+            vertex.properties.clone(),
             builder_graph_data,
             group_order,
         ));
@@ -3415,11 +3602,11 @@ fn generate_vertex_builder_features(
         };
         let host_refs = graph.output_spec().host_refs.max(1) as usize;
         if host_refs == 1 {
-            for (host_id, pos, source, _, _) in entries.iter() {
+            for (host_id, pos, properties, _, _) in entries.iter() {
                 let _ = emit_builder_vertex_meshes(
                     &graph,
                     *host_id,
-                    source.as_ref(),
+                    properties,
                     &[*pos],
                     assets,
                     vmchunk,
@@ -3433,10 +3620,11 @@ fn generate_vertex_builder_features(
                     continue;
                 }
                 let host_id = group[0].0;
-                let source = group[0].2.as_ref();
+                let properties = &group[0].2;
                 let hosts: Vec<Vec3<f32>> = group.iter().map(|entry| entry.1).collect();
-                let _ =
-                    emit_builder_vertex_meshes(&graph, host_id, source, &hosts, assets, vmchunk);
+                let _ = emit_builder_vertex_meshes(
+                    &graph, host_id, properties, &hosts, assets, vmchunk,
+                );
             }
         }
     }
@@ -9392,17 +9580,7 @@ fn emit_builder_sector_meshes(
         return false;
     }
 
-    let default_tile_id = Uuid::from_str(DEFAULT_TILE_ID).unwrap();
-    let tile_id = if let Some(Value::Source(pixelsource)) =
-        feature_pixelsource(surface, map, sector, loop_origin, "source")
-    {
-        pixelsource
-            .tile_from_tile_list(assets)
-            .map(|tile| tile.id)
-            .unwrap_or(default_tile_id)
-    } else {
-        default_tile_id
-    };
+    let fallback_source = feature_pixelsource(surface, map, sector, loop_origin, "source");
 
     let center_uv = Vec2::new((min_uv.x + max_uv.x) * 0.5, (min_uv.y + max_uv.y) * 0.5);
     let sector_size = max_uv - min_uv;
@@ -9424,33 +9602,36 @@ fn emit_builder_sector_meshes(
     let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
     let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
 
-    for primitive in assembly.primitives {
+    let host_origin = surface.uv_to_world(center_uv) + upward * base_extrusion;
+
+    for primitive in &assembly.primitives {
         match primitive {
             BuilderPrimitive::Box {
                 size,
                 transform,
+                material_slot,
                 host_position_normalized,
                 host_scale_x_normalized,
                 host_scale_z_normalized,
             } => {
-                let sx = if host_scale_x_normalized {
+                let sx = if *host_scale_x_normalized {
                     transform.scale.x * sector_size.x
                 } else {
                     transform.scale.x
                 };
-                let sz = if host_scale_z_normalized {
+                let sz = if *host_scale_z_normalized {
                     transform.scale.z * sector_size.y
                 } else {
                     transform.scale.z
                 };
                 let scaled = Vec3::new(size.x * sx, size.y * transform.scale.y, size.z * sz);
                 let offset_uv = Vec2::new(
-                    if host_position_normalized {
+                    if *host_position_normalized {
                         transform.translation.x * sector_size.x
                     } else {
                         transform.translation.x
                     },
-                    if host_position_normalized {
+                    if *host_position_normalized {
                         transform.translation.z * sector_size.y
                     } else {
                         transform.translation.z
@@ -9470,22 +9651,38 @@ fn emit_builder_sector_meshes(
                     upward,
                     outward,
                 );
+                let tile_id = resolve_builder_material_tile_id(
+                    &sector.properties,
+                    fallback_source.as_ref(),
+                    material_slot.as_deref(),
+                    assets,
+                );
+                vmchunk.add_poly_3d(
+                    builder_geo_id,
+                    tile_id,
+                    mesh_vertices.clone(),
+                    mesh_uvs.clone(),
+                    mesh_indices.clone(),
+                    0,
+                    true,
+                );
+                mesh_vertices.clear();
+                mesh_uvs.clear();
+                mesh_indices.clear();
             }
         }
     }
-
-    if mesh_indices.is_empty() {
-        return false;
-    }
-
-    vmchunk.add_poly_3d(
+    emit_builder_attached_item_graphs(
+        &assembly,
+        &sector.properties,
+        sector_size,
+        host_origin,
+        along,
+        upward,
+        outward,
         builder_geo_id,
-        tile_id,
-        mesh_vertices,
-        mesh_uvs,
-        mesh_indices,
-        0,
-        true,
+        assets,
+        vmchunk,
     );
     true
 }

@@ -23,8 +23,7 @@ impl Tool for BuilderTool {
     }
 
     fn info(&self) -> String {
-        "Builder Tool. Select reusable prop and assembly assets from the builder picker."
-            .to_string()
+        fl!("tool_builder")
     }
 
     fn icon_name(&self) -> String {
@@ -45,6 +44,7 @@ impl Tool for BuilderTool {
     ) -> bool {
         match tool_event {
             Activate => {
+                server_ctx.builder_tool_active = true;
                 server_ctx.curr_map_tool_type =
                     if let Some(builder_id) = server_ctx.curr_builder_graph_id {
                         project
@@ -81,6 +81,7 @@ impl Tool for BuilderTool {
                 true
             }
             DeActivate => {
+                server_ctx.builder_tool_active = false;
                 server_ctx.curr_map_tool_type = MapToolType::General;
                 server_ctx.hover_cursor = None;
                 server_ctx.hover_cursor_3d = None;

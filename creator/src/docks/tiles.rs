@@ -53,6 +53,7 @@ pub struct TilesDock {
     pub filter: String,
     pub filter_role: u8,
     pub zoom: f32,
+    pub apply_tile_mode: i32,
 
     pub curr_tile: Option<Uuid>,
     pub curr_source: Option<TileSource>,
@@ -86,6 +87,7 @@ impl Dock for TilesDock {
             filter: String::new(),
             filter_role: 0,
             zoom: 1.5,
+            apply_tile_mode: 1,
             curr_tile: None,
             curr_source: None,
             tile_preview_mode: false,
@@ -167,6 +169,19 @@ impl Dock for TilesDock {
         let mut apply_button = TheTraybarButton::new(TheId::named("Tiles Dock Apply Tile"));
         apply_button.set_text(fl!("action_apply_tile"));
         apply_button.set_status_text(&fl!("status_tiles_apply_tile"));
+        apply_button.set_context_menu(Some(TheContextMenu {
+            items: vec![
+                TheContextMenuItem::new(
+                    "Repeat".to_string(),
+                    TheId::named("Tiles Dock Apply Tile Repeat"),
+                ),
+                TheContextMenuItem::new(
+                    "Scale".to_string(),
+                    TheId::named("Tiles Dock Apply Tile Scale"),
+                ),
+            ],
+            ..Default::default()
+        }));
         toolbar_hlayout.add_widget(Box::new(apply_button));
 
         let mut clear_button = TheTraybarButton::new(TheId::named("Tiles Dock Clear Tile"));
@@ -421,6 +436,96 @@ impl Dock for TilesDock {
                         self.render_views(ui, ctx, project);
                         redraw = true;
                     }
+                } else if widget_id.name == "Tiles Dock Apply Tile" {
+                    if item_id.name == "Tiles Dock Apply Tile Repeat" {
+                        self.apply_tile_mode = 1;
+                        let mut undo_atom: Option<ProjectUndoAtom> = None;
+                        let mut needs_scene_redraw = false;
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            let prev = map.clone();
+                            let mut changed = false;
+                            for sector_id in map.selected_sectors.clone() {
+                                if let Some(sector) = map.find_sector_mut(sector_id)
+                                    && sector.properties.get_int_default("tile_mode", 1) != 1
+                                {
+                                    sector.properties.set("tile_mode", Value::Int(1));
+                                    changed = true;
+                                }
+                            }
+                            if changed {
+                                map.update_surfaces();
+                                RUSTERIX.write().unwrap().set_dirty();
+                                undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                    server_ctx.pc,
+                                    Box::new(prev),
+                                    Box::new(map.clone()),
+                                ));
+                                needs_scene_redraw = true;
+                            }
+                        }
+                        if needs_scene_redraw {
+                            crate::utils::scenemanager_render_map(project, server_ctx);
+                            TOOLLIST
+                                .write()
+                                .unwrap()
+                                .update_geometry_overlay_3d(project, server_ctx);
+                        }
+                        if let Some(undo_atom) = undo_atom {
+                            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Minimap"),
+                                TheValue::Empty,
+                            ));
+                        }
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            widget_id.clone(),
+                            "Apply tile with repeating UVs.".to_string(),
+                        ));
+                    } else if item_id.name == "Tiles Dock Apply Tile Scale" {
+                        self.apply_tile_mode = 0;
+                        let mut undo_atom: Option<ProjectUndoAtom> = None;
+                        let mut needs_scene_redraw = false;
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            let prev = map.clone();
+                            let mut changed = false;
+                            for sector_id in map.selected_sectors.clone() {
+                                if let Some(sector) = map.find_sector_mut(sector_id)
+                                    && sector.properties.get_int_default("tile_mode", 1) != 0
+                                {
+                                    sector.properties.set("tile_mode", Value::Int(0));
+                                    changed = true;
+                                }
+                            }
+                            if changed {
+                                map.update_surfaces();
+                                RUSTERIX.write().unwrap().set_dirty();
+                                undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                    server_ctx.pc,
+                                    Box::new(prev),
+                                    Box::new(map.clone()),
+                                ));
+                                needs_scene_redraw = true;
+                            }
+                        }
+                        if needs_scene_redraw {
+                            crate::utils::scenemanager_render_map(project, server_ctx);
+                            TOOLLIST
+                                .write()
+                                .unwrap()
+                                .update_geometry_overlay_3d(project, server_ctx);
+                        }
+                        if let Some(undo_atom) = undo_atom {
+                            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Minimap"),
+                                TheValue::Empty,
+                            ));
+                        }
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            widget_id.clone(),
+                            "Apply tile scaled to fit the sector surface.".to_string(),
+                        ));
+                    }
                 }
             }
             TheEvent::FileRequesterResult(id, paths) => {
@@ -519,8 +624,31 @@ impl Dock for TilesDock {
                         crate::utils::get_surface_apply_source(project, server_ctx);
                     if let Some(selected_source) = selected_source {
                         let mut applied_to_action = false;
+                        let mut undo_atom: Option<ProjectUndoAtom> = None;
+                        let mut needs_scene_redraw = false;
 
-                        if server_ctx.get_map_context() == MapContext::Region
+                        if let crate::utils::SurfaceApplySource::Direct(source) = &selected_source
+                            && let Some(map) = project.get_map_mut(server_ctx)
+                        {
+                            let prev = map.clone();
+                            if crate::actions::apply_builder_hud_material_to_selection(
+                                map,
+                                server_ctx,
+                                server_ctx.selected_hud_icon_index,
+                                Some(source.clone()),
+                            ) {
+                                undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                    server_ctx.pc,
+                                    Box::new(prev),
+                                    Box::new(map.clone()),
+                                ));
+                                needs_scene_redraw = true;
+                                applied_to_action = true;
+                            }
+                        }
+
+                        if !applied_to_action
+                            && server_ctx.get_map_context() == MapContext::Region
                             && let Some(map) = project.get_map(server_ctx)
                             && let Some(action_id) = server_ctx.curr_action_id
                             && let Some(action) =
@@ -544,9 +672,6 @@ impl Dock for TilesDock {
                         }
 
                         if !applied_to_action {
-                            let mut undo_atom: Option<ProjectUndoAtom> = None;
-                            let mut needs_scene_redraw = false;
-
                             if let Some(map) = project.get_map_mut(server_ctx) {
                                 let mut changed = false;
                                 let prev = map.clone();
@@ -563,6 +688,7 @@ impl Dock for TilesDock {
                                         sector_id,
                                         source_key,
                                         &selected_source,
+                                        Some(self.apply_tile_mode),
                                     );
                                 }
 
@@ -577,28 +703,49 @@ impl Dock for TilesDock {
                                     needs_scene_redraw = true;
                                 }
                             }
+                        }
 
-                            if needs_scene_redraw {
-                                crate::utils::scenemanager_render_map(project, server_ctx);
-                                TOOLLIST
-                                    .write()
-                                    .unwrap()
-                                    .update_geometry_overlay_3d(project, server_ctx);
-                            }
+                        if needs_scene_redraw {
+                            crate::utils::scenemanager_render_map(project, server_ctx);
+                            TOOLLIST
+                                .write()
+                                .unwrap()
+                                .update_geometry_overlay_3d(project, server_ctx);
+                        }
 
-                            if let Some(undo_atom) = undo_atom {
-                                UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Update Minimap"),
-                                    TheValue::Empty,
-                                ));
-                            }
+                        if let Some(undo_atom) = undo_atom {
+                            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Update Minimap"),
+                                TheValue::Empty,
+                            ));
                         }
                     }
                 } else if id.name == "Tiles Dock Clear Tile" {
                     let mut cleared_action_slot = false;
+                    let mut undo_atom: Option<ProjectUndoAtom> = None;
+                    let mut needs_scene_redraw = false;
 
-                    if server_ctx.get_map_context() == MapContext::Region
+                    if let Some(map) = project.get_map_mut(server_ctx) {
+                        let prev = map.clone();
+                        if crate::actions::apply_builder_hud_material_to_selection(
+                            map,
+                            server_ctx,
+                            server_ctx.selected_hud_icon_index,
+                            None,
+                        ) {
+                            undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                server_ctx.pc,
+                                Box::new(prev),
+                                Box::new(map.clone()),
+                            ));
+                            needs_scene_redraw = true;
+                            cleared_action_slot = true;
+                        }
+                    }
+
+                    if !cleared_action_slot
+                        && server_ctx.get_map_context() == MapContext::Region
                         && let Some(map) = project.get_map(server_ctx)
                         && let Some(action_id) = server_ctx.curr_action_id
                         && let Some(action) =
@@ -618,9 +765,6 @@ impl Dock for TilesDock {
                     }
 
                     if !cleared_action_slot {
-                        let mut undo_atom: Option<ProjectUndoAtom> = None;
-                        let mut needs_scene_redraw = false;
-
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             let mut changed = false;
                             let prev = map.clone();
@@ -649,22 +793,22 @@ impl Dock for TilesDock {
                                 needs_scene_redraw = true;
                             }
                         }
+                    }
 
-                        if needs_scene_redraw {
-                            crate::utils::scenemanager_render_map(project, server_ctx);
-                            TOOLLIST
-                                .write()
-                                .unwrap()
-                                .update_geometry_overlay_3d(project, server_ctx);
-                        }
+                    if needs_scene_redraw {
+                        crate::utils::scenemanager_render_map(project, server_ctx);
+                        TOOLLIST
+                            .write()
+                            .unwrap()
+                            .update_geometry_overlay_3d(project, server_ctx);
+                    }
 
-                        if let Some(undo_atom) = undo_atom {
-                            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Update Minimap"),
-                                TheValue::Empty,
-                            ));
-                        }
+                    if let Some(undo_atom) = undo_atom {
+                        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Minimap"),
+                            TheValue::Empty,
+                        ));
                     }
                 }
             }

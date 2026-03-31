@@ -392,6 +392,9 @@ pub struct ServerContext {
     /// The currently selected builder graph asset, if any.
     pub curr_builder_graph_id: Option<Uuid>,
 
+    /// Whether the Builder tool is currently active.
+    pub builder_tool_active: bool,
+
     /// The current frame/texture index being edited in tile editor
     pub curr_tile_frame_index: usize,
 
@@ -585,6 +588,7 @@ impl ServerContext {
             curr_tile_source: None,
             tile_node_group_id: None,
             curr_builder_graph_id: None,
+            builder_tool_active: false,
             curr_tile_frame_index: 0,
 
             palette_opacity: 1.0,
@@ -762,6 +766,7 @@ impl ServerContext {
         self.curr_screen = Uuid::nil();
         self.tile_node_group_id = None;
         self.curr_builder_graph_id = None;
+        self.builder_tool_active = false;
         self.interactions.clear();
         self.moved_entities.clear();
         self.moved_items.clear();

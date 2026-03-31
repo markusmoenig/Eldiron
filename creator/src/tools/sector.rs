@@ -1322,7 +1322,7 @@ impl Tool for SectorTool {
                                     "ceiling_source"
                                 };
                                 crate::utils::apply_surface_source_to_sector(
-                                    map, *sector_id, source_key, &source,
+                                    map, *sector_id, source_key, &source, None,
                                 );
                             }
 

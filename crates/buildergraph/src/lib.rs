@@ -111,6 +111,10 @@ pub enum BuilderNodeKind {
         #[serde(default = "default_item_slot_name")]
         name: String,
     },
+    ItemSurface {
+        #[serde(default = "default_item_slot_name")]
+        name: String,
+    },
     MaterialAnchor {
         #[serde(default = "default_material_slot_name")]
         name: String,
@@ -162,6 +166,7 @@ pub enum BuilderPrimitive {
     Box {
         size: Vec3<f32>,
         transform: BuilderTransform,
+        material_slot: Option<String>,
         host_position_normalized: bool,
         host_scale_x_normalized: bool,
         host_scale_z_normalized: bool,
@@ -173,6 +178,9 @@ pub struct BuilderAnchor {
     pub name: String,
     pub kind: BuilderAttachmentKind,
     pub transform: BuilderTransform,
+    pub host_position_normalized: bool,
+    pub surface_extent: Vec2<f32>,
+    pub surface_extent_normalized: bool,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -263,9 +271,25 @@ struct BuilderPlacement {
 
 impl NodeOutput {
     fn append(&mut self, other: Self) {
-        self.primitives.extend(other.primitives);
+        for primitive in other.primitives {
+            self.merge_primitive(primitive);
+        }
         self.anchors.extend(other.anchors);
         self.placements.extend(other.placements);
+    }
+
+    fn merge_primitive(&mut self, primitive: BuilderPrimitive) {
+        if let Some(existing) = self
+            .primitives
+            .iter_mut()
+            .find(|existing| primitive_same_geometry(existing, &primitive))
+        {
+            if primitive_has_material_slot(&primitive) {
+                *existing = primitive;
+            }
+            return;
+        }
+        self.primitives.push(primitive);
     }
 
     fn host_positioned(&self, translation: Vec3<f32>) -> Self {
@@ -274,7 +298,10 @@ impl NodeOutput {
             .iter()
             .map(|primitive| match primitive {
                 BuilderPrimitive::Box {
-                    size, transform, ..
+                    size,
+                    transform,
+                    material_slot,
+                    ..
                 } => BuilderPrimitive::Box {
                     size: *size,
                     transform: BuilderTransform {
@@ -282,6 +309,7 @@ impl NodeOutput {
                         rotation_y: transform.rotation_y,
                         scale: transform.scale,
                     },
+                    material_slot: material_slot.clone(),
                     host_position_normalized: true,
                     host_scale_x_normalized: false,
                     host_scale_z_normalized: false,
@@ -300,6 +328,9 @@ impl NodeOutput {
                     rotation_y: anchor.transform.rotation_y,
                     scale: anchor.transform.scale,
                 },
+                host_position_normalized: true,
+                surface_extent: anchor.surface_extent,
+                surface_extent_normalized: anchor.surface_extent_normalized,
             })
             .collect();
 
@@ -321,6 +352,43 @@ impl NodeOutput {
     }
 }
 
+fn primitive_same_geometry(a: &BuilderPrimitive, b: &BuilderPrimitive) -> bool {
+    match (a, b) {
+        (
+            BuilderPrimitive::Box {
+                size: size_a,
+                transform: transform_a,
+                host_position_normalized: host_pos_a,
+                host_scale_x_normalized: host_scale_x_a,
+                host_scale_z_normalized: host_scale_z_a,
+                ..
+            },
+            BuilderPrimitive::Box {
+                size: size_b,
+                transform: transform_b,
+                host_position_normalized: host_pos_b,
+                host_scale_x_normalized: host_scale_x_b,
+                host_scale_z_normalized: host_scale_z_b,
+                ..
+            },
+        ) => {
+            size_a == size_b
+                && transform_a.translation == transform_b.translation
+                && transform_a.rotation_y == transform_b.rotation_y
+                && transform_a.scale == transform_b.scale
+                && host_pos_a == host_pos_b
+                && host_scale_x_a == host_scale_x_b
+                && host_scale_z_a == host_scale_z_b
+        }
+    }
+}
+
+fn primitive_has_material_slot(primitive: &BuilderPrimitive) -> bool {
+    match primitive {
+        BuilderPrimitive::Box { material_slot, .. } => material_slot.is_some(),
+    }
+}
+
 impl Default for BuilderGraph {
     fn default() -> Self {
         Self::preset_table()
@@ -328,6 +396,31 @@ impl Default for BuilderGraph {
 }
 
 impl BuilderGraph {
+    pub fn empty_named(name: String) -> Self {
+        let graph_name = if name.trim().is_empty() {
+            "Empty".to_string()
+        } else {
+            name
+        };
+        Self {
+            id: Uuid::new_v4(),
+            name: graph_name,
+            connections: Vec::new(),
+            nodes: vec![BuilderNode {
+                id: 1,
+                name: "Output".to_string(),
+                kind: BuilderNodeKind::GeometryOutput {
+                    target: BuilderOutputTarget::Sector,
+                    host_refs: 1,
+                },
+                pos: Vec2::new(320, 96),
+                preview_collapsed: false,
+            }],
+            selected_node: Some(0),
+            scroll_offset: Vec2::zero(),
+        }
+    }
+
     pub fn preset_table() -> Self {
         let nodes = vec![
             BuilderNode {
@@ -359,9 +452,9 @@ impl BuilderGraph {
             },
             BuilderNode {
                 id: 4,
-                name: "Top Item".to_string(),
-                kind: BuilderNodeKind::ItemAnchor {
-                    name: "top_center".to_string(),
+                name: "Top Surface".to_string(),
+                kind: BuilderNodeKind::ItemSurface {
+                    name: "TOP".to_string(),
                 },
                 pos: Vec2::new(704, -16),
                 preview_collapsed: false,
@@ -398,27 +491,36 @@ impl BuilderGraph {
             },
             BuilderNode {
                 id: 8,
+                name: "Leg Material".to_string(),
+                kind: BuilderNodeKind::MaterialAnchor {
+                    name: "LEGS".to_string(),
+                },
+                pos: Vec2::new(704, 224),
+                preview_collapsed: false,
+            },
+            BuilderNode {
+                id: 9,
                 name: "Join Geometry".to_string(),
                 kind: BuilderNodeKind::Join,
                 pos: Vec2::new(944, 128),
                 preview_collapsed: false,
             },
             BuilderNode {
-                id: 9,
+                id: 10,
                 name: "Join Attachments".to_string(),
                 kind: BuilderNodeKind::Join,
                 pos: Vec2::new(944, 16),
                 preview_collapsed: false,
             },
             BuilderNode {
-                id: 10,
+                id: 11,
                 name: "Assembly".to_string(),
                 kind: BuilderNodeKind::Join,
                 pos: Vec2::new(1184, 96),
                 preview_collapsed: false,
             },
             BuilderNode {
-                id: 11,
+                id: 12,
                 name: "Output".to_string(),
                 kind: BuilderNodeKind::GeometryOutput {
                     target: BuilderOutputTarget::Sector,
@@ -436,14 +538,16 @@ impl BuilderGraph {
             (3, 0, 5, 0),
             (1, 0, 7, 0),
             (7, 0, 6, 0),
-            (3, 0, 8, 0),
-            (6, 0, 8, 1),
+            (6, 0, 8, 0),
             (3, 0, 9, 0),
-            (4, 0, 9, 1),
-            (5, 0, 9, 2),
-            (8, 0, 10, 0),
-            (9, 0, 10, 1),
-            (10, 0, 11, 0),
+            (6, 0, 9, 1),
+            (3, 0, 10, 0),
+            (4, 0, 10, 1),
+            (5, 0, 10, 2),
+            (8, 0, 10, 3),
+            (9, 0, 11, 0),
+            (10, 0, 11, 1),
+            (11, 0, 12, 0),
         ];
 
         Self {
@@ -530,6 +634,7 @@ impl BuilderGraph {
                     host_position_normalized,
                     host_scale_x_normalized,
                     host_scale_z_normalized,
+                    ..
                 } => {
                     let sx = if *host_scale_x_normalized {
                         size.x * transform.scale.x * preview_host.x
@@ -703,6 +808,39 @@ impl BuilderGraph {
             })
     }
 
+    pub fn material_slot_names(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        for node in &self.nodes {
+            match &node.kind {
+                BuilderNodeKind::MaterialAnchor { name }
+                | BuilderNodeKind::MaterialSlot { name, .. } => {
+                    if !name.trim().is_empty() && !out.iter().any(|existing| existing == name) {
+                        out.push(name.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
+    pub fn item_slot_names(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        for node in &self.nodes {
+            match &node.kind {
+                BuilderNodeKind::ItemAnchor { name }
+                | BuilderNodeKind::ItemSurface { name }
+                | BuilderNodeKind::ItemSlot { name, .. } => {
+                    if !name.trim().is_empty() && !out.iter().any(|existing| existing == name) {
+                        out.push(name.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
     fn evaluate_node(
         &self,
         node_id: u16,
@@ -787,6 +925,7 @@ impl BuilderGraph {
                         vec![BuilderPrimitive::Box {
                             size: Vec3::new(*width, *height, *depth),
                             transform: BuilderTransform::identity(),
+                            material_slot: None,
                             host_position_normalized: false,
                             host_scale_x_normalized: false,
                             host_scale_z_normalized: false,
@@ -805,6 +944,7 @@ impl BuilderGraph {
                                     rotation_y: 0.0,
                                     scale: Vec3::one(),
                                 },
+                                material_slot: None,
                                 host_position_normalized: true,
                                 host_scale_x_normalized: *width <= 0.0
                                     && placement.host_scale_x_normalized,
@@ -918,7 +1058,10 @@ impl BuilderGraph {
                 for primitive in input.primitives {
                     match primitive {
                         BuilderPrimitive::Box {
-                            size, transform, ..
+                            size,
+                            transform,
+                            material_slot,
+                            ..
                         } => out.primitives.push(BuilderPrimitive::Box {
                             size,
                             transform: BuilderTransform {
@@ -931,6 +1074,7 @@ impl BuilderGraph {
                                     transform.scale.z,
                                 ),
                             },
+                            material_slot,
                             host_position_normalized: true,
                             host_scale_x_normalized: true,
                             host_scale_z_normalized: false,
@@ -947,6 +1091,9 @@ impl BuilderGraph {
                             rotation_y: anchor.transform.rotation_y,
                             scale: anchor.transform.scale,
                         },
+                        host_position_normalized: anchor.host_position_normalized,
+                        surface_extent: anchor.surface_extent,
+                        surface_extent_normalized: anchor.surface_extent_normalized,
                     });
                 }
                 out
@@ -957,7 +1104,10 @@ impl BuilderGraph {
                 for primitive in input.primitives {
                     match primitive {
                         BuilderPrimitive::Box {
-                            size, transform, ..
+                            size,
+                            transform,
+                            host_position_normalized,
+                            ..
                         } => {
                             let h = size.y * transform.scale.y;
                             out.anchors.push(BuilderAnchor {
@@ -968,6 +1118,44 @@ impl BuilderGraph {
                                     rotation_y: transform.rotation_y,
                                     scale: Vec3::one(),
                                 },
+                                host_position_normalized,
+                                surface_extent: Vec2::zero(),
+                                surface_extent_normalized: false,
+                            });
+                        }
+                    }
+                }
+                out
+            }
+            BuilderNodeKind::ItemSurface { name } => {
+                let input = self.input_output(node.id, 0, cache)?;
+                let mut out = NodeOutput::default();
+                for primitive in input.primitives {
+                    match primitive {
+                        BuilderPrimitive::Box {
+                            size,
+                            transform,
+                            host_position_normalized,
+                            host_scale_x_normalized,
+                            host_scale_z_normalized,
+                            ..
+                        } => {
+                            let h = size.y * transform.scale.y;
+                            out.anchors.push(BuilderAnchor {
+                                name: name.clone(),
+                                kind: BuilderAttachmentKind::Item,
+                                transform: BuilderTransform {
+                                    translation: transform.translation + Vec3::new(0.0, h, 0.0),
+                                    rotation_y: transform.rotation_y,
+                                    scale: Vec3::one(),
+                                },
+                                host_position_normalized,
+                                surface_extent: Vec2::new(
+                                    size.x * transform.scale.x,
+                                    size.z * transform.scale.z,
+                                ),
+                                surface_extent_normalized: host_scale_x_normalized
+                                    || host_scale_z_normalized,
                             });
                         }
                     }
@@ -980,9 +1168,22 @@ impl BuilderGraph {
                 for primitive in input.primitives {
                     match primitive {
                         BuilderPrimitive::Box {
-                            size, transform, ..
+                            size,
+                            transform,
+                            host_position_normalized,
+                            host_scale_x_normalized,
+                            host_scale_z_normalized,
+                            ..
                         } => {
                             let h = size.y * transform.scale.y;
+                            out.primitives.push(BuilderPrimitive::Box {
+                                size,
+                                transform,
+                                material_slot: Some(name.clone()),
+                                host_position_normalized,
+                                host_scale_x_normalized,
+                                host_scale_z_normalized,
+                            });
                             out.anchors.push(BuilderAnchor {
                                 name: name.clone(),
                                 kind: BuilderAttachmentKind::Material,
@@ -991,6 +1192,9 @@ impl BuilderGraph {
                                     rotation_y: transform.rotation_y,
                                     scale: Vec3::one(),
                                 },
+                                host_position_normalized,
+                                surface_extent: Vec2::zero(),
+                                surface_extent_normalized: false,
                             });
                         }
                     }
@@ -1007,6 +1211,9 @@ impl BuilderGraph {
                         rotation_y: 0.0,
                         scale: Vec3::one(),
                     },
+                    host_position_normalized: false,
+                    surface_extent: Vec2::zero(),
+                    surface_extent_normalized: false,
                 }],
                 placements: Vec::new(),
             },
@@ -1020,6 +1227,9 @@ impl BuilderGraph {
                         rotation_y: 0.0,
                         scale: Vec3::one(),
                     },
+                    host_position_normalized: false,
+                    surface_extent: Vec2::zero(),
+                    surface_extent_normalized: false,
                 }],
                 placements: Vec::new(),
             },

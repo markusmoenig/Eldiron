@@ -12,6 +12,7 @@ Some tools are specifically designed for **map editing** and display a common **
 - **Linedef Tool**
 - **Sector Tool**
 - **Rect Tool**
+- **Builder Tool**
 
 ### Terminology
 
@@ -52,6 +53,13 @@ In 3D geometry views you can also use:
 ### Tile Icons
 
 The **icons in the upper-right corner** of the HUD are **tool-specific** and allow you to **assign tiles** to the selected geometry using the **Apply** and **Remove** buttons.
+
+With the [Builder Tool](builder), the same HUD area is used for **builder slots** instead:
+
+- **material slots** such as `TOP` or `LEGS`
+- **item slots** used to attach child builder assets
+
+While Builder is active, contexts that would normally switch the lower dock to **Tiles** show the **Builder Picker** instead.
 
 ## 3D Detail Editing
 

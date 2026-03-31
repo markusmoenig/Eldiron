@@ -148,7 +148,7 @@ action_paste_vcode_desc = Imports a visual code module from the clipboard.
 tool_authoring = Authoring
 status_tool_authoring = Authoring mode. Enter meta-data for sectors, linedefs, entities, and items.
 tool_text_play = Text Play
-status_tool_text_play = Text gameplay mode for the Game Tool. Replaces the normal game view with text output and command input.
+status_tool_text_play = Text gameplay mode for the Game Tool. Replaces the normal game view with text output and command input so you can play the game through text.
 authoring_select_prompt = Authoring mode. Select a sector, linedef, entity or item.
 authoring_title_prefix = Authoring mode. Enter meta-data for
 authoring_title = Authoring mode. Enter meta-data for {$target}.
@@ -184,7 +184,8 @@ action_remap_tile = Remap Tile
 action_remap_tile_desc = Remaps the colors of the tile to the palette.
 
 # Tools
-tool_game = Game Tool (A). If the server is running input events are send to the game.
+tool_game = Game Tool (A). Play the game!
+tool_builder = Builder Tool (B). Select reusable prop and assembly assets from the builder picker.
 tool_linedef = Linedef Tool (L). Create line definitions and sectors.
 tool_rect = Rect Tool (R). Click to draw the current tile. Shift-click to delete.
 tool_sector = Sector Tool (E).
@@ -192,16 +193,26 @@ tool_vertex = Vertex Tool (V). 'Shift' + Click to create a new vertex.
 tool_entity = Entity Tool (Y). Place, move, select, and delete game entities.
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
 
+builder_picker_title = Builder Picker
+builder_apply_build = Apply Build
+status_builder_new = Create a new builder graph asset.
+status_builder_collections = Builder collections will be added here later.
+status_builder_apply_build = Apply the selected builder graph to the selected hosts.
+status_builder_clear_build = Clear the builder graph from the selected hosts.
+status_builder_select_asset = Select builder asset '{$asset_name}'. Double-click or press Return to open.
+
 # Common
 all = All
 apply = Apply
 attributes = Attributes
 preview_rigging = Preview Rigging
 clear = Clear
+collections = Collections
 filter = Filter
 frames = Frames
 grid_size = Grid Size
 name = Name
+new = New
 opacity = Opacity
 eldrin_scripting = Eldrin Scripting
 settings = Settings

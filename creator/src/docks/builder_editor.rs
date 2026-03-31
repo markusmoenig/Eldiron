@@ -22,6 +22,7 @@ fn builder_node_name(kind: &BuilderNodeKind) -> &'static str {
         BuilderNodeKind::LinedefRow { .. } => "Linedef Row",
         BuilderNodeKind::LinedefSpan { .. } => "Linedef Span",
         BuilderNodeKind::ItemAnchor { .. } => "Item Anchor",
+        BuilderNodeKind::ItemSurface { .. } => "Item Surface",
         BuilderNodeKind::MaterialAnchor { .. } => "Material Anchor",
         BuilderNodeKind::ItemSlot { .. } => "Item Slot",
         BuilderNodeKind::MaterialSlot { .. } => "Material Slot",
@@ -62,6 +63,9 @@ fn builder_node_status_text(kind: &BuilderNodeKind) -> &'static str {
         BuilderNodeKind::ItemAnchor { .. } => {
             "Creates an item attachment on the top of upstream geometry."
         }
+        BuilderNodeKind::ItemSurface { .. } => {
+            "Creates an item attachment surface on the top of upstream geometry."
+        }
         BuilderNodeKind::MaterialAnchor { .. } => {
             "Creates a material attachment on the top of upstream geometry."
         }
@@ -94,6 +98,7 @@ fn builder_node_inputs(kind: &BuilderNodeKind) -> Vec<TheNodeTerminal> {
         | BuilderNodeKind::LinedefRow { .. }
         | BuilderNodeKind::LinedefSpan { .. }
         | BuilderNodeKind::ItemAnchor { .. }
+        | BuilderNodeKind::ItemSurface { .. }
         | BuilderNodeKind::MaterialAnchor { .. } => vec![assembly("In")],
         BuilderNodeKind::ItemSlot { .. } | BuilderNodeKind::MaterialSlot { .. } => Vec::new(),
         BuilderNodeKind::Join => vec![
@@ -128,6 +133,7 @@ fn builder_node_outputs(kind: &BuilderNodeKind) -> Vec<TheNodeTerminal> {
         | BuilderNodeKind::LinedefRow { .. }
         | BuilderNodeKind::LinedefSpan { .. }
         | BuilderNodeKind::ItemAnchor { .. }
+        | BuilderNodeKind::ItemSurface { .. }
         | BuilderNodeKind::MaterialAnchor { .. }
         | BuilderNodeKind::Join
         | BuilderNodeKind::ItemSlot { .. }
@@ -522,7 +528,9 @@ impl BuilderEditorDock {
                         false,
                     ));
                 }
-                BuilderNodeKind::ItemAnchor { name } | BuilderNodeKind::MaterialAnchor { name } => {
+                BuilderNodeKind::ItemAnchor { name }
+                | BuilderNodeKind::ItemSurface { name }
+                | BuilderNodeKind::MaterialAnchor { name } => {
                     nodeui.add_item(TheNodeUIItem::Text(
                         "builderNodeDerivedAnchorName".into(),
                         "Name".into(),
@@ -837,6 +845,10 @@ impl Dock for BuilderEditorDock {
                     TheId::named("Builder Add Item Anchor"),
                 ),
                 TheContextMenuItem::new(
+                    "Item Surface".into(),
+                    TheId::named("Builder Add Item Surface"),
+                ),
+                TheContextMenuItem::new(
                     "Material Anchor".into(),
                     TheId::named("Builder Add Material Anchor"),
                 ),
@@ -973,6 +985,9 @@ impl Dock for BuilderEditorDock {
                     },
                     "Builder Add Item Anchor" => BuilderNodeKind::ItemAnchor {
                         name: "item".to_string(),
+                    },
+                    "Builder Add Item Surface" => BuilderNodeKind::ItemSurface {
+                        name: "surface".to_string(),
                     },
                     "Builder Add Material Anchor" => BuilderNodeKind::MaterialAnchor {
                         name: "TOP".to_string(),
@@ -1389,6 +1404,14 @@ impl Dock for BuilderEditorDock {
                         }
                         (
                             BuilderNodeKind::ItemAnchor { name },
+                            "builderNodeDerivedAnchorName",
+                            TheValue::Text(v),
+                        ) => {
+                            *name = v.clone();
+                            changed = true;
+                        }
+                        (
+                            BuilderNodeKind::ItemSurface { name },
                             "builderNodeDerivedAnchorName",
                             TheValue::Text(v),
                         ) => {

@@ -349,6 +349,7 @@ pub fn apply_surface_source_to_sector(
     sector_id: u32,
     source_key: &str,
     source: &SurfaceApplySource,
+    tile_mode: Option<i32>,
 ) -> bool {
     match source {
         SurfaceApplySource::Direct(pixel_source) => {
@@ -357,6 +358,9 @@ pub fn apply_surface_source_to_sector(
                 sector
                     .properties
                     .set(source_key, Value::Source(pixel_source.clone()));
+                if let Some(tile_mode) = tile_mode {
+                    sector.properties.set("tile_mode", Value::Int(tile_mode));
+                }
                 return true;
             }
             false
@@ -373,6 +377,9 @@ pub fn apply_surface_source_to_sector(
                         source_key,
                         Value::Source(PixelSource::TileId(member.tile_id)),
                     );
+                    if let Some(tile_mode) = tile_mode {
+                        sector.properties.set("tile_mode", Value::Int(tile_mode));
+                    }
                     return true;
                 }
                 return false;
@@ -411,6 +418,9 @@ pub fn apply_surface_source_to_sector(
                     sector
                         .properties
                         .set("source", Value::Source(PixelSource::TileId(first.tile_id)));
+                }
+                if let Some(tile_mode) = tile_mode {
+                    sector.properties.set("tile_mode", Value::Int(tile_mode));
                 }
                 if tiles.is_empty() {
                     sector.properties.remove("tiles");

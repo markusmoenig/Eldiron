@@ -7,15 +7,17 @@ connections = [
   [3, 0, 5, 0],
   [1, 0, 7, 0],
   [7, 0, 6, 0],
-  [3, 0, 8, 0],
-  [6, 0, 8, 1],
-  [4, 0, 9, 0],
-  [5, 0, 9, 1],
-  [8, 0, 10, 0],
-  [9, 0, 10, 1],
-  [10, 0, 11, 0],
+  [6, 0, 8, 0],
+  [3, 0, 9, 0],
+  [6, 0, 9, 1],
+  [4, 0, 10, 0],
+  [5, 0, 10, 1],
+  [8, 0, 10, 2],
+  [9, 0, 11, 0],
+  [10, 0, 11, 1],
+  [11, 0, 12, 0],
 ]
-selected_node = 11
+selected_node = 12
 scroll_offset = { x = 0, y = 0 }
 
 [[nodes]]
@@ -48,12 +50,12 @@ height = 0.05
 
 [[nodes]]
 id = 4
-name = "Top Item"
+name = "Top Surface"
 pos = { x = 704, y = -16 }
 preview_collapsed = false
 [nodes.kind]
-type = "item_anchor"
-name = "top_center"
+type = "item_surface"
+name = "TOP"
 
 [[nodes]]
 id = 5
@@ -87,6 +89,15 @@ inset_z = 0.1
 
 [[nodes]]
 id = 8
+name = "Leg Material"
+pos = { x = 704, y = 224 }
+preview_collapsed = false
+[nodes.kind]
+type = "material_anchor"
+name = "LEGS"
+
+[[nodes]]
+id = 9
 name = "Join Geometry"
 pos = { x = 944, y = 128 }
 preview_collapsed = false
@@ -94,7 +105,7 @@ preview_collapsed = false
 type = "join"
 
 [[nodes]]
-id = 9
+id = 10
 name = "Join Attachments"
 pos = { x = 944, y = 16 }
 preview_collapsed = false
@@ -102,7 +113,7 @@ preview_collapsed = false
 type = "join"
 
 [[nodes]]
-id = 10
+id = 11
 name = "Assembly"
 pos = { x = 1184, y = 96 }
 preview_collapsed = false
@@ -110,7 +121,7 @@ preview_collapsed = false
 type = "join"
 
 [[nodes]]
-id = 11
+id = 12
 name = "Output"
 pos = { x = 1408, y = 96 }
 preview_collapsed = false

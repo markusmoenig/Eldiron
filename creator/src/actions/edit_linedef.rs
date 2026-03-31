@@ -409,9 +409,12 @@ impl Action for EditLinedef {
 
     fn hud_material_slots(
         &self,
-        _map: &Map,
+        map: &Map,
         _server_ctx: &ServerContext,
     ) -> Option<Vec<ActionMaterialSlot>> {
+        if let Some(slots) = crate::actions::builder_hud_material_slots_for_selected_linedef(map) {
+            return Some(slots);
+        }
         if !self.show_terrain {
             return None;
         }
