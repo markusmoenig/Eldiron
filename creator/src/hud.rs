@@ -11,6 +11,7 @@ pub enum HudMode {
     Linedef,
     Sector,
     Effects,
+    Dungeon,
     Rect,
     Terrain,
     Entity,
@@ -226,6 +227,7 @@ impl Hud {
         }
 
         if self.mode == HudMode::Effects
+            || self.mode == HudMode::Dungeon
             || self.mode == HudMode::Rect
             || self.mode == HudMode::Terrain
         {
@@ -324,6 +326,7 @@ impl Hud {
             || server_ctx.get_map_context() == MapContext::Screen
             || server_ctx.editor_view_mode != EditorViewMode::D2)
             && self.mode != HudMode::Terrain
+            && self.mode != HudMode::Dungeon
             && self.mode != HudMode::Rect
         {
             let x = 170;

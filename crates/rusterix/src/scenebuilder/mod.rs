@@ -1,4 +1,6 @@
 pub mod d2builder;
+#[cfg(feature = "graphics")]
+pub mod d2concept;
 pub mod d2material;
 #[cfg(feature = "graphics")]
 pub mod d2preview;

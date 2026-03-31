@@ -121,7 +121,9 @@ pub use crate::rusterix::Rusterix;
 #[cfg(feature = "graphics")]
 pub use crate::scene_handler::SceneHandler;
 #[cfg(feature = "graphics")]
-pub use crate::scenebuilder::{d2preview::D2PreviewBuilder, d3builder::D3Builder};
+pub use crate::scenebuilder::{
+    d2concept::D2ConceptBuilder, d2preview::D2PreviewBuilder, d3builder::D3Builder,
+};
 pub use crate::{
     audio::{AudioConfig, AudioEngine, AudioError, OutputInfo, SineVoiceId},
     avatar::{
@@ -139,6 +141,9 @@ pub use crate::{
     map::{
         Map, MapCamera, MapToolType,
         bbox::BBox,
+        dungeon::{
+            DungeonCell, DungeonLayer, DungeonMap, DungeonTileKind, rebuild_generated_geometry,
+        },
         light::CompiledLight,
         light::Light,
         light::LightType,
@@ -220,7 +225,9 @@ pub mod prelude {
     pub use crate::RenderMode;
     pub use crate::scenebuilder::{d2builder::D2Builder, d2material::D2MaterialBuilder};
     #[cfg(feature = "graphics")]
-    pub use crate::scenebuilder::{d2preview::D2PreviewBuilder, d3builder::D3Builder};
+    pub use crate::scenebuilder::{
+        d2concept::D2ConceptBuilder, d2preview::D2PreviewBuilder, d3builder::D3Builder,
+    };
     pub use crate::{
         Assets, Choice, Currencies, Currency, Entity, EntityUpdate, Item, ItemUpdate,
         MultipleChoice, RegionInstance, RegionMessage, Server, Wallet,
@@ -230,15 +237,15 @@ pub mod prelude {
     #[cfg(feature = "graphics")]
     pub use crate::{Command, Daylight, MsgParser, Tok};
     pub use crate::{D3Camera, D3FirstPCamera, D3IsoCamera, D3OrbitCamera};
-    pub use crate::{GridShader, Shader, VGrayGradientShader};
     pub use crate::{
-        Keyform, Light, LightType, Map, MapMeta, MapToolType, NoiseTarget, OrganicBrushGraph,
-        OrganicBrushNode, OrganicBushCluster, OrganicChannelBinding, OrganicColumn,
-        OrganicNodeKind, OrganicSpan, OrganicVineStroke, OrganicVolumeLayer, Particle,
-        ParticleEmitter, PixelSource, Sector, SoftRig, SoftRigAnimator, Tile, TileGroup,
-        TileGroupMemberRef, TileRole, TileSource, Vertex, default_organic_bush_clusters,
-        default_organic_layers, default_organic_vine_strokes,
+        DungeonCell, DungeonLayer, DungeonMap, DungeonTileKind, Keyform, Light, LightType, Map,
+        MapMeta, MapToolType, NoiseTarget, OrganicBrushGraph, OrganicBrushNode, OrganicBushCluster,
+        OrganicChannelBinding, OrganicColumn, OrganicNodeKind, OrganicSpan, OrganicVineStroke,
+        OrganicVolumeLayer, Particle, ParticleEmitter, PixelSource, Sector, SoftRig,
+        SoftRigAnimator, Tile, TileGroup, TileGroupMemberRef, TileRole, TileSource, Vertex,
+        default_organic_bush_clusters, default_organic_layers, default_organic_vine_strokes,
     };
+    pub use crate::{GridShader, Shader, VGrayGradientShader};
     pub use crate::{Material, MaterialModifier, MaterialRole};
     pub use crate::{
         Rect, Scene, SceneManager, SceneManagerCmd, SceneManagerResult, Value, ValueContainer,

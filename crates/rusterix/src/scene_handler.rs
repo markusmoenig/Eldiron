@@ -1358,6 +1358,10 @@ impl SceneHandler {
                 color: [187, 122, 208, 255],
             });
             self.vm.execute(Atom::AddSolid {
+                id: self.gray,
+                color: [138, 138, 138, 220],
+            });
+            self.vm.execute(Atom::AddSolid {
                 id: self.outline,
                 color: [122, 208, 187, 255],
             });

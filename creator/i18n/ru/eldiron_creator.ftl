@@ -259,6 +259,7 @@ authoring_target_character = Персонаж
 authoring_target_item = Предмет
 tool_game = Game Tool (A). Играть!
 tool_builder = Builder Tool (B). Выбирайте переиспользуемые ассеты реквизита и сборок в палитре Builder.
+tool_dungeon = Dungeon Tool (U). Paint conceptual dungeon structure and manage linked generated geometry.
 builder_picker_title = Палитра Builder
 builder_apply_build = Применить сборку
 status_builder_new = Создать новый ассет графа Builder.

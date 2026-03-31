@@ -1964,31 +1964,33 @@ impl TheTrait for Editor {
                             if let Some(region) =
                                 self.project.get_region(&self.server_ctx.curr_region)
                             {
-                                rusterix.client.builder_d2.set_clip_rect(None);
+                                rusterix.client.set_clip_rect_d2(None);
                                 rusterix
                                     .client
-                                    .builder_d2
-                                    .set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                                    .set_map_tool_type_d2(self.server_ctx.curr_map_tool_type);
                                 if let Some(hover_cursor) = self.server_ctx.hover_cursor {
-                                    rusterix.client.builder_d2.set_map_hover_info(
+                                    rusterix.client.set_map_hover_info_d2(
                                         self.server_ctx.hover,
                                         Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
                                     );
                                 } else {
                                     rusterix
                                         .client
-                                        .builder_d2
-                                        .set_map_hover_info(self.server_ctx.hover, None);
+                                        .set_map_hover_info_d2(self.server_ctx.hover, None);
                                 }
 
                                 if let Some(camera_pos) = region.map.camera_xz {
-                                    rusterix.client.builder_d2.set_camera_info(
+                                    rusterix.client.set_camera_info_d2(
                                         Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
                                         None,
                                     );
                                 }
 
                                 // let start_time = ctx.get_time();
+
+                                let use_dungeon_concept = self.server_ctx.editor_view_mode
+                                    == EditorViewMode::D2
+                                    && self.server_ctx.curr_map_tool_type == MapToolType::Dungeon;
 
                                 if let Some(clipboard) = &self.server_ctx.paste_clipboard {
                                     // During a paste operation we use a merged map
@@ -1999,27 +2001,32 @@ impl TheTrait for Editor {
                                     }
 
                                     rusterix.set_dirty();
-                                    // rusterix.build_scene(
-                                    //     Vec2::new(dim.width as f32, dim.height as f32),
-                                    //     &map,
-                                    //     &self.build_values,
-                                    //     self.server_ctx.game_mode,
-                                    // );
-                                    rusterix.apply_entities_items(
-                                        Vec2::new(dim.width as f32, dim.height as f32),
-                                        &map,
-                                        &self.server_ctx.editing_surface,
-                                        false,
-                                    );
-                                } else {
-                                    // rusterix.build_scene(
-                                    //     Vec2::new(dim.width as f32, dim.height as f32),
-                                    //     &region.map,
-                                    //     &self.build_values,
-                                    //     self.server_ctx.game_mode,
-                                    // );
-
-                                    if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                    if use_dungeon_concept {
+                                        rusterix.build_custom_scene_d2(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            &map,
+                                            &self.build_values,
+                                            &self.server_ctx.editing_surface,
+                                            true,
+                                        );
+                                    } else {
+                                        rusterix.apply_entities_items(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            &map,
+                                            &self.server_ctx.editing_surface,
+                                            false,
+                                        );
+                                    }
+                                } else if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                    if use_dungeon_concept {
+                                        rusterix.build_custom_scene_d2(
+                                            Vec2::new(dim.width as f32, dim.height as f32),
+                                            map,
+                                            &self.build_values,
+                                            &self.server_ctx.editing_surface,
+                                            true,
+                                        );
+                                    } else {
                                         rusterix.apply_entities_items(
                                             Vec2::new(dim.width as f32, dim.height as f32),
                                             map,
@@ -2051,40 +2058,56 @@ impl TheTrait for Editor {
                                 if self.server_ctx.editor_view_mode == EditorViewMode::D2
                                     && rusterix.scene_handler.vm.vm_layer_count() > 1
                                 {
-                                    rusterix.scene_handler.vm.set_layer_enabled(
-                                        1,
-                                        self.server_ctx.show_editing_geometry,
+                                    let overlay_enabled = if self.server_ctx.curr_map_tool_type
+                                        == MapToolType::Dungeon
+                                    {
+                                        true
+                                    } else {
+                                        self.server_ctx.show_editing_geometry
+                                    };
+                                    rusterix
+                                        .scene_handler
+                                        .vm
+                                        .set_layer_enabled(1, overlay_enabled);
+                                }
+                                if self.server_ctx.editor_view_mode == EditorViewMode::D2
+                                    && self.server_ctx.curr_map_tool_type == MapToolType::Dungeon
+                                {
+                                    rusterix.draw_custom_d2(
+                                        map,
+                                        render_view.render_buffer_mut().pixels_mut(),
+                                        dim.width as usize,
+                                        dim.height as usize,
+                                    );
+                                } else {
+                                    rusterix.draw_scene(
+                                        map,
+                                        render_view.render_buffer_mut().pixels_mut(),
+                                        dim.width as usize,
+                                        dim.height as usize,
                                     );
                                 }
-                                rusterix.draw_scene(
-                                    map,
-                                    render_view.render_buffer_mut().pixels_mut(),
-                                    dim.width as usize,
-                                    dim.height as usize,
-                                );
                             }
                         } else if self.server_ctx.get_map_context() == MapContext::Region
                             && self.server_ctx.editing_surface.is_some()
                         {
                             rusterix
                                 .client
-                                .builder_d2
-                                .set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                                .set_map_tool_type_d2(self.server_ctx.curr_map_tool_type);
                             if let Some(profile) = self.project.get_map_mut(&self.server_ctx) {
                                 if rusterix.scene_handler.vm.vm_layer_count() > 1 {
                                     // Profile editor relies on 2D overlay guides.
                                     rusterix.scene_handler.vm.set_layer_enabled(1, true);
                                 }
                                 if let Some(hover_cursor) = self.server_ctx.hover_cursor {
-                                    rusterix.client.builder_d2.set_map_hover_info(
+                                    rusterix.client.set_map_hover_info_d2(
                                         self.server_ctx.hover,
                                         Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
                                     );
                                 } else {
                                     rusterix
                                         .client
-                                        .builder_d2
-                                        .set_map_hover_info(self.server_ctx.hover, None);
+                                        .set_map_hover_info_d2(self.server_ctx.hover, None);
                                 }
 
                                 if let Some(clipboard) = &self.server_ctx.paste_clipboard {
@@ -2131,8 +2154,7 @@ impl TheTrait for Editor {
                         {
                             rusterix
                                 .client
-                                .builder_d2
-                                .set_map_tool_type(self.server_ctx.curr_map_tool_type);
+                                .set_map_tool_type_d2(self.server_ctx.curr_map_tool_type);
                             if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
                                 if rusterix.scene_handler.vm.vm_layer_count() > 1 {
                                     // Screen/character/item overlays should respect toggle.
@@ -2142,15 +2164,14 @@ impl TheTrait for Editor {
                                     );
                                 }
                                 if let Some(hover_cursor) = self.server_ctx.hover_cursor {
-                                    rusterix.client.builder_d2.set_map_hover_info(
+                                    rusterix.client.set_map_hover_info_d2(
                                         self.server_ctx.hover,
                                         Some(vek::Vec2::new(hover_cursor.x, hover_cursor.y)),
                                     );
                                 } else {
                                     rusterix
                                         .client
-                                        .builder_d2
-                                        .set_map_hover_info(self.server_ctx.hover, None);
+                                        .set_map_hover_info_d2(self.server_ctx.hover, None);
                                 }
 
                                 if self.server_ctx.get_map_context() != MapContext::Screen {
@@ -2370,6 +2391,49 @@ impl TheTrait for Editor {
                     } else if id.name == "Close Tile Node Editor Skeleton" {
                         self.server_ctx.tile_node_group_id = None;
                         DOCKMANAGER.write().unwrap().minimize(ui, ctx);
+                        redraw = true;
+                    } else if id.name == "Open Dungeon Dock" {
+                        let current = DOCKMANAGER.read().unwrap().dock.clone();
+                        if current != "Dungeon" {
+                            self.server_ctx.prev_dungeon_dock = if current.is_empty() {
+                                None
+                            } else {
+                                Some(current)
+                            };
+                        }
+                        DOCKMANAGER.write().unwrap().set_dock(
+                            "Dungeon".into(),
+                            ui,
+                            ctx,
+                            &self.project,
+                            &mut self.server_ctx,
+                        );
+                        ctx.ui.relayout = true;
+                        ctx.ui.redraw_all = true;
+                        redraw = true;
+                    } else if id.name == "Restore Previous Dock" {
+                        if let TheValue::Text(dock) = value {
+                            let current = DOCKMANAGER.read().unwrap().dock.clone();
+                            if current == "Dungeon" {
+                                DOCKMANAGER.write().unwrap().set_dock(
+                                    dock.clone(),
+                                    ui,
+                                    ctx,
+                                    &self.project,
+                                    &mut self.server_ctx,
+                                );
+                                ctx.ui.relayout = true;
+                                ctx.ui.redraw_all = true;
+                                redraw = true;
+                            }
+                        }
+                    } else if id.name == "Minimize Dock" {
+                        DOCKMANAGER.write().unwrap().minimize(ui, ctx);
+                        ctx.ui.relayout = true;
+                        ctx.ui.redraw_all = true;
+                        redraw = true;
+                    } else if id.name == "Mark Rusterix Dirty" {
+                        RUSTERIX.write().unwrap().set_dirty();
                         redraw = true;
                     } else if id.name == "Render SceneManager Map" {
                         if self.server_ctx.pc.is_region() {

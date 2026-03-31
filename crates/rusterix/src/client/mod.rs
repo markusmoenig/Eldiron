@@ -11,8 +11,8 @@ use std::str::FromStr;
 
 use crate::prelude::*;
 use crate::{
-    AccumBuffer, BrushPreview, Command, D2PreviewBuilder, EntityAction, PlayerCamera, Rect,
-    SceneHandler, ShapeFXGraph, Surface, Tracer, Value,
+    AccumBuffer, BrushPreview, Command, D2ConceptBuilder, D2PreviewBuilder, EntityAction,
+    PlayerCamera, Rect, SceneHandler, ShapeFXGraph, Surface, Tracer, Value,
     client::action::ClientAction,
     client::widget::{
         Widget, avatar::AvatarWidget, deco::DecoWidget, game::GameWidget, messages::MessagesWidget,
@@ -30,6 +30,8 @@ pub struct Client {
     pub curr_map_id: Uuid,
 
     pub builder_d2: D2PreviewBuilder,
+    pub builder_d2_concept: D2ConceptBuilder,
+    pub map_tool_type_d2: MapToolType,
 
     pub camera_d3: Box<dyn D3Camera>,
     pub builder_d3: D3Builder,
@@ -272,6 +274,8 @@ impl Client {
             curr_map_id: Uuid::default(),
 
             builder_d2: D2PreviewBuilder::new(),
+            builder_d2_concept: D2ConceptBuilder::new(),
+            map_tool_type_d2: MapToolType::General,
 
             camera_d3: Box::new(D3FirstPCamera::new()),
             builder_d3: D3Builder::new(),
@@ -381,6 +385,32 @@ impl Client {
         self.camera_d3 = camera;
     }
 
+    pub fn set_map_tool_type_d2(&mut self, tool: MapToolType) {
+        self.map_tool_type_d2 = tool;
+        self.builder_d2.set_map_tool_type(tool);
+        self.builder_d2_concept.set_map_tool_type(tool);
+    }
+
+    pub fn set_map_hover_info_d2(
+        &mut self,
+        hover: (Option<u32>, Option<u32>, Option<u32>),
+        hover_cursor: Option<Vec2<f32>>,
+    ) {
+        self.builder_d2.set_map_hover_info(hover, hover_cursor);
+        self.builder_d2_concept
+            .set_map_hover_info(hover, hover_cursor);
+    }
+
+    pub fn set_camera_info_d2(&mut self, pos: Option<vek::Vec3<f32>>, look_at: Option<Vec3<f32>>) {
+        self.builder_d2.set_camera_info(pos, look_at);
+        self.builder_d2_concept.set_camera_info(pos, look_at);
+    }
+
+    pub fn set_clip_rect_d2(&mut self, clip_rect: Option<Rect>) {
+        self.builder_d2.set_clip_rect(clip_rect);
+        self.builder_d2_concept.set_clip_rect(clip_rect);
+    }
+
     /// Build the 2D scene from the map.
     pub fn build_custom_scene_d2(
         &mut self,
@@ -393,17 +423,34 @@ impl Client {
         draw_sectors: bool,
     ) {
         self.curr_map_id = map.id;
-        self.scene_d2 = self.builder_d2.build(map, assets, screen_size, values);
-        self.builder_d2.build_entities_items(
-            map,
-            assets,
-            &mut self.scene_d2,
-            screen_size,
-            edit_surface,
-            scene_handler,
-            draw_sectors,
-        );
-        scene_handler.build_dynamics_2d(map, self.animation_frame, assets);
+        if self.map_tool_type_d2 == MapToolType::Dungeon {
+            self.scene_d2 = self
+                .builder_d2_concept
+                .build(map, assets, screen_size, values);
+            self.builder_d2_concept.build_entities_items(
+                map,
+                assets,
+                &mut self.scene_d2,
+                screen_size,
+                edit_surface,
+                scene_handler,
+                draw_sectors,
+            );
+        } else {
+            self.scene_d2 = self.builder_d2.build(map, assets, screen_size, values);
+            self.builder_d2.build_entities_items(
+                map,
+                assets,
+                &mut self.scene_d2,
+                screen_size,
+                edit_surface,
+                scene_handler,
+                draw_sectors,
+            );
+        }
+        if self.map_tool_type_d2 != MapToolType::Dungeon {
+            scene_handler.build_dynamics_2d(map, self.animation_frame, assets);
+        }
     }
 
     /// Apply the entities to the 2D scene.
@@ -597,9 +644,7 @@ impl Client {
                 map.offset.x,
                 -map.offset.y,
             )));
-            scene_handler
-                .vm
-                .execute(scenevm::Atom::SetGP2(Vec4::zero()));
+            scene_handler.vm.execute(scenevm::Atom::SetGP2(Vec4::one()));
             scene_handler
                 .vm
                 .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Compute2D));

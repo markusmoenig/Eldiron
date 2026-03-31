@@ -258,6 +258,7 @@ authoring_target_character = Personaje
 authoring_target_item = Objeto
 tool_game = Game Tool (A). ¡Juega!
 tool_builder = Builder Tool (B). Selecciona recursos reutilizables de utilería y ensamblaje en el selector del constructor.
+tool_dungeon = Dungeon Tool (U). Paint conceptual dungeon structure and manage linked generated geometry.
 builder_picker_title = Selector del constructor
 builder_apply_build = Aplicar construcción
 status_builder_new = Crear un nuevo recurso de grafo del constructor.

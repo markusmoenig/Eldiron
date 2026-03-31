@@ -118,6 +118,7 @@ impl ToolList {
             Box::new(LinedefTool::new()),
             Box::new(SectorTool::new()),
             Box::new(RectTool::new()),
+            Box::new(crate::tools::dungeon::DungeonTool::new()),
             Box::new(crate::tools::builder::BuilderTool::new()),
             Box::new(crate::tools::organic::OrganicTool::new()),
             Box::new(crate::tools::entity::EntityTool::new()),
@@ -1399,7 +1400,10 @@ impl ToolList {
                 );
 
                 // Switching game tools should collapse any maximized dock/editor view.
-                DOCKMANAGER.write().unwrap().minimize(ui, ctx);
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Minimize Dock"),
+                    TheValue::Empty,
+                ));
             }
 
             if let Some(layout) = ui.get_hlayout(layout_name) {
@@ -1411,9 +1415,14 @@ impl ToolList {
             self.get_current_tool()
                 .tool_event(ToolEvent::Activate, ui, ctx, project, server_ctx);
 
-            self.update_geometry_overlay_3d(project, server_ctx);
-
-            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Tool Changed"),
+                TheValue::Empty,
+            ));
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Mark Rusterix Dirty"),
+                TheValue::Empty,
+            ));
         }
 
         /*

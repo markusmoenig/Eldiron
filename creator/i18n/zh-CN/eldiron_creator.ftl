@@ -258,6 +258,7 @@ authoring_target_character = 角色
 authoring_target_item = 物品
 tool_game = Game Tool (A)。开始游玩！
 tool_builder = Builder Tool (B)。在 Builder 选择器中选择可复用的道具和组合资源。
+tool_dungeon = Dungeon Tool (U). Paint conceptual dungeon structure and manage linked generated geometry.
 builder_picker_title = Builder 选择器
 builder_apply_build = 应用构建
 status_builder_new = 创建新的 Builder 图资源。

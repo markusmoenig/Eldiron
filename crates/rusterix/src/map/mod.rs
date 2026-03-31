@@ -1,4 +1,5 @@
 pub mod bbox;
+pub mod dungeon;
 pub mod geometry;
 pub mod light;
 pub mod linedef;
@@ -43,6 +44,7 @@ pub enum MapCamera {
 pub enum MapToolType {
     General,
     Selection,
+    Dungeon,
     Vertex,
     Linedef,
     Sector,
@@ -65,6 +67,9 @@ pub struct Map {
 
     #[serde(default)]
     pub terrain: Terrain,
+
+    #[serde(default)]
+    pub dungeon: dungeon::DungeonMap,
 
     // When adding linedefs we keep track of them to check if we have a closed polygon
     #[serde(skip)]
@@ -165,6 +170,7 @@ impl Map {
             subdivisions: 1.0,
 
             terrain: Terrain::default(),
+            dungeon: dungeon::DungeonMap::default(),
 
             possible_polygon: vec![],
             curr_grid_pos: None,
@@ -1808,6 +1814,7 @@ impl Map {
             subdivisions: self.subdivisions,
 
             terrain: Terrain::default(),
+            dungeon: dungeon::DungeonMap::default(),
 
             possible_polygon: vec![],
             curr_grid_pos: None,

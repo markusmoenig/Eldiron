@@ -186,6 +186,7 @@ action_remap_tile_desc = Remaps the colors of the tile to the palette.
 # Tools
 tool_game = Game Tool (A). Play the game!
 tool_builder = Builder Tool (B). Select reusable prop and assembly assets from the builder picker.
+tool_dungeon = Dungeon Tool (U). Paint conceptual dungeon structure and manage linked generated geometry.
 tool_linedef = Linedef Tool (L). Create line definitions and sectors.
 tool_rect = Rect Tool (R). Click to draw the current tile. Shift-click to delete.
 tool_sector = Sector Tool (E).

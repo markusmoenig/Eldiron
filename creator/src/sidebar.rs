@@ -5,6 +5,7 @@ use crate::editor::{
 use crate::minimap::{draw_minimap, draw_minimap_context_label, minimap_bbox_for_map};
 use crate::prelude::*;
 use crate::undo::project_helper::*;
+use rusterix::rebuild_generated_geometry;
 use rusterix::{AudioEngine, Texture, TileRole};
 
 #[derive(PartialEq, Debug)]
@@ -914,6 +915,10 @@ impl Sidebar {
                         self.curr_tile_collection_uuid = Some(*collection_id);
                         self.show_collection_settings(ui, ctx, project, *collection_id);
                     }
+                } else if id.name == "Show Dungeon Settings" {
+                    self.show_dungeon_settings(ui, ctx, server_ctx);
+                } else if id.name == "Hide Dungeon Settings" {
+                    self.show_actions(ui, ctx, project, server_ctx);
                 } else if id.name == "Hide Collection Settings" {
                     self.curr_tile_collection_uuid = None;
                     if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack")
@@ -1182,8 +1187,87 @@ impl Sidebar {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Action Params TOML" {
-                    if let Some(action_id) = server_ctx.curr_action_id
+                if id.name == "Dungeon Floor Base" {
+                    if let TheValue::Float(v) = value {
+                        server_ctx.curr_dungeon_floor_base = *v;
+                    }
+                } else if id.name == "Dungeon Height" {
+                    if let TheValue::Float(v) = value {
+                        server_ctx.curr_dungeon_height = (*v).max(0.1);
+                    }
+                } else if id.name == "Dungeon Floors" {
+                    if let TheValue::Bool(v) = value {
+                        let changed = server_ctx.curr_dungeon_create_floor != *v;
+                        server_ctx.curr_dungeon_create_floor = *v;
+                        if changed && let Some(map) = project.get_map_mut(server_ctx) {
+                            rebuild_generated_geometry(
+                                map,
+                                server_ctx.curr_dungeon_create_floor,
+                                server_ctx.curr_dungeon_create_ceiling,
+                            );
+                            map.changed += 1;
+                            crate::utils::scenemanager_render_map(project, server_ctx);
+                            RUSTERIX.write().unwrap().set_dirty();
+                        }
+                    }
+                } else if id.name == "Dungeon Ceilings" {
+                    if let TheValue::Bool(v) = value {
+                        let changed = server_ctx.curr_dungeon_create_ceiling != *v;
+                        server_ctx.curr_dungeon_create_ceiling = *v;
+                        if changed && let Some(map) = project.get_map_mut(server_ctx) {
+                            rebuild_generated_geometry(
+                                map,
+                                server_ctx.curr_dungeon_create_floor,
+                                server_ctx.curr_dungeon_create_ceiling,
+                            );
+                            map.changed += 1;
+                            crate::utils::scenemanager_render_map(project, server_ctx);
+                            RUSTERIX.write().unwrap().set_dirty();
+                        }
+                    }
+                } else if id.name == "Action Params TOML" {
+                    if server_ctx.curr_map_tool_type == MapToolType::Dungeon {
+                        if let Some(source) = value.to_string() {
+                            let mut nodeui = self.dungeon_params_nodeui(server_ctx);
+                            if apply_toml_to_nodeui(&mut nodeui, &source).is_ok() {
+                                let mut rebuild_geometry = false;
+                                for (key, val) in nodeui_to_value_pairs(&nodeui) {
+                                    match (key.as_str(), val) {
+                                        ("floor_base", TheValue::Float(v)) => {
+                                            server_ctx.curr_dungeon_floor_base = v;
+                                        }
+                                        ("height", TheValue::Float(v)) => {
+                                            server_ctx.curr_dungeon_height = v.max(0.1);
+                                        }
+                                        ("floors", TheValue::Bool(v)) => {
+                                            rebuild_geometry |=
+                                                server_ctx.curr_dungeon_create_floor != v;
+                                            server_ctx.curr_dungeon_create_floor = v;
+                                        }
+                                        ("ceilings", TheValue::Bool(v)) => {
+                                            rebuild_geometry |=
+                                                server_ctx.curr_dungeon_create_ceiling != v;
+                                            server_ctx.curr_dungeon_create_ceiling = v;
+                                        }
+                                        _ => {}
+                                    }
+                                }
+
+                                if rebuild_geometry
+                                    && let Some(map) = project.get_map_mut(server_ctx)
+                                {
+                                    rebuild_generated_geometry(
+                                        map,
+                                        server_ctx.curr_dungeon_create_floor,
+                                        server_ctx.curr_dungeon_create_ceiling,
+                                    );
+                                    map.changed += 1;
+                                    crate::utils::scenemanager_render_map(project, server_ctx);
+                                    RUSTERIX.write().unwrap().set_dirty();
+                                }
+                            }
+                        }
+                    } else if let Some(action_id) = server_ctx.curr_action_id
                         && let Some(source) = value.to_string()
                         && let Some(action) =
                             ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
@@ -4107,6 +4191,63 @@ impl Sidebar {
                 state.selection.reset();
                 TheTextAreaEditTrait::set_state(edit, state);
             }
+        }
+    }
+
+    fn dungeon_params_nodeui(&self, server_ctx: &ServerContext) -> TheNodeUI {
+        let mut nodeui = TheNodeUI::default();
+        nodeui.add_item(TheNodeUIItem::OpenTree("Dungeon".into()));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "Dungeon Floor Base".into(),
+            "Floor Base".into(),
+            "Default floor base for newly painted dungeon cells.".into(),
+            server_ctx.curr_dungeon_floor_base,
+            -64.0..=64.0,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "Dungeon Height".into(),
+            "Height".into(),
+            "Wall and ceiling height above the floor base for newly painted dungeon cells.".into(),
+            server_ctx.curr_dungeon_height,
+            0.1..=64.0,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "Dungeon Floors".into(),
+            "Floors".into(),
+            "Generate floor surfaces for conceptual dungeon tiles.".into(),
+            server_ctx.curr_dungeon_create_floor,
+        ));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "Dungeon Ceilings".into(),
+            "Ceilings".into(),
+            "Generate ceiling surfaces for conceptual dungeon tiles.".into(),
+            server_ctx.curr_dungeon_create_ceiling,
+        ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
+        nodeui
+    }
+
+    fn show_dungeon_settings(
+        &self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) {
+        if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
+            stack.set_index(1);
+        }
+        if let Some(tab) = ui.get_layout("Multi Tab")
+            && let Some(tab) = tab.as_tab_layout()
+        {
+            tab.set_index(1);
+        }
+        if let Some(layout) = ui.get_text_layout("Node Settings") {
+            layout.clear();
+            self.dungeon_params_nodeui(server_ctx)
+                .apply_to_text_layout(layout);
+            ctx.ui.relayout = true;
         }
     }
 
