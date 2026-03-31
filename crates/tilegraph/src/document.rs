@@ -236,6 +236,17 @@ fn node_kind_from_doc(
             opacity: table_f32(table, "opacity", 1.0),
             emissive: table_f32(table, "emissive", 0.0),
         },
+        "particle_emitter" => TileNodeKind::ParticleEmitter {
+            rate: table_f32(table, "rate", 24.0),
+            spread: table_f32(table, "spread", 0.75),
+            lifetime_min: table_f32(table, "lifetime_min", 0.35),
+            lifetime_max: table_f32(table, "lifetime_max", 0.9),
+            radius_min: table_f32(table, "radius_min", 0.08),
+            radius_max: table_f32(table, "radius_max", 0.2),
+            speed_min: table_f32(table, "speed_min", 0.35),
+            speed_max: table_f32(table, "speed_max", 1.1),
+            color_variation: table_u32(table, "color_variation", 24) as u8,
+        },
         "import_layer" => TileNodeKind::ImportLayer {
             source: table
                 .get("source")
@@ -429,6 +440,7 @@ impl TileGraphDocument {
                         metallic,
                         opacity,
                         emissive,
+                        particle_enabled,
                     } = &mut output_root.kind
                     {
                         if let Some(v) =
@@ -447,6 +459,13 @@ impl TileGraphDocument {
                         if let Some(v) = graph_node.table.get("emissive").and_then(|v| v.as_float())
                         {
                             *emissive = v as f32;
+                        }
+                        if let Some(v) = graph_node
+                            .table
+                            .get("particle_enabled")
+                            .and_then(|v| v.as_bool())
+                        {
+                            *particle_enabled = v;
                         }
                     }
                 }
@@ -854,6 +873,7 @@ fn export_kind_name(kind: &TileNodeKind) -> Option<&'static str> {
         TileNodeKind::MaskBlend { .. } => Some("mask_blend"),
         TileNodeKind::ImportLayer { .. } => Some("import_layer"),
         TileNodeKind::LayerInput { .. } => Some("layer_input"),
+        TileNodeKind::ParticleEmitter { .. } => Some("particle_emitter"),
         TileNodeKind::Multiply => Some("multiply"),
         TileNodeKind::Subtract => Some("subtract"),
         TileNodeKind::Add => Some("add"),
@@ -873,6 +893,7 @@ fn export_input_name(kind: &str, input: u8) -> Option<&'static str> {
             3 => Some("metallic"),
             4 => Some("opacity"),
             5 => Some("emissive"),
+            6 => Some("particles"),
             _ => None,
         },
         "voronoi" => match input {
@@ -927,6 +948,9 @@ fn export_input_name(kind: &str, input: u8) -> Option<&'static str> {
             0 => Some("in"),
             _ => None,
         },
+        "particle_emitter" => match input {
+            _ => None,
+        },
         "id_random" => match input {
             0 => Some("id"),
             _ => None,
@@ -949,6 +973,10 @@ fn export_output_port_name(kind: &str, output: u8) -> Option<&'static str> {
             3 => Some("metallic"),
             4 => Some("opacity"),
             5 => Some("emissive"),
+            _ => None,
+        },
+        "particle_emitter" => match output {
+            0 => Some("particles"),
             _ => None,
         },
         "voronoi" => match output {
@@ -1010,11 +1038,16 @@ fn export_node_table(
             metallic,
             opacity,
             emissive,
+            particle_enabled,
         } => {
             table.insert("roughness".to_string(), rounded_float(*roughness));
             table.insert("metallic".to_string(), rounded_float(*metallic));
             table.insert("opacity".to_string(), rounded_float(*opacity));
             table.insert("emissive".to_string(), rounded_float(*emissive));
+            table.insert(
+                "particle_enabled".to_string(),
+                toml::Value::Boolean(*particle_enabled),
+            );
         }
         TileNodeKind::Voronoi {
             scale,
@@ -1128,6 +1161,30 @@ fn export_node_table(
         }
         TileNodeKind::MaskBlend { factor } => {
             table.insert("factor".to_string(), rounded_float(*factor));
+        }
+        TileNodeKind::ParticleEmitter {
+            rate,
+            spread,
+            lifetime_min,
+            lifetime_max,
+            radius_min,
+            radius_max,
+            speed_min,
+            speed_max,
+            color_variation,
+        } => {
+            table.insert("rate".to_string(), rounded_float(*rate));
+            table.insert("spread".to_string(), rounded_float(*spread));
+            table.insert("lifetime_min".to_string(), rounded_float(*lifetime_min));
+            table.insert("lifetime_max".to_string(), rounded_float(*lifetime_max));
+            table.insert("radius_min".to_string(), rounded_float(*radius_min));
+            table.insert("radius_max".to_string(), rounded_float(*radius_max));
+            table.insert("speed_min".to_string(), rounded_float(*speed_min));
+            table.insert("speed_max".to_string(), rounded_float(*speed_max));
+            table.insert(
+                "color_variation".to_string(),
+                toml::Value::Integer(*color_variation as i64),
+            );
         }
         TileNodeKind::Material {
             roughness,

@@ -36,7 +36,7 @@ pub mod prelude {
     pub use crate::text_session::*;
     pub use crate::tilegraph::{
         RenderedTileGraph, TileEvalContext, TileGraphRenderer, TileNodeGraphExchange,
-        TileNodeGraphState, TileNodeKind, TileNodeState,
+        TileNodeGraphState, TileNodeKind, TileNodeState, TileParticleOutput,
     };
     pub use crate::tilemap::{Tile, Tilemap};
     pub use crate::treasury::{

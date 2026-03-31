@@ -163,24 +163,6 @@ impl TheWidget for TheNodeCanvasView {
                         }
                     }
 
-                    if let Some(preview_rect) = self.preview_rect_for_node(index)
-                        && preview_rect.contains(*coord)
-                    {
-                        if let Some(node) = self.canvas.nodes.get_mut(index) {
-                            let open = !node.preview_is_open;
-                            node.preview_is_open = open;
-                            self.is_dirty = true;
-                            redraw = true;
-                            ctx.ui.send(TheEvent::NodePreviewToggled(
-                                self.id().clone(),
-                                index,
-                                open,
-                            ));
-                        }
-                        self.action = TheNodeAction::None;
-                        return redraw;
-                    }
-
                     if let Some(terminal) = self.terminal_at(
                         index,
                         *coord + self.canvas.offset - self.canvas.nodes[index].position,
@@ -988,30 +970,6 @@ impl TheWidget for TheNodeCanvasView {
 }
 
 impl TheNodeCanvasView {
-    fn preview_rect_for_node(&self, node_index: usize) -> Option<TheDim> {
-        let node = self.canvas.nodes.get(node_index)?;
-        if !node.supports_preview || !node.preview_is_open {
-            return None;
-        }
-        let max_terminals = node.inputs.len().max(node.outputs.len()) as i32;
-        let body_height = 7 + max_terminals * 10 + (max_terminals - 1) * 4 + 7;
-        let mut node_height = 19 + body_height + 19;
-        let preview_height = 118;
-        node_height += preview_height;
-        let dim = TheDim::new(
-            node.position.x - self.canvas.offset.x,
-            node.position.y - self.canvas.offset.y,
-            self.canvas.node_width,
-            node_height,
-        );
-        Some(TheDim::new(
-            dim.x + 2,
-            dim.y + (node_height - 19 - preview_height),
-            self.canvas.node_width - 4,
-            preview_height,
-        ))
-    }
-
     fn categories_compatible(source: &str, dest: &str) -> bool {
         if source == dest {
             return true;

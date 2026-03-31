@@ -78,6 +78,8 @@ pub struct SceneHandler {
     // Per-item animation phase starts for one-shot impact effects.
     impact_anim_starts: FxHashMap<GeoId, u32>,
     campfire_emitters: FxHashMap<u32, ParticleEmitter>,
+    tile_emitters_2d: FxHashMap<u32, ParticleEmitter>,
+    tile_emitters_3d: FxHashMap<u32, ParticleEmitter>,
 
     // Local render-frame counter for timing animations at fixed FPS
     frame_counter: usize,
@@ -101,6 +103,35 @@ impl Default for SceneHandler {
 }
 
 impl SceneHandler {
+    fn particle_sprite_tile_id(tile_id: Uuid) -> Uuid {
+        Uuid::from_u128(tile_id.as_u128() ^ 0x705f_6172_7469_636c_655f_7370_7269)
+    }
+
+    fn build_particle_sprite_texture(color: [u8; 4]) -> Texture {
+        let size = 32usize;
+        let mut data = vec![0u8; size * size * 4];
+        let center = (size as f32 - 1.0) * 0.5;
+        let radius = center.max(1.0);
+
+        for y in 0..size {
+            for x in 0..size {
+                let dx = (x as f32 - center) / radius;
+                let dy = (y as f32 - center) / radius;
+                let dist = (dx * dx + dy * dy).sqrt();
+                let falloff = (1.0 - dist).clamp(0.0, 1.0);
+                let alpha = (falloff * falloff * 255.0) as u8;
+                let boost = 0.6 + falloff * 0.4;
+                let idx = (y * size + x) * 4;
+                data[idx] = ((color[0] as f32) * boost).clamp(0.0, 255.0) as u8;
+                data[idx + 1] = ((color[1] as f32) * boost).clamp(0.0, 255.0) as u8;
+                data[idx + 2] = ((color[2] as f32) * boost).clamp(0.0, 255.0) as u8;
+                data[idx + 3] = alpha;
+            }
+        }
+
+        Texture::new(data, size, size)
+    }
+
     fn rebuild_campfire_particles(
         &mut self,
         map: &Map,
@@ -151,13 +182,13 @@ impl SceneHandler {
                 .properties
                 .get_source("campfire_flame_source")
                 .and_then(|source| source.tile_from_tile_list(assets))
-                .map(|tile| tile.id)
+                .map(|tile| Self::particle_sprite_tile_id(tile.id))
                 .or_else(|| {
                     sector
                         .properties
                         .get_source("source")
                         .and_then(|source| source.tile_from_tile_list(assets))
-                        .map(|tile| tile.id)
+                        .map(|tile| Self::particle_sprite_tile_id(tile.id))
                 })
                 .unwrap_or_else(|| Uuid::from_str(DEFAULT_TILE_ID).unwrap());
 
@@ -214,6 +245,451 @@ impl SceneHandler {
     }
 
     #[inline]
+    fn tile_particle_key(kind: u32, host_id: u32, slot: u32) -> u32 {
+        kind.wrapping_mul(0x1f1f_1f1f)
+            ^ host_id.wrapping_mul(0x045d_9f3b)
+            ^ slot.wrapping_mul(0x119d_e1f3)
+    }
+
+    fn rebuild_tile_particles_2d(&mut self, map: &Map, assets: &Assets) -> bool {
+        let dt = (1.0 / self.render_fps.max(1.0)).clamp(0.005, 0.1);
+        let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
+        let mut has_particles = false;
+
+        let spawn_2d = |emitters: &mut FxHashMap<u32, ParticleEmitter>,
+                        vm: &mut SceneVM,
+                        key: u32,
+                        tile: &Tile,
+                        pos: Vec2<f32>,
+                        size_scale: f32,
+                        direction: Vec3<f32>,
+                        layer: i32,
+                        active_emitters: &mut FxHashSet<u32>,
+                        has_particles: &mut bool| {
+            let Some(def) = &tile.particle_emitter else {
+                return;
+            };
+            active_emitters.insert(key);
+            let emitter = emitters.entry(key).or_insert_with(|| {
+                let mut emitter = def.clone();
+                emitter.origin = Vec3::new(pos.x, pos.y, 0.0);
+                emitter.direction = direction.normalized();
+                emitter.time_accum = 0.0;
+                emitter.particles.clear();
+                emitter
+            });
+            emitter.origin = Vec3::new(pos.x, pos.y, 0.0);
+            emitter.direction = direction.normalized();
+            emitter.update(dt);
+
+            let lifetime_max = emitter.lifetime_range.1.max(0.001);
+            for (index, particle) in emitter.particles.iter().enumerate() {
+                *has_particles = true;
+                let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
+                let size = (particle.radius * 2.2 * size_scale).max(0.08);
+                let dynamic = DynamicObject::billboard_tile_2d(
+                    GeoId::Unknown(key.wrapping_mul(1024).wrapping_add(index as u32)),
+                    Self::particle_sprite_tile_id(tile.id),
+                    Vec2::new(particle.pos.x, particle.pos.y),
+                    size,
+                    size,
+                )
+                .with_layer(layer)
+                .with_opacity(opacity);
+                vm.execute(Atom::AddDynamic { object: dynamic });
+            }
+        };
+
+        for sector in &map.sectors {
+            if let Some(center) = sector.center(map)
+                && let Some(source) = sector.properties.get_default_source()
+                && let Some(tile) = source.tile_from_tile_list(assets)
+            {
+                spawn_2d(
+                    &mut self.tile_emitters_2d,
+                    &mut self.vm,
+                    Self::tile_particle_key(1, sector.id, 0),
+                    &tile,
+                    center,
+                    1.0,
+                    Vec3::new(0.0, -1.0, 0.0),
+                    5,
+                    &mut active_emitters,
+                    &mut has_particles,
+                );
+            }
+        }
+
+        for linedef in &map.linedefs {
+            if let Some(Value::Source(source)) = linedef.properties.get("row1_source")
+                && let Some(tile) = source.tile_from_tile_list(assets)
+                && let (Some(start), Some(end)) = (
+                    map.find_vertex(linedef.start_vertex),
+                    map.find_vertex(linedef.end_vertex),
+                )
+            {
+                spawn_2d(
+                    &mut self.tile_emitters_2d,
+                    &mut self.vm,
+                    Self::tile_particle_key(2, linedef.id, 0),
+                    &tile,
+                    Vec2::new((start.x + end.x) * 0.5, (start.y + end.y) * 0.5),
+                    1.0,
+                    Vec3::new(0.0, -1.0, 0.0),
+                    6,
+                    &mut active_emitters,
+                    &mut has_particles,
+                );
+            }
+        }
+
+        for vertex in &map.vertices {
+            if let Some(Value::Source(PixelSource::TileId(tile_id))) =
+                vertex.properties.get("source")
+                && let Some(tile) = assets.tiles.get(tile_id)
+            {
+                spawn_2d(
+                    &mut self.tile_emitters_2d,
+                    &mut self.vm,
+                    Self::tile_particle_key(3, vertex.id, 0),
+                    &tile,
+                    Vec2::new(vertex.x, vertex.y),
+                    vertex
+                        .properties
+                        .get_float_default("source_size", 1.0)
+                        .max(0.25),
+                    Vec3::new(0.0, -1.0, 0.0),
+                    15,
+                    &mut active_emitters,
+                    &mut has_particles,
+                );
+            }
+        }
+
+        for item in &map.items {
+            if item.attributes.get_bool_default("visible", false)
+                && let Some(Value::Source(source)) = item.attributes.get("source")
+                && let Some(tile) = source.tile_from_tile_list(assets)
+            {
+                spawn_2d(
+                    &mut self.tile_emitters_2d,
+                    &mut self.vm,
+                    Self::tile_particle_key(4, item.id, 0),
+                    &tile,
+                    Vec2::new(item.position.x, item.position.z),
+                    1.0,
+                    Vec3::new(0.0, -1.0, 0.0),
+                    25,
+                    &mut active_emitters,
+                    &mut has_particles,
+                );
+            }
+        }
+
+        for entity in &map.entities {
+            if entity.attributes.get_bool_default("visible", false)
+                && let Some(Value::Source(source)) = entity.attributes.get("source")
+                && let Some(tile) = source.tile_from_tile_list(assets)
+            {
+                spawn_2d(
+                    &mut self.tile_emitters_2d,
+                    &mut self.vm,
+                    Self::tile_particle_key(5, entity.id, 0),
+                    &tile,
+                    Vec2::new(entity.position.x, entity.position.z),
+                    entity.attributes.get_float_default("size", 1.0).max(0.25),
+                    Vec3::new(0.0, -1.0, 0.0),
+                    30,
+                    &mut active_emitters,
+                    &mut has_particles,
+                );
+            }
+        }
+
+        self.tile_emitters_2d
+            .retain(|key, _| active_emitters.contains(key));
+        has_particles
+    }
+
+    fn rebuild_tile_particles_3d(
+        &mut self,
+        map: &Map,
+        camera: &dyn D3Camera,
+        assets: &Assets,
+    ) -> bool {
+        let mut top_floor_y_by_sector: FxHashMap<u32, f32> = FxHashMap::default();
+        for surface in map.surfaces.values() {
+            if surface.plane.normal.y.abs() <= 0.7 {
+                continue;
+            }
+            top_floor_y_by_sector
+                .entry(surface.sector_id)
+                .and_modify(|y| {
+                    if surface.plane.origin.y > *y {
+                        *y = surface.plane.origin.y;
+                    }
+                })
+                .or_insert(surface.plane.origin.y);
+        }
+
+        let basis = camera.basis_vectors();
+        let dt = (1.0 / self.render_fps.max(1.0)).clamp(0.005, 0.1);
+        let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
+        let mut has_particles = false;
+
+        let spawn_3d = |emitters: &mut FxHashMap<u32, ParticleEmitter>,
+                        vm: &mut SceneVM,
+                        key: u32,
+                        tile: &Tile,
+                        origin: Vec3<f32>,
+                        size_scale: f32,
+                        direction: Vec3<f32>,
+                        active_emitters: &mut FxHashSet<u32>,
+                        has_particles: &mut bool| {
+            let Some(def) = &tile.particle_emitter else {
+                return;
+            };
+            active_emitters.insert(key);
+            let emitter = emitters.entry(key).or_insert_with(|| {
+                let mut emitter = def.clone();
+                emitter.origin = origin;
+                emitter.direction = direction.normalized();
+                emitter.time_accum = 0.0;
+                emitter.particles.clear();
+                emitter
+            });
+            emitter.origin = origin;
+            emitter.direction = direction.normalized();
+            emitter.update(dt);
+
+            let lifetime_max = emitter.lifetime_range.1.max(0.001);
+            for (index, particle) in emitter.particles.iter().enumerate() {
+                *has_particles = true;
+                let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
+                let size = (particle.radius * 2.4 * size_scale).max(0.08);
+                let center = particle.pos + Vec3::new(0.0, size * 0.2, 0.0);
+                let dynamic = DynamicObject::billboard_tile(
+                    GeoId::Unknown(key.wrapping_mul(1024).wrapping_add(index as u32)),
+                    Self::particle_sprite_tile_id(tile.id),
+                    center,
+                    basis.1,
+                    basis.2,
+                    size,
+                    size,
+                )
+                .with_opacity(opacity);
+                vm.execute(Atom::AddDynamic { object: dynamic });
+            }
+        };
+
+        for sector in &map.sectors {
+            if let Some(center) = sector.center(map) {
+                let floor_y = top_floor_y_by_sector
+                    .get(&sector.id)
+                    .copied()
+                    .unwrap_or_else(|| {
+                        crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                            map,
+                            center,
+                            &crate::chunkbuilder::terrain_generator::TerrainConfig::default(),
+                        )
+                    });
+
+                if let Some(source) = sector.properties.get_default_source()
+                    && let Some(tile) = source.tile_from_tile_list(assets)
+                {
+                    spawn_3d(
+                        &mut self.tile_emitters_3d,
+                        &mut self.vm,
+                        Self::tile_particle_key(1, sector.id, 0),
+                        &tile,
+                        Vec3::new(center.x, floor_y + 0.02, center.y),
+                        1.0,
+                        Vec3::new(0.0, 1.0, 0.0),
+                        &mut active_emitters,
+                        &mut has_particles,
+                    );
+                }
+
+                if let Some(source) = sector.properties.get_source("ceiling_source")
+                    && let Some(tile) = source.tile_from_tile_list(assets)
+                {
+                    spawn_3d(
+                        &mut self.tile_emitters_3d,
+                        &mut self.vm,
+                        Self::tile_particle_key(1, sector.id, 1),
+                        &tile,
+                        Vec3::new(
+                            center.x,
+                            sector
+                                .properties
+                                .get_float_default("ceiling_height", floor_y + 1.0)
+                                - 0.02,
+                            center.y,
+                        ),
+                        1.0,
+                        Vec3::new(0.0, -1.0, 0.0),
+                        &mut active_emitters,
+                        &mut has_particles,
+                    );
+                }
+            }
+        }
+
+        for linedef in &map.linedefs {
+            if let (Some(start), Some(end)) = (
+                map.find_vertex(linedef.start_vertex),
+                map.find_vertex(linedef.end_vertex),
+            ) {
+                let start3 = start.as_vec3_world();
+                let end3 = end.as_vec3_world();
+                let span = end3 - start3;
+                let span_len = span.magnitude().max(0.001);
+                let along = (end3 - start3)
+                    .try_normalized()
+                    .unwrap_or(Vec3::new(1.0, 0.0, 0.0));
+                let outward = Vec3::new(-along.z, 0.0, along.x)
+                    .try_normalized()
+                    .unwrap_or(Vec3::new(0.0, 0.0, 1.0));
+                let base_y_from_sector = linedef
+                    .sector_ids
+                    .iter()
+                    .filter_map(|sector_id| map.find_sector(*sector_id))
+                    .map(|sector| sector.properties.get_float_default("floor_height", 0.0))
+                    .reduce(f32::min);
+                let base_y = base_y_from_sector.unwrap_or(start3.y.min(end3.y));
+                let wall_height = linedef
+                    .properties
+                    .get_float_default("wall_height", 2.0)
+                    .max(0.25);
+                let active_rows: Vec<(&str, u32)> =
+                    ["row1_source", "row2_source", "row3_source", "row4_source"]
+                        .into_iter()
+                        .enumerate()
+                        .filter_map(|(i, key)| {
+                            matches!(linedef.properties.get(key), Some(Value::Source(_)))
+                                .then_some((key, i as u32))
+                        })
+                        .collect();
+                let active_count = active_rows.len().max(1) as f32;
+                let emitter_count = ((span_len / 0.8).ceil() as usize).clamp(2, 8);
+                for (ordinal, (source_key, slot)) in active_rows.iter().enumerate() {
+                    if let Some(Value::Source(source)) = linedef.properties.get(*source_key)
+                        && let Some(tile) = source.tile_from_tile_list(assets)
+                    {
+                        let band_t = (ordinal as f32 + 0.5) / active_count;
+                        for emitter_index in 0..emitter_count {
+                            let across_t = if emitter_count == 1 {
+                                0.5
+                            } else {
+                                (emitter_index as f32 + 0.5) / emitter_count as f32
+                            };
+                            let horizontal_jitter =
+                                ((ordinal as f32 * 13.0 + emitter_index as f32 * 7.0).sin())
+                                    * (0.35 / emitter_count as f32);
+                            let vertical_jitter =
+                                ((ordinal as f32 * 11.0 + emitter_index as f32 * 5.0).cos())
+                                    * 0.06
+                                    * wall_height;
+                            let t = (across_t + horizontal_jitter).clamp(0.05, 0.95);
+                            let origin = start3
+                                + span * t
+                                + Vec3::new(
+                                    0.0,
+                                    base_y + wall_height * band_t - start3.y + vertical_jitter,
+                                    0.0,
+                                )
+                                + outward * 0.12;
+                            let direction = (Vec3::new(0.0, 1.0, 0.0) + outward * 0.18)
+                                .try_normalized()
+                                .unwrap_or(Vec3::new(0.0, 1.0, 0.0));
+                            spawn_3d(
+                                &mut self.tile_emitters_3d,
+                                &mut self.vm,
+                                Self::tile_particle_key(
+                                    2,
+                                    linedef.id,
+                                    slot.wrapping_mul(16).wrapping_add(emitter_index as u32),
+                                ),
+                                &tile,
+                                origin,
+                                2.8,
+                                direction,
+                                &mut active_emitters,
+                                &mut has_particles,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        for vertex in &map.vertices {
+            if let Some(Value::Source(PixelSource::TileId(tile_id))) =
+                vertex.properties.get("source")
+                && let Some(tile) = assets.tiles.get(tile_id)
+            {
+                spawn_3d(
+                    &mut self.tile_emitters_3d,
+                    &mut self.vm,
+                    Self::tile_particle_key(3, vertex.id, 0),
+                    &tile,
+                    vertex.as_vec3_world(),
+                    vertex
+                        .properties
+                        .get_float_default("source_size", 1.0)
+                        .max(0.25),
+                    Vec3::new(0.0, 1.0, 0.0),
+                    &mut active_emitters,
+                    &mut has_particles,
+                );
+            }
+        }
+
+        for item in &map.items {
+            if item.attributes.get_bool_default("visible", false)
+                && let Some(Value::Source(source)) = item.attributes.get("source")
+                && let Some(tile) = source.tile_from_tile_list(assets)
+            {
+                spawn_3d(
+                    &mut self.tile_emitters_3d,
+                    &mut self.vm,
+                    Self::tile_particle_key(4, item.id, 0),
+                    &tile,
+                    item.position,
+                    1.0,
+                    Vec3::new(0.0, 1.0, 0.0),
+                    &mut active_emitters,
+                    &mut has_particles,
+                );
+            }
+        }
+
+        for entity in &map.entities {
+            if entity.attributes.get_bool_default("visible", false)
+                && let Some(Value::Source(source)) = entity.attributes.get("source")
+                && let Some(tile) = source.tile_from_tile_list(assets)
+            {
+                spawn_3d(
+                    &mut self.tile_emitters_3d,
+                    &mut self.vm,
+                    Self::tile_particle_key(5, entity.id, 0),
+                    &tile,
+                    entity.position,
+                    entity.attributes.get_float_default("size", 1.0).max(0.25),
+                    Vec3::new(0.0, 1.0, 0.0),
+                    &mut active_emitters,
+                    &mut has_particles,
+                );
+            }
+        }
+
+        self.tile_emitters_3d
+            .retain(|key, _| active_emitters.contains(key));
+        has_particles
+    }
+
+    #[inline]
     fn impact_anim_start_for_item(&mut self, geo_id: GeoId, item: &Item) -> Option<u32> {
         if item.attributes.get_bool_default("spell_impacting", false) {
             let frame = self.frame_counter as u32;
@@ -244,6 +720,8 @@ impl SceneHandler {
         self.billboard_anim_states.clear();
         self.impact_anim_starts.clear();
         self.campfire_emitters.clear();
+        self.tile_emitters_2d.clear();
+        self.tile_emitters_3d.clear();
         self.mark_dynamics_dirty();
     }
 
@@ -255,6 +733,8 @@ impl SceneHandler {
         self.billboard_anim_states.clear();
         self.impact_anim_starts.clear();
         self.campfire_emitters.clear();
+        self.tile_emitters_2d.clear();
+        self.tile_emitters_3d.clear();
         self.mark_dynamics_dirty();
     }
 
@@ -397,6 +877,8 @@ impl SceneHandler {
             billboard_anim_states: FxHashMap::default(),
             impact_anim_starts: FxHashMap::default(),
             campfire_emitters: FxHashMap::default(),
+            tile_emitters_2d: FxHashMap::default(),
+            tile_emitters_3d: FxHashMap::default(),
             frame_counter: 0,
             avatar_builder: AvatarRuntimeBuilder::default(),
             last_dynamics_hash_2d: None,
@@ -560,8 +1042,41 @@ impl SceneHandler {
         let mut hasher = rustc_hash::FxHasher::default();
         hasher.write(map.id.as_bytes());
         hasher.write_u64(animation_frame as u64);
+        hasher.write_u64(map.sectors.len() as u64);
+        hasher.write_u64(map.linedefs.len() as u64);
+        hasher.write_u64(map.vertices.len() as u64);
         hasher.write_u64(map.items.len() as u64);
         hasher.write_u64(map.entities.len() as u64);
+
+        for sector in &map.sectors {
+            hasher.write_u32(sector.id);
+            if let Some(source) = sector.properties.get_default_source() {
+                Self::hash_pixel_source(&mut hasher, source);
+            } else {
+                hasher.write_u8(0);
+            }
+        }
+
+        for linedef in &map.linedefs {
+            hasher.write_u32(linedef.id);
+            if let Some(Value::Source(source)) = linedef.properties.get("row1_source") {
+                Self::hash_pixel_source(&mut hasher, source);
+            } else {
+                hasher.write_u8(0);
+            }
+        }
+
+        for vertex in &map.vertices {
+            hasher.write_u32(vertex.id);
+            hasher.write_u32(vertex.x.to_bits());
+            hasher.write_u32(vertex.y.to_bits());
+            hasher.write_u32(vertex.z.to_bits());
+            if let Some(Value::Source(source)) = vertex.properties.get("source") {
+                Self::hash_pixel_source(&mut hasher, source);
+            } else {
+                hasher.write_u8(0);
+            }
+        }
 
         for item in &map.items {
             hasher.write_u32(item.id);
@@ -630,8 +1145,48 @@ impl SceneHandler {
         Self::hash_vec3(&mut hasher, right);
         Self::hash_vec3(&mut hasher, up);
 
+        hasher.write_u64(map.sectors.len() as u64);
+        hasher.write_u64(map.linedefs.len() as u64);
+        hasher.write_u64(map.vertices.len() as u64);
         hasher.write_u64(map.items.len() as u64);
         hasher.write_u64(map.entities.len() as u64);
+
+        for sector in &map.sectors {
+            hasher.write_u32(sector.id);
+            if let Some(source) = sector.properties.get_default_source() {
+                Self::hash_pixel_source(&mut hasher, source);
+            } else {
+                hasher.write_u8(0);
+            }
+            if let Some(source) = sector.properties.get_source("ceiling_source") {
+                Self::hash_pixel_source(&mut hasher, source);
+            } else {
+                hasher.write_u8(0);
+            }
+        }
+
+        for linedef in &map.linedefs {
+            hasher.write_u32(linedef.id);
+            for key in ["row1_source", "row2_source", "row3_source"] {
+                if let Some(Value::Source(source)) = linedef.properties.get(key) {
+                    Self::hash_pixel_source(&mut hasher, source);
+                } else {
+                    hasher.write_u8(0);
+                }
+            }
+        }
+
+        for vertex in &map.vertices {
+            hasher.write_u32(vertex.id);
+            hasher.write_u32(vertex.x.to_bits());
+            hasher.write_u32(vertex.y.to_bits());
+            hasher.write_u32(vertex.z.to_bits());
+            if let Some(Value::Source(source)) = vertex.properties.get("source") {
+                Self::hash_pixel_source(&mut hasher, source);
+            } else {
+                hasher.write_u8(0);
+            }
+        }
 
         for item in &map.items {
             hasher.write_u32(item.id);
@@ -708,6 +1263,17 @@ impl SceneHandler {
                 frames: tile.to_buffer_array(),
                 material_frames: Some(tile.to_material_array()),
             });
+
+            if let Some(emitter) = &tile.particle_emitter {
+                let sprite = Self::build_particle_sprite_texture(emitter.color);
+                self.vm.execute(Atom::AddTile {
+                    id: Self::particle_sprite_tile_id(*id),
+                    width: sprite.width as u32,
+                    height: sprite.height as u32,
+                    frames: vec![sprite.data],
+                    material_frames: None,
+                });
+            }
         }
 
         if editor {
@@ -883,10 +1449,18 @@ impl SceneHandler {
                 skin_enabled: self.settings.avatar_skin_shading_enabled,
             });
         let current_hash = self.dynamics_hash_2d(map, animation_frame);
+        let has_active_tile_particles = !self.tile_emitters_2d.is_empty();
+        if self.dynamics_ready_2d
+            && self.last_dynamics_hash_2d == Some(current_hash)
+            && !has_active_tile_particles
+        {
+            return;
+        }
         self.last_dynamics_hash_2d = Some(current_hash);
 
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
+        let _has_tile_particles = self.rebuild_tile_particles_2d(map, assets);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
 
@@ -1028,6 +1602,7 @@ impl SceneHandler {
             });
         self.frame_counter = self.frame_counter.wrapping_add(1);
         let has_active_campfire_particles = !self.campfire_emitters.is_empty();
+        let has_active_tile_particles = !self.tile_emitters_3d.is_empty();
         let has_active_render_billboard_anim = self
             .billboard_anim_states
             .values()
@@ -1037,6 +1612,7 @@ impl SceneHandler {
             && self.last_dynamics_hash_3d == Some(current_hash)
             && !has_active_render_billboard_anim
             && !has_active_campfire_particles
+            && !has_active_tile_particles
         {
             return;
         }
@@ -1046,6 +1622,7 @@ impl SceneHandler {
         self.vm.execute(Atom::ClearLights);
         self.add_sector_campfire_lights(map);
         let _has_campfire_particles = self.rebuild_campfire_particles(map, camera, assets);
+        let _has_tile_particles = self.rebuild_tile_particles_3d(map, camera, assets);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
 

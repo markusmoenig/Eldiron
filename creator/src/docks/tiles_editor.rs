@@ -6,6 +6,7 @@ use shared::tilegraph::{
     TileGraphSubgraphResolver as SharedTileGraphSubgraphResolver, TileNodeGraphExchange,
     TileNodeGraphState, TileNodeKind, TileNodeState, flatten_graph_exchange_with,
 };
+use std::time::Instant;
 
 const TILE_NODE_CANVAS_VIEW: &str = "Tile Node Skeleton Graph View";
 const TILE_NODE_SETTINGS_LAYOUT: &str = "Tile Node Settings";
@@ -36,6 +37,30 @@ fn normalize_layer_source_key(value: &str) -> String {
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
         .join("_")
+}
+
+fn average_rgba_color(pixels: &[u8]) -> [u8; 4] {
+    if pixels.is_empty() {
+        return [255, 255, 255, 255];
+    }
+    let mut sum = [0_u64; 4];
+    let mut count = 0_u64;
+    for rgba in pixels.chunks_exact(4) {
+        sum[0] += rgba[0] as u64;
+        sum[1] += rgba[1] as u64;
+        sum[2] += rgba[2] as u64;
+        sum[3] += rgba[3] as u64;
+        count += 1;
+    }
+    if count == 0 {
+        return [255, 255, 255, 255];
+    }
+    [
+        (sum[0] / count) as u8,
+        (sum[1] / count) as u8,
+        (sum[2] / count) as u8,
+        (sum[3] / count) as u8,
+    ]
 }
 
 impl SharedTileGraphSubgraphResolver for ProjectTileSubgraphResolver<'_> {
@@ -113,6 +138,7 @@ pub struct TilesEditorDock {
     paste_preview_texture: Option<rusterix::Texture>,
     paste_preview_pos: Option<Vec2<i32>>,
     graph_preview_opacity: u8,
+    particle_preview_start: Instant,
 }
 
 impl Dock for TilesEditorDock {
@@ -137,6 +163,7 @@ impl Dock for TilesEditorDock {
             paste_preview_texture: None,
             paste_preview_pos: None,
             graph_preview_opacity: 1,
+            particle_preview_start: Instant::now(),
         }
     }
 
@@ -525,6 +552,10 @@ impl Dock for TilesEditorDock {
             "Import Layer".to_string(),
             TheId::named("Tile Node Add Import Layer"),
         ));
+        utility_menu.add(TheContextMenuItem::new(
+            "Particle Emitter".to_string(),
+            TheId::named("Tile Node Add Particle Emitter"),
+        ));
 
         let add_items = vec![
             TheContextMenuItem::new_submenu(
@@ -890,6 +921,19 @@ impl Dock for TilesEditorDock {
                     } else if item_id.name == "Tile Node Add Import Layer" {
                         push_node(TileNodeKind::ImportLayer {
                             source: String::new(),
+                        });
+                        return true;
+                    } else if item_id.name == "Tile Node Add Particle Emitter" {
+                        push_node(TileNodeKind::ParticleEmitter {
+                            rate: 24.0,
+                            spread: 0.75,
+                            lifetime_min: 0.35,
+                            lifetime_max: 0.9,
+                            radius_min: 0.08,
+                            radius_max: 0.2,
+                            speed_min: 0.35,
+                            speed_max: 1.1,
+                            color_variation: 24,
                         });
                         return true;
                     }
@@ -1584,6 +1628,16 @@ impl Dock for TilesEditorDock {
                         || id.name == "tileNodeOutputMetallic"
                         || id.name == "tileNodeOutputOpacity"
                         || id.name == "tileNodeOutputEmissive"
+                        || id.name == "tileNodeOutputParticleEnabled"
+                        || id.name == "tileNodeParticleEmitterRate"
+                        || id.name == "tileNodeParticleEmitterSpread"
+                        || id.name == "tileNodeParticleEmitterLifetimeMin"
+                        || id.name == "tileNodeParticleEmitterLifetimeMax"
+                        || id.name == "tileNodeParticleEmitterRadiusMin"
+                        || id.name == "tileNodeParticleEmitterRadiusMax"
+                        || id.name == "tileNodeParticleEmitterSpeedMin"
+                        || id.name == "tileNodeParticleEmitterSpeedMax"
+                        || id.name == "tileNodeParticleEmitterColorVariation"
                     {
                         if id.name == "tileNodePaletteSource" {
                             let project_palette = self.project_palette_colors(project);
@@ -1613,21 +1667,136 @@ impl Dock for TilesEditorDock {
                                     metallic,
                                     opacity,
                                     emissive,
+                                    particle_enabled,
                                 } = &mut node.kind
-                                && let Some(new_value) = value.to_f32()
                             {
-                                let new_value = new_value.clamp(0.0, 1.0);
-                                let target = if id.name == "tileNodeOutputRoughness" {
-                                    roughness
-                                } else if id.name == "tileNodeOutputMetallic" {
-                                    metallic
-                                } else if id.name == "tileNodeOutputOpacity" {
-                                    opacity
-                                } else {
-                                    emissive
-                                };
-                                if (*target - new_value).abs() > f32::EPSILON {
-                                    *target = new_value;
+                                let mut changed = false;
+                                if id.name == "tileNodeOutputParticleEnabled" {
+                                    if let Some(new_value) = value.to_i32().map(|v| v != 0)
+                                        && *particle_enabled != new_value
+                                    {
+                                        *particle_enabled = new_value;
+                                        changed = true;
+                                    }
+                                } else if let Some(new_value) = value.to_f32() {
+                                    if id.name == "tileNodeOutputRoughness" {
+                                        let new_value = new_value.clamp(0.0, 1.0);
+                                        if (*roughness - new_value).abs() > f32::EPSILON {
+                                            *roughness = new_value;
+                                            changed = true;
+                                        }
+                                    } else if id.name == "tileNodeOutputMetallic" {
+                                        let new_value = new_value.clamp(0.0, 1.0);
+                                        if (*metallic - new_value).abs() > f32::EPSILON {
+                                            *metallic = new_value;
+                                            changed = true;
+                                        }
+                                    } else if id.name == "tileNodeOutputOpacity" {
+                                        let new_value = new_value.clamp(0.0, 1.0);
+                                        if (*opacity - new_value).abs() > f32::EPSILON {
+                                            *opacity = new_value;
+                                            changed = true;
+                                        }
+                                    } else if id.name == "tileNodeOutputEmissive" {
+                                        let new_value = new_value.clamp(0.0, 1.0);
+                                        if (*emissive - new_value).abs() > f32::EPSILON {
+                                            *emissive = new_value;
+                                            changed = true;
+                                        }
+                                    }
+                                }
+                                if changed {
+                                    self.store_node_graph_state(project, group_id, &state);
+                                    graph_changed = true;
+                                }
+                            }
+                            if let Some(index) = state.selected_node
+                                && let Some(node) = state.nodes.get_mut(index)
+                                && let TileNodeKind::ParticleEmitter {
+                                    rate,
+                                    spread,
+                                    lifetime_min,
+                                    lifetime_max,
+                                    radius_min,
+                                    radius_max,
+                                    speed_min,
+                                    speed_max,
+                                    color_variation,
+                                } = &mut node.kind
+                            {
+                                let mut changed = false;
+                                if id.name == "tileNodeParticleEmitterColorVariation" {
+                                    if let Some(new_value) = value.to_i32() {
+                                        let new_value = new_value.clamp(0, 255) as u8;
+                                        if *color_variation != new_value {
+                                            *color_variation = new_value;
+                                            changed = true;
+                                        }
+                                    }
+                                } else if let Some(new_value) = value.to_f32() {
+                                    if id.name == "tileNodeParticleEmitterRate" {
+                                        let new_value = new_value.clamp(0.0, 128.0);
+                                        if (*rate - new_value).abs() > f32::EPSILON {
+                                            *rate = new_value;
+                                            changed = true;
+                                        }
+                                    } else if id.name == "tileNodeParticleEmitterSpread" {
+                                        let new_value = new_value.clamp(0.0, std::f32::consts::PI);
+                                        if (*spread - new_value).abs() > f32::EPSILON {
+                                            *spread = new_value;
+                                            changed = true;
+                                        }
+                                    } else if id.name == "tileNodeParticleEmitterLifetimeMin" {
+                                        let new_value = new_value.clamp(0.01, 10.0);
+                                        if (*lifetime_min - new_value).abs() > f32::EPSILON {
+                                            *lifetime_min = new_value;
+                                            changed = true;
+                                        }
+                                    } else if id.name == "tileNodeParticleEmitterLifetimeMax" {
+                                        let new_value = new_value.clamp(0.01, 10.0);
+                                        if (*lifetime_max - new_value).abs() > f32::EPSILON {
+                                            *lifetime_max = new_value;
+                                            changed = true;
+                                        }
+                                    } else if id.name == "tileNodeParticleEmitterRadiusMin" {
+                                        let new_value = new_value.clamp(0.001, 4.0);
+                                        if (*radius_min - new_value).abs() > f32::EPSILON {
+                                            *radius_min = new_value;
+                                            changed = true;
+                                        }
+                                    } else if id.name == "tileNodeParticleEmitterRadiusMax" {
+                                        let new_value = new_value.clamp(0.001, 4.0);
+                                        if (*radius_max - new_value).abs() > f32::EPSILON {
+                                            *radius_max = new_value;
+                                            changed = true;
+                                        }
+                                    } else if id.name == "tileNodeParticleEmitterSpeedMin" {
+                                        let new_value = new_value.clamp(0.0, 20.0);
+                                        if (*speed_min - new_value).abs() > f32::EPSILON {
+                                            *speed_min = new_value;
+                                            changed = true;
+                                        }
+                                    } else if id.name == "tileNodeParticleEmitterSpeedMax" {
+                                        let new_value = new_value.clamp(0.0, 20.0);
+                                        if (*speed_max - new_value).abs() > f32::EPSILON {
+                                            *speed_max = new_value;
+                                            changed = true;
+                                        }
+                                    }
+                                }
+                                if *lifetime_max < *lifetime_min {
+                                    *lifetime_max = *lifetime_min;
+                                    changed = true;
+                                }
+                                if *radius_max < *radius_min {
+                                    *radius_max = *radius_min;
+                                    changed = true;
+                                }
+                                if *speed_max < *speed_min {
+                                    *speed_max = *speed_min;
+                                    changed = true;
+                                }
+                                if changed {
                                     self.store_node_graph_state(project, group_id, &state);
                                     graph_changed = true;
                                 }
@@ -2782,6 +2951,7 @@ impl TilesEditorDock {
                     metallic,
                     opacity,
                     emissive,
+                    particle_enabled,
                 }) => {
                     nodeui.add_item(TheNodeUIItem::Text(
                         "tileNodeGraphName".into(),
@@ -2857,6 +3027,15 @@ impl TilesEditorDock {
                         0.0..=1.0,
                         false,
                     ));
+                    nodeui.add_item(TheNodeUIItem::OpenTree("particle_output".into()));
+                    nodeui.add_item(TheNodeUIItem::Selector(
+                        "tileNodeOutputParticleEnabled".into(),
+                        "Particle Output".into(),
+                        "Enable particle output when a Particle Emitter node is connected to the output's Particles input.".into(),
+                        vec!["Off".into(), "On".into()],
+                        if *particle_enabled { 1 } else { 0 },
+                    ));
+                    nodeui.add_item(TheNodeUIItem::CloseTree);
                     nodeui.add_item(TheNodeUIItem::CloseTree);
                 }
                 Some(TileNodeKind::ImportLayer { source }) => {
@@ -3371,6 +3550,90 @@ impl TilesEditorDock {
                         false,
                     ));
                 }
+                Some(TileNodeKind::ParticleEmitter {
+                    rate,
+                    spread,
+                    lifetime_min,
+                    lifetime_max,
+                    radius_min,
+                    radius_max,
+                    speed_min,
+                    speed_max,
+                    color_variation,
+                }) => {
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeParticleEmitterRate".into(),
+                        "Rate".into(),
+                        "Particles emitted per second.".into(),
+                        *rate,
+                        0.0..=128.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeParticleEmitterSpread".into(),
+                        "Spread".into(),
+                        "Emitter spread angle in radians.".into(),
+                        *spread,
+                        0.0..=std::f32::consts::PI,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeParticleEmitterLifetimeMin".into(),
+                        "Lifetime Min".into(),
+                        "Minimum particle lifetime in seconds.".into(),
+                        *lifetime_min,
+                        0.01..=10.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeParticleEmitterLifetimeMax".into(),
+                        "Lifetime Max".into(),
+                        "Maximum particle lifetime in seconds.".into(),
+                        *lifetime_max,
+                        0.01..=10.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeParticleEmitterRadiusMin".into(),
+                        "Radius Min".into(),
+                        "Minimum particle radius.".into(),
+                        *radius_min,
+                        0.001..=4.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeParticleEmitterRadiusMax".into(),
+                        "Radius Max".into(),
+                        "Maximum particle radius.".into(),
+                        *radius_max,
+                        0.001..=4.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeParticleEmitterSpeedMin".into(),
+                        "Speed Min".into(),
+                        "Minimum particle speed.".into(),
+                        *speed_min,
+                        0.0..=20.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                        "tileNodeParticleEmitterSpeedMax".into(),
+                        "Speed Max".into(),
+                        "Maximum particle speed.".into(),
+                        *speed_max,
+                        0.0..=20.0,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::IntEditSlider(
+                        "tileNodeParticleEmitterColorVariation".into(),
+                        "Color Variation".into(),
+                        "Random +/- color flicker variation.".into(),
+                        *color_variation as i32,
+                        0..=255,
+                        false,
+                    ));
+                }
                 Some(TileNodeKind::Levels { level, width }) => {
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "tileNodeLevelsLevel".into(),
@@ -3723,6 +3986,18 @@ impl TilesEditorDock {
             };
             let renderer = shared::tilegraph::TileGraphRenderer::new(palette);
             let rendered = renderer.render_graph(&exchange);
+            if let Some(particle) = &rendered.particle_output
+                && self.node_supports_particle_preview(state, node_index)
+            {
+                let seconds = self.particle_preview_start.elapsed().as_secs_f32();
+                return self.render_particle_preview(
+                    &rendered.sheet_color,
+                    particle,
+                    width.max(1),
+                    height.max(1),
+                    seconds,
+                );
+            }
             let pixels = if state.preview_mode == 1 {
                 &rendered.sheet_material
             } else {
@@ -3734,6 +4009,131 @@ impl TilesEditorDock {
             }
         }
         preview
+    }
+
+    fn node_supports_particle_preview(
+        &self,
+        state: &TileNodeGraphState,
+        node_index: usize,
+    ) -> bool {
+        matches!(
+            state.nodes.get(node_index).map(|node| &node.kind),
+            Some(TileNodeKind::ParticleEmitter { .. } | TileNodeKind::OutputRoot { .. })
+        )
+    }
+
+    fn render_particle_preview(
+        &self,
+        source_pixels: &[u8],
+        particle: &shared::tilegraph::TileParticleOutput,
+        width: i32,
+        height: i32,
+        time: f32,
+    ) -> TheRGBABuffer {
+        let mut preview = TheRGBABuffer::new(TheDim::sized(width, height));
+        preview.fill([10, 12, 16, 255]);
+
+        let base = average_rgba_color(source_pixels);
+        let glow = [
+            ((base[0] as f32) * 0.35 + 24.0).clamp(0.0, 255.0) as u8,
+            ((base[1] as f32) * 0.35 + 18.0).clamp(0.0, 255.0) as u8,
+            ((base[2] as f32) * 0.35 + 20.0).clamp(0.0, 255.0) as u8,
+            255,
+        ];
+        for y in 0..height {
+            let t = y as f32 / height.max(1) as f32;
+            let row = [
+                ((glow[0] as f32) * (1.0 - t) + 6.0 * t) as u8,
+                ((glow[1] as f32) * (1.0 - t) + 8.0 * t) as u8,
+                ((glow[2] as f32) * (1.0 - t) + 14.0 * t) as u8,
+                255,
+            ];
+            preview.draw_horizontal_line(0, width - 1, y, row);
+        }
+
+        let emitter_x = width as f32 * 0.5;
+        let emitter_y = height as f32 * 0.84;
+        let spread_scale = (particle.spread / std::f32::consts::PI).clamp(0.0, 1.0);
+        let speed_scale = ((particle.speed_min + particle.speed_max) * 0.5).clamp(0.05, 8.0);
+        let rate_scale = particle.rate.clamp(1.0, 128.0);
+        let radius_scale = ((particle.radius_min + particle.radius_max) * 0.5).clamp(0.01, 2.0);
+        let count = ((rate_scale / 6.0).round() as usize).clamp(8, 48);
+
+        for i in 0..count {
+            let seed = i as f32 * 12.9898;
+            let life = particle.lifetime_min
+                + (particle.lifetime_max - particle.lifetime_min)
+                    * (0.5 + 0.5 * (seed * 0.73).sin());
+            let local_t = ((time * (0.65 + (seed * 0.17).sin().abs()) + i as f32 * 0.071)
+                / life.max(0.05))
+            .fract();
+            let age = local_t;
+            let rise = age.powf(0.82);
+            let side = ((seed * 1.37).sin() * 0.5 + (time * 0.9 + seed).sin() * 0.5)
+                * spread_scale
+                * width as f32
+                * 0.24;
+            let swirl = (age * std::f32::consts::TAU + seed).sin() * width as f32 * 0.015;
+            let x = emitter_x + side + swirl;
+            let y = emitter_y - rise * height as f32 * (0.28 + speed_scale * 0.16);
+            let size = ((radius_scale * 20.0) * (1.0 - age * 0.55)).clamp(2.0, 22.0);
+            let alpha = ((1.0 - age).powf(1.15) * 0.9 + 0.1).clamp(0.0, 1.0);
+
+            let jitter = particle.color_variation as f32 * ((seed * 0.31).cos() * 0.5 + 0.5);
+            let color = [
+                (base[0] as f32 + jitter * 0.35).clamp(0.0, 255.0) as u8,
+                (base[1] as f32 + jitter * 0.2).clamp(0.0, 255.0) as u8,
+                (base[2] as f32 + jitter * 0.1).clamp(0.0, 255.0) as u8,
+                (255.0 * alpha) as u8,
+            ];
+            self.draw_soft_particle(&mut preview, x, y, size, color);
+        }
+
+        let emitter_dim = TheDim::new((emitter_x as i32) - 6, (emitter_y as i32) - 6, 12, 12);
+        preview.draw_disc(&emitter_dim, &[255, 255, 255, 140], 1.0, &[0, 0, 0, 0]);
+        preview
+    }
+
+    fn draw_soft_particle(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        center_x: f32,
+        center_y: f32,
+        radius: f32,
+        color: [u8; 4],
+    ) {
+        let min_x = (center_x - radius - 1.0).floor() as i32;
+        let max_x = (center_x + radius + 1.0).ceil() as i32;
+        let min_y = (center_y - radius - 1.0).floor() as i32;
+        let max_y = (center_y + radius + 1.0).ceil() as i32;
+        let stride = buffer.dim().width;
+        let height = buffer.dim().height;
+
+        for y in min_y..=max_y {
+            if y < 0 || y >= height {
+                continue;
+            }
+            for x in min_x..=max_x {
+                if x < 0 || x >= stride {
+                    continue;
+                }
+                let dx = (x as f32 + 0.5 - center_x) / radius.max(0.001);
+                let dy = (y as f32 + 0.5 - center_y) / radius.max(0.001);
+                let dist = (dx * dx + dy * dy).sqrt();
+                if dist > 1.0 {
+                    continue;
+                }
+                let falloff = (1.0 - dist).powf(2.0);
+                let alpha = (color[3] as f32 / 255.0) * falloff;
+                let index = ((y * stride + x) * 4) as usize;
+                let dst = &mut buffer.pixels_mut()[index..index + 4];
+                let inv = 1.0 - alpha;
+                dst[0] = (dst[0] as f32 * inv + color[0] as f32 * alpha) as u8;
+                dst[1] = (dst[1] as f32 * inv + color[1] as f32 * alpha) as u8;
+                dst[2] = (dst[2] as f32 * inv + color[2] as f32 * alpha) as u8;
+                dst[3] = 255;
+            }
+        }
     }
 
     fn shared_preview_exchange(
@@ -3900,6 +4300,18 @@ impl TilesEditorDock {
                 tile.role = rusterix::TileRole::ManMade;
                 tile.blocking = false;
                 tile.scale = 1.0;
+                tile.particle_emitter = rendered.particle_output.as_ref().map(|particle| {
+                    let mut emitter =
+                        rusterix::ParticleEmitter::new(Vec3::zero(), Vec3::new(0.0, 1.0, 0.0));
+                    emitter.rate = particle.rate;
+                    emitter.spread = particle.spread;
+                    emitter.color = average_rgba_color(&pixels);
+                    emitter.color_variation = particle.color_variation;
+                    emitter.lifetime_range = (particle.lifetime_min, particle.lifetime_max);
+                    emitter.radius_range = (particle.radius_min, particle.radius_max);
+                    emitter.speed_range = (particle.speed_min, particle.speed_max);
+                    emitter
+                });
                 let texture = &mut tile.textures[0];
                 texture.data.copy_from_slice(&pixels);
                 texture.data_ext = Some(materials);
@@ -4141,6 +4553,10 @@ impl TilesEditorDock {
             TheColor::from_u8_array_3([176, 128, 224]),
         );
         canvas.categories.insert(
+            "ParticleSocket".to_string(),
+            TheColor::from_u8_array_3([236, 186, 104]),
+        );
+        canvas.categories.insert(
             "NodeOutput".to_string(),
             TheColor::from_u8_array_3([200, 140, 90]),
         );
@@ -4185,6 +4601,10 @@ impl TilesEditorDock {
                                 TheNodeTerminal {
                                     name: "Emissive".to_string(),
                                     category_name: "FieldSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Particles".to_string(),
+                                    category_name: "ParticleSocket".to_string(),
                                 },
                             ],
                             outputs: vec![],
@@ -4962,6 +5382,22 @@ impl TilesEditorDock {
                             preview,
                             supports_preview: true,
                             preview_is_open: true,
+                            can_be_deleted: true,
+                        });
+                    }
+                    TileNodeKind::ParticleEmitter { .. } => {
+                        canvas.nodes.push(TheNode {
+                            name: "Particle Emitter".to_string(),
+                            status_text: None,
+                            position: Vec2::new(node.position.0, node.position.1),
+                            inputs: vec![],
+                            outputs: vec![TheNodeTerminal {
+                                name: "Particles".to_string(),
+                                category_name: "ParticleSocket".to_string(),
+                            }],
+                            preview,
+                            supports_preview: true,
+                            preview_is_open: node.preview_open,
                             can_be_deleted: true,
                         });
                     }

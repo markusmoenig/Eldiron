@@ -172,6 +172,19 @@ pub struct TileNodeGraphExchange {
     pub graph_state: TileNodeGraphState,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct TileParticleOutput {
+    pub rate: f32,
+    pub spread: f32,
+    pub lifetime_min: f32,
+    pub lifetime_max: f32,
+    pub radius_min: f32,
+    pub radius_max: f32,
+    pub speed_min: f32,
+    pub speed_max: f32,
+    pub color_variation: u8,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TileNodeState {
     pub kind: TileNodeKind,
@@ -214,6 +227,8 @@ pub enum TileNodeKind {
         opacity: f32,
         #[serde(default = "default_output_emissive")]
         emissive: f32,
+        #[serde(default = "default_output_particle_enabled")]
+        particle_enabled: bool,
     },
     LayerInput {
         name: String,
@@ -341,6 +356,17 @@ pub enum TileNodeKind {
     MaterialMix {
         factor: f32,
     },
+    ParticleEmitter {
+        rate: f32,
+        spread: f32,
+        lifetime_min: f32,
+        lifetime_max: f32,
+        radius_min: f32,
+        radius_max: f32,
+        speed_min: f32,
+        speed_max: f32,
+        color_variation: u8,
+    },
     MaskBlend {
         factor: f32,
     },
@@ -398,6 +424,10 @@ fn default_output_emissive() -> f32 {
     0.0
 }
 
+fn default_output_particle_enabled() -> bool {
+    true
+}
+
 impl TileNodeKind {
     pub fn default_output_root() -> Self {
         Self::OutputRoot {
@@ -405,6 +435,7 @@ impl TileNodeKind {
             metallic: default_output_metallic(),
             opacity: default_output_opacity(),
             emissive: default_output_emissive(),
+            particle_enabled: default_output_particle_enabled(),
         }
     }
 }
@@ -514,6 +545,7 @@ pub struct RenderedTileGraph {
     pub tiles_color: Vec<Vec<u8>>,
     pub tiles_material: Vec<Vec<u8>>,
     pub tiles_height: Vec<Vec<u8>>,
+    pub particle_output: Option<TileParticleOutput>,
 }
 
 pub trait TileGraphSubgraphResolver {
@@ -984,6 +1016,57 @@ impl TileGraphRenderer {
             tiles_color,
             tiles_material,
             tiles_height,
+            particle_output: self.output_particle(&state),
+        }
+    }
+
+    pub fn output_particle(&self, state: &TileNodeGraphState) -> Option<TileParticleOutput> {
+        let Some(root) = state.nodes.first() else {
+            return None;
+        };
+        let particle_enabled = match &root.kind {
+            TileNodeKind::OutputRoot {
+                particle_enabled, ..
+            } => *particle_enabled,
+            _ => false,
+        };
+        if !particle_enabled {
+            return None;
+        }
+        let emitter_index =
+            state
+                .connections
+                .iter()
+                .find_map(|(src_node, src_term, dst_node, dst_term)| {
+                    if *dst_node == 0 && *dst_term == 6 && *src_term == 0 {
+                        Some(*src_node as usize)
+                    } else {
+                        None
+                    }
+                })?;
+        match state.nodes.get(emitter_index).map(|node| &node.kind) {
+            Some(TileNodeKind::ParticleEmitter {
+                rate,
+                spread,
+                lifetime_min,
+                lifetime_max,
+                radius_min,
+                radius_max,
+                speed_min,
+                speed_max,
+                color_variation,
+            }) => Some(TileParticleOutput {
+                rate: (*rate).max(0.0),
+                spread: (*spread).clamp(0.0, std::f32::consts::PI),
+                lifetime_min: (*lifetime_min).max(0.01),
+                lifetime_max: (*lifetime_max).max(*lifetime_min),
+                radius_min: (*radius_min).max(0.001),
+                radius_max: (*radius_max).max(*radius_min),
+                speed_min: (*speed_min).max(0.0),
+                speed_max: (*speed_max).max(*speed_min),
+                color_variation: *color_variation,
+            }),
+            _ => None,
         }
     }
 
@@ -1259,6 +1342,7 @@ impl TileGraphRenderer {
                     metallic,
                     opacity,
                     emissive,
+                    ..
                 } => {
                     if let Some(solo) = self.solo_node_index(state)
                         && solo != node_index
@@ -1615,6 +1699,7 @@ impl TileGraphRenderer {
                         Some(TheColor::from_u8_array([v, v, v, 255]))
                     }),
                 TileNodeKind::ImportLayer { .. } => None,
+                TileNodeKind::ParticleEmitter { .. } => None,
                 TileNodeKind::GroupUV => Some(TheColor::from_u8_array([
                     unit_to_u8(eval.group_u()),
                     unit_to_u8(eval.group_v()),

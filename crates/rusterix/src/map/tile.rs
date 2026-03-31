@@ -1,4 +1,4 @@
-use crate::Texture;
+use crate::{ParticleEmitter, Texture};
 use codegridfx::Module;
 use theframework::prelude::*;
 
@@ -93,6 +93,9 @@ pub struct Tile {
     pub scale: f32,
     /// Tags
     pub tags: String,
+    /// Optional particle emitter definition derived from a tilegraph output.
+    #[serde(default)]
+    pub particle_emitter: Option<ParticleEmitter>,
 }
 
 impl Tile {
@@ -106,6 +109,7 @@ impl Tile {
             blocking: false,
             scale: 1.0,
             tags: String::new(),
+            particle_emitter: None,
         }
     }
 
@@ -118,6 +122,7 @@ impl Tile {
             blocking: false,
             scale: 1.0,
             tags: String::new(),
+            particle_emitter: None,
             ..Default::default()
         }
     }
@@ -131,6 +136,7 @@ impl Tile {
             blocking: false,
             scale: 1.0,
             tags: String::new(),
+            particle_emitter: None,
             ..Default::default()
         }
     }
@@ -181,6 +187,7 @@ impl Tile {
             blocking: self.blocking,
             scale: self.scale,
             tags: self.tags.clone(),
+            particle_emitter: self.particle_emitter.clone(),
         }
     }
 

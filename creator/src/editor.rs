@@ -738,6 +738,7 @@ impl Editor {
                     blocking: t.blocking,
                     scale: t.scale,
                     tags: t.name.clone(),
+                    particle_emitter: None,
                 };
                 project.tiles.insert(*id, tile);
             }
