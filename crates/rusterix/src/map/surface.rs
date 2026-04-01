@@ -307,32 +307,47 @@ impl Surface {
     pub fn calculate_geometry(&mut self, map: &Map) {
         if let Some(sector) = map.find_sector(self.sector_id) {
             if let Some(points) = sector.vertices_world(map) {
-                // existing logic using `points`
                 let (centroid, mut normal) = newell_plane(&points);
                 if normal.magnitude() < 1e-6 {
                     normal = Vec3::new(0.0, 1.0, 0.0);
                 }
+                normal = normalize_or_zero(normal);
+
                 let mut right = stable_right(&points, normal);
+                if right.magnitude() < 1e-6 {
+                    right = if normal.x.abs() < 0.9 {
+                        Vec3::new(1.0, 0.0, 0.0)
+                    } else {
+                        Vec3::new(0.0, 0.0, 1.0)
+                    };
+                }
+
+                // Gram-Schmidt orthogonalization: make the edit frame a strict orthonormal basis
+                // so world_to_uv() and uv_to_world() round-trip stably for grid-aligned surfaces.
+                right = normalize_or_zero(right - normal * right.dot(normal));
+                if right.magnitude() < 1e-6 {
+                    let fallback = if normal.x.abs() < 0.9 {
+                        Vec3::new(1.0, 0.0, 0.0)
+                    } else {
+                        Vec3::new(0.0, 0.0, 1.0)
+                    };
+                    right = normalize_or_zero(fallback - normal * fallback.dot(normal));
+                }
+
                 let mut up = normalize_or_zero(normal.cross(right));
-
                 if up.magnitude() < 1e-6 {
-                    // fallback: try swapping axes
-                    right = normalize_or_zero(normal.cross(Vec3::new(0.0, 1.0, 0.0)));
+                    let fallback = if normal.y.abs() < 0.9 {
+                        Vec3::new(0.0, 1.0, 0.0)
+                    } else {
+                        Vec3::new(0.0, 0.0, 1.0)
+                    };
+                    right = normalize_or_zero(fallback.cross(normal));
                     up = normalize_or_zero(normal.cross(right));
                 }
 
-                if up.magnitude() < 1e-6 {
-                    // final fallback
-                    right = Vec3::new(1.0, 0.0, 0.0);
-                    up = normalize_or_zero(normal.cross(right));
-                }
-
-                // ensure orthonormal basis (flip right if needed)
-                let test_up = normalize_or_zero(normal.cross(right));
-                if test_up.magnitude() > 1e-6 && (test_up - up).magnitude() > 1e-6 {
-                    right = -right;
-                    up = normalize_or_zero(normal.cross(right));
-                }
+                // Rebuild right from up x normal to remove residual skew from floating-point drift.
+                right = normalize_or_zero(up.cross(normal));
+                up = normalize_or_zero(normal.cross(right));
 
                 self.plane.origin = centroid;
                 self.plane.normal = normal;

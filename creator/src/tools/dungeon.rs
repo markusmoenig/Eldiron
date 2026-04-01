@@ -43,7 +43,7 @@ impl Tool for DungeonTool {
     }
 
     fn icon_name(&self) -> String {
-        "grid-four".to_string()
+        "skull".to_string()
     }
 
     fn accel(&self) -> Option<char> {

@@ -8,6 +8,7 @@ pub struct GameTool {
     id: TheId,
 
     toolbar: Option<Mutex<Box<TheCanvas>>>,
+    sidebar: Option<Mutex<Box<TheCanvas>>>,
     editor_routed_prev_camera: Option<PlayerCamera>,
 }
 
@@ -20,6 +21,7 @@ impl Tool for GameTool {
             id: TheId::named("Game Tool"),
 
             toolbar: None,
+            sidebar: None,
             editor_routed_prev_camera: None,
         }
     }
@@ -52,6 +54,7 @@ impl Tool for GameTool {
         match tool_event {
             ToolEvent::Activate => {
                 self.toolbar = None;
+                self.sidebar = None;
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                     layout.set_mode(TheSharedVLayoutMode::Top);
                     if let Some(canvas) = layout.get_canvas_mut(0) {
@@ -59,6 +62,9 @@ impl Tool for GameTool {
                             self.toolbar = Some(Mutex::new(tool));
                         }
                     }
+                }
+                if let Some(sidebar) = ui.canvas.right.take() {
+                    self.sidebar = Some(Mutex::new(sidebar));
                 }
                 server_ctx.curr_map_tool_type = MapToolType::Game;
                 server_ctx.game_mode = true;
@@ -127,6 +133,14 @@ impl Tool for GameTool {
                             canvas.bottom = Some(boxed_canvas);
                         }
                     }
+                }
+                if ui.canvas.right.is_none()
+                    && let Some(sidebar) = &mut self.sidebar
+                {
+                    let lock = sidebar.get_mut().unwrap();
+                    let boxed_canvas: Box<TheCanvas> =
+                        std::mem::replace(&mut *lock, Box::new(TheCanvas::default()));
+                    ui.canvas.right = Some(boxed_canvas);
                 }
 
                 if let Some(stack) = ui.get_stack_layout("Game Output Stack") {

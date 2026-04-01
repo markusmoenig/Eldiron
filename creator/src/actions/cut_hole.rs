@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use rusterix::{Surface, Value};
+use rusterix::{Surface, Value, Vertex};
 
 pub struct CutHole {
     id: TheId,
@@ -7,6 +7,15 @@ pub struct CutHole {
 }
 
 impl CutHole {
+    fn add_vertex_exact(map: &mut Map, x: f32, y: f32) -> Option<u32> {
+        if let Some(id) = map.find_vertex_at(x, y) {
+            return Some(id);
+        }
+        let id = map.find_free_vertex_id()?;
+        map.vertices.push(Vertex::new(id, x, y));
+        Some(id)
+    }
+
     fn sector_ordered_vertex_ids(map: &Map, sector_id: u32) -> Option<Vec<u32>> {
         let sector = map.find_sector(sector_id)?;
         let mut ids = Vec::new();
@@ -132,7 +141,7 @@ impl CutHole {
         for p in cut_points_world {
             let uv_world = surface.world_to_uv(p);
             let uv = Vec2::new(uv_world.x, -uv_world.y);
-            vids.push(profile_map.add_vertex_at(uv.x, uv.y));
+            vids.push(Self::add_vertex_exact(profile_map, uv.x, uv.y)?);
         }
 
         for i in 0..vids.len() {
