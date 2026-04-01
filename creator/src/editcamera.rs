@@ -8,6 +8,8 @@ pub enum CustomMoveAction {
     Backward,
     Left,
     Right,
+    Up,
+    Down,
 }
 
 pub struct EditCamera {
@@ -17,6 +19,7 @@ pub struct EditCamera {
 
     pub move_action: Option<CustomMoveAction>,
     last_mouse: Option<Vec2<i32>>,
+    last_action_time_ms: Option<u128>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -29,6 +32,7 @@ impl EditCamera {
 
             move_action: None,
             last_mouse: None,
+            last_action_time_ms: None,
         }
     }
 
@@ -140,32 +144,54 @@ impl EditCamera {
     }
 
     /// Update move actions
-    pub fn update_action(&mut self, region: &mut Region, server_ctx: &mut ServerContext) {
-        let speed = 0.2;
-        let yaw_step = 4.0;
+    pub fn update_action(
+        &mut self,
+        region: &mut Region,
+        server_ctx: &mut ServerContext,
+        now_ms: u128,
+    ) {
+        let dt = if let Some(prev) = self.last_action_time_ms {
+            (((now_ms.saturating_sub(prev)) as f32) / 1000.0).clamp(1.0 / 240.0, 1.0 / 20.0)
+        } else {
+            1.0 / 60.0
+        };
+        self.last_action_time_ms = Some(now_ms);
+
+        let speed = 18.0 * dt;
+        let yaw_step = 420.0 * dt;
         if server_ctx.editor_view_mode == EditorViewMode::FirstP {
             match &self.move_action {
                 Some(CustomMoveAction::Forward) => {
+                    let height_offset = region.editing_position_3d.y
+                        - region.map.terrain.sample_height_bilinear(
+                            region.editing_position_3d.x,
+                            region.editing_position_3d.z,
+                        );
                     let (mut np, mut nl) = self.move_camera(
                         region.editing_position_3d,
                         region.editing_look_at_3d,
                         Vec3::new(0.0, 0.0, 1.0),
                         speed,
                     );
-                    np.y = region.map.terrain.sample_height_bilinear(np.x, np.z) + 0.5;
-                    nl.y = np.y;
+                    np.y = region.map.terrain.sample_height_bilinear(np.x, np.z) + height_offset;
+                    nl.y += np.y - region.editing_position_3d.y;
                     region.editing_position_3d = np;
                     region.editing_look_at_3d = nl;
                 }
                 Some(CustomMoveAction::Backward) => {
+                    let height_offset = region.editing_position_3d.y
+                        - region.map.terrain.sample_height_bilinear(
+                            region.editing_position_3d.x,
+                            region.editing_position_3d.z,
+                        );
                     let (mut np, mut nl) = self.move_camera(
                         region.editing_position_3d,
                         region.editing_look_at_3d,
                         Vec3::new(0.0, 0.0, -1.0),
                         speed,
                     );
-                    np.y = region.map.terrain.sample_height_bilinear(np.x, np.z) + 0.5;
-                    nl.y = np.y;
+                    np.y = region.map.terrain.sample_height_bilinear(np.x, np.z) + height_offset;
+                    nl.y += np.y - region.editing_position_3d.y;
                     region.editing_position_3d = np;
                     region.editing_look_at_3d = nl;
                 }
@@ -185,8 +211,32 @@ impl EditCamera {
                     );
                     region.editing_look_at_3d = nl;
                 }
-                None => {}
+                Some(CustomMoveAction::Up) => {
+                    let (np, nl) = self.move_camera(
+                        region.editing_position_3d,
+                        region.editing_look_at_3d,
+                        Vec3::new(0.0, 1.0, 0.0),
+                        speed,
+                    );
+                    region.editing_position_3d = np;
+                    region.editing_look_at_3d = nl;
+                }
+                Some(CustomMoveAction::Down) => {
+                    let (np, nl) = self.move_camera(
+                        region.editing_position_3d,
+                        region.editing_look_at_3d,
+                        Vec3::new(0.0, -1.0, 0.0),
+                        speed,
+                    );
+                    region.editing_position_3d = np;
+                    region.editing_look_at_3d = nl;
+                }
+                None => {
+                    self.last_action_time_ms = None;
+                }
             }
+        } else {
+            self.last_action_time_ms = None;
         }
     }
 

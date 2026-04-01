@@ -987,7 +987,9 @@ impl Dock for TilesDock {
                         redraw = true;
                     }
                 } else if *key == TheKeyCode::Delete {
-                    if server_ctx.tile_node_group_id.is_none()
+                    if self.board_has_active_focus(ctx)
+                        && !ui.focus_widget_supports_text_input(ctx)
+                        && server_ctx.tile_node_group_id.is_none()
                         && let Some(source) = self.curr_source
                         && self.delete_source(project, source, ui, ctx, server_ctx)
                     {
@@ -1458,6 +1460,18 @@ impl TilesDock {
         } else if coord.y > dim.height - margin {
             self.tab_offset[tab].y += step;
         }
+    }
+
+    fn board_has_active_focus(&self, ctx: &TheContext) -> bool {
+        ctx.ui
+            .focus
+            .as_ref()
+            .is_some_and(|id| Self::tab_from_view_name(&id.name).is_some())
+            || ctx
+                .ui
+                .hover
+                .as_ref()
+                .is_some_and(|id| Self::tab_from_view_name(&id.name).is_some())
     }
 
     fn delete_source(

@@ -133,18 +133,15 @@ impl D2ConceptBuilder {
             {
                 continue;
             }
-            let floor_base = sector.properties.get_float_default(
-                "floor_height",
-                sector.properties.get_float_default("floor_base", 0.0),
-            );
-            if (floor_base - reference_base).abs() > reference_band {
-                continue;
-            }
             let Some(world_vertices) = sector.vertices_world(map) else {
                 continue;
             };
+            let mut min_y = f32::INFINITY;
+            let mut max_y = f32::NEG_INFINITY;
             let mut points: Vec<Vec2<f32>> = Vec::new();
             for p in &world_vertices {
+                min_y = min_y.min(p.y);
+                max_y = max_y.max(p.y);
                 let q = Vec2::new(p.x, p.z);
                 if points
                     .last()
@@ -152,6 +149,13 @@ impl D2ConceptBuilder {
                 {
                     points.push(q);
                 }
+            }
+            if !min_y.is_finite()
+                || !max_y.is_finite()
+                || reference_base < min_y - reference_band
+                || reference_base > max_y + reference_band
+            {
+                continue;
             }
             if points.len() < 2 {
                 continue;

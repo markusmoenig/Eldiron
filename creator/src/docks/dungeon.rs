@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use rusterix::DungeonTileKind;
+use rusterix::Value;
 use rusterix::rebuild_generated_geometry;
 
 const DUNGEON_VIEW_ID: &str = "Dungeon Dock View";
@@ -21,6 +22,54 @@ pub struct DungeonDock {
 }
 
 impl DungeonDock {
+    fn load_settings_from_map(project: &Project, server_ctx: &mut ServerContext) {
+        if let Some(map) = project.get_map(server_ctx) {
+            server_ctx.curr_dungeon_floor_base = map
+                .properties
+                .get_float_default("dungeon_floor_base", server_ctx.curr_dungeon_floor_base);
+            server_ctx.curr_dungeon_height = map
+                .properties
+                .get_float_default("dungeon_height", server_ctx.curr_dungeon_height)
+                .max(0.1);
+            server_ctx.curr_dungeon_create_floor = map
+                .properties
+                .get_bool_default("dungeon_create_floor", server_ctx.curr_dungeon_create_floor);
+            server_ctx.curr_dungeon_create_ceiling = map.properties.get_bool_default(
+                "dungeon_create_ceiling",
+                server_ctx.curr_dungeon_create_ceiling,
+            );
+            server_ctx.curr_dungeon_standalone = map.properties.get_bool_default(
+                "dungeon_standalone_default",
+                server_ctx.curr_dungeon_standalone,
+            );
+        }
+    }
+
+    fn store_settings_to_map(project: &mut Project, server_ctx: &ServerContext) {
+        if let Some(map) = project.get_map_mut(server_ctx) {
+            map.properties.set(
+                "dungeon_floor_base",
+                Value::Float(server_ctx.curr_dungeon_floor_base),
+            );
+            map.properties.set(
+                "dungeon_height",
+                Value::Float(server_ctx.curr_dungeon_height),
+            );
+            map.properties.set(
+                "dungeon_create_floor",
+                Value::Bool(server_ctx.curr_dungeon_create_floor),
+            );
+            map.properties.set(
+                "dungeon_create_ceiling",
+                Value::Bool(server_ctx.curr_dungeon_create_ceiling),
+            );
+            map.properties.set(
+                "dungeon_standalone_default",
+                Value::Bool(server_ctx.curr_dungeon_standalone),
+            );
+        }
+    }
+
     fn settings_nodeui(server_ctx: &ServerContext) -> TheNodeUI {
         let mut nodeui = TheNodeUI::default();
         nodeui.add_item(TheNodeUIItem::OpenTree("Dungeon".into()));
@@ -51,6 +100,12 @@ impl DungeonDock {
             "Ceilings".into(),
             "Generate ceiling surfaces for conceptual dungeon tiles.".into(),
             server_ctx.curr_dungeon_create_ceiling,
+        ));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "Dungeon Standalone".into(),
+            "Standalone".into(),
+            "Newly painted cells stay standalone and will not merge with adjacent dungeon geometry.".into(),
+            server_ctx.curr_dungeon_standalone,
         ));
         nodeui.add_item(TheNodeUIItem::CloseTree);
         nodeui
@@ -324,9 +379,10 @@ impl Dock for DungeonDock {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &Project,
+        project: &Project,
         server_ctx: &mut ServerContext,
     ) {
+        Self::load_settings_from_map(project, server_ctx);
         self.sync_settings_ui(ui, ctx, server_ctx);
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Render Dungeon Palette"),
@@ -381,13 +437,19 @@ impl Dock for DungeonDock {
                     let mut nodeui = Self::settings_nodeui(server_ctx);
                     if apply_toml_to_nodeui(&mut nodeui, &source).is_ok() {
                         let mut rebuild_geometry = false;
+                        let mut refresh_preview = false;
                         for (key, val) in nodeui_to_value_pairs(&nodeui) {
                             match (key.as_str(), val) {
                                 ("Dungeon Floor Base", TheValue::Float(v)) => {
+                                    refresh_preview |=
+                                        (server_ctx.curr_dungeon_floor_base - v).abs() > 0.0001;
                                     server_ctx.curr_dungeon_floor_base = v;
                                 }
                                 ("Dungeon Height", TheValue::Float(v)) => {
-                                    server_ctx.curr_dungeon_height = v.max(0.1);
+                                    let v = v.max(0.1);
+                                    refresh_preview |=
+                                        (server_ctx.curr_dungeon_height - v).abs() > 0.0001;
+                                    server_ctx.curr_dungeon_height = v;
                                 }
                                 ("Dungeon Floors", TheValue::Bool(v)) => {
                                     rebuild_geometry |= server_ctx.curr_dungeon_create_floor != v;
@@ -397,8 +459,26 @@ impl Dock for DungeonDock {
                                     rebuild_geometry |= server_ctx.curr_dungeon_create_ceiling != v;
                                     server_ctx.curr_dungeon_create_ceiling = v;
                                 }
+                                ("Dungeon Standalone", TheValue::Bool(v)) => {
+                                    server_ctx.curr_dungeon_standalone = v;
+                                }
                                 _ => {}
                             }
+                        }
+
+                        Self::store_settings_to_map(_project, server_ctx);
+
+                        if refresh_preview {
+                            let layer = _project
+                                .get_map_mut(server_ctx)
+                                .map(|map| map.dungeon.ensure_active_layer_mut());
+                            if let Some(layer) = layer {
+                                layer.floor_base = server_ctx.curr_dungeon_floor_base;
+                                layer.height = server_ctx.curr_dungeon_height;
+                            }
+                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            ctx.ui.redraw_all = true;
+                            redraw = true;
                         }
 
                         if rebuild_geometry && let Some(map) = _project.get_map_mut(server_ctx) {

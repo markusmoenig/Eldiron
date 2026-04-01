@@ -156,11 +156,22 @@ impl Default for ExtrudeUV {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ExtrusionMode {
+    #[default]
+    Auto,
+    Forward,
+    Back,
+    Centered,
+}
+
 /// How this surface turns into 3D geometry.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct ExtrusionSpec {
-    pub enabled: bool,     // if false, flat cap only
-    pub depth: f32,        // thickness along +N (negative = -N)
+    pub enabled: bool, // if false, flat cap only
+    pub depth: f32,    // thickness along +N (negative = -N in Auto mode)
+    #[serde(default)]
+    pub mode: ExtrusionMode,
     pub cap_front: bool,   // cap at origin plane
     pub cap_back: bool,    // cap at origin + depth
     pub flip_normal: bool, // invert N at build-time if needed
@@ -172,6 +183,7 @@ impl Default for ExtrusionSpec {
         Self {
             enabled: false,
             depth: 0.0,
+            mode: ExtrusionMode::Auto,
             cap_front: true,
             cap_back: false,
             flip_normal: false,
@@ -230,6 +242,10 @@ impl Surface {
             organic_bush_clusters: Vec::new(),
             world_vertices: vec![],
         }
+    }
+
+    pub fn extrusion_offsets(&self) -> (f32, f32) {
+        self.extrusion.offsets()
     }
 
     pub fn main_organic_layer_mut(&mut self) -> &mut OrganicVolumeLayer {
@@ -598,6 +614,30 @@ impl Surface {
             .collect();
 
         Some((world_vertices, indices, verts_uv))
+    }
+}
+
+impl ExtrusionSpec {
+    pub fn offsets(&self) -> (f32, f32) {
+        match self.mode {
+            ExtrusionMode::Auto => (0.0, self.depth),
+            ExtrusionMode::Forward => (0.0, self.depth.abs()),
+            ExtrusionMode::Back => (0.0, -self.depth.abs()),
+            ExtrusionMode::Centered => {
+                let half = self.depth.abs() * 0.5;
+                (-half, half)
+            }
+        }
+    }
+
+    pub fn span(&self) -> (f32, f32) {
+        let (a, b) = self.offsets();
+        (a.min(b), a.max(b))
+    }
+
+    pub fn thickness(&self) -> f32 {
+        let (a, b) = self.offsets();
+        (b - a).abs()
     }
 }
 

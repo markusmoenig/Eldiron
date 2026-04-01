@@ -411,6 +411,9 @@ pub struct ServerContext {
     /// Whether generated dungeon geometry should create ceiling surfaces.
     pub curr_dungeon_create_ceiling: bool,
 
+    /// Whether newly painted dungeon cells should stay standalone and avoid merging.
+    pub curr_dungeon_standalone: bool,
+
     /// Previous subdivision setting before entering Dungeon Tool.
     pub prev_dungeon_subdivisions: Option<f32>,
 
@@ -618,6 +621,7 @@ impl ServerContext {
             curr_dungeon_height: 4.0,
             curr_dungeon_create_floor: true,
             curr_dungeon_create_ceiling: true,
+            curr_dungeon_standalone: false,
             prev_dungeon_subdivisions: None,
             builder_tool_active: false,
             curr_tile_frame_index: 0,

@@ -941,6 +941,8 @@ impl ChunkBuilder for D3ChunkBuilder {
                         tile_origin_uv,
                         tile_flip_x,
                     );
+                    let (front_offset, back_offset) = surface.extrusion.offsets();
+                    let extrusion_thickness = surface.extrusion.thickness();
                     if profile_bias_vec != Vec3::zero() {
                         for v in world_vertices.iter_mut() {
                             v[0] += profile_bias_vec.x;
@@ -983,6 +985,21 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 nn.z,
                                 nn.dot(dn)
                             );
+                        }
+                    }
+                    if surface.extrusion.enabled && front_offset.abs() > 1e-6 {
+                        let mut n = surface.plane.normal;
+                        let l = n.magnitude();
+                        if l > 1e-6 {
+                            n /= l;
+                        } else {
+                            n = vek::Vec3::unit_y();
+                        }
+                        for v in world_vertices.iter_mut() {
+                            let p = vek::Vec3::new(v[0], v[1], v[2]) + n * front_offset;
+                            v[0] = p.x;
+                            v[1] = p.y;
+                            v[2] = p.z;
                         }
                     }
 
@@ -1044,7 +1061,9 @@ impl ChunkBuilder for D3ChunkBuilder {
 
                     // Build a side band (jamb) with UVs: U=perimeter distance normalized, V=0..1 across depth
                     let build_jamb_uv = |loop_uv: &Vec<vek::Vec2<f32>>,
-                                         depth: f32|
+                                         front_offset: f32,
+                                         back_offset: f32,
+                                         depth_abs: f32|
                      -> (
                         Vec<[f32; 4]>,
                         Vec<(usize, usize, usize)>,
@@ -1082,7 +1101,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                             "side_texture_scale_y",
                             sector.properties.get_float_default("texture_scale_y", 1.0),
                         );
-                        let depth_abs = depth.abs().max(1e-6);
+                        let depth_abs = depth_abs.max(1e-6);
 
                         // Geometry: independent quad per edge (two triangles)
                         let mut verts: Vec<[f32; 4]> = Vec::with_capacity(m * 4);
@@ -1103,23 +1122,27 @@ impl ChunkBuilder for D3ChunkBuilder {
                             let ib = (i + 1) % m;
                             let a_uv = loop_uv[ia];
                             let b_uv = loop_uv[ib];
-                            let a_world = surface.uv_to_world(a_uv) + profile_bias_vec;
-                            let b_world = surface.uv_to_world(b_uv) + profile_bias_vec;
-                            let a_back = a_world + n * depth;
-                            let b_back = b_world + n * depth;
+                            let a_front =
+                                surface.uv_to_world(a_uv) + n * front_offset + profile_bias_vec;
+                            let b_front =
+                                surface.uv_to_world(b_uv) + n * front_offset + profile_bias_vec;
+                            let a_back =
+                                surface.uv_to_world(a_uv) + n * back_offset + profile_bias_vec;
+                            let b_back =
+                                surface.uv_to_world(b_uv) + n * back_offset + profile_bias_vec;
 
                             // Skip bottom horizontal edges of the loop to prevent coplanar
                             // z-fighting with floor surfaces (door/cutout bottoms).
                             // Use loop-relative min-Y, not absolute world height.
-                            let edge_is_horizontal = (a_world.y - b_world.y).abs() < 0.01;
-                            let edge_is_bottom = a_world.y.min(b_world.y) <= loop_min_y + 0.01;
+                            let edge_is_horizontal = (a_front.y - b_front.y).abs() < 0.01;
+                            let edge_is_bottom = a_front.y.min(b_front.y) <= loop_min_y + 0.01;
                             if edge_is_horizontal && edge_is_bottom {
                                 continue;
                             }
 
                             let base = verts.len();
-                            verts.push([a_world.x, a_world.y, a_world.z, 1.0]);
-                            verts.push([b_world.x, b_world.y, b_world.z, 1.0]);
+                            verts.push([a_front.x, a_front.y, a_front.z, 1.0]);
+                            verts.push([b_front.x, b_front.y, b_front.z, 1.0]);
                             verts.push([b_back.x, b_back.y, b_back.z, 1.0]);
                             verts.push([a_back.x, a_back.y, a_back.z, 1.0]);
 
@@ -1202,8 +1225,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                     }
 
                     // --- Extrusion: thickness, back cap, side bands ---
-                    if surface.extrusion.enabled && surface.extrusion.depth.abs() > 1e-6 {
-                        let depth = surface.extrusion.depth;
+                    if surface.extrusion.enabled && extrusion_thickness > 1e-6 {
                         let n = {
                             let nn = surface.plane.normal;
                             let l = nn.magnitude();
@@ -1276,7 +1298,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                                     .iter()
                                     .map(|uv| {
                                         let p = surface.uv_to_world(vek::Vec2::new(uv[0], uv[1]))
-                                            + n * depth
+                                            + n * back_offset
                                             + profile_bias_vec;
                                         [p.x, p.y, p.z, 1.0]
                                     })
@@ -1321,7 +1343,7 @@ impl ChunkBuilder for D3ChunkBuilder {
 
                                 let mut back_world_vertices = back_world_vertices;
                                 for v in back_world_vertices.iter_mut() {
-                                    let p = vek::Vec3::new(v[0], v[1], v[2]) + n * depth;
+                                    let p = vek::Vec3::new(v[0], v[1], v[2]) + n * back_offset;
                                     v[0] = p.x;
                                     v[1] = p.y;
                                     v[2] = p.z;
@@ -1387,7 +1409,12 @@ impl ChunkBuilder for D3ChunkBuilder {
 
                         // Helper to push a side band (outer ring or through-hole tube)
                         let mut push_side_band = |loop_uv: &Vec<vek::Vec2<f32>>| {
-                            let (ring_v, mut ring_i, ring_uv) = build_jamb_uv(loop_uv, depth);
+                            let (ring_v, mut ring_i, ring_uv) = build_jamb_uv(
+                                loop_uv,
+                                front_offset,
+                                back_offset,
+                                extrusion_thickness,
+                            );
                             fix_winding(&ring_v, &mut ring_i, surface.plane.normal);
                             push_with_material_kind_local(
                                 MaterialKind::Side,
@@ -1809,12 +1836,9 @@ impl ChunkBuilder for D3ChunkBuilder {
                     // Add blocking volume for vertical surfaces (both extruded and non-extruded)
                     if surface.extrusion.enabled && extrude_abs > 1e-6 {
                         // Extruded surface - full volume
-                        let top_y = base_y + surface.extrusion.depth;
-                        let (min_y, max_y) = if surface.extrusion.depth > 0.0 {
-                            (base_y, top_y)
-                        } else {
-                            (top_y, base_y)
-                        };
+                        let (offset_min, offset_max) = surface.extrusion.span();
+                        let min_y = base_y + offset_min;
+                        let max_y = base_y + offset_max;
 
                         // Expand paper-thin dimensions (walls that are flat planes)
                         const MIN_THICKNESS: f32 = 0.1;
@@ -2134,8 +2158,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                             let mut max =
                                 Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
 
-                            let mut z0 = surface.extrusion.depth.min(0.0);
-                            let mut z1 = surface.extrusion.depth.max(0.0);
+                            let (mut z0, mut z1) = surface.extrusion.span();
                             if !surface.extrusion.enabled || (z1 - z0).abs() < 1e-4 {
                                 z0 = -0.03;
                                 z1 = 0.03;
@@ -2241,12 +2264,9 @@ impl ChunkBuilder for D3ChunkBuilder {
                         const MIN_THICKNESS: f32 = 0.1;
 
                         if surface.extrusion.enabled && extrude_abs > 1e-6 {
-                            let top_y = base_y + surface.extrusion.depth;
-                            let (min_y, max_y) = if surface.extrusion.depth > 0.0 {
-                                (base_y, top_y)
-                            } else {
-                                (top_y, base_y)
-                            };
+                            let (offset_min, offset_max) = surface.extrusion.span();
+                            let min_y = base_y + offset_min;
+                            let max_y = base_y + offset_max;
 
                             let mut wall_min = Vec3::new(min_x, min_y, min_z);
                             let mut wall_max = Vec3::new(max_x, max_y, max_z);
@@ -9832,8 +9852,9 @@ fn process_feature_loop_with_action(
             return Some(());
         }
 
-        let mut z0 = surface.extrusion.depth.min(0.0) + *inset;
-        let mut z1 = surface.extrusion.depth.max(0.0) + *inset;
+        let (base_z0, base_z1) = surface.extrusion.span();
+        let mut z0 = base_z0 + *inset;
+        let mut z1 = base_z1 + *inset;
         if !surface.extrusion.enabled || (z1 - z0).abs() < 1e-4 {
             z0 = *inset - 0.03;
             z1 = *inset + 0.03;

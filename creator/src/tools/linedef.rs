@@ -9,6 +9,14 @@ use scenevm::GeoId;
 use std::str::FromStr;
 use vek::Vec2;
 
+fn format_point(point: Vec2<f32>) -> String {
+    format!("({:.2}, {:.2})", point.x, point.y)
+}
+
+fn format_point_3d(point: Vec3<f32>) -> String {
+    format!("({:.2}, {:.2}, {:.2})", point.x, point.y, point.z)
+}
+
 pub struct LinedefTool {
     id: TheId,
     click_pos: Vec2<f32>,
@@ -1330,19 +1338,69 @@ impl Tool for LinedefTool {
                             && let Some(profile_map) = map.profiles.get(&profile_id)
                             && let Some(linedef) = profile_map.find_linedef(l)
                         {
+                            let pos_text = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                                let start = profile_map.get_vertex(linedef.start_vertex);
+                                let end = profile_map.get_vertex(linedef.end_vertex);
+                                if let (Some(start), Some(end)) = (start, end) {
+                                    format!(
+                                        " - Start {} - End {}",
+                                        format_point(start),
+                                        format_point(end)
+                                    )
+                                } else {
+                                    String::new()
+                                }
+                            } else {
+                                let start = profile_map.get_vertex_3d(linedef.start_vertex);
+                                let end = profile_map.get_vertex_3d(linedef.end_vertex);
+                                if let (Some(start), Some(end)) = (start, end) {
+                                    format!(
+                                        " - Start {} - End {}",
+                                        format_point_3d(start),
+                                        format_point_3d(end)
+                                    )
+                                } else {
+                                    String::new()
+                                }
+                            };
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
                                 format!(
-                                    "Detail Linedef {}: V{} - V{}",
-                                    l, linedef.start_vertex, linedef.end_vertex
+                                    "Detail Linedef {}: V{} - V{}{}",
+                                    l, linedef.start_vertex, linedef.end_vertex, pos_text
                                 ),
                             ));
                         } else if let Some(linedef) = map.find_linedef(l) {
+                            let pos_text = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                                let start = map.get_vertex(linedef.start_vertex);
+                                let end = map.get_vertex(linedef.end_vertex);
+                                if let (Some(start), Some(end)) = (start, end) {
+                                    format!(
+                                        " - Start {} - End {}",
+                                        format_point(start),
+                                        format_point(end)
+                                    )
+                                } else {
+                                    String::new()
+                                }
+                            } else {
+                                let start = map.get_vertex_3d(linedef.start_vertex);
+                                let end = map.get_vertex_3d(linedef.end_vertex);
+                                if let (Some(start), Some(end)) = (start, end) {
+                                    format!(
+                                        " - Start {} - End {}",
+                                        format_point_3d(start),
+                                        format_point_3d(end)
+                                    )
+                                } else {
+                                    String::new()
+                                }
+                            };
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
                                 format!(
-                                    "Linedef {}: V{} - V{}",
-                                    l, linedef.start_vertex, linedef.end_vertex
+                                    "Linedef {}: V{} - V{}{}",
+                                    l, linedef.start_vertex, linedef.end_vertex, pos_text
                                 ),
                             ));
                         }

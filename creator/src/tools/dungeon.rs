@@ -323,6 +323,7 @@ impl DungeonTool {
                     server_ctx.curr_dungeon_tile,
                     server_ctx.curr_dungeon_floor_base,
                     server_ctx.curr_dungeon_height,
+                    server_ctx.curr_dungeon_standalone,
                 )
             };
 

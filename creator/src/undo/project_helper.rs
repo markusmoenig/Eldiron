@@ -3,8 +3,19 @@ use crate::prelude::*;
 use theframework::prelude::*;
 
 fn tiles_or_authoring_dock() -> String {
-    if TOOLLIST.read().unwrap().authoring_mode {
+    let toollist = TOOLLIST.read().unwrap();
+    if toollist.authoring_mode {
         "Authoring".into()
+    } else if !toollist.editor_mode {
+        match toollist.game_tools[toollist.curr_game_tool]
+            .id()
+            .name
+            .as_str()
+        {
+            "Dungeon Tool" => "Dungeon".into(),
+            "Builder Tool" => "Builder".into(),
+            _ => "Tiles".into(),
+        }
     } else {
         "Tiles".into()
     }

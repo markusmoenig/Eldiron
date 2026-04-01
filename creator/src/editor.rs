@@ -671,20 +671,6 @@ impl Editor {
     fn sanitize_loaded_project(project: &mut Project) {
         insert_content_into_maps(project);
 
-        for r in &mut project.regions {
-            for s in &mut r.map.sectors {
-                if let Some(floor) = s.properties.get("floor_source") {
-                    s.properties.set("source", floor.clone());
-                }
-                if s.properties.contains("rect_rendering") {
-                    s.properties.set("rect", Value::Bool(true));
-                }
-                s.properties.remove("floor_source");
-                s.properties.remove("rect_rendering");
-                s.properties.remove("ceiling_source");
-            }
-        }
-
         let mut char_names = FxHashMap::default();
         for c in &project.characters {
             char_names.insert(c.0, c.1.name.clone());
@@ -1934,16 +1920,22 @@ impl TheTrait for Editor {
                                         player.position.z + orientation.y,
                                     );
                                 } else {
-                                    EDITCAMERA
-                                        .write()
-                                        .unwrap()
-                                        .update_action(region, &mut self.server_ctx);
+                                    EDITCAMERA.write().unwrap().update_action(
+                                        region,
+                                        &mut self.server_ctx,
+                                        ctx.get_time(),
+                                    );
                                 }
                                 EDITCAMERA.write().unwrap().update_camera(
                                     region,
                                     &mut self.server_ctx,
                                     rusterix,
                                 );
+                                if self.server_ctx.editor_view_mode == EditorViewMode::FirstP
+                                    && EDITCAMERA.read().unwrap().move_action.is_some()
+                                {
+                                    ctx.ui.redraw_all = true;
+                                }
 
                                 // Keep editor 3D running mode in sync with runtime dynamic
                                 // overlays (characters/items/lights).

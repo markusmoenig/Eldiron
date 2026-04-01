@@ -1,7 +1,7 @@
 use crate::Surface;
-use crate::{Map, PixelSource, Value};
+use crate::{Map, PixelSource, Value, ValueContainer};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use theframework::prelude::TheColor;
 use theframework::prelude::Uuid;
 
@@ -97,6 +97,8 @@ pub struct DungeonCell {
     pub floor_base: f32,
     #[serde(default = "default_height", alias = "ceiling_height")]
     pub height: f32,
+    #[serde(default)]
+    pub standalone: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -157,6 +159,7 @@ impl DungeonMap {
         kind: DungeonTileKind,
         floor_base: f32,
         height: f32,
+        standalone: bool,
     ) -> bool {
         let layer = self.ensure_active_layer_mut();
         layer.floor_base = floor_base;
@@ -169,12 +172,14 @@ impl DungeonMap {
             if cell.kind == kind
                 && (cell.floor_base - floor_base).abs() < 0.0001
                 && (cell.height - height).abs() < 0.0001
+                && cell.standalone == standalone
             {
                 return false;
             }
             cell.kind = kind;
             cell.floor_base = floor_base;
             cell.height = height;
+            cell.standalone = standalone;
             true
         } else {
             layer.cells.push(DungeonCell {
@@ -183,6 +188,7 @@ impl DungeonMap {
                 kind,
                 floor_base,
                 height,
+                standalone,
             });
             true
         }
@@ -209,6 +215,7 @@ const WALL_SOURCE_COLOR: [u8; 3] = [194, 172, 146];
 struct HeightKey {
     floor_bits: u32,
     height_bits: u32,
+    standalone: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -217,9 +224,39 @@ struct MergedRect {
     y: i32,
     width: i32,
     height: i32,
+    standalone: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum GeneratedPieceKey {
+    Horizontal {
+        layer_id: Uuid,
+        part: String,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        standalone: bool,
+    },
+    Wall {
+        layer_id: Uuid,
+        edge: String,
+        start: (i32, i32),
+        end: (i32, i32),
+        floor_bits: u32,
+        height_bits: u32,
+        standalone: bool,
+    },
+}
+
+#[derive(Clone)]
+struct PreservedGeneratedPiece {
+    sector_properties: ValueContainer,
+    surface: Option<Surface>,
 }
 
 pub fn rebuild_generated_geometry(map: &mut Map, create_floor: bool, create_ceiling: bool) {
+    let preserved = collect_preserved_generated_pieces(map);
     delete_generated_geometry(map);
 
     let Some(layer) = map.dungeon.active_layer().cloned() else {
@@ -238,6 +275,16 @@ pub fn rebuild_generated_geometry(map: &mut Map, create_floor: bool, create_ceil
                     f32::from_bits(height_key.floor_bits),
                     "floor",
                     PixelSource::Color(TheColor::from_u8_array_3(FLOOR_SOURCE_COLOR)),
+                    rect.standalone,
+                    preserved.get(&GeneratedPieceKey::Horizontal {
+                        layer_id: layer.id,
+                        part: "floor".to_string(),
+                        x: rect.x,
+                        y: rect.y,
+                        width: rect.width,
+                        height: rect.height,
+                        standalone: rect.standalone,
+                    }),
                 );
             }
         }
@@ -253,6 +300,16 @@ pub fn rebuild_generated_geometry(map: &mut Map, create_floor: bool, create_ceil
                     f32::from_bits(height_key.floor_bits) + f32::from_bits(height_key.height_bits),
                     "ceiling",
                     PixelSource::Color(TheColor::from_u8_array_3(CEILING_SOURCE_COLOR)),
+                    rect.standalone,
+                    preserved.get(&GeneratedPieceKey::Horizontal {
+                        layer_id: layer.id,
+                        part: "ceiling".to_string(),
+                        x: rect.x,
+                        y: rect.y,
+                        width: rect.width,
+                        height: rect.height,
+                        standalone: rect.standalone,
+                    }),
                 );
             }
         }
@@ -267,6 +324,22 @@ pub fn rebuild_generated_geometry(map: &mut Map, create_floor: bool, create_ceil
             wall_strip.end,
             wall_strip.floor_base,
             wall_strip.height,
+            wall_strip.standalone,
+            preserved.get(&GeneratedPieceKey::Wall {
+                layer_id: layer.id,
+                edge: wall_strip.edge_name.to_string(),
+                start: (
+                    (wall_strip.start.0 * 1000.0).round() as i32,
+                    (wall_strip.start.1 * 1000.0).round() as i32,
+                ),
+                end: (
+                    (wall_strip.end.0 * 1000.0).round() as i32,
+                    (wall_strip.end.1 * 1000.0).round() as i32,
+                ),
+                floor_bits: wall_strip.floor_base.to_bits(),
+                height_bits: wall_strip.height.to_bits(),
+                standalone: wall_strip.standalone,
+            }),
         );
     }
 
@@ -287,20 +360,81 @@ fn delete_generated_geometry(map: &mut Map) {
         .map(|sector| sector.id)
         .collect();
 
-    let linedef_ids: Vec<u32> = map
-        .linedefs
-        .iter()
-        .filter(|linedef| {
-            linedef
-                .properties
-                .get_str_default("generated_by", String::new())
-                == DUNGEON_GENERATOR
-        })
-        .map(|linedef| linedef.id)
-        .collect();
+    if !sector_ids.is_empty() {
+        map.delete_elements(&[], &[], &sector_ids);
+    }
+}
 
-    if !sector_ids.is_empty() || !linedef_ids.is_empty() {
-        map.delete_elements(&[], &linedef_ids, &sector_ids);
+fn collect_preserved_generated_pieces(
+    map: &Map,
+) -> HashMap<GeneratedPieceKey, PreservedGeneratedPiece> {
+    let mut preserved = HashMap::new();
+
+    for sector in &map.sectors {
+        if sector
+            .properties
+            .get_str_default("generated_by", String::new())
+            != DUNGEON_GENERATOR
+        {
+            continue;
+        }
+
+        let Some(key) = generated_piece_key_from_sector(sector) else {
+            continue;
+        };
+        let surface = map.get_surface_for_sector_id(sector.id).cloned();
+        preserved.insert(
+            key,
+            PreservedGeneratedPiece {
+                sector_properties: sector.properties.clone(),
+                surface,
+            },
+        );
+    }
+
+    preserved
+}
+
+fn generated_piece_key_from_sector(sector: &crate::Sector) -> Option<GeneratedPieceKey> {
+    let layer_id = sector.properties.get_id("dungeon_layer_id")?;
+    let part = sector
+        .properties
+        .get_str_default("dungeon_part", String::new());
+    let standalone = sector
+        .properties
+        .get_bool_default("dungeon_standalone", false);
+
+    if part == "floor" || part == "ceiling" {
+        Some(GeneratedPieceKey::Horizontal {
+            layer_id,
+            part,
+            x: sector.properties.get_int("dungeon_x")?,
+            y: sector.properties.get_int("dungeon_y")?,
+            width: sector.properties.get_int("dungeon_width")?,
+            height: sector.properties.get_int("dungeon_height")?,
+            standalone,
+        })
+    } else if part == "wall" {
+        let edge = sector
+            .properties
+            .get_str_default("dungeon_edge", String::new());
+        Some(GeneratedPieceKey::Wall {
+            layer_id,
+            edge,
+            start: (
+                sector.properties.get_int("dungeon_start_x")?,
+                sector.properties.get_int("dungeon_start_y")?,
+            ),
+            end: (
+                sector.properties.get_int("dungeon_end_x")?,
+                sector.properties.get_int("dungeon_end_y")?,
+            ),
+            floor_bits: sector.properties.get_float("floor_base")?.to_bits(),
+            height_bits: sector.properties.get_float("height")?.to_bits(),
+            standalone,
+        })
+    } else {
+        None
     }
 }
 
@@ -311,6 +445,7 @@ fn merge_cell_rectangles(cells: &[DungeonCell]) -> BTreeMap<HeightKey, Vec<Merge
             .entry(HeightKey {
                 floor_bits: cell.floor_base.to_bits(),
                 height_bits: cell.height.to_bits(),
+                standalone: cell.standalone,
             })
             .or_default()
             .insert((cell.x, cell.y));
@@ -322,21 +457,26 @@ fn merge_cell_rectangles(cells: &[DungeonCell]) -> BTreeMap<HeightKey, Vec<Merge
         let mut rects = Vec::new();
 
         while let Some(&(x, y)) = remaining.iter().min_by_key(|&&(x, y)| (y, x)) {
-            let mut width = 1;
-            while remaining.contains(&(x + width, y)) {
-                width += 1;
-            }
-
-            let mut height = 1;
-            'rows: loop {
-                let next_y = y + height;
-                for dx in 0..width {
-                    if !remaining.contains(&(x + dx, next_y)) {
-                        break 'rows;
-                    }
+            let (width, height) = if key.standalone {
+                (1, 1)
+            } else {
+                let mut width = 1;
+                while remaining.contains(&(x + width, y)) {
+                    width += 1;
                 }
-                height += 1;
-            }
+
+                let mut height = 1;
+                'rows: loop {
+                    let next_y = y + height;
+                    for dx in 0..width {
+                        if !remaining.contains(&(x + dx, next_y)) {
+                            break 'rows;
+                        }
+                    }
+                    height += 1;
+                }
+                (width, height)
+            };
 
             for dy in 0..height {
                 for dx in 0..width {
@@ -349,6 +489,7 @@ fn merge_cell_rectangles(cells: &[DungeonCell]) -> BTreeMap<HeightKey, Vec<Merge
                 y,
                 width,
                 height,
+                standalone: key.standalone,
             });
         }
 
@@ -365,6 +506,7 @@ struct WallStrip {
     end: (f32, f32),
     floor_base: f32,
     height: f32,
+    standalone: bool,
 }
 
 fn collect_wall_strips(cells: &[DungeonCell]) -> Vec<WallStrip> {
@@ -374,6 +516,7 @@ fn collect_wall_strips(cells: &[DungeonCell]) -> Vec<WallStrip> {
         coord: i32,
         floor_bits: u32,
         height_bits: u32,
+        standalone: bool,
     }
 
     let mut horizontal: BTreeMap<WallStripKey, BTreeSet<i32>> = BTreeMap::new();
@@ -385,6 +528,7 @@ fn collect_wall_strips(cells: &[DungeonCell]) -> Vec<WallStrip> {
             coord,
             floor_bits: cell.floor_base.to_bits(),
             height_bits: cell.height.to_bits(),
+            standalone: cell.standalone,
         };
 
         if cell.kind.has_north() {
@@ -423,6 +567,7 @@ fn collect_wall_strips(cells: &[DungeonCell]) -> Vec<WallStrip> {
             true,
             f32::from_bits(key.floor_bits),
             f32::from_bits(key.height_bits),
+            key.standalone,
         );
     }
     for (key, starts) in vertical {
@@ -434,6 +579,7 @@ fn collect_wall_strips(cells: &[DungeonCell]) -> Vec<WallStrip> {
             false,
             f32::from_bits(key.floor_bits),
             f32::from_bits(key.height_bits),
+            key.standalone,
         );
     }
     strips
@@ -447,6 +593,7 @@ fn append_wall_runs(
     horizontal: bool,
     floor_base: f32,
     height: f32,
+    standalone: bool,
 ) {
     let mut iter = starts.into_iter();
     let Some(mut run_start) = iter.next() else {
@@ -455,11 +602,11 @@ fn append_wall_runs(
     let mut run_end = run_start + 1;
 
     for start in iter {
-        if start == run_end {
+        if !standalone && start == run_end {
             run_end += 1;
         } else {
             strips.push(build_wall_strip(
-                edge_name, coord, run_start, run_end, horizontal, floor_base, height,
+                edge_name, coord, run_start, run_end, horizontal, floor_base, height, standalone,
             ));
             run_start = start;
             run_end = start + 1;
@@ -467,7 +614,7 @@ fn append_wall_runs(
     }
 
     strips.push(build_wall_strip(
-        edge_name, coord, run_start, run_end, horizontal, floor_base, height,
+        edge_name, coord, run_start, run_end, horizontal, floor_base, height, standalone,
     ));
 }
 
@@ -479,6 +626,7 @@ fn build_wall_strip(
     horizontal: bool,
     floor_base: f32,
     height: f32,
+    standalone: bool,
 ) -> WallStrip {
     let (start, end) = if horizontal {
         (
@@ -498,6 +646,7 @@ fn build_wall_strip(
         end,
         floor_base,
         height,
+        standalone,
     }
 }
 
@@ -508,6 +657,8 @@ fn generate_horizontal_sector(
     z: f32,
     part: &str,
     source: PixelSource,
+    standalone: bool,
+    preserved: Option<&PreservedGeneratedPiece>,
 ) {
     let x0 = rect.x as f32;
     let y0 = rect.y as f32;
@@ -531,13 +682,19 @@ fn generate_horizontal_sector(
         return;
     };
 
+    let had_preserved = preserved.is_some();
     if let Some(sector) = map.find_sector_mut(sector_id) {
-        sector
-            .properties
-            .set("source", Value::Source(source.clone()));
-        sector
-            .properties
-            .set("floor_source", Value::Source(source.clone()));
+        if let Some(preserved) = preserved {
+            sector.properties = preserved.sector_properties.clone();
+        }
+        if !had_preserved {
+            sector
+                .properties
+                .set("source", Value::Source(source.clone()));
+            sector
+                .properties
+                .set("floor_source", Value::Source(source.clone()));
+        }
         sector
             .properties
             .set("generated_by", Value::Str(DUNGEON_GENERATOR.to_string()));
@@ -555,16 +712,20 @@ fn generate_horizontal_sector(
         sector
             .properties
             .set("dungeon_height", Value::Int(rect.height));
+        sector
+            .properties
+            .set("dungeon_standalone", Value::Bool(standalone));
         sector.properties.set("floor_height", Value::Float(z));
         sector.properties.set("floor_base", Value::Float(z));
         sector.properties.set("visible", Value::Bool(true));
     }
 
-    if map.get_surface_for_sector_id(sector_id).is_none() {
-        let mut surface = Surface::new(sector_id);
-        surface.calculate_geometry(map);
-        map.surfaces.insert(surface.id, surface);
-    }
+    let mut surface = preserved
+        .and_then(|preserved| preserved.surface.clone())
+        .unwrap_or_else(|| Surface::new(sector_id));
+    surface.sector_id = sector_id;
+    surface.calculate_geometry(map);
+    map.surfaces.insert(surface.id, surface);
 }
 
 fn generate_wall_sector(
@@ -575,6 +736,8 @@ fn generate_wall_sector(
     end: (f32, f32),
     floor_base: f32,
     height: f32,
+    standalone: bool,
+    preserved: Option<&PreservedGeneratedPiece>,
 ) {
     let z0 = floor_base;
     let z1 = (floor_base + height).max(floor_base + 0.1);
@@ -595,13 +758,19 @@ fn generate_wall_sector(
         return;
     };
 
+    let had_preserved = preserved.is_some();
     if let Some(sector) = map.find_sector_mut(sector_id) {
-        sector.properties.set(
-            "source",
-            Value::Source(PixelSource::Color(TheColor::from_u8_array_3(
-                WALL_SOURCE_COLOR,
-            ))),
-        );
+        if let Some(preserved) = preserved {
+            sector.properties = preserved.sector_properties.clone();
+        }
+        if !had_preserved {
+            sector.properties.set(
+                "source",
+                Value::Source(PixelSource::Color(TheColor::from_u8_array_3(
+                    WALL_SOURCE_COLOR,
+                ))),
+            );
+        }
         sector
             .properties
             .set("generated_by", Value::Str(DUNGEON_GENERATOR.to_string()));
@@ -611,6 +780,20 @@ fn generate_wall_sector(
         sector
             .properties
             .set("dungeon_edge", Value::Str(edge_name.to_string()));
+        sector.properties.set(
+            "dungeon_start_x",
+            Value::Int((start.0 * 1000.0).round() as i32),
+        );
+        sector.properties.set(
+            "dungeon_start_y",
+            Value::Int((start.1 * 1000.0).round() as i32),
+        );
+        sector
+            .properties
+            .set("dungeon_end_x", Value::Int((end.0 * 1000.0).round() as i32));
+        sector
+            .properties
+            .set("dungeon_end_y", Value::Int((end.1 * 1000.0).round() as i32));
         sector
             .properties
             .set("dungeon_part", Value::Str("wall".to_string()));
@@ -620,13 +803,17 @@ fn generate_wall_sector(
         sector.properties.set("height", Value::Float(height));
         sector
             .properties
+            .set("dungeon_standalone", Value::Bool(standalone));
+        sector
+            .properties
             .set("ceiling_height", Value::Float(floor_base + height));
         sector.properties.set("visible", Value::Bool(true));
     }
 
-    if map.get_surface_for_sector_id(sector_id).is_none() {
-        let mut surface = Surface::new(sector_id);
-        surface.calculate_geometry(map);
-        map.surfaces.insert(surface.id, surface);
-    }
+    let mut surface = preserved
+        .and_then(|preserved| preserved.surface.clone())
+        .unwrap_or_else(|| Surface::new(sector_id));
+    surface.sector_id = sector_id;
+    surface.calculate_geometry(map);
+    map.surfaces.insert(surface.id, surface);
 }

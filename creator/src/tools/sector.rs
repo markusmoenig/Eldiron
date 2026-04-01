@@ -4,10 +4,57 @@ use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
-use rusterix::{Assets, Surface};
+use rusterix::{Assets, Sector, Surface};
 use scenevm::GeoId;
 use std::str::FromStr;
 use vek::Vec2;
+
+fn format_point(point: Vec2<f32>) -> String {
+    format!("({:.2}, {:.2})", point.x, point.y)
+}
+
+fn format_point_3d(point: Vec3<f32>) -> String {
+    format!("({:.2}, {:.2}, {:.2})", point.x, point.y, point.z)
+}
+
+fn format_sector_linedefs_and_bbox(map: &Map, sector: &Sector, world_3d: bool) -> String {
+    let linedefs = sector
+        .linedefs
+        .iter()
+        .map(|id| id.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    if world_3d {
+        if let Some(vertices) = sector.vertices_world(map) {
+            let mut min = Vec3::broadcast(f32::INFINITY);
+            let mut max = Vec3::broadcast(f32::NEG_INFINITY);
+            for vertex in vertices {
+                min.x = min.x.min(vertex.x);
+                min.y = min.y.min(vertex.y);
+                min.z = min.z.min(vertex.z);
+                max.x = max.x.max(vertex.x);
+                max.y = max.y.max(vertex.y);
+                max.z = max.z.max(vertex.z);
+            }
+            format!(
+                "Linedefs ({}) - BBox {} - {}",
+                linedefs,
+                format_point_3d(min),
+                format_point_3d(max)
+            )
+        } else {
+            format!("Linedefs ({})", linedefs)
+        }
+    } else {
+        let bbox = sector.bounding_box(map);
+        format!(
+            "Linedefs ({}) - BBox {} - {}",
+            linedefs,
+            format_point(bbox.min),
+            format_point(bbox.max)
+        )
+    }
+}
 
 pub struct SectorTool {
     id: TheId,
@@ -1176,26 +1223,30 @@ impl Tool for SectorTool {
                             && let Some(profile_map) = map.profiles.get(&profile_id)
                             && let Some(sector) = profile_map.find_sector(s)
                         {
-                            let lines = sector
-                                .linedefs
-                                .iter()
-                                .map(|id| id.to_string())
-                                .collect::<Vec<_>>()
-                                .join(", ");
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
-                                format!("Detail Sector {}: Linedefs ({})", s, lines),
+                                format!(
+                                    "Detail Sector {}: {}",
+                                    s,
+                                    format_sector_linedefs_and_bbox(
+                                        profile_map,
+                                        sector,
+                                        server_ctx.editor_view_mode != EditorViewMode::D2
+                                    )
+                                ),
                             ));
                         } else if let Some(sector) = map.find_sector(s) {
-                            let lines = sector
-                                .linedefs
-                                .iter()
-                                .map(|id| id.to_string())
-                                .collect::<Vec<_>>()
-                                .join(", ");
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
-                                format!("Sector {}: Linedefs ({})", s, lines),
+                                format!(
+                                    "Sector {}: {}",
+                                    s,
+                                    format_sector_linedefs_and_bbox(
+                                        map,
+                                        sector,
+                                        server_ctx.editor_view_mode != EditorViewMode::D2
+                                    )
+                                ),
                             ));
                         }
                     } else {

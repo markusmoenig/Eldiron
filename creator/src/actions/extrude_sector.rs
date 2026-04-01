@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use rusterix::Surface;
+use rusterix::{Surface, map::surface::ExtrusionMode};
 
 pub struct ExtrudeSector {
     id: TheId,
@@ -30,6 +30,19 @@ impl Action for ExtrudeSector {
             false,
         );
         nodeui.add_item(item);
+
+        nodeui.add_item(TheNodeUIItem::Selector(
+            "actionDirection".into(),
+            "".into(),
+            "".into(),
+            vec![
+                "Auto".to_string(),
+                "Forward".to_string(),
+                "Back".to_string(),
+                "Centered".to_string(),
+            ],
+            0,
+        ));
 
         nodeui.add_item(TheNodeUIItem::Checkbox(
             "actionBackOpen".into(),
@@ -91,6 +104,12 @@ impl Action for ExtrudeSector {
             .nodeui
             .get_bool_value("actionBackOpen")
             .unwrap_or(false);
+        let extrusion_mode = match self.nodeui.get_i32_value("actionDirection").unwrap_or(0) {
+            1 => ExtrusionMode::Forward,
+            2 => ExtrusionMode::Back,
+            3 => ExtrusionMode::Centered,
+            _ => ExtrusionMode::Auto,
+        };
 
         // Apply to selected sectors: set/create surface extrusion settings
         for sector_id in map.selected_sectors.clone() {
@@ -119,6 +138,7 @@ impl Action for ExtrudeSector {
                     // Distance directly sets depth; sign controls direction
                     surf.extrusion.enabled = surf_enable;
                     surf.extrusion.depth = distance;
+                    surf.extrusion.mode = extrusion_mode;
                     surf.extrusion.cap_front = true; // always cap front
                     surf.extrusion.cap_back = !back_open; // optional back cap
                     surf.extrusion.flip_normal = false; // not exposed; depth sign handles direction

@@ -215,14 +215,20 @@ impl MapEditor {
                     match key {
                         TheKeyCode::Up => {
                             if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-                                EDITCAMERA.write().unwrap().move_action =
-                                    Some(CustomMoveAction::Forward);
+                                EDITCAMERA.write().unwrap().move_action = Some(if ui.shift {
+                                    CustomMoveAction::Up
+                                } else {
+                                    CustomMoveAction::Forward
+                                });
                             }
                         }
                         TheKeyCode::Down => {
                             if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-                                EDITCAMERA.write().unwrap().move_action =
-                                    Some(CustomMoveAction::Backward);
+                                EDITCAMERA.write().unwrap().move_action = Some(if ui.shift {
+                                    CustomMoveAction::Down
+                                } else {
+                                    CustomMoveAction::Backward
+                                });
                             }
                         }
                         TheKeyCode::Left => {
