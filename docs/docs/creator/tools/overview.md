@@ -13,6 +13,7 @@ Some tools are specifically designed for **map editing** and display a common **
 - **Sector Tool**
 - **Rect Tool**
 - **Builder Tool**
+- **Dungeon Tool**
 
 ### Terminology
 
@@ -60,6 +61,11 @@ With the [Builder Tool](builder), the same HUD area is used for **builder slots*
 - **item slots** used to attach child builder assets
 
 While Builder is active, contexts that would normally switch the lower dock to **Tiles** show the **Builder Picker** instead.
+
+With the [Dungeon Tool](dungeon), the lower picker area shows the **Dungeon dock** instead:
+
+- a structural tile palette for conceptual dungeon cells
+- a TOML settings panel for dungeon generation parameters such as floor base, height, and door settings
 
 ## 3D Detail Editing
 

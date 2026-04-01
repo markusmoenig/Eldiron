@@ -305,12 +305,21 @@ impl DungeonTool {
         } else {
             self.line_axis_horizontal = None;
         }
-        let cells = if let Some(last) = self.last_cell {
+        let stroke_cells = if let Some(last) = self.last_cell {
             Self::cells_between(last, cell)
         } else {
             vec![cell]
         };
         self.last_cell = Some(cell);
+
+        let mut cells = Vec::new();
+        for cell in stroke_cells {
+            cells.extend(Self::stamp_cells_for_tile(
+                cell,
+                server_ctx.curr_dungeon_tile,
+                server_ctx.curr_dungeon_tile_span,
+            ));
+        }
 
         let mut any_changed = false;
         for cell in cells {
@@ -324,6 +333,11 @@ impl DungeonTool {
                     server_ctx.curr_dungeon_floor_base,
                     server_ctx.curr_dungeon_height,
                     server_ctx.curr_dungeon_standalone,
+                    server_ctx.curr_dungeon_tile_span.max(1),
+                    server_ctx.curr_dungeon_tile_depth.max(0.05),
+                    server_ctx.curr_dungeon_tile_height.max(0.5),
+                    server_ctx.curr_dungeon_tile_open_mode,
+                    server_ctx.curr_dungeon_tile_item.clone(),
                 )
             };
 
@@ -384,6 +398,31 @@ impl DungeonTool {
             let cell = Vec2::new(x.round() as i32, y.round() as i32);
             if cells.last().copied() != Some(cell) {
                 cells.push(cell);
+            }
+        }
+        cells
+    }
+
+    fn stamp_cells_for_tile(
+        origin: Vec2<i32>,
+        tile: rusterix::DungeonTileKind,
+        span: i32,
+    ) -> Vec<Vec2<i32>> {
+        let span = span.max(1);
+        if !tile.is_door() || span == 1 {
+            return vec![origin];
+        }
+
+        let mut cells = Vec::with_capacity(span as usize);
+        if tile.has_door_north() || tile.has_door_south() {
+            let start_x = origin.x - (span - 1) / 2;
+            for dx in 0..span {
+                cells.push(Vec2::new(start_x + dx, origin.y));
+            }
+        } else {
+            let start_y = origin.y - (span - 1) / 2;
+            for dy in 0..span {
+                cells.push(Vec2::new(origin.x, start_y + dy));
             }
         }
         cells

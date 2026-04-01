@@ -2173,6 +2173,25 @@ impl Client {
                                     }
                                 }
                             }
+                            GeoId::Sector(sector_id) => {
+                                if let Some(item) =
+                                    SceneHandler::find_item_by_sector_id(map, sector_id)
+                                {
+                                    self.hovered_item_id = Some(item.id);
+                                    for button_id in &self.activated_widgets {
+                                        if let Some(widget) = self.button_widgets.get(button_id) {
+                                            self.curr_intent_cursor = widget.item_cursor_id;
+                                            self.curr_clicked_intent_cursor =
+                                                widget.item_clicked_cursor_id;
+                                            self.hover_distance = distance;
+
+                                            if let Some(cursor_id) = widget.item_cursor_id {
+                                                self.curr_cursor = Some(cursor_id);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             GeoId::Item(item_id) => {
                                 self.hovered_item_id = Some(item_id);
                                 for button_id in &self.activated_widgets {

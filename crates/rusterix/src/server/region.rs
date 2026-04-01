@@ -797,7 +797,45 @@ impl RegionInstance {
                 if item_name.is_empty() {
                     continue;
                 }
-                // TODO
+                if ctx.item_programs.contains_key(item_name) {
+                    let mut item = Item::default();
+                    item.id = get_global_id();
+                    item.attributes.set("name", Value::Str(s.name.to_string()));
+                    item.attributes
+                        .set("class_name", Value::Str(item_name.to_string()));
+                    item.attributes.set("static", Value::Bool(true));
+                    item.attributes.set("sector_id", Value::UInt(s.id));
+                    if let Some(mode) = s.properties.get_str("dungeon_door_mode") {
+                        item.attributes
+                            .set("door_mode", Value::Str(mode.to_string()));
+                    }
+                    if let Some(depth) = s.properties.get_float("dungeon_door_depth") {
+                        item.attributes.set("door_depth", Value::Float(depth));
+                    }
+                    if let Some(height) = s.properties.get_float("dungeon_door_height") {
+                        item.attributes.set("door_height", Value::Float(height));
+                    }
+                    item.attributes.set(
+                        "blocking",
+                        Value::Bool(s.properties.get_bool_default("blocking", true)),
+                    );
+                    if let Some(center) = s.center(&ctx.map) {
+                        let world_y = s
+                            .vertices_world(&ctx.map)
+                            .map(|verts| {
+                                verts.iter().map(|v| v.y).sum::<f32>() / verts.len() as f32
+                            })
+                            .unwrap_or(0.0);
+                        item.set_position(Vec3::new(center.x, world_y, center.y));
+                    }
+                    item.mark_all_dirty();
+                    ctx.map.items.push(item);
+                } else {
+                    ctx.startup_errors.push(format!(
+                        "[error] {}: Sector Item '{}': Item does not exist '{}'",
+                        self.name, name, item_name
+                    ));
+                }
             }
         }
 

@@ -8,6 +8,7 @@ use crate::GeoId;
 pub enum DynamicKind {
     BillboardTile = 0,
     BillboardAvatar = 1,
+    Mesh = 2,
 }
 
 impl Default for DynamicKind {
@@ -48,6 +49,14 @@ impl Default for AlphaMode {
 
 /// Per-frame dynamic object description (billboards, particles, etc.).
 #[derive(Clone, Debug)]
+pub struct DynamicMeshVertex {
+    pub position: Vec3<f32>,
+    pub uv: Vec2<f32>,
+    pub normal: Vec3<f32>,
+}
+
+/// Per-frame dynamic object description (billboards, particles, meshes, etc.).
+#[derive(Clone, Debug)]
 pub struct DynamicObject {
     pub id: GeoId,
     pub kind: DynamicKind,
@@ -64,6 +73,10 @@ pub struct DynamicObject {
     pub opacity: f32,
     /// Optional animation start counter. When set, animated tiles can start at frame 0 for this instance.
     pub anim_start_counter: Option<u32>,
+    /// Dynamic mesh vertices in local/object space. Used when `kind == Mesh`.
+    pub mesh_vertices: Vec<DynamicMeshVertex>,
+    /// Dynamic mesh triangle indices. Used when `kind == Mesh`.
+    pub mesh_indices: Vec<u32>,
 }
 
 impl Default for DynamicObject {
@@ -82,6 +95,8 @@ impl Default for DynamicObject {
             alpha_mode: AlphaMode::Texture,
             opacity: 1.0,
             anim_start_counter: None,
+            mesh_vertices: Vec::new(),
+            mesh_indices: Vec::new(),
         }
     }
 }
@@ -111,6 +126,8 @@ impl DynamicObject {
             alpha_mode: AlphaMode::Texture,
             opacity: 1.0,
             anim_start_counter: None,
+            mesh_vertices: Vec::new(),
+            mesh_indices: Vec::new(),
         }
     }
 
@@ -157,6 +174,8 @@ impl DynamicObject {
             alpha_mode: AlphaMode::Texture,
             opacity: 1.0,
             anim_start_counter: None,
+            mesh_vertices: Vec::new(),
+            mesh_indices: Vec::new(),
         }
     }
 
@@ -170,6 +189,32 @@ impl DynamicObject {
             width,
             height,
         )
+    }
+
+    /// Convenience constructor for a dynamic mesh that references a tile/material.
+    pub fn mesh(
+        id: GeoId,
+        tile_id: Uuid,
+        vertices: Vec<DynamicMeshVertex>,
+        indices: Vec<u32>,
+    ) -> Self {
+        Self {
+            id,
+            kind: DynamicKind::Mesh,
+            tile_id: Some(tile_id),
+            layer: 0,
+            center: Vec3::zero(),
+            view_right: Vec3::unit_x(),
+            view_up: Vec3::unit_y(),
+            width: 1.0,
+            height: 1.0,
+            repeat_mode: RepeatMode::Scale,
+            alpha_mode: AlphaMode::Texture,
+            opacity: 1.0,
+            anim_start_counter: None,
+            mesh_vertices: vertices,
+            mesh_indices: indices,
+        }
     }
 
     /// Set the repeat mode for this billboard.

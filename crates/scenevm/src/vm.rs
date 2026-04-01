@@ -1957,6 +1957,14 @@ impl VM {
     }
 
     fn push_dynamic_object(&mut self, mut object: DynamicObject) {
+        if object.kind == DynamicKind::Mesh {
+            if object.mesh_vertices.is_empty() || object.mesh_indices.len() < 3 {
+                return;
+            }
+            self.dynamic_objects.push(object);
+            return;
+        }
+
         if object.width <= 0.0
             || !object.width.is_finite()
             || object.height <= 0.0
@@ -2382,6 +2390,7 @@ impl VM {
                         ],
                     });
                 }
+                DynamicKind::Mesh => {}
             }
         }
 
@@ -4682,8 +4691,11 @@ impl VM {
             self.prepare_layer_views(device, queue, fb_w, fb_h);
 
         let fb_dims = (fb_w, fb_h);
-        let has_dynamic_billboards =
-            !self.dynamic_objects.is_empty() || !self.dynamic_avatar_objects.is_empty();
+        let has_dynamic_billboards = self
+            .dynamic_objects
+            .iter()
+            .any(|obj| obj.kind != DynamicKind::Mesh)
+            || !self.dynamic_avatar_objects.is_empty();
         let mut geometry_changed = false;
         if self.geometry2d_dirty
             || self.cached_v2.is_empty()
@@ -4742,6 +4754,7 @@ impl VM {
                         };
                         (avatar_index, 0x8000_0000u32)
                     }
+                    DynamicKind::Mesh => continue,
                 };
 
                 let center_scr = m * Vec3::new(obj.center.x, obj.center.y, 1.0);
@@ -5817,9 +5830,9 @@ impl VM {
 
         let m = self.transform3d;
         let mut geometry_changed = false;
-        let has_dynamic_billboards =
+        let has_dynamic_objects =
             !self.dynamic_objects.is_empty() || !self.dynamic_avatar_objects.is_empty();
-        let need_dynamic_refresh = has_dynamic_billboards || self.raster_had_dynamics_last_frame;
+        let need_dynamic_refresh = has_dynamic_objects || self.raster_had_dynamics_last_frame;
         if self.accel_dirty
             || self.geometry3d_dirty
             || self.cached_v3.is_empty()
@@ -5968,6 +5981,7 @@ impl VM {
                         };
                         (avatar_index, 0x8000_0000u32)
                     }
+                    DynamicKind::Mesh => continue,
                 };
                 // For non-repeating billboards, clamp UVs in shader to avoid MSAA edge wrap seams.
                 if !matches!(obj.repeat_mode, crate::dynamic::RepeatMode::Repeat) {
@@ -6022,6 +6036,47 @@ impl VM {
                 tri_visibility.push(true);
             }
 
+            for obj in &self.dynamic_objects {
+                if obj.kind != DynamicKind::Mesh {
+                    continue;
+                }
+                let Some(tile_id) = obj.tile_id else { continue };
+                let Some(tile_index) = self.shared_atlas.tile_index(&tile_id) else {
+                    continue;
+                };
+                let tile_index2 = tile_index | 0x2000_0000u32;
+                let opacity = obj.opacity.clamp(0.0, 1.0);
+                let base = v3.len() as u32;
+
+                for vert in &obj.mesh_vertices {
+                    let p = m * Vec4::new(vert.position.x, vert.position.y, vert.position.z, 1.0);
+                    let w = if p.w != 0.0 { p.w } else { 1.0 };
+                    let n = m * Vec4::new(vert.normal.x, vert.normal.y, vert.normal.z, 0.0);
+                    let mut nn = Vec3::new(n.x, n.y, n.z);
+                    if nn.magnitude_squared() <= 1e-8 {
+                        nn = Vec3::new(0.0, 1.0, 0.0);
+                    } else {
+                        nn = nn.normalized();
+                    }
+                    v3.push(Vert3DPod {
+                        pos: [p.x / w, p.y / w, p.z / w],
+                        _pad_pos: 0.0,
+                        uv: [vert.uv.x, vert.uv.y],
+                        _pad_uv: [0.0, 0.0],
+                        tile_index,
+                        tile_index2,
+                        blend_factor: 0.0,
+                        opacity,
+                        normal: [nn.x, nn.y, nn.z],
+                        _pad_n: 0.0,
+                    });
+                }
+                for tri in obj.mesh_indices.chunks_exact(3) {
+                    i3.extend_from_slice(&[base + tri[0], base + tri[1], base + tri[2]]);
+                    tri_visibility.push(true);
+                }
+            }
+
             if v3.is_empty() {
                 v3.push(Vert3DPod {
                     pos: [0.0; 3],
@@ -6059,7 +6114,7 @@ impl VM {
             geometry_changed = true;
             self.visibility_dirty = false;
             self.geometry3d_dirty = false;
-            self.raster_had_dynamics_last_frame = has_dynamic_billboards;
+            self.raster_had_dynamics_last_frame = has_dynamic_objects;
         }
 
         if self.visibility_dirty && !geometry_changed {
@@ -6805,9 +6860,32 @@ impl VM {
                 .iter()
                 .chain(self.dynamic_avatar_objects.values())
             {
-                if obj.kind != DynamicKind::BillboardTile
-                    && obj.kind != DynamicKind::BillboardAvatar
-                {
+                if obj.kind == DynamicKind::Mesh {
+                    let mut mesh_pos: Vec<[f32; 3]> = Vec::with_capacity(obj.mesh_vertices.len());
+                    for v in &obj.mesh_vertices {
+                        let p = m * Vec4::new(v.position.x, v.position.y, v.position.z, 1.0);
+                        let w = if p.w != 0.0 { p.w } else { 1.0 };
+                        mesh_pos.push([p.x / w, p.y / w, p.z / w]);
+                    }
+
+                    for tri in obj.mesh_indices.chunks_exact(3) {
+                        let a = mesh_pos.get(tri[0] as usize).copied();
+                        let b = mesh_pos.get(tri[1] as usize).copied();
+                        let c = mesh_pos.get(tri[2] as usize).copied();
+                        let (a, b, c) = match (a, b, c) {
+                            (Some(a), Some(b), Some(c)) => (a, b, c),
+                            _ => continue,
+                        };
+                        if let Some((t, _, _)) =
+                            ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
+                        {
+                            if t > 1e-5 && t < best_t {
+                                best_t = t;
+                                best_geo = Some(obj.id);
+                                best_pos = ray_origin + ray_dir * t;
+                            }
+                        }
+                    }
                     continue;
                 }
 
@@ -6929,6 +7007,7 @@ impl VM {
                                 alpha_ok = alpha > 0;
                             }
                         }
+                        DynamicKind::Mesh => {}
                     }
 
                     if !alpha_ok {

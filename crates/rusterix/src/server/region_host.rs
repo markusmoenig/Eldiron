@@ -23,6 +23,15 @@ enum SpellTargetArg {
 }
 
 fn opening_geo_for_item(item: &Item) -> Option<GeoId> {
+    if let Some(sector_id) = match item.attributes.get("sector_id") {
+        Some(Value::UInt(v)) => Some(*v),
+        Some(Value::Int(v)) if *v >= 0 => Some(*v as u32),
+        Some(Value::Int64(v)) if *v >= 0 => Some(*v as u32),
+        _ => None,
+    } {
+        return Some(GeoId::Sector(sector_id));
+    }
+
     let host_id = match item.attributes.get("profile_host_sector_id") {
         Some(Value::UInt(v)) => Some(*v),
         _ => None,

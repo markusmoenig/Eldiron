@@ -50,6 +50,9 @@ impl D2ConceptBuilder {
             let mut glyphs = Batch2D::empty()
                 .source(PixelSource::Pixel([248, 242, 218, 255]))
                 .mode(crate::PrimitiveMode::Lines);
+            let mut doors = Batch2D::empty()
+                .source(PixelSource::Pixel([240, 196, 92, 255]))
+                .mode(crate::PrimitiveMode::Lines);
 
             for cell in &layer.cells {
                 fill.add_rectangle(cell.x as f32, cell.y as f32, 1.0, 1.0);
@@ -75,12 +78,14 @@ impl D2ConceptBuilder {
                     0.05,
                 );
                 self.add_cell_glyph(&mut glyphs, cell.x as f32, cell.y as f32, cell.kind);
+                self.add_door_glyph(&mut doors, cell.x as f32, cell.y as f32, cell.kind);
             }
 
             scene.d2_static.push(fill);
             scene.d2_static.push(floor_inner);
             scene.d2_dynamic.push(outlines);
             scene.d2_dynamic.push(glyphs);
+            scene.d2_dynamic.push(doors);
         }
 
         if let Some(cursor) = self.hover_cursor {
@@ -269,6 +274,42 @@ impl D2ConceptBuilder {
                         9_100,
                     );
                 }
+                if cell.kind.has_door_north() {
+                    scene_handler.add_overlay_2d_line(
+                        GeoId::Unknown(25_000 + index as u32 * 4),
+                        Vec2::new(cell.x as f32 + 0.24, cell.y as f32),
+                        Vec2::new(cell.x as f32 + 0.76, cell.y as f32),
+                        scene_handler.yellow,
+                        9_120,
+                    );
+                }
+                if cell.kind.has_door_east() {
+                    scene_handler.add_overlay_2d_line(
+                        GeoId::Unknown(25_001 + index as u32 * 4),
+                        Vec2::new(cell.x as f32 + 1.0, cell.y as f32 + 0.24),
+                        Vec2::new(cell.x as f32 + 1.0, cell.y as f32 + 0.76),
+                        scene_handler.yellow,
+                        9_120,
+                    );
+                }
+                if cell.kind.has_door_south() {
+                    scene_handler.add_overlay_2d_line(
+                        GeoId::Unknown(25_002 + index as u32 * 4),
+                        Vec2::new(cell.x as f32 + 0.24, cell.y as f32 + 1.0),
+                        Vec2::new(cell.x as f32 + 0.76, cell.y as f32 + 1.0),
+                        scene_handler.yellow,
+                        9_120,
+                    );
+                }
+                if cell.kind.has_door_west() {
+                    scene_handler.add_overlay_2d_line(
+                        GeoId::Unknown(25_003 + index as u32 * 4),
+                        Vec2::new(cell.x as f32, cell.y as f32 + 0.24),
+                        Vec2::new(cell.x as f32, cell.y as f32 + 0.76),
+                        scene_handler.yellow,
+                        9_120,
+                    );
+                }
             }
         }
 
@@ -350,6 +391,25 @@ impl D2ConceptBuilder {
         }
         if kind.has_west() {
             batch.add_line(Vec2::new(left, top), Vec2::new(left, bottom), 0.05);
+        }
+    }
+
+    fn add_door_glyph(&self, batch: &mut Batch2D, x: f32, y: f32, kind: crate::DungeonTileKind) {
+        let left = x + 0.24;
+        let right = x + 0.76;
+        let top = y + 0.24;
+        let bottom = y + 0.76;
+        if kind.has_door_north() {
+            batch.add_line(Vec2::new(left, y + 0.1), Vec2::new(right, y + 0.1), 0.06);
+        }
+        if kind.has_door_east() {
+            batch.add_line(Vec2::new(x + 0.9, top), Vec2::new(x + 0.9, bottom), 0.06);
+        }
+        if kind.has_door_south() {
+            batch.add_line(Vec2::new(left, y + 0.9), Vec2::new(right, y + 0.9), 0.06);
+        }
+        if kind.has_door_west() {
+            batch.add_line(Vec2::new(x + 0.1, top), Vec2::new(x + 0.1, bottom), 0.06);
         }
     }
 }

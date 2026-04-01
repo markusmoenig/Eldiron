@@ -6,13 +6,17 @@ use theframework::prelude::TheColor;
 use theframework::prelude::Uuid;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Debug, Default, Hash)]
-pub struct DungeonTileKind(pub u8);
+pub struct DungeonTileKind(pub u16);
 
 impl DungeonTileKind {
-    pub const NORTH: u8 = 1;
-    pub const EAST: u8 = 2;
-    pub const SOUTH: u8 = 4;
-    pub const WEST: u8 = 8;
+    pub const NORTH: u16 = 1;
+    pub const EAST: u16 = 2;
+    pub const SOUTH: u16 = 4;
+    pub const WEST: u16 = 8;
+    pub const DOOR_NORTH: u16 = 16;
+    pub const DOOR_EAST: u16 = 32;
+    pub const DOOR_SOUTH: u16 = 64;
+    pub const DOOR_WEST: u16 = 128;
 
     pub const FLOOR: Self = Self(0);
     pub const WALL_N: Self = Self(Self::NORTH);
@@ -30,6 +34,10 @@ impl DungeonTileKind {
     pub const WALL_SWN: Self = Self(Self::SOUTH | Self::WEST | Self::NORTH);
     pub const WALL_WNE: Self = Self(Self::WEST | Self::NORTH | Self::EAST);
     pub const WALL_NESW: Self = Self(Self::NORTH | Self::EAST | Self::SOUTH | Self::WEST);
+    pub const DOOR_N: Self = Self(Self::DOOR_NORTH);
+    pub const DOOR_E: Self = Self(Self::DOOR_EAST);
+    pub const DOOR_S: Self = Self(Self::DOOR_SOUTH);
+    pub const DOOR_W: Self = Self(Self::DOOR_WEST);
 
     pub fn all() -> &'static [DungeonTileKind] {
         &[
@@ -49,6 +57,10 @@ impl DungeonTileKind {
             Self::WALL_SWN,
             Self::WALL_WNE,
             Self::WALL_NESW,
+            Self::DOOR_N,
+            Self::DOOR_E,
+            Self::DOOR_S,
+            Self::DOOR_W,
         ]
     }
 
@@ -59,6 +71,10 @@ impl DungeonTileKind {
             Self::EAST => "East wall",
             Self::SOUTH => "South wall",
             Self::WEST => "West wall",
+            Self::DOOR_NORTH => "North door",
+            Self::DOOR_EAST => "East door",
+            Self::DOOR_SOUTH => "South door",
+            Self::DOOR_WEST => "West door",
             x if x == Self::NORTH | Self::SOUTH => "North + South walls",
             x if x == Self::EAST | Self::WEST => "East + West walls",
             x if x == Self::NORTH | Self::EAST => "North + East walls",
@@ -85,6 +101,21 @@ impl DungeonTileKind {
     pub fn has_west(self) -> bool {
         self.0 & Self::WEST != 0
     }
+    pub fn has_door_north(self) -> bool {
+        self.0 & Self::DOOR_NORTH != 0
+    }
+    pub fn has_door_east(self) -> bool {
+        self.0 & Self::DOOR_EAST != 0
+    }
+    pub fn has_door_south(self) -> bool {
+        self.0 & Self::DOOR_SOUTH != 0
+    }
+    pub fn has_door_west(self) -> bool {
+        self.0 & Self::DOOR_WEST != 0
+    }
+    pub fn is_door(self) -> bool {
+        self.0 & (Self::DOOR_NORTH | Self::DOOR_EAST | Self::DOOR_SOUTH | Self::DOOR_WEST) != 0
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -99,6 +130,16 @@ pub struct DungeonCell {
     pub height: f32,
     #[serde(default)]
     pub standalone: bool,
+    #[serde(default = "default_door_width")]
+    pub door_width: i32,
+    #[serde(default = "default_door_depth")]
+    pub door_depth: f32,
+    #[serde(default = "default_door_height")]
+    pub door_height: f32,
+    #[serde(default)]
+    pub door_open_mode: i32,
+    #[serde(default = "default_door_item")]
+    pub door_item: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -160,6 +201,11 @@ impl DungeonMap {
         floor_base: f32,
         height: f32,
         standalone: bool,
+        door_width: i32,
+        door_depth: f32,
+        door_height: f32,
+        door_open_mode: i32,
+        door_item: String,
     ) -> bool {
         let layer = self.ensure_active_layer_mut();
         layer.floor_base = floor_base;
@@ -173,6 +219,11 @@ impl DungeonMap {
                 && (cell.floor_base - floor_base).abs() < 0.0001
                 && (cell.height - height).abs() < 0.0001
                 && cell.standalone == standalone
+                && cell.door_width == door_width
+                && (cell.door_depth - door_depth).abs() < 0.0001
+                && (cell.door_height - door_height).abs() < 0.0001
+                && cell.door_open_mode == door_open_mode
+                && cell.door_item == door_item
             {
                 return false;
             }
@@ -180,6 +231,11 @@ impl DungeonMap {
             cell.floor_base = floor_base;
             cell.height = height;
             cell.standalone = standalone;
+            cell.door_width = door_width;
+            cell.door_depth = door_depth;
+            cell.door_height = door_height;
+            cell.door_open_mode = door_open_mode;
+            cell.door_item = door_item;
             true
         } else {
             layer.cells.push(DungeonCell {
@@ -189,6 +245,11 @@ impl DungeonMap {
                 floor_base,
                 height,
                 standalone,
+                door_width,
+                door_depth,
+                door_height,
+                door_open_mode,
+                door_item,
             });
             true
         }
@@ -204,6 +265,68 @@ impl DungeonMap {
 
 const fn default_height() -> f32 {
     4.0
+}
+
+const fn default_door_width() -> i32 {
+    2
+}
+
+const fn default_door_depth() -> f32 {
+    0.5
+}
+
+const fn default_door_height() -> f32 {
+    2.25
+}
+
+fn default_door_item() -> String {
+    "Door Handler".to_string()
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum DungeonDoorOpenMode {
+    #[default]
+    Auto = 0,
+    SlideUp = 1,
+    SlideDown = 2,
+    SlideLeft = 3,
+    SlideRight = 4,
+    SplitSides = 5,
+}
+
+impl DungeonDoorOpenMode {
+    pub fn all() -> &'static [&'static str] {
+        &[
+            "Auto",
+            "Slide Up",
+            "Slide Down",
+            "Slide Left",
+            "Slide Right",
+            "Split Sides",
+        ]
+    }
+
+    pub fn from_i32(value: i32) -> Self {
+        match value {
+            1 => Self::SlideUp,
+            2 => Self::SlideDown,
+            3 => Self::SlideLeft,
+            4 => Self::SlideRight,
+            5 => Self::SplitSides,
+            _ => Self::Auto,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::SlideUp => "slide_up",
+            Self::SlideDown => "slide_down",
+            Self::SlideLeft => "slide_left",
+            Self::SlideRight => "slide_right",
+            Self::SplitSides => "split_sides",
+        }
+    }
 }
 
 const DUNGEON_GENERATOR: &str = "dungeon_tool";
@@ -253,6 +376,20 @@ enum GeneratedPieceKey {
 struct PreservedGeneratedPiece {
     sector_properties: ValueContainer,
     surface: Option<Surface>,
+}
+
+#[derive(Clone, Debug)]
+struct Doorway {
+    edge_name: &'static str,
+    start: (f32, f32),
+    end: (f32, f32),
+    floor_base: f32,
+    height: f32,
+    door_height: f32,
+    door_depth: f32,
+    open_mode: DungeonDoorOpenMode,
+    item: String,
+    standalone: bool,
 }
 
 pub fn rebuild_generated_geometry(map: &mut Map, create_floor: bool, create_ceiling: bool) {
@@ -341,6 +478,10 @@ pub fn rebuild_generated_geometry(map: &mut Map, create_floor: bool, create_ceil
                 standalone: wall_strip.standalone,
             }),
         );
+    }
+
+    for doorway in collect_doorways(&layer.cells) {
+        generate_doorway_geometry(map, layer.id, doorway);
     }
 
     map.sanitize();
@@ -585,6 +726,193 @@ fn collect_wall_strips(cells: &[DungeonCell]) -> Vec<WallStrip> {
     strips
 }
 
+fn collect_doorways(cells: &[DungeonCell]) -> Vec<Doorway> {
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    struct DoorKey {
+        edge_name: &'static str,
+        coord: i32,
+        floor_bits: u32,
+        height_bits: u32,
+        door_height_bits: u32,
+        door_depth_bits: u32,
+        open_mode: i32,
+        item: String,
+        standalone: bool,
+    }
+
+    let mut horizontal: BTreeMap<DoorKey, BTreeSet<i32>> = BTreeMap::new();
+    let mut vertical: BTreeMap<DoorKey, BTreeSet<i32>> = BTreeMap::new();
+
+    for cell in cells {
+        let key = |edge_name, coord| DoorKey {
+            edge_name,
+            coord,
+            floor_bits: cell.floor_base.to_bits(),
+            height_bits: cell.height.to_bits(),
+            door_height_bits: cell.door_height.to_bits(),
+            door_depth_bits: cell.door_depth.to_bits(),
+            open_mode: cell.door_open_mode,
+            item: cell.door_item.clone(),
+            standalone: cell.standalone,
+        };
+        if cell.kind.has_door_north() {
+            horizontal
+                .entry(key("north", cell.y))
+                .or_default()
+                .insert(cell.x);
+        }
+        if cell.kind.has_door_south() {
+            horizontal
+                .entry(key("south", cell.y + 1))
+                .or_default()
+                .insert(cell.x);
+        }
+        if cell.kind.has_door_west() {
+            vertical
+                .entry(key("west", cell.x))
+                .or_default()
+                .insert(cell.y);
+        }
+        if cell.kind.has_door_east() {
+            vertical
+                .entry(key("east", cell.x + 1))
+                .or_default()
+                .insert(cell.y);
+        }
+    }
+
+    let mut doorways = Vec::new();
+    for (key, starts) in horizontal {
+        append_door_runs(
+            &mut doorways,
+            key.edge_name,
+            key.coord,
+            key.floor_bits,
+            key.height_bits,
+            key.door_height_bits,
+            key.door_depth_bits,
+            key.open_mode,
+            key.item.clone(),
+            key.standalone,
+            starts,
+            true,
+        );
+    }
+    for (key, starts) in vertical {
+        append_door_runs(
+            &mut doorways,
+            key.edge_name,
+            key.coord,
+            key.floor_bits,
+            key.height_bits,
+            key.door_height_bits,
+            key.door_depth_bits,
+            key.open_mode,
+            key.item.clone(),
+            key.standalone,
+            starts,
+            false,
+        );
+    }
+    doorways
+}
+
+fn append_door_runs(
+    doorways: &mut Vec<Doorway>,
+    edge_name: &'static str,
+    coord: i32,
+    floor_bits: u32,
+    height_bits: u32,
+    door_height_bits: u32,
+    door_depth_bits: u32,
+    open_mode: i32,
+    item: String,
+    standalone: bool,
+    starts: BTreeSet<i32>,
+    horizontal: bool,
+) {
+    let mut iter = starts.into_iter();
+    let Some(mut run_start) = iter.next() else {
+        return;
+    };
+    let mut run_end = run_start + 1;
+    for start in iter {
+        if !standalone && start == run_end {
+            run_end += 1;
+        } else {
+            doorways.push(build_doorway(
+                edge_name,
+                coord,
+                run_start,
+                run_end,
+                horizontal,
+                f32::from_bits(floor_bits),
+                f32::from_bits(height_bits),
+                f32::from_bits(door_height_bits),
+                f32::from_bits(door_depth_bits),
+                DungeonDoorOpenMode::from_i32(open_mode),
+                item.clone(),
+                standalone,
+            ));
+            run_start = start;
+            run_end = start + 1;
+        }
+    }
+    doorways.push(build_doorway(
+        edge_name,
+        coord,
+        run_start,
+        run_end,
+        horizontal,
+        f32::from_bits(floor_bits),
+        f32::from_bits(height_bits),
+        f32::from_bits(door_height_bits),
+        f32::from_bits(door_depth_bits),
+        DungeonDoorOpenMode::from_i32(open_mode),
+        item,
+        standalone,
+    ));
+}
+
+fn build_doorway(
+    edge_name: &'static str,
+    coord: i32,
+    run_start: i32,
+    run_end: i32,
+    horizontal: bool,
+    floor_base: f32,
+    height: f32,
+    door_height: f32,
+    door_depth: f32,
+    open_mode: DungeonDoorOpenMode,
+    item: String,
+    standalone: bool,
+) -> Doorway {
+    let (start, end) = if horizontal {
+        (
+            (run_start as f32, coord as f32),
+            (run_end as f32, coord as f32),
+        )
+    } else {
+        (
+            (coord as f32, run_start as f32),
+            (coord as f32, run_end as f32),
+        )
+    };
+    Doorway {
+        edge_name,
+        start,
+        end,
+        floor_base,
+        height,
+        door_height,
+        door_depth,
+        open_mode,
+        item,
+        standalone,
+    }
+}
+
 fn append_wall_runs(
     strips: &mut Vec<WallStrip>,
     edge_name: &'static str,
@@ -816,4 +1144,76 @@ fn generate_wall_sector(
     surface.sector_id = sector_id;
     surface.calculate_geometry(map);
     map.surfaces.insert(surface.id, surface);
+}
+
+fn generate_doorway_geometry(map: &mut Map, layer_id: Uuid, doorway: Doorway) {
+    let door_height = doorway.door_height.clamp(0.5, doorway.height.max(0.5));
+    let panel_top = doorway.floor_base + door_height;
+    let ceiling = doorway.floor_base + doorway.height;
+    let depth = doorway.door_depth.max(0.05);
+    let (dx, dy) = match doorway.edge_name {
+        "north" => (0.0, depth / 2.0),
+        "south" => (0.0, -depth / 2.0),
+        "west" => (depth / 2.0, 0.0),
+        "east" => (-depth / 2.0, 0.0),
+        _ => (0.0, 0.0),
+    };
+
+    generate_wall_sector(
+        map,
+        layer_id,
+        doorway.edge_name,
+        (doorway.start.0 + dx, doorway.start.1 + dy),
+        (doorway.end.0 + dx, doorway.end.1 + dy),
+        doorway.floor_base,
+        door_height,
+        doorway.standalone,
+        None,
+    );
+    if let Some(sector) = map.sectors.last_mut() {
+        sector
+            .properties
+            .set("dungeon_part", Value::Str("door_panel".to_string()));
+        if doorway.item.is_empty() {
+            sector.properties.remove("item");
+        } else {
+            sector
+                .properties
+                .set("item", Value::Str(doorway.item.clone()));
+        }
+        sector.properties.set(
+            "dungeon_door_mode",
+            Value::Str(doorway.open_mode.as_str().to_string()),
+        );
+        sector
+            .properties
+            .set("dungeon_door_depth", Value::Float(depth));
+        sector
+            .properties
+            .set("dungeon_door_height", Value::Float(door_height));
+        sector.properties.set("blocking", Value::Bool(true));
+    }
+
+    if ceiling > panel_top + 0.05 {
+        generate_wall_sector(
+            map,
+            layer_id,
+            doorway.edge_name,
+            doorway.start,
+            doorway.end,
+            panel_top,
+            ceiling - panel_top,
+            doorway.standalone,
+            None,
+        );
+        if let Some(sector) = map.sectors.last_mut() {
+            sector
+                .properties
+                .set("dungeon_part", Value::Str("door_lintel".to_string()));
+            sector.properties.set(
+                "dungeon_door_mode",
+                Value::Str(doorway.open_mode.as_str().to_string()),
+            );
+        }
+    }
 }

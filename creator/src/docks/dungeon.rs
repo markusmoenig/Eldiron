@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use rusterix::DungeonTileKind;
 use rusterix::Value;
+use rusterix::map::dungeon::DungeonDoorOpenMode;
 use rusterix::rebuild_generated_geometry;
 
 const DUNGEON_VIEW_ID: &str = "Dungeon Dock View";
@@ -9,6 +10,7 @@ const DUNGEON_CELL_MIN: i32 = 72;
 const DUNGEON_CELL_MAX: i32 = 132;
 const DUNGEON_GAP: i32 = 12;
 const DUNGEON_MARGIN: i32 = 12;
+const DUNGEON_SETTINGS_WIDTH: i32 = 280;
 
 #[derive(Clone, Copy)]
 struct DungeonPalettePlacement {
@@ -19,6 +21,8 @@ struct DungeonPalettePlacement {
 pub struct DungeonDock {
     placements: Vec<DungeonPalettePlacement>,
     hovered: Option<DungeonTileKind>,
+    scroll_y: i32,
+    content_height: i32,
 }
 
 impl DungeonDock {
@@ -41,6 +45,26 @@ impl DungeonDock {
             server_ctx.curr_dungeon_standalone = map.properties.get_bool_default(
                 "dungeon_standalone_default",
                 server_ctx.curr_dungeon_standalone,
+            );
+            server_ctx.curr_dungeon_tile_span = map
+                .properties
+                .get_int_default("dungeon_tile_span", server_ctx.curr_dungeon_tile_span)
+                .max(1);
+            server_ctx.curr_dungeon_tile_depth = map
+                .properties
+                .get_float_default("dungeon_tile_depth", server_ctx.curr_dungeon_tile_depth)
+                .max(0.05);
+            server_ctx.curr_dungeon_tile_height = map
+                .properties
+                .get_float_default("dungeon_tile_height", server_ctx.curr_dungeon_tile_height)
+                .max(0.5);
+            server_ctx.curr_dungeon_tile_open_mode = map.properties.get_int_default(
+                "dungeon_tile_open_mode",
+                server_ctx.curr_dungeon_tile_open_mode,
+            );
+            server_ctx.curr_dungeon_tile_item = map.properties.get_str_default(
+                "dungeon_tile_item",
+                server_ctx.curr_dungeon_tile_item.clone(),
             );
         }
     }
@@ -67,6 +91,26 @@ impl DungeonDock {
                 "dungeon_standalone_default",
                 Value::Bool(server_ctx.curr_dungeon_standalone),
             );
+            map.properties.set(
+                "dungeon_tile_span",
+                Value::Int(server_ctx.curr_dungeon_tile_span.max(1)),
+            );
+            map.properties.set(
+                "dungeon_tile_depth",
+                Value::Float(server_ctx.curr_dungeon_tile_depth.max(0.05)),
+            );
+            map.properties.set(
+                "dungeon_tile_height",
+                Value::Float(server_ctx.curr_dungeon_tile_height.max(0.5)),
+            );
+            map.properties.set(
+                "dungeon_tile_open_mode",
+                Value::Int(server_ctx.curr_dungeon_tile_open_mode),
+            );
+            map.properties.set(
+                "dungeon_tile_item",
+                Value::Str(server_ctx.curr_dungeon_tile_item.clone()),
+            );
         }
     }
 
@@ -74,7 +118,7 @@ impl DungeonDock {
         let mut nodeui = TheNodeUI::default();
         nodeui.add_item(TheNodeUIItem::OpenTree("Dungeon".into()));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            "Dungeon Floor Base".into(),
+            "Floor Base".into(),
             "Floor Base".into(),
             "Default floor base for newly painted dungeon cells.".into(),
             server_ctx.curr_dungeon_floor_base,
@@ -82,7 +126,7 @@ impl DungeonDock {
             false,
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            "Dungeon Height".into(),
+            "Height".into(),
             "Height".into(),
             "Wall and ceiling height above the floor base for newly painted cells.".into(),
             server_ctx.curr_dungeon_height,
@@ -90,24 +134,70 @@ impl DungeonDock {
             false,
         ));
         nodeui.add_item(TheNodeUIItem::Checkbox(
-            "Dungeon Floors".into(),
+            "Floors".into(),
             "Floors".into(),
             "Generate floor surfaces for conceptual dungeon tiles.".into(),
             server_ctx.curr_dungeon_create_floor,
         ));
         nodeui.add_item(TheNodeUIItem::Checkbox(
-            "Dungeon Ceilings".into(),
+            "Ceilings".into(),
             "Ceilings".into(),
             "Generate ceiling surfaces for conceptual dungeon tiles.".into(),
             server_ctx.curr_dungeon_create_ceiling,
         ));
         nodeui.add_item(TheNodeUIItem::Checkbox(
-            "Dungeon Standalone".into(),
+            "Standalone".into(),
             "Standalone".into(),
             "Newly painted cells stay standalone and will not merge with adjacent dungeon geometry.".into(),
             server_ctx.curr_dungeon_standalone,
         ));
         nodeui.add_item(TheNodeUIItem::CloseTree);
+        if server_ctx.curr_dungeon_tile.is_door() {
+            nodeui.add_item(TheNodeUIItem::OpenTree("Tile".into()));
+            nodeui.add_item(TheNodeUIItem::IntEditSlider(
+                "Door Width".into(),
+                "Door Width".into(),
+                "Door opening span in tiles for newly painted door tiles.".into(),
+                server_ctx.curr_dungeon_tile_span.max(1),
+                1..=8,
+                false,
+            ));
+            nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                "Door Depth".into(),
+                "Door Depth".into(),
+                "Conceptual door depth hint for newly painted door tiles.".into(),
+                server_ctx.curr_dungeon_tile_depth.max(0.05),
+                0.05..=4.0,
+                false,
+            ));
+            nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                "Door Height".into(),
+                "Door Height".into(),
+                "Door opening height for newly painted door tiles.".into(),
+                server_ctx.curr_dungeon_tile_height.max(0.5),
+                0.5..=8.0,
+                false,
+            ));
+            nodeui.add_item(TheNodeUIItem::Selector(
+                "Door Open Mode".into(),
+                "Open Mode".into(),
+                "How the generated door should open in gameplay.".into(),
+                DungeonDoorOpenMode::all()
+                    .iter()
+                    .map(|s| (*s).to_string())
+                    .collect(),
+                server_ctx.curr_dungeon_tile_open_mode,
+            ));
+            nodeui.add_item(TheNodeUIItem::Text(
+                "Item".into(),
+                "Item".into(),
+                "Item handler class written into generated dungeon door sectors.".into(),
+                server_ctx.curr_dungeon_tile_item.clone(),
+                Some("Door Handler".into()),
+                false,
+            ));
+            nodeui.add_item(TheNodeUIItem::CloseTree);
+        }
         nodeui
     }
 
@@ -117,7 +207,22 @@ impl DungeonDock {
         {
             let toml_text = nodeui_to_toml(&Self::settings_nodeui(server_ctx));
             if edit.text() != toml_text {
+                let previous = edit.get_state();
                 edit.set_text(toml_text);
+
+                let mut state = edit.get_state();
+                let row_max = state.rows.len().saturating_sub(1);
+                let row = previous.cursor.row.min(row_max);
+                let col_max = state
+                    .rows
+                    .get(row)
+                    .map(|line| line.chars().count())
+                    .unwrap_or(0);
+
+                state.cursor.row = row;
+                state.cursor.column = previous.cursor.column.min(col_max);
+                state.selection.reset();
+                TheTextAreaEditTrait::set_state(edit, state);
             }
         }
     }
@@ -196,6 +301,7 @@ impl DungeonDock {
         let floor_color = [150, 150, 150, 255];
         let floor_outline = [205, 205, 205, 255];
         let wall_color = [255, 255, 255, 255];
+        let door_color = [240, 196, 92, 255];
         let wall = (preview.z.min(preview.w) / 8).clamp(4, 8);
         let floor_rect = preview;
 
@@ -235,6 +341,48 @@ impl DungeonDock {
                 &wall_color,
             );
         }
+        if kind.has_door_north() {
+            Self::draw_panel_rect(
+                draw,
+                buffer,
+                Vec4::new(preview.x + preview.z / 4, preview.y, preview.z / 2, wall),
+                &door_color,
+            );
+        }
+        if kind.has_door_south() {
+            Self::draw_panel_rect(
+                draw,
+                buffer,
+                Vec4::new(
+                    preview.x + preview.z / 4,
+                    preview.y + preview.w - wall,
+                    preview.z / 2,
+                    wall,
+                ),
+                &door_color,
+            );
+        }
+        if kind.has_door_west() {
+            Self::draw_panel_rect(
+                draw,
+                buffer,
+                Vec4::new(preview.x, preview.y + preview.w / 4, wall, preview.w / 2),
+                &door_color,
+            );
+        }
+        if kind.has_door_east() {
+            Self::draw_panel_rect(
+                draw,
+                buffer,
+                Vec4::new(
+                    preview.x + preview.z - wall,
+                    preview.y + preview.w / 4,
+                    wall,
+                    preview.w / 2,
+                ),
+                &door_color,
+            );
+        }
     }
 
     fn render_palette(&mut self, ui: &mut TheUI, ctx: &mut TheContext, server_ctx: &ServerContext) {
@@ -259,6 +407,7 @@ impl DungeonDock {
         let buffer = render_view.render_buffer_mut();
         buffer.fill(BLACK);
         self.placements.clear();
+        self.content_height = 0;
 
         let palette = Self::palette();
         let cols = ((dim.width - DUNGEON_MARGIN * 2 + DUNGEON_GAP)
@@ -272,11 +421,14 @@ impl DungeonDock {
             let row = index as i32 / cols;
             let rect = Vec4::new(
                 DUNGEON_MARGIN + col * (cell + DUNGEON_GAP),
-                DUNGEON_MARGIN + row * (cell + DUNGEON_GAP),
+                DUNGEON_MARGIN + row * (cell + DUNGEON_GAP) - self.scroll_y,
                 cell,
                 cell,
             );
             self.placements.push(DungeonPalettePlacement { kind, rect });
+            self.content_height = self
+                .content_height
+                .max(DUNGEON_MARGIN * 2 + (row + 1) * cell + row * DUNGEON_GAP);
 
             if rect.x >= dim.width
                 || rect.y >= dim.height
@@ -321,6 +473,8 @@ impl Dock for DungeonDock {
         Self {
             placements: Vec::new(),
             hovered: None,
+            scroll_y: 0,
+            content_height: 0,
         }
     }
 
@@ -368,6 +522,8 @@ impl Dock for DungeonDock {
         textedit.display_line_number(false);
         textedit.use_global_statusbar(true);
         textedit.set_font_size(13.5);
+        textedit.limiter_mut().set_max_width(DUNGEON_SETTINGS_WIDTH);
+        textedit.limiter_mut().set_min_width(DUNGEON_SETTINGS_WIDTH);
         settings_canvas.set_widget(textedit);
         center.set_right(settings_canvas);
         canvas.set_center(center);
@@ -406,6 +562,12 @@ impl Dock for DungeonDock {
                 redraw = true;
             }
             TheEvent::Resize => {
+                let view_height = ui
+                    .get_render_view(DUNGEON_VIEW_ID)
+                    .map(|view| view.dim().height)
+                    .unwrap_or(0);
+                let max_scroll = (self.content_height - view_height).max(0);
+                self.scroll_y = self.scroll_y.clamp(0, max_scroll);
                 self.render_palette(ui, ctx, server_ctx);
                 redraw = true;
             }
@@ -428,7 +590,24 @@ impl Dock for DungeonDock {
             TheEvent::RenderViewClicked(id, coord) if id.name == DUNGEON_VIEW_ID => {
                 if let Some(kind) = self.kind_at(*coord) {
                     server_ctx.curr_dungeon_tile = kind;
+                    self.sync_settings_ui(ui, ctx, server_ctx);
                     self.render_palette(ui, ctx, server_ctx);
+                    redraw = true;
+                }
+            }
+            TheEvent::RenderViewScrollBy(id, delta) if id.name == DUNGEON_VIEW_ID => {
+                if !ui.ctrl && !ui.logo {
+                    let view_height = ui
+                        .get_render_view(DUNGEON_VIEW_ID)
+                        .map(|view| view.dim().height)
+                        .unwrap_or(0);
+                    let max_scroll = (self.content_height - view_height).max(0);
+                    self.scroll_y = (self.scroll_y + delta.y).clamp(0, max_scroll);
+                    self.render_palette(ui, ctx, server_ctx);
+                    if let Some(render_view) = ui.get_render_view(DUNGEON_VIEW_ID) {
+                        render_view.set_needs_redraw(true);
+                    }
+                    ctx.ui.redraw_all = true;
                     redraw = true;
                 }
             }
@@ -440,30 +619,45 @@ impl Dock for DungeonDock {
                         let mut refresh_preview = false;
                         for (key, val) in nodeui_to_value_pairs(&nodeui) {
                             match (key.as_str(), val) {
-                                ("Dungeon Floor Base", TheValue::Float(v)) => {
+                                ("Floor Base", TheValue::Float(v)) => {
                                     refresh_preview |=
                                         (server_ctx.curr_dungeon_floor_base - v).abs() > 0.0001;
                                     server_ctx.curr_dungeon_floor_base = v;
                                 }
-                                ("Dungeon Height", TheValue::Float(v)) => {
+                                ("Height", TheValue::Float(v)) => {
                                     let v = v.max(0.1);
                                     refresh_preview |=
                                         (server_ctx.curr_dungeon_height - v).abs() > 0.0001;
                                     server_ctx.curr_dungeon_height = v;
                                 }
-                                ("Dungeon Floors", TheValue::Bool(v)) => {
+                                ("Floors", TheValue::Bool(v)) => {
                                     rebuild_geometry |= server_ctx.curr_dungeon_create_floor != v;
                                     server_ctx.curr_dungeon_create_floor = v;
                                 }
-                                ("Dungeon Ceilings", TheValue::Bool(v)) => {
+                                ("Ceilings", TheValue::Bool(v)) => {
                                     rebuild_geometry |= server_ctx.curr_dungeon_create_ceiling != v;
                                     server_ctx.curr_dungeon_create_ceiling = v;
                                 }
-                                ("Dungeon Standalone", TheValue::Bool(v)) => {
+                                ("Standalone", TheValue::Bool(v)) => {
                                     server_ctx.curr_dungeon_standalone = v;
+                                }
+                                ("Door Width", TheValue::Int(v)) => {
+                                    server_ctx.curr_dungeon_tile_span = v.max(1);
+                                }
+                                ("Door Depth", TheValue::Float(v)) => {
+                                    server_ctx.curr_dungeon_tile_depth = v.max(0.05);
+                                }
+                                ("Door Height", TheValue::Float(v)) => {
+                                    server_ctx.curr_dungeon_tile_height = v.max(0.5);
+                                }
+                                ("Door Open Mode", TheValue::Int(v)) => {
+                                    server_ctx.curr_dungeon_tile_open_mode = v.clamp(0, 5);
                                 }
                                 _ => {}
                             }
+                        }
+                        if let Some(item) = nodeui.get_text_value("Item") {
+                            server_ctx.curr_dungeon_tile_item = item.trim().to_string();
                         }
 
                         Self::store_settings_to_map(_project, server_ctx);

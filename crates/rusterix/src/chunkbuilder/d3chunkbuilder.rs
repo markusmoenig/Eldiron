@@ -1818,10 +1818,17 @@ impl ChunkBuilder for D3ChunkBuilder {
                     0.0
                 };
                 let is_horizontal = normalized_y > 0.7; // If Y component > 0.7, it's horizontal (floor/ceiling)
+                let dungeon_part = sector
+                    .properties
+                    .get_str_default("dungeon_part", String::new());
+                let is_dungeon_door_panel = dungeon_part == "door_panel";
 
                 // Only add blocking volumes for VERTICAL surfaces (walls)
                 // Horizontal surfaces (floors/ceilings) should not block movement
                 if !is_horizontal {
+                    if is_dungeon_door_panel {
+                        continue;
+                    }
                     if stairs_generated && (stairs_part == "riser" || stairs_part == "tread") {
                         continue;
                     }
@@ -2254,8 +2261,15 @@ impl ChunkBuilder for D3ChunkBuilder {
                         0.0
                     };
                     let is_horizontal = normalized_y > 0.7;
+                    let dungeon_part = sector
+                        .properties
+                        .get_str_default("dungeon_part", String::new());
+                    let is_dungeon_door_panel = dungeon_part == "door_panel";
 
                     if !is_horizontal {
+                        if is_dungeon_door_panel {
+                            continue;
+                        }
                         if stairs_generated && (stairs_part == "riser" || stairs_part == "tread") {
                             continue;
                         }
@@ -2352,8 +2366,62 @@ impl ChunkBuilder for D3ChunkBuilder {
         // so add blocking volumes here to match render geometry.
         add_generated_feature_collision(map, &chunk_bbox, &mut collision);
         add_linedef_feature_collision(map, &chunk_bbox, &mut collision);
+        add_dungeon_door_collision(map, &chunk_bbox, &mut collision);
 
         collision
+    }
+}
+
+fn add_dungeon_door_collision(
+    map: &Map,
+    chunk_bbox: &crate::BBox,
+    collision: &mut crate::collision_world::ChunkCollision,
+) {
+    for sector in &map.sectors {
+        let generated_by = sector
+            .properties
+            .get_str_default("generated_by", String::new());
+        if generated_by != "dungeon_tool" {
+            continue;
+        }
+        let dungeon_part = sector
+            .properties
+            .get_str_default("dungeon_part", String::new());
+        if dungeon_part != "door_panel" {
+            continue;
+        }
+
+        let bbox = sector.bounding_box(map);
+        if !bbox.intersects(chunk_bbox) {
+            continue;
+        }
+
+        let Some(vertices) = sector.vertices_world(map) else {
+            continue;
+        };
+        if vertices.len() < 3 {
+            continue;
+        }
+
+        let boundary_2d: Vec<Vec2<f32>> = vertices.iter().map(|v| Vec2::new(v.x, v.z)).collect();
+        let floor_height = sector.properties.get_float_default(
+            "floor_base",
+            vertices.iter().map(|v| v.y).fold(f32::INFINITY, f32::min),
+        );
+        let ceiling_height = floor_height
+            + sector
+                .properties
+                .get_float_default("dungeon_door_height", 2.0)
+                .max(0.1);
+
+        collision.dynamic_openings.push(DynamicOpening {
+            geo_id: GeoId::Sector(sector.id),
+            item_blocking: Some(sector.properties.get_bool_default("blocking", true)),
+            boundary_2d,
+            floor_height,
+            ceiling_height,
+            opening_type: OpeningType::Door,
+        });
     }
 }
 

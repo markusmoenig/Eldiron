@@ -414,6 +414,21 @@ pub struct ServerContext {
     /// Whether newly painted dungeon cells should stay standalone and avoid merging.
     pub curr_dungeon_standalone: bool,
 
+    /// Door span in tiles for newly painted dungeon door cells.
+    pub curr_dungeon_tile_span: i32,
+
+    /// Conceptual door depth hint for newly painted dungeon door cells.
+    pub curr_dungeon_tile_depth: f32,
+
+    /// Conceptual door opening height for newly painted dungeon door cells.
+    pub curr_dungeon_tile_height: f32,
+
+    /// Conceptual door opening mode for newly painted dungeon door cells.
+    pub curr_dungeon_tile_open_mode: i32,
+
+    /// Item handler class for newly painted dungeon door cells.
+    pub curr_dungeon_tile_item: String,
+
     /// Previous subdivision setting before entering Dungeon Tool.
     pub prev_dungeon_subdivisions: Option<f32>,
 
@@ -622,6 +637,11 @@ impl ServerContext {
             curr_dungeon_create_floor: true,
             curr_dungeon_create_ceiling: true,
             curr_dungeon_standalone: false,
+            curr_dungeon_tile_span: 2,
+            curr_dungeon_tile_depth: 0.5,
+            curr_dungeon_tile_height: 2.25,
+            curr_dungeon_tile_open_mode: 0,
+            curr_dungeon_tile_item: "Door Handler".to_string(),
             prev_dungeon_subdivisions: None,
             builder_tool_active: false,
             curr_tile_frame_index: 0,

@@ -2405,6 +2405,10 @@ impl TheTrait for Editor {
                         redraw = true;
                     } else if id.name == "Restore Previous Dock" {
                         if let TheValue::Text(dock) = value {
+                            if self.server_ctx.game_mode {
+                                self.server_ctx.prev_dungeon_dock = None;
+                                continue;
+                            }
                             let current = DOCKMANAGER.read().unwrap().dock.clone();
                             if current == "Dungeon" {
                                 DOCKMANAGER.write().unwrap().set_dock(
