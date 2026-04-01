@@ -1005,9 +1005,23 @@ impl<'a> HostHandler for RegionHost<'a> {
                             };
 
                             if key == "blocking" {
-                                if let Some(geo_id) = opening_geo_for_item(item) {
-                                    let blocking =
-                                        item.attributes.get_bool_default("blocking", false);
+                                let blocking = item.attributes.get_bool_default("blocking", false);
+                                if let Some(group_id) = item.attributes.get_id("door_group_id") {
+                                    for sector in &self.ctx.map.sectors {
+                                        if sector.properties.get_id("door_group_id")
+                                            == Some(group_id)
+                                            && sector
+                                                .properties
+                                                .get_str_default("dungeon_part", String::new())
+                                                == "door_panel"
+                                        {
+                                            self.ctx.collision_world.set_opening_state(
+                                                GeoId::Sector(sector.id),
+                                                !blocking,
+                                            );
+                                        }
+                                    }
+                                } else if let Some(geo_id) = opening_geo_for_item(item) {
                                     // True blocking => not passable
                                     self.ctx
                                         .collision_world

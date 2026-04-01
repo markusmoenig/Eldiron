@@ -1151,6 +1151,7 @@ fn generate_doorway_geometry(map: &mut Map, layer_id: Uuid, doorway: Doorway) {
     let panel_top = doorway.floor_base + door_height;
     let ceiling = doorway.floor_base + doorway.height;
     let depth = doorway.door_depth.max(0.05);
+    let door_group_id = Uuid::new_v4();
     let (dx, dy) = match doorway.edge_name {
         "north" => (0.0, depth / 2.0),
         "south" => (0.0, -depth / 2.0),
@@ -1158,13 +1159,22 @@ fn generate_doorway_geometry(map: &mut Map, layer_id: Uuid, doorway: Doorway) {
         "east" => (-depth / 2.0, 0.0),
         _ => (0.0, 0.0),
     };
+    let jamb_edge_name = match doorway.edge_name {
+        "north" | "south" => "jamb_vertical",
+        "west" | "east" => "jamb_horizontal",
+        _ => "jamb",
+    };
+    let jamb_start_a = doorway.start;
+    let jamb_end_a = (doorway.start.0 + dx * 2.0, doorway.start.1 + dy * 2.0);
+    let jamb_start_b = doorway.end;
+    let jamb_end_b = (doorway.end.0 + dx * 2.0, doorway.end.1 + dy * 2.0);
 
     generate_wall_sector(
         map,
         layer_id,
-        doorway.edge_name,
-        (doorway.start.0 + dx, doorway.start.1 + dy),
-        (doorway.end.0 + dx, doorway.end.1 + dy),
+        jamb_edge_name,
+        jamb_start_a,
+        jamb_end_a,
         doorway.floor_base,
         door_height,
         doorway.standalone,
@@ -1173,25 +1183,105 @@ fn generate_doorway_geometry(map: &mut Map, layer_id: Uuid, doorway: Doorway) {
     if let Some(sector) = map.sectors.last_mut() {
         sector
             .properties
-            .set("dungeon_part", Value::Str("door_panel".to_string()));
-        if doorway.item.is_empty() {
-            sector.properties.remove("item");
-        } else {
-            sector
-                .properties
-                .set("item", Value::Str(doorway.item.clone()));
-        }
+            .set("dungeon_part", Value::Str("door_jamb".to_string()));
+        sector
+            .properties
+            .set("door_group_id", Value::Id(door_group_id));
         sector.properties.set(
             "dungeon_door_mode",
             Value::Str(doorway.open_mode.as_str().to_string()),
         );
+    }
+    generate_wall_sector(
+        map,
+        layer_id,
+        jamb_edge_name,
+        jamb_start_b,
+        jamb_end_b,
+        doorway.floor_base,
+        door_height,
+        doorway.standalone,
+        None,
+    );
+    if let Some(sector) = map.sectors.last_mut() {
         sector
             .properties
-            .set("dungeon_door_depth", Value::Float(depth));
+            .set("dungeon_part", Value::Str("door_jamb".to_string()));
         sector
             .properties
-            .set("dungeon_door_height", Value::Float(door_height));
-        sector.properties.set("blocking", Value::Bool(true));
+            .set("door_group_id", Value::Id(door_group_id));
+        sector.properties.set(
+            "dungeon_door_mode",
+            Value::Str(doorway.open_mode.as_str().to_string()),
+        );
+    }
+
+    if doorway.open_mode == DungeonDoorOpenMode::SplitSides {
+        let mid = (
+            (doorway.start.0 + doorway.end.0) * 0.5,
+            (doorway.start.1 + doorway.end.1) * 0.5,
+        );
+        generate_wall_sector(
+            map,
+            layer_id,
+            doorway.edge_name,
+            (doorway.start.0 + dx, doorway.start.1 + dy),
+            (mid.0 + dx, mid.1 + dy),
+            doorway.floor_base,
+            door_height,
+            doorway.standalone,
+            None,
+        );
+        tag_door_panel(
+            map,
+            &doorway.item,
+            door_group_id,
+            doorway.open_mode.as_str(),
+            Some("left"),
+            depth,
+            door_height,
+        );
+        generate_wall_sector(
+            map,
+            layer_id,
+            doorway.edge_name,
+            (mid.0 + dx, mid.1 + dy),
+            (doorway.end.0 + dx, doorway.end.1 + dy),
+            doorway.floor_base,
+            door_height,
+            doorway.standalone,
+            None,
+        );
+        tag_door_panel(
+            map,
+            &doorway.item,
+            door_group_id,
+            doorway.open_mode.as_str(),
+            Some("right"),
+            depth,
+            door_height,
+        );
+    } else {
+        generate_wall_sector(
+            map,
+            layer_id,
+            doorway.edge_name,
+            (doorway.start.0 + dx, doorway.start.1 + dy),
+            (doorway.end.0 + dx, doorway.end.1 + dy),
+            doorway.floor_base,
+            door_height,
+            doorway.standalone,
+            None,
+        );
+        tag_door_panel(
+            map,
+            &doorway.item,
+            door_group_id,
+            doorway.open_mode.as_str(),
+            None,
+            depth,
+            door_height,
+        );
     }
 
     if ceiling > panel_top + 0.05 {
@@ -1210,10 +1300,54 @@ fn generate_doorway_geometry(map: &mut Map, layer_id: Uuid, doorway: Doorway) {
             sector
                 .properties
                 .set("dungeon_part", Value::Str("door_lintel".to_string()));
+            sector
+                .properties
+                .set("door_group_id", Value::Id(door_group_id));
             sector.properties.set(
                 "dungeon_door_mode",
                 Value::Str(doorway.open_mode.as_str().to_string()),
             );
         }
+    }
+}
+
+fn tag_door_panel(
+    map: &mut Map,
+    item: &str,
+    door_group_id: Uuid,
+    open_mode: &str,
+    leaf: Option<&str>,
+    depth: f32,
+    door_height: f32,
+) {
+    if let Some(sector) = map.sectors.last_mut() {
+        sector
+            .properties
+            .set("dungeon_part", Value::Str("door_panel".to_string()));
+        if item.is_empty() {
+            sector.properties.remove("item");
+        } else {
+            sector.properties.set("item", Value::Str(item.to_string()));
+        }
+        sector
+            .properties
+            .set("door_group_id", Value::Id(door_group_id));
+        sector
+            .properties
+            .set("dungeon_door_mode", Value::Str(open_mode.to_string()));
+        if let Some(leaf) = leaf {
+            sector
+                .properties
+                .set("dungeon_door_leaf", Value::Str(leaf.to_string()));
+        } else {
+            sector.properties.remove("dungeon_door_leaf");
+        }
+        sector
+            .properties
+            .set("dungeon_door_depth", Value::Float(depth));
+        sector
+            .properties
+            .set("dungeon_door_height", Value::Float(door_height));
+        sector.properties.set("blocking", Value::Bool(true));
     }
 }

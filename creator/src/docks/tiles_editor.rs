@@ -3106,13 +3106,12 @@ impl TilesEditorDock {
                     ));
                 }
                 Some(TileNodeKind::PaletteColor { index }) => {
-                    nodeui.add_item(TheNodeUIItem::PaletteSlider(
+                    nodeui.add_item(TheNodeUIItem::PaletteIndexPicker(
                         "tileNodePaletteIndex".into(),
                         "Palette Index".into(),
                         "Set the palette index used for the generated color.".into(),
                         *index as i32,
                         project.palette.clone(),
-                        false,
                     ));
                 }
                 Some(TileNodeKind::Colorize4 {
@@ -3124,37 +3123,33 @@ impl TilesEditorDock {
                     dither,
                     auto_range,
                 }) => {
-                    nodeui.add_item(TheNodeUIItem::PaletteSlider(
+                    nodeui.add_item(TheNodeUIItem::PaletteIndexPicker(
                         "tileNodeColorize4Color1".into(),
                         "Color 1".into(),
                         "Lowest color band.".into(),
                         *color_1 as i32,
                         project.palette.clone(),
-                        false,
                     ));
-                    nodeui.add_item(TheNodeUIItem::PaletteSlider(
+                    nodeui.add_item(TheNodeUIItem::PaletteIndexPicker(
                         "tileNodeColorize4Color2".into(),
                         "Color 2".into(),
                         "Second color band.".into(),
                         *color_2 as i32,
                         project.palette.clone(),
-                        false,
                     ));
-                    nodeui.add_item(TheNodeUIItem::PaletteSlider(
+                    nodeui.add_item(TheNodeUIItem::PaletteIndexPicker(
                         "tileNodeColorize4Color3".into(),
                         "Color 3".into(),
                         "Third color band.".into(),
                         *color_3 as i32,
                         project.palette.clone(),
-                        false,
                     ));
-                    nodeui.add_item(TheNodeUIItem::PaletteSlider(
+                    nodeui.add_item(TheNodeUIItem::PaletteIndexPicker(
                         "tileNodeColorize4Color4".into(),
                         "Color 4".into(),
                         "Highest color band.".into(),
                         *color_4 as i32,
                         project.palette.clone(),
-                        false,
                     ));
                     nodeui.add_item(TheNodeUIItem::IntEditSlider(
                         "tileNodeColorize4PixelSize".into(),

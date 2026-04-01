@@ -792,9 +792,15 @@ impl RegionInstance {
         }
 
         // Create Items for Sectors
+        let mut created_door_groups = std::collections::HashSet::new();
         for s in &ctx.map.sectors {
             if let Some(item_name) = s.properties.get_str("item") {
                 if item_name.is_empty() {
+                    continue;
+                }
+                if let Some(group_id) = s.properties.get_id("door_group_id")
+                    && !created_door_groups.insert(group_id)
+                {
                     continue;
                 }
                 if ctx.item_programs.contains_key(item_name) {
@@ -805,6 +811,9 @@ impl RegionInstance {
                         .set("class_name", Value::Str(item_name.to_string()));
                     item.attributes.set("static", Value::Bool(true));
                     item.attributes.set("sector_id", Value::UInt(s.id));
+                    if let Some(group_id) = s.properties.get_id("door_group_id") {
+                        item.attributes.set("door_group_id", Value::Id(group_id));
+                    }
                     if let Some(mode) = s.properties.get_str("dungeon_door_mode") {
                         item.attributes
                             .set("door_mode", Value::Str(mode.to_string()));

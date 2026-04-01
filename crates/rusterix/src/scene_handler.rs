@@ -874,7 +874,8 @@ impl SceneHandler {
     }
 
     pub fn find_item_by_sector_id(map: &Map, sector_id: u32) -> Option<&Item> {
-        map.items
+        if let Some(item) = map
+            .items
             .iter()
             .find(|item| match item.attributes.get("sector_id") {
                 Some(Value::UInt(v)) => *v == sector_id,
@@ -882,6 +883,17 @@ impl SceneHandler {
                 Some(Value::Int64(v)) if *v >= 0 => *v as u32 == sector_id,
                 _ => false,
             })
+        {
+            return Some(item);
+        }
+
+        let group_id = map
+            .find_sector(sector_id)?
+            .properties
+            .get_id("door_group_id")?;
+        map.items
+            .iter()
+            .find(|item| item.attributes.get_id("door_group_id") == Some(group_id))
     }
 
     fn dungeon_door_mode_from_str(value: &str) -> &'static str {
@@ -2351,11 +2363,22 @@ impl SceneHandler {
                 state.start_frame = self.frame_counter;
             }
 
-            let mode = Self::dungeon_door_mode_from_str(
+            let mut mode = Self::dungeon_door_mode_from_str(
                 &sector
                     .properties
                     .get_str_default("dungeon_door_mode", "auto".to_string()),
             );
+            if mode == "split_sides" {
+                mode = match sector
+                    .properties
+                    .get_str_default("dungeon_door_leaf", String::new())
+                    .as_str()
+                {
+                    "left" => "slide_left",
+                    "right" => "slide_right",
+                    _ => "split_sides",
+                };
+            }
             let Some(meshes) =
                 Self::build_dynamic_door_meshes(sector, map, assets, open_amount, mode)
             else {
