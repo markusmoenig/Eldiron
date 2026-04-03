@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use theframework::prelude::TheColor;
 use theframework::prelude::Uuid;
+use vek::Vec3;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Debug, Default, Hash)]
 pub struct DungeonTileKind(pub u16);
@@ -17,6 +18,10 @@ impl DungeonTileKind {
     pub const DOOR_EAST: u16 = 32;
     pub const DOOR_SOUTH: u16 = 64;
     pub const DOOR_WEST: u16 = 128;
+    pub const STAIR_NORTH: u16 = 256;
+    pub const STAIR_EAST: u16 = 512;
+    pub const STAIR_SOUTH: u16 = 1024;
+    pub const STAIR_WEST: u16 = 2048;
 
     pub const FLOOR: Self = Self(0);
     pub const WALL_N: Self = Self(Self::NORTH);
@@ -38,6 +43,10 @@ impl DungeonTileKind {
     pub const DOOR_E: Self = Self(Self::DOOR_EAST);
     pub const DOOR_S: Self = Self(Self::DOOR_SOUTH);
     pub const DOOR_W: Self = Self(Self::DOOR_WEST);
+    pub const STAIR_N: Self = Self(Self::STAIR_NORTH);
+    pub const STAIR_E: Self = Self(Self::STAIR_EAST);
+    pub const STAIR_S: Self = Self(Self::STAIR_SOUTH);
+    pub const STAIR_W: Self = Self(Self::STAIR_WEST);
 
     pub fn all() -> &'static [DungeonTileKind] {
         &[
@@ -61,6 +70,10 @@ impl DungeonTileKind {
             Self::DOOR_E,
             Self::DOOR_S,
             Self::DOOR_W,
+            Self::STAIR_N,
+            Self::STAIR_E,
+            Self::STAIR_S,
+            Self::STAIR_W,
         ]
     }
 
@@ -75,6 +88,10 @@ impl DungeonTileKind {
             Self::DOOR_EAST => "East door",
             Self::DOOR_SOUTH => "South door",
             Self::DOOR_WEST => "West door",
+            Self::STAIR_NORTH => "North stairs",
+            Self::STAIR_EAST => "East stairs",
+            Self::STAIR_SOUTH => "South stairs",
+            Self::STAIR_WEST => "West stairs",
             x if x == Self::NORTH | Self::SOUTH => "North + South walls",
             x if x == Self::EAST | Self::WEST => "East + West walls",
             x if x == Self::NORTH | Self::EAST => "North + East walls",
@@ -116,6 +133,21 @@ impl DungeonTileKind {
     pub fn is_door(self) -> bool {
         self.0 & (Self::DOOR_NORTH | Self::DOOR_EAST | Self::DOOR_SOUTH | Self::DOOR_WEST) != 0
     }
+    pub fn has_stair_north(self) -> bool {
+        self.0 & Self::STAIR_NORTH != 0
+    }
+    pub fn has_stair_east(self) -> bool {
+        self.0 & Self::STAIR_EAST != 0
+    }
+    pub fn has_stair_south(self) -> bool {
+        self.0 & Self::STAIR_SOUTH != 0
+    }
+    pub fn has_stair_west(self) -> bool {
+        self.0 & Self::STAIR_WEST != 0
+    }
+    pub fn is_stair(self) -> bool {
+        self.0 & (Self::STAIR_NORTH | Self::STAIR_EAST | Self::STAIR_SOUTH | Self::STAIR_WEST) != 0
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -140,6 +172,14 @@ pub struct DungeonCell {
     pub door_open_mode: i32,
     #[serde(default = "default_door_item")]
     pub door_item: String,
+    #[serde(default)]
+    pub stair_target_floor_base: f32,
+    #[serde(default = "default_stair_steps")]
+    pub stair_steps: i32,
+    #[serde(default)]
+    pub stair_tile_id: String,
+    #[serde(default = "default_tile_mode_repeat")]
+    pub stair_tile_mode: i32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -206,6 +246,10 @@ impl DungeonMap {
         door_height: f32,
         door_open_mode: i32,
         door_item: String,
+        stair_target_floor_base: f32,
+        stair_steps: i32,
+        stair_tile_id: String,
+        stair_tile_mode: i32,
     ) -> bool {
         let layer = self.ensure_active_layer_mut();
         layer.floor_base = floor_base;
@@ -224,6 +268,10 @@ impl DungeonMap {
                 && (cell.door_height - door_height).abs() < 0.0001
                 && cell.door_open_mode == door_open_mode
                 && cell.door_item == door_item
+                && (cell.stair_target_floor_base - stair_target_floor_base).abs() < 0.0001
+                && cell.stair_steps == stair_steps
+                && cell.stair_tile_id == stair_tile_id
+                && cell.stair_tile_mode == stair_tile_mode
             {
                 return false;
             }
@@ -236,6 +284,10 @@ impl DungeonMap {
             cell.door_height = door_height;
             cell.door_open_mode = door_open_mode;
             cell.door_item = door_item;
+            cell.stair_target_floor_base = stair_target_floor_base;
+            cell.stair_steps = stair_steps;
+            cell.stair_tile_id = stair_tile_id;
+            cell.stair_tile_mode = stair_tile_mode;
             true
         } else {
             layer.cells.push(DungeonCell {
@@ -250,6 +302,10 @@ impl DungeonMap {
                 door_height,
                 door_open_mode,
                 door_item,
+                stair_target_floor_base,
+                stair_steps,
+                stair_tile_id,
+                stair_tile_mode,
             });
             true
         }
@@ -281,6 +337,22 @@ const fn default_door_height() -> f32 {
 
 fn default_door_item() -> String {
     "Door Handler".to_string()
+}
+
+fn default_stair_steps() -> i32 {
+    4
+}
+
+const fn default_tile_mode_repeat() -> i32 {
+    1
+}
+
+fn stair_tile_source(tile_id: &str) -> Option<PixelSource> {
+    let trimmed = tile_id.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Uuid::parse_str(trimmed).ok().map(PixelSource::TileId)
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -370,6 +442,16 @@ enum GeneratedPieceKey {
         height_bits: u32,
         standalone: bool,
     },
+    HorizontalPrecise {
+        layer_id: Uuid,
+        part: String,
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        z_bits: u32,
+        standalone: bool,
+    },
 }
 
 #[derive(Clone)]
@@ -400,7 +482,13 @@ pub fn rebuild_generated_geometry(map: &mut Map, create_floor: bool, create_ceil
         return;
     };
 
-    let rectangles = merge_cell_rectangles(&layer.cells);
+    let flat_cells: Vec<DungeonCell> = layer
+        .cells
+        .iter()
+        .filter(|cell| !cell.kind.is_stair())
+        .cloned()
+        .collect();
+    let rectangles = merge_cell_rectangles(&flat_cells);
 
     if create_floor {
         for (height_key, rects) in &rectangles {
@@ -482,6 +570,10 @@ pub fn rebuild_generated_geometry(map: &mut Map, create_floor: bool, create_ceil
 
     for doorway in collect_doorways(&layer.cells) {
         generate_doorway_geometry(map, layer.id, doorway);
+    }
+
+    for stair in layer.cells.iter().filter(|cell| cell.kind.is_stair()) {
+        generate_stair_geometry(map, layer.id, stair, create_ceiling, &preserved);
     }
 
     map.sanitize();
@@ -572,6 +664,17 @@ fn generated_piece_key_from_sector(sector: &crate::Sector) -> Option<GeneratedPi
             ),
             floor_bits: sector.properties.get_float("floor_base")?.to_bits(),
             height_bits: sector.properties.get_float("height")?.to_bits(),
+            standalone,
+        })
+    } else if part == "stair_tread" || part == "stair_ceiling" {
+        Some(GeneratedPieceKey::HorizontalPrecise {
+            layer_id,
+            part,
+            x0: sector.properties.get_int("dungeon_x0")?,
+            y0: sector.properties.get_int("dungeon_y0")?,
+            x1: sector.properties.get_int("dungeon_x1")?,
+            y1: sector.properties.get_int("dungeon_y1")?,
+            z_bits: sector.properties.get_float("floor_height")?.to_bits(),
             standalone,
         })
     } else {
@@ -1046,12 +1149,136 @@ fn generate_horizontal_sector(
         sector.properties.set("floor_height", Value::Float(z));
         sector.properties.set("floor_base", Value::Float(z));
         sector.properties.set("visible", Value::Bool(true));
+        if part == "stair_tread" {
+            sector.properties.set("stairs_generated", Value::Bool(true));
+            sector
+                .properties
+                .set("stairs_part", Value::Str("tread".to_string()));
+            sector
+                .properties
+                .set("ceiling_height", Value::Float(z + 2.5));
+        } else if part == "stair_ceiling" {
+            sector.properties.set("stairs_generated", Value::Bool(true));
+            sector
+                .properties
+                .set("stairs_part", Value::Str("ceiling".to_string()));
+        }
     }
 
     let mut surface = preserved
         .and_then(|preserved| preserved.surface.clone())
         .unwrap_or_else(|| Surface::new(sector_id));
     surface.sector_id = sector_id;
+    surface.calculate_geometry(map);
+    map.surfaces.insert(surface.id, surface);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn generate_precise_horizontal_sector(
+    map: &mut Map,
+    layer_id: Uuid,
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    z: f32,
+    part: &str,
+    source: PixelSource,
+    standalone: bool,
+    preserved: Option<&PreservedGeneratedPiece>,
+) {
+    let v0 = map.add_vertex_at_3d(x0, y0, z, false);
+    let v1 = map.add_vertex_at_3d(x1, y0, z, false);
+    let v2 = map.add_vertex_at_3d(x1, y1, z, false);
+    let v3 = map.add_vertex_at_3d(x0, y1, z, false);
+
+    map.possible_polygon.clear();
+    let _ = map.create_linedef_manual(v0, v1);
+    let _ = map.create_linedef_manual(v1, v2);
+    let _ = map.create_linedef_manual(v2, v3);
+    let _ = map.create_linedef_manual(v3, v0);
+    let sector_id = map.close_polygon_manual();
+    map.possible_polygon.clear();
+
+    let Some(sector_id) = sector_id else {
+        return;
+    };
+
+    let had_preserved = preserved.is_some();
+    if let Some(sector) = map.find_sector_mut(sector_id) {
+        if let Some(preserved) = preserved {
+            sector.properties = preserved.sector_properties.clone();
+        }
+        if !had_preserved {
+            sector
+                .properties
+                .set("source", Value::Source(source.clone()));
+            sector
+                .properties
+                .set("floor_source", Value::Source(source.clone()));
+        }
+        sector
+            .properties
+            .set("generated_by", Value::Str(DUNGEON_GENERATOR.to_string()));
+        sector
+            .properties
+            .set("dungeon_layer_id", Value::Id(layer_id));
+        sector
+            .properties
+            .set("dungeon_part", Value::Str(part.to_string()));
+        sector
+            .properties
+            .set("dungeon_x0", Value::Int((x0 * 1000.0).round() as i32));
+        sector
+            .properties
+            .set("dungeon_y0", Value::Int((y0 * 1000.0).round() as i32));
+        sector
+            .properties
+            .set("dungeon_x1", Value::Int((x1 * 1000.0).round() as i32));
+        sector
+            .properties
+            .set("dungeon_y1", Value::Int((y1 * 1000.0).round() as i32));
+        sector
+            .properties
+            .set("dungeon_standalone", Value::Bool(standalone));
+        sector.properties.set("floor_height", Value::Float(z));
+        sector.properties.set("floor_base", Value::Float(z));
+        sector.properties.set("visible", Value::Bool(true));
+    }
+
+    let mut surface = preserved
+        .and_then(|preserved| preserved.surface.clone())
+        .unwrap_or_else(|| Surface::new(sector_id));
+    surface.sector_id = sector_id;
+    surface.calculate_geometry(map);
+    map.surfaces.insert(surface.id, surface);
+}
+
+fn generate_polygon_sector(map: &mut Map, points: &[(f32, f32, f32)], properties: &ValueContainer) {
+    if points.len() < 3 {
+        return;
+    }
+
+    map.possible_polygon.clear();
+    let mut vids = Vec::with_capacity(points.len());
+    for (x, z, y) in points.iter().copied() {
+        vids.push(map.add_vertex_at_3d(x, z, y, false));
+    }
+    for i in 0..vids.len() {
+        let _ = map.create_linedef_manual(vids[i], vids[(i + 1) % vids.len()]);
+    }
+    let sector_id = map.close_polygon_manual();
+    map.possible_polygon.clear();
+
+    let Some(sector_id) = sector_id else {
+        return;
+    };
+
+    if let Some(sector) = map.find_sector_mut(sector_id) {
+        sector.properties = properties.clone();
+    }
+
+    let mut surface = Surface::new(sector_id);
     surface.calculate_geometry(map);
     map.surfaces.insert(surface.id, surface);
 }
@@ -1349,5 +1576,152 @@ fn tag_door_panel(
             .properties
             .set("dungeon_door_height", Value::Float(door_height));
         sector.properties.set("blocking", Value::Bool(true));
+    }
+}
+
+fn generate_stair_geometry(
+    map: &mut Map,
+    layer_id: Uuid,
+    cell: &DungeonCell,
+    create_ceiling: bool,
+    _preserved: &HashMap<GeneratedPieceKey, PreservedGeneratedPiece>,
+) {
+    let steps = cell.stair_steps.max(1) as usize;
+    let x0 = cell.x as f32;
+    let z0 = cell.y as f32;
+    let x1 = x0 + 1.0;
+    let z1 = z0 + 1.0;
+
+    let (b0, b1, t0, t1, dir) = if cell.kind.has_stair_north() {
+        (
+            Vec3::new(x0, cell.floor_base, z1),
+            Vec3::new(x1, cell.floor_base, z1),
+            Vec3::new(x0, cell.stair_target_floor_base, z0),
+            Vec3::new(x1, cell.stair_target_floor_base, z0),
+            0,
+        )
+    } else if cell.kind.has_stair_east() {
+        (
+            Vec3::new(x0, cell.floor_base, z0),
+            Vec3::new(x0, cell.floor_base, z1),
+            Vec3::new(x1, cell.stair_target_floor_base, z0),
+            Vec3::new(x1, cell.stair_target_floor_base, z1),
+            1,
+        )
+    } else if cell.kind.has_stair_south() {
+        (
+            Vec3::new(x0, cell.floor_base, z0),
+            Vec3::new(x1, cell.floor_base, z0),
+            Vec3::new(x0, cell.stair_target_floor_base, z1),
+            Vec3::new(x1, cell.stair_target_floor_base, z1),
+            2,
+        )
+    } else {
+        (
+            Vec3::new(x1, cell.floor_base, z0),
+            Vec3::new(x1, cell.floor_base, z1),
+            Vec3::new(x0, cell.stair_target_floor_base, z0),
+            Vec3::new(x0, cell.stair_target_floor_base, z1),
+            3,
+        )
+    };
+
+    let mut tread_props = ValueContainer::default();
+    tread_props.set("generated_by", Value::Str(DUNGEON_GENERATOR.to_string()));
+    tread_props.set("dungeon_layer_id", Value::Id(layer_id));
+    tread_props.set("dungeon_part", Value::Str("stair_tread".to_string()));
+    tread_props.set("stairs_generated", Value::Bool(true));
+    tread_props.set("stairs_part", Value::Str("tread".to_string()));
+    tread_props.set("stairs_direction", Value::Int(dir));
+    tread_props.set("stairs_steps", Value::Int(steps as i32));
+    tread_props.set(
+        "stairs_total_height",
+        Value::Float((cell.stair_target_floor_base - cell.floor_base).abs()),
+    );
+    tread_props.set("visible", Value::Bool(true));
+    tread_props.set("dungeon_cell_x", Value::Int(cell.x));
+    tread_props.set("dungeon_cell_y", Value::Int(cell.y));
+    tread_props.set("dungeon_standalone", Value::Bool(cell.standalone));
+    let stair_source = stair_tile_source(&cell.stair_tile_id)
+        .unwrap_or_else(|| PixelSource::Color(TheColor::from_u8_array_3(FLOOR_SOURCE_COLOR)));
+    tread_props.set("source", Value::Source(stair_source.clone()));
+    tread_props.set("floor_source", Value::Source(stair_source.clone()));
+    tread_props.set("ceiling_source", Value::Source(stair_source.clone()));
+    tread_props.set("tile_mode", Value::Int(cell.stair_tile_mode));
+
+    let mut riser_props = tread_props.clone();
+    riser_props.set("dungeon_part", Value::Str("stair_riser".to_string()));
+    riser_props.set("stairs_part", Value::Str("riser".to_string()));
+    riser_props.set("source", Value::Source(stair_source.clone()));
+
+    let rise = (t0.y - b0.y) / steps as f32;
+    for i in 0..steps {
+        let t0f = i as f32 / steps as f32;
+        let t1f = (i + 1) as f32 / steps as f32;
+
+        let front_left_base = b0 + (t0 - b0) * t0f;
+        let front_right_base = b1 + (t1 - b1) * t0f;
+        let back_left_base = b0 + (t0 - b0) * t1f;
+        let back_right_base = b1 + (t1 - b1) * t1f;
+
+        let tread_y = b0.y + (i + 1) as f32 * rise;
+        let lower_y = b0.y + i as f32 * rise;
+
+        let front_left = Vec3::new(front_left_base.x, tread_y, front_left_base.z);
+        let front_right = Vec3::new(front_right_base.x, tread_y, front_right_base.z);
+        let back_left = Vec3::new(back_left_base.x, tread_y, back_left_base.z);
+        let back_right = Vec3::new(back_right_base.x, tread_y, back_right_base.z);
+
+        let tread = [
+            (front_left.x, front_left.z, front_left.y),
+            (front_right.x, front_right.z, front_right.y),
+            (back_right.x, back_right.z, back_right.y),
+            (back_left.x, back_left.z, back_left.y),
+        ];
+        let mut this_tread = tread_props.clone();
+        this_tread.set("floor_height", Value::Float(tread_y));
+        generate_polygon_sector(map, &tread, &this_tread);
+
+        let riser_front_left = Vec3::new(front_left_base.x, lower_y, front_left_base.z);
+        let riser_front_right = Vec3::new(front_right_base.x, lower_y, front_right_base.z);
+        let riser = [
+            (riser_front_left.x, riser_front_left.z, riser_front_left.y),
+            (
+                riser_front_right.x,
+                riser_front_right.z,
+                riser_front_right.y,
+            ),
+            (front_right.x, front_right.z, front_right.y),
+            (front_left.x, front_left.z, front_left.y),
+        ];
+        let mut this_riser = riser_props.clone();
+        this_riser.set("floor_base", Value::Float(lower_y.min(tread_y)));
+        this_riser.set("height", Value::Float((tread_y - lower_y).abs()));
+        generate_polygon_sector(map, &riser, &this_riser);
+    }
+
+    if create_ceiling {
+        let ceiling_z = cell.floor_base.max(cell.stair_target_floor_base) + cell.height;
+        generate_precise_horizontal_sector(
+            map,
+            layer_id,
+            x0,
+            z0,
+            x1,
+            z1,
+            ceiling_z,
+            "stair_ceiling",
+            PixelSource::Color(TheColor::from_u8_array_3(CEILING_SOURCE_COLOR)),
+            cell.standalone,
+            None,
+        );
+        if let Some(sector) = map.sectors.last_mut() {
+            sector
+                .properties
+                .set("tile_mode", Value::Int(cell.stair_tile_mode));
+            sector
+                .properties
+                .set("ceiling_source", Value::Source(stair_source));
+        }
     }
 }

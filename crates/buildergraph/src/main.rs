@@ -1,4 +1,4 @@
-use buildergraph::BuilderGraph;
+use buildergraph::{BuilderGraph, BuilderScript};
 use image::RgbaImage;
 use std::env;
 use std::fs;
@@ -26,24 +26,48 @@ fn main() {
         }
     };
 
-    let graph = match BuilderGraph::from_text(&source) {
-        Ok(graph) => graph,
-        Err(err) => {
-            eprintln!("failed to parse {path}: {err}");
-            std::process::exit(1);
+    let (name, output_spec, assembly, preview) = match BuilderScript::from_text(&source) {
+        Ok(script) => {
+            let assembly = match script.evaluate() {
+                Ok(assembly) => assembly,
+                Err(err) => {
+                    eprintln!("failed to evaluate {path}: {err}");
+                    std::process::exit(1);
+                }
+            };
+            (
+                script.name.clone(),
+                script.output_spec(),
+                assembly.clone(),
+                script.render_preview(256),
+            )
         }
+        Err(script_err) => match BuilderGraph::from_text(&source) {
+            Ok(graph) => {
+                let assembly = match graph.evaluate() {
+                    Ok(assembly) => assembly,
+                    Err(err) => {
+                        eprintln!("failed to evaluate {path}: {err}");
+                        std::process::exit(1);
+                    }
+                };
+                (
+                    graph.name.clone(),
+                    graph.output_spec(),
+                    assembly.clone(),
+                    graph.render_preview(256),
+                )
+            }
+            Err(graph_err) => {
+                eprintln!("failed to parse {path}:");
+                eprintln!("  script: {script_err}");
+                eprintln!("  graph:  {graph_err}");
+                std::process::exit(1);
+            }
+        },
     };
 
-    let assembly = match graph.evaluate() {
-        Ok(assembly) => assembly,
-        Err(err) => {
-            eprintln!("failed to evaluate {path}: {err}");
-            std::process::exit(1);
-        }
-    };
-    let output_spec = graph.output_spec();
-
-    println!("graph: {}", graph.name);
+    println!("graph: {}", name);
     println!(
         "target: {:?} (hosts: {})",
         output_spec.target, output_spec.host_refs
@@ -57,7 +81,6 @@ fn main() {
         println!("anchor[{index}]: {} {:?}", anchor.name, anchor.transform);
     }
 
-    let preview = graph.render_preview(256);
     let input_path = Path::new(&path);
     let output_file = if let Some(stem) = input_path.file_stem().and_then(|s| s.to_str()) {
         input_path.with_file_name(format!("{stem}.png"))

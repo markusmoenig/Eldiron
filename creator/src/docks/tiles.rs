@@ -620,6 +620,7 @@ impl Dock for TilesDock {
                         }
                         return true;
                     }
+                    let builder_selected_source = crate::utils::get_source(ui, server_ctx);
                     let selected_source =
                         crate::utils::get_surface_apply_source(project, server_ctx);
                     if let Some(selected_source) = selected_source {
@@ -627,7 +628,7 @@ impl Dock for TilesDock {
                         let mut undo_atom: Option<ProjectUndoAtom> = None;
                         let mut needs_scene_redraw = false;
 
-                        if let crate::utils::SurfaceApplySource::Direct(source) = &selected_source
+                        if let Some(source) = builder_selected_source
                             && let Some(map) = project.get_map_mut(server_ctx)
                         {
                             let prev = map.clone();
@@ -635,7 +636,7 @@ impl Dock for TilesDock {
                                 map,
                                 server_ctx,
                                 server_ctx.selected_hud_icon_index,
-                                Some(source.clone()),
+                                Some(source),
                             ) {
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
                                     server_ctx.pc,

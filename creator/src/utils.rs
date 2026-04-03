@@ -351,38 +351,107 @@ pub fn apply_surface_source_to_sector(
     source: &SurfaceApplySource,
     tile_mode: Option<i32>,
 ) -> bool {
+    let target_sector_ids: Vec<u32> = if let Some(sector) = map.find_sector(sector_id) {
+        let generated_by = sector
+            .properties
+            .get_str_default("generated_by", String::new());
+        let dungeon_part = sector
+            .properties
+            .get_str_default("dungeon_part", String::new());
+        if generated_by == "dungeon_tool"
+            && (dungeon_part == "stair_tread"
+                || dungeon_part == "stair_riser"
+                || dungeon_part == "stair_ceiling")
+            && let (Some(layer_id), Some(cell_x), Some(cell_y)) = (
+                sector.properties.get_id("dungeon_layer_id"),
+                sector.properties.get_int("dungeon_cell_x"),
+                sector.properties.get_int("dungeon_cell_y"),
+            )
+        {
+            map.sectors
+                .iter()
+                .filter(|candidate| {
+                    candidate
+                        .properties
+                        .get_str_default("generated_by", String::new())
+                        == "dungeon_tool"
+                        && candidate.properties.get_id("dungeon_layer_id") == Some(layer_id)
+                        && candidate.properties.get_int("dungeon_cell_x") == Some(cell_x)
+                        && candidate.properties.get_int("dungeon_cell_y") == Some(cell_y)
+                        && matches!(
+                            candidate
+                                .properties
+                                .get_str_default("dungeon_part", String::new())
+                                .as_str(),
+                            "stair_tread" | "stair_riser" | "stair_ceiling"
+                        )
+                })
+                .map(|sector| sector.id)
+                .collect()
+        } else {
+            vec![sector_id]
+        }
+    } else {
+        vec![sector_id]
+    };
+
     match source {
         SurfaceApplySource::Direct(pixel_source) => {
-            clear_sector_tile_overrides(map, sector_id);
-            if let Some(sector) = map.find_sector_mut(sector_id) {
-                sector
-                    .properties
-                    .set(source_key, Value::Source(pixel_source.clone()));
-                if let Some(tile_mode) = tile_mode {
-                    sector.properties.set("tile_mode", Value::Int(tile_mode));
+            let mut changed = false;
+            for sector_id in target_sector_ids {
+                clear_sector_tile_overrides(map, sector_id);
+                if let Some(sector) = map.find_sector_mut(sector_id) {
+                    sector
+                        .properties
+                        .set(source_key, Value::Source(pixel_source.clone()));
+                    let dungeon_part = sector
+                        .properties
+                        .get_str_default("dungeon_part", String::new());
+                    if source_key == "source"
+                        && matches!(
+                            dungeon_part.as_str(),
+                            "stair_tread" | "stair_riser" | "stair_ceiling"
+                        )
+                    {
+                        sector
+                            .properties
+                            .set("source", Value::Source(pixel_source.clone()));
+                        sector
+                            .properties
+                            .set("floor_source", Value::Source(pixel_source.clone()));
+                        sector
+                            .properties
+                            .set("ceiling_source", Value::Source(pixel_source.clone()));
+                    }
+                    if let Some(tile_mode) = tile_mode {
+                        sector.properties.set("tile_mode", Value::Int(tile_mode));
+                    }
+                    changed = true;
                 }
-                return true;
             }
-            false
+            changed
         }
         SurfaceApplySource::TileGroup { group, flip_y } => {
             if group.width == 0 || group.height == 0 || group.members.is_empty() {
                 return false;
             }
             if source_key != "source" {
-                if let Some(member) = group.members.first()
-                    && let Some(sector) = map.find_sector_mut(sector_id)
-                {
-                    sector.properties.set(
-                        source_key,
-                        Value::Source(PixelSource::TileId(member.tile_id)),
-                    );
-                    if let Some(tile_mode) = tile_mode {
-                        sector.properties.set("tile_mode", Value::Int(tile_mode));
+                let mut changed = false;
+                for sector_id in target_sector_ids {
+                    if let Some(member) = group.members.first()
+                        && let Some(sector) = map.find_sector_mut(sector_id)
+                    {
+                        sector.properties.set(
+                            source_key,
+                            Value::Source(PixelSource::TileId(member.tile_id)),
+                        );
+                        if let Some(tile_mode) = tile_mode {
+                            sector.properties.set("tile_mode", Value::Int(tile_mode));
+                        }
+                        changed = true;
                     }
-                    return true;
                 }
-                return false;
+                return changed;
             }
 
             clear_sector_tile_overrides(map, sector_id);

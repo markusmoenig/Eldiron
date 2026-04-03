@@ -1,6 +1,7 @@
 use crate::editor::{RUSTERIX, TOOLLIST};
 use crate::prelude::*;
 use rusterix::Surface;
+use scenevm::GeoId;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const BUILDER_TAB_LAYOUT: &str = "Builder Dock Tabs";
@@ -89,6 +90,10 @@ impl Dock for BuilderDock {
                 TheContextMenuItem::new(
                     "Table".to_string(),
                     TheId::named("Builder Dock New Table"),
+                ),
+                TheContextMenuItem::new(
+                    "Wall Torch".to_string(),
+                    TheId::named("Builder Dock New Wall Torch"),
                 ),
             ],
             ..Default::default()
@@ -245,11 +250,14 @@ impl Dock for BuilderDock {
             TheEvent::ContextMenuSelected(id, item) if id.name == "Builder Dock New" => {
                 let asset = match item.name.as_str() {
                     "Builder Dock New Empty" => {
-                        BuilderGraphAsset::new_empty(Self::next_builder_name(project, false))
+                        BuilderGraphAsset::new_empty(Self::next_builder_name(project, "Empty"))
                     }
                     "Builder Dock New Table" => {
-                        BuilderGraphAsset::new_table(Self::next_builder_name(project, true))
+                        BuilderGraphAsset::new_table(Self::next_builder_name(project, "Table"))
                     }
+                    "Builder Dock New Wall Torch" => BuilderGraphAsset::new_wall_torch(
+                        Self::next_builder_name(project, "Wall Torch"),
+                    ),
                     _ => return false,
                 };
                 let asset_id = asset.id;
@@ -350,6 +358,196 @@ impl Dock for BuilderDock {
 }
 
 impl BuilderDock {
+    fn linedef_builder_host_sector_id(map: &Map, linedef_id: u32) -> Option<u32> {
+        let linedef = map.find_linedef(linedef_id)?;
+        let host_sector = linedef
+            .properties
+            .get_int("host_sector")
+            .map(|id| id as u32);
+        host_sector
+            .filter(|sector_id| map.find_sector(*sector_id).is_some())
+            .or_else(|| linedef.sector_ids.first().copied())
+    }
+
+    fn linedef_builder_stored_outward(map: &Map, linedef_id: u32) -> Option<Vec3<f32>> {
+        let linedef = map.find_linedef(linedef_id)?;
+        let outward = Vec3::new(
+            linedef.properties.get_float("host_outward_x")?,
+            linedef.properties.get_float("host_outward_y")?,
+            linedef.properties.get_float("host_outward_z")?,
+        );
+        outward.try_normalized()
+    }
+
+    fn linedef_builder_stored_face_origin(map: &Map, linedef_id: u32) -> Option<Vec3<f32>> {
+        let linedef = map.find_linedef(linedef_id)?;
+        Some(Vec3::new(
+            linedef.properties.get_float("host_surface_origin_x")?,
+            linedef.properties.get_float("host_surface_origin_y")?,
+            linedef.properties.get_float("host_surface_origin_z")?,
+        ))
+    }
+
+    fn builder_surface_for_sector(map: &Map, sector_id: u32) -> Option<Surface> {
+        if let Some(surface) = map.get_surface_for_sector_id(sector_id) {
+            return Some(surface.clone());
+        }
+        let mut surface = Surface::new(sector_id);
+        surface.calculate_geometry(map);
+        surface.is_valid().then_some(surface)
+    }
+
+    fn resolve_builder_surface_side(
+        signed_dist: f32,
+        surface_normal: Vec3<f32>,
+        hover_ray_dir: Option<Vec3<f32>>,
+    ) -> bool {
+        if signed_dist.abs() > 0.01 {
+            signed_dist >= 0.0
+        } else if let Some(ray_dir) = hover_ray_dir {
+            surface_normal.dot(-ray_dir) >= 0.0
+        } else {
+            true
+        }
+    }
+
+    fn linedef_builder_face_origin(
+        map: &Map,
+        server_ctx: &ServerContext,
+        linedef_id: u32,
+    ) -> Option<Vec3<f32>> {
+        if let Some(face_origin) = Self::linedef_builder_stored_face_origin(map, linedef_id) {
+            return Some(face_origin);
+        }
+        let surface = Self::linedef_builder_surface(map, server_ctx, linedef_id)?;
+        let outward = Self::linedef_builder_outward(map, server_ctx, linedef_id)?;
+        let normal = surface.plane.normal.try_normalized()?;
+        let (front_offset, back_offset) = surface.extrusion.offsets();
+        let selected_offset = if outward.dot(normal) >= 0.0 {
+            front_offset.max(back_offset)
+        } else {
+            front_offset.min(back_offset)
+        };
+        Some(surface.plane.origin + normal * selected_offset)
+    }
+
+    fn linedef_builder_surface(
+        map: &Map,
+        server_ctx: &ServerContext,
+        linedef_id: u32,
+    ) -> Option<Surface> {
+        let linedef = map.find_linedef(linedef_id)?;
+        let host_sector_id = Self::linedef_builder_host_sector_id(map, linedef_id);
+
+        let preferred = server_ctx
+            .active_detail_surface
+            .as_ref()
+            .or(server_ctx.hover_surface.as_ref())
+            .or(server_ctx.editing_surface.as_ref());
+        if let Some(surface) = preferred
+            && host_sector_id
+                .map(|sector_id| surface.sector_id == sector_id)
+                .unwrap_or_else(|| linedef.sector_ids.contains(&surface.sector_id))
+            && surface.plane.normal.y.abs() <= 0.25
+        {
+            return Some(surface.clone());
+        }
+
+        if let Some(host_sector_id) = host_sector_id
+            && let Some(surface) = Self::builder_surface_for_sector(map, host_sector_id)
+            && surface.plane.normal.y.abs() <= 0.25
+        {
+            return Some(surface);
+        }
+
+        let hit_pos = server_ctx
+            .editing_surface_hit_pos
+            .or(server_ctx.hover_cursor_3d)
+            .unwrap_or(server_ctx.geo_hit_pos);
+        let ray_dir = server_ctx
+            .hover_ray_dir_3d
+            .and_then(|dir| dir.try_normalized());
+        let mut best_surface: Option<(Surface, f32)> = None;
+        for surface in map.surfaces.values() {
+            let surface_matches_host = host_sector_id
+                .map(|sector_id| surface.sector_id == sector_id)
+                .unwrap_or_else(|| linedef.sector_ids.contains(&surface.sector_id));
+            if !surface_matches_host || surface.plane.normal.y.abs() > 0.25 {
+                continue;
+            }
+            let Some(normal) = surface.plane.normal.try_normalized() else {
+                continue;
+            };
+            if let Some(ray_dir) = ray_dir
+                && normal.dot(ray_dir) >= -1e-4
+            {
+                continue;
+            }
+            let dist = (hit_pos - surface.plane.origin).dot(normal).abs();
+            if best_surface
+                .as_ref()
+                .map(|(_, best_dist)| dist < *best_dist)
+                .unwrap_or(true)
+            {
+                best_surface = Some((surface.clone(), dist));
+            }
+        }
+        best_surface.map(|(surface, _)| surface)
+    }
+
+    fn linedef_builder_outward(
+        map: &Map,
+        server_ctx: &ServerContext,
+        linedef_id: u32,
+    ) -> Option<Vec3<f32>> {
+        if let Some(outward) = Self::linedef_builder_stored_outward(map, linedef_id) {
+            return Some(outward);
+        }
+        let hit = server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
+        let surface = Self::linedef_builder_surface(map, server_ctx, linedef_id)?;
+        let normal = surface.plane.normal.try_normalized()?;
+        let signed_dist = (hit - surface.plane.origin).dot(normal);
+        let grow_positive = Self::resolve_builder_surface_side(
+            signed_dist,
+            normal,
+            server_ctx
+                .hover_ray_dir_3d
+                .and_then(|dir| dir.try_normalized()),
+        );
+        Some(if grow_positive { normal } else { -normal })
+    }
+
+    fn linedef_builder_wall_side(map: &Map, server_ctx: &ServerContext, linedef_id: u32) -> f32 {
+        if let Some(linedef) = map.find_linedef(linedef_id) {
+            let hit_pos = server_ctx
+                .editing_surface_hit_pos
+                .or(server_ctx.hover_cursor_3d)
+                .unwrap_or(server_ctx.geo_hit_pos);
+            if matches!(server_ctx.geo_hit, Some(GeoId::Linedef(id)) if id == linedef_id)
+                && let Some(dist) = linedef.signed_distance(map, Vec2::new(hit_pos.x, hit_pos.z))
+                && dist.abs() > 1e-5
+            {
+                return if dist >= 0.0 { -1.0 } else { 1.0 };
+            }
+
+            let preferred_sector = map
+                .selected_sectors
+                .iter()
+                .copied()
+                .find(|sid| linedef.sector_ids.contains(sid))
+                .or_else(|| Self::linedef_builder_host_sector_id(map, linedef_id));
+            if let Some(sector_id) = preferred_sector
+                && let Some(sector) = map.find_sector(sector_id)
+                && let Some(center) = sector.center(map)
+                && let Some(dist) = linedef.signed_distance(map, center)
+                && dist.abs() > 1e-5
+            {
+                return if dist >= 0.0 { 1.0 } else { -1.0 };
+            }
+        }
+        1.0
+    }
+
     fn render_views(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
         for tab in 0..3 {
             let Some(render_view) = ui.get_render_view(&format!("{BUILDER_VIEW_PREFIX}{tab}"))
@@ -568,8 +766,19 @@ impl BuilderDock {
     }
 
     fn preview_for_asset(asset: &BuilderGraphAsset) -> Option<TheRGBABuffer> {
-        if let Ok(graph) = BuilderGraph::from_text(&asset.graph_data) {
-            let preview = graph.render_preview(96);
+        if let Ok(graph) = shared::buildergraph::BuilderDocument::from_text(&asset.graph_data)
+            && let Ok(assembly) = graph.evaluate()
+            && let Ok(preview) = rusterix::builderpreview::render_builder_preview(
+                &assembly,
+                graph.output_spec(),
+                &graph.preview_host(),
+                rusterix::builderpreview::BuilderPreviewOptions {
+                    size: 96,
+                    variants: rusterix::builderpreview::PreviewVariants::Single,
+                    ..Default::default()
+                },
+            )
+        {
             let mut buffer =
                 TheRGBABuffer::new(TheDim::sized(preview.width as i32, preview.height as i32));
             buffer.pixels_mut().copy_from_slice(&preview.pixels);
@@ -580,7 +789,7 @@ impl BuilderDock {
     }
 
     fn description_for_asset(asset: &BuilderGraphAsset) -> String {
-        if let Ok(graph) = BuilderGraph::from_text(&asset.graph_data) {
+        if let Ok(graph) = shared::buildergraph::BuilderDocument::from_text(&asset.graph_data) {
             let spec = graph.output_spec();
             let target = match spec.target {
                 BuilderOutputTarget::Sector => "Sector",
@@ -597,8 +806,8 @@ impl BuilderDock {
         }
     }
 
-    fn next_builder_name(project: &Project, table: bool) -> String {
-        let base = if table { "Table" } else { "Empty" }.to_string();
+    fn next_builder_name(project: &Project, base: &str) -> String {
+        let base = base.to_string();
         if !project
             .builder_graphs
             .values()
@@ -608,7 +817,7 @@ impl BuilderDock {
         }
         let mut index = 2;
         loop {
-            let candidate = format!("Table {index}");
+            let candidate = format!("{base} {index}");
             if !project
                 .builder_graphs
                 .values()
@@ -634,7 +843,7 @@ impl BuilderDock {
         let asset_builder_id = asset.id;
         let asset_graph_name = asset.graph_name.clone();
         let asset_graph_data = asset.graph_data.clone();
-        let Ok(graph) = BuilderGraph::from_text(&asset_graph_data) else {
+        let Ok(graph) = shared::buildergraph::BuilderDocument::from_text(&asset_graph_data) else {
             return;
         };
         let spec = graph.output_spec();
@@ -722,6 +931,12 @@ impl BuilderDock {
                     for (group_order, linedef_id) in
                         map.selected_linedefs.clone().into_iter().enumerate()
                     {
+                        let wall_side =
+                            Self::linedef_builder_wall_side(map, server_ctx, linedef_id);
+                        let wall_outward =
+                            Self::linedef_builder_outward(map, server_ctx, linedef_id);
+                        let wall_face_origin =
+                            Self::linedef_builder_face_origin(map, server_ctx, linedef_id);
                         if let Some(linedef) = map.find_linedef_mut(linedef_id) {
                             linedef
                                 .properties
@@ -744,6 +959,35 @@ impl BuilderDock {
                             linedef
                                 .properties
                                 .set("builder_graph_group_order", Value::Int(group_order as i32));
+                            linedef
+                                .properties
+                                .set("builder_graph_wall_side", Value::Float(wall_side));
+                            if let Some(outward) = wall_outward {
+                                linedef
+                                    .properties
+                                    .set("builder_graph_outward_x", Value::Float(outward.x));
+                                linedef
+                                    .properties
+                                    .set("builder_graph_outward_y", Value::Float(outward.y));
+                                linedef
+                                    .properties
+                                    .set("builder_graph_outward_z", Value::Float(outward.z));
+                            }
+                            if let Some(face_origin) = wall_face_origin {
+                                linedef.properties.set(
+                                    "builder_graph_surface_origin_x",
+                                    Value::Float(face_origin.x),
+                                );
+                                linedef.properties.set(
+                                    "builder_graph_surface_origin_y",
+                                    Value::Float(face_origin.y),
+                                );
+                                linedef.properties.set(
+                                    "builder_graph_surface_origin_z",
+                                    Value::Float(face_origin.z),
+                                );
+                            }
+                            linedef.properties.remove("builder_graph_face_offset");
                         }
                     }
                 }
@@ -782,6 +1026,10 @@ impl BuilderDock {
                     "builder_graph_data",
                     "builder_graph_target",
                     "builder_graph_host_refs",
+                    "builder_graph_wall_side",
+                    "builder_graph_outward_x",
+                    "builder_graph_outward_y",
+                    "builder_graph_outward_z",
                     "builder_graph_group_id",
                     "builder_graph_group_order",
                 ] {
@@ -798,6 +1046,14 @@ impl BuilderDock {
                     "builder_graph_data",
                     "builder_graph_target",
                     "builder_graph_host_refs",
+                    "builder_graph_wall_side",
+                    "builder_graph_outward_x",
+                    "builder_graph_outward_y",
+                    "builder_graph_outward_z",
+                    "builder_graph_surface_origin_x",
+                    "builder_graph_surface_origin_y",
+                    "builder_graph_surface_origin_z",
+                    "builder_graph_face_offset",
                     "builder_graph_group_id",
                     "builder_graph_group_order",
                 ] {

@@ -17,6 +17,51 @@ fn format_point_3d(point: Vec3<f32>) -> String {
     format!("({:.2}, {:.2}, {:.2})", point.x, point.y, point.z)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct WorldLinedefHostData {
+    outward: Vec3<f32>,
+    face_origin: Vec3<f32>,
+}
+
+fn resolve_creation_surface_side(
+    hit_pos: Vec3<f32>,
+    surface_normal: Vec3<f32>,
+    surface_origin: Vec3<f32>,
+    hover_ray_dir: Option<Vec3<f32>>,
+) -> Vec3<f32> {
+    let signed_dist = (hit_pos - surface_origin).dot(surface_normal);
+    let grow_positive = if signed_dist.abs() > 0.01 {
+        signed_dist >= 0.0
+    } else if let Some(ray_dir) = hover_ray_dir {
+        surface_normal.dot(-ray_dir) >= 0.0
+    } else {
+        true
+    };
+    if grow_positive {
+        surface_normal
+    } else {
+        -surface_normal
+    }
+}
+
+fn compute_world_linedef_host_data(
+    curr_grid_pos: Vec3<f32>,
+    snapped_pos: Vec3<f32>,
+    host_hit_pos: Vec3<f32>,
+    host_surface: Option<&Surface>,
+    hover_ray_dir: Option<Vec3<f32>>,
+) -> Option<WorldLinedefHostData> {
+    let surface = host_surface?;
+    let normal = surface.plane.normal.try_normalized()?;
+    let outward =
+        resolve_creation_surface_side(host_hit_pos, normal, surface.plane.origin, hover_ray_dir);
+    let midpoint = (curr_grid_pos + snapped_pos) * 0.5;
+    Some(WorldLinedefHostData {
+        outward,
+        face_origin: midpoint - outward * (midpoint - host_hit_pos).dot(outward),
+    })
+}
+
 pub struct LinedefTool {
     id: TheId,
     click_pos: Vec2<f32>,
@@ -85,10 +130,18 @@ impl Tool for LinedefTool {
                 }
 
                 server_ctx.curr_map_tool_type = MapToolType::Linedef;
+                server_ctx.hover = (None, None, None);
+                server_ctx.hover_cursor = None;
+                server_ctx.hover_cursor_3d = None;
+                server_ctx.active_detail_surface = None;
 
                 if let Some(map) = project.get_map_mut(server_ctx) {
                     map.selected_vertices.clear();
                     map.selected_sectors.clear();
+                    map.curr_grid_pos = None;
+                    map.curr_grid_pos_3d = None;
+                    map.curr_rectangle = None;
+                    map.clear_temp();
                 }
 
                 ctx.ui.send(TheEvent::Custom(
@@ -250,6 +303,51 @@ impl Tool for LinedefTool {
                 .or(server_ctx.editing_surface.clone())
         }
 
+        fn creation_host_surface(map: &Map, server_ctx: &ServerContext) -> Option<Surface> {
+            let hit_pos = server_ctx
+                .hover_surface_hit_pos
+                .or(server_ctx.editing_surface_hit_pos)
+                .unwrap_or(server_ctx.geo_hit_pos);
+            if let Some(surface) = detail_surface_at_point(map, hit_pos) {
+                return Some(surface);
+            }
+            if let Some(surface) = server_ctx
+                .hover_surface
+                .as_ref()
+                .or(server_ctx.editing_surface.as_ref())
+            {
+                return Some(surface.clone());
+            }
+            let sector_id = match server_ctx.geo_hit {
+                Some(GeoId::Sector(id)) => Some(id),
+                _ => server_ctx
+                    .hover_surface
+                    .as_ref()
+                    .map(|surface| surface.sector_id)
+                    .or_else(|| {
+                        server_ctx
+                            .editing_surface
+                            .as_ref()
+                            .map(|surface| surface.sector_id)
+                    }),
+            }?;
+            if let Some(surface) = map.get_surface_for_sector_id(sector_id) {
+                return Some(surface.clone());
+            }
+            let mut surface = Surface::new(sector_id);
+            surface.calculate_geometry(map);
+            surface.is_valid().then_some(surface)
+        }
+
+        fn creation_host_sector_id(map: &Map, server_ctx: &ServerContext) -> Option<u32> {
+            creation_host_surface(map, server_ctx)
+                .map(|surface| surface.sector_id)
+                .or(match server_ctx.geo_hit {
+                    Some(GeoId::Sector(id)) => Some(id),
+                    _ => None,
+                })
+        }
+
         fn detail_surface_at_point(map: &Map, point: Vec3<f32>) -> Option<Surface> {
             let mut best_surface: Option<(Surface, f32)> = None;
             for surface in map.surfaces.values() {
@@ -275,6 +373,36 @@ impl Tool for LinedefTool {
                     continue;
                 }
 
+                let n = surface.plane.normal;
+                let n_len = n.magnitude();
+                if n_len <= 1e-6 {
+                    continue;
+                }
+                let dist = ((point - surface.plane.origin).dot(n / n_len)).abs();
+                if best_surface
+                    .as_ref()
+                    .map(|(_, best_dist)| dist < *best_dist)
+                    .unwrap_or(true)
+                {
+                    best_surface = Some((surface.clone(), dist));
+                }
+            }
+            best_surface.map(|(surface, _)| surface)
+        }
+
+        fn wall_surface_for_linedef_at_point(
+            map: &Map,
+            linedef_id: u32,
+            point: Vec3<f32>,
+        ) -> Option<Surface> {
+            let linedef = map.find_linedef(linedef_id)?;
+            let mut best_surface: Option<(Surface, f32)> = None;
+            for surface in map.surfaces.values() {
+                if !linedef.sector_ids.contains(&surface.sector_id)
+                    || surface.plane.normal.y.abs() > 0.25
+                {
+                    continue;
+                }
                 let n = surface.plane.normal;
                 let n_len = n.magnitude();
                 if n_len <= 1e-6 {
@@ -477,6 +605,17 @@ impl Tool for LinedefTool {
                     }
 
                     if changed {
+                        if server_ctx.editor_view_mode != EditorViewMode::D2 && !detail_mode_3d {
+                            let hit_pos =
+                                server_ctx.hover_cursor_3d.unwrap_or(server_ctx.geo_hit_pos);
+                            server_ctx.editing_surface_hit_pos = Some(hit_pos);
+                            if let Some(linedef_id) = server_ctx.hover.1 {
+                                server_ctx.editing_surface =
+                                    wall_surface_for_linedef_at_point(map, linedef_id, hit_pos);
+                            } else {
+                                server_ctx.editing_surface = None;
+                            }
+                        }
                         server_ctx.curr_action_id =
                             Some(Uuid::from_str(EDIT_LINEDEF_ACTION_ID).unwrap());
                         ctx.ui.send(TheEvent::Custom(
@@ -636,6 +775,55 @@ impl Tool for LinedefTool {
                                     }
 
                                     if !handled_detail {
+                                        let host_sector_id =
+                                            creation_host_sector_id(map, server_ctx);
+                                        let host_surface = creation_host_surface(map, server_ctx);
+                                        let host_hit_pos = server_ctx
+                                            .hover_cursor_3d
+                                            .unwrap_or(server_ctx.geo_hit_pos);
+                                        let host_data = compute_world_linedef_host_data(
+                                            curr_grid_pos,
+                                            snapped_pos,
+                                            host_hit_pos,
+                                            host_surface.as_ref(),
+                                            server_ctx
+                                                .hover_ray_dir_3d
+                                                .and_then(|dir| dir.try_normalized()),
+                                        );
+                                        let host_outward = host_data.map(|data| data.outward);
+                                        let host_face_origin =
+                                            host_data.map(|data| data.face_origin);
+                                        let host_along = Vec3::new(
+                                            snapped_pos.x - curr_grid_pos.x,
+                                            0.0,
+                                            snapped_pos.z - curr_grid_pos.z,
+                                        )
+                                        .try_normalized()
+                                        .or_else(|| {
+                                            host_surface.as_ref().and_then(|surface| {
+                                                let mut along = Vec3::new(
+                                                    surface.frame.right.x,
+                                                    0.0,
+                                                    surface.frame.right.z,
+                                                )
+                                                .try_normalized()?;
+                                                let ax = along.x.abs();
+                                                let az = along.z.abs();
+                                                if (ax >= az && along.x < 0.0)
+                                                    || (az > ax && along.z < 0.0)
+                                                {
+                                                    along = -along;
+                                                }
+                                                Some(along)
+                                            })
+                                        })
+                                        .or_else(|| {
+                                            host_outward.and_then(|outward| {
+                                                Vec3::new(0.0, 1.0, 0.0)
+                                                    .cross(outward)
+                                                    .try_normalized()
+                                            })
+                                        });
                                         let start_vertex = map.add_vertex_at_3d(
                                             curr_grid_pos.x,
                                             curr_grid_pos.z,
@@ -649,9 +837,128 @@ impl Tool for LinedefTool {
                                             true,
                                         );
 
+                                        if let Some(host_sector_id) = host_sector_id {
+                                            if let Some(vertex) = map.find_vertex_mut(start_vertex)
+                                            {
+                                                vertex.properties.set(
+                                                    "host_sector",
+                                                    Value::Int(host_sector_id as i32),
+                                                );
+                                                if let Some(outward) = host_outward {
+                                                    vertex.properties.set(
+                                                        "host_outward_x",
+                                                        Value::Float(outward.x),
+                                                    );
+                                                    vertex.properties.set(
+                                                        "host_outward_y",
+                                                        Value::Float(outward.y),
+                                                    );
+                                                    vertex.properties.set(
+                                                        "host_outward_z",
+                                                        Value::Float(outward.z),
+                                                    );
+                                                }
+                                                if let Some(along) = host_along {
+                                                    vertex
+                                                        .properties
+                                                        .set("host_along_x", Value::Float(along.x));
+                                                    vertex
+                                                        .properties
+                                                        .set("host_along_y", Value::Float(along.y));
+                                                    vertex
+                                                        .properties
+                                                        .set("host_along_z", Value::Float(along.z));
+                                                }
+                                            }
+                                            if let Some(vertex) = map.find_vertex_mut(end_vertex) {
+                                                vertex.properties.set(
+                                                    "host_sector",
+                                                    Value::Int(host_sector_id as i32),
+                                                );
+                                                if let Some(outward) = host_outward {
+                                                    vertex.properties.set(
+                                                        "host_outward_x",
+                                                        Value::Float(outward.x),
+                                                    );
+                                                    vertex.properties.set(
+                                                        "host_outward_y",
+                                                        Value::Float(outward.y),
+                                                    );
+                                                    vertex.properties.set(
+                                                        "host_outward_z",
+                                                        Value::Float(outward.z),
+                                                    );
+                                                }
+                                                if let Some(along) = host_along {
+                                                    vertex
+                                                        .properties
+                                                        .set("host_along_x", Value::Float(along.x));
+                                                    vertex
+                                                        .properties
+                                                        .set("host_along_y", Value::Float(along.y));
+                                                    vertex
+                                                        .properties
+                                                        .set("host_along_z", Value::Float(along.z));
+                                                }
+                                            }
+                                        }
+
                                         if use_manual_mode {
-                                            let _linedef_id =
+                                            let linedef_id =
                                                 map.create_linedef_manual(start_vertex, end_vertex);
+
+                                            if let Some(host_sector_id) = host_sector_id {
+                                                if let Some(linedef) =
+                                                    map.find_linedef_mut(linedef_id)
+                                                {
+                                                    linedef.properties.set(
+                                                        "host_sector",
+                                                        Value::Int(host_sector_id as i32),
+                                                    );
+                                                    if let Some(outward) = host_outward {
+                                                        linedef.properties.set(
+                                                            "host_outward_x",
+                                                            Value::Float(outward.x),
+                                                        );
+                                                        linedef.properties.set(
+                                                            "host_outward_y",
+                                                            Value::Float(outward.y),
+                                                        );
+                                                        linedef.properties.set(
+                                                            "host_outward_z",
+                                                            Value::Float(outward.z),
+                                                        );
+                                                    }
+                                                    if let Some(face_origin) = host_face_origin {
+                                                        linedef.properties.set(
+                                                            "host_surface_origin_x",
+                                                            Value::Float(face_origin.x),
+                                                        );
+                                                        linedef.properties.set(
+                                                            "host_surface_origin_y",
+                                                            Value::Float(face_origin.y),
+                                                        );
+                                                        linedef.properties.set(
+                                                            "host_surface_origin_z",
+                                                            Value::Float(face_origin.z),
+                                                        );
+                                                    }
+                                                    if let Some(along) = host_along {
+                                                        linedef.properties.set(
+                                                            "host_along_x",
+                                                            Value::Float(along.x),
+                                                        );
+                                                        linedef.properties.set(
+                                                            "host_along_y",
+                                                            Value::Float(along.y),
+                                                        );
+                                                        linedef.properties.set(
+                                                            "host_along_z",
+                                                            Value::Float(along.z),
+                                                        );
+                                                    }
+                                                }
+                                            }
 
                                             if let Some(sector_id) = map.close_polygon_manual() {
                                                 let mut surface = Surface::new(sector_id);
@@ -664,6 +971,57 @@ impl Tool for LinedefTool {
                                             }
                                         } else {
                                             let ids = map.create_linedef(start_vertex, end_vertex);
+
+                                            if let Some(host_sector_id) = host_sector_id {
+                                                if let Some(linedef) = map.find_linedef_mut(ids.0) {
+                                                    linedef.properties.set(
+                                                        "host_sector",
+                                                        Value::Int(host_sector_id as i32),
+                                                    );
+                                                    if let Some(outward) = host_outward {
+                                                        linedef.properties.set(
+                                                            "host_outward_x",
+                                                            Value::Float(outward.x),
+                                                        );
+                                                        linedef.properties.set(
+                                                            "host_outward_y",
+                                                            Value::Float(outward.y),
+                                                        );
+                                                        linedef.properties.set(
+                                                            "host_outward_z",
+                                                            Value::Float(outward.z),
+                                                        );
+                                                    }
+                                                    if let Some(face_origin) = host_face_origin {
+                                                        linedef.properties.set(
+                                                            "host_surface_origin_x",
+                                                            Value::Float(face_origin.x),
+                                                        );
+                                                        linedef.properties.set(
+                                                            "host_surface_origin_y",
+                                                            Value::Float(face_origin.y),
+                                                        );
+                                                        linedef.properties.set(
+                                                            "host_surface_origin_z",
+                                                            Value::Float(face_origin.z),
+                                                        );
+                                                    }
+                                                    if let Some(along) = host_along {
+                                                        linedef.properties.set(
+                                                            "host_along_x",
+                                                            Value::Float(along.x),
+                                                        );
+                                                        linedef.properties.set(
+                                                            "host_along_y",
+                                                            Value::Float(along.y),
+                                                        );
+                                                        linedef.properties.set(
+                                                            "host_along_z",
+                                                            Value::Float(along.z),
+                                                        );
+                                                    }
+                                                }
+                                            }
 
                                             if let Some(sector_id) = ids.1 {
                                                 let mut surface = Surface::new(sector_id);
@@ -1314,13 +1672,23 @@ impl Tool for LinedefTool {
                             match geo_id {
                                 GeoId::Linedef(id) => {
                                     server_ctx.hover = (None, Some(id), None);
+                                    server_ctx.editing_surface = server_ctx.hover_surface.clone();
+                                    server_ctx.editing_surface_hit_pos = Some(
+                                        server_ctx
+                                            .hover_cursor_3d
+                                            .unwrap_or(server_ctx.geo_hit_pos),
+                                    );
                                 }
                                 _ => {
                                     server_ctx.hover = (None, None, None);
+                                    server_ctx.editing_surface = None;
+                                    server_ctx.editing_surface_hit_pos = None;
                                 }
                             }
                         } else {
                             server_ctx.hover = (None, None, None);
+                            server_ctx.editing_surface = None;
+                            server_ctx.editing_surface_hit_pos = None;
                         }
 
                         if let Some(cp) = server_ctx.hover_cursor {
@@ -1609,5 +1977,73 @@ impl Tool for LinedefTool {
             _ => {}
         }
         redraw
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusterix::map::surface::{Basis3, EditPlane, ExtrusionSpec, Plane};
+    use theframework::prelude::Uuid;
+
+    fn make_wall_surface(origin: Vec3<f32>, normal: Vec3<f32>) -> Surface {
+        Surface {
+            id: Uuid::new_v4(),
+            sector_id: 1,
+            plane: Plane { origin, normal },
+            frame: Basis3 {
+                right: Vec3::new(1.0, 0.0, 0.0),
+                up: Vec3::new(0.0, 1.0, 0.0),
+                normal,
+            },
+            edit_uv: EditPlane {
+                origin,
+                right: Vec3::new(1.0, 0.0, 0.0),
+                up: Vec3::new(0.0, 1.0, 0.0),
+                scale: 1.0,
+            },
+            extrusion: ExtrusionSpec::default(),
+            profile: None,
+            organic_layers: indexmap::IndexMap::default(),
+            organic_vine_strokes: Vec::new(),
+            organic_bush_clusters: Vec::new(),
+            world_vertices: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn linedef_creation_east_wall_fixture_projects_midpoint_to_hit_depth() {
+        let surface = make_wall_surface(Vec3::new(20.5, 1.5, 10.113), Vec3::new(0.0, 0.0, 1.0));
+        let data = compute_world_linedef_host_data(
+            Vec3::new(19.5, 1.0, 10.0),
+            Vec3::new(20.5, 2.0, 10.0),
+            Vec3::new(20.0, 1.5, 10.113),
+            Some(&surface),
+            Some(Vec3::new(0.0, 0.0, -1.0)),
+        )
+        .unwrap();
+
+        assert!((data.outward.z - 1.0).abs() < 1e-5);
+        assert!((data.face_origin.x - 20.0).abs() < 1e-5);
+        assert!((data.face_origin.y - 1.5).abs() < 1e-5);
+        assert!((data.face_origin.z - 10.113).abs() < 1e-5);
+    }
+
+    #[test]
+    fn linedef_creation_south_wall_fixture_supports_reverse_winding() {
+        let surface = make_wall_surface(Vec3::new(21.5, 1.5, -3.0), Vec3::new(0.0, 0.0, -1.0));
+        let data = compute_world_linedef_host_data(
+            Vec3::new(21.5, 1.0, -3.0),
+            Vec3::new(21.5, 2.0, -3.0),
+            Vec3::new(21.5, 1.5, -3.2),
+            Some(&surface),
+            Some(Vec3::new(0.0, 0.0, 1.0)),
+        )
+        .unwrap();
+
+        assert!((data.outward.z + 1.0).abs() < 1e-5);
+        assert!((data.face_origin.x - 21.5).abs() < 1e-5);
+        assert!((data.face_origin.y - 1.5).abs() < 1e-5);
+        assert!((data.face_origin.z + 3.2).abs() < 1e-5);
     }
 }

@@ -10,7 +10,7 @@ use crate::{
     VertexBlendPreset,
 };
 use crate::{BillboardAnimation, GeometrySource, LoopOp, ProfileLoop, RepeatMode, Sector};
-use buildergraph::{BuilderAssembly, BuilderAttachmentKind, BuilderGraph, BuilderPrimitive};
+use buildergraph::{BuilderAssembly, BuilderAttachmentKind, BuilderDocument, BuilderPrimitive};
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::GeoId;
 use std::str::FromStr;
@@ -1931,11 +1931,11 @@ impl ChunkBuilder for D3ChunkBuilder {
                         }
                     }
                 } else {
-                    // Horizontal surface (floor/ceiling) - only add as walkable floor if facing up
-                    if stairs_generated && stairs_part == "tread" {
-                        continue;
-                    }
-                    if normalized_y > 0.7 && !sector_has_stairs && !sector_is_ridge {
+                    // Horizontal surface (floor/ceiling) - add as walkable floor if facing up.
+                    if normalized_y > 0.7
+                        && (!sector_has_stairs || (stairs_generated && stairs_part == "tread"))
+                        && !sector_is_ridge
+                    {
                         for floor_polygon in &walkable_polygons {
                             let floor_polygon = if stairs_generated && stairs_part == "tread" {
                                 inflate_walkable_polygon(floor_polygon, 0.14)
@@ -2347,10 +2347,10 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 collision.static_volumes.extend(edge_volumes);
                             }
                         }
-                    } else if normalized_y > 0.7 && !sector_has_stairs && !sector_is_ridge {
-                        if stairs_generated && stairs_part == "tread" {
-                            continue;
-                        }
+                    } else if normalized_y > 0.7
+                        && (!sector_has_stairs || (stairs_generated && stairs_part == "tread"))
+                        && !sector_is_ridge
+                    {
                         // Horizontal floor - add as walkable
                         collision.walkable_floors.push(WalkableFloor {
                             geo_id: GeoId::Sector(sector.id),
@@ -2450,6 +2450,9 @@ mod tests {
             },
             extrusion: ExtrusionSpec::default(),
             profile: None,
+            organic_layers: indexmap::IndexMap::default(),
+            organic_vine_strokes: Vec::new(),
+            organic_bush_clusters: Vec::new(),
             world_vertices: vec![],
         }
     }
@@ -3059,12 +3062,18 @@ fn rotate_vec3_y(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
     Vec3::new(v.x * c - v.z * s, v.y, v.x * s + v.z * c)
 }
 
+fn rotate_vec3_x(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
+    let (s, c) = angle.sin_cos();
+    Vec3::new(v.x, v.y * c - v.z * s, v.y * s + v.z * c)
+}
+
 fn add_builder_box_mesh(
     mesh_vertices: &mut Vec<[f32; 4]>,
     mesh_uvs: &mut Vec<[f32; 2]>,
     mesh_indices: &mut Vec<(usize, usize, usize)>,
     center: Vec3<f32>,
     size: Vec3<f32>,
+    local_rotation_x: f32,
     local_rotation_y: f32,
     along: Vec3<f32>,
     up: Vec3<f32>,
@@ -3085,7 +3094,7 @@ fn add_builder_box_mesh(
     ];
     let mut ids = [0usize; 8];
     for (i, p) in local.iter().enumerate() {
-        let r = rotate_vec3_y(*p, local_rotation_y);
+        let r = rotate_vec3_y(rotate_vec3_x(*p, local_rotation_x), local_rotation_y);
         let world = center + along * r.x + up * r.y + outward * r.z;
         ids[i] = add_vertex(mesh_vertices, mesh_uvs, world);
     }
@@ -3100,6 +3109,69 @@ fn add_builder_box_mesh(
     ];
     for (a, b, c, d) in faces {
         add_quad_reversed(mesh_indices, ids[a], ids[b], ids[c], ids[d]);
+    }
+}
+
+fn add_builder_cylinder_mesh(
+    mesh_vertices: &mut Vec<[f32; 4]>,
+    mesh_uvs: &mut Vec<[f32; 2]>,
+    mesh_indices: &mut Vec<(usize, usize, usize)>,
+    center: Vec3<f32>,
+    length: f32,
+    radius: f32,
+    local_rotation_x: f32,
+    local_rotation_y: f32,
+    along: Vec3<f32>,
+    up: Vec3<f32>,
+    outward: Vec3<f32>,
+) {
+    let segments = 16usize;
+    let hy = length * 0.5;
+    let mut bottom_ring = Vec::with_capacity(segments);
+    let mut top_ring = Vec::with_capacity(segments);
+
+    for i in 0..segments {
+        let a = i as f32 / segments as f32 * std::f32::consts::TAU;
+        let x = a.cos() * radius;
+        let z = a.sin() * radius;
+
+        let local_bottom = rotate_vec3_y(
+            rotate_vec3_x(Vec3::new(x, -hy, z), local_rotation_x),
+            local_rotation_y,
+        );
+        let local_top = rotate_vec3_y(
+            rotate_vec3_x(Vec3::new(x, hy, z), local_rotation_x),
+            local_rotation_y,
+        );
+        let world_bottom =
+            center + along * local_bottom.x + up * local_bottom.y + outward * local_bottom.z;
+        let world_top = center + along * local_top.x + up * local_top.y + outward * local_top.z;
+        bottom_ring.push(add_vertex(mesh_vertices, mesh_uvs, world_bottom));
+        top_ring.push(add_vertex(mesh_vertices, mesh_uvs, world_top));
+    }
+
+    for i in 0..segments {
+        let next = (i + 1) % segments;
+        add_quad_reversed(
+            mesh_indices,
+            bottom_ring[i],
+            top_ring[i],
+            top_ring[next],
+            bottom_ring[next],
+        );
+    }
+
+    let bottom_center = add_vertex(mesh_vertices, mesh_uvs, center - up * hy);
+    let top_center = add_vertex(mesh_vertices, mesh_uvs, center + up * hy);
+    for i in 0..segments {
+        let next = (i + 1) % segments;
+        add_tri(
+            mesh_indices,
+            bottom_center,
+            bottom_ring[next],
+            bottom_ring[i],
+        );
+        add_tri(mesh_indices, top_center, top_ring[i], top_ring[next]);
     }
 }
 
@@ -3180,7 +3252,7 @@ fn emit_builder_attached_item_graphs(
         else {
             continue;
         };
-        let Ok(graph) = BuilderGraph::from_text(graph_text) else {
+        let Ok(graph) = BuilderDocument::from_text(graph_text) else {
             continue;
         };
         let Ok(child_assembly) = graph.evaluate() else {
@@ -3193,6 +3265,8 @@ fn emit_builder_attached_item_graphs(
                     transform,
                     material_slot,
                     host_position_normalized,
+                    host_position_y_normalized,
+                    host_scale_y_normalized,
                     host_scale_x_normalized,
                     host_scale_z_normalized,
                 } => {
@@ -3206,7 +3280,12 @@ fn emit_builder_attached_item_graphs(
                     } else {
                         transform.scale.z
                     };
-                    let scaled = Vec3::new(size.x * sx, size.y * transform.scale.y, size.z * sz);
+                    let sy = if host_scale_y_normalized {
+                        transform.scale.y * parent_host_dims.y
+                    } else {
+                        transform.scale.y
+                    };
+                    let scaled = Vec3::new(size.x * sx, size.y * sy, size.z * sz);
                     let anchor_tx = if anchor.host_position_normalized {
                         anchor.transform.translation.x * parent_host_dims.x
                     } else {
@@ -3228,11 +3307,27 @@ fn emit_builder_attached_item_graphs(
                         transform.translation.z
                     };
                     let local_anchor = rotate_vec3_y(
-                        Vec3::new(anchor_tx, anchor.transform.translation.y, anchor_tz),
+                        Vec3::new(
+                            anchor_tx,
+                            if anchor.host_position_y_normalized {
+                                anchor.transform.translation.y * parent_host_dims.y
+                            } else {
+                                anchor.transform.translation.y
+                            },
+                            anchor_tz,
+                        ),
                         0.0,
                     );
                     let local_child = rotate_vec3_y(
-                        Vec3::new(child_tx, transform.translation.y + scaled.y * 0.5, child_tz),
+                        Vec3::new(
+                            child_tx,
+                            if host_position_y_normalized {
+                                transform.translation.y * parent_host_dims.y
+                            } else {
+                                transform.translation.y
+                            } + scaled.y * 0.5,
+                            child_tz,
+                        ),
                         anchor.transform.rotation_y,
                     );
                     let center = origin
@@ -3248,6 +3343,96 @@ fn emit_builder_attached_item_graphs(
                         &mut mesh_indices,
                         center,
                         scaled,
+                        anchor.transform.rotation_x + transform.rotation_x,
+                        anchor.transform.rotation_y + transform.rotation_y,
+                        along,
+                        up,
+                        outward,
+                    );
+                    let tile_id = resolve_builder_material_tile_id(
+                        host_properties,
+                        host_properties.get("source"),
+                        material_slot.as_deref(),
+                        assets,
+                    );
+                    vmchunk.add_poly_3d(
+                        geo_id,
+                        tile_id,
+                        mesh_vertices,
+                        mesh_uvs,
+                        mesh_indices,
+                        0,
+                        true,
+                    );
+                }
+                BuilderPrimitive::Cylinder {
+                    length,
+                    radius,
+                    transform,
+                    material_slot,
+                    host_position_normalized: _,
+                    host_position_y_normalized,
+                    host_scale_y_normalized,
+                    host_scale_x_normalized,
+                    host_scale_z_normalized: _,
+                } => {
+                    let scaled_length = if host_scale_x_normalized {
+                        length * transform.scale.x * parent_host_dims.x
+                    } else {
+                        length * transform.scale.y
+                    };
+                    let scaled_radius = radius
+                        * if host_scale_y_normalized {
+                            transform.scale.z * parent_host_dims.y
+                        } else {
+                            transform.scale.z
+                        };
+                    let anchor_tx = if anchor.host_position_normalized {
+                        anchor.transform.translation.x * parent_host_dims.x
+                    } else {
+                        anchor.transform.translation.x
+                    };
+                    let anchor_tz = if anchor.host_position_normalized {
+                        anchor.transform.translation.z * parent_host_dims.y
+                    } else {
+                        anchor.transform.translation.z
+                    };
+                    let local_anchor = Vec3::new(
+                        anchor_tx,
+                        if anchor.host_position_y_normalized {
+                            anchor.transform.translation.y * parent_host_dims.y
+                        } else {
+                            anchor.transform.translation.y
+                        },
+                        anchor_tz,
+                    );
+                    let local_child = rotate_vec3_y(
+                        Vec3::new(
+                            transform.translation.x,
+                            if host_position_y_normalized {
+                                transform.translation.y * parent_host_dims.y
+                            } else {
+                                transform.translation.y
+                            } + scaled_length * 0.5,
+                            transform.translation.z,
+                        ),
+                        anchor.transform.rotation_y,
+                    );
+                    let center = origin
+                        + along * (local_anchor.x + local_child.x)
+                        + up * (local_anchor.y + local_child.y)
+                        + outward * (local_anchor.z + local_child.z);
+                    let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
+                    let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
+                    let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
+                    add_builder_cylinder_mesh(
+                        &mut mesh_vertices,
+                        &mut mesh_uvs,
+                        &mut mesh_indices,
+                        center,
+                        scaled_length,
+                        scaled_radius,
+                        anchor.transform.rotation_x + transform.rotation_x,
                         anchor.transform.rotation_y + transform.rotation_y,
                         along,
                         up,
@@ -3275,7 +3460,7 @@ fn emit_builder_attached_item_graphs(
 }
 
 fn emit_builder_linedef_group_meshes(
-    graph: &BuilderGraph,
+    graph: &BuilderDocument,
     host_id: u32,
     host_properties: &ValueContainer,
     hosts: &[(Vec3<f32>, Vec3<f32>)],
@@ -3309,22 +3494,13 @@ fn emit_builder_linedef_group_meshes(
     } else {
         along = along.normalized();
     }
+    along = builder_linedef_along(along, host_properties);
 
-    let mut outward = Vec3::zero();
-    for (a, b) in hosts {
-        let seg = Vec3::new(b.x - a.x, 0.0, b.z - a.z);
-        if seg.magnitude() > 1e-5 {
-            let dir = seg.normalized();
-            outward += Vec3::new(-dir.z, 0.0, dir.x);
-        }
-    }
-    if outward.magnitude() <= 1e-5 {
-        outward = Vec3::new(-along.z, 0.0, along.x);
-    } else {
-        outward = outward.normalized();
-    }
-    let up = Vec3::new(0.0, 1.0, 0.0);
-
+    let mount = compute_builder_linedef_mount(origin, along, host_properties);
+    let outward = mount.outward;
+    let up = mount.up;
+    let wall_height = mount.wall_height;
+    let host_origin = mount.host_origin;
     let Ok(assembly) = graph.evaluate() else {
         return false;
     };
@@ -3339,6 +3515,8 @@ fn emit_builder_linedef_group_meshes(
                 transform,
                 material_slot,
                 host_position_normalized,
+                host_position_y_normalized,
+                host_scale_y_normalized,
                 host_scale_x_normalized,
                 ..
             } => {
@@ -3349,7 +3527,12 @@ fn emit_builder_linedef_group_meshes(
                 };
                 let scaled = Vec3::new(
                     size.x * sx,
-                    size.y * transform.scale.y,
+                    size.y
+                        * if *host_scale_y_normalized {
+                            transform.scale.y * wall_height
+                        } else {
+                            transform.scale.y
+                        },
                     size.z * transform.scale.z,
                 );
                 let tx = if *host_position_normalized {
@@ -3357,9 +3540,14 @@ fn emit_builder_linedef_group_meshes(
                 } else {
                     transform.translation.x
                 };
-                let center = origin
+                let ty = if *host_position_y_normalized {
+                    transform.translation.y * wall_height
+                } else {
+                    transform.translation.y
+                };
+                let center = host_origin
                     + along * tx
-                    + up * (transform.translation.y + scaled.y * 0.5)
+                    + up * (ty + scaled.y * 0.5)
                     + outward * transform.translation.z;
                 let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
                 let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
@@ -3370,6 +3558,75 @@ fn emit_builder_linedef_group_meshes(
                     &mut mesh_indices,
                     center,
                     scaled,
+                    transform.rotation_x,
+                    transform.rotation_y,
+                    along,
+                    up,
+                    outward,
+                );
+                let tile_id = resolve_builder_material_tile_id(
+                    host_properties,
+                    host_properties.get("source"),
+                    material_slot.as_deref(),
+                    assets,
+                );
+                vmchunk.add_poly_3d(
+                    GeoId::Linedef(host_id),
+                    tile_id,
+                    mesh_vertices,
+                    mesh_uvs,
+                    mesh_indices,
+                    0,
+                    true,
+                );
+            }
+            BuilderPrimitive::Cylinder {
+                length,
+                radius,
+                transform,
+                material_slot,
+                host_position_normalized,
+                host_position_y_normalized,
+                host_scale_y_normalized,
+                host_scale_x_normalized,
+                host_scale_z_normalized: _,
+            } => {
+                let scaled_length = if *host_scale_y_normalized {
+                    *length * transform.scale.y * wall_height
+                } else {
+                    *length * transform.scale.y
+                };
+                let scaled_radius = *radius
+                    * if *host_scale_x_normalized {
+                        transform.scale.z * span_length
+                    } else {
+                        transform.scale.z
+                    };
+                let tx = if *host_position_normalized {
+                    transform.translation.x * span_length
+                } else {
+                    transform.translation.x
+                };
+                let ty = if *host_position_y_normalized {
+                    transform.translation.y * wall_height
+                } else {
+                    transform.translation.y
+                };
+                let center = host_origin
+                    + along * tx
+                    + up * (ty + scaled_length * 0.5)
+                    + outward * transform.translation.z;
+                let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
+                let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
+                let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
+                add_builder_cylinder_mesh(
+                    &mut mesh_vertices,
+                    &mut mesh_uvs,
+                    &mut mesh_indices,
+                    center,
+                    scaled_length,
+                    scaled_radius,
+                    transform.rotation_x,
                     transform.rotation_y,
                     along,
                     up,
@@ -3397,8 +3654,8 @@ fn emit_builder_linedef_group_meshes(
     emit_builder_attached_item_graphs(
         &assembly,
         host_properties,
-        Vec2::new(span_length, 1.0),
-        origin,
+        Vec2::new(span_length, wall_height),
+        host_origin,
         along,
         up,
         outward,
@@ -3407,6 +3664,92 @@ fn emit_builder_linedef_group_meshes(
         vmchunk,
     );
     true
+}
+
+#[derive(Clone, Copy, Debug)]
+struct BuilderLinedefMount {
+    outward: Vec3<f32>,
+    up: Vec3<f32>,
+    wall_height: f32,
+    host_origin: Vec3<f32>,
+}
+
+fn builder_linedef_outward(along: Vec3<f32>, props: &ValueContainer) -> Vec3<f32> {
+    let explicit = Vec3::new(
+        props.get_float_default("builder_graph_outward_x", 0.0),
+        props.get_float_default("builder_graph_outward_y", 0.0),
+        props.get_float_default("builder_graph_outward_z", 0.0),
+    );
+    if let Some(outward) = explicit.try_normalized() {
+        return outward;
+    }
+    let mut outward = Vec3::new(-along.z, 0.0, along.x);
+    let side = props.get_float_default("builder_graph_wall_side", 0.0);
+    if side < 0.0 {
+        outward = -outward;
+    }
+    outward
+}
+
+fn builder_linedef_along(fallback_along: Vec3<f32>, props: &ValueContainer) -> Vec3<f32> {
+    let explicit = Vec3::new(
+        props.get_float_default("host_along_x", 0.0),
+        props.get_float_default("host_along_y", 0.0),
+        props.get_float_default("host_along_z", 0.0),
+    );
+    if let Some(along) = explicit.try_normalized() {
+        return along;
+    }
+    fallback_along
+}
+
+fn compute_builder_linedef_mount(
+    origin: Vec3<f32>,
+    along: Vec3<f32>,
+    host_properties: &ValueContainer,
+) -> BuilderLinedefMount {
+    let outward = Vec3::new(
+        host_properties.get_float_default("host_outward_x", 0.0),
+        host_properties.get_float_default("host_outward_y", 0.0),
+        host_properties.get_float_default("host_outward_z", 0.0),
+    )
+    .try_normalized()
+    .unwrap_or_else(|| builder_linedef_outward(along, host_properties));
+    let up = Vec3::new(0.0, 1.0, 0.0);
+    let wall_height = host_properties
+        .get_float_default("wall_height", 2.0)
+        .max(0.01);
+    let wall_epsilon = host_properties
+        .get_float_default("profile_wall_epsilon", 0.001)
+        .max(0.0);
+    let surface_origin = match (
+        host_properties.get_float("builder_graph_surface_origin_x"),
+        host_properties.get_float("builder_graph_surface_origin_y"),
+        host_properties.get_float("builder_graph_surface_origin_z"),
+    ) {
+        (Some(x), Some(y), Some(z)) => Some(Vec3::new(x, y, z)),
+        _ => None,
+    };
+    let face_offset = host_properties.get_float("builder_graph_face_offset");
+    let face_origin = if let Some(face_offset) = face_offset {
+        origin + outward * face_offset.max(wall_epsilon)
+    } else if let Some(surface_origin) = surface_origin {
+        surface_origin
+    } else {
+        let wall_offset = host_properties
+            .get_float_default("wall_width", 0.0)
+            .max(0.0)
+            * 0.5
+            + wall_epsilon;
+        origin + outward * wall_offset
+    };
+    let host_origin = face_origin - up * (wall_height * 0.5) + outward * wall_epsilon;
+    BuilderLinedefMount {
+        outward,
+        up,
+        wall_height,
+        host_origin,
+    }
 }
 
 fn generate_builder_linedef_features(
@@ -3427,7 +3770,7 @@ fn generate_builder_linedef_features(
         if builder_graph_data.trim().is_empty() {
             continue;
         }
-        let Ok(graph) = BuilderGraph::from_text(&builder_graph_data) else {
+        let Ok(graph) = BuilderDocument::from_text(&builder_graph_data) else {
             continue;
         };
         if graph.output_spec().target != buildergraph::BuilderOutputTarget::Linedef {
@@ -3447,7 +3790,7 @@ fn generate_builder_linedef_features(
             Some(Value::Id(id)) => *id,
             _ => match linedef.properties.get("builder_graph_id") {
                 Some(Value::Id(id)) => *id,
-                _ => graph.id,
+                _ => Uuid::nil(),
             },
         };
         let group_order = linedef
@@ -3467,7 +3810,7 @@ fn generate_builder_linedef_features(
         if entries.is_empty() {
             continue;
         }
-        let Ok(graph) = BuilderGraph::from_text(&entries[0].4) else {
+        let Ok(graph) = BuilderDocument::from_text(&entries[0].4) else {
             continue;
         };
         let host_refs = graph.output_spec().host_refs.max(1) as usize;
@@ -3503,7 +3846,7 @@ fn generate_builder_linedef_features(
 }
 
 fn emit_builder_vertex_meshes(
-    graph: &BuilderGraph,
+    graph: &BuilderDocument,
     host_id: u32,
     host_properties: &ValueContainer,
     hosts: &[Vec3<f32>],
@@ -3519,7 +3862,13 @@ fn emit_builder_vertex_meshes(
         return false;
     }
 
-    let origin = if hosts.len() == 1 {
+    let origin = if let (Some(x), Some(y), Some(z)) = (
+        host_properties.get_float("host_surface_origin_x"),
+        host_properties.get_float("host_surface_origin_y"),
+        host_properties.get_float("host_surface_origin_z"),
+    ) {
+        Vec3::new(x, y, z)
+    } else if hosts.len() == 1 {
         hosts[0]
     } else {
         (hosts[0] + hosts[hosts.len() - 1]) * 0.5
@@ -3539,6 +3888,7 @@ fn emit_builder_vertex_meshes(
     } else {
         Vec3::new(1.0, 0.0, 0.0)
     };
+    let along = builder_linedef_along(along, host_properties);
     let span_length = if hosts.len() >= 2 {
         Vec3::new(
             hosts[hosts.len() - 1].x - hosts[0].x,
@@ -3550,9 +3900,8 @@ fn emit_builder_vertex_meshes(
     } else {
         1.0
     };
-    let outward = Vec3::new(-along.z, 0.0, along.x);
+    let outward = builder_linedef_outward(along, host_properties);
     let up = Vec3::new(0.0, 1.0, 0.0);
-
     let Ok(assembly) = graph.evaluate() else {
         return false;
     };
@@ -3567,6 +3916,8 @@ fn emit_builder_vertex_meshes(
                 transform,
                 material_slot,
                 host_position_normalized,
+                host_position_y_normalized,
+                host_scale_y_normalized,
                 host_scale_x_normalized,
                 ..
             } => {
@@ -3577,7 +3928,12 @@ fn emit_builder_vertex_meshes(
                 };
                 let scaled = Vec3::new(
                     size.x * sx,
-                    size.y * transform.scale.y,
+                    size.y
+                        * if *host_scale_y_normalized {
+                            transform.scale.y
+                        } else {
+                            transform.scale.y
+                        },
                     size.z * transform.scale.z,
                 );
                 let tx = if *host_position_normalized {
@@ -3585,9 +3941,14 @@ fn emit_builder_vertex_meshes(
                 } else {
                     transform.translation.x
                 };
+                let ty = if *host_position_y_normalized {
+                    transform.translation.y
+                } else {
+                    transform.translation.y
+                };
                 let center = origin
                     + along * tx
-                    + up * (transform.translation.y + scaled.y * 0.5)
+                    + up * (ty + scaled.y * 0.5)
                     + outward * transform.translation.z;
                 let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
                 let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
@@ -3598,6 +3959,75 @@ fn emit_builder_vertex_meshes(
                     &mut mesh_indices,
                     center,
                     scaled,
+                    transform.rotation_x,
+                    transform.rotation_y,
+                    along,
+                    up,
+                    outward,
+                );
+                let tile_id = resolve_builder_material_tile_id(
+                    host_properties,
+                    host_properties.get("source"),
+                    material_slot.as_deref(),
+                    assets,
+                );
+                vmchunk.add_poly_3d(
+                    GeoId::Vertex(host_id),
+                    tile_id,
+                    mesh_vertices,
+                    mesh_uvs,
+                    mesh_indices,
+                    0,
+                    true,
+                );
+            }
+            BuilderPrimitive::Cylinder {
+                length,
+                radius,
+                transform,
+                material_slot,
+                host_position_normalized,
+                host_position_y_normalized,
+                host_scale_y_normalized,
+                host_scale_x_normalized,
+                host_scale_z_normalized: _,
+            } => {
+                let scaled_length = if *host_scale_y_normalized {
+                    *length * transform.scale.y
+                } else {
+                    *length * transform.scale.y
+                };
+                let scaled_radius = *radius
+                    * if *host_scale_x_normalized {
+                        transform.scale.z * span_length
+                    } else {
+                        transform.scale.z
+                    };
+                let tx = if *host_position_normalized {
+                    transform.translation.x * span_length
+                } else {
+                    transform.translation.x
+                };
+                let ty = if *host_position_y_normalized {
+                    transform.translation.y
+                } else {
+                    transform.translation.y
+                };
+                let center = origin
+                    + along * tx
+                    + up * (ty + scaled_length * 0.5)
+                    + outward * transform.translation.z;
+                let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
+                let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
+                let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
+                add_builder_cylinder_mesh(
+                    &mut mesh_vertices,
+                    &mut mesh_uvs,
+                    &mut mesh_indices,
+                    center,
+                    scaled_length,
+                    scaled_radius,
+                    transform.rotation_x,
                     transform.rotation_y,
                     along,
                     up,
@@ -3652,7 +4082,7 @@ fn generate_vertex_builder_features(
         if builder_graph_data.trim().is_empty() {
             continue;
         }
-        let Ok(graph) = BuilderGraph::from_text(&builder_graph_data) else {
+        let Ok(graph) = BuilderDocument::from_text(&builder_graph_data) else {
             continue;
         };
         if graph.output_spec().target != buildergraph::BuilderOutputTarget::VertexPair {
@@ -3666,7 +4096,7 @@ fn generate_vertex_builder_features(
             Some(Value::Id(id)) => *id,
             _ => match vertex.properties.get("builder_graph_id") {
                 Some(Value::Id(id)) => *id,
-                _ => graph.id,
+                _ => Uuid::nil(),
             },
         };
         let group_order = vertex
@@ -3685,7 +4115,7 @@ fn generate_vertex_builder_features(
         if entries.is_empty() {
             continue;
         }
-        let Ok(graph) = BuilderGraph::from_text(&entries[0].3) else {
+        let Ok(graph) = BuilderDocument::from_text(&entries[0].3) else {
             continue;
         };
         let host_refs = graph.output_spec().host_refs.max(1) as usize;
@@ -9658,7 +10088,7 @@ fn emit_builder_sector_meshes(
     _profile_target: i32,
 ) -> bool {
     let builder_geo_id = scenevm::GeoId::Unknown(0xB100_0000u32 ^ sector.id);
-    let Ok(graph) = BuilderGraph::from_text(graph_text) else {
+    let Ok(graph) = BuilderDocument::from_text(graph_text) else {
         return false;
     };
     let Ok(assembly) = graph.evaluate() else {
@@ -9699,6 +10129,8 @@ fn emit_builder_sector_meshes(
                 transform,
                 material_slot,
                 host_position_normalized,
+                host_position_y_normalized,
+                host_scale_y_normalized,
                 host_scale_x_normalized,
                 host_scale_z_normalized,
             } => {
@@ -9712,7 +10144,12 @@ fn emit_builder_sector_meshes(
                 } else {
                     transform.scale.z
                 };
-                let scaled = Vec3::new(size.x * sx, size.y * transform.scale.y, size.z * sz);
+                let sy = if *host_scale_y_normalized {
+                    size.y * transform.scale.y * sector_size.y
+                } else {
+                    size.y * transform.scale.y
+                };
+                let scaled = Vec3::new(size.x * sx, sy, size.z * sz);
                 let offset_uv = Vec2::new(
                     if *host_position_normalized {
                         transform.translation.x * sector_size.x
@@ -9727,13 +10164,95 @@ fn emit_builder_sector_meshes(
                 );
                 let base_world =
                     surface.uv_to_world(center_uv + offset_uv) + upward * base_extrusion;
-                let center = base_world + upward * (transform.translation.y + scaled.y * 0.5);
+                let center = base_world
+                    + upward
+                        * ((if *host_position_y_normalized {
+                            transform.translation.y * sector_size.y
+                        } else {
+                            transform.translation.y
+                        }) + scaled.y * 0.5);
                 add_builder_box_mesh(
                     &mut mesh_vertices,
                     &mut mesh_uvs,
                     &mut mesh_indices,
                     center,
                     scaled,
+                    transform.rotation_x,
+                    transform.rotation_y,
+                    along,
+                    upward,
+                    outward,
+                );
+                let tile_id = resolve_builder_material_tile_id(
+                    &sector.properties,
+                    fallback_source.as_ref(),
+                    material_slot.as_deref(),
+                    assets,
+                );
+                vmchunk.add_poly_3d(
+                    builder_geo_id,
+                    tile_id,
+                    mesh_vertices.clone(),
+                    mesh_uvs.clone(),
+                    mesh_indices.clone(),
+                    0,
+                    true,
+                );
+                mesh_vertices.clear();
+                mesh_uvs.clear();
+                mesh_indices.clear();
+            }
+            BuilderPrimitive::Cylinder {
+                length,
+                radius,
+                transform,
+                material_slot,
+                host_position_normalized,
+                host_position_y_normalized,
+                host_scale_y_normalized,
+                host_scale_x_normalized,
+                host_scale_z_normalized: _,
+            } => {
+                let scaled_length = if *host_scale_y_normalized {
+                    *length * transform.scale.y * sector_size.y
+                } else {
+                    *length * transform.scale.y
+                };
+                let scaled_radius = *radius
+                    * if *host_scale_x_normalized {
+                        transform.scale.z * sector_size.x
+                    } else {
+                        transform.scale.z
+                    };
+                let offset_uv = Vec2::new(
+                    if *host_position_normalized {
+                        transform.translation.x * sector_size.x
+                    } else {
+                        transform.translation.x
+                    },
+                    if *host_position_normalized {
+                        transform.translation.z * sector_size.y
+                    } else {
+                        transform.translation.z
+                    },
+                );
+                let base_world =
+                    surface.uv_to_world(center_uv + offset_uv) + upward * base_extrusion;
+                let center = base_world
+                    + upward
+                        * ((if *host_position_y_normalized {
+                            transform.translation.y * sector_size.y
+                        } else {
+                            transform.translation.y
+                        }) + scaled_length * 0.5);
+                add_builder_cylinder_mesh(
+                    &mut mesh_vertices,
+                    &mut mesh_uvs,
+                    &mut mesh_indices,
+                    center,
+                    scaled_length,
+                    scaled_radius,
+                    transform.rotation_x,
                     transform.rotation_y,
                     along,
                     upward,

@@ -46,6 +46,9 @@ fn average_rgba_color(pixels: &[u8]) -> [u8; 4] {
     let mut sum = [0_u64; 4];
     let mut count = 0_u64;
     for rgba in pixels.chunks_exact(4) {
+        if rgba[3] == 0 {
+            continue;
+        }
         sum[0] += rgba[0] as u64;
         sum[1] += rgba[1] as u64;
         sum[2] += rgba[2] as u64;
@@ -53,14 +56,19 @@ fn average_rgba_color(pixels: &[u8]) -> [u8; 4] {
         count += 1;
     }
     if count == 0 {
-        return [255, 255, 255, 255];
+        return [255, 176, 72, 255];
     }
-    [
+    let avg = [
         (sum[0] / count) as u8,
         (sum[1] / count) as u8,
         (sum[2] / count) as u8,
         (sum[3] / count) as u8,
-    ]
+    ];
+    if avg[0] < 12 && avg[1] < 12 && avg[2] < 12 {
+        [255, 176, 72, 255]
+    } else {
+        avg
+    }
 }
 
 impl SharedTileGraphSubgraphResolver for ProjectTileSubgraphResolver<'_> {
@@ -4047,12 +4055,12 @@ impl TilesEditorDock {
         }
 
         let emitter_x = width as f32 * 0.5;
-        let emitter_y = height as f32 * 0.84;
+        let emitter_y = height as f32 * 0.88;
         let spread_scale = (particle.spread / std::f32::consts::PI).clamp(0.0, 1.0);
         let speed_scale = ((particle.speed_min + particle.speed_max) * 0.5).clamp(0.05, 8.0);
         let rate_scale = particle.rate.clamp(1.0, 128.0);
         let radius_scale = ((particle.radius_min + particle.radius_max) * 0.5).clamp(0.01, 2.0);
-        let count = ((rate_scale / 6.0).round() as usize).clamp(8, 48);
+        let count = ((rate_scale / 4.0).round() as usize).clamp(12, 72);
 
         for i in 0..count {
             let seed = i as f32 * 12.9898;
@@ -4067,11 +4075,11 @@ impl TilesEditorDock {
             let side = ((seed * 1.37).sin() * 0.5 + (time * 0.9 + seed).sin() * 0.5)
                 * spread_scale
                 * width as f32
-                * 0.24;
-            let swirl = (age * std::f32::consts::TAU + seed).sin() * width as f32 * 0.015;
+                * 0.32;
+            let swirl = (age * std::f32::consts::TAU + seed).sin() * width as f32 * 0.03;
             let x = emitter_x + side + swirl;
-            let y = emitter_y - rise * height as f32 * (0.28 + speed_scale * 0.16);
-            let size = ((radius_scale * 20.0) * (1.0 - age * 0.55)).clamp(2.0, 22.0);
+            let y = emitter_y - rise * height as f32 * (0.44 + speed_scale * 0.22);
+            let size = ((radius_scale * 34.0) * (1.0 - age * 0.45)).clamp(5.0, 42.0);
             let alpha = ((1.0 - age).powf(1.15) * 0.9 + 0.1).clamp(0.0, 1.0);
 
             let jitter = particle.color_variation as f32 * ((seed * 0.31).cos() * 0.5 + 0.5);

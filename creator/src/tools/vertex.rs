@@ -10,6 +10,27 @@ use rusterix::prelude::*;
 use scenevm::GeoId;
 use std::str::FromStr;
 
+fn resolve_creation_surface_side(
+    hit_pos: Vec3<f32>,
+    surface_normal: Vec3<f32>,
+    surface_origin: Vec3<f32>,
+    hover_ray_dir: Option<Vec3<f32>>,
+) -> Vec3<f32> {
+    let signed_dist = (hit_pos - surface_origin).dot(surface_normal);
+    let grow_positive = if signed_dist.abs() > 0.01 {
+        signed_dist >= 0.0
+    } else if let Some(ray_dir) = hover_ray_dir {
+        surface_normal.dot(-ray_dir) >= 0.0
+    } else {
+        true
+    };
+    if grow_positive {
+        surface_normal
+    } else {
+        -surface_normal
+    }
+}
+
 pub struct VertexTool {
     id: TheId,
     click_pos: Vec2<f32>,
@@ -145,6 +166,51 @@ impl Tool for VertexTool {
                 }
             }
             best_surface.map(|(surface, _)| surface)
+        }
+
+        fn creation_host_surface(map: &Map, server_ctx: &ServerContext) -> Option<Surface> {
+            let hit_pos = server_ctx
+                .hover_surface_hit_pos
+                .or(server_ctx.editing_surface_hit_pos)
+                .unwrap_or(server_ctx.geo_hit_pos);
+            if let Some(surface) = detail_surface_at_point(map, hit_pos) {
+                return Some(surface);
+            }
+            if let Some(surface) = server_ctx
+                .hover_surface
+                .as_ref()
+                .or(server_ctx.editing_surface.as_ref())
+            {
+                return Some(surface.clone());
+            }
+            let sector_id = match server_ctx.geo_hit {
+                Some(GeoId::Sector(id)) => Some(id),
+                _ => server_ctx
+                    .hover_surface
+                    .as_ref()
+                    .map(|surface| surface.sector_id)
+                    .or_else(|| {
+                        server_ctx
+                            .editing_surface
+                            .as_ref()
+                            .map(|surface| surface.sector_id)
+                    }),
+            }?;
+            if let Some(surface) = map.get_surface_for_sector_id(sector_id) {
+                return Some(surface.clone());
+            }
+            let mut surface = Surface::new(sector_id);
+            surface.calculate_geometry(map);
+            surface.is_valid().then_some(surface)
+        }
+
+        fn creation_host_sector_id(map: &Map, server_ctx: &ServerContext) -> Option<u32> {
+            creation_host_surface(map, server_ctx)
+                .map(|surface| surface.sector_id)
+                .or(match server_ctx.geo_hit {
+                    Some(GeoId::Sector(id)) => Some(id),
+                    _ => None,
+                })
         }
 
         match map_event {
@@ -336,6 +402,90 @@ impl Tool for VertexTool {
                                 } else {
                                     let id = map
                                         .add_vertex_at_3d(snapped.x, snapped.z, snapped.y, false);
+                                    if let Some(host_sector_id) =
+                                        creation_host_sector_id(map, server_ctx)
+                                    {
+                                        let host_surface = creation_host_surface(map, server_ctx);
+                                        let host_hit_pos = server_ctx
+                                            .hover_surface_hit_pos
+                                            .or(server_ctx.editing_surface_hit_pos)
+                                            .unwrap_or(server_ctx.geo_hit_pos);
+                                        let host_outward =
+                                            host_surface.as_ref().and_then(|surface| {
+                                                let normal =
+                                                    surface.plane.normal.try_normalized()?;
+                                                Some(resolve_creation_surface_side(
+                                                    host_hit_pos,
+                                                    normal,
+                                                    surface.plane.origin,
+                                                    server_ctx
+                                                        .hover_ray_dir_3d
+                                                        .and_then(|dir| dir.try_normalized()),
+                                                ))
+                                            });
+                                        let host_along =
+                                            host_surface.as_ref().and_then(|surface| {
+                                                let mut along = Vec3::new(
+                                                    surface.frame.right.x,
+                                                    0.0,
+                                                    surface.frame.right.z,
+                                                )
+                                                .try_normalized()?;
+                                                let ax = along.x.abs();
+                                                let az = along.z.abs();
+                                                if (ax >= az && along.x < 0.0)
+                                                    || (az > ax && along.z < 0.0)
+                                                {
+                                                    along = -along;
+                                                }
+                                                Some(along)
+                                            });
+                                        let host_face_origin = host_outward.map(|outward| {
+                                            snapped
+                                                - outward * (snapped - host_hit_pos).dot(outward)
+                                        });
+                                        if let Some(vertex) = map.find_vertex_mut(id) {
+                                            vertex.properties.set(
+                                                "host_sector",
+                                                Value::Int(host_sector_id as i32),
+                                            );
+                                            if let Some(outward) = host_outward {
+                                                vertex
+                                                    .properties
+                                                    .set("host_outward_x", Value::Float(outward.x));
+                                                vertex
+                                                    .properties
+                                                    .set("host_outward_y", Value::Float(outward.y));
+                                                vertex
+                                                    .properties
+                                                    .set("host_outward_z", Value::Float(outward.z));
+                                            }
+                                            if let Some(along) = host_along {
+                                                vertex
+                                                    .properties
+                                                    .set("host_along_x", Value::Float(along.x));
+                                                vertex
+                                                    .properties
+                                                    .set("host_along_y", Value::Float(along.y));
+                                                vertex
+                                                    .properties
+                                                    .set("host_along_z", Value::Float(along.z));
+                                            }
+                                            let origin = host_face_origin.unwrap_or(snapped);
+                                            vertex.properties.set(
+                                                "host_surface_origin_x",
+                                                Value::Float(origin.x),
+                                            );
+                                            vertex.properties.set(
+                                                "host_surface_origin_y",
+                                                Value::Float(origin.y),
+                                            );
+                                            vertex.properties.set(
+                                                "host_surface_origin_z",
+                                                Value::Float(origin.z),
+                                            );
+                                        }
+                                    }
                                     map.selected_vertices = vec![id];
                                 }
 

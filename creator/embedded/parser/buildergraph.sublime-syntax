@@ -1,0 +1,30 @@
+%YAML 1.2
+---
+name: BuilderGraph
+file_extensions:
+  - buildergraph
+scope: source.buildergraph
+
+contexts:
+  main:
+    - match: \b(name|host|preview|let|slot|item|material|output|attach|parent|size|length|radius|axis|rotate_x)\b
+      scope: keyword.control.buildergraph
+    - match: \b(box|cylinder|line|linedef|sector|vertex|point|vec3)\b
+      scope: storage.type.buildergraph
+    - match: \b(host|middle|top|bottom|left|right|along|up|out|top_left_corner|top_right_corner|bottom_left_corner|bottom_right_corner|tip|base|mid)\b
+      scope: support.variable.buildergraph
+    - match: '"'
+      push: string
+    - match: \b[0-9]+(?:\.[0-9]+)?\b
+      scope: constant.numeric.buildergraph
+    - match: \b[A-Z_][A-Z0-9_]*\b
+      scope: constant.other.buildergraph
+    - match: \b[a-zA-Z_][a-zA-Z0-9_]*\b
+      scope: variable.other.buildergraph
+    - match: //.*$
+      scope: comment.line.double-slash.buildergraph
+
+  string:
+    - meta_scope: string.quoted.double.buildergraph
+    - match: '"'
+      pop: true

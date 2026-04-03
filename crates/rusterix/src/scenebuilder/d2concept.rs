@@ -53,6 +53,9 @@ impl D2ConceptBuilder {
             let mut doors = Batch2D::empty()
                 .source(PixelSource::Pixel([240, 196, 92, 255]))
                 .mode(crate::PrimitiveMode::Lines);
+            let mut stairs = Batch2D::empty()
+                .source(PixelSource::Pixel([182, 220, 255, 255]))
+                .mode(crate::PrimitiveMode::Lines);
 
             for cell in &layer.cells {
                 fill.add_rectangle(cell.x as f32, cell.y as f32, 1.0, 1.0);
@@ -79,6 +82,7 @@ impl D2ConceptBuilder {
                 );
                 self.add_cell_glyph(&mut glyphs, cell.x as f32, cell.y as f32, cell.kind);
                 self.add_door_glyph(&mut doors, cell.x as f32, cell.y as f32, cell.kind);
+                self.add_stair_glyph(&mut stairs, cell.x as f32, cell.y as f32, cell.kind);
             }
 
             scene.d2_static.push(fill);
@@ -86,6 +90,7 @@ impl D2ConceptBuilder {
             scene.d2_dynamic.push(outlines);
             scene.d2_dynamic.push(glyphs);
             scene.d2_dynamic.push(doors);
+            scene.d2_dynamic.push(stairs);
         }
 
         if let Some(cursor) = self.hover_cursor {
@@ -310,6 +315,13 @@ impl D2ConceptBuilder {
                         9_120,
                     );
                 }
+                self.add_stair_overlay(
+                    scene_handler,
+                    index as u32,
+                    cell.x as f32,
+                    cell.y as f32,
+                    cell.kind,
+                );
             }
         }
 
@@ -410,6 +422,75 @@ impl D2ConceptBuilder {
         }
         if kind.has_door_west() {
             batch.add_line(Vec2::new(x + 0.1, top), Vec2::new(x + 0.1, bottom), 0.06);
+        }
+    }
+
+    fn add_stair_glyph(&self, batch: &mut Batch2D, x: f32, y: f32, kind: crate::DungeonTileKind) {
+        for i in 0..4 {
+            let t = (i + 1) as f32 / 5.0;
+            if kind.has_stair_north() {
+                let yy = y + 1.0 - t;
+                batch.add_line(Vec2::new(x + 0.18, yy), Vec2::new(x + 0.82, yy), 0.04);
+            } else if kind.has_stair_south() {
+                let yy = y + t;
+                batch.add_line(Vec2::new(x + 0.18, yy), Vec2::new(x + 0.82, yy), 0.04);
+            } else if kind.has_stair_east() {
+                let xx = x + t;
+                batch.add_line(Vec2::new(xx, y + 0.18), Vec2::new(xx, y + 0.82), 0.04);
+            } else if kind.has_stair_west() {
+                let xx = x + 1.0 - t;
+                batch.add_line(Vec2::new(xx, y + 0.18), Vec2::new(xx, y + 0.82), 0.04);
+            }
+        }
+    }
+
+    fn add_stair_overlay(
+        &self,
+        scene_handler: &mut SceneHandler,
+        index: u32,
+        x: f32,
+        y: f32,
+        kind: crate::DungeonTileKind,
+    ) {
+        for i in 0..4 {
+            let t = (i + 1) as f32 / 5.0;
+            if kind.has_stair_north() {
+                let yy = y + 1.0 - t;
+                scene_handler.add_overlay_2d_line(
+                    GeoId::Unknown(26_000 + index * 8 + i as u32),
+                    Vec2::new(x + 0.18, yy),
+                    Vec2::new(x + 0.82, yy),
+                    scene_handler.yellow,
+                    9_130,
+                );
+            } else if kind.has_stair_south() {
+                let yy = y + t;
+                scene_handler.add_overlay_2d_line(
+                    GeoId::Unknown(26_000 + index * 8 + i as u32),
+                    Vec2::new(x + 0.18, yy),
+                    Vec2::new(x + 0.82, yy),
+                    scene_handler.yellow,
+                    9_130,
+                );
+            } else if kind.has_stair_east() {
+                let xx = x + t;
+                scene_handler.add_overlay_2d_line(
+                    GeoId::Unknown(26_000 + index * 8 + i as u32),
+                    Vec2::new(xx, y + 0.18),
+                    Vec2::new(xx, y + 0.82),
+                    scene_handler.yellow,
+                    9_130,
+                );
+            } else if kind.has_stair_west() {
+                let xx = x + 1.0 - t;
+                scene_handler.add_overlay_2d_line(
+                    GeoId::Unknown(26_000 + index * 8 + i as u32),
+                    Vec2::new(xx, y + 0.18),
+                    Vec2::new(xx, y + 0.82),
+                    scene_handler.yellow,
+                    9_130,
+                );
+            }
         }
     }
 }

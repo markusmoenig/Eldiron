@@ -66,6 +66,29 @@ impl DungeonDock {
                 "dungeon_tile_item",
                 server_ctx.curr_dungeon_tile_item.clone(),
             );
+            let legacy_target = map
+                .properties
+                .get_float_default("dungeon_stair_target_floor_base", f32::NAN);
+            server_ctx.curr_dungeon_stair_target_floor_base = map.properties.get_float_default(
+                "dungeon_stair_delta",
+                if legacy_target.is_finite() {
+                    legacy_target - server_ctx.curr_dungeon_floor_base
+                } else {
+                    server_ctx.curr_dungeon_stair_target_floor_base
+                },
+            );
+            server_ctx.curr_dungeon_stair_steps = map
+                .properties
+                .get_int_default("dungeon_stair_steps", server_ctx.curr_dungeon_stair_steps)
+                .max(1);
+            server_ctx.curr_dungeon_stair_tile_id = map.properties.get_str_default(
+                "dungeon_stair_tile_id",
+                server_ctx.curr_dungeon_stair_tile_id.clone(),
+            );
+            server_ctx.curr_dungeon_stair_tile_mode = map.properties.get_int_default(
+                "dungeon_stair_tile_mode",
+                server_ctx.curr_dungeon_stair_tile_mode,
+            );
         }
     }
 
@@ -110,6 +133,22 @@ impl DungeonDock {
             map.properties.set(
                 "dungeon_tile_item",
                 Value::Str(server_ctx.curr_dungeon_tile_item.clone()),
+            );
+            map.properties.set(
+                "dungeon_stair_delta",
+                Value::Float(server_ctx.curr_dungeon_stair_target_floor_base),
+            );
+            map.properties.set(
+                "dungeon_stair_steps",
+                Value::Int(server_ctx.curr_dungeon_stair_steps.max(1)),
+            );
+            map.properties.set(
+                "dungeon_stair_tile_id",
+                Value::Str(server_ctx.curr_dungeon_stair_tile_id.clone()),
+            );
+            map.properties.set(
+                "dungeon_stair_tile_mode",
+                Value::Int(server_ctx.curr_dungeon_stair_tile_mode),
             );
         }
     }
@@ -194,6 +233,44 @@ impl DungeonDock {
                 "Item handler class written into generated dungeon door sectors.".into(),
                 server_ctx.curr_dungeon_tile_item.clone(),
                 Some("Door Handler".into()),
+                false,
+            ));
+            nodeui.add_item(TheNodeUIItem::CloseTree);
+        } else if server_ctx.curr_dungeon_tile.is_stair() {
+            nodeui.add_item(TheNodeUIItem::OpenTree("Steps".into()));
+            nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                "steps_floor_delta".into(),
+                "Floor Delta".into(),
+                "Relative floor-base change reached by the stair tile. Negative goes down.".into(),
+                server_ctx.curr_dungeon_stair_target_floor_base,
+                -64.0..=64.0,
+                false,
+            ));
+            nodeui.add_item(TheNodeUIItem::IntEditSlider(
+                "steps_steps".into(),
+                "Steps".into(),
+                "Number of generated steps inside the stair tile.".into(),
+                server_ctx.curr_dungeon_stair_steps.max(1),
+                1..=16,
+                false,
+            ));
+            nodeui.add_item(TheNodeUIItem::Selector(
+                "steps_tile_mode".into(),
+                "Tile Mode".into(),
+                "How the stair tile source is mapped onto generated stair geometry.".into(),
+                vec!["Repeat".into(), "Scale".into()],
+                if server_ctx.curr_dungeon_stair_tile_mode == 1 {
+                    0
+                } else {
+                    1
+                },
+            ));
+            nodeui.add_item(TheNodeUIItem::Text(
+                "steps_tile_id".into(),
+                "Tile Id".into(),
+                "Default tile id applied to generated stair geometry.".into(),
+                server_ctx.curr_dungeon_stair_tile_id.clone(),
+                Some(String::new()),
                 false,
             ));
             nodeui.add_item(TheNodeUIItem::CloseTree);
@@ -302,6 +379,7 @@ impl DungeonDock {
         let floor_outline = [205, 205, 205, 255];
         let wall_color = [255, 255, 255, 255];
         let door_color = [240, 196, 92, 255];
+        let stair_color = [182, 220, 255, 255];
         let wall = (preview.z.min(preview.w) / 8).clamp(4, 8);
         let floor_rect = preview;
 
@@ -382,6 +460,66 @@ impl DungeonDock {
                 ),
                 &door_color,
             );
+        }
+        if kind.is_stair() {
+            let bands = 4;
+            let band_gap = (preview.z.min(preview.w) / 20).max(2);
+            for i in 0..bands {
+                let t = i as i32;
+                if kind.has_stair_north() {
+                    let y = preview.y + preview.w - ((t + 1) * preview.w / (bands + 1));
+                    Self::draw_panel_rect(
+                        draw,
+                        buffer,
+                        Vec4::new(
+                            preview.x + band_gap,
+                            y,
+                            preview.z - band_gap * 2,
+                            wall.max(3),
+                        ),
+                        &stair_color,
+                    );
+                } else if kind.has_stair_south() {
+                    let y = preview.y + (t + 1) * preview.w / (bands + 1);
+                    Self::draw_panel_rect(
+                        draw,
+                        buffer,
+                        Vec4::new(
+                            preview.x + band_gap,
+                            y,
+                            preview.z - band_gap * 2,
+                            wall.max(3),
+                        ),
+                        &stair_color,
+                    );
+                } else if kind.has_stair_east() {
+                    let x = preview.x + (t + 1) * preview.z / (bands + 1);
+                    Self::draw_panel_rect(
+                        draw,
+                        buffer,
+                        Vec4::new(
+                            x,
+                            preview.y + band_gap,
+                            wall.max(3),
+                            preview.w - band_gap * 2,
+                        ),
+                        &stair_color,
+                    );
+                } else if kind.has_stair_west() {
+                    let x = preview.x + preview.z - ((t + 1) * preview.z / (bands + 1));
+                    Self::draw_panel_rect(
+                        draw,
+                        buffer,
+                        Vec4::new(
+                            x,
+                            preview.y + band_gap,
+                            wall.max(3),
+                            preview.w - band_gap * 2,
+                        ),
+                        &stair_color,
+                    );
+                }
+            }
         }
     }
 
@@ -653,8 +791,23 @@ impl Dock for DungeonDock {
                                 ("Door Open Mode", TheValue::Int(v)) => {
                                     server_ctx.curr_dungeon_tile_open_mode = v.clamp(0, 5);
                                 }
+                                ("steps_floor_delta", TheValue::Float(v)) => {
+                                    server_ctx.curr_dungeon_stair_target_floor_base = v;
+                                }
+                                ("steps_steps", TheValue::Int(v)) => {
+                                    server_ctx.curr_dungeon_stair_steps = v.max(1);
+                                }
+                                ("steps_tile_mode", TheValue::Int(v)) => {
+                                    server_ctx.curr_dungeon_stair_tile_mode =
+                                        if v == 0 { 1 } else { 0 };
+                                }
                                 _ => {}
                             }
+                        }
+                        if server_ctx.curr_dungeon_tile.is_stair()
+                            && let Some(tile_id) = nodeui.get_text_value("steps_tile_id")
+                        {
+                            server_ctx.curr_dungeon_stair_tile_id = tile_id.trim().to_string();
                         }
                         if let Some(item) = nodeui.get_text_value("Item") {
                             server_ctx.curr_dungeon_tile_item = item.trim().to_string();

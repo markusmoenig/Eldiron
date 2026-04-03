@@ -6,6 +6,7 @@ pub mod avatar;
 #[cfg(feature = "graphics")]
 pub mod avatar_builder;
 pub mod batch;
+pub mod builderpreview;
 pub mod camera;
 pub mod chunk;
 pub mod chunkbuilder;

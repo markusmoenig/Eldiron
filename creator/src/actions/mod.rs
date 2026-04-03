@@ -64,7 +64,7 @@ fn builder_material_slots_from_properties(
     {
         return None;
     }
-    let Ok(graph) = shared::buildergraph::BuilderGraph::from_text(&graph_text) else {
+    let Ok(graph) = shared::buildergraph::BuilderDocument::from_text(&graph_text) else {
         return None;
     };
     let slot_names = graph.material_slot_names();
@@ -96,7 +96,7 @@ fn builder_item_slots_from_properties(properties: &ValueContainer) -> Option<Vec
     {
         return None;
     }
-    let Ok(graph) = shared::buildergraph::BuilderGraph::from_text(&graph_text) else {
+    let Ok(graph) = shared::buildergraph::BuilderDocument::from_text(&graph_text) else {
         return None;
     };
     let slot_names = graph.item_slot_names();

@@ -429,6 +429,18 @@ pub struct ServerContext {
     /// Item handler class for newly painted dungeon door cells.
     pub curr_dungeon_tile_item: String,
 
+    /// Target floor base for newly painted stair tiles.
+    pub curr_dungeon_stair_target_floor_base: f32,
+
+    /// Number of generated steps for newly painted stair tiles.
+    pub curr_dungeon_stair_steps: i32,
+
+    /// Default tile id for newly painted stair tiles.
+    pub curr_dungeon_stair_tile_id: String,
+
+    /// Default tile mode for newly painted stair tiles.
+    pub curr_dungeon_stair_tile_mode: i32,
+
     /// Previous subdivision setting before entering Dungeon Tool.
     pub prev_dungeon_subdivisions: Option<f32>,
 
@@ -463,6 +475,8 @@ pub struct ServerContext {
 
     /// The hovered surface resolved from the raw 3D scene hit, if any.
     pub hover_surface: Option<Surface>,
+    /// World-space hit position for the hovered surface, if any.
+    pub hover_surface_hit_pos: Option<Vec3<f32>>,
     /// The currently active surface for a 3D detail edit chain.
     pub active_detail_surface: Option<Surface>,
 
@@ -486,6 +500,8 @@ pub struct ServerContext {
 
     /// The current editing surface
     pub editing_surface: Option<Surface>,
+    /// Persistent 3D hit position associated with the current editing surface.
+    pub editing_surface_hit_pos: Option<Vec3<f32>>,
 
     /// The currently selected action
     pub curr_action_id: Option<Uuid>,
@@ -642,6 +658,10 @@ impl ServerContext {
             curr_dungeon_tile_height: 2.25,
             curr_dungeon_tile_open_mode: 0,
             curr_dungeon_tile_item: "Door Handler".to_string(),
+            curr_dungeon_stair_target_floor_base: -1.0,
+            curr_dungeon_stair_steps: 4,
+            curr_dungeon_stair_tile_id: String::new(),
+            curr_dungeon_stair_tile_mode: 1,
             prev_dungeon_subdivisions: None,
             builder_tool_active: false,
             curr_tile_frame_index: 0,
@@ -658,6 +678,7 @@ impl ServerContext {
             hover_cursor_3d: None,
             hover_ray_dir_3d: None,
             hover_surface: None,
+            hover_surface_hit_pos: None,
             active_detail_surface: None,
             hover_height: None,
 
@@ -669,6 +690,7 @@ impl ServerContext {
             profile_view: None,
 
             editing_surface: None,
+            editing_surface_hit_pos: None,
             curr_action_id: None,
             auto_action: false,
 

@@ -1293,6 +1293,9 @@ impl ToolList {
                                 .set_widget_state(name.into(), TheWidgetState::Selected);
                         }
                     }
+                } else if id.name == "Update Geometry Overlay 3D" {
+                    self.update_geometry_overlay_3d(project, server_ctx);
+                    redraw = true;
                 }
             }
             _ => {}
@@ -1385,6 +1388,20 @@ impl ToolList {
                 }
             }
             if switched_tool {
+                server_ctx.hover = (None, None, None);
+                server_ctx.hover_cursor = None;
+                server_ctx.hover_cursor_3d = None;
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    if let Some(surface) = server_ctx.active_detail_surface.as_ref()
+                        && let Some(profile_id) = surface.profile
+                        && let Some(profile_map) = map.profiles.get_mut(&profile_id)
+                    {
+                        profile_map.clear_temp();
+                    }
+                    map.curr_grid_pos = None;
+                    map.curr_grid_pos_3d = None;
+                    map.clear_temp();
+                }
                 for tool in self.game_tools.iter() {
                     if tool.id().uuid != tool_id {
                         ctx.ui
@@ -1687,14 +1704,19 @@ impl ToolList {
                 }
             }
 
-            if server_ctx.curr_map_tool_type == MapToolType::Vertex {
+            let show_builder_selected_vertices =
+                server_ctx.builder_tool_active && !map.selected_vertices.is_empty();
+            if server_ctx.curr_map_tool_type == MapToolType::Vertex
+                || show_builder_selected_vertices
+            {
                 let detail_surface = server_ctx
                     .active_detail_surface
                     .as_ref()
                     .or(server_ctx.hover_surface.as_ref())
                     .or(server_ctx.editing_surface.as_ref())
                     .cloned();
-                let detail_vertex_mode = server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                let detail_vertex_mode = server_ctx.curr_map_tool_type == MapToolType::Vertex
+                    && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
                     && detail_surface.is_some();
 
                 if detail_vertex_mode {
@@ -1735,8 +1757,14 @@ impl ToolList {
                     && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
                     && detail_surface.is_some();
                 // Linedefs
-                if server_ctx.curr_map_tool_type == MapToolType::Linedef {
-                    if let (Some(start), Some(end)) = (map.curr_grid_pos_3d, hover_point) {
+                let show_builder_selected_linedefs =
+                    server_ctx.builder_tool_active && !map.selected_linedefs.is_empty();
+                if server_ctx.curr_map_tool_type == MapToolType::Linedef
+                    || show_builder_selected_linedefs
+                {
+                    if server_ctx.curr_map_tool_type == MapToolType::Linedef
+                        && let (Some(start), Some(end)) = (map.curr_grid_pos_3d, hover_point)
+                    {
                         if start != end {
                             push_line(
                                 GeoId::Unknown(5000),
@@ -1750,7 +1778,9 @@ impl ToolList {
                         }
                     }
 
-                    if server_ctx.geometry_edit_mode == GeometryEditMode::Detail {
+                    if server_ctx.curr_map_tool_type == MapToolType::Linedef
+                        && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
+                    {
                         if let Some(surface) = detail_surface.clone() {
                             if let Some(profile_id) = surface.profile
                                 && let Some(profile_map) = map.profiles.get(&profile_id)
@@ -1798,28 +1828,31 @@ impl ToolList {
 
                     if !skip_world_linedef_overlay {
                         for linedef in &map.linedefs {
-                            if linedef.sector_ids.is_empty() {
-                                if let (Some(vs), Some(ve)) = (
-                                    map.get_vertex_3d(linedef.start_vertex),
-                                    map.get_vertex_3d(linedef.end_vertex),
-                                ) {
-                                    let a = Vec3::new(vs.x, vs.y, vs.z) + view_nudge;
-                                    let b = Vec3::new(ve.x, ve.y, ve.z) + view_nudge;
-                                    let normal = cam_forward;
+                            let is_selected = map.selected_linedefs.contains(&linedef.id);
+                            let is_hovered = server_ctx.hover.1 == Some(linedef.id);
+                            let show_in_builder =
+                                server_ctx.builder_tool_active && (is_selected || is_hovered);
+                            if !linedef.sector_ids.is_empty() && !show_in_builder {
+                                continue;
+                            }
 
-                                    let is_selected = map.selected_linedefs.contains(&linedef.id);
-                                    let is_hovered = server_ctx.hover.1 == Some(linedef.id);
+                            if let (Some(vs), Some(ve)) = (
+                                map.get_vertex_3d(linedef.start_vertex),
+                                map.get_vertex_3d(linedef.end_vertex),
+                            ) {
+                                let a = Vec3::new(vs.x, vs.y, vs.z) + view_nudge;
+                                let b = Vec3::new(ve.x, ve.y, ve.z) + view_nudge;
+                                let normal = cam_forward;
 
-                                    push_line(
-                                        GeoId::Linedef(linedef.id),
-                                        &mut rusterix,
-                                        a,
-                                        b,
-                                        normal,
-                                        is_selected,
-                                        is_hovered,
-                                    );
-                                }
+                                push_line(
+                                    GeoId::Linedef(linedef.id),
+                                    &mut rusterix,
+                                    a,
+                                    b,
+                                    normal,
+                                    is_selected,
+                                    is_hovered,
+                                );
                             }
                         }
                     }
@@ -2117,6 +2150,7 @@ impl ToolList {
         server_ctx.hover_cursor_3d = None;
         server_ctx.hover_ray_dir_3d = None;
         server_ctx.hover_surface = None;
+        server_ctx.hover_surface_hit_pos = None;
         if let Some((_, ray_dir)) = rusterix.scene_handler.vm.ray_from_uv_with_size(
             dim.width as u32,
             dim.height as u32,
@@ -2124,6 +2158,8 @@ impl ToolList {
         ) {
             server_ctx.hover_ray_dir_3d = Some(ray_dir);
         }
+
+        rusterix.scene_handler.vm.set_active_vm(0);
         if let Some(raw) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
             dim.width as u32,
             dim.height as u32,
@@ -2132,15 +2168,9 @@ impl ToolList {
             false,
         ) {
             server_ctx.hover_cursor_3d = Some(raw.1);
-            if let GeoId::Sector(id) = raw.0
-                && let Some(map) = project.get_map(server_ctx)
-            {
+            if let Some(map) = project.get_map(server_ctx) {
                 let mut best_surface: Option<(Surface, f32)> = None;
                 for surface in map.surfaces.values() {
-                    if surface.sector_id != id {
-                        continue;
-                    }
-
                     let n = surface.plane.normal;
                     let n_len = n.magnitude();
                     if n_len <= 1e-6 {
@@ -2158,6 +2188,7 @@ impl ToolList {
                     }
                 }
                 server_ctx.hover_surface = best_surface.map(|(surface, _)| surface);
+                server_ctx.hover_surface_hit_pos = Some(raw.1);
             }
             if server_ctx.curr_map_tool_type == MapToolType::Sector
                 && server_ctx.geometry_edit_mode != GeometryEditMode::Detail

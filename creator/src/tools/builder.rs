@@ -45,21 +45,24 @@ impl Tool for BuilderTool {
         match tool_event {
             Activate => {
                 server_ctx.builder_tool_active = true;
-                server_ctx.curr_map_tool_type =
-                    if let Some(builder_id) = server_ctx.curr_builder_graph_id {
-                        project
-                            .builder_graphs
-                            .get(&builder_id)
-                            .and_then(|asset| BuilderGraph::from_text(&asset.graph_data).ok())
-                            .map(|graph| match graph.output_spec().target {
-                                BuilderOutputTarget::Sector => MapToolType::Sector,
-                                BuilderOutputTarget::VertexPair => MapToolType::Vertex,
-                                BuilderOutputTarget::Linedef => MapToolType::Linedef,
-                            })
-                            .unwrap_or(MapToolType::Sector)
-                    } else {
-                        MapToolType::Sector
-                    };
+                server_ctx.curr_map_tool_type = if let Some(builder_id) =
+                    server_ctx.curr_builder_graph_id
+                {
+                    project
+                        .builder_graphs
+                        .get(&builder_id)
+                        .and_then(|asset| {
+                            shared::buildergraph::BuilderDocument::from_text(&asset.graph_data).ok()
+                        })
+                        .map(|graph| match graph.output_spec().target {
+                            BuilderOutputTarget::Sector => MapToolType::Sector,
+                            BuilderOutputTarget::VertexPair => MapToolType::Vertex,
+                            BuilderOutputTarget::Linedef => MapToolType::Linedef,
+                        })
+                        .unwrap_or(MapToolType::Sector)
+                } else {
+                    MapToolType::Sector
+                };
                 server_ctx.hover_cursor = None;
                 server_ctx.hover_cursor_3d = None;
 
@@ -78,6 +81,10 @@ impl Tool for BuilderTool {
                     project,
                     server_ctx,
                 );
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Geometry Overlay 3D"),
+                    TheValue::Empty,
+                ));
                 true
             }
             DeActivate => {
@@ -93,6 +100,10 @@ impl Tool for BuilderTool {
                         .unwrap()
                         .set_dock(prev, ui, ctx, project, server_ctx);
                 }
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Geometry Overlay 3D"),
+                    TheValue::Empty,
+                ));
                 true
             }
             _ => false,

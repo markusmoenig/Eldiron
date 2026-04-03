@@ -326,6 +326,12 @@ impl DungeonTool {
             let changed = if ui.shift {
                 map.dungeon.remove_active_cell(cell.x, cell.y)
             } else {
+                let effective_stair_target = if server_ctx.curr_dungeon_tile.is_stair() {
+                    server_ctx.curr_dungeon_floor_base
+                        + server_ctx.curr_dungeon_stair_target_floor_base
+                } else {
+                    server_ctx.curr_dungeon_stair_target_floor_base
+                };
                 map.dungeon.upsert_active_cell(
                     cell.x,
                     cell.y,
@@ -338,6 +344,10 @@ impl DungeonTool {
                     server_ctx.curr_dungeon_tile_height.max(0.5),
                     server_ctx.curr_dungeon_tile_open_mode,
                     server_ctx.curr_dungeon_tile_item.clone(),
+                    effective_stair_target,
+                    server_ctx.curr_dungeon_stair_steps.max(1),
+                    server_ctx.curr_dungeon_stair_tile_id.clone(),
+                    server_ctx.curr_dungeon_stair_tile_mode,
                 )
             };
 

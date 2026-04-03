@@ -1,0 +1,51 @@
+name = "Wall Torch DSL";
+host = vertex;
+
+preview {
+    width = 1.0;
+    depth = 0.30;
+    height = 2.0;
+}
+
+let base = box {
+    attach = host.middle + host.out * 0.06 + host.up * -0.22;
+    size = vec3(0.16, 0.44, 0.05);
+    material = BASE;
+};
+
+let arm = box {
+    attach = host.middle + host.out * 0.15 + host.up * 0.02;
+    size = vec3(0.08, 0.06, 0.22);
+    material = BASE;
+};
+
+let holder = box {
+    attach = host.middle + host.out * 0.25 + host.up * -0.03;
+    size = vec3(0.12, 0.10, 0.12);
+    material = BASE;
+};
+
+let torch = cylinder {
+    attach = host.middle + host.out * 0.25 + host.up * -0.32;
+    axis = host.up;
+    length = 0.78;
+    radius = 0.026;
+    rotate_x = 0.25;
+    material = TORCH;
+};
+
+let flame = cylinder {
+    parent = torch.tip;
+    attach = vec3(0.0, -0.04, -0.075);
+    axis = host.up;
+    length = 0.18;
+    radius = 0.03;
+    material = FLAME;
+};
+
+slot item flame_top = flame.top;
+slot material base_mat = base.center;
+slot material torch_mat = torch.center;
+slot material flame_mat = flame.center;
+
+output = [base, arm, holder, torch, flame];

@@ -5,6 +5,7 @@ use crate::{
     Item, Map, ParticleEmitter, PixelSource, RenderSettings, Texture, Tile, Value,
     avatar_builder::AvatarRuntimeBuilder, chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
 };
+use buildergraph::{BuilderDocument, BuilderOutputTarget, BuilderPrimitive};
 use indexmap::IndexMap;
 use rust_embed::EmbeddedFile;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -23,6 +24,17 @@ pub(crate) struct BillboardAnimState {
 enum AnimationClock {
     Render,   // use render frames (~30 fps)
     GameTick, // use animation_frame ticks (~4 fps default)
+}
+
+#[derive(Clone)]
+struct BuilderParticleSource {
+    key: u32,
+    light_id: GeoId,
+    tile_id: Uuid,
+    emitter: ParticleEmitter,
+    origin: Vec3<f32>,
+    direction: Vec3<f32>,
+    size_scale: f32,
 }
 
 impl BillboardAnimState {
@@ -108,6 +120,8 @@ pub struct SceneHandler {
     campfire_emitters: FxHashMap<u32, ParticleEmitter>,
     tile_emitters_2d: FxHashMap<u32, ParticleEmitter>,
     tile_emitters_3d: FxHashMap<u32, ParticleEmitter>,
+    builder_emitters_2d: FxHashMap<u32, ParticleEmitter>,
+    builder_emitters_3d: FxHashMap<u32, ParticleEmitter>,
 
     // Local render-frame counter for timing animations at fixed FPS
     frame_counter: usize,
@@ -277,6 +291,608 @@ impl SceneHandler {
         kind.wrapping_mul(0x1f1f_1f1f)
             ^ host_id.wrapping_mul(0x045d_9f3b)
             ^ slot.wrapping_mul(0x119d_e1f3)
+    }
+
+    fn hash_u32_label(label: &str) -> u32 {
+        label
+            .bytes()
+            .fold(0u32, |acc, byte| acc.wrapping_mul(16777619) ^ byte as u32)
+    }
+
+    fn normalize_builder_material_key(name: &str) -> String {
+        let mut out = String::new();
+        let mut prev_is_sep = false;
+        for (i, ch) in name.chars().enumerate() {
+            if ch.is_ascii_alphanumeric() {
+                if ch.is_ascii_uppercase() {
+                    if i > 0 && !prev_is_sep {
+                        out.push('_');
+                    }
+                    out.push(ch.to_ascii_lowercase());
+                } else {
+                    out.push(ch.to_ascii_lowercase());
+                }
+                prev_is_sep = false;
+            } else if !prev_is_sep && !out.is_empty() {
+                out.push('_');
+                prev_is_sep = true;
+            }
+        }
+        out.trim_matches('_').to_string()
+    }
+
+    fn builder_material_tile(
+        properties: &crate::ValueContainer,
+        material_slot: &str,
+        assets: &Assets,
+    ) -> Option<Tile> {
+        let key = format!(
+            "builder_material_{}",
+            Self::normalize_builder_material_key(material_slot)
+        );
+        if let Some(Value::Source(ps)) = properties.get(&key) {
+            return ps.tile_from_tile_list(assets);
+        }
+        match properties.get("source") {
+            Some(Value::Source(ps)) => ps.tile_from_tile_list(assets),
+            _ => None,
+        }
+    }
+
+    fn builder_linedef_particle_sources(map: &Map, assets: &Assets) -> Vec<BuilderParticleSource> {
+        fn rotate_vec3_x(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
+            let (s, c) = angle.sin_cos();
+            Vec3::new(v.x, v.y * c - v.z * s, v.y * s + v.z * c)
+        }
+
+        fn rotate_vec3_y(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
+            let (s, c) = angle.sin_cos();
+            Vec3::new(v.x * c - v.z * s, v.y, v.x * s + v.z * c)
+        }
+
+        fn builder_linedef_outward(
+            map: &Map,
+            linedef: &crate::Linedef,
+            along: Vec3<f32>,
+        ) -> Vec3<f32> {
+            let explicit = Vec3::new(
+                linedef
+                    .properties
+                    .get_float_default("builder_graph_outward_x", 0.0),
+                linedef
+                    .properties
+                    .get_float_default("builder_graph_outward_y", 0.0),
+                linedef
+                    .properties
+                    .get_float_default("builder_graph_outward_z", 0.0),
+            );
+            if let Some(outward) = explicit.try_normalized() {
+                return outward;
+            }
+            let mut outward = Vec3::new(-along.z, 0.0, along.x);
+            let side = linedef
+                .properties
+                .get_float_default("builder_graph_wall_side", 0.0);
+            if side.abs() <= 1e-5 {
+                let preferred_sector = linedef.sector_ids.first().copied();
+                if let Some(sector_id) = preferred_sector
+                    && let Some(sector) = map.find_sector(sector_id)
+                    && let Some(center) = sector.center(map)
+                    && let Some(dist) = linedef.signed_distance(map, center)
+                    && dist.abs() > 1e-5
+                {
+                    outward *= if dist >= 0.0 { -1.0 } else { 1.0 };
+                    return outward;
+                }
+            }
+            if side < 0.0 {
+                outward = -outward;
+            }
+            outward
+        }
+
+        fn builder_linedef_along(linedef: &crate::Linedef, fallback_along: Vec3<f32>) -> Vec3<f32> {
+            let explicit = Vec3::new(
+                linedef.properties.get_float_default("host_along_x", 0.0),
+                linedef.properties.get_float_default("host_along_y", 0.0),
+                linedef.properties.get_float_default("host_along_z", 0.0),
+            );
+            if let Some(along) = explicit.try_normalized() {
+                return along;
+            }
+            fallback_along
+        }
+
+        let mut out = Vec::new();
+
+        for linedef in &map.linedefs {
+            let builder_graph_data = linedef
+                .properties
+                .get_str_default("builder_graph_data", String::new());
+            if builder_graph_data.trim().is_empty() {
+                continue;
+            }
+            let Ok(graph) = BuilderDocument::from_text(&builder_graph_data) else {
+                continue;
+            };
+            let spec = graph.output_spec();
+            if spec.target != BuilderOutputTarget::Linedef || spec.host_refs != 1 {
+                continue;
+            }
+
+            let Some(v0) = map.get_vertex_3d(linedef.start_vertex) else {
+                continue;
+            };
+            let Some(v1) = map.get_vertex_3d(linedef.end_vertex) else {
+                continue;
+            };
+
+            let origin = (v0 + v1) * 0.5;
+            let mut along = Vec3::new(v1.x - v0.x, 0.0, v1.z - v0.z);
+            let span_length = along.magnitude().max(1e-5);
+            if along.magnitude() <= 1e-5 {
+                along = Vec3::new(1.0, 0.0, 0.0);
+            } else {
+                along = along.normalized();
+            }
+            along = builder_linedef_along(linedef, along);
+            let outward = builder_linedef_outward(map, linedef, along);
+            let up = Vec3::new(0.0, 1.0, 0.0);
+            let wall_height = linedef
+                .properties
+                .get_float_default("wall_height", 2.0)
+                .max(0.01);
+            let wall_epsilon = linedef
+                .properties
+                .get_float_default("profile_wall_epsilon", 0.001)
+                .max(0.0);
+            let surface_origin = match (
+                linedef
+                    .properties
+                    .get_float("builder_graph_surface_origin_x"),
+                linedef
+                    .properties
+                    .get_float("builder_graph_surface_origin_y"),
+                linedef
+                    .properties
+                    .get_float("builder_graph_surface_origin_z"),
+            ) {
+                (Some(x), Some(y), Some(z)) => Some(Vec3::new(x, y, z)),
+                _ => None,
+            };
+            let face_offset = linedef.properties.get_float("builder_graph_face_offset");
+            let face_origin = if let Some(face_offset) = face_offset {
+                origin + outward * face_offset.max(wall_epsilon)
+            } else if let Some(surface_origin) = surface_origin {
+                surface_origin
+            } else {
+                let wall_offset = linedef
+                    .properties
+                    .get_float_default("wall_width", 0.0)
+                    .max(0.0)
+                    * 0.5
+                    + wall_epsilon;
+                origin + outward * wall_offset
+            };
+            let host_origin = face_origin - up * (wall_height * 0.5) + outward * wall_epsilon;
+
+            let Ok(assembly) = graph.evaluate() else {
+                continue;
+            };
+
+            for (primitive_index, primitive) in assembly.primitives.iter().enumerate() {
+                let (material_slot, emitter_origin, direction) = match primitive {
+                    BuilderPrimitive::Box {
+                        size,
+                        transform,
+                        material_slot,
+                        host_position_normalized,
+                        host_position_y_normalized,
+                        host_scale_y_normalized,
+                        host_scale_x_normalized,
+                        ..
+                    } => {
+                        let sx = if *host_scale_x_normalized {
+                            transform.scale.x * span_length
+                        } else {
+                            transform.scale.x
+                        };
+                        let scaled = Vec3::new(
+                            size.x * sx,
+                            size.y
+                                * if *host_scale_y_normalized {
+                                    transform.scale.y * wall_height
+                                } else {
+                                    transform.scale.y
+                                },
+                            size.z * transform.scale.z,
+                        );
+                        let tx = if *host_position_normalized {
+                            transform.translation.x * span_length
+                        } else {
+                            transform.translation.x
+                        };
+                        let ty = if *host_position_y_normalized {
+                            transform.translation.y * wall_height
+                        } else {
+                            transform.translation.y
+                        };
+                        let center = host_origin
+                            + along * tx
+                            + up * (ty + scaled.y * 0.5)
+                            + outward * transform.translation.z;
+                        let tip_local = rotate_vec3_y(
+                            rotate_vec3_x(
+                                Vec3::new(0.0, scaled.y * 0.5 + 0.02, 0.02),
+                                transform.rotation_x,
+                            ),
+                            transform.rotation_y,
+                        );
+                        let emitter_origin =
+                            center + along * tip_local.x + up * tip_local.y + outward * tip_local.z;
+                        let dir_local = rotate_vec3_y(
+                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.12), transform.rotation_x),
+                            transform.rotation_y,
+                        );
+                        let direction =
+                            (along * dir_local.x + up * dir_local.y + outward * dir_local.z)
+                                .try_normalized()
+                                .unwrap_or(up);
+                        (material_slot.as_deref(), emitter_origin, direction)
+                    }
+                    BuilderPrimitive::Cylinder {
+                        length,
+                        radius: _,
+                        transform,
+                        material_slot,
+                        host_position_normalized,
+                        host_position_y_normalized,
+                        host_scale_y_normalized,
+                        host_scale_x_normalized: _,
+                        host_scale_z_normalized: _,
+                    } => {
+                        let scaled_length = if *host_scale_y_normalized {
+                            *length * transform.scale.y * wall_height
+                        } else {
+                            *length * transform.scale.y
+                        };
+                        let tx = if *host_position_normalized {
+                            transform.translation.x * span_length
+                        } else {
+                            transform.translation.x
+                        };
+                        let ty = if *host_position_y_normalized {
+                            transform.translation.y * wall_height
+                        } else {
+                            transform.translation.y
+                        };
+                        let center = host_origin
+                            + along * tx
+                            + up * (ty + scaled_length * 0.5)
+                            + outward * transform.translation.z;
+                        let tip_local = rotate_vec3_y(
+                            rotate_vec3_x(
+                                Vec3::new(0.0, scaled_length * 0.5 + 0.02, 0.0),
+                                transform.rotation_x,
+                            ),
+                            transform.rotation_y,
+                        );
+                        let emitter_origin =
+                            center + along * tip_local.x + up * tip_local.y + outward * tip_local.z;
+                        let dir_local = rotate_vec3_y(
+                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.08), transform.rotation_x),
+                            transform.rotation_y,
+                        );
+                        let direction =
+                            (along * dir_local.x + up * dir_local.y + outward * dir_local.z)
+                                .try_normalized()
+                                .unwrap_or(up);
+                        (material_slot.as_deref(), emitter_origin, direction)
+                    }
+                };
+                let Some(material_slot) = material_slot else {
+                    continue;
+                };
+                let Some(tile) =
+                    Self::builder_material_tile(&linedef.properties, material_slot, assets)
+                else {
+                    continue;
+                };
+                let Some(emitter) = tile.particle_emitter.clone() else {
+                    continue;
+                };
+
+                let slot_hash =
+                    Self::hash_u32_label(material_slot).wrapping_add(primitive_index as u32);
+                let key = Self::tile_particle_key(6, linedef.id, slot_hash);
+
+                out.push(BuilderParticleSource {
+                    key,
+                    light_id: GeoId::Unknown(0xB17D_0000 ^ key),
+                    tile_id: tile.id,
+                    emitter,
+                    origin: emitter_origin,
+                    direction,
+                    size_scale: 4.5,
+                });
+            }
+        }
+
+        out
+    }
+
+    fn builder_vertex_particle_sources(map: &Map, assets: &Assets) -> Vec<BuilderParticleSource> {
+        fn rotate_vec3_x(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
+            let (s, c) = angle.sin_cos();
+            Vec3::new(v.x, v.y * c - v.z * s, v.y * s + v.z * c)
+        }
+
+        fn rotate_vec3_y(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
+            let (s, c) = angle.sin_cos();
+            Vec3::new(v.x * c - v.z * s, v.y, v.x * s + v.z * c)
+        }
+
+        let mut out = Vec::new();
+
+        for vertex in &map.vertices {
+            let builder_graph_data = vertex
+                .properties
+                .get_str_default("builder_graph_data", String::new());
+            if builder_graph_data.trim().is_empty() {
+                continue;
+            }
+            let Ok(graph) = BuilderDocument::from_text(&builder_graph_data) else {
+                continue;
+            };
+            let spec = graph.output_spec();
+            if spec.target != BuilderOutputTarget::VertexPair || spec.host_refs != 1 {
+                continue;
+            }
+
+            let origin = match (
+                vertex.properties.get_float("host_surface_origin_x"),
+                vertex.properties.get_float("host_surface_origin_y"),
+                vertex.properties.get_float("host_surface_origin_z"),
+            ) {
+                (Some(x), Some(y), Some(z)) => Vec3::new(x, y, z),
+                _ => vertex.as_vec3_world(),
+            };
+            let along = Vec3::new(
+                vertex.properties.get_float_default("host_along_x", 1.0),
+                vertex.properties.get_float_default("host_along_y", 0.0),
+                vertex.properties.get_float_default("host_along_z", 0.0),
+            )
+            .try_normalized()
+            .unwrap_or(Vec3::new(1.0, 0.0, 0.0));
+            let outward = Vec3::new(
+                vertex.properties.get_float_default("host_outward_x", 0.0),
+                vertex.properties.get_float_default("host_outward_y", 0.0),
+                vertex.properties.get_float_default("host_outward_z", 1.0),
+            )
+            .try_normalized()
+            .unwrap_or(Vec3::new(0.0, 0.0, 1.0));
+            let up = Vec3::new(0.0, 1.0, 0.0);
+
+            let Ok(assembly) = graph.evaluate() else {
+                continue;
+            };
+
+            for (primitive_index, primitive) in assembly.primitives.iter().enumerate() {
+                let (material_slot, emitter_origin, direction) = match primitive {
+                    BuilderPrimitive::Box {
+                        size,
+                        transform,
+                        material_slot,
+                        ..
+                    } => {
+                        let scaled = Vec3::new(
+                            size.x * transform.scale.x,
+                            size.y * transform.scale.y,
+                            size.z * transform.scale.z,
+                        );
+                        let center = origin
+                            + along * transform.translation.x
+                            + up * (transform.translation.y + scaled.y * 0.5)
+                            + outward * transform.translation.z;
+                        let tip_local = rotate_vec3_y(
+                            rotate_vec3_x(
+                                Vec3::new(0.0, scaled.y * 0.5 + 0.02, 0.02),
+                                transform.rotation_x,
+                            ),
+                            transform.rotation_y,
+                        );
+                        let emitter_origin =
+                            center + along * tip_local.x + up * tip_local.y + outward * tip_local.z;
+                        let dir_local = rotate_vec3_y(
+                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.12), transform.rotation_x),
+                            transform.rotation_y,
+                        );
+                        let direction =
+                            (along * dir_local.x + up * dir_local.y + outward * dir_local.z)
+                                .try_normalized()
+                                .unwrap_or(up);
+                        (material_slot.as_deref(), emitter_origin, direction)
+                    }
+                    BuilderPrimitive::Cylinder {
+                        length,
+                        transform,
+                        material_slot,
+                        ..
+                    } => {
+                        let scaled_length = *length * transform.scale.y;
+                        let center = origin
+                            + along * transform.translation.x
+                            + up * (transform.translation.y + scaled_length * 0.5)
+                            + outward * transform.translation.z;
+                        let tip_local = rotate_vec3_y(
+                            rotate_vec3_x(
+                                Vec3::new(0.0, scaled_length * 0.5 + 0.02, 0.0),
+                                transform.rotation_x,
+                            ),
+                            transform.rotation_y,
+                        );
+                        let emitter_origin =
+                            center + along * tip_local.x + up * tip_local.y + outward * tip_local.z;
+                        let dir_local = rotate_vec3_y(
+                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.08), transform.rotation_x),
+                            transform.rotation_y,
+                        );
+                        let direction =
+                            (along * dir_local.x + up * dir_local.y + outward * dir_local.z)
+                                .try_normalized()
+                                .unwrap_or(up);
+                        (material_slot.as_deref(), emitter_origin, direction)
+                    }
+                };
+                let Some(material_slot) = material_slot else {
+                    continue;
+                };
+                let Some(tile) =
+                    Self::builder_material_tile(&vertex.properties, material_slot, assets)
+                else {
+                    continue;
+                };
+                let Some(emitter) = tile.particle_emitter.clone() else {
+                    continue;
+                };
+
+                let slot_hash =
+                    Self::hash_u32_label(material_slot).wrapping_add(primitive_index as u32);
+                let key = Self::tile_particle_key(7, vertex.id, slot_hash);
+
+                out.push(BuilderParticleSource {
+                    key,
+                    light_id: GeoId::Unknown(0xB17E_0000 ^ key),
+                    tile_id: tile.id,
+                    emitter,
+                    origin: emitter_origin,
+                    direction,
+                    size_scale: 4.5,
+                });
+            }
+        }
+
+        out
+    }
+
+    fn rebuild_builder_particles_2d(&mut self, map: &Map, assets: &Assets) -> bool {
+        let dt = (1.0 / self.render_fps.max(1.0)).clamp(0.005, 0.1);
+        let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
+        let mut has_particles = false;
+
+        for source in Self::builder_linedef_particle_sources(map, assets)
+            .into_iter()
+            .chain(Self::builder_vertex_particle_sources(map, assets).into_iter())
+        {
+            active_emitters.insert(source.key);
+            let emitter = self
+                .builder_emitters_2d
+                .entry(source.key)
+                .or_insert_with(|| {
+                    let mut emitter = source.emitter.clone();
+                    emitter.origin = source.origin;
+                    emitter.direction = source.direction;
+                    emitter.time_accum = 0.0;
+                    emitter.particles.clear();
+                    emitter
+                });
+            emitter.origin = source.origin;
+            emitter.direction = source.direction;
+            emitter.update(dt);
+
+            let lifetime_max = emitter.lifetime_range.1.max(0.001);
+            for (index, particle) in emitter.particles.iter().enumerate() {
+                has_particles = true;
+                let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
+                let size = (particle.radius * 3.0 * source.size_scale).max(0.14);
+                let dynamic = DynamicObject::billboard_tile_2d(
+                    GeoId::Unknown(source.key.wrapping_mul(2048).wrapping_add(index as u32)),
+                    Self::particle_sprite_tile_id(source.tile_id),
+                    Vec2::new(particle.pos.x, particle.pos.z),
+                    size,
+                    size,
+                )
+                .with_layer(24)
+                .with_opacity(opacity);
+                self.vm.execute(Atom::AddDynamic { object: dynamic });
+            }
+        }
+
+        self.builder_emitters_2d
+            .retain(|key, _| active_emitters.contains(key));
+        has_particles
+    }
+
+    fn rebuild_builder_particles_3d(
+        &mut self,
+        map: &Map,
+        camera: &dyn D3Camera,
+        assets: &Assets,
+    ) -> bool {
+        let basis = camera.basis_vectors();
+        let dt = (1.0 / self.render_fps.max(1.0)).clamp(0.005, 0.1);
+        let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
+        let mut has_particles = false;
+
+        for source in Self::builder_linedef_particle_sources(map, assets)
+            .into_iter()
+            .chain(Self::builder_vertex_particle_sources(map, assets).into_iter())
+        {
+            active_emitters.insert(source.key);
+            let emitter = self
+                .builder_emitters_3d
+                .entry(source.key)
+                .or_insert_with(|| {
+                    let mut emitter = source.emitter.clone();
+                    emitter.origin = source.origin;
+                    emitter.direction = source.direction;
+                    emitter.time_accum = 0.0;
+                    emitter.particles.clear();
+                    emitter
+                });
+            emitter.origin = source.origin;
+            emitter.direction = source.direction;
+            emitter.update(dt);
+
+            let linear = Vec3::new(
+                (source.emitter.color[0] as f32 / 255.0).powf(2.2),
+                (source.emitter.color[1] as f32 / 255.0).powf(2.2),
+                (source.emitter.color[2] as f32 / 255.0).powf(2.2),
+            );
+            self.vm.execute(Atom::AddLight {
+                id: source.light_id,
+                light: Light::new_pointlight(source.origin + Vec3::new(0.0, 0.06, 0.0))
+                    .with_color(linear)
+                    .with_intensity(1.8)
+                    .with_emitting(true)
+                    .with_start_distance(0.0)
+                    .with_end_distance(4.0)
+                    .with_flicker(0.2),
+            });
+
+            let lifetime_max = emitter.lifetime_range.1.max(0.001);
+            for (index, particle) in emitter.particles.iter().enumerate() {
+                has_particles = true;
+                let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
+                let size = (particle.radius * 3.4 * source.size_scale).max(0.14);
+                let center = particle.pos + Vec3::new(0.0, size * 0.2, 0.0);
+                let dynamic = DynamicObject::billboard_tile(
+                    GeoId::Unknown(source.key.wrapping_mul(2048).wrapping_add(index as u32)),
+                    Self::particle_sprite_tile_id(source.tile_id),
+                    center,
+                    basis.1,
+                    basis.2,
+                    size,
+                    size,
+                )
+                .with_opacity(opacity);
+                self.vm.execute(Atom::AddDynamic { object: dynamic });
+            }
+        }
+
+        self.builder_emitters_3d
+            .retain(|key, _| active_emitters.contains(key));
+        has_particles
     }
 
     fn rebuild_tile_particles_2d(&mut self, map: &Map, assets: &Assets) -> bool {
@@ -750,6 +1366,8 @@ impl SceneHandler {
         self.campfire_emitters.clear();
         self.tile_emitters_2d.clear();
         self.tile_emitters_3d.clear();
+        self.builder_emitters_2d.clear();
+        self.builder_emitters_3d.clear();
         self.mark_dynamics_dirty();
     }
 
@@ -1282,6 +1900,8 @@ impl SceneHandler {
             campfire_emitters: FxHashMap::default(),
             tile_emitters_2d: FxHashMap::default(),
             tile_emitters_3d: FxHashMap::default(),
+            builder_emitters_2d: FxHashMap::default(),
+            builder_emitters_3d: FxHashMap::default(),
             frame_counter: 0,
             avatar_builder: AvatarRuntimeBuilder::default(),
             last_dynamics_hash_2d: None,
@@ -1458,6 +2078,22 @@ impl SceneHandler {
             } else {
                 hasher.write_u8(0);
             }
+            if let Some(builder_graph_data) = sector.properties.get_str("builder_graph_data") {
+                hasher.write(builder_graph_data.as_bytes());
+                if let Ok(graph) = BuilderDocument::from_text(builder_graph_data) {
+                    for slot in graph.material_slot_names() {
+                        let key = format!(
+                            "builder_material_{}",
+                            Self::normalize_builder_material_key(&slot)
+                        );
+                        if let Some(Value::Source(source)) = sector.properties.get(&key) {
+                            Self::hash_pixel_source(&mut hasher, source);
+                        } else {
+                            hasher.write_u8(0);
+                        }
+                    }
+                }
+            }
         }
 
         for linedef in &map.linedefs {
@@ -1466,6 +2102,22 @@ impl SceneHandler {
                 Self::hash_pixel_source(&mut hasher, source);
             } else {
                 hasher.write_u8(0);
+            }
+            if let Some(builder_graph_data) = linedef.properties.get_str("builder_graph_data") {
+                hasher.write(builder_graph_data.as_bytes());
+                if let Ok(graph) = BuilderDocument::from_text(builder_graph_data) {
+                    for slot in graph.material_slot_names() {
+                        let key = format!(
+                            "builder_material_{}",
+                            Self::normalize_builder_material_key(&slot)
+                        );
+                        if let Some(Value::Source(source)) = linedef.properties.get(&key) {
+                            Self::hash_pixel_source(&mut hasher, source);
+                        } else {
+                            hasher.write_u8(0);
+                        }
+                    }
+                }
             }
         }
 
@@ -1478,6 +2130,22 @@ impl SceneHandler {
                 Self::hash_pixel_source(&mut hasher, source);
             } else {
                 hasher.write_u8(0);
+            }
+            if let Some(builder_graph_data) = vertex.properties.get_str("builder_graph_data") {
+                hasher.write(builder_graph_data.as_bytes());
+                if let Ok(graph) = BuilderDocument::from_text(builder_graph_data) {
+                    for slot in graph.material_slot_names() {
+                        let key = format!(
+                            "builder_material_{}",
+                            Self::normalize_builder_material_key(&slot)
+                        );
+                        if let Some(Value::Source(source)) = vertex.properties.get(&key) {
+                            Self::hash_pixel_source(&mut hasher, source);
+                        } else {
+                            hasher.write_u8(0);
+                        }
+                    }
+                }
             }
         }
 
@@ -1566,6 +2234,22 @@ impl SceneHandler {
             } else {
                 hasher.write_u8(0);
             }
+            if let Some(builder_graph_data) = sector.properties.get_str("builder_graph_data") {
+                hasher.write(builder_graph_data.as_bytes());
+                if let Ok(graph) = BuilderDocument::from_text(builder_graph_data) {
+                    for slot in graph.material_slot_names() {
+                        let key = format!(
+                            "builder_material_{}",
+                            Self::normalize_builder_material_key(&slot)
+                        );
+                        if let Some(Value::Source(source)) = sector.properties.get(&key) {
+                            Self::hash_pixel_source(&mut hasher, source);
+                        } else {
+                            hasher.write_u8(0);
+                        }
+                    }
+                }
+            }
         }
 
         for linedef in &map.linedefs {
@@ -1575,6 +2259,22 @@ impl SceneHandler {
                     Self::hash_pixel_source(&mut hasher, source);
                 } else {
                     hasher.write_u8(0);
+                }
+            }
+            if let Some(builder_graph_data) = linedef.properties.get_str("builder_graph_data") {
+                hasher.write(builder_graph_data.as_bytes());
+                if let Ok(graph) = BuilderDocument::from_text(builder_graph_data) {
+                    for slot in graph.material_slot_names() {
+                        let key = format!(
+                            "builder_material_{}",
+                            Self::normalize_builder_material_key(&slot)
+                        );
+                        if let Some(Value::Source(source)) = linedef.properties.get(&key) {
+                            Self::hash_pixel_source(&mut hasher, source);
+                        } else {
+                            hasher.write_u8(0);
+                        }
+                    }
                 }
             }
         }
@@ -1588,6 +2288,22 @@ impl SceneHandler {
                 Self::hash_pixel_source(&mut hasher, source);
             } else {
                 hasher.write_u8(0);
+            }
+            if let Some(builder_graph_data) = vertex.properties.get_str("builder_graph_data") {
+                hasher.write(builder_graph_data.as_bytes());
+                if let Ok(graph) = BuilderDocument::from_text(builder_graph_data) {
+                    for slot in graph.material_slot_names() {
+                        let key = format!(
+                            "builder_material_{}",
+                            Self::normalize_builder_material_key(&slot)
+                        );
+                        if let Some(Value::Source(source)) = vertex.properties.get(&key) {
+                            Self::hash_pixel_source(&mut hasher, source);
+                        } else {
+                            hasher.write_u8(0);
+                        }
+                    }
+                }
             }
         }
 
@@ -1857,9 +2573,11 @@ impl SceneHandler {
             });
         let current_hash = self.dynamics_hash_2d(map, animation_frame);
         let has_active_tile_particles = !self.tile_emitters_2d.is_empty();
+        let has_active_builder_particles = !self.builder_emitters_2d.is_empty();
         if self.dynamics_ready_2d
             && self.last_dynamics_hash_2d == Some(current_hash)
             && !has_active_tile_particles
+            && !has_active_builder_particles
         {
             return;
         }
@@ -1868,6 +2586,7 @@ impl SceneHandler {
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
         let _has_tile_particles = self.rebuild_tile_particles_2d(map, assets);
+        let _has_builder_particles = self.rebuild_builder_particles_2d(map, assets);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
 
@@ -2010,6 +2729,7 @@ impl SceneHandler {
         self.frame_counter = self.frame_counter.wrapping_add(1);
         let has_active_campfire_particles = !self.campfire_emitters.is_empty();
         let has_active_tile_particles = !self.tile_emitters_3d.is_empty();
+        let has_active_builder_particles = !self.builder_emitters_3d.is_empty();
         let has_active_render_billboard_anim = self
             .billboard_anim_states
             .values()
@@ -2020,6 +2740,7 @@ impl SceneHandler {
             && !has_active_render_billboard_anim
             && !has_active_campfire_particles
             && !has_active_tile_particles
+            && !has_active_builder_particles
         {
             return;
         }
@@ -2030,6 +2751,7 @@ impl SceneHandler {
         self.add_sector_campfire_lights(map);
         let _has_campfire_particles = self.rebuild_campfire_particles(map, camera, assets);
         let _has_tile_particles = self.rebuild_tile_particles_3d(map, camera, assets);
+        let _has_builder_particles = self.rebuild_builder_particles_3d(map, camera, assets);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
 
