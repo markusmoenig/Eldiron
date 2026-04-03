@@ -629,6 +629,32 @@ impl BuilderGraph {
         script
     }
 
+    pub fn preset_wall_lantern_script_named(name: String) -> String {
+        let mut script = include_str!("../examples/wall_lantern.buildergraph").to_string();
+        let graph_name = if name.trim().is_empty() {
+            "Wall Lantern".to_string()
+        } else {
+            name
+        };
+        if let Some(line_end) = script.find('\n') {
+            script.replace_range(0..line_end, &format!("name = \"{graph_name}\";"));
+        }
+        script
+    }
+
+    pub fn preset_campfire_script_named(name: String) -> String {
+        let mut script = include_str!("../examples/campfire.buildergraph").to_string();
+        let graph_name = if name.trim().is_empty() {
+            "Campfire".to_string()
+        } else {
+            name
+        };
+        if let Some(line_end) = script.find('\n') {
+            script.replace_range(0..line_end, &format!("name = \"{graph_name}\";"));
+        }
+        script
+    }
+
     pub fn empty_named(name: String) -> Self {
         let graph_name = if name.trim().is_empty() {
             "Empty".to_string()

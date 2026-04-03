@@ -32,6 +32,7 @@ struct BuilderParticleSource {
     light_id: GeoId,
     tile_id: Uuid,
     emitter: ParticleEmitter,
+    light_override: Option<crate::map::tile::TileLightEmitter>,
     origin: Vec3<f32>,
     direction: Vec3<f32>,
     size_scale: f32,
@@ -136,6 +137,8 @@ pub struct SceneHandler {
     // Timing parameters (configurable)
     render_fps: f32,
     game_tick_fps: f32,
+    pending_particle_steps_2d: usize,
+    pending_particle_steps_3d: usize,
 }
 
 impl Default for SceneHandler {
@@ -145,6 +148,40 @@ impl Default for SceneHandler {
 }
 
 impl SceneHandler {
+    const PARTICLE_SIM_FPS: f32 = 15.0;
+    const PARTICLE_SIM_STEP: f32 = 1.0 / Self::PARTICLE_SIM_FPS;
+    const MAX_PARTICLE_STEPS_PER_BUILD: usize = 8;
+    const PARTICLE_TIME_SCALE: f32 = 0.35;
+
+    pub fn tick_particle_clocks(&mut self) {
+        self.pending_particle_steps_2d =
+            (self.pending_particle_steps_2d + 1).min(Self::MAX_PARTICLE_STEPS_PER_BUILD);
+        self.pending_particle_steps_3d =
+            (self.pending_particle_steps_3d + 1).min(Self::MAX_PARTICLE_STEPS_PER_BUILD);
+    }
+
+    fn advance_emitter(emitter: &mut ParticleEmitter, steps: usize) {
+        for _ in 0..steps {
+            emitter.update(Self::PARTICLE_SIM_STEP * Self::PARTICLE_TIME_SCALE);
+        }
+    }
+
+    fn effective_tile_light_range(range: f32) -> f32 {
+        (range.max(0.0) * 6.0).max(2.0)
+    }
+
+    fn effective_tile_light_start_distance(end_distance: f32) -> f32 {
+        if end_distance <= 0.0 {
+            0.0
+        } else {
+            (end_distance * 0.35).clamp(0.0, end_distance * 0.9)
+        }
+    }
+
+    fn effective_tile_light_intensity(intensity: f32) -> f32 {
+        intensity.max(0.0) * 4.0
+    }
+
     fn particle_sprite_tile_id(tile_id: Uuid) -> Uuid {
         Uuid::from_u128(tile_id.as_u128() ^ 0x705f_6172_7469_636c_655f_7370_7269)
     }
@@ -179,6 +216,7 @@ impl SceneHandler {
         map: &Map,
         camera: &dyn D3Camera,
         assets: &Assets,
+        particle_steps: usize,
     ) -> bool {
         let mut top_floor_y_by_sector: FxHashMap<u32, f32> = FxHashMap::default();
         for surface in map.surfaces.values() {
@@ -196,7 +234,6 @@ impl SceneHandler {
         }
 
         let basis = camera.basis_vectors();
-        let dt = (1.0 / self.render_fps.max(1.0)).clamp(0.005, 0.1);
         let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
         let mut has_particles = false;
 
@@ -260,7 +297,7 @@ impl SceneHandler {
                 (flame_width * 0.85).max(0.28),
             );
             emitter.speed_range = (flame_height * 0.75, flame_height * 1.6);
-            emitter.update(dt);
+            Self::advance_emitter(emitter, particle_steps);
 
             for (index, particle) in emitter.particles.iter().enumerate() {
                 has_particles = true;
@@ -611,6 +648,7 @@ impl SceneHandler {
                     light_id: GeoId::Unknown(0xB17D_0000 ^ key),
                     tile_id: tile.id,
                     emitter,
+                    light_override: tile.light_emitter.clone(),
                     origin: emitter_origin,
                     direction,
                     size_scale: 4.5,
@@ -765,6 +803,7 @@ impl SceneHandler {
                     light_id: GeoId::Unknown(0xB17E_0000 ^ key),
                     tile_id: tile.id,
                     emitter,
+                    light_override: tile.light_emitter.clone(),
                     origin: emitter_origin,
                     direction,
                     size_scale: 4.5,
@@ -775,8 +814,12 @@ impl SceneHandler {
         out
     }
 
-    fn rebuild_builder_particles_2d(&mut self, map: &Map, assets: &Assets) -> bool {
-        let dt = (1.0 / self.render_fps.max(1.0)).clamp(0.005, 0.1);
+    fn rebuild_builder_particles_2d(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        particle_steps: usize,
+    ) -> bool {
         let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
         let mut has_particles = false;
 
@@ -798,7 +841,7 @@ impl SceneHandler {
                 });
             emitter.origin = source.origin;
             emitter.direction = source.direction;
-            emitter.update(dt);
+            Self::advance_emitter(emitter, particle_steps);
 
             let lifetime_max = emitter.lifetime_range.1.max(0.001);
             for (index, particle) in emitter.particles.iter().enumerate() {
@@ -828,9 +871,9 @@ impl SceneHandler {
         map: &Map,
         camera: &dyn D3Camera,
         assets: &Assets,
+        particle_steps: usize,
     ) -> bool {
         let basis = camera.basis_vectors();
-        let dt = (1.0 / self.render_fps.max(1.0)).clamp(0.005, 0.1);
         let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
         let mut has_particles = false;
 
@@ -852,22 +895,45 @@ impl SceneHandler {
                 });
             emitter.origin = source.origin;
             emitter.direction = source.direction;
-            emitter.update(dt);
+            Self::advance_emitter(emitter, particle_steps);
 
-            let linear = Vec3::new(
-                (source.emitter.color[0] as f32 / 255.0).powf(2.2),
-                (source.emitter.color[1] as f32 / 255.0).powf(2.2),
-                (source.emitter.color[2] as f32 / 255.0).powf(2.2),
-            );
+            let (light_color, light_intensity, light_range, light_flicker, light_lift) =
+                if let Some(light) = &source.light_override {
+                    let light_range = Self::effective_tile_light_range(light.range);
+                    (
+                        Vec3::new(
+                            (light.color[0] as f32 / 255.0).powf(2.2),
+                            (light.color[1] as f32 / 255.0).powf(2.2),
+                            (light.color[2] as f32 / 255.0).powf(2.2),
+                        ),
+                        Self::effective_tile_light_intensity(light.intensity),
+                        light_range,
+                        light.flicker,
+                        light.lift,
+                    )
+                } else {
+                    let light_range = Self::effective_tile_light_range(4.0);
+                    (
+                        Vec3::new(
+                            (source.emitter.color[0] as f32 / 255.0).powf(2.2),
+                            (source.emitter.color[1] as f32 / 255.0).powf(2.2),
+                            (source.emitter.color[2] as f32 / 255.0).powf(2.2),
+                        ),
+                        Self::effective_tile_light_intensity(1.8),
+                        light_range,
+                        0.2,
+                        0.06,
+                    )
+                };
             self.vm.execute(Atom::AddLight {
                 id: source.light_id,
-                light: Light::new_pointlight(source.origin + Vec3::new(0.0, 0.06, 0.0))
-                    .with_color(linear)
-                    .with_intensity(1.8)
+                light: Light::new_pointlight(source.origin + Vec3::new(0.0, light_lift, 0.0))
+                    .with_color(light_color)
+                    .with_intensity(light_intensity)
                     .with_emitting(true)
-                    .with_start_distance(0.0)
-                    .with_end_distance(4.0)
-                    .with_flicker(0.2),
+                    .with_start_distance(Self::effective_tile_light_start_distance(light_range))
+                    .with_end_distance(light_range)
+                    .with_flicker(light_flicker),
             });
 
             let lifetime_max = emitter.lifetime_range.1.max(0.001);
@@ -895,8 +961,12 @@ impl SceneHandler {
         has_particles
     }
 
-    fn rebuild_tile_particles_2d(&mut self, map: &Map, assets: &Assets) -> bool {
-        let dt = (1.0 / self.render_fps.max(1.0)).clamp(0.005, 0.1);
+    fn rebuild_tile_particles_2d(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        particle_steps: usize,
+    ) -> bool {
         let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
         let mut has_particles = false;
 
@@ -924,7 +994,7 @@ impl SceneHandler {
             });
             emitter.origin = Vec3::new(pos.x, pos.y, 0.0);
             emitter.direction = direction.normalized();
-            emitter.update(dt);
+            Self::advance_emitter(emitter, particle_steps);
 
             let lifetime_max = emitter.lifetime_range.1.max(0.001);
             for (index, particle) in emitter.particles.iter().enumerate() {
@@ -1060,6 +1130,7 @@ impl SceneHandler {
         map: &Map,
         camera: &dyn D3Camera,
         assets: &Assets,
+        particle_steps: usize,
     ) -> bool {
         let mut top_floor_y_by_sector: FxHashMap<u32, f32> = FxHashMap::default();
         for surface in map.surfaces.values() {
@@ -1077,7 +1148,6 @@ impl SceneHandler {
         }
 
         let basis = camera.basis_vectors();
-        let dt = (1.0 / self.render_fps.max(1.0)).clamp(0.005, 0.1);
         let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
         let mut has_particles = false;
 
@@ -1090,6 +1160,26 @@ impl SceneHandler {
                         direction: Vec3<f32>,
                         active_emitters: &mut FxHashSet<u32>,
                         has_particles: &mut bool| {
+            if let Some(light) = &tile.light_emitter {
+                let linear = Vec3::new(
+                    (light.color[0] as f32 / 255.0).powf(2.2),
+                    (light.color[1] as f32 / 255.0).powf(2.2),
+                    (light.color[2] as f32 / 255.0).powf(2.2),
+                );
+                let end_distance = Self::effective_tile_light_range(light.range);
+                vm.execute(Atom::AddLight {
+                    id: GeoId::Unknown(0x71A0_0000 ^ key),
+                    light: Light::new_pointlight(origin + Vec3::new(0.0, light.lift, 0.0))
+                        .with_color(linear)
+                        .with_intensity(Self::effective_tile_light_intensity(light.intensity))
+                        .with_emitting(true)
+                        .with_start_distance(Self::effective_tile_light_start_distance(
+                            end_distance,
+                        ))
+                        .with_end_distance(end_distance)
+                        .with_flicker(light.flicker),
+                });
+            }
             let Some(def) = &tile.particle_emitter else {
                 return;
             };
@@ -1104,7 +1194,7 @@ impl SceneHandler {
             });
             emitter.origin = origin;
             emitter.direction = direction.normalized();
-            emitter.update(dt);
+            Self::advance_emitter(emitter, particle_steps);
 
             let lifetime_max = emitter.lifetime_range.1.max(0.001);
             for (index, particle) in emitter.particles.iter().enumerate() {
@@ -1912,6 +2002,8 @@ impl SceneHandler {
             dynamics_ready_3d: false,
             render_fps: 30.0,
             game_tick_fps: 4.0, // default 250ms ticks
+            pending_particle_steps_2d: 0,
+            pending_particle_steps_3d: 0,
         }
     }
 
@@ -2582,11 +2674,12 @@ impl SceneHandler {
             return;
         }
         self.last_dynamics_hash_2d = Some(current_hash);
+        let particle_steps = std::mem::take(&mut self.pending_particle_steps_2d);
 
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
-        let _has_tile_particles = self.rebuild_tile_particles_2d(map, assets);
-        let _has_builder_particles = self.rebuild_builder_particles_2d(map, assets);
+        let _has_tile_particles = self.rebuild_tile_particles_2d(map, assets, particle_steps);
+        let _has_builder_particles = self.rebuild_builder_particles_2d(map, assets, particle_steps);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
 
@@ -2745,13 +2838,16 @@ impl SceneHandler {
             return;
         }
         self.last_dynamics_hash_3d = Some(current_hash);
-
+        let particle_steps = std::mem::take(&mut self.pending_particle_steps_3d);
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
         self.add_sector_campfire_lights(map);
-        let _has_campfire_particles = self.rebuild_campfire_particles(map, camera, assets);
-        let _has_tile_particles = self.rebuild_tile_particles_3d(map, camera, assets);
-        let _has_builder_particles = self.rebuild_builder_particles_3d(map, camera, assets);
+        let _has_campfire_particles =
+            self.rebuild_campfire_particles(map, camera, assets, particle_steps);
+        let _has_tile_particles =
+            self.rebuild_tile_particles_3d(map, camera, assets, particle_steps);
+        let _has_builder_particles =
+            self.rebuild_builder_particles_3d(map, camera, assets, particle_steps);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
 

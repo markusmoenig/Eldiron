@@ -1,4 +1,4 @@
-use crate::editor::{RUSTERIX, TOOLLIST};
+use crate::editor::{RUSTERIX, TOOLLIST, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::Surface;
 use scenevm::GeoId;
@@ -6,8 +6,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const BUILDER_TAB_LAYOUT: &str = "Builder Dock Tabs";
 const BUILDER_VIEW_PREFIX: &str = "Builder Dock View ";
+const BUILDER_DOCK_REFRESH: &str = "Builder Dock Refresh";
 const BUILDER_CARD_W: i32 = 164;
-const BUILDER_CARD_H: i32 = 118;
+const BUILDER_CARD_H: i32 = 202;
 const BUILDER_CARD_GAP: i32 = 12;
 const BUILDER_PADDING: i32 = 12;
 
@@ -95,6 +96,14 @@ impl Dock for BuilderDock {
                     "Wall Torch".to_string(),
                     TheId::named("Builder Dock New Wall Torch"),
                 ),
+                TheContextMenuItem::new(
+                    "Wall Lantern".to_string(),
+                    TheId::named("Builder Dock New Wall Lantern"),
+                ),
+                TheContextMenuItem::new(
+                    "Campfire".to_string(),
+                    TheId::named("Builder Dock New Campfire"),
+                ),
             ],
             ..Default::default()
         }));
@@ -147,7 +156,12 @@ impl Dock for BuilderDock {
         server_ctx: &mut ServerContext,
     ) {
         self.selected = server_ctx.curr_builder_graph_id;
+        ctx.ui.relayout = true;
         self.render_views(ui, ctx, project);
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named(BUILDER_DOCK_REFRESH),
+            TheValue::Empty,
+        ));
     }
 
     fn handle_event(
@@ -214,6 +228,30 @@ impl Dock for BuilderDock {
                         TheValue::Id(server_ctx.curr_builder_graph_id.unwrap()),
                     ));
                     redraw = true;
+                } else if *key == TheKeyCode::Delete
+                    && !ui.focus_widget_supports_text_input(ctx)
+                    && let Some(asset_id) = self.selected
+                {
+                    let before = project.clone();
+                    if project.builder_graphs.shift_remove(&asset_id).is_some() {
+                        if server_ctx.curr_builder_graph_id == Some(asset_id) {
+                            server_ctx.curr_builder_graph_id = None;
+                        }
+                        self.selected = None;
+                        self.hovered = None;
+                        self.last_asset_click = None;
+                        let after = project.clone();
+                        UNDOMANAGER.write().unwrap().add_undo(
+                            ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(after)),
+                            ctx,
+                        );
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Builder Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                        self.render_views(ui, ctx, project);
+                        redraw = true;
+                    }
                 }
             }
             TheEvent::RenderViewHoverChanged(id, coord) => {
@@ -257,6 +295,12 @@ impl Dock for BuilderDock {
                     }
                     "Builder Dock New Wall Torch" => BuilderGraphAsset::new_wall_torch(
                         Self::next_builder_name(project, "Wall Torch"),
+                    ),
+                    "Builder Dock New Wall Lantern" => BuilderGraphAsset::new_wall_lantern(
+                        Self::next_builder_name(project, "Wall Lantern"),
+                    ),
+                    "Builder Dock New Campfire" => BuilderGraphAsset::new_campfire(
+                        Self::next_builder_name(project, "Campfire"),
                     ),
                     _ => return false,
                 };
@@ -339,6 +383,11 @@ impl Dock for BuilderDock {
                 } else {
                     self.selected = server_ctx.curr_builder_graph_id;
                 }
+                self.render_views(ui, ctx, project);
+                redraw = true;
+            }
+            TheEvent::Custom(id, _) if id.name == BUILDER_DOCK_REFRESH => {
+                ctx.ui.relayout = true;
                 self.render_views(ui, ctx, project);
                 redraw = true;
             }
@@ -620,7 +669,8 @@ impl BuilderDock {
                     .rect_outline(buffer.pixels_mut(), &card, stride, &outline);
             }
 
-            let preview_rect = Vec4::new(rect.x + 8, rect.y + 8, rect.z - 16, 66);
+            let preview_size = rect.z - 16;
+            let preview_rect = Vec4::new(rect.x + 8, rect.y + 8, preview_size, preview_size);
             if let Some(preview) = Self::clip_rect(buffer, preview_rect, 0) {
                 ctx.draw
                     .rect(buffer.pixels_mut(), &preview, stride, &[44, 44, 44, 255]);
@@ -631,7 +681,7 @@ impl BuilderDock {
 
             let title_rect = (
                 (rect.x + 8).max(0) as usize,
-                (rect.y + 78).max(0) as usize,
+                (rect.y + 8 + preview_size + 8).max(0) as usize,
                 (rect.z - 16).max(1) as usize,
                 18usize,
             );
@@ -651,9 +701,9 @@ impl BuilderDock {
 
             let body_rect = (
                 (rect.x + 8).max(0) as usize,
-                (rect.y + 96).max(0) as usize,
+                (rect.y + 8 + preview_size + 26).max(0) as usize,
                 (rect.z - 16).max(1) as usize,
-                14usize,
+                28usize,
             );
             ctx.draw.text_rect_blend(
                 buffer.pixels_mut(),
@@ -683,9 +733,24 @@ impl BuilderDock {
         if let Some(preview) = preview {
             if let Some(view) = Self::clip_rect(buffer, rect, 0) {
                 let stride = buffer.stride();
+                let view_w = view.2 as i32;
+                let view_h = view.3 as i32;
+                let src_w = preview.dim().width.max(1);
+                let src_h = preview.dim().height.max(1);
+                let fit = ((view_w as f32) / (src_w as f32))
+                    .min((view_h as f32) / (src_h as f32))
+                    .max(0.01);
+                let draw_w = ((src_w as f32) * fit).round().max(1.0) as i32;
+                let draw_h = ((src_h as f32) * fit).round().max(1.0) as i32;
+                let centered = (
+                    (view.0 as i32 + (view_w - draw_w) / 2).max(0) as usize,
+                    (view.1 as i32 + (view_h - draw_h) / 2).max(0) as usize,
+                    draw_w.max(1) as usize,
+                    draw_h.max(1) as usize,
+                );
                 ctx.draw.scale_chunk(
                     buffer.pixels_mut(),
-                    &view,
+                    &centered,
                     stride,
                     preview.pixels(),
                     &(preview.dim().width as usize, preview.dim().height as usize),
@@ -773,7 +838,8 @@ impl BuilderDock {
                 graph.output_spec(),
                 &graph.preview_host(),
                 rusterix::builderpreview::BuilderPreviewOptions {
-                    size: 96,
+                    size: (BUILDER_CARD_W - 16) as u32,
+                    scale: Some(1.0),
                     variants: rusterix::builderpreview::PreviewVariants::Single,
                     ..Default::default()
                 },

@@ -111,6 +111,42 @@ impl BuilderGraphAsset {
             graph_data,
         }
     }
+
+    pub fn new_wall_lantern(name: String) -> Self {
+        let graph_data = BuilderGraph::preset_wall_lantern_script_named(name.clone());
+        let graph_name = if let Ok(document) = buildergraph::BuilderDocument::from_text(&graph_data)
+        {
+            document.name().to_string()
+        } else if name.is_empty() {
+            "Wall Lantern".to_string()
+        } else {
+            name.clone()
+        };
+        Self {
+            id: Uuid::new_v4(),
+            graph_id: Uuid::new_v4(),
+            graph_name,
+            graph_data,
+        }
+    }
+
+    pub fn new_campfire(name: String) -> Self {
+        let graph_data = BuilderGraph::preset_campfire_script_named(name.clone());
+        let graph_name = if let Ok(document) = buildergraph::BuilderDocument::from_text(&graph_data)
+        {
+            document.name().to_string()
+        } else if name.is_empty() {
+            "Campfire".to_string()
+        } else {
+            name.clone()
+        };
+        Self {
+            id: Uuid::new_v4(),
+            graph_id: Uuid::new_v4(),
+            graph_name,
+            graph_data,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

@@ -185,6 +185,14 @@ pub struct TileParticleOutput {
     pub color_variation: u8,
 }
 
+#[derive(Clone, Debug)]
+pub struct TileLightOutput {
+    pub intensity: f32,
+    pub range: f32,
+    pub flicker: f32,
+    pub lift: f32,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TileNodeState {
     pub kind: TileNodeKind,
@@ -229,6 +237,8 @@ pub enum TileNodeKind {
         emissive: f32,
         #[serde(default = "default_output_particle_enabled")]
         particle_enabled: bool,
+        #[serde(default = "default_output_light_enabled")]
+        light_enabled: bool,
     },
     LayerInput {
         name: String,
@@ -367,6 +377,27 @@ pub enum TileNodeKind {
         speed_max: f32,
         color_variation: u8,
     },
+    ParticleSpawn {
+        rate: f32,
+        spread: f32,
+    },
+    ParticleMotion {
+        lifetime_min: f32,
+        lifetime_max: f32,
+        speed_min: f32,
+        speed_max: f32,
+    },
+    ParticleRender {
+        radius_min: f32,
+        radius_max: f32,
+        color_variation: u8,
+    },
+    LightEmitter {
+        intensity: f32,
+        range: f32,
+        flicker: f32,
+        lift: f32,
+    },
     MaskBlend {
         factor: f32,
     },
@@ -428,6 +459,10 @@ fn default_output_particle_enabled() -> bool {
     true
 }
 
+fn default_output_light_enabled() -> bool {
+    true
+}
+
 impl TileNodeKind {
     pub fn default_output_root() -> Self {
         Self::OutputRoot {
@@ -436,6 +471,7 @@ impl TileNodeKind {
             opacity: default_output_opacity(),
             emissive: default_output_emissive(),
             particle_enabled: default_output_particle_enabled(),
+            light_enabled: default_output_light_enabled(),
         }
     }
 }
@@ -546,6 +582,7 @@ pub struct RenderedTileGraph {
     pub tiles_material: Vec<Vec<u8>>,
     pub tiles_height: Vec<Vec<u8>>,
     pub particle_output: Option<TileParticleOutput>,
+    pub light_output: Option<TileLightOutput>,
 }
 
 pub trait TileGraphSubgraphResolver {
@@ -577,7 +614,7 @@ impl TileGraphSubgraphResolver for NoTileGraphSubgraphs {
 
 #[derive(Clone, Copy, Default)]
 struct FlatSubgraphOutputs {
-    outputs: [Option<u16>; 6],
+    outputs: [Option<u16>; 8],
 }
 
 #[derive(Clone, Default)]
@@ -672,7 +709,7 @@ fn flatten_graph_state_recursive<R: TileGraphSubgraphResolver>(
                     }
                 }
 
-                let mut outputs = [None; 6];
+                let mut outputs = [None; 8];
                 for (terminal, slot) in outputs.iter_mut().enumerate() {
                     *slot = input_connection_source(&sub_flat, 0, terminal as u8)
                         .and_then(|src| remap_sub_index(src, &sub_map, base));
@@ -1017,6 +1054,7 @@ impl TileGraphRenderer {
             tiles_material,
             tiles_height,
             particle_output: self.output_particle(&state),
+            light_output: self.output_light(&state),
         }
     }
 
@@ -1065,6 +1103,105 @@ impl TileGraphRenderer {
                 speed_min: (*speed_min).max(0.0),
                 speed_max: (*speed_max).max(*speed_min),
                 color_variation: *color_variation,
+            }),
+            Some(TileNodeKind::ParticleRender {
+                radius_min,
+                radius_max,
+                color_variation,
+            }) => {
+                let spawn = state.connections.iter().find_map(
+                    |(src_node, src_term, dst_node, dst_term)| {
+                        if *dst_node as usize == emitter_index && *dst_term == 0 && *src_term == 0 {
+                            Some(*src_node as usize)
+                        } else {
+                            None
+                        }
+                    },
+                );
+                let motion = state.connections.iter().find_map(
+                    |(src_node, src_term, dst_node, dst_term)| {
+                        if *dst_node as usize == emitter_index && *dst_term == 1 && *src_term == 0 {
+                            Some(*src_node as usize)
+                        } else {
+                            None
+                        }
+                    },
+                );
+                let (rate, spread) = match spawn
+                    .and_then(|index| state.nodes.get(index))
+                    .map(|node| &node.kind)
+                {
+                    Some(TileNodeKind::ParticleSpawn { rate, spread }) => {
+                        ((*rate).max(0.0), (*spread).clamp(0.0, std::f32::consts::PI))
+                    }
+                    _ => (24.0, 0.75),
+                };
+                let (lifetime_min, lifetime_max, speed_min, speed_max) = match motion
+                    .and_then(|index| state.nodes.get(index))
+                    .map(|node| &node.kind)
+                {
+                    Some(TileNodeKind::ParticleMotion {
+                        lifetime_min,
+                        lifetime_max,
+                        speed_min,
+                        speed_max,
+                    }) => (
+                        (*lifetime_min).max(0.01),
+                        (*lifetime_max).max(*lifetime_min),
+                        (*speed_min).max(0.0),
+                        (*speed_max).max(*speed_min),
+                    ),
+                    _ => (0.35, 0.9, 0.35, 1.1),
+                };
+                Some(TileParticleOutput {
+                    rate,
+                    spread,
+                    lifetime_min,
+                    lifetime_max,
+                    radius_min: (*radius_min).max(0.001),
+                    radius_max: (*radius_max).max(*radius_min),
+                    speed_min,
+                    speed_max,
+                    color_variation: *color_variation,
+                })
+            }
+            _ => None,
+        }
+    }
+
+    pub fn output_light(&self, state: &TileNodeGraphState) -> Option<TileLightOutput> {
+        let Some(root) = state.nodes.first() else {
+            return None;
+        };
+        let light_enabled = match &root.kind {
+            TileNodeKind::OutputRoot { light_enabled, .. } => *light_enabled,
+            _ => false,
+        };
+        if !light_enabled {
+            return None;
+        }
+        let light_index =
+            state
+                .connections
+                .iter()
+                .find_map(|(src_node, src_term, dst_node, dst_term)| {
+                    if *dst_node == 0 && *dst_term == 7 && *src_term == 0 {
+                        Some(*src_node as usize)
+                    } else {
+                        None
+                    }
+                })?;
+        match state.nodes.get(light_index).map(|node| &node.kind) {
+            Some(TileNodeKind::LightEmitter {
+                intensity,
+                range,
+                flicker,
+                lift,
+            }) => Some(TileLightOutput {
+                intensity: (*intensity).max(0.0),
+                range: (*range).max(0.0),
+                flicker: (*flicker).clamp(0.0, 1.0),
+                lift: (*lift).max(0.0),
             }),
             _ => None,
         }
@@ -1699,7 +1836,11 @@ impl TileGraphRenderer {
                         Some(TheColor::from_u8_array([v, v, v, 255]))
                     }),
                 TileNodeKind::ImportLayer { .. } => None,
-                TileNodeKind::ParticleEmitter { .. } => None,
+                TileNodeKind::ParticleEmitter { .. }
+                | TileNodeKind::ParticleSpawn { .. }
+                | TileNodeKind::ParticleMotion { .. }
+                | TileNodeKind::ParticleRender { .. }
+                | TileNodeKind::LightEmitter { .. } => None,
                 TileNodeKind::GroupUV => Some(TheColor::from_u8_array([
                     unit_to_u8(eval.group_u()),
                     unit_to_u8(eval.group_v()),

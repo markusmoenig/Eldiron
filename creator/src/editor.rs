@@ -725,6 +725,7 @@ impl Editor {
                     scale: t.scale,
                     tags: t.name.clone(),
                     particle_emitter: None,
+                    light_emitter: None,
                 };
                 project.tiles.insert(*id, tile);
             }
@@ -1668,6 +1669,11 @@ impl TheTrait for Editor {
 
         if tick_update {
             RUSTERIX.write().unwrap().client.inc_animation_frame();
+            RUSTERIX
+                .write()
+                .unwrap()
+                .scene_handler
+                .tick_particle_clocks();
 
             self.server_ctx.animation_counter = self.server_ctx.animation_counter.wrapping_add(1);
             // To update animated minimaps (only for docks that need it)

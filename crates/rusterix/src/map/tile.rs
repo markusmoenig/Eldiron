@@ -80,6 +80,15 @@ impl TileRole {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
+pub struct TileLightEmitter {
+    pub color: [u8; 4],
+    pub intensity: f32,
+    pub range: f32,
+    pub flicker: f32,
+    pub lift: f32,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
 pub struct Tile {
     pub id: Uuid,
     pub role: TileRole,
@@ -96,6 +105,9 @@ pub struct Tile {
     /// Optional particle emitter definition derived from a tilegraph output.
     #[serde(default)]
     pub particle_emitter: Option<ParticleEmitter>,
+    /// Optional point light definition derived from a tilegraph output.
+    #[serde(default)]
+    pub light_emitter: Option<TileLightEmitter>,
 }
 
 impl Tile {
@@ -110,6 +122,7 @@ impl Tile {
             scale: 1.0,
             tags: String::new(),
             particle_emitter: None,
+            light_emitter: None,
         }
     }
 
@@ -123,6 +136,7 @@ impl Tile {
             scale: 1.0,
             tags: String::new(),
             particle_emitter: None,
+            light_emitter: None,
             ..Default::default()
         }
     }
@@ -137,6 +151,7 @@ impl Tile {
             scale: 1.0,
             tags: String::new(),
             particle_emitter: None,
+            light_emitter: None,
             ..Default::default()
         }
     }
@@ -188,6 +203,7 @@ impl Tile {
             scale: self.scale,
             tags: self.tags.clone(),
             particle_emitter: self.particle_emitter.clone(),
+            light_emitter: self.light_emitter.clone(),
         }
     }
 

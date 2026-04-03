@@ -1,0 +1,61 @@
+name = "Wall Lantern";
+host = vertex;
+
+preview {
+    width = 1.0;
+    depth = 0.40;
+    height = 2.0;
+}
+
+let base = box {
+    attach = host.middle + host.out * 0.05 + host.up * -0.16;
+    size = vec3(0.20, 0.42, 0.05);
+    material = BASE;
+};
+
+let arm = box {
+    attach = host.middle + host.out * 0.15 + host.up * 0.03;
+    size = vec3(0.07, 0.05, 0.24);
+    material = BASE;
+};
+
+let frame = box {
+    attach = host.middle + host.out * 0.27 + host.up * -0.03;
+    size = vec3(0.18, 0.28, 0.18);
+    material = FRAME;
+};
+
+let cap = box {
+    attach = host.middle + host.out * 0.27 + host.up * 0.19;
+    size = vec3(0.22, 0.05, 0.22);
+    material = FRAME;
+};
+
+let stem = box {
+    attach = host.middle + host.out * 0.27 + host.up * 0.27;
+    size = vec3(0.04, 0.12, 0.04);
+    material = FRAME;
+};
+
+let finial = cylinder {
+    attach = host.middle + host.out * 0.27 + host.up * -0.24;
+    axis = host.up;
+    length = 0.10;
+    radius = 0.018;
+    material = FRAME;
+};
+
+let glow = cylinder {
+    attach = host.middle + host.out * 0.27 + host.up * -0.02;
+    axis = host.up;
+    length = 0.18;
+    radius = 0.040;
+    material = GLOW;
+};
+
+slot item glow_top = glow.top;
+slot material base_mat = base.center;
+slot material frame_mat = frame.center;
+slot material glow_mat = glow.center;
+
+output = [base, arm, frame, cap, stem, finial, glow];

@@ -442,6 +442,7 @@ impl Dock for TilemapDock {
                                             scale: t.scale,
                                             tags: t.name.clone(),
                                             particle_emitter: None,
+                                            light_emitter: None,
                                         };
                                         tile.set_default_materials();
                                         project.tiles.insert(id, tile);
@@ -648,6 +649,7 @@ impl TilemapDock {
             scale: rgba_tile.scale,
             tags: rgba_tile.name.clone(),
             particle_emitter: None,
+            light_emitter: None,
         });
 
         // if let Some(icon_view) = ui.get_icon_view("Tilemap Selection Preview") {

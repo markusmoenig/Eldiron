@@ -1,7 +1,7 @@
 use crate::editor::{ACTIONLIST, RUSTERIX, TOOLLIST, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::{PixelSource, TileRole, TileSource, VertexBlendPreset};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 const TILES_TAB_LAYOUT: &str = "Tiles Dock Tabs";
 const TILE_VIEW_PREFIX: &str = "Tiles Dock View ";
@@ -76,6 +76,8 @@ pub struct TilesDock {
     entered_group: Option<Uuid>,
     entered_group_saved_offset: Option<(usize, Vec2<i32>)>,
     last_group_click: Option<(Uuid, u128)>,
+    particle_preview_time: f32,
+    particle_preview_last_tick: Instant,
 }
 
 impl Dock for TilesDock {
@@ -107,6 +109,8 @@ impl Dock for TilesDock {
             entered_group: None,
             entered_group_saved_offset: None,
             last_group_click: None,
+            particle_preview_time: 0.0,
+            particle_preview_last_tick: Instant::now(),
         }
     }
 
@@ -1005,6 +1009,13 @@ impl Dock for TilesDock {
                 if id.name == "Update Tilepicker" {
                     self.render_views(ui, ctx, project);
                     redraw = true;
+                } else if id.name == "Soft Update Minimap" {
+                    let now = Instant::now();
+                    let elapsed = now
+                        .saturating_duration_since(self.particle_preview_last_tick)
+                        .as_secs_f32();
+                    self.particle_preview_last_tick = now;
+                    self.particle_preview_time += elapsed.clamp(0.0, 0.25);
                 }
             }
             TheEvent::ValueChanged(id, value) => {
@@ -1054,6 +1065,11 @@ impl Dock for TilesDock {
 }
 
 impl TilesDock {
+    fn particle_preview_time(&self) -> f32 {
+        const PREVIEW_FPS: f32 = 15.0;
+        (self.particle_preview_time * PREVIEW_FPS).floor() / PREVIEW_FPS
+    }
+
     fn ensure_treasury_loaded(&mut self) {
         if self.treasury_loaded {
             return;
@@ -2178,6 +2194,33 @@ impl TilesDock {
         if tile.textures.is_empty() {
             return;
         }
+        if let Some(emitter) = &tile.particle_emitter {
+            let full_rect = Vec4::new(
+                rect.x + padding,
+                rect.y + padding,
+                (rect.z - padding * 2).max(1),
+                (rect.w - padding * 2).max(1),
+            );
+            let Some(draw_rect) = Self::clip_rect(buffer, rect, padding) else {
+                return;
+            };
+            let preview = crate::docks::particle_preview::render_particle_emitter_preview(
+                emitter,
+                full_rect.z.max(1),
+                full_rect.w.max(1),
+                0.68,
+            );
+            let stride = buffer.stride();
+            ctx.draw.blend_scale_chunk_alpha(
+                buffer.pixels_mut(),
+                &draw_rect,
+                stride,
+                preview.pixels(),
+                &(preview.dim().width as usize, preview.dim().height as usize),
+                alpha,
+            );
+            return;
+        }
         let tex = &tile.textures[0];
         let stride = buffer.stride();
         let full_rect = Vec4::new(
@@ -2237,35 +2280,45 @@ impl TilesDock {
     ) {
         buffer.fill(BLACK);
         let stride = buffer.stride();
+        let particle_time = self.particle_preview_time();
 
         match source {
             TileSource::SingleTile(tile_id) => {
-                if let Some(tile) = project.tiles.get(&tile_id)
-                    && !tile.textures.is_empty()
-                {
-                    let index = server_ctx.animation_counter % tile.textures.len();
-                    let tex = &tile.textures[index];
-                    let src_w = tex.width as f32;
-                    let src_h = tex.height as f32;
-                    let dst_w = buffer.dim().width as f32;
-                    let dst_h = buffer.dim().height as f32;
-                    let scale = (dst_w / src_w).min(dst_h / src_h);
-                    let draw_w = src_w * scale;
-                    let draw_h = src_h * scale;
-                    let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
-                    let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
-                    ctx.draw.blend_scale_chunk(
-                        buffer.pixels_mut(),
-                        &(
-                            offset_x,
-                            offset_y,
-                            draw_w.round() as usize,
-                            draw_h.round() as usize,
-                        ),
-                        stride,
-                        &tex.data,
-                        &(tex.width, tex.height),
-                    );
+                if let Some(tile) = project.tiles.get(&tile_id) {
+                    if let Some(emitter) = &tile.particle_emitter {
+                        let preview =
+                            crate::docks::particle_preview::render_particle_emitter_preview(
+                                emitter,
+                                buffer.dim().width.max(1),
+                                buffer.dim().height.max(1),
+                                particle_time,
+                            );
+                        buffer.pixels_mut().copy_from_slice(preview.pixels());
+                    } else if !tile.textures.is_empty() {
+                        let index = server_ctx.animation_counter % tile.textures.len();
+                        let tex = &tile.textures[index];
+                        let src_w = tex.width as f32;
+                        let src_h = tex.height as f32;
+                        let dst_w = buffer.dim().width as f32;
+                        let dst_h = buffer.dim().height as f32;
+                        let scale = (dst_w / src_w).min(dst_h / src_h);
+                        let draw_w = src_w * scale;
+                        let draw_h = src_h * scale;
+                        let offset_x = ((dst_w - draw_w) * 0.5).round() as usize;
+                        let offset_y = ((dst_h - draw_h) * 0.5).round() as usize;
+                        ctx.draw.blend_scale_chunk(
+                            buffer.pixels_mut(),
+                            &(
+                                offset_x,
+                                offset_y,
+                                draw_w.round() as usize,
+                                draw_h.round() as usize,
+                            ),
+                            stride,
+                            &tex.data,
+                            &(tex.width, tex.height),
+                        );
+                    }
                 }
             }
             TileSource::TileGroup(group_id) => {
@@ -2276,23 +2329,39 @@ impl TilesDock {
                     let cell_w = (buffer.dim().width / grid_w).max(1);
                     let cell_h = (buffer.dim().height / grid_h).max(1);
                     for member in &group.members {
-                        if let Some(tile) = project.tiles.get(&member.tile_id)
-                            && !tile.textures.is_empty()
-                        {
-                            let index = server_ctx.animation_counter % tile.textures.len();
-                            let tex = &tile.textures[index];
-                            ctx.draw.blend_scale_chunk(
-                                buffer.pixels_mut(),
-                                &(
-                                    member.x as usize * cell_w as usize + 2,
-                                    member.y as usize * cell_h as usize + 2,
-                                    (cell_w - 4).max(1) as usize,
-                                    (cell_h - 4).max(1) as usize,
-                                ),
-                                stride,
-                                &tex.data,
-                                &(tex.width, tex.height),
+                        if let Some(tile) = project.tiles.get(&member.tile_id) {
+                            let cell_rect = (
+                                member.x as usize * cell_w as usize + 2,
+                                member.y as usize * cell_h as usize + 2,
+                                (cell_w - 4).max(1) as usize,
+                                (cell_h - 4).max(1) as usize,
                             );
+                            if let Some(emitter) = &tile.particle_emitter {
+                                let preview =
+                                    crate::docks::particle_preview::render_particle_emitter_preview(
+                                        emitter,
+                                        cell_rect.2.max(1) as i32,
+                                        cell_rect.3.max(1) as i32,
+                                        particle_time,
+                                    );
+                                ctx.draw.blend_scale_chunk(
+                                    buffer.pixels_mut(),
+                                    &cell_rect,
+                                    stride,
+                                    preview.pixels(),
+                                    &(preview.dim().width as usize, preview.dim().height as usize),
+                                );
+                            } else if !tile.textures.is_empty() {
+                                let index = server_ctx.animation_counter % tile.textures.len();
+                                let tex = &tile.textures[index];
+                                ctx.draw.blend_scale_chunk(
+                                    buffer.pixels_mut(),
+                                    &cell_rect,
+                                    stride,
+                                    &tex.data,
+                                    &(tex.width, tex.height),
+                                );
+                            }
                         }
                     }
                 }

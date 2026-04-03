@@ -247,6 +247,27 @@ fn node_kind_from_doc(
             speed_max: table_f32(table, "speed_max", 1.1),
             color_variation: table_u32(table, "color_variation", 24) as u8,
         },
+        "particle_spawn" => TileNodeKind::ParticleSpawn {
+            rate: table_f32(table, "rate", 24.0),
+            spread: table_f32(table, "spread", 0.75),
+        },
+        "particle_motion" => TileNodeKind::ParticleMotion {
+            lifetime_min: table_f32(table, "lifetime_min", 0.35),
+            lifetime_max: table_f32(table, "lifetime_max", 0.9),
+            speed_min: table_f32(table, "speed_min", 0.35),
+            speed_max: table_f32(table, "speed_max", 1.1),
+        },
+        "particle_render" => TileNodeKind::ParticleRender {
+            radius_min: table_f32(table, "radius_min", 0.08),
+            radius_max: table_f32(table, "radius_max", 0.2),
+            color_variation: table_u32(table, "color_variation", 24) as u8,
+        },
+        "light_emitter" => TileNodeKind::LightEmitter {
+            intensity: table_f32(table, "intensity", 1.8),
+            range: table_f32(table, "range", 8.0),
+            flicker: table_f32(table, "flicker", 0.2),
+            lift: table_f32(table, "lift", 0.06),
+        },
         "import_layer" => TileNodeKind::ImportLayer {
             source: table
                 .get("source")
@@ -291,6 +312,11 @@ fn input_index(kind: &str, input: &str) -> Option<u8> {
             .and_then(|n| n.checked_sub(1)),
         "layer_input" => match input {
             "in" => Some(0),
+            _ => None,
+        },
+        "particle_render" => match input {
+            "spawn" => Some(0),
+            "motion" => Some(1),
             _ => None,
         },
         "voronoi" => match input {
@@ -393,6 +419,22 @@ fn output_index(kind: &str, output: &str) -> Option<u8> {
             "material" => Some(0),
             _ => None,
         },
+        "particle_emitter" | "particle_render" => match output {
+            "particles" => Some(0),
+            _ => None,
+        },
+        "particle_spawn" => match output {
+            "spawn" => Some(0),
+            _ => None,
+        },
+        "particle_motion" => match output {
+            "motion" => Some(0),
+            _ => None,
+        },
+        "light_emitter" => match output {
+            "light" => Some(0),
+            _ => None,
+        },
         "output" => None,
         _ => match output {
             "field" | "mask" | "color" => Some(0),
@@ -441,6 +483,7 @@ impl TileGraphDocument {
                         opacity,
                         emissive,
                         particle_enabled,
+                        light_enabled,
                     } = &mut output_root.kind
                     {
                         if let Some(v) =
@@ -467,6 +510,13 @@ impl TileGraphDocument {
                         {
                             *particle_enabled = v;
                         }
+                        if let Some(v) = graph_node
+                            .table
+                            .get("light_enabled")
+                            .and_then(|v| v.as_bool())
+                        {
+                            *light_enabled = v;
+                        }
                     }
                 }
                 for key in [
@@ -476,6 +526,7 @@ impl TileGraphDocument {
                     "metallic",
                     "opacity",
                     "emissive",
+                    "light",
                 ] {
                     if let Some(value) = graph_node.table.get(key).and_then(|v| v.as_str()) {
                         output_refs.push((key.to_string(), value.to_string()));
@@ -874,6 +925,10 @@ fn export_kind_name(kind: &TileNodeKind) -> Option<&'static str> {
         TileNodeKind::ImportLayer { .. } => Some("import_layer"),
         TileNodeKind::LayerInput { .. } => Some("layer_input"),
         TileNodeKind::ParticleEmitter { .. } => Some("particle_emitter"),
+        TileNodeKind::ParticleSpawn { .. } => Some("particle_spawn"),
+        TileNodeKind::ParticleMotion { .. } => Some("particle_motion"),
+        TileNodeKind::ParticleRender { .. } => Some("particle_render"),
+        TileNodeKind::LightEmitter { .. } => Some("light_emitter"),
         TileNodeKind::Multiply => Some("multiply"),
         TileNodeKind::Subtract => Some("subtract"),
         TileNodeKind::Add => Some("add"),
@@ -894,6 +949,7 @@ fn export_input_name(kind: &str, input: u8) -> Option<&'static str> {
             4 => Some("opacity"),
             5 => Some("emissive"),
             6 => Some("particles"),
+            7 => Some("light"),
             _ => None,
         },
         "voronoi" => match input {
@@ -951,6 +1007,20 @@ fn export_input_name(kind: &str, input: u8) -> Option<&'static str> {
         "particle_emitter" => match input {
             _ => None,
         },
+        "particle_spawn" => match input {
+            _ => None,
+        },
+        "particle_motion" => match input {
+            _ => None,
+        },
+        "particle_render" => match input {
+            0 => Some("spawn"),
+            1 => Some("motion"),
+            _ => None,
+        },
+        "light_emitter" => match input {
+            _ => None,
+        },
         "id_random" => match input {
             0 => Some("id"),
             _ => None,
@@ -977,6 +1047,22 @@ fn export_output_port_name(kind: &str, output: u8) -> Option<&'static str> {
         },
         "particle_emitter" => match output {
             0 => Some("particles"),
+            _ => None,
+        },
+        "particle_spawn" => match output {
+            0 => Some("spawn"),
+            _ => None,
+        },
+        "particle_motion" => match output {
+            0 => Some("motion"),
+            _ => None,
+        },
+        "particle_render" => match output {
+            0 => Some("particles"),
+            _ => None,
+        },
+        "light_emitter" => match output {
+            0 => Some("light"),
             _ => None,
         },
         "voronoi" => match output {
@@ -1039,6 +1125,7 @@ fn export_node_table(
             opacity,
             emissive,
             particle_enabled,
+            light_enabled,
         } => {
             table.insert("roughness".to_string(), rounded_float(*roughness));
             table.insert("metallic".to_string(), rounded_float(*metallic));
@@ -1047,6 +1134,10 @@ fn export_node_table(
             table.insert(
                 "particle_enabled".to_string(),
                 toml::Value::Boolean(*particle_enabled),
+            );
+            table.insert(
+                "light_enabled".to_string(),
+                toml::Value::Boolean(*light_enabled),
             );
         }
         TileNodeKind::Voronoi {
@@ -1185,6 +1276,44 @@ fn export_node_table(
                 "color_variation".to_string(),
                 toml::Value::Integer(*color_variation as i64),
             );
+        }
+        TileNodeKind::ParticleSpawn { rate, spread } => {
+            table.insert("rate".to_string(), rounded_float(*rate));
+            table.insert("spread".to_string(), rounded_float(*spread));
+        }
+        TileNodeKind::ParticleMotion {
+            lifetime_min,
+            lifetime_max,
+            speed_min,
+            speed_max,
+        } => {
+            table.insert("lifetime_min".to_string(), rounded_float(*lifetime_min));
+            table.insert("lifetime_max".to_string(), rounded_float(*lifetime_max));
+            table.insert("speed_min".to_string(), rounded_float(*speed_min));
+            table.insert("speed_max".to_string(), rounded_float(*speed_max));
+        }
+        TileNodeKind::ParticleRender {
+            radius_min,
+            radius_max,
+            color_variation,
+        } => {
+            table.insert("radius_min".to_string(), rounded_float(*radius_min));
+            table.insert("radius_max".to_string(), rounded_float(*radius_max));
+            table.insert(
+                "color_variation".to_string(),
+                toml::Value::Integer(*color_variation as i64),
+            );
+        }
+        TileNodeKind::LightEmitter {
+            intensity,
+            range,
+            flicker,
+            lift,
+        } => {
+            table.insert("intensity".to_string(), rounded_float(*intensity));
+            table.insert("range".to_string(), rounded_float(*range));
+            table.insert("flicker".to_string(), rounded_float(*flicker));
+            table.insert("lift".to_string(), rounded_float(*lift));
         }
         TileNodeKind::Material {
             roughness,

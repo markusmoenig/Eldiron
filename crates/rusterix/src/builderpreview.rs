@@ -90,6 +90,8 @@ fn render_preview_variant(
     options: BuilderPreviewOptions,
     host_yaw: f32,
 ) -> Result<Vec<u8>, String> {
+    const PREVIEW_SSAA: usize = 2;
+
     let dims = Vec3::new(
         preview_host.width.max(0.01),
         preview_host.height.max(0.01),
@@ -165,17 +167,67 @@ fn render_preview_variant(
 
     let width = options.size as usize;
     let height = options.size as usize;
-    let mut pixels = vec![0_u8; width * height * 4];
+    let render_width = width * PREVIEW_SSAA;
+    let render_height = height * PREVIEW_SSAA;
+    let mut pixels = vec![0_u8; render_width * render_height * 4];
     let view = camera.view_matrix();
-    let proj = camera.projection_matrix(width as f32, height as f32);
+    let proj = camera.projection_matrix(render_width as f32, render_height as f32);
     let mut rasterizer = Rasterizer::setup(None, view, proj)
         .render_mode(RenderMode::render_3d())
-        .background([30, 32, 36, 255])
+        .background([46, 48, 52, 255])
         .ambient(Vec4::new(0.34, 0.35, 0.38, 1.0));
     let assets = Assets::default();
-    rasterizer.rasterize(&mut scene, &mut pixels, width, height, 64, &assets);
+    rasterizer.rasterize(
+        &mut scene,
+        &mut pixels,
+        render_width,
+        render_height,
+        64,
+        &assets,
+    );
 
-    Ok(pixels)
+    Ok(downsample_rgba_box(
+        &pixels,
+        render_width,
+        render_height,
+        PREVIEW_SSAA,
+    ))
+}
+
+fn downsample_rgba_box(src: &[u8], width: usize, height: usize, factor: usize) -> Vec<u8> {
+    if factor <= 1 {
+        return src.to_vec();
+    }
+
+    let dst_width = width / factor;
+    let dst_height = height / factor;
+    let mut out = vec![0_u8; dst_width * dst_height * 4];
+    let samples = (factor * factor) as u32;
+
+    for y in 0..dst_height {
+        for x in 0..dst_width {
+            let mut acc = [0_u32; 4];
+            for sy in 0..factor {
+                for sx in 0..factor {
+                    let src_x = x * factor + sx;
+                    let src_y = y * factor + sy;
+                    let index = (src_y * width + src_x) * 4;
+                    acc[0] += src[index] as u32;
+                    acc[1] += src[index + 1] as u32;
+                    acc[2] += src[index + 2] as u32;
+                    acc[3] += src[index + 3] as u32;
+                }
+            }
+
+            let dst = (y * dst_width + x) * 4;
+            out[dst] = (acc[0] / samples) as u8;
+            out[dst + 1] = (acc[1] / samples) as u8;
+            out[dst + 2] = (acc[2] / samples) as u8;
+            out[dst + 3] = (acc[3] / samples) as u8;
+        }
+    }
+
+    out
 }
 
 fn batch_for_primitive(

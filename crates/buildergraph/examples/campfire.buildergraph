@@ -1,0 +1,104 @@
+name = "Campfire";
+host = vertex;
+
+preview {
+    width = 1.2;
+    depth = 1.2;
+    height = 0.7;
+}
+
+let log_a = cylinder {
+    attach = host.middle + host.up * 0.035 + host.right * 0.03;
+    axis = host.right;
+    length = 0.28;
+    radius = 0.026;
+    material = LOGS;
+};
+
+let log_b = cylinder {
+    attach = host.middle + host.up * 0.04 + host.along * 0.04;
+    axis = host.along;
+    length = 0.26;
+    radius = 0.026;
+    material = LOGS;
+};
+
+let log_c = cylinder {
+    attach = host.middle + host.up * 0.03 + host.along * -0.05;
+    axis = host.along;
+    length = 0.18;
+    radius = 0.024;
+    material = LOGS;
+};
+
+let stone_a = box {
+    attach = host.middle + host.right * 0.26 + host.up * 0.02;
+    size = vec3(0.11, 0.05, 0.07);
+    material = STONES;
+};
+
+let stone_b = box {
+    attach = host.middle + host.right * -0.26 + host.up * 0.02;
+    size = vec3(0.11, 0.05, 0.07);
+    material = STONES;
+};
+
+let stone_c = box {
+    attach = host.middle + host.along * 0.26 + host.up * 0.02;
+    size = vec3(0.07, 0.05, 0.11);
+    material = STONES;
+};
+
+let stone_d = box {
+    attach = host.middle + host.along * -0.26 + host.up * 0.02;
+    size = vec3(0.07, 0.05, 0.11);
+    material = STONES;
+};
+
+let stone_e = box {
+    attach = host.middle + host.right * 0.19 + host.along * 0.19 + host.up * 0.018;
+    size = vec3(0.08, 0.04, 0.07);
+    material = STONES;
+};
+
+let stone_f = box {
+    attach = host.middle + host.right * -0.19 + host.along * 0.19 + host.up * 0.018;
+    size = vec3(0.08, 0.04, 0.07);
+    material = STONES;
+};
+
+let stone_g = box {
+    attach = host.middle + host.right * 0.19 + host.along * -0.19 + host.up * 0.018;
+    size = vec3(0.08, 0.04, 0.07);
+    material = STONES;
+};
+
+let stone_h = box {
+    attach = host.middle + host.right * -0.19 + host.along * -0.19 + host.up * 0.018;
+    size = vec3(0.08, 0.04, 0.07);
+    material = STONES;
+};
+
+let ember_bed = cylinder {
+    attach = host.middle + host.up * 0.022;
+    axis = host.up;
+    length = 0.025;
+    radius = 0.10;
+    material = EMBERS;
+};
+
+let glow = cylinder {
+    attach = host.middle + host.up * 0.03;
+    axis = host.up;
+    length = 0.025;
+    radius = 0.06;
+    material = FLAME;
+};
+
+slot item flame_top = glow.top;
+slot material logs_mat = log_a.center;
+slot material stones_mat = stone_a.center;
+slot material ember_mat = ember_bed.center;
+slot material flame_mat = glow.center;
+
+output = [stone_a, stone_b, stone_c, stone_d, stone_e, stone_f, stone_g, stone_h, log_a, log_b, log_c, ember_bed, glow];

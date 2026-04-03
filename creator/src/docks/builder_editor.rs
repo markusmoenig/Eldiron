@@ -622,6 +622,10 @@ impl Dock for BuilderEditorDock {
                     .map(|name| {
                         if name.starts_with("Wall Torch") {
                             BuilderGraph::preset_wall_torch_script_named(name)
+                        } else if name.starts_with("Wall Lantern") {
+                            BuilderGraph::preset_wall_lantern_script_named(name)
+                        } else if name.starts_with("Campfire") {
+                            BuilderGraph::preset_campfire_script_named(name)
                         } else if name.starts_with("Empty") {
                             BuilderGraph::empty_script_named(name)
                         } else {
