@@ -3900,7 +3900,13 @@ fn emit_builder_vertex_meshes(
     } else {
         1.0
     };
-    let outward = builder_linedef_outward(along, host_properties);
+    let outward = Vec3::new(
+        host_properties.get_float_default("host_outward_x", 0.0),
+        host_properties.get_float_default("host_outward_y", 0.0),
+        host_properties.get_float_default("host_outward_z", 0.0),
+    )
+    .try_normalized()
+    .unwrap_or_else(|| builder_linedef_outward(along, host_properties));
     let up = Vec3::new(0.0, 1.0, 0.0);
     let Ok(assembly) = graph.evaluate() else {
         return false;
