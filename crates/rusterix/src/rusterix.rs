@@ -479,5 +479,6 @@ impl Rusterix {
 
         self.scene_handler.build_atlas(&all_tiles, editor);
         self.assets.set_tiles(all_tiles);
+        self.scene_handler.clear_runtime_scene();
     }
 }

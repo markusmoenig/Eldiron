@@ -1,13 +1,15 @@
 use rand::Rng;
 use theframework::prelude::*;
-use vek::{Mat3, Vec3};
+use vek::Vec3;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Particle {
     pub pos: Vec3<f32>,
     pub vel: Vec3<f32>,
     pub lifetime: f32,
+    pub initial_lifetime: f32,
     pub radius: f32,
+    pub initial_radius: f32,
     pub color: [u8; 4],
 }
 
@@ -27,6 +29,8 @@ pub struct ParticleEmitter {
     pub lifetime_range: (f32, f32), // Seconds
     pub radius_range: (f32, f32),   // Radius size range
     pub speed_range: (f32, f32),    // Velocity magnitude range
+    #[serde(default)]
+    pub flame_base: bool,
 
     pub particles: Vec<Particle>, // Active particles
 }
@@ -48,6 +52,7 @@ impl ParticleEmitter {
             lifetime_range: (0.5, 1.5),
             radius_range: (0.05, 0.15),
             speed_range: (0.5, 1.5),
+            flame_base: false,
 
             particles: vec![],
         }
@@ -69,7 +74,15 @@ impl ParticleEmitter {
             p.lifetime -= dt;
             if p.lifetime > 0.0 {
                 p.pos += p.vel * dt;
-                p.radius *= 0.98;
+                let age = (1.0 - p.lifetime / p.initial_lifetime.max(0.001)).clamp(0.0, 1.0);
+                p.radius = p.initial_radius * (1.0 - age * 0.45);
+                p.color = particle_color_at_age(
+                    self.color_ramp
+                        .as_ref()
+                        .unwrap_or(&[self.color, self.color, self.color, self.color]),
+                    age,
+                    self.color_variation,
+                );
                 true
             } else {
                 false
@@ -88,20 +101,21 @@ impl ParticleEmitter {
         let lifetime = rng.random_range(self.lifetime_range.0..=self.lifetime_range.1);
         let radius = rng.random_range(self.radius_range.0..=self.radius_range.1);
 
-        let mut color = self.color;
-        for i in 0..3 {
-            let v = rng.random_range(
-                (color[i] as i16 - self.color_variation as i16).max(0)
-                    ..=(color[i] as i16 + self.color_variation as i16).min(255),
-            );
-            color[i] = v as u8;
-        }
+        let color = particle_color_at_age(
+            self.color_ramp
+                .as_ref()
+                .unwrap_or(&[self.color, self.color, self.color, self.color]),
+            0.0,
+            self.color_variation,
+        );
 
         let p = Particle {
             pos: self.origin,
             vel: velocity,
             lifetime,
+            initial_lifetime: lifetime,
             radius,
+            initial_radius: radius,
             color,
         };
 
@@ -109,64 +123,59 @@ impl ParticleEmitter {
     }
 }
 
+fn particle_color_at_age(ramp: &[[u8; 4]; 4], age: f32, color_variation: u8) -> [u8; 4] {
+    let age = age.clamp(0.0, 0.999);
+    let scaled = age * 3.0;
+    let idx = scaled.floor() as usize;
+    let frac = scaled.fract();
+    let c0 = ramp[idx.min(3)];
+    let c1 = ramp[(idx + 1).min(3)];
+    let mut color = [0u8; 4];
+    for channel in 0..3 {
+        color[channel] =
+            (c0[channel] as f32 * (1.0 - frac) + c1[channel] as f32 * frac).clamp(0.0, 255.0) as u8;
+    }
+    color[3] = 255;
+
+    if color_variation == 0 {
+        return color;
+    }
+
+    let mut rng = rand::rng();
+    for channel in 0..3 {
+        let v = rng.random_range(
+            (color[channel] as i16 - color_variation as i16).max(0)
+                ..=(color[channel] as i16 + color_variation as i16).min(255),
+        );
+        color[channel] = v as u8;
+    }
+    color
+}
+
 /// Generates a random unit vector within a cone defined by direction and spread.
 fn random_unit_vector_in_cone(dir: Vec3<f32>, spread: f32) -> Vec3<f32> {
     let mut rng = rand::rng();
+    let forward = dir.try_normalized().unwrap_or(Vec3::unit_y());
+    let helper = if forward.y.abs() < 0.999 {
+        Vec3::unit_y()
+    } else {
+        Vec3::unit_x()
+    };
+    let tangent = forward
+        .cross(helper)
+        .try_normalized()
+        .unwrap_or(Vec3::unit_x());
+    let bitangent = tangent
+        .cross(forward)
+        .try_normalized()
+        .unwrap_or(Vec3::unit_z());
 
-    // Generate a random direction in spherical coordinates
     let theta = rng.random_range(0.0..std::f32::consts::TAU);
-    let phi = rng.random_range(0.0..spread);
+    let phi = rng.random_range(0.0..spread.max(0.0));
+    let radial = phi.sin();
+    let axial = phi.cos();
 
-    // Local vector
-    let x = phi.sin() * theta.cos();
-    let y = phi.sin() * theta.sin();
-    let z = phi.cos();
-    let local = Vec3::new(x, y, z);
-
-    // Rotate local cone direction to align with `dir`
-    align_vector(local, dir)
-}
-
-/// Rotates vector `v` to align with the target direction.
-fn align_vector(v: Vec3<f32>, target: Vec3<f32>) -> Vec3<f32> {
-    let from = Vec3::unit_z(); // Local cone direction
-    let to = target.normalized();
-
-    let cos_theta = from.dot(to);
-    if cos_theta > 0.9999 {
-        return v; // Already aligned
-    } else if cos_theta < -0.9999 {
-        // 180 degree flip — any perpendicular axis works
-        let up = Vec3::unit_y();
-        let axis = from.cross(up).normalized();
-        let rot = rotation_matrix(axis, std::f32::consts::PI);
-        return rot * v;
-    }
-
-    let axis = from.cross(to).normalized();
-    let angle = cos_theta.acos();
-    let rot = rotation_matrix(axis, angle);
-    rot * v
-}
-
-/// Constructs a rotation matrix from an axis and angle (Rodrigues' formula).
-fn rotation_matrix(axis: Vec3<f32>, angle: f32) -> Mat3<f32> {
-    let (sin, cos) = angle.sin_cos();
-    let one_minus_cos = 1.0 - cos;
-
-    let x = axis.x;
-    let y = axis.y;
-    let z = axis.z;
-
-    Mat3::new(
-        cos + x * x * one_minus_cos,
-        y * x * one_minus_cos + z * sin,
-        z * x * one_minus_cos - y * sin,
-        x * y * one_minus_cos - z * sin,
-        cos + y * y * one_minus_cos,
-        z * y * one_minus_cos + x * sin,
-        x * z * one_minus_cos + y * sin,
-        y * z * one_minus_cos - x * sin,
-        cos + z * z * one_minus_cos,
-    )
+    (forward * axial + tangent * (radial * theta.cos()) + bitangent * (radial * theta.sin()))
+        .try_normalized()
+        .unwrap_or(forward)
 }

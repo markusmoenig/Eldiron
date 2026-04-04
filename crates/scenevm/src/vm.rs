@@ -101,6 +101,7 @@ fn poly_uses_clamped_uv(poly: &crate::Poly3D) -> bool {
 }
 
 const TILE_INDEX_CLAMP_UV_FLAG_RUST: u32 = 0x4000_0000u32;
+const TILE_INDEX_PARTICLE_FLAG_RUST: u32 = 0x0800_0000u32;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -180,6 +181,7 @@ pub struct VMGpu {
     pub raster2d_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_alpha_pipeline: Option<wgpu::RenderPipeline>,
+    pub raster3d_particle_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_shadow_pipeline: Option<wgpu::RenderPipeline>,
     pub u2d_buf: Option<wgpu::Buffer>,
     pub u3d_buf: Option<wgpu::Buffer>,
@@ -211,6 +213,9 @@ pub struct VMGpu {
     pub i3d_raster_transparent: Option<wgpu::Buffer>,
     pub i3d_raster_transparent_count: u32,
     pub i3d_raster_transparent_capacity: u64,
+    pub i3d_raster_particles: Option<wgpu::Buffer>,
+    pub i3d_raster_particles_count: u32,
+    pub i3d_raster_particles_capacity: u64,
     pub shadow_sampler_compare: Option<wgpu::Sampler>,
     pub raster3d_shadow_tex: Option<wgpu::Texture>,
     pub raster3d_shadow_view: Option<wgpu::TextureView>,
@@ -454,6 +459,7 @@ struct VsOut {
   @location(1) @interpolate(flat) tile_index: u32,
   @location(2) @interpolate(flat) tile_index2: u32,
   @location(3) blend_factor: f32,
+  @location(4) @interpolate(flat) kind: u32,
 };
 
 fn tile_frame(tile_index: u32, phase_start_counter: u32) -> TileFrame {
@@ -978,11 +984,13 @@ const TILE_INDEX_AVATAR_FLAG: u32 = 0x80000000u;
 const TILE_INDEX_CLAMP_UV_FLAG: u32 = 0x40000000u;
 const TILE_INDEX_BILLBOARD_FLAG: u32 = 0x20000000u;
 const TILE_INDEX_BLOCK_SUN_FLAG: u32 = 0x10000000u;
+const TILE_INDEX_PARTICLE_FLAG: u32 = 0x08000000u;
 const TILE_INDEX_FLAGS_MASK: u32 =
     TILE_INDEX_AVATAR_FLAG
     | TILE_INDEX_CLAMP_UV_FLAG
     | TILE_INDEX_BILLBOARD_FLAG
-    | TILE_INDEX_BLOCK_SUN_FLAG;
+    | TILE_INDEX_BLOCK_SUN_FLAG
+    | TILE_INDEX_PARTICLE_FLAG;
 
 fn camera_to_clip(world_pos: vec3<f32>) -> vec4<f32> {
     let rel = world_pos - UBO.cam_pos.xyz;
@@ -1264,13 +1272,14 @@ fn apply_post(color_linear: vec3<f32>) -> vec3<f32> {
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
     var out: VsOut;
+    let is_particle = (in.tile_index2 & TILE_INDEX_PARTICLE_FLAG) != 0u;
     out.pos = camera_to_clip(in.pos);
     out.uv = in.uv;
     out.tile_index = in.tile_index;
     out.tile_index2 = in.tile_index2;
     out.blend_factor = in.blend_factor;
     out.opacity = clamp(in.opacity, 0.0, 1.0);
-    out.normal = normalize(in.normal);
+    out.normal = select(normalize(in.normal), max(in.normal, vec3<f32>(0.0)), is_particle);
     out.world_pos = in.pos;
     return out;
 }
@@ -1304,6 +1313,10 @@ fn fs_shadow(in: VsShadowOut) {
     let tile_index2 = in.tile_index2 & (~TILE_INDEX_FLAGS_MASK);
     let is_avatar = (in.tile_index2 & TILE_INDEX_AVATAR_FLAG) != 0u;
     let is_billboard = (in.tile_index2 & TILE_INDEX_BILLBOARD_FLAG) != 0u;
+    let is_particle = (in.tile_index2 & TILE_INDEX_PARTICLE_FLAG) != 0u;
+    if (is_particle) {
+        discard;
+    }
     let phase_start = select(0u, u32(max(in.blend_factor, 0.0)), is_billboard);
     let blend = clamp(in.blend_factor, 0.0, 1.0);
     let c0 = select(sample_tile_lod0(in.tile_index, in.uv, clamp_uv, phase_start), sample_avatar(in.tile_index, in.uv), is_avatar);
@@ -1336,6 +1349,23 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let tile_index2 = in.tile_index2 & (~TILE_INDEX_FLAGS_MASK);
     let is_avatar = (in.tile_index2 & TILE_INDEX_AVATAR_FLAG) != 0u;
     let is_billboard = (in.tile_index2 & TILE_INDEX_BILLBOARD_FLAG) != 0u;
+    let is_particle = (in.tile_index2 & TILE_INDEX_PARTICLE_FLAG) != 0u;
+    if (is_particle) {
+        let local = in.uv * 2.0 - vec2<f32>(1.0, 1.0);
+        let dist = length(local);
+        if (dist > 1.0) {
+            discard;
+        }
+        let radial = pow(max(1.0 - dist, 0.0), 2.4);
+        let vertical = clamp(1.0 - in.uv.y, 0.0, 1.0);
+        let tint = max(in.normal, vec3<f32>(0.0));
+        let color = tint * mix(0.75, 1.15, vertical);
+        let alpha = radial * pow(clamp(in.opacity, 0.0, 1.0), 0.85);
+        if (alpha <= 0.015) {
+            discard;
+        }
+        return vec4<f32>(apply_post(color * 1.1), alpha);
+    }
     let phase_start = select(0u, u32(max(in.blend_factor, 0.0)), is_billboard);
     let blend = clamp(in.blend_factor, 0.0, 1.0);
     let c0 = select(sample_tile(in.tile_index, in.uv, clamp_uv, phase_start), sample_avatar(in.tile_index, in.uv), is_avatar);
@@ -1368,7 +1398,13 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     }
     // Keep opacity/cutout tied to the same sample path as color to avoid distant dark speckles.
     let intrinsic_alpha = clamp(alpha_sample * mat.z, 0.0, 1.0);
-    let coverage = clamp(intrinsic_alpha * in.opacity, 0.0, 1.0);
+    var coverage = clamp(intrinsic_alpha * in.opacity, 0.0, 1.0);
+    if (is_particle) {
+        if (coverage <= 0.04) {
+            discard;
+        }
+        coverage = pow(coverage, 0.55);
+    }
     if (coverage <= 0.001) {
         discard;
     }
@@ -1376,7 +1412,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let has_material_fade = mat.z < 0.999;
     let is_fading = in.opacity < 0.999 || has_material_fade;
     if (is_fading) {
-        if (!has_material_fade && fade_mode == 0u) {
+        if (!is_particle && !has_material_fade && fade_mode == 0u) {
             // Ordered dither mode: stable pseudo-transparency without alpha sorting.
             let dither = bayer4_threshold(u32(in.pos.x), u32(in.pos.y));
             if (coverage <= dither) {
@@ -1389,10 +1425,16 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             discard;
         }
     }
-    let out_alpha = select(1.0, coverage, has_material_fade || (in.opacity < 0.999 && fade_mode == 1u));
+    let out_alpha = select(
+        1.0,
+        coverage,
+        is_particle || has_material_fade || (in.opacity < 0.999 && fade_mode == 1u)
+    );
     let color_linear = pow(color.rgb, vec3<f32>(2.2));
     if (mat.w > 0.95) {
-        return vec4<f32>(apply_post(color_linear * 2.0), out_alpha);
+        let emissive_boost = select(2.0, 3.2, is_particle);
+        let emissive_color = select(color_linear, color_linear * max(in.normal, vec3<f32>(0.0)), is_particle);
+        return vec4<f32>(apply_post(emissive_color * emissive_boost), out_alpha);
     }
     let ambient = UBO.ambient_color_strength.xyz * UBO.ambient_color_strength.w;
     var N = normalize(in.normal);
@@ -2299,7 +2341,7 @@ impl VM {
         dynamic_objs.sort_by(|a, b| b.layer.cmp(&a.layer));
         for obj in dynamic_objs {
             match obj.kind {
-                DynamicKind::BillboardTile => {
+                DynamicKind::BillboardTile | DynamicKind::ParticleBillboard => {
                     let tile_id = match obj.tile_id {
                         Some(id) => id,
                         None => continue,
@@ -3106,6 +3148,7 @@ impl VM {
                     if let Some(g) = self.gpu.as_mut() {
                         g.raster3d_pipeline = None;
                         g.raster3d_alpha_pipeline = None;
+                        g.raster3d_particle_pipeline = None;
                         g.raster3d_shadow_pipeline = None;
                         g.u_raster3d_bgl = None;
                         g.u_raster3d_shadow_bgl = None;
@@ -3303,6 +3346,7 @@ impl VM {
             raster2d_pipeline: None,
             raster3d_pipeline: None,
             raster3d_alpha_pipeline: None,
+            raster3d_particle_pipeline: None,
             raster3d_shadow_pipeline: None,
             u2d_buf: None,
             u3d_buf: None,
@@ -3334,6 +3378,9 @@ impl VM {
             i3d_raster_transparent: None,
             i3d_raster_transparent_count: 0,
             i3d_raster_transparent_capacity: 0,
+            i3d_raster_particles: None,
+            i3d_raster_particles_count: 0,
+            i3d_raster_particles_capacity: 0,
             shadow_sampler_compare: None,
             raster3d_shadow_tex: None,
             raster3d_shadow_view: None,
@@ -4487,6 +4534,90 @@ impl VM {
                 multiview: None,
                 cache: None,
             });
+        let raster3d_particle_pipeline =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("vm-3d-raster-particle-pipeline"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<Vert3DPod>() as u64,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &[
+                            wgpu::VertexAttribute {
+                                offset: 0,
+                                shader_location: 0,
+                                format: wgpu::VertexFormat::Float32x3,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 16,
+                                shader_location: 1,
+                                format: wgpu::VertexFormat::Float32x2,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 32,
+                                shader_location: 2,
+                                format: wgpu::VertexFormat::Uint32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 36,
+                                shader_location: 3,
+                                format: wgpu::VertexFormat::Uint32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 40,
+                                shader_location: 4,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 44,
+                                shader_location: 5,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 48,
+                                shader_location: 6,
+                                format: wgpu::VertexFormat::Float32x3,
+                            },
+                        ],
+                    }],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: None,
+                    unclipped_depth: false,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: false,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState {
+                    count: raster_samples,
+                    alpha_to_coverage_enabled: true,
+                    ..Default::default()
+                },
+                multiview: None,
+                cache: None,
+            });
         let raster3d_shadow_pipeline =
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("vm-3d-raster-shadow-pipeline"),
@@ -4590,17 +4721,22 @@ impl VM {
         g.u_raster3d_buf = Some(u_raster3d_buf);
         g.raster3d_pipeline = Some(raster3d_pipeline);
         g.raster3d_alpha_pipeline = Some(raster3d_alpha_pipeline);
+        g.raster3d_particle_pipeline = Some(raster3d_particle_pipeline);
         g.raster3d_shadow_pipeline = Some(raster3d_shadow_pipeline);
         g.shadow_sampler_compare = Some(shadow_sampler_compare);
 
         Ok(())
     }
 
-    fn rebuild_raster_visible_indices(&self, camera: &Camera3D) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
+    fn rebuild_raster_visible_indices(
+        &self,
+        camera: &Camera3D,
+    ) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>) {
         if self.cached_i3.is_empty() || self.cached_tri_visibility.is_empty() {
-            return (Vec::new(), Vec::new(), Vec::new());
+            return (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         }
         const TILE_INDEX_FLAGS_MASK_CPU: u32 = 0xF000_0000;
+        const TILE_INDEX_PARTICLE_FLAG_CPU: u32 = 0x0800_0000u32;
         let base_tile_index = |idx: u32| idx & !TILE_INDEX_FLAGS_MASK_CPU;
         let mut translucent_tile_cache: FxHashMap<u32, bool> = FxHashMap::default();
         let mut tile_is_translucent = |idx: u32| -> bool {
@@ -4618,6 +4754,7 @@ impl VM {
         let mut all_visible: Vec<u32> = Vec::with_capacity(self.cached_i3.len());
         let mut opaque: Vec<u32> = Vec::with_capacity(self.cached_i3.len());
         let mut transparent_tris: Vec<(f32, [u32; 3])> = Vec::new();
+        let mut particle_tris: Vec<(f32, [u32; 3])> = Vec::new();
         for tri in 0..tri_capacity {
             let word = tri / 32;
             let bit = tri % 32;
@@ -4636,6 +4773,13 @@ impl VM {
                     let v0 = self.cached_v3.get(i0 as usize);
                     let v1 = self.cached_v3.get(i1 as usize);
                     let v2 = self.cached_v3.get(i2 as usize);
+                    let is_particle = if let (Some(a), Some(b), Some(c)) = (v0, v1, v2) {
+                        (a.tile_index2 & TILE_INDEX_PARTICLE_FLAG_CPU) != 0
+                            || (b.tile_index2 & TILE_INDEX_PARTICLE_FLAG_CPU) != 0
+                            || (c.tile_index2 & TILE_INDEX_PARTICLE_FLAG_CPU) != 0
+                    } else {
+                        false
+                    };
                     let is_transparent = if let (Some(a), Some(b), Some(c)) = (v0, v1, v2) {
                         a.opacity < 0.999
                             || b.opacity < 0.999
@@ -4657,7 +4801,11 @@ impl VM {
                                 (a.pos[2] + b.pos[2] + c.pos[2]) / 3.0,
                             );
                             let depth = (centroid - camera.pos).dot(camera.forward);
-                            transparent_tris.push((depth, [i0, i1, i2]));
+                            if is_particle {
+                                particle_tris.push((depth, [i0, i1, i2]));
+                            } else {
+                                transparent_tris.push((depth, [i0, i1, i2]));
+                            }
                         }
                     } else {
                         opaque.extend_from_slice(&[i0, i1, i2]);
@@ -4670,7 +4818,12 @@ impl VM {
         for (_, tri) in transparent_tris {
             transparent.extend_from_slice(&tri);
         }
-        (all_visible, opaque, transparent)
+        particle_tris.sort_by(|a, b| b.0.total_cmp(&a.0));
+        let mut particles: Vec<u32> = Vec::with_capacity(particle_tris.len() * 3);
+        for (_, tri) in particle_tris {
+            particles.extend_from_slice(&tri);
+        }
+        (all_visible, opaque, transparent, particles)
     }
 
     /// Dispatches 2D compute pipeline into a storage-capable surface.
@@ -4741,12 +4894,16 @@ impl VM {
 
             for obj in dynamic_objs {
                 let (tile_index, tile_index2) = match obj.kind {
-                    DynamicKind::BillboardTile => {
+                    DynamicKind::BillboardTile | DynamicKind::ParticleBillboard => {
                         let Some(tile_id) = obj.tile_id else { continue };
                         let Some(tile_index) = self.shared_atlas.tile_index(&tile_id) else {
                             continue;
                         };
-                        (tile_index, tile_index)
+                        let mut tile_index2 = tile_index;
+                        if obj.kind == DynamicKind::ParticleBillboard {
+                            tile_index2 |= TILE_INDEX_PARTICLE_FLAG_RUST;
+                        }
+                        (tile_index, tile_index2)
                     }
                     DynamicKind::BillboardAvatar => {
                         let Some(avatar_index) = avatar_meta_indices.get(&obj.id).copied() else {
@@ -5966,12 +6123,16 @@ impl VM {
                 .chain(self.dynamic_avatar_objects.values())
             {
                 let (tile_index, mut tile_index2) = match obj.kind {
-                    DynamicKind::BillboardTile => {
+                    DynamicKind::BillboardTile | DynamicKind::ParticleBillboard => {
                         let Some(tile_id) = obj.tile_id else { continue };
                         let Some(tile_index) = self.shared_atlas.tile_index(&tile_id) else {
                             continue;
                         };
-                        (tile_index, tile_index)
+                        let mut tile_index2 = tile_index;
+                        if obj.kind == DynamicKind::ParticleBillboard {
+                            tile_index2 |= TILE_INDEX_PARTICLE_FLAG_RUST;
+                        }
+                        (tile_index, tile_index2)
                     }
                     DynamicKind::BillboardAvatar => {
                         // tile_index stores avatar meta index for raster path
@@ -6003,6 +6164,11 @@ impl VM {
                 } else {
                     n = n.normalized();
                 }
+                let normal_or_tint = if obj.kind == DynamicKind::ParticleBillboard {
+                    obj.tint
+                } else {
+                    n
+                };
                 let base = v3.len() as u32;
                 let opacity = obj.opacity.clamp(0.0, 1.0);
                 let pts = [p0, p1, p2, p3];
@@ -6027,7 +6193,7 @@ impl VM {
                         tile_index2,
                         blend_factor: 0.0,
                         opacity,
-                        normal: [n.x, n.y, n.z],
+                        normal: [normal_or_tint.x, normal_or_tint.y, normal_or_tint.z],
                         _pad_n: 0.0,
                     });
                 }
@@ -6159,7 +6325,7 @@ impl VM {
             .shared_atlas
             .texture_views()
             .expect("atlas GPU resources missing");
-        let (visible_indices, opaque_indices, transparent_indices) =
+        let (visible_indices, opaque_indices, transparent_indices, particle_indices) =
             self.rebuild_raster_visible_indices(&c);
 
         let mut shadow_center = Vec3::zero();
@@ -6398,6 +6564,25 @@ impl VM {
                 &mut g.i3d_raster_transparent_capacity,
                 "vm-3d-indices-raster-transparent",
                 &transparent_upload,
+            );
+
+            let particle_upload = if particle_indices.is_empty() {
+                vec![0u32]
+            } else {
+                particle_indices
+            };
+            g.i3d_raster_particles_count = if particle_upload.len() == 1 {
+                0
+            } else {
+                particle_upload.len() as u32
+            };
+            VMGpu::update_or_create_index_buffer(
+                device,
+                queue,
+                &mut g.i3d_raster_particles,
+                &mut g.i3d_raster_particles_capacity,
+                "vm-3d-indices-raster-particles",
+                &particle_upload,
             );
 
             g.u_raster3d_shadow_bg = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -6649,6 +6834,16 @@ impl VM {
                     wgpu::IndexFormat::Uint32,
                 );
                 pass.draw_indexed(0..g.i3d_raster_transparent_count, 0, 0..1);
+            }
+            if g.i3d_raster_particles_count > 0 {
+                pass.set_pipeline(g.raster3d_particle_pipeline.as_ref().unwrap());
+                pass.set_bind_group(0, g.u_raster3d_bg.as_ref().unwrap(), &[]);
+                pass.set_vertex_buffer(0, g.v3d_ssbo.as_ref().unwrap().slice(..));
+                pass.set_index_buffer(
+                    g.i3d_raster_particles.as_ref().unwrap().slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+                pass.draw_indexed(0..g.i3d_raster_particles_count, 0, 0..1);
             }
         }
         queue.submit(Some(encoder.finish()));
@@ -6982,7 +7177,7 @@ impl VM {
                                 }
                             }
                         }
-                        DynamicKind::BillboardTile => {
+                        DynamicKind::BillboardTile | DynamicKind::ParticleBillboard => {
                             if let Some(tile_id) = obj.tile_id {
                                 let mut alpha = self
                                     .shared_atlas

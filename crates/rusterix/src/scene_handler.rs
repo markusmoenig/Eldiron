@@ -151,7 +151,7 @@ impl SceneHandler {
     const PARTICLE_SIM_FPS: f32 = 15.0;
     const PARTICLE_SIM_STEP: f32 = 1.0 / Self::PARTICLE_SIM_FPS;
     const MAX_PARTICLE_STEPS_PER_BUILD: usize = 8;
-    const PARTICLE_TIME_SCALE: f32 = 0.35;
+    const PARTICLE_TIME_SCALE: f32 = 1.0;
 
     pub fn tick_particle_clocks(&mut self) {
         self.pending_particle_steps_2d =
@@ -187,7 +187,7 @@ impl SceneHandler {
     }
 
     fn build_particle_sprite_texture(color: [u8; 4], ramp: Option<&[[u8; 4]; 4]>) -> Texture {
-        let size = 32usize;
+        let size = 16usize;
         let mut data = vec![0u8; size * size * 4];
         let center = (size as f32 - 1.0) * 0.5;
         let radius = center.max(1.0);
@@ -200,23 +200,27 @@ impl SceneHandler {
                 let dx = (x as f32 - center) / radius;
                 let dy = (y as f32 - center) / radius;
                 let dist = (dx * dx + dy * dy).sqrt();
-                let falloff = (1.0 - dist).clamp(0.0, 1.0);
-                let alpha = (falloff * falloff * 255.0) as u8;
+                let radial = (1.0 - dist).clamp(0.0, 1.0);
+                let alpha = (radial.powf(1.7) * 255.0) as u8;
                 let height_t =
                     (1.0 - (y as f32 / (size.saturating_sub(1).max(1) as f32))).clamp(0.0, 1.0);
                 let ramp_t =
-                    ((1.0 - height_t) * 0.65 + dist.clamp(0.0, 1.0) * 0.35).clamp(0.0, 0.999);
+                    ((1.0 - height_t) * 0.75 + dist.clamp(0.0, 1.0) * 0.25).clamp(0.0, 0.999);
                 let scaled = ramp_t * 3.0;
                 let idx0 = scaled.floor() as usize;
                 let idx1 = (idx0 + 1).min(3);
                 let frac = scaled.fract();
                 let idx = (y * size + x) * 4;
-                data[idx] = (ramp[idx0][0] as f32 * (1.0 - frac) + ramp[idx1][0] as f32 * frac)
+                let shade = (0.82 + radial * 0.18).clamp(0.0, 1.0);
+                data[idx] = ((ramp[idx0][0] as f32 * (1.0 - frac) + ramp[idx1][0] as f32 * frac)
+                    * shade)
                     .clamp(0.0, 255.0) as u8;
-                data[idx + 1] = (ramp[idx0][1] as f32 * (1.0 - frac) + ramp[idx1][1] as f32 * frac)
-                    .clamp(0.0, 255.0) as u8;
-                data[idx + 2] = (ramp[idx0][2] as f32 * (1.0 - frac) + ramp[idx1][2] as f32 * frac)
-                    .clamp(0.0, 255.0) as u8;
+                data[idx + 1] =
+                    ((ramp[idx0][1] as f32 * (1.0 - frac) + ramp[idx1][1] as f32 * frac) * shade)
+                        .clamp(0.0, 255.0) as u8;
+                data[idx + 2] =
+                    ((ramp[idx0][2] as f32 * (1.0 - frac) + ramp[idx1][2] as f32 * frac) * shade)
+                        .clamp(0.0, 255.0) as u8;
                 data[idx + 3] = alpha;
             }
         }
@@ -339,7 +343,12 @@ impl SceneHandler {
                 let opacity = (particle.lifetime / emitter.lifetime_range.1).clamp(0.0, 1.0);
                 let size = (particle.radius * 2.8).max(0.08);
                 let center = particle.pos + Vec3::new(0.0, size * 0.35, 0.0);
-                let dynamic = DynamicObject::billboard_tile(
+                let tint = Vec3::new(
+                    (particle.color[0] as f32 / 255.0).powf(2.2),
+                    (particle.color[1] as f32 / 255.0).powf(2.2),
+                    (particle.color[2] as f32 / 255.0).powf(2.2),
+                );
+                let dynamic = DynamicObject::particle_tile(
                     GeoId::Unknown(sector.id.saturating_mul(1024).saturating_add(index as u32)),
                     flame_tile_id,
                     center,
@@ -348,6 +357,7 @@ impl SceneHandler {
                     size,
                     size * 2.1,
                 )
+                .with_tint(tint)
                 .with_opacity(opacity);
                 self.vm.execute(Atom::AddDynamic { object: dynamic });
             }
@@ -603,7 +613,7 @@ impl SceneHandler {
                         let emitter_origin =
                             center + along * tip_local.x + up * tip_local.y + outward * tip_local.z;
                         let dir_local = rotate_vec3_y(
-                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.12), transform.rotation_x),
+                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.0), transform.rotation_x),
                             transform.rotation_y,
                         );
                         let direction =
@@ -652,7 +662,7 @@ impl SceneHandler {
                         let emitter_origin =
                             center + along * tip_local.x + up * tip_local.y + outward * tip_local.z;
                         let dir_local = rotate_vec3_y(
-                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.08), transform.rotation_x),
+                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.0), transform.rotation_x),
                             transform.rotation_y,
                         );
                         let direction =
@@ -686,7 +696,7 @@ impl SceneHandler {
                     light_override: tile.light_emitter.clone(),
                     origin: emitter_origin,
                     direction,
-                    size_scale: 4.5,
+                    size_scale: 1.0,
                 });
             }
         }
@@ -777,7 +787,7 @@ impl SceneHandler {
                         let emitter_origin =
                             center + along * tip_local.x + up * tip_local.y + outward * tip_local.z;
                         let dir_local = rotate_vec3_y(
-                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.12), transform.rotation_x),
+                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.0), transform.rotation_x),
                             transform.rotation_y,
                         );
                         let direction =
@@ -807,7 +817,7 @@ impl SceneHandler {
                         let emitter_origin =
                             center + along * tip_local.x + up * tip_local.y + outward * tip_local.z;
                         let dir_local = rotate_vec3_y(
-                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.08), transform.rotation_x),
+                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.0), transform.rotation_x),
                             transform.rotation_y,
                         );
                         let direction =
@@ -841,7 +851,7 @@ impl SceneHandler {
                     light_override: tile.light_emitter.clone(),
                     origin: emitter_origin,
                     direction,
-                    size_scale: 4.5,
+                    size_scale: 1.0,
                 });
             }
         }
@@ -882,14 +892,20 @@ impl SceneHandler {
             for (index, particle) in emitter.particles.iter().enumerate() {
                 has_particles = true;
                 let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
-                let size = (particle.radius * 3.0 * source.size_scale).max(0.14);
-                let dynamic = DynamicObject::billboard_tile_2d(
+                let size = (particle.radius * 2.6 * source.size_scale).max(0.12);
+                let tint = Vec3::new(
+                    (particle.color[0] as f32 / 255.0).powf(2.2),
+                    (particle.color[1] as f32 / 255.0).powf(2.2),
+                    (particle.color[2] as f32 / 255.0).powf(2.2),
+                );
+                let dynamic = DynamicObject::particle_tile_2d(
                     GeoId::Unknown(source.key.wrapping_mul(2048).wrapping_add(index as u32)),
                     Self::particle_sprite_tile_id(source.tile_id),
                     Vec2::new(particle.pos.x, particle.pos.z),
                     size,
                     size,
                 )
+                .with_tint(tint)
                 .with_layer(24)
                 .with_opacity(opacity);
                 self.vm.execute(Atom::AddDynamic { object: dynamic });
@@ -975,9 +991,14 @@ impl SceneHandler {
             for (index, particle) in emitter.particles.iter().enumerate() {
                 has_particles = true;
                 let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
-                let size = (particle.radius * 3.4 * source.size_scale).max(0.14);
+                let size = (particle.radius * 4.6 * source.size_scale).max(0.28);
                 let center = particle.pos + Vec3::new(0.0, size * 0.2, 0.0);
-                let dynamic = DynamicObject::billboard_tile(
+                let tint = Vec3::new(
+                    (particle.color[0] as f32 / 255.0).powf(2.2),
+                    (particle.color[1] as f32 / 255.0).powf(2.2),
+                    (particle.color[2] as f32 / 255.0).powf(2.2),
+                );
+                let dynamic = DynamicObject::particle_tile(
                     GeoId::Unknown(source.key.wrapping_mul(2048).wrapping_add(index as u32)),
                     Self::particle_sprite_tile_id(source.tile_id),
                     center,
@@ -986,8 +1007,50 @@ impl SceneHandler {
                     size,
                     size,
                 )
+                .with_tint(tint)
                 .with_opacity(opacity);
                 self.vm.execute(Atom::AddDynamic { object: dynamic });
+            }
+            if source.emitter.flame_base {
+                let ramp = source
+                    .emitter
+                    .color_ramp
+                    .unwrap_or([source.emitter.color; 4]);
+                let base_size = ((source.emitter.radius_range.0 + source.emitter.radius_range.1)
+                    * 0.5
+                    * 7.5
+                    * source.size_scale)
+                    .max(0.42);
+                for (layer, (color, scale, yoff, opacity)) in [
+                    (ramp[1], 1.0f32, base_size * 0.03, 0.98f32),
+                    (ramp[0], 0.82f32, base_size * 0.14, 1.0f32),
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    let tint = Vec3::new(
+                        (color[0] as f32 / 255.0).powf(2.2),
+                        (color[1] as f32 / 255.0).powf(2.2),
+                        (color[2] as f32 / 255.0).powf(2.2),
+                    );
+                    let dynamic = DynamicObject::particle_tile(
+                        GeoId::Unknown(
+                            source
+                                .key
+                                .wrapping_mul(4096)
+                                .wrapping_add(3000 + layer as u32),
+                        ),
+                        Self::particle_sprite_tile_id(source.tile_id),
+                        source.origin + Vec3::new(0.0, yoff, 0.0),
+                        basis.1,
+                        basis.2,
+                        base_size * scale,
+                        base_size * (1.9 - layer as f32 * 0.15) * scale,
+                    )
+                    .with_tint(tint)
+                    .with_opacity(opacity);
+                    self.vm.execute(Atom::AddDynamic { object: dynamic });
+                }
             }
         }
 
@@ -1035,14 +1098,20 @@ impl SceneHandler {
             for (index, particle) in emitter.particles.iter().enumerate() {
                 *has_particles = true;
                 let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
-                let size = (particle.radius * 2.2 * size_scale).max(0.08);
-                let dynamic = DynamicObject::billboard_tile_2d(
+                let size = (particle.radius * 1.8 * size_scale).max(0.08);
+                let tint = Vec3::new(
+                    (particle.color[0] as f32 / 255.0).powf(2.2),
+                    (particle.color[1] as f32 / 255.0).powf(2.2),
+                    (particle.color[2] as f32 / 255.0).powf(2.2),
+                );
+                let dynamic = DynamicObject::particle_tile_2d(
                     GeoId::Unknown(key.wrapping_mul(1024).wrapping_add(index as u32)),
                     Self::particle_sprite_tile_id(tile.id),
                     Vec2::new(particle.pos.x, particle.pos.y),
                     size,
                     size,
                 )
+                .with_tint(tint)
                 .with_layer(layer)
                 .with_opacity(opacity);
                 vm.execute(Atom::AddDynamic { object: dynamic });
@@ -1235,9 +1304,14 @@ impl SceneHandler {
             for (index, particle) in emitter.particles.iter().enumerate() {
                 *has_particles = true;
                 let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
-                let size = (particle.radius * 2.4 * size_scale).max(0.08);
+                let size = (particle.radius * 1.9 * size_scale).max(0.08);
                 let center = particle.pos + Vec3::new(0.0, size * 0.2, 0.0);
-                let dynamic = DynamicObject::billboard_tile(
+                let tint = Vec3::new(
+                    (particle.color[0] as f32 / 255.0).powf(2.2),
+                    (particle.color[1] as f32 / 255.0).powf(2.2),
+                    (particle.color[2] as f32 / 255.0).powf(2.2),
+                );
+                let dynamic = DynamicObject::particle_tile(
                     GeoId::Unknown(key.wrapping_mul(1024).wrapping_add(index as u32)),
                     Self::particle_sprite_tile_id(tile.id),
                     center,
@@ -1246,6 +1320,7 @@ impl SceneHandler {
                     size,
                     size,
                 )
+                .with_tint(tint)
                 .with_opacity(opacity);
                 vm.execute(Atom::AddDynamic { object: dynamic });
             }

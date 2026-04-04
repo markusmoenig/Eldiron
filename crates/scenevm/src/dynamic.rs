@@ -9,6 +9,7 @@ pub enum DynamicKind {
     BillboardTile = 0,
     BillboardAvatar = 1,
     Mesh = 2,
+    ParticleBillboard = 3,
 }
 
 impl Default for DynamicKind {
@@ -71,6 +72,8 @@ pub struct DynamicObject {
     pub alpha_mode: AlphaMode,
     /// Per-billboard opacity (1.0 = fully opaque).
     pub opacity: f32,
+    /// Per-billboard tint in linear space. Used by particle billboards.
+    pub tint: Vec3<f32>,
     /// Optional animation start counter. When set, animated tiles can start at frame 0 for this instance.
     pub anim_start_counter: Option<u32>,
     /// Dynamic mesh vertices in local/object space. Used when `kind == Mesh`.
@@ -94,6 +97,7 @@ impl Default for DynamicObject {
             repeat_mode: RepeatMode::Scale,
             alpha_mode: AlphaMode::Texture,
             opacity: 1.0,
+            tint: Vec3::new(1.0, 1.0, 1.0),
             anim_start_counter: None,
             mesh_vertices: Vec::new(),
             mesh_indices: Vec::new(),
@@ -125,6 +129,7 @@ impl DynamicObject {
             repeat_mode: RepeatMode::Scale,
             alpha_mode: AlphaMode::Texture,
             opacity: 1.0,
+            tint: Vec3::new(1.0, 1.0, 1.0),
             anim_start_counter: None,
             mesh_vertices: Vec::new(),
             mesh_indices: Vec::new(),
@@ -140,6 +145,55 @@ impl DynamicObject {
         height: f32,
     ) -> Self {
         Self::billboard_tile(
+            id,
+            tile_id,
+            Vec3::new(pos.x, pos.y, 0.0),
+            Vec3::unit_x(),
+            Vec3::new(0.0, -1.0, 0.0),
+            width,
+            height,
+        )
+    }
+
+    /// Convenience constructor for a particle billboard that references a tile.
+    pub fn particle_tile(
+        id: GeoId,
+        tile_id: Uuid,
+        center: Vec3<f32>,
+        view_right: Vec3<f32>,
+        view_up: Vec3<f32>,
+        width: f32,
+        height: f32,
+    ) -> Self {
+        Self {
+            id,
+            kind: DynamicKind::ParticleBillboard,
+            tile_id: Some(tile_id),
+            layer: 0,
+            center,
+            view_right,
+            view_up,
+            width,
+            height,
+            repeat_mode: RepeatMode::Scale,
+            alpha_mode: AlphaMode::Texture,
+            opacity: 1.0,
+            tint: Vec3::new(1.0, 1.0, 1.0),
+            anim_start_counter: None,
+            mesh_vertices: Vec::new(),
+            mesh_indices: Vec::new(),
+        }
+    }
+
+    /// Convenience constructor for a 2D particle billboard.
+    pub fn particle_tile_2d(
+        id: GeoId,
+        tile_id: Uuid,
+        pos: Vec2<f32>,
+        width: f32,
+        height: f32,
+    ) -> Self {
+        Self::particle_tile(
             id,
             tile_id,
             Vec3::new(pos.x, pos.y, 0.0),
@@ -173,6 +227,7 @@ impl DynamicObject {
             repeat_mode: RepeatMode::Scale,
             alpha_mode: AlphaMode::Texture,
             opacity: 1.0,
+            tint: Vec3::new(1.0, 1.0, 1.0),
             anim_start_counter: None,
             mesh_vertices: Vec::new(),
             mesh_indices: Vec::new(),
@@ -211,6 +266,7 @@ impl DynamicObject {
             repeat_mode: RepeatMode::Scale,
             alpha_mode: AlphaMode::Texture,
             opacity: 1.0,
+            tint: Vec3::new(1.0, 1.0, 1.0),
             anim_start_counter: None,
             mesh_vertices: vertices,
             mesh_indices: indices,
@@ -232,6 +288,12 @@ impl DynamicObject {
     /// Set per-billboard opacity (1.0 = opaque).
     pub fn with_opacity(mut self, opacity: f32) -> Self {
         self.opacity = opacity;
+        self
+    }
+
+    /// Set per-billboard tint color in linear space.
+    pub fn with_tint(mut self, tint: Vec3<f32>) -> Self {
+        self.tint = tint;
         self
     }
 

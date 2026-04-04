@@ -1,5 +1,5 @@
 use crate::docks::tiles_editor_undo::*;
-use crate::editor::{TOOLLIST, UNDOMANAGER};
+use crate::editor::{RUSTERIX, TOOLLIST, UNDOMANAGER};
 use crate::prelude::*;
 use shared::tilegraph::{
     TileGraphDocument, TileGraphPaletteSource,
@@ -935,6 +935,7 @@ impl Dock for TilesEditorDock {
                         push_node(TileNodeKind::ParticleRender {
                             radius_min: 0.08,
                             radius_max: 0.2,
+                            flame_base: true,
                             color_variation: 24,
                             color_1: 0,
                             color_2: 1,
@@ -983,6 +984,7 @@ impl Dock for TilesEditorDock {
                             kind: TileNodeKind::ParticleRender {
                                 radius_min: 0.05,
                                 radius_max: 0.14,
+                                flame_base: true,
                                 color_variation: 32,
                                 color_1: 0,
                                 color_2: 1,
@@ -1754,6 +1756,7 @@ impl Dock for TilesEditorDock {
                         || id.name == "tileNodeParticleMotionLifetimeMax"
                         || id.name == "tileNodeParticleMotionSpeedMin"
                         || id.name == "tileNodeParticleMotionSpeedMax"
+                        || id.name == "tileNodeParticleRenderFlameBase"
                         || id.name == "tileNodeParticleRenderRadiusMin"
                         || id.name == "tileNodeParticleRenderRadiusMax"
                         || id.name == "tileNodeParticleRenderColorVariation"
@@ -2016,6 +2019,7 @@ impl Dock for TilesEditorDock {
                                 && let TileNodeKind::ParticleRender {
                                     radius_min,
                                     radius_max,
+                                    flame_base,
                                     color_variation,
                                     color_1,
                                     color_2,
@@ -2024,7 +2028,19 @@ impl Dock for TilesEditorDock {
                                 } = &mut node.kind
                             {
                                 let mut changed = false;
-                                if id.name == "tileNodeParticleRenderColorVariation" {
+                                if id.name == "tileNodeParticleRenderFlameBase" {
+                                    let new_value = match value {
+                                        TheValue::Int(v) => Some(*v != 0),
+                                        TheValue::Bool(v) => Some(*v),
+                                        _ => value.to_i32().map(|v| v != 0),
+                                    };
+                                    if let Some(new_value) = new_value
+                                        && *flame_base != new_value
+                                    {
+                                        *flame_base = new_value;
+                                        changed = true;
+                                    }
+                                } else if id.name == "tileNodeParticleRenderColorVariation" {
                                     if let Some(new_value) = value.to_i32() {
                                         let new_value = new_value.clamp(0, 255) as u8;
                                         if *color_variation != new_value {
@@ -2694,6 +2710,7 @@ impl Dock for TilesEditorDock {
                     if node_group_changed {
                         self.render_node_group_tiles(project, group_id);
                         self.refresh_node_group_runtime_previews(project, ui);
+                        RUSTERIX.write().unwrap().set_dirty();
                         self.add_node_graph_undo(before, project.clone(), ctx);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Update Tiles"),
@@ -2704,6 +2721,7 @@ impl Dock for TilesEditorDock {
                     if graph_changed {
                         self.render_node_group_tiles(project, group_id);
                         self.refresh_node_group_runtime_previews(project, ui);
+                        RUSTERIX.write().unwrap().set_dirty();
                         self.add_node_graph_undo(before, project.clone(), ctx);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Update Tiles"),
@@ -4061,6 +4079,7 @@ impl TilesEditorDock {
                 Some(TileNodeKind::ParticleRender {
                     radius_min,
                     radius_max,
+                    flame_base,
                     color_variation,
                     color_1,
                     color_2,
@@ -4068,6 +4087,14 @@ impl TilesEditorDock {
                     color_4,
                 }) => {
                     nodeui.add_item(TheNodeUIItem::OpenTree("particle_render".into()));
+                    nodeui.add_item(TheNodeUIItem::Selector(
+                        "tileNodeParticleRenderFlameBase".into(),
+                        "Flame Base".into(),
+                        "Render a dense hot core at the emitter base before the rising particles."
+                            .into(),
+                        vec!["Off".into(), "On".into()],
+                        if *flame_base { 1 } else { 0 },
+                    ));
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
                         "tileNodeParticleRenderRadiusMin".into(),
                         "Size Min".into(),
@@ -4787,6 +4814,7 @@ impl TilesEditorDock {
                     emitter.spread = particle.spread;
                     emitter.color = particle.ramp_colors[0];
                     emitter.color_ramp = Some(particle.ramp_colors);
+                    emitter.flame_base = particle.flame_base;
                     emitter.color_variation = particle.color_variation;
                     emitter.lifetime_range = (particle.lifetime_min, particle.lifetime_max);
                     emitter.radius_range = (particle.radius_min, particle.radius_max);

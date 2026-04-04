@@ -260,6 +260,7 @@ fn node_kind_from_doc(
         "particle_render" => TileNodeKind::ParticleRender {
             radius_min: table_f32(table, "radius_min", 0.08),
             radius_max: table_f32(table, "radius_max", 0.2),
+            flame_base: table_bool(table, "flame_base", false),
             color_variation: table_u32(table, "color_variation", 24) as u8,
             color_1: table_u32(table, "color_1", 0) as u16,
             color_2: table_u32(table, "color_2", 1) as u16,
@@ -1299,6 +1300,7 @@ fn export_node_table(
         TileNodeKind::ParticleRender {
             radius_min,
             radius_max,
+            flame_base,
             color_variation,
             color_1,
             color_2,
@@ -1307,6 +1309,7 @@ fn export_node_table(
         } => {
             table.insert("radius_min".to_string(), rounded_float(*radius_min));
             table.insert("radius_max".to_string(), rounded_float(*radius_max));
+            table.insert("flame_base".to_string(), toml::Value::Boolean(*flame_base));
             table.insert(
                 "color_variation".to_string(),
                 toml::Value::Integer(*color_variation as i64),

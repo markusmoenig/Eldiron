@@ -14,6 +14,11 @@
 
 ### Creator
 
+- Added the first release of the new text-based **Builder Graph** workflow, including a script editor with live preview and reusable Builder assets.
+- Added Builder presets such as **Table**, **Wall Torch**, **Wall Lantern**, and **Campfire**, plus improved Builder picker previews and undo-aware deletion from the Builder board.
+- Added stable 3D wall and floor point placement for vertex-hosted Builder props, including inside/outside wall placement for wall-mounted assets like torches and lanterns.
+- Reworked the Tile Node Graph FX workflow with explicit **Particle Spawn**, **Particle Motion**, **Particle Render**, and **Light Emitter** nodes, plus a one-click **Particle Template** starter setup.
+- Added live particle minimap previews, particle/light tile thumbnails, ramp-based particle coloring, optional **Flame Base**, and runtime propagation of Tile Graph particle updates into the 3D editor preview.
 - Exposed `attack` and `gain_xp` in CodeGridFX.
 - Added config-aware `PLAYER.LEVEL`, `PLAYER.EXP`, and `PLAYER.EXPERIENCE` support for text widgets and localized text.
 - Added config-aware `PLAYER.FUNDS` support and a configurable `stats` text command driven from **Game / Authoring**.
@@ -33,6 +38,8 @@
 
 ### Documentation
 
+- Added Builder Tool documentation for the new `.buildergraph` workflow, including a full **Wall Torch** example and host-target guidance.
+- Updated the Tile Node Graph docs to cover the new particle/light authoring workflow, particle template setup, output connections, and **Flame Base**.
 - Expanded the Rules docs with progression, leveling flow, automatic kill XP, and progression message examples.
 - Updated command, event, widget, and localization docs to cover `attack()`, `gain_xp()`, `level_up`, XP/level placeholders, and text-widget tab alignment.
 - Added new documentation pages for **Features**, **Eldiron Architecture**, and **Authoring**, plus a stronger top-level **Getting Started** guide.

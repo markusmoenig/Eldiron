@@ -17,6 +17,11 @@ A node group is a first-class tile source asset. It is not just one loose image.
 - the procedural graph state
 - the generated output tiles
 
+The graph supports two main authoring modes:
+
+- **surface/material graphs** for procedural walls, floors, and other repeating tiles
+- **FX graphs** for particles and emitted light used by flames, smoke, sparks, and similar effects
+
 ## Workflow
 
 The current graph direction is height-first:
@@ -33,6 +38,73 @@ The graph editor also supports **modular layering**. A node graph can import ano
 - a rock base plus soil overlay
 - grass or moss on top of stone
 - several reusable material layers mixed in one top-level graph
+
+## Particle And FX Workflow
+
+Tile Graph also supports a separate FX-oriented path for particles and emitted light.
+
+The current particle workflow is built around four explicit nodes:
+
+- **Particle Spawn**
+- **Particle Motion**
+- **Particle Render**
+- **Light Emitter**
+
+For a fast starting point, the add menu includes **Particle Template**, which inserts and wires a usable default setup into the current graph.
+
+Typical particle/light flow:
+
+1. `Particle Spawn` controls emission rate and spread
+2. `Particle Motion` controls lifetime and movement
+3. `Particle Render` controls particle appearance and color ramp
+4. `Light Emitter` controls the associated emitted light
+5. `Output` receives:
+   - `Particles`
+   - `Light`
+
+This is intended for effects such as:
+
+- torch flames
+- campfire embers
+- smoke
+- sparks
+
+Older projects may still contain the legacy all-in-one **Particle Emitter** node, but new graphs should use the split workflow above.
+
+## Particle Render
+
+`Particle Render` is the visual particle node. It is the place where particle appearance is defined.
+
+It currently supports:
+
+- size range
+- color ramp
+- optional **Flame Base**
+
+The color ramp uses four colors. In practice, a common flame setup is:
+
+- `Ramp 1`: bright yellow or white-hot core
+- `Ramp 2`: orange
+- `Ramp 3`: red
+- `Ramp 4`: dark smoke / ash
+
+The ramp can be driven either by connected color inputs or by fallback palette choices stored on the node.
+
+### Flame Base
+
+`Flame Base` adds a denser hot core near the emitter before the lighter rising particles.
+
+Use it for:
+
+- torches
+- lantern flames
+- campfires
+
+Leave it off for softer effects such as:
+
+- smoke
+- drifting dust
+- mist-like particles
 
 ## Layout Nodes
 
@@ -65,9 +137,18 @@ It also receives the final graph outputs:
 
 - `Color`
 - `Height`
+- `Particles`
+- `Light`
 - optional material channels
 
 `Height` is especially important because Eldiron uses it to generate procedural normals for node-group tiles.
+
+For FX graphs:
+
+- connect **Particle Render** to `Output -> Particles`
+- connect **Light Emitter** to `Output -> Light`
+
+If a graph only exists to generate particles or light, the regular `Color` path can stay simple or even unused for the final effect itself.
 
 ## Importing Layers
 
@@ -127,8 +208,15 @@ The graph editor supports:
 - small per-node previews
 - a tiled background preview of the current selected/output result
 - preview opacity control from the **Graph** menu
+- a live animated minimap preview for particle graphs when particle-related nodes are selected
 
 Node previews can be collapsed if the graph becomes too crowded.
+
+For particle graphs:
+
+- `Particle Render` is the main node with a visual particle preview
+- the minimap is the main live animated preview
+- `Particle Spawn`, `Particle Motion`, and `Light Emitter` intentionally do not show empty visual preview panes of their own
 
 ## Applying Node Groups
 
@@ -139,6 +227,8 @@ They can be:
 - selected from the tile picker
 - previewed like grouped content
 - applied to supported surfaces and geometry just like other tile sources
+
+FX-oriented node groups can also be used as particle/light sources for Builder assets and similar runtime effects.
 
 At runtime, Eldiron uses the generated tiles of the node group, so the node graph becomes a reusable procedural tile source inside the project.
 

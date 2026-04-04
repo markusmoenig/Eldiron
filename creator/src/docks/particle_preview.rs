@@ -1,4 +1,9 @@
 use crate::prelude::*;
+use rusterix::ParticleEmitter;
+use vek::Vec3;
+
+const PREVIEW_PARTICLE_SIM_FPS: f32 = 15.0;
+const PREVIEW_PARTICLE_TIME_SCALE: f32 = 1.0;
 
 pub fn average_rgba_color(pixels: &[u8]) -> [u8; 4] {
     if pixels.is_empty() {
@@ -99,6 +104,7 @@ pub fn render_particle_output_preview(
         particle.radius_max,
         particle.speed_min,
         particle.speed_max,
+        particle.flame_base,
         particle.color_variation,
         width,
         height,
@@ -123,6 +129,7 @@ pub fn render_particle_emitter_preview(
         emitter.radius_range.1,
         emitter.speed_range.0,
         emitter.speed_range.1,
+        emitter.flame_base,
         emitter.color_variation,
         width,
         height,
@@ -141,6 +148,7 @@ fn render_particle_preview_common(
     radius_max: f32,
     speed_min: f32,
     speed_max: f32,
+    flame_base: bool,
     color_variation: u8,
     width: i32,
     height: i32,
@@ -169,49 +177,60 @@ fn render_particle_preview_common(
         preview.draw_horizontal_line(0, width - 1, y, row);
     }
 
+    let mut emitter = ParticleEmitter::new(Vec3::zero(), Vec3::new(0.0, 1.0, 0.0));
+    emitter.rate = rate.max(0.0);
+    emitter.spread = spread.clamp(0.0, std::f32::consts::PI);
+    emitter.lifetime_range = (
+        lifetime_min.max(0.01),
+        lifetime_max.max(lifetime_min.max(0.01)),
+    );
+    emitter.radius_range = (radius_min.max(0.001), radius_max.max(radius_min.max(0.001)));
+    emitter.speed_range = (speed_min.max(0.0), speed_max.max(speed_min.max(0.0)));
+    emitter.color = ramp[0];
+    emitter.color_ramp = Some(ramp);
+    emitter.color_variation = color_variation;
+
+    let steps = ((time.max(0.0) / (1.0 / PREVIEW_PARTICLE_SIM_FPS)).ceil() as usize).max(1);
+    let dt = (time.max(0.0) / steps as f32) * PREVIEW_PARTICLE_TIME_SCALE;
+    for _ in 0..steps {
+        emitter.update(dt);
+    }
+
     let emitter_x = width as f32 * 0.5;
     let emitter_y = height as f32 * 0.88;
-    let spread_scale = (spread / std::f32::consts::PI).clamp(0.0, 1.0);
-    let speed_scale = ((speed_min + speed_max) * 0.5).clamp(0.05, 8.0);
-    let rate_scale = rate.clamp(1.0, 128.0);
-    let radius_scale = ((radius_min + radius_max) * 0.5).clamp(0.01, 2.0);
-    let count = ((rate_scale / 4.0).round() as usize).clamp(12, 72);
-
-    for i in 0..count {
-        let seed = i as f32 * 12.9898;
-        let life = lifetime_min + (lifetime_max - lifetime_min) * (0.5 + 0.5 * (seed * 0.73).sin());
-        let local_t = ((time * (0.65 + (seed * 0.17).sin().abs()) + i as f32 * 0.071)
-            / life.max(0.05))
-        .fract();
-        let age = local_t;
-        let rise = age.powf(0.82);
-        let side = ((seed * 1.37).sin() * 0.5 + (time * 0.9 + seed).sin() * 0.5)
-            * spread_scale
-            * width as f32
-            * 0.32;
-        let swirl = (age * std::f32::consts::TAU + seed).sin() * width as f32 * 0.03;
-        let x = emitter_x + side + swirl;
-        let y = emitter_y - rise * height as f32 * (0.44 + speed_scale * 0.22);
-        let size = ((radius_scale * 34.0) * (1.0 - age * 0.45)).clamp(5.0, 42.0);
-        let alpha = ((1.0 - age).powf(1.15) * 0.9 + 0.1).clamp(0.0, 1.0);
-
-        let jitter = color_variation as f32 * ((seed * 0.31).cos() * 0.5 + 0.5);
-        let ramp_t = age.clamp(0.0, 0.999);
-        let scaled = ramp_t * 3.0;
-        let idx = scaled.floor() as usize;
-        let frac = scaled.fract();
-        let c0 = ramp[idx.min(3)];
-        let c1 = ramp[(idx + 1).min(3)];
-        let mut color = [0u8; 4];
-        for channel in 0..3 {
-            color[channel] = (c0[channel] as f32 * (1.0 - frac) + c1[channel] as f32 * frac)
-                .clamp(0.0, 255.0) as u8;
-        }
-        color[0] = (color[0] as f32 + jitter * 0.35).clamp(0.0, 255.0) as u8;
-        color[1] = (color[1] as f32 + jitter * 0.2).clamp(0.0, 255.0) as u8;
-        color[2] = (color[2] as f32 + jitter * 0.1).clamp(0.0, 255.0) as u8;
-        color[3] = (255.0 * alpha) as u8;
-        draw_soft_particle(&mut preview, x, y, size, color);
+    if flame_base {
+        draw_soft_particle(
+            &mut preview,
+            emitter_x,
+            emitter_y - 5.0,
+            (((radius_min + radius_max) * 0.5) * 36.0).clamp(12.0, 34.0),
+            [ramp[1][0], ramp[1][1], ramp[1][2], 245],
+        );
+        draw_soft_particle(
+            &mut preview,
+            emitter_x,
+            emitter_y - 8.0,
+            (((radius_min + radius_max) * 0.5) * 24.0).clamp(8.0, 22.0),
+            [ramp[0][0], ramp[0][1], ramp[0][2], 245],
+        );
+    }
+    for particle in &emitter.particles {
+        let x = emitter_x + particle.pos.x * width as f32 * 0.28;
+        let y = emitter_y - particle.pos.y * height as f32 * 0.36;
+        let size = (particle.radius * 34.0).clamp(4.0, 42.0);
+        let alpha = (particle.lifetime / particle.initial_lifetime.max(0.001)).clamp(0.0, 1.0);
+        draw_soft_particle(
+            &mut preview,
+            x,
+            y,
+            size,
+            [
+                particle.color[0],
+                particle.color[1],
+                particle.color[2],
+                (255.0 * alpha) as u8,
+            ],
+        );
     }
 
     let emitter_dim = TheDim::new((emitter_x as i32) - 6, (emitter_y as i32) - 6, 12, 12);

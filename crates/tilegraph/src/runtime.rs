@@ -198,6 +198,7 @@ pub struct TileParticleOutput {
     pub radius_max: f32,
     pub speed_min: f32,
     pub speed_max: f32,
+    pub flame_base: bool,
     pub color_variation: u8,
     pub ramp_colors: [[u8; 4]; 4],
 }
@@ -407,6 +408,8 @@ pub enum TileNodeKind {
     ParticleRender {
         radius_min: f32,
         radius_max: f32,
+        #[serde(default)]
+        flame_base: bool,
         color_variation: u8,
         #[serde(default = "default_particle_color_1")]
         color_1: u16,
@@ -1127,6 +1130,7 @@ impl TileGraphRenderer {
                 radius_max: (*radius_max).max(*radius_min),
                 speed_min: (*speed_min).max(0.0),
                 speed_max: (*speed_max).max(*speed_min),
+                flame_base: false,
                 color_variation: *color_variation,
                 ramp_colors: [
                     [255, 240, 200, 255],
@@ -1138,6 +1142,7 @@ impl TileGraphRenderer {
             Some(TileNodeKind::ParticleRender {
                 radius_min,
                 radius_max,
+                flame_base,
                 color_variation,
                 color_1,
                 color_2,
@@ -1197,6 +1202,7 @@ impl TileGraphRenderer {
                     radius_max: (*radius_max).max(*radius_min),
                     speed_min,
                     speed_max,
+                    flame_base: *flame_base,
                     color_variation: *color_variation,
                     ramp_colors: self.particle_ramp_colors(
                         state,

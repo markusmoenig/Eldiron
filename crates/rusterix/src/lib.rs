@@ -18,6 +18,7 @@ pub mod edge;
 pub mod intodata;
 pub mod map;
 pub mod material_profile;
+pub mod particleharness;
 pub mod rasterizer;
 pub mod rect;
 #[cfg(feature = "graphics")]
