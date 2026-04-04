@@ -1547,6 +1547,36 @@ impl ToolList {
 
         if let Some(region) = project.get_region_ctx(&server_ctx) {
             let map = &region.map;
+            let dungeon_only = server_ctx.editing_geo_filter == EditingGeoFilter::DungeonOnly;
+            let mut visible_sector_ids: FxHashSet<u32> = FxHashSet::default();
+            let mut visible_linedef_ids: FxHashSet<u32> = FxHashSet::default();
+            let mut visible_vertex_ids: FxHashSet<u32> = FxHashSet::default();
+
+            for sector in &map.sectors {
+                let is_dungeon = sector
+                    .properties
+                    .get_str_default("generated_by", String::new())
+                    == "dungeon_tool";
+                if dungeon_only && !is_dungeon {
+                    continue;
+                }
+                if server_ctx.dungeon_no_ceiling && is_dungeon {
+                    let dungeon_part = sector
+                        .properties
+                        .get_str_default("dungeon_part", String::new());
+                    if dungeon_part == "ceiling" || dungeon_part == "stair_ceiling" {
+                        continue;
+                    }
+                }
+                visible_sector_ids.insert(sector.id);
+                for linedef_id in &sector.linedefs {
+                    visible_linedef_ids.insert(*linedef_id);
+                    if let Some(linedef) = map.find_linedef(*linedef_id) {
+                        visible_vertex_ids.insert(linedef.start_vertex);
+                        visible_vertex_ids.insert(linedef.end_vertex);
+                    }
+                }
+            }
 
             // Helper to draw a single world-space line into the overlay
             let push_line = |id: GeoId,
@@ -1734,6 +1764,9 @@ impl ToolList {
                     }
                 } else {
                     for v in map.vertices.iter() {
+                        if dungeon_only && !visible_vertex_ids.contains(&v.id) {
+                            continue;
+                        }
                         let Some(world_pos) = map.get_vertex_3d(v.id) else {
                             continue;
                         };
@@ -1828,6 +1861,9 @@ impl ToolList {
 
                     if !skip_world_linedef_overlay {
                         for linedef in &map.linedefs {
+                            if dungeon_only && !visible_linedef_ids.contains(&linedef.id) {
+                                continue;
+                            }
                             let is_selected = map.selected_linedefs.contains(&linedef.id);
                             let is_hovered = server_ctx.hover.1 == Some(linedef.id);
                             let show_in_builder =
@@ -1937,6 +1973,9 @@ impl ToolList {
                         continue;
                     }
                     let sector_id = surface.sector_id;
+                    if dungeon_only && !visible_sector_ids.contains(&sector_id) {
+                        continue;
+                    }
                     let Some(sector) = map.find_sector(sector_id) else {
                         continue;
                     };

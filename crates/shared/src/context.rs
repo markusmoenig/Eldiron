@@ -141,6 +141,28 @@ impl EditorViewMode {
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
+pub enum EditingGeoFilter {
+    All,
+    DungeonOnly,
+}
+
+impl EditingGeoFilter {
+    pub fn to_index(&self) -> i32 {
+        match self {
+            EditingGeoFilter::All => 0,
+            EditingGeoFilter::DungeonOnly => 1,
+        }
+    }
+
+    pub fn from_index(idx: i32) -> Self {
+        match idx {
+            1 => EditingGeoFilter::DungeonOnly,
+            _ => EditingGeoFilter::All,
+        }
+    }
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ContentContext {
     Unknown,
     CharacterInstance(Uuid),
@@ -572,6 +594,11 @@ pub struct ServerContext {
     ///Switch for showing 3D editing geometry
     pub show_editing_geometry: bool,
 
+    /// Editor-only visibility filter for geometry.
+    pub editing_geo_filter: EditingGeoFilter,
+    /// Hide dungeon ceilings while dungeon-only filtering is active.
+    pub dungeon_no_ceiling: bool,
+
     /// Position of the 2D editing slice.
     pub editing_slice: f32,
     /// Height/thickness of the 2D editing slice.
@@ -727,6 +754,8 @@ impl ServerContext {
 
             selected_hud_icon_index: 0,
             show_editing_geometry: true,
+            editing_geo_filter: EditingGeoFilter::All,
+            dungeon_no_ceiling: false,
 
             gizmo_mode: GizmoMode::XZ,
             geometry_edit_mode: GeometryEditMode::Geometry,

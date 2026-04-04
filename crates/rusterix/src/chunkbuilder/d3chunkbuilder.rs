@@ -36,6 +36,29 @@ fn matches_preview_hide_pattern(name: &str, pattern: &str) -> bool {
     name_l == pattern_l
 }
 
+fn sector_is_dungeon_filtered(
+    sector: &crate::Sector,
+    dungeon_only: bool,
+    dungeon_no_ceiling: bool,
+) -> bool {
+    let generated_by = sector
+        .properties
+        .get_str_default("generated_by", String::new());
+    let is_dungeon = generated_by == "dungeon_tool";
+    if dungeon_only && !is_dungeon {
+        return true;
+    }
+    if dungeon_no_ceiling && is_dungeon {
+        let dungeon_part = sector
+            .properties
+            .get_str_default("dungeon_part", String::new());
+        if dungeon_part == "ceiling" || dungeon_part == "stair_ceiling" {
+            return true;
+        }
+    }
+    false
+}
+
 fn profile_sector_item(map: &Map, profile_id: Uuid, sector_id: u32) -> Option<&Item> {
     let profile_map = map.profiles.get(&profile_id)?;
     profile_map
@@ -675,6 +698,10 @@ impl ChunkBuilder for D3ChunkBuilder {
         vmchunk: &mut scenevm::Chunk,
     ) {
         let mut hidden: FxHashSet<GeoId> = FxHashSet::default();
+        let dungeon_only = map
+            .properties
+            .get_bool_default("editing_filter_dungeon", false);
+        let dungeon_no_ceiling = map.properties.get_bool_default("dungeon_no_ceiling", false);
         let preview_hide_patterns: Vec<String> = match map.properties.get("preview_hide") {
             Some(Value::StrArray(values)) => values.clone(),
             _ => Vec::new(),
@@ -717,7 +744,11 @@ impl ChunkBuilder for D3ChunkBuilder {
                 matches_preview_hide_pattern(&sector.name, pattern)
                     || (!roof_name.is_empty() && matches_preview_hide_pattern(&roof_name, pattern))
             });
-            if !visible || hidden_by_preview || builder_hide_host {
+            if !visible
+                || hidden_by_preview
+                || builder_hide_host
+                || sector_is_dungeon_filtered(sector, dungeon_only, dungeon_no_ceiling)
+            {
                 hidden.insert(GeoId::Sector(sector.id));
             }
 
@@ -751,6 +782,9 @@ impl ChunkBuilder for D3ChunkBuilder {
                 continue;
             }
             if builder_replace_surface && surface.plane.normal.y > 0.7 {
+                continue;
+            }
+            if sector_is_dungeon_filtered(sector, dungeon_only, dungeon_no_ceiling) {
                 continue;
             }
 
@@ -1674,18 +1708,22 @@ impl ChunkBuilder for D3ChunkBuilder {
         }
 
         // Build optional non-destructive linedef features (palisade, fence, ...).
-        generate_sector_stairs(map, assets, chunk, vmchunk);
-        generate_sector_campfires(map, assets, chunk, vmchunk);
-        generate_sector_builder_features(map, assets, chunk, vmchunk);
-        generate_sector_roofs(map, assets, chunk, vmchunk);
-        generate_vertex_builder_features(map, assets, chunk, vmchunk);
-        generate_builder_linedef_features(map, assets, chunk, vmchunk);
-        generate_linedef_features(map, assets, chunk, vmchunk);
+        if !dungeon_only {
+            generate_sector_stairs(map, assets, chunk, vmchunk);
+            generate_sector_campfires(map, assets, chunk, vmchunk);
+            generate_sector_builder_features(map, assets, chunk, vmchunk);
+            generate_sector_roofs(map, assets, chunk, vmchunk);
+            generate_vertex_builder_features(map, assets, chunk, vmchunk);
+            generate_builder_linedef_features(map, assets, chunk, vmchunk);
+            generate_linedef_features(map, assets, chunk, vmchunk);
+        }
 
         // Generate terrain for this chunk
         let terrain_counter = chunk.bbox.min.x as u32 * 10000 + chunk.bbox.min.y as u32;
-        generate_terrain(map, assets, chunk, vmchunk, terrain_counter);
-        generate_organic_volumes(map, assets, chunk, vmchunk);
+        if !dungeon_only {
+            generate_terrain(map, assets, chunk, vmchunk, terrain_counter);
+            generate_organic_volumes(map, assets, chunk, vmchunk);
+        }
 
         // Set all hidden geometry as not visible.
         // This needs to run after all generators (roofs/features/terrain),

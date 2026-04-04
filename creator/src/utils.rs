@@ -693,7 +693,16 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
     if server_ctx.editor_view_mode == EditorViewMode::D2 {
         // In 2D we render the current map (region/profile/character/item), but never screens.
         if let Some(map) = project.get_map(server_ctx) {
-            SCENEMANAGER.write().unwrap().set_map(map.clone());
+            let mut map = map.clone();
+            map.properties.set(
+                "editing_filter_dungeon",
+                Value::Bool(server_ctx.editing_geo_filter == EditingGeoFilter::DungeonOnly),
+            );
+            map.properties.set(
+                "dungeon_no_ceiling",
+                Value::Bool(server_ctx.dungeon_no_ceiling),
+            );
+            SCENEMANAGER.write().unwrap().set_map(map);
         }
     } else {
         // In 3D, SceneManager builds region geometry. This includes profile/surface editing
@@ -708,6 +717,14 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
                 let mut map = region.map.clone();
                 // Keep editor-only preview filters in sync with region config for 3D builds.
                 apply_region_config(&mut map, region.config.clone());
+                map.properties.set(
+                    "editing_filter_dungeon",
+                    Value::Bool(server_ctx.editing_geo_filter == EditingGeoFilter::DungeonOnly),
+                );
+                map.properties.set(
+                    "dungeon_no_ceiling",
+                    Value::Bool(server_ctx.dungeon_no_ceiling),
+                );
                 SCENEMANAGER.write().unwrap().set_map(map);
             }
         }

@@ -544,6 +544,7 @@ pub mod editing_slice;
 pub mod export_vcode;
 pub mod extrude_linedef;
 pub mod extrude_sector;
+pub mod filter_editing_geo;
 pub mod firstp_camera;
 pub mod gate_door;
 pub mod import_palette;

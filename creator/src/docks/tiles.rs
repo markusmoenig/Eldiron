@@ -1502,6 +1502,16 @@ impl TilesDock {
         let before = project.clone();
         match source {
             TileSource::SingleTile(tile_id) => {
+                if let Some(pos) = project.tile_board_tiles.get(&tile_id).copied() {
+                    project.reserve_tile_board_empty_slot(pos);
+                }
+                for collection in project.tile_collections.values_mut() {
+                    if let Some(pos) = collection.tile_board_tiles.get(&tile_id).copied()
+                        && !collection.tile_board_empty_slots.contains(&pos)
+                    {
+                        collection.tile_board_empty_slots.push(pos);
+                    }
+                }
                 for group in project.tile_groups.values_mut() {
                     group.members.retain(|member| member.tile_id != tile_id);
                 }
@@ -1513,6 +1523,16 @@ impl TilesDock {
                 let Some(group) = project.tile_groups.get(&group_id).cloned() else {
                     return false;
                 };
+                if let Some(pos) = project.tile_board_groups.get(&group_id).copied() {
+                    project.reserve_tile_board_empty_slot(pos);
+                }
+                for collection in project.tile_collections.values_mut() {
+                    if let Some(pos) = collection.tile_board_groups.get(&group_id).copied()
+                        && !collection.tile_board_empty_slots.contains(&pos)
+                    {
+                        collection.tile_board_empty_slots.push(pos);
+                    }
+                }
                 for member in &group.members {
                     project.tile_board_tiles.shift_remove(&member.tile_id);
                     project.remove_tile(&member.tile_id);
@@ -1578,6 +1598,11 @@ impl TilesDock {
                     occupied.insert((cell_x + dx, cell_y + dy));
                 }
             }
+        }
+        for pos in self.empty_slots_for_tab(project, tab) {
+            let reserved_x = pos.x.max(0);
+            let reserved_y = pos.y.max(0);
+            occupied.insert((reserved_x, reserved_y));
         }
 
         for y in start.y..(project.tile_board_rows.max(8) + 32) {
@@ -1684,7 +1709,13 @@ impl TilesDock {
         let pack_cols = (board_cols - TILE_BOARD_EXTRA_COLS).max(1);
 
         let entries = self.entries_for_tab(project, tab);
-        let mut placements = self.layout_entries(&entries, pack_cols, board_cols, cell);
+        let mut placements = self.layout_entries(
+            &entries,
+            pack_cols,
+            board_cols,
+            cell,
+            self.empty_slots_for_tab(project, tab),
+        );
         let board_width = board_cols * cell;
         let content_height = placements
             .iter()
@@ -1703,6 +1734,11 @@ impl TilesDock {
         let total_rows = board_rows.max(1);
         let visible_rows = ((height + offset.y) / cell + 2).max(1);
         let mut occupied: FxHashSet<(i32, i32)> = FxHashSet::default();
+        for pos in self.empty_slots_for_tab(project, tab) {
+            let reserved_x = pos.x.max(0);
+            let reserved_y = pos.y.max(0);
+            occupied.insert((reserved_x, reserved_y));
+        }
         for placement in &placements {
             let cell_x = placement.rect.x / cell;
             let cell_y = placement.rect.y / cell;
@@ -1863,9 +1899,13 @@ impl TilesDock {
         pack_cols: i32,
         board_cols: i32,
         cell: i32,
+        empty_slots: &[Vec2<i32>],
     ) -> Vec<TileBoardPlacement> {
         let mut placements = Vec::with_capacity(entries.len());
         let mut occupied: FxHashSet<(i32, i32)> = FxHashSet::default();
+        for pos in empty_slots {
+            occupied.insert((pos.x.max(0), pos.y.max(0)));
+        }
         let mut ordered_entries = entries.to_vec();
         ordered_entries.sort_by_key(|entry| entry.pos.is_none());
 
@@ -2493,6 +2533,20 @@ impl TilesDock {
                 .collection_tile_board_position(&collection_id, source)
                 .or_else(|| project.tile_board_position(source)),
             _ => project.tile_board_position(source),
+        }
+    }
+
+    fn empty_slots_for_tab<'a>(&self, project: &'a Project, tab: usize) -> &'a [Vec2<i32>] {
+        match self
+            .tab_specs(project)
+            .get(tab)
+            .map(|spec| spec.kind)
+            .unwrap_or(TileTabKind::Project)
+        {
+            TileTabKind::Collection(collection_id) => project
+                .collection_tile_board_empty_slots(&collection_id)
+                .unwrap_or(&[]),
+            _ => project.tile_board_empty_slots(),
         }
     }
 

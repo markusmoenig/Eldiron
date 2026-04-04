@@ -28,6 +28,7 @@
 - Added embedded text-style play directly inside the Creator Game Tool, including colored transcript output, command input, inventory display, and shared text-session behavior with the terminal client.
 - Added a starter project browser for new projects, driven by a repo manifest and offering built-in 2D and 3D starter templates.
 - Creator now persists and restores the region camera mode used for editing, so saved 3D projects reopen in their 3D view.
+- Added a new **Filter Geometry** editor action with `All` / `Dungeon` modes plus `Dungeon No Ceiling`, making it easier to texture Dungeon Tool geometry in crowded 3D regions by hiding terrain, non-dungeon generated features, and unrelated 3D editing overlays.
 - Added `GEOM / DETAIL` modes to the 3D editor HUD, separating world-geometry editing from direct surface-profile editing.
 - `Vertex`, `Linedef`, and `Sector` now support direct 3D detail editing on clicked wall, floor, and ceiling surfaces without switching into a separate editing-surface mode.
 - Removed the old `Set Editing Surface` workflow in favor of staying in the normal 3D view while editing profiles.

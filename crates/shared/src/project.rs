@@ -222,6 +222,8 @@ pub struct TileCollectionAsset {
     pub tile_board_tiles: IndexMap<Uuid, Vec2<i32>>,
     #[serde(default)]
     pub tile_board_groups: IndexMap<Uuid, Vec2<i32>>,
+    #[serde(default)]
+    pub tile_board_empty_slots: Vec<Vec2<i32>>,
 }
 
 impl TileCollectionAsset {
@@ -235,6 +237,7 @@ impl TileCollectionAsset {
             entries: Vec::new(),
             tile_board_tiles: IndexMap::default(),
             tile_board_groups: IndexMap::default(),
+            tile_board_empty_slots: Vec::new(),
         }
     }
 }
@@ -272,6 +275,10 @@ pub struct Project {
     /// Persisted board positions for top-level tile groups in the tile picker.
     #[serde(default)]
     pub tile_board_groups: IndexMap<Uuid, Vec2<i32>>,
+
+    /// Persisted empty board cells left behind by deletions in the tile picker.
+    #[serde(default)]
+    pub tile_board_empty_slots: Vec<Vec2<i32>>,
 
     /// Total board width in cells, including the trailing empty strip.
     #[serde(default = "default_tile_board_cols")]
@@ -346,6 +353,7 @@ impl Project {
             tile_collections: IndexMap::default(),
             tile_board_tiles: IndexMap::default(),
             tile_board_groups: IndexMap::default(),
+            tile_board_empty_slots: Vec::new(),
             tile_board_cols: default_tile_board_cols(),
             tile_board_rows: default_tile_board_rows(),
 
@@ -507,7 +515,18 @@ impl Project {
         }
     }
 
+    pub fn tile_board_empty_slots(&self) -> &[Vec2<i32>] {
+        &self.tile_board_empty_slots
+    }
+
+    pub fn collection_tile_board_empty_slots(&self, collection_id: &Uuid) -> Option<&[Vec2<i32>]> {
+        self.tile_collections
+            .get(collection_id)
+            .map(|collection| collection.tile_board_empty_slots.as_slice())
+    }
+
     pub fn set_tile_board_position(&mut self, source: rusterix::TileSource, pos: Vec2<i32>) {
+        self.clear_tile_board_empty_slot(pos);
         match source {
             rusterix::TileSource::SingleTile(id) => {
                 self.tile_board_tiles.insert(id, pos);
@@ -528,6 +547,9 @@ impl Project {
         let Some(collection) = self.tile_collections.get_mut(collection_id) else {
             return;
         };
+        if let Some(index) = collection.tile_board_empty_slots.iter().position(|p| *p == pos) {
+            collection.tile_board_empty_slots.swap_remove(index);
+        }
         match source {
             rusterix::TileSource::SingleTile(id) => {
                 collection.tile_board_tiles.insert(id, pos);
@@ -536,6 +558,31 @@ impl Project {
                 collection.tile_board_groups.insert(id, pos);
             }
             _ => {}
+        }
+    }
+
+    pub fn reserve_tile_board_empty_slot(&mut self, pos: Vec2<i32>) {
+        if !self.tile_board_empty_slots.contains(&pos) {
+            self.tile_board_empty_slots.push(pos);
+        }
+    }
+
+    pub fn reserve_collection_tile_board_empty_slot(
+        &mut self,
+        collection_id: &Uuid,
+        pos: Vec2<i32>,
+    ) {
+        let Some(collection) = self.tile_collections.get_mut(collection_id) else {
+            return;
+        };
+        if !collection.tile_board_empty_slots.contains(&pos) {
+            collection.tile_board_empty_slots.push(pos);
+        }
+    }
+
+    pub fn clear_tile_board_empty_slot(&mut self, pos: Vec2<i32>) {
+        if let Some(index) = self.tile_board_empty_slots.iter().position(|p| *p == pos) {
+            self.tile_board_empty_slots.swap_remove(index);
         }
     }
 

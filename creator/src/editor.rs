@@ -146,6 +146,81 @@ impl Editor {
     const STARTER_CREATE_ID: &'static str = "Starter Project Create";
     const STARTER_CANCEL_ID: &'static str = "Starter Project Cancel";
 
+    fn apply_editor_geo_filter(
+        filter: EditingGeoFilter,
+        dungeon_no_ceiling: bool,
+        map: &Map,
+        rusterix: &mut Rusterix,
+    ) {
+        let dungeon_only = filter == EditingGeoFilter::DungeonOnly;
+        if !dungeon_only && !dungeon_no_ceiling {
+            return;
+        }
+
+        for sector in &map.sectors {
+            let is_dungeon = sector
+                .properties
+                .get_str_default("generated_by", String::new())
+                == "dungeon_tool";
+            let dungeon_part = sector
+                .properties
+                .get_str_default("dungeon_part", String::new());
+            let hide_dungeon_ceiling = dungeon_no_ceiling
+                && is_dungeon
+                && (dungeon_part == "ceiling" || dungeon_part == "stair_ceiling");
+            let base_visible = sector.properties.get_bool_default("visible", true);
+            let base_opacity = if base_visible {
+                sector.properties.get_float_default("opacity", 1.0)
+            } else {
+                0.0
+            };
+            let visible = if dungeon_only {
+                base_visible && is_dungeon && !hide_dungeon_ceiling
+            } else {
+                base_visible && !hide_dungeon_ceiling
+            };
+            let opacity = if visible { base_opacity } else { 0.0 };
+
+            rusterix
+                .scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGeoVisible {
+                    id: scenevm::GeoId::Sector(sector.id),
+                    visible,
+                });
+            rusterix
+                .scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGeoOpacity {
+                    id: scenevm::GeoId::Sector(sector.id),
+                    opacity,
+                });
+        }
+
+        let terrain_visible = !dungeon_only;
+        for chunk in map.terrain.chunks.values() {
+            for dx in 0..chunk.size {
+                for dz in 0..chunk.size {
+                    let id = scenevm::GeoId::Terrain(chunk.origin.x + dx, chunk.origin.y + dz);
+                    rusterix
+                        .scene_handler
+                        .vm
+                        .execute(scenevm::Atom::SetGeoVisible {
+                            id,
+                            visible: terrain_visible,
+                        });
+                    rusterix
+                        .scene_handler
+                        .vm
+                        .execute(scenevm::Atom::SetGeoOpacity {
+                            id,
+                            opacity: if terrain_visible { 1.0 } else { 0.0 },
+                        });
+                }
+            }
+        }
+    }
+
     fn log_segment_has_warning_or_error(segment: &str) -> bool {
         segment.contains("[error]") || segment.contains("[warning]")
     }
@@ -1947,6 +2022,12 @@ impl TheTrait for Editor {
                                 // overlays (characters/items/lights).
                                 let animation_frame = rusterix.client.animation_frame;
                                 rusterix.build_dynamics_3d(&region.map, animation_frame);
+                                Self::apply_editor_geo_filter(
+                                    self.server_ctx.editing_geo_filter,
+                                    self.server_ctx.dungeon_no_ceiling,
+                                    &region.map,
+                                    rusterix,
+                                );
                                 rusterix.draw_d3(
                                     &region.map,
                                     render_view.render_buffer_mut().pixels_mut(),
@@ -2071,6 +2152,12 @@ impl TheTrait for Editor {
                                 if self.server_ctx.editor_view_mode == EditorViewMode::D2
                                     && self.server_ctx.curr_map_tool_type == MapToolType::Dungeon
                                 {
+                                    Self::apply_editor_geo_filter(
+                                        self.server_ctx.editing_geo_filter,
+                                        self.server_ctx.dungeon_no_ceiling,
+                                        map,
+                                        rusterix,
+                                    );
                                     rusterix.draw_custom_d2(
                                         map,
                                         render_view.render_buffer_mut().pixels_mut(),
@@ -2078,6 +2165,12 @@ impl TheTrait for Editor {
                                         dim.height as usize,
                                     );
                                 } else {
+                                    Self::apply_editor_geo_filter(
+                                        self.server_ctx.editing_geo_filter,
+                                        self.server_ctx.dungeon_no_ceiling,
+                                        map,
+                                        rusterix,
+                                    );
                                     rusterix.draw_scene(
                                         map,
                                         render_view.render_buffer_mut().pixels_mut(),
@@ -2122,6 +2215,12 @@ impl TheTrait for Editor {
                                         &self.server_ctx.editing_surface,
                                         true,
                                     );
+                                    Self::apply_editor_geo_filter(
+                                        self.server_ctx.editing_geo_filter,
+                                        self.server_ctx.dungeon_no_ceiling,
+                                        &map,
+                                        rusterix,
+                                    );
                                     rusterix.draw_custom_d2(
                                         &map,
                                         render_view.render_buffer_mut().pixels_mut(),
@@ -2135,6 +2234,12 @@ impl TheTrait for Editor {
                                         &self.build_values,
                                         &self.server_ctx.editing_surface,
                                         true,
+                                    );
+                                    Self::apply_editor_geo_filter(
+                                        self.server_ctx.editing_geo_filter,
+                                        self.server_ctx.dungeon_no_ceiling,
+                                        profile,
+                                        rusterix,
                                     );
                                     rusterix.draw_custom_d2(
                                         profile,

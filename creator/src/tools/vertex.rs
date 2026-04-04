@@ -16,18 +16,19 @@ fn resolve_creation_surface_side(
     surface_origin: Vec3<f32>,
     hover_ray_dir: Option<Vec3<f32>>,
 ) -> Vec3<f32> {
-    let signed_dist = (hit_pos - surface_origin).dot(surface_normal);
-    let grow_positive = if signed_dist.abs() > 0.01 {
-        signed_dist >= 0.0
-    } else if let Some(ray_dir) = hover_ray_dir {
-        surface_normal.dot(-ray_dir) >= 0.0
+    if let Some(ray_dir) = hover_ray_dir.and_then(|dir| dir.try_normalized()) {
+        if surface_normal.dot(-ray_dir) >= 0.0 {
+            surface_normal
+        } else {
+            -surface_normal
+        }
     } else {
-        true
-    };
-    if grow_positive {
-        surface_normal
-    } else {
-        -surface_normal
+        let signed_dist = (hit_pos - surface_origin).dot(surface_normal);
+        if signed_dist >= 0.0 {
+            surface_normal
+        } else {
+            -surface_normal
+        }
     }
 }
 
