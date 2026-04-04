@@ -133,6 +133,22 @@ fn default_colorize4_auto_range() -> bool {
     true
 }
 
+fn default_particle_color_1() -> u16 {
+    0
+}
+
+fn default_particle_color_2() -> u16 {
+    1
+}
+
+fn default_particle_color_3() -> u16 {
+    2
+}
+
+fn default_particle_color_4() -> u16 {
+    3
+}
+
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct TileNodeGraphState {
     #[serde(default = "default_tile_node_nodes")]
@@ -183,6 +199,7 @@ pub struct TileParticleOutput {
     pub speed_min: f32,
     pub speed_max: f32,
     pub color_variation: u8,
+    pub ramp_colors: [[u8; 4]; 4],
 }
 
 #[derive(Clone, Debug)]
@@ -391,6 +408,14 @@ pub enum TileNodeKind {
         radius_min: f32,
         radius_max: f32,
         color_variation: u8,
+        #[serde(default = "default_particle_color_1")]
+        color_1: u16,
+        #[serde(default = "default_particle_color_2")]
+        color_2: u16,
+        #[serde(default = "default_particle_color_3")]
+        color_3: u16,
+        #[serde(default = "default_particle_color_4")]
+        color_4: u16,
     },
     LightEmitter {
         intensity: f32,
@@ -1103,11 +1128,21 @@ impl TileGraphRenderer {
                 speed_min: (*speed_min).max(0.0),
                 speed_max: (*speed_max).max(*speed_min),
                 color_variation: *color_variation,
+                ramp_colors: [
+                    [255, 240, 200, 255],
+                    [255, 176, 72, 255],
+                    [224, 84, 24, 255],
+                    [40, 36, 36, 255],
+                ],
             }),
             Some(TileNodeKind::ParticleRender {
                 radius_min,
                 radius_max,
                 color_variation,
+                color_1,
+                color_2,
+                color_3,
+                color_4,
             }) => {
                 let spawn = state.connections.iter().find_map(
                     |(src_node, src_term, dst_node, dst_term)| {
@@ -1163,6 +1198,11 @@ impl TileGraphRenderer {
                     speed_min,
                     speed_max,
                     color_variation: *color_variation,
+                    ramp_colors: self.particle_ramp_colors(
+                        state,
+                        emitter_index,
+                        [*color_1, *color_2, *color_3, *color_4],
+                    ),
                 })
             }
             _ => None,
@@ -1276,6 +1316,75 @@ impl TileGraphRenderer {
         };
         self.palette_color(index)
             .unwrap_or_else(|| TheColor::from_u8_array([255, 255, 255, 255]))
+    }
+
+    fn particle_ramp_colors(
+        &self,
+        state: &TileNodeGraphState,
+        node_index: usize,
+        fallback: [u16; 4],
+    ) -> [[u8; 4]; 4] {
+        let mut colors = fallback.map(|index| {
+            self.palette_color(index)
+                .unwrap_or_else(|| TheColor::from_u8_array([255, 255, 255, 255]))
+                .to_u8_array()
+        });
+
+        for terminal in 2..=5u8 {
+            let Some(source_index) =
+                state
+                    .connections
+                    .iter()
+                    .find_map(|(src_node, src_term, dst_node, dst_term)| {
+                        if *dst_node as usize == node_index
+                            && *dst_term == terminal
+                            && *src_term == 0
+                        {
+                            Some(*src_node as usize)
+                        } else {
+                            None
+                        }
+                    })
+            else {
+                continue;
+            };
+
+            let Some(source_kind) = state.nodes.get(source_index).map(|node| &node.kind) else {
+                continue;
+            };
+
+            match source_kind {
+                TileNodeKind::PaletteColor { index } => {
+                    if let Some(color) = self.palette_color(*index) {
+                        colors[(terminal - 2) as usize] = color.to_u8_array();
+                    }
+                }
+                TileNodeKind::Color { color } => {
+                    colors[(terminal - 2) as usize] = color.to_u8_array();
+                }
+                TileNodeKind::Colorize4 {
+                    color_1,
+                    color_2,
+                    color_3,
+                    color_4,
+                    ..
+                } if terminal == 2 => {
+                    colors = [
+                        self.colorize4_palette_color(0, *color_1, *color_2, *color_3, *color_4)
+                            .to_u8_array(),
+                        self.colorize4_palette_color(1, *color_1, *color_2, *color_3, *color_4)
+                            .to_u8_array(),
+                        self.colorize4_palette_color(2, *color_1, *color_2, *color_3, *color_4)
+                            .to_u8_array(),
+                        self.colorize4_palette_color(3, *color_1, *color_2, *color_3, *color_4)
+                            .to_u8_array(),
+                    ];
+                }
+                _ => {}
+            }
+        }
+
+        colors
     }
 
     fn bayer4(x: usize, y: usize) -> f32 {

@@ -186,11 +186,14 @@ impl SceneHandler {
         Uuid::from_u128(tile_id.as_u128() ^ 0x705f_6172_7469_636c_655f_7370_7269)
     }
 
-    fn build_particle_sprite_texture(color: [u8; 4]) -> Texture {
+    fn build_particle_sprite_texture(color: [u8; 4], ramp: Option<&[[u8; 4]; 4]>) -> Texture {
         let size = 32usize;
         let mut data = vec![0u8; size * size * 4];
         let center = (size as f32 - 1.0) * 0.5;
         let radius = center.max(1.0);
+        let ramp = ramp
+            .copied()
+            .unwrap_or_else(|| Self::derive_particle_ramp(color));
 
         for y in 0..size {
             for x in 0..size {
@@ -199,16 +202,48 @@ impl SceneHandler {
                 let dist = (dx * dx + dy * dy).sqrt();
                 let falloff = (1.0 - dist).clamp(0.0, 1.0);
                 let alpha = (falloff * falloff * 255.0) as u8;
-                let boost = 0.6 + falloff * 0.4;
+                let height_t =
+                    (1.0 - (y as f32 / (size.saturating_sub(1).max(1) as f32))).clamp(0.0, 1.0);
+                let ramp_t =
+                    ((1.0 - height_t) * 0.65 + dist.clamp(0.0, 1.0) * 0.35).clamp(0.0, 0.999);
+                let scaled = ramp_t * 3.0;
+                let idx0 = scaled.floor() as usize;
+                let idx1 = (idx0 + 1).min(3);
+                let frac = scaled.fract();
                 let idx = (y * size + x) * 4;
-                data[idx] = ((color[0] as f32) * boost).clamp(0.0, 255.0) as u8;
-                data[idx + 1] = ((color[1] as f32) * boost).clamp(0.0, 255.0) as u8;
-                data[idx + 2] = ((color[2] as f32) * boost).clamp(0.0, 255.0) as u8;
+                data[idx] = (ramp[idx0][0] as f32 * (1.0 - frac) + ramp[idx1][0] as f32 * frac)
+                    .clamp(0.0, 255.0) as u8;
+                data[idx + 1] = (ramp[idx0][1] as f32 * (1.0 - frac) + ramp[idx1][1] as f32 * frac)
+                    .clamp(0.0, 255.0) as u8;
+                data[idx + 2] = (ramp[idx0][2] as f32 * (1.0 - frac) + ramp[idx1][2] as f32 * frac)
+                    .clamp(0.0, 255.0) as u8;
                 data[idx + 3] = alpha;
             }
         }
 
-        Texture::new(data, size, size)
+        let mut texture = Texture::new(data, size, size);
+        // Particle billboards should read as self-lit sprites instead of generic shaded tiles.
+        texture.set_materials_all(0.0, 0.0, 1.0, 1.0);
+        texture
+    }
+
+    fn derive_particle_ramp(base: [u8; 4]) -> [[u8; 4]; 4] {
+        [
+            [
+                (base[0] as f32 * 1.15).clamp(0.0, 255.0) as u8,
+                (base[1] as f32 * 1.1).clamp(0.0, 255.0) as u8,
+                (base[2] as f32 * 0.9 + 24.0).clamp(0.0, 255.0) as u8,
+                255,
+            ],
+            base,
+            [
+                (base[0] as f32 * 0.75).clamp(0.0, 255.0) as u8,
+                (base[1] as f32 * 0.45).clamp(0.0, 255.0) as u8,
+                (base[2] as f32 * 0.3).clamp(0.0, 255.0) as u8,
+                255,
+            ],
+            [36, 32, 32, 255],
+        ]
     }
 
     fn rebuild_campfire_particles(
@@ -2476,13 +2511,14 @@ impl SceneHandler {
             });
 
             if let Some(emitter) = &tile.particle_emitter {
-                let sprite = Self::build_particle_sprite_texture(emitter.color);
+                let sprite =
+                    Self::build_particle_sprite_texture(emitter.color, emitter.color_ramp.as_ref());
                 self.vm.execute(Atom::AddTile {
                     id: Self::particle_sprite_tile_id(*id),
                     width: sprite.width as u32,
                     height: sprite.height as u32,
                     frames: vec![sprite.data],
-                    material_frames: None,
+                    material_frames: sprite.data_ext.clone().map(|ext| vec![ext]),
                 });
             }
         }

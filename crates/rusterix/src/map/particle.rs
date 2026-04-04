@@ -19,7 +19,9 @@ pub struct ParticleEmitter {
     pub rate: f32,            // Particles per second
     pub time_accum: f32,
 
-    pub color: [u8; 4],      // Base color
+    pub color: [u8; 4], // Base color
+    #[serde(default)]
+    pub color_ramp: Option<[[u8; 4]; 4]>,
     pub color_variation: u8, // +/- variation for flicker
 
     pub lifetime_range: (f32, f32), // Seconds
@@ -40,6 +42,7 @@ impl ParticleEmitter {
             time_accum: 0.0,
 
             color: [255, 160, 0, 255],
+            color_ramp: None,
             color_variation: 30,
 
             lifetime_range: (0.5, 1.5),

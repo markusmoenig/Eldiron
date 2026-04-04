@@ -261,6 +261,10 @@ fn node_kind_from_doc(
             radius_min: table_f32(table, "radius_min", 0.08),
             radius_max: table_f32(table, "radius_max", 0.2),
             color_variation: table_u32(table, "color_variation", 24) as u8,
+            color_1: table_u32(table, "color_1", 0) as u16,
+            color_2: table_u32(table, "color_2", 1) as u16,
+            color_3: table_u32(table, "color_3", 2) as u16,
+            color_4: table_u32(table, "color_4", 3) as u16,
         },
         "light_emitter" => TileNodeKind::LightEmitter {
             intensity: table_f32(table, "intensity", 1.8),
@@ -1296,6 +1300,10 @@ fn export_node_table(
             radius_min,
             radius_max,
             color_variation,
+            color_1,
+            color_2,
+            color_3,
+            color_4,
         } => {
             table.insert("radius_min".to_string(), rounded_float(*radius_min));
             table.insert("radius_max".to_string(), rounded_float(*radius_max));
@@ -1303,6 +1311,10 @@ fn export_node_table(
                 "color_variation".to_string(),
                 toml::Value::Integer(*color_variation as i64),
             );
+            table.insert("color_1".to_string(), toml::Value::Integer(*color_1 as i64));
+            table.insert("color_2".to_string(), toml::Value::Integer(*color_2 as i64));
+            table.insert("color_3".to_string(), toml::Value::Integer(*color_3 as i64));
+            table.insert("color_4".to_string(), toml::Value::Integer(*color_4 as i64));
         }
         TileNodeKind::LightEmitter {
             intensity,

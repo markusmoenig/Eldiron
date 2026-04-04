@@ -936,6 +936,10 @@ impl Dock for TilesEditorDock {
                             radius_min: 0.08,
                             radius_max: 0.2,
                             color_variation: 24,
+                            color_1: 0,
+                            color_2: 1,
+                            color_3: 2,
+                            color_4: 3,
                         });
                         return true;
                     } else if item_id.name == "Tile Node Add Light Emitter" {
@@ -980,6 +984,10 @@ impl Dock for TilesEditorDock {
                                 radius_min: 0.05,
                                 radius_max: 0.14,
                                 color_variation: 32,
+                                color_1: 0,
+                                color_2: 1,
+                                color_3: 2,
+                                color_4: 3,
                             },
                             position: (base_x + 220, base_y + 60),
                             preview_open: true,
@@ -1749,6 +1757,10 @@ impl Dock for TilesEditorDock {
                         || id.name == "tileNodeParticleRenderRadiusMin"
                         || id.name == "tileNodeParticleRenderRadiusMax"
                         || id.name == "tileNodeParticleRenderColorVariation"
+                        || id.name == "tileNodeParticleRenderColor1"
+                        || id.name == "tileNodeParticleRenderColor2"
+                        || id.name == "tileNodeParticleRenderColor3"
+                        || id.name == "tileNodeParticleRenderColor4"
                         || id.name == "tileNodeLightEmitterIntensity"
                         || id.name == "tileNodeLightEmitterRange"
                         || id.name == "tileNodeLightEmitterFlicker"
@@ -2005,6 +2017,10 @@ impl Dock for TilesEditorDock {
                                     radius_min,
                                     radius_max,
                                     color_variation,
+                                    color_1,
+                                    color_2,
+                                    color_3,
+                                    color_4,
                                 } = &mut node.kind
                             {
                                 let mut changed = false;
@@ -2015,6 +2031,25 @@ impl Dock for TilesEditorDock {
                                             *color_variation = new_value;
                                             changed = true;
                                         }
+                                    }
+                                } else if let Some(new_value) = value.to_i32() {
+                                    let new_value = new_value.clamp(0, 255) as u16;
+                                    let target = if id.name == "tileNodeParticleRenderColor1" {
+                                        Some(color_1)
+                                    } else if id.name == "tileNodeParticleRenderColor2" {
+                                        Some(color_2)
+                                    } else if id.name == "tileNodeParticleRenderColor3" {
+                                        Some(color_3)
+                                    } else if id.name == "tileNodeParticleRenderColor4" {
+                                        Some(color_4)
+                                    } else {
+                                        None
+                                    };
+                                    if let Some(target) = target
+                                        && *target != new_value
+                                    {
+                                        *target = new_value;
+                                        changed = true;
                                     }
                                 } else if let Some(new_value) = value.to_f32() {
                                     if id.name == "tileNodeParticleRenderRadiusMin" {
@@ -4027,6 +4062,10 @@ impl TilesEditorDock {
                     radius_min,
                     radius_max,
                     color_variation,
+                    color_1,
+                    color_2,
+                    color_3,
+                    color_4,
                 }) => {
                     nodeui.add_item(TheNodeUIItem::OpenTree("particle_render".into()));
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(
@@ -4050,6 +4089,38 @@ impl TilesEditorDock {
                         "Color Variation".into(),
                         "Random +/- color flicker variation.".into(),
                         *color_variation as i32,
+                        0..=255,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::IntEditSlider(
+                        "tileNodeParticleRenderColor1".into(),
+                        "Ramp 1".into(),
+                        "Core particle palette index. Can also be driven by a connected Palette Index or Colorize4 node.".into(),
+                        *color_1 as i32,
+                        0..=255,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::IntEditSlider(
+                        "tileNodeParticleRenderColor2".into(),
+                        "Ramp 2".into(),
+                        "Inner flame palette index.".into(),
+                        *color_2 as i32,
+                        0..=255,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::IntEditSlider(
+                        "tileNodeParticleRenderColor3".into(),
+                        "Ramp 3".into(),
+                        "Outer flame palette index.".into(),
+                        *color_3 as i32,
+                        0..=255,
+                        false,
+                    ));
+                    nodeui.add_item(TheNodeUIItem::IntEditSlider(
+                        "tileNodeParticleRenderColor4".into(),
+                        "Ramp 4".into(),
+                        "Late smoke / ash palette index.".into(),
+                        *color_4 as i32,
                         0..=255,
                         false,
                     ));
@@ -4714,7 +4785,8 @@ impl TilesEditorDock {
                         rusterix::ParticleEmitter::new(Vec3::zero(), Vec3::new(0.0, 1.0, 0.0));
                     emitter.rate = particle.rate;
                     emitter.spread = particle.spread;
-                    emitter.color = crate::docks::particle_preview::average_rgba_color(&pixels);
+                    emitter.color = particle.ramp_colors[0];
+                    emitter.color_ramp = Some(particle.ramp_colors);
                     emitter.color_variation = particle.color_variation;
                     emitter.lifetime_range = (particle.lifetime_min, particle.lifetime_max);
                     emitter.radius_range = (particle.radius_min, particle.radius_max);
@@ -5872,6 +5944,22 @@ impl TilesEditorDock {
                                 TheNodeTerminal {
                                     name: "Motion".to_string(),
                                     category_name: "ParticleSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Color 1".to_string(),
+                                    category_name: "ColorSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Color 2".to_string(),
+                                    category_name: "ColorSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Color 3".to_string(),
+                                    category_name: "ColorSocket".to_string(),
+                                },
+                                TheNodeTerminal {
+                                    name: "Color 4".to_string(),
+                                    category_name: "ColorSocket".to_string(),
                                 },
                             ],
                             outputs: vec![TheNodeTerminal {

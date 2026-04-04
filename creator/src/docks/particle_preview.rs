@@ -90,6 +90,7 @@ pub fn render_particle_output_preview(
 ) -> TheRGBABuffer {
     render_particle_preview_common(
         average_rgba_color(source_pixels),
+        Some(&particle.ramp_colors),
         particle.rate,
         particle.spread,
         particle.lifetime_min,
@@ -113,6 +114,7 @@ pub fn render_particle_emitter_preview(
 ) -> TheRGBABuffer {
     render_particle_preview_common(
         emitter.color,
+        emitter.color_ramp.as_ref(),
         emitter.rate,
         emitter.spread,
         emitter.lifetime_range.0,
@@ -130,6 +132,7 @@ pub fn render_particle_emitter_preview(
 
 fn render_particle_preview_common(
     base: [u8; 4],
+    ramp: Option<&[[u8; 4]; 4]>,
     rate: f32,
     spread: f32,
     lifetime_min: f32,
@@ -148,10 +151,11 @@ fn render_particle_preview_common(
     let mut preview = TheRGBABuffer::new(TheDim::sized(width, height));
     preview.fill([10, 12, 16, 255]);
 
+    let ramp = ramp.copied().unwrap_or_else(|| derive_particle_ramp(base));
     let glow = [
-        ((base[0] as f32) * 0.35 + 24.0).clamp(0.0, 255.0) as u8,
-        ((base[1] as f32) * 0.35 + 18.0).clamp(0.0, 255.0) as u8,
-        ((base[2] as f32) * 0.35 + 20.0).clamp(0.0, 255.0) as u8,
+        ((ramp[1][0] as f32) * 0.35 + 24.0).clamp(0.0, 255.0) as u8,
+        ((ramp[1][1] as f32) * 0.35 + 18.0).clamp(0.0, 255.0) as u8,
+        ((ramp[1][2] as f32) * 0.35 + 20.0).clamp(0.0, 255.0) as u8,
         255,
     ];
     for y in 0..height {
@@ -192,18 +196,51 @@ fn render_particle_preview_common(
         let alpha = ((1.0 - age).powf(1.15) * 0.9 + 0.1).clamp(0.0, 1.0);
 
         let jitter = color_variation as f32 * ((seed * 0.31).cos() * 0.5 + 0.5);
-        let color = [
-            (base[0] as f32 + jitter * 0.35).clamp(0.0, 255.0) as u8,
-            (base[1] as f32 + jitter * 0.2).clamp(0.0, 255.0) as u8,
-            (base[2] as f32 + jitter * 0.1).clamp(0.0, 255.0) as u8,
-            (255.0 * alpha) as u8,
-        ];
+        let ramp_t = age.clamp(0.0, 0.999);
+        let scaled = ramp_t * 3.0;
+        let idx = scaled.floor() as usize;
+        let frac = scaled.fract();
+        let c0 = ramp[idx.min(3)];
+        let c1 = ramp[(idx + 1).min(3)];
+        let mut color = [0u8; 4];
+        for channel in 0..3 {
+            color[channel] = (c0[channel] as f32 * (1.0 - frac) + c1[channel] as f32 * frac)
+                .clamp(0.0, 255.0) as u8;
+        }
+        color[0] = (color[0] as f32 + jitter * 0.35).clamp(0.0, 255.0) as u8;
+        color[1] = (color[1] as f32 + jitter * 0.2).clamp(0.0, 255.0) as u8;
+        color[2] = (color[2] as f32 + jitter * 0.1).clamp(0.0, 255.0) as u8;
+        color[3] = (255.0 * alpha) as u8;
         draw_soft_particle(&mut preview, x, y, size, color);
     }
 
     let emitter_dim = TheDim::new((emitter_x as i32) - 6, (emitter_y as i32) - 6, 12, 12);
     preview.draw_disc(&emitter_dim, &[255, 255, 255, 140], 1.0, &[0, 0, 0, 0]);
     preview
+}
+
+fn derive_particle_ramp(base: [u8; 4]) -> [[u8; 4]; 4] {
+    [
+        [
+            (base[0] as f32 * 1.15).clamp(0.0, 255.0) as u8,
+            (base[1] as f32 * 1.1).clamp(0.0, 255.0) as u8,
+            (base[2] as f32 * 0.9 + 24.0).clamp(0.0, 255.0) as u8,
+            255,
+        ],
+        [
+            (base[0] as f32).clamp(0.0, 255.0) as u8,
+            (base[1] as f32).clamp(0.0, 255.0) as u8,
+            (base[2] as f32).clamp(0.0, 255.0) as u8,
+            255,
+        ],
+        [
+            (base[0] as f32 * 0.75).clamp(0.0, 255.0) as u8,
+            (base[1] as f32 * 0.45).clamp(0.0, 255.0) as u8,
+            (base[2] as f32 * 0.3).clamp(0.0, 255.0) as u8,
+            255,
+        ],
+        [36, 32, 32, 255],
+    ]
 }
 
 fn draw_soft_particle(
