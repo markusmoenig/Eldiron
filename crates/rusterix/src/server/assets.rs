@@ -45,6 +45,7 @@ pub struct Assets {
     pub fonts: FxHashMap<String, fontdue::Font>,
     pub audio: FxHashMap<String, Vec<u8>>,
     pub palette: ThePalette,
+    pub palette_materials: Vec<[f32; 4]>,
 
     // The global render graph
     pub global: ShapeFXGraph,
@@ -109,6 +110,7 @@ impl Assets {
             fonts: FxHashMap::default(),
             audio: FxHashMap::default(),
             palette: ThePalette::default(),
+            palette_materials: vec![[0.5, 0.0, 1.0, 0.0]; 256],
             global: ShapeFXGraph::default(),
             locales: FxHashMap::default(),
             avatars: FxHashMap::default(),

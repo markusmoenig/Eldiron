@@ -37,13 +37,8 @@ impl Action for ImportPalette {
         None
     }
 
-    fn is_applicable(
-        &self,
-        _map: &Map,
-        _ctx: &mut TheContext,
-        _server_ctx: &ServerContext,
-    ) -> bool {
-        DOCKMANAGER.read().unwrap().dock == "Tiles"
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+        DOCKMANAGER.read().unwrap().dock == "Palette" && server_ctx.palette_tool_active
     }
 
     fn apply_project(
@@ -78,12 +73,19 @@ impl Action for ImportPalette {
                     for p in paths {
                         if let Ok(contents) = std::fs::read_to_string(p) {
                             let prev = project.palette.clone();
+                            let prev_materials = project.palette_materials.clone();
 
                             project.palette.load_from_txt(contents);
+                            project.ensure_palette_materials_len();
                             apply_palette(ui, ctx, server_ctx, project);
+                            crate::undo::project_helper::refresh_palette_runtime(project);
 
-                            let undo_atom =
-                                ProjectUndoAtom::PaletteEdit(prev, project.palette.clone());
+                            let undo_atom = ProjectUndoAtom::PaletteEdit(
+                                prev,
+                                prev_materials,
+                                project.palette.clone(),
+                                project.palette_materials.clone(),
+                            );
                             UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
                             return true;
                         }

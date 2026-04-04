@@ -47,6 +47,49 @@ fn default_tile_collection_version() -> String {
     "0.1".to_string()
 }
 
+fn default_palette_material_slots() -> Vec<PaletteMaterial> {
+    vec![PaletteMaterial::default(); 256]
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct PaletteMaterial {
+    #[serde(default = "default_palette_roughness")]
+    pub roughness: f32,
+    #[serde(default = "default_palette_metallic")]
+    pub metallic: f32,
+    #[serde(default = "default_palette_opacity")]
+    pub opacity: f32,
+    #[serde(default = "default_palette_emissive")]
+    pub emissive: f32,
+}
+
+fn default_palette_roughness() -> f32 {
+    0.5
+}
+
+fn default_palette_metallic() -> f32 {
+    0.0
+}
+
+fn default_palette_opacity() -> f32 {
+    1.0
+}
+
+fn default_palette_emissive() -> f32 {
+    0.0
+}
+
+impl Default for PaletteMaterial {
+    fn default() -> Self {
+        Self {
+            roughness: default_palette_roughness(),
+            metallic: default_palette_metallic(),
+            opacity: default_palette_opacity(),
+            emissive: default_palette_emissive(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct BuilderGraphAsset {
     pub id: Uuid,
@@ -328,6 +371,9 @@ pub struct Project {
 
     #[serde(default)]
     pub avatars: IndexMap<Uuid, Avatar>,
+
+    #[serde(default = "default_palette_material_slots")]
+    pub palette_materials: Vec<PaletteMaterial>,
 }
 
 impl Default for Project {
@@ -371,6 +417,7 @@ impl Project {
             tick_ms: default_tick_ms(),
 
             avatars: IndexMap::default(),
+            palette_materials: default_palette_material_slots(),
 
             config: String::new(),
             rules: default_rules(),
@@ -383,6 +430,27 @@ impl Project {
     /// Add Character
     pub fn add_character(&mut self, character: Character) {
         self.characters.insert(character.id, character);
+    }
+
+    pub fn ensure_palette_materials_len(&mut self) {
+        if self.palette_materials.len() < self.palette.colors.len() {
+            self.palette_materials
+                .resize(self.palette.colors.len(), PaletteMaterial::default());
+        } else if self.palette_materials.len() > self.palette.colors.len() {
+            self.palette_materials.truncate(self.palette.colors.len());
+        }
+    }
+
+    pub fn reset_palette_material(&mut self, index: usize) {
+        self.ensure_palette_materials_len();
+        if let Some(material) = self.palette_materials.get_mut(index) {
+            *material = PaletteMaterial::default();
+        }
+    }
+
+    pub fn reset_all_palette_materials(&mut self) {
+        self.palette_materials = default_palette_material_slots();
+        self.ensure_palette_materials_len();
     }
 
     /// Removes the given character from the project.
@@ -547,7 +615,11 @@ impl Project {
         let Some(collection) = self.tile_collections.get_mut(collection_id) else {
             return;
         };
-        if let Some(index) = collection.tile_board_empty_slots.iter().position(|p| *p == pos) {
+        if let Some(index) = collection
+            .tile_board_empty_slots
+            .iter()
+            .position(|p| *p == pos)
+        {
             collection.tile_board_empty_slots.swap_remove(index);
         }
         match source {

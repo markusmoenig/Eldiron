@@ -8,7 +8,7 @@ use crate::undo::project_helper::*;
 use rusterix::rebuild_generated_geometry;
 use rusterix::{AudioEngine, Texture, TileRole};
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum SidebarMode {
     Region,
     Character,
@@ -30,6 +30,7 @@ pub struct Sidebar {
     curr_tilemap_uuid: Option<Uuid>,
     curr_tile_collection_uuid: Option<Uuid>,
     curr_treasury_package_slug: Option<String>,
+    pending_palette_drag_undo: Option<(ThePalette, Vec<shared::project::PaletteMaterial>)>,
 
     pub startup: bool,
 }
@@ -114,6 +115,7 @@ impl Sidebar {
             curr_tilemap_uuid: None,
             curr_tile_collection_uuid: None,
             curr_treasury_package_slug: None,
+            pending_palette_drag_undo: None,
 
             startup: true,
         }
@@ -514,6 +516,13 @@ impl Sidebar {
                             server_ctx,
                             ProjectContext::Asset(id.uuid),
                         );
+                    } else if id.uuid == server_ctx.tree_palette_id {
+                        *SIDEBARMODE.write().unwrap() = SidebarMode::Palette;
+                        apply_palette(ui, ctx, server_ctx, project);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Action List"),
+                            TheValue::Empty,
+                        ));
                     }
                 }
             }
@@ -524,6 +533,7 @@ impl Sidebar {
                     server_ctx.item_region_override = *index == 1;
                 } else if id.name == "Palette Item" {
                     project.palette.current_index = *index as u16;
+                    apply_palette(ui, ctx, server_ctx, project);
                 } else if id.name == "Avatar Perspective Count" {
                     let new_count = match index {
                         0 => AvatarPerspectiveCount::One,
@@ -578,42 +588,46 @@ impl Sidebar {
 
                         // Color selected
                         if *SIDEBARMODE.read().unwrap() == SidebarMode::Palette {
-                            if !matches!(event, TheEvent::RenderViewDragged(_, _)) {
-                                let buffer = render_view.render_buffer_mut();
-                                if let Some(col) = buffer.get_pixel(coord.x, coord.y) {
-                                    let color = TheColor::from(col);
+                            let buffer = render_view.render_buffer_mut();
+                            if let Some(col) = buffer.get_pixel(coord.x, coord.y) {
+                                let color = TheColor::from(col);
+                                let index = project.palette.current_index as usize;
+                                project.ensure_palette_materials_len();
 
-                                    if let Some(widget) = ui.get_widget("Palette Hex Edit") {
-                                        widget.set_value(TheValue::Text(color.to_hex()));
-                                    }
+                                if let Some(widget) = ui.get_widget("Palette Hex Edit") {
+                                    widget.set_value(TheValue::Text(color.to_hex()));
+                                }
 
-                                    if let Some(palette_picker) =
-                                        ui.get_palette_picker("Palette Picker")
-                                    {
-                                        if project.palette[palette_picker.index()]
-                                            != Some(color.clone())
-                                        {
-                                            let prev = project.palette.clone();
-                                            palette_picker.set_color(color.clone());
-                                            redraw = true;
-                                            project.palette[palette_picker.index()] = Some(color);
-
-                                            let undo = ProjectUndoAtom::PaletteEdit(
-                                                prev,
-                                                project.palette.clone(),
-                                            );
-                                            UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
-                                        }
-
-                                        ctx.ui.send(TheEvent::Custom(
-                                            TheId::named("Soft Update Minimap"),
-                                            TheValue::Empty,
+                                if project.palette[index] != Some(color.clone()) {
+                                    if self.pending_palette_drag_undo.is_none() {
+                                        self.pending_palette_drag_undo = Some((
+                                            project.palette.clone(),
+                                            project.palette_materials.clone(),
                                         ));
                                     }
+                                    project.palette[index] = Some(color);
+                                    redraw = true;
+                                }
 
-                                    *PALETTE.write().unwrap() = project.palette.clone();
-                                    RUSTERIX.write().unwrap().assets.palette =
-                                        project.palette.clone();
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Soft Update Minimap"),
+                                    TheValue::Empty,
+                                ));
+
+                                apply_palette(ui, ctx, server_ctx, project);
+                                if matches!(event, TheEvent::RenderViewUp(_, _)) {
+                                    if let Some((prev, prev_materials)) =
+                                        self.pending_palette_drag_undo.take()
+                                    {
+                                        let undo = ProjectUndoAtom::PaletteEdit(
+                                            prev,
+                                            prev_materials,
+                                            project.palette.clone(),
+                                            project.palette_materials.clone(),
+                                        );
+                                        UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
+                                    }
+                                    crate::undo::project_helper::refresh_palette_runtime(project);
                                 }
                             }
 
@@ -969,21 +983,8 @@ impl Sidebar {
             TheEvent::PaletteIndexChanged(id, index) => {
                 if id.name == "Palette Picker" {
                     project.palette.current_index = *index;
-                    if let Some(widget) = ui.get_widget("Palette Index Text") {
-                        widget.set_value(TheValue::Text(format!("{index:03}")));
-                    }
-                    if let Some(widget) = ui.get_widget("Palette Hex Edit") {
-                        if let Some(color) = &project.palette[*index as usize] {
-                            widget.set_value(TheValue::Text(color.to_hex()));
-                        }
-                    }
-                    // if let Some(widget) = ui.get_widget("Palette Name Edit") {
-                    //     if let Some(color) = &project.palette[*index as usize] {
-                    //         widget.set_value(TheValue::Text(color.name.clone()));
-                    //     }
-                    // }
+                    apply_palette(ui, ctx, server_ctx, project);
                     *PALETTE.write().unwrap() = project.palette.clone();
-
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Soft Update Minimap"),
                         TheValue::Empty,
@@ -1506,14 +1507,20 @@ impl Sidebar {
                         if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
                             if project.palette[palette_picker.index()] != Some(color.clone()) {
                                 let prev = project.palette.clone();
+                                let prev_materials = project.palette_materials.clone();
 
                                 palette_picker.set_color(color.clone());
                                 redraw = true;
                                 project.palette[palette_picker.index()] = Some(color.clone());
-                                let undo =
-                                    ProjectUndoAtom::PaletteEdit(prev, project.palette.clone());
+                                let undo = ProjectUndoAtom::PaletteEdit(
+                                    prev,
+                                    prev_materials,
+                                    project.palette.clone(),
+                                    project.palette_materials.clone(),
+                                );
                                 UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
 
+                                apply_palette(ui, ctx, server_ctx, project);
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Soft Update Minimap"),
                                     TheValue::Empty,
@@ -1521,12 +1528,7 @@ impl Sidebar {
                             }
                         }
                     }
-                    *PALETTE.write().unwrap() = project.palette.clone();
-                    {
-                        let mut rusterix = RUSTERIX.write().unwrap();
-                        rusterix.assets.palette = project.palette.clone();
-                        rusterix.set_tiles(project.tiles.clone(), true);
-                    }
+                    crate::undo::project_helper::refresh_palette_runtime(project);
                 } else if id.name == "Tilemap Filter Edit" || id.name == "Tilemap Filter Role" {
                     if let Some(id) = self.curr_tilemap_uuid {
                         self.show_filtered_tiles(ui, ctx, project.get_tilemap(id).as_deref())
@@ -2061,9 +2063,16 @@ impl Sidebar {
                     let index = project.palette.current_index as usize;
                     if index < project.palette.colors.len() && project.palette[index].is_some() {
                         let prev = project.palette.clone();
+                        let prev_materials = project.palette_materials.clone();
                         project.palette[index] = None;
+                        project.reset_palette_material(index);
 
-                        let undo = ProjectUndoAtom::PaletteEdit(prev, project.palette.clone());
+                        let undo = ProjectUndoAtom::PaletteEdit(
+                            prev,
+                            prev_materials,
+                            project.palette.clone(),
+                            project.palette_materials.clone(),
+                        );
                         UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
 
                         apply_palette(ui, ctx, server_ctx, project);
@@ -2084,12 +2093,7 @@ impl Sidebar {
                             }
                         }
 
-                        *PALETTE.write().unwrap() = project.palette.clone();
-                        {
-                            let mut rusterix = RUSTERIX.write().unwrap();
-                            rusterix.assets.palette = project.palette.clone();
-                            rusterix.set_tiles(project.tiles.clone(), true);
-                        }
+                        crate::undo::project_helper::refresh_palette_runtime(project);
 
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Soft Update Minimap"),
@@ -2181,7 +2185,9 @@ impl Sidebar {
                     ));
                 } else if id.name == "Palette Clear" {
                     let prev = project.palette.clone();
+                    let prev_materials = project.palette_materials.clone();
                     project.palette.clear();
+                    project.reset_all_palette_materials();
                     if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
                         let index = palette_picker.index();
 
@@ -2194,7 +2200,12 @@ impl Sidebar {
                     }
                     redraw = true;
 
-                    let undo = ProjectUndoAtom::PaletteEdit(prev, project.palette.clone());
+                    let undo = ProjectUndoAtom::PaletteEdit(
+                        prev,
+                        prev_materials,
+                        project.palette.clone(),
+                        project.palette_materials.clone(),
+                    );
                     UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                 } else if id.name == "Palette Import" {
                     ctx.ui.open_file_requester(

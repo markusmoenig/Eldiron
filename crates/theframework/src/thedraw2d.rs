@@ -756,14 +756,17 @@ impl TheDraw2D {
                     let coord_x = coord_x as usize;
                     let coord_y = coord_y as usize;
                     if coord_x < clip_rect.0
-                        || coord_x > clip_rect.0 + clip_rect.2
+                        || coord_x >= clip_rect.0 + clip_rect.2
                         || coord_y < clip_rect.1
-                        || coord_y > clip_rect.1 + clip_rect.3
+                        || coord_y >= clip_rect.1 + clip_rect.3
                     {
                         continue;
                     }
 
                     let i = coord_x * 4 + coord_y * stride * 4;
+                    if i + 3 >= frame.len() {
+                        continue;
+                    }
                     let m = alphamap[x + y * metrics.width];
 
                     frame[i..i + 4].copy_from_slice(&self.mix_color(
@@ -846,8 +849,15 @@ impl TheDraw2D {
                     //     && (x + rect.0) < (rect.0 + rect.2)
                     // {
 
-                    let i = (x + rect.0 + glyph.x as usize) * 4
-                        + (y + rect.1 + glyph.y as usize) * stride * 4;
+                    let coord_x = x + rect.0 + glyph.x as usize;
+                    let coord_y = y + rect.1 + glyph.y as usize;
+                    if coord_x >= stride {
+                        continue;
+                    }
+                    let i = coord_x * 4 + coord_y * stride * 4;
+                    if i + 3 >= frame.len() {
+                        continue;
+                    }
                     let m = alphamap[x + y * metrics.width];
 
                     let background = &[frame[i], frame[i + 1], frame[i + 2], frame[i + 3]];
@@ -919,14 +929,17 @@ impl TheDraw2D {
                     let coord_x = coord_x as usize;
                     let coord_y = coord_y as usize;
                     if coord_x < clip_rect.0
-                        || coord_x > clip_rect.0 + clip_rect.2
+                        || coord_x >= clip_rect.0 + clip_rect.2
                         || coord_y < clip_rect.1
-                        || coord_y > clip_rect.1 + clip_rect.3
+                        || coord_y >= clip_rect.1 + clip_rect.3
                     {
                         continue;
                     }
 
                     let i = coord_x * 4 + coord_y * stride * 4;
+                    if i + 3 >= frame.len() {
+                        continue;
+                    }
                     let m = alphamap[x + y * metrics.width];
 
                     let background = &[frame[i], frame[i + 1], frame[i + 2], frame[i + 3]];
@@ -966,8 +979,15 @@ impl TheDraw2D {
 
             for y in 0..metrics.height {
                 for x in 0..metrics.width {
-                    let i = (x + pos.0 + glyph.x as usize) * 4
-                        + (y + pos.1 + glyph.y as usize) * stride * 4;
+                    let coord_x = x + pos.0 + glyph.x as usize;
+                    let coord_y = y + pos.1 + glyph.y as usize;
+                    if coord_x >= stride {
+                        continue;
+                    }
+                    let i = coord_x * 4 + coord_y * stride * 4;
+                    if i + 3 >= frame.len() {
+                        continue;
+                    }
                     let m = alphamap[x + y * metrics.width];
 
                     frame[i..i + 4].copy_from_slice(&self.mix_color(
@@ -1005,8 +1025,15 @@ impl TheDraw2D {
 
             for y in 0..metrics.height {
                 for x in 0..metrics.width {
-                    let i = (x + pos.0 + glyph.x as usize) * 4
-                        + (y + pos.1 + glyph.y as usize) * stride * 4;
+                    let coord_x = x + pos.0 + glyph.x as usize;
+                    let coord_y = y + pos.1 + glyph.y as usize;
+                    if coord_x >= stride {
+                        continue;
+                    }
+                    let i = coord_x * 4 + coord_y * stride * 4;
+                    if i + 3 >= frame.len() {
+                        continue;
+                    }
                     let m = alphamap[x + y * metrics.width];
 
                     let background = &[frame[i], frame[i + 1], frame[i + 2], frame[i + 3]];

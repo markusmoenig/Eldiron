@@ -1,4 +1,4 @@
-use crate::editor::{PALETTE, RUSTERIX, UNDOMANAGER};
+use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
 
 pub struct TilePickerTool {
@@ -83,6 +83,7 @@ impl TilePickerTool {
         let sampled_color = TheColor::from(sampled);
 
         let prev_palette = project.palette.clone();
+        let prev_palette_materials = project.palette_materials.clone();
 
         let mut selected_index = project
             .palette
@@ -104,7 +105,12 @@ impl TilePickerTool {
         }
 
         if project.palette != prev_palette {
-            let undo = ProjectUndoAtom::PaletteEdit(prev_palette, project.palette.clone());
+            let undo = ProjectUndoAtom::PaletteEdit(
+                prev_palette,
+                prev_palette_materials,
+                project.palette.clone(),
+                project.palette_materials.clone(),
+            );
             UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
         }
 
@@ -121,12 +127,7 @@ impl TilePickerTool {
             widget.set_value(TheValue::Text(sampled_color.to_hex()));
         }
 
-        *PALETTE.write().unwrap() = project.palette.clone();
-        {
-            let mut rusterix = RUSTERIX.write().unwrap();
-            rusterix.assets.palette = project.palette.clone();
-            rusterix.set_tiles(project.tiles.clone(), true);
-        }
+        crate::undo::project_helper::refresh_palette_runtime(project);
 
         true
     }

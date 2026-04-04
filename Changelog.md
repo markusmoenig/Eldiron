@@ -24,6 +24,7 @@
 - Added config-aware `PLAYER.FUNDS` support and a configurable `stats` text command driven from **Game / Authoring**.
 - Added tab-stop support for text widgets via `\\t` and `tab_width`, making aligned HUD/status layouts easier to build.
 - Added a persistent Authoring mode and dock for entering room, connection, entity, and item metadata as TOML, including starter templates and undo / redo support.
+- Added a new **Palette Tool** mode with its own **Palette** dock, dock-only palette board editing, `Apply Color`, minimap color picking, and per-entry material properties for roughness, metallic, opacity, and emissive.
 - Added **Game / Authoring** for global startup text, exit presentation, terminal behavior, and text-style color configuration.
 - Added embedded text-style play directly inside the Creator Game Tool, including colored transcript output, command input, inventory display, and shared text-session behavior with the terminal client.
 - Added a starter project browser for new projects, driven by a repo manifest and offering built-in 2D and 3D starter templates.
@@ -40,6 +41,7 @@
 ### Documentation
 
 - Added Builder Tool documentation for the new `.buildergraph` workflow, including a full **Wall Torch** example and host-target guidance.
+- Added Palette Tool documentation covering Palette mode, the Palette dock workflow, minimap color picking, and palette material assignment.
 - Updated the Tile Node Graph docs to cover the new particle/light authoring workflow, particle template setup, output connections, and **Flame Base**.
 - Expanded the Rules docs with progression, leveling flow, automatic kill XP, and progression message examples.
 - Updated command, event, widget, and localization docs to cover `attack()`, `gain_xp()`, `level_up`, XP/level placeholders, and text-widget tab alignment.

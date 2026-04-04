@@ -1,5 +1,6 @@
-use crate::editor::{DOCKMANAGER, RUSTERIX, SCENEMANAGER, UNDOMANAGER};
+use crate::editor::{DOCKMANAGER, RUSTERIX, SCENEMANAGER, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
+use crate::sidebar::SidebarMode;
 pub use crate::tools::rect::RectTool;
 use rusterix::Assets;
 use rusterix::D3Camera;
@@ -13,6 +14,8 @@ pub struct ToolList {
     pub render_button_text: String,
     pub authoring_mode: bool,
     pub text_game_mode: bool,
+    pub palette_mode: bool,
+    pub previous_sidebar_mode: Option<SidebarMode>,
 
     pub game_tools: Vec<Box<dyn Tool>>,
     pub curr_game_tool: usize,
@@ -32,6 +35,7 @@ impl Default for ToolList {
 impl ToolList {
     const AUTHORING_BUTTON_NAME: &'static str = "Authoring";
     const TEXT_PLAY_BUTTON_NAME: &'static str = "Text Play";
+    const PALETTE_BUTTON_NAME: &'static str = "Palette Mode";
 
     fn get_tool_map_mut<'a>(
         project: &'a mut Project,
@@ -136,6 +140,8 @@ impl ToolList {
             render_button_text: "Finished".to_string(),
             authoring_mode: false,
             text_game_mode: false,
+            palette_mode: false,
+            previous_sidebar_mode: None,
             game_tools,
             curr_game_tool: 2,
 
@@ -195,6 +201,25 @@ impl ToolList {
                 text_play.set_state(TheWidgetState::Selected);
             }
             list.add_widget(Box::new(text_play));
+
+            let mut sep = TheSeparator::new(TheId::named_with_id(
+                "Tool Separator Bottom",
+                Uuid::new_v4(),
+            ));
+            sep.limiter_mut().set_max_width(46);
+            sep.limiter_mut().set_max_height(8);
+            list.add_widget(Box::new(sep));
+
+            let mut palette = TheToolListButton::new(TheId::named(Self::PALETTE_BUTTON_NAME));
+            palette.set_icon_name("palette".to_string());
+            palette.set_status_text(&Self::status_text_with_accel(
+                fl!("tool_palette"),
+                Some('P'),
+            ));
+            if self.palette_mode {
+                palette.set_state(TheWidgetState::Selected);
+            }
+            list.add_widget(Box::new(palette));
         }
     }
 
@@ -231,6 +256,79 @@ impl ToolList {
                 .unwrap()
                 .set_dock("Builder".into(), ui, ctx, project, server_ctx);
         }
+    }
+
+    fn enforce_palette_dock(
+        &self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        if self.editor_mode || !self.palette_mode {
+            return;
+        }
+        let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
+        if current_dock == "Tiles" {
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Palette".into(), ui, ctx, project, server_ctx);
+        }
+    }
+
+    fn toggle_palette_mode(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        self.palette_mode = !self.palette_mode;
+        server_ctx.palette_tool_active = self.palette_mode;
+
+        ctx.ui.set_widget_state(
+            Self::PALETTE_BUTTON_NAME.to_string(),
+            if self.palette_mode {
+                TheWidgetState::Selected
+            } else {
+                TheWidgetState::None
+            },
+        );
+
+        let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
+        if self.palette_mode {
+            self.previous_sidebar_mode = Some(*SIDEBARMODE.read().unwrap());
+            *SIDEBARMODE.write().unwrap() = SidebarMode::Palette;
+            if current_dock == "Tiles" || current_dock == "Palette" {
+                DOCKMANAGER.write().unwrap().set_dock(
+                    "Palette".into(),
+                    ui,
+                    ctx,
+                    project,
+                    server_ctx,
+                );
+            }
+        } else if current_dock == "Palette" {
+            if let Some(mode) = self.previous_sidebar_mode.take() {
+                *SIDEBARMODE.write().unwrap() = mode;
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+        } else if let Some(mode) = self.previous_sidebar_mode.take() {
+            *SIDEBARMODE.write().unwrap() = mode;
+        }
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Action List"),
+            TheValue::Empty,
+        ));
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Minimap"),
+            TheValue::Empty,
+        ));
+        true
     }
 
     /// Switch to editor tools mode
@@ -618,6 +716,10 @@ impl ToolList {
                 }
 
                 if acc {
+                    if !self.editor_mode && c.to_ascii_lowercase() == 'p' {
+                        return self.toggle_palette_mode(ui, ctx, project, server_ctx);
+                    }
+
                     /*
                     if (*c == '-' || *c == '=' || *c == '+') && (ui.ctrl || ui.logo) {
                         // Global Zoom In / Zoom Out
@@ -731,6 +833,10 @@ impl ToolList {
                         }
                     }
                     redraw = true;
+                    return redraw;
+                }
+                if id.name == Self::PALETTE_BUTTON_NAME && *state == TheWidgetState::Clicked {
+                    redraw = self.toggle_palette_mode(ui, ctx, project, server_ctx);
                     return redraw;
                 }
                 if id.name == "Editor View Switch"
@@ -1308,6 +1414,7 @@ impl ToolList {
         }
 
         self.enforce_builder_dock(ui, ctx, project, server_ctx);
+        self.enforce_palette_dock(ui, ctx, project, server_ctx);
 
         redraw
     }

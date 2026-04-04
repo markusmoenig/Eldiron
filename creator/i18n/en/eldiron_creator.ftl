@@ -188,6 +188,7 @@ action_remap_tile_desc = Remaps the colors of the tile to the palette.
 # Tools
 tool_game = Game Tool (A). Play the game!
 tool_builder = Builder Tool (B). Select reusable prop and assembly assets from the builder picker.
+tool_palette = Palette Tool (P). Edit palette entries and apply palette colors.
 tool_dungeon = Dungeon Tool (U). Paint conceptual dungeon structures.
 tool_linedef = Linedef Tool (L). Create line definitions and sectors.
 tool_rect = Rect Tool (R). Click to draw the current tile. Shift-click to delete.
@@ -198,6 +199,8 @@ tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the
 
 builder_picker_title = Builder Picker
 builder_apply_build = Apply Build
+palette_apply_color = Apply Color
+status_palette_apply_color = Apply the current palette entry to the selected target.
 status_builder_new = Create a new builder graph asset.
 status_builder_collections = Builder collections will be added here later.
 status_builder_apply_build = Apply the selected builder graph to the selected hosts.
@@ -217,6 +220,9 @@ grid_size = Grid Size
 name = Name
 new = New
 opacity = Opacity
+roughness = Roughness
+metallic = Metallic
+emissive = Emissive
 eldrin_scripting = Eldrin Scripting
 settings = Settings
 size = Size

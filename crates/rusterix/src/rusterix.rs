@@ -467,14 +467,20 @@ impl Rusterix {
                 continue;
             };
             let tile_id = Uuid::from_u128(0x50414C455454455F0000000000000000u128 | idx as u128);
-            all_tiles.entry(tile_id).or_insert_with(|| {
+            let [roughness, metallic, opacity, emissive] = self
+                .assets
+                .palette_materials
+                .get(idx)
+                .copied()
+                .unwrap_or([0.5, 0.0, 1.0, 0.0]);
+            let tile = all_tiles.entry(tile_id).or_insert_with(|| {
                 let mut t = Tile::from_texture(Texture::from_color(col.to_u8_array()));
                 t.id = tile_id;
-                for texture in &mut t.textures {
-                    texture.set_materials_all(1.0, 0.0, 1.0, 1.0);
-                }
                 t
             });
+            for texture in &mut tile.textures {
+                texture.set_materials_all(roughness, metallic, opacity, emissive);
+            }
         }
 
         self.scene_handler.build_atlas(&all_tiles, editor);

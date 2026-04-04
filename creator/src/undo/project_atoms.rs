@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use shared::project::PaletteMaterial;
 use theframework::prelude::*;
 
 // #[allow(clippy::large_enum_variant)]
@@ -41,7 +42,12 @@ pub enum ProjectUndoAtom {
     RenameAvatarAnimation(Uuid, Uuid, String, String),
     EditAvatarAnimationFrameCount(Uuid, Uuid, usize, usize),
     EditAvatarAnimationSpeed(Uuid, Uuid, f32, f32),
-    PaletteEdit(ThePalette, ThePalette),
+    PaletteEdit(
+        ThePalette,
+        Vec<PaletteMaterial>,
+        ThePalette,
+        Vec<PaletteMaterial>,
+    ),
     TileEdit(rusterix::Tile, rusterix::Tile),
 }
 
@@ -116,7 +122,7 @@ impl ProjectUndoAtom {
             EditAvatarAnimationSpeed(_, _, old, new) => {
                 format!("Edit Animation Speed: {:.2} -> {:.2}", old, new)
             }
-            PaletteEdit(_old, _new) => format!("Palette Changed"),
+            PaletteEdit(_old, _old_mats, _new, _new_mats) => format!("Palette Changed"),
             TileEdit(_old, _new) => format!("Tile Changed"),
         }
     }
@@ -708,11 +714,14 @@ impl ProjectUndoAtom {
                 }
                 rebuild_animation_tree_node(avatar_id, anim_id, project, ui, server_ctx);
             }
-            PaletteEdit(old, _new) => {
+            PaletteEdit(old, old_materials, _new, _new_materials) => {
                 let sel = project.palette.current_index;
                 project.palette = old.clone();
                 project.palette.current_index = sel;
+                project.palette_materials = old_materials.clone();
+                project.ensure_palette_materials_len();
                 apply_palette(ui, ctx, server_ctx, project);
+                crate::undo::project_helper::refresh_palette_runtime(project);
             }
             TileEdit(old, _new) => {
                 project.tiles.insert(old.id, old.clone());
@@ -1427,11 +1436,14 @@ impl ProjectUndoAtom {
                 }
                 rebuild_animation_tree_node(avatar_id, anim_id, project, ui, server_ctx);
             }
-            PaletteEdit(_old, new) => {
+            PaletteEdit(_old, _old_materials, new, new_materials) => {
                 let sel = project.palette.current_index;
                 project.palette = new.clone();
                 project.palette.current_index = sel;
+                project.palette_materials = new_materials.clone();
+                project.ensure_palette_materials_len();
                 apply_palette(ui, ctx, server_ctx, project);
+                crate::undo::project_helper::refresh_palette_runtime(project);
             }
             TileEdit(_old, new) => {
                 project.tiles.insert(new.id, new.clone());

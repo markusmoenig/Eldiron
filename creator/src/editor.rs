@@ -708,12 +708,22 @@ impl Editor {
         {
             let mut rusterix = RUSTERIX.write().unwrap();
             rusterix.assets.palette = self.project.palette.clone();
+            rusterix.assets.palette_materials = self
+                .project
+                .palette_materials
+                .iter()
+                .map(|m| [m.roughness, m.metallic, m.opacity, m.emissive])
+                .collect();
             rusterix.set_tiles(self.project.tiles.clone(), true);
         }
-        SCENEMANAGER
-            .write()
-            .unwrap()
-            .set_palette(self.project.palette.clone());
+        SCENEMANAGER.write().unwrap().set_palette(
+            self.project.palette.clone(),
+            self.project
+                .palette_materials
+                .iter()
+                .map(|m| [m.roughness, m.metallic, m.opacity, m.emissive])
+                .collect(),
+        );
 
         UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
     }
@@ -2992,7 +3002,9 @@ impl TheTrait for Editor {
                         for p in paths {
                             let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
                             let prev = self.project.palette.clone();
+                            let prev_materials = self.project.palette_materials.clone();
                             self.project.palette.load_from_txt(contents);
+                            self.project.ensure_palette_materials_len();
                             *PALETTE.write().unwrap() = self.project.palette.clone();
                             {
                                 let mut rusterix = RUSTERIX.write().unwrap();
@@ -3017,8 +3029,12 @@ impl TheTrait for Editor {
                             }
                             redraw = true;
 
-                            let undo =
-                                ProjectUndoAtom::PaletteEdit(prev, self.project.palette.clone());
+                            let undo = ProjectUndoAtom::PaletteEdit(
+                                prev,
+                                prev_materials,
+                                self.project.palette.clone(),
+                                self.project.palette_materials.clone(),
+                            );
                             UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                         }
                     } else

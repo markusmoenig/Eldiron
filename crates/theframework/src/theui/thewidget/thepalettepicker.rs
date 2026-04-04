@@ -9,11 +9,15 @@ pub struct ThePalettePicker {
     palette: ThePalette,
     index: usize,
     dynamic_layout: bool,
+    adaptive_cell_size: bool,
+    reorder_enabled: bool,
+    drag_index: Option<usize>,
 
     rectangles: Vec<TheDim>,
 
     rows: i32,
     columns: i32,
+    last_debug_layout: Option<(i32, i32, i32, i32, i32)>,
 
     dim: TheDim,
 }
@@ -35,11 +39,15 @@ impl TheWidget for ThePalettePicker {
             palette: ThePalette::default(),
             index: 0,
             dynamic_layout: false,
+            adaptive_cell_size: false,
+            reorder_enabled: false,
+            drag_index: None,
 
             rectangles: vec![],
 
             rows: 20,
             columns: 14,
+            last_debug_layout: None,
 
             dim: TheDim::zero(),
         }
@@ -64,6 +72,7 @@ impl TheWidget for ThePalettePicker {
 
                 for (i, rect) in self.rectangles.iter().enumerate() {
                     if rect.contains(*coord) {
+                        self.drag_index = Some(i);
                         self.index = i;
                         ctx.ui.send(TheEvent::PaletteIndexChanged(
                             self.id().clone(),
@@ -71,6 +80,26 @@ impl TheWidget for ThePalettePicker {
                         ));
                         break;
                     }
+                }
+            }
+            TheEvent::MouseUp(coord) => {
+                if self.reorder_enabled
+                    && let Some(from) = self.drag_index.take()
+                {
+                    for (to, rect) in self.rectangles.iter().enumerate() {
+                        if rect.contains(*coord) {
+                            if from != to {
+                                ctx.ui.send(TheEvent::PaletteEntriesSwapped(
+                                    self.id().clone(),
+                                    from as u16,
+                                    to as u16,
+                                ));
+                            }
+                            break;
+                        }
+                    }
+                } else {
+                    self.drag_index = None;
                 }
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => match code {
@@ -147,6 +176,16 @@ impl TheWidget for ThePalettePicker {
 
         let utuple = self.dim.to_buffer_utuple();
         let stride = buffer.stride();
+        let buffer_width = buffer.dim().width as usize;
+        let buffer_height = buffer.dim().height as usize;
+
+        if utuple.0 >= buffer_width
+            || utuple.1 >= buffer_height
+            || utuple.0 + utuple.2 > buffer_width
+            || utuple.1 + utuple.3 > buffer_height
+        {
+            return;
+        }
 
         ctx.draw.rect(
             buffer.pixels_mut(),
@@ -155,8 +194,8 @@ impl TheWidget for ThePalettePicker {
             style.theme().color(ListLayoutBackground),
         );
 
-        let width = buffer.dim().width;
-        let height = buffer.dim().height;
+        let width = self.dim.width;
+        let height = self.dim.height;
 
         let mut item_width = 18;
         let item_spacing = 1;
@@ -167,10 +206,40 @@ impl TheWidget for ThePalettePicker {
             item_width = iw as usize;
             self.rows = rows;
             self.columns = columns;
-            // println!(
-            //     "width {} height {} : columns {} rows {} item_width {}",
-            //     width, height, columns, rows, item_width
-            // );
+            let debug = (width, height, columns, rows, iw);
+            if self.last_debug_layout != Some(debug) {
+                println!(
+                    "PalettePicker layout: dim=({}, {}) columns={} rows={} item_width={}",
+                    width, height, columns, rows, iw
+                );
+                self.last_debug_layout = Some(debug);
+            }
+        } else if self.adaptive_cell_size {
+            const PAD_X: i32 = 10;
+            const PAD_Y: i32 = 8;
+            const SPACING: i32 = 1;
+            const MIN_CELL: i32 = 8;
+
+            let aw = (width - PAD_X * 2).max(MIN_CELL);
+            let ah = (height - PAD_Y * 2).max(MIN_CELL);
+            let cols = self.columns.max(1);
+            let rows = if self.rows > 0 {
+                self.rows
+            } else {
+                ((self.palette.colors.len() as i32) + cols - 1) / cols
+            };
+            let cell_w = (aw - (cols - 1) * SPACING) / cols;
+            let cell_h = (ah - (rows - 1) * SPACING) / rows;
+            item_width = cell_w.min(cell_h).max(MIN_CELL) as usize;
+
+            let debug = (width, height, cols, rows, item_width as i32);
+            if self.last_debug_layout != Some(debug) {
+                println!(
+                    "PalettePicker layout: dim=({}, {}) columns={} rows={} item_width={}",
+                    width, height, cols, rows, item_width
+                );
+                self.last_debug_layout = Some(debug);
+            }
         }
 
         self.rectangles.clear();
@@ -180,39 +249,53 @@ impl TheWidget for ThePalettePicker {
         for _ in 0..self.rows {
             let mut x_off = 10;
             for _ in 0..self.columns {
-                if self.index == index {
-                    ctx.draw.rect_outline(
-                        buffer.pixels_mut(),
-                        &(utuple.0 + x_off, utuple.0 + y_off, item_width, item_width),
-                        stride,
-                        &WHITE,
-                    );
-                }
-
-                ctx.draw.rect_outline(
-                    buffer.pixels_mut(),
-                    &(
-                        utuple.0 + x_off + 1,
-                        utuple.0 + y_off + 1,
-                        item_width - 2,
-                        item_width - 2,
-                    ),
-                    stride,
-                    &BLACK,
+                let outer_rect = (utuple.0 + x_off, utuple.1 + y_off, item_width, item_width);
+                let inner_border_rect = (
+                    utuple.0 + x_off + 1,
+                    utuple.1 + y_off + 1,
+                    item_width.saturating_sub(2),
+                    item_width.saturating_sub(2),
+                );
+                let fill_rect = (
+                    utuple.0 + x_off + 2,
+                    utuple.1 + y_off + 2,
+                    item_width.saturating_sub(4),
+                    item_width.saturating_sub(4),
                 );
 
+                if self.index == index {
+                    if outer_rect.0 < buffer_width
+                        && outer_rect.1 < buffer_height
+                        && outer_rect.0 + outer_rect.2 <= buffer_width
+                        && outer_rect.1 + outer_rect.3 <= buffer_height
+                    {
+                        ctx.draw
+                            .rect_outline(buffer.pixels_mut(), &outer_rect, stride, &WHITE);
+                    }
+                }
+
+                if inner_border_rect.0 < buffer_width
+                    && inner_border_rect.1 < buffer_height
+                    && inner_border_rect.0 + inner_border_rect.2 <= buffer_width
+                    && inner_border_rect.1 + inner_border_rect.3 <= buffer_height
+                {
+                    ctx.draw
+                        .rect_outline(buffer.pixels_mut(), &inner_border_rect, stride, &BLACK);
+                }
+
                 if let Some(Some(color)) = self.palette.colors.get(index) {
-                    ctx.draw.rect(
-                        buffer.pixels_mut(),
-                        &(
-                            utuple.0 + x_off + 2,
-                            utuple.0 + y_off + 2,
-                            item_width - 4,
-                            item_width - 4,
-                        ),
-                        stride,
-                        &color.to_u8_array(),
-                    );
+                    if fill_rect.0 < buffer_width
+                        && fill_rect.1 < buffer_height
+                        && fill_rect.0 + fill_rect.2 <= buffer_width
+                        && fill_rect.1 + fill_rect.3 <= buffer_height
+                    {
+                        ctx.draw.rect(
+                            buffer.pixels_mut(),
+                            &fill_rect,
+                            stride,
+                            &color.to_u8_array(),
+                        );
+                    }
                 }
                 self.rectangles.push(TheDim::new(
                     x_off as i32,
@@ -251,6 +334,8 @@ pub trait ThePalettePickerTrait {
     fn set_color(&mut self, color: TheColor);
     fn set_rows_columns(&mut self, rows: i32, columns: i32);
     fn set_dynamic_layout(&mut self, dynamic_layout: bool);
+    fn set_adaptive_cell_size(&mut self, adaptive_cell_size: bool);
+    fn set_reorder_enabled(&mut self, reorder_enabled: bool);
     fn calc_layout(&self, available: Vec2<i32>, colour_count: usize) -> (i32, i32, i32);
 }
 
@@ -278,6 +363,14 @@ impl ThePalettePickerTrait for ThePalettePicker {
 
     fn set_dynamic_layout(&mut self, dynamic_layout: bool) {
         self.dynamic_layout = dynamic_layout;
+    }
+
+    fn set_adaptive_cell_size(&mut self, adaptive_cell_size: bool) {
+        self.adaptive_cell_size = adaptive_cell_size;
+    }
+
+    fn set_reorder_enabled(&mut self, reorder_enabled: bool) {
+        self.reorder_enabled = reorder_enabled;
     }
 
     /// Returns (columns, rows, item_width) that best fill the area.

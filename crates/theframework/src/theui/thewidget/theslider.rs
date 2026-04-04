@@ -265,6 +265,13 @@ impl TheWidget for TheSlider {
             return;
         }
 
+        // Sliders assume a left track plus a right text area. If the assigned width is
+        // narrower than the reserved text area, the old draw math underflows into huge
+        // usize rects. In that case, skip drawing instead of corrupting the frame.
+        if self.dim.width <= self.text_width + 2 {
+            return;
+        }
+
         let stride = buffer.stride();
         let mut shrinker = TheDimShrinker::zero();
 
@@ -354,7 +361,9 @@ impl TheWidget for TheSlider {
             if let Some(value) = self.value.to_f32() {
                 let normalized =
                     (value - range_f32.start()) / (range_f32.end() - range_f32.start());
-                pos = (normalized * (self.dim.width - self.text_width) as f32) as usize;
+                pos = (normalized * (self.dim.width - self.text_width) as f32)
+                    .clamp(0.0, (self.dim.width - self.text_width) as f32)
+                    as usize;
                 text = format!("{:.2}", value);
             }
         } else if let Some(range_i32) = self.range.to_range_i32() {
@@ -362,7 +371,7 @@ impl TheWidget for TheSlider {
                 let range_diff = range_i32.end() - range_i32.start();
                 let normalized =
                     (value - range_i32.start()) * (self.dim.width - self.text_width) / range_diff;
-                pos = normalized as usize;
+                pos = normalized.clamp(0, self.dim.width - self.text_width) as usize;
                 text = format!("{:.2}", value);
             }
         }

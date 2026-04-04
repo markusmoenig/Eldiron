@@ -15,6 +15,12 @@ Some tools are specifically designed for **map editing** and display a common **
 - **Builder Tool**
 - **Dungeon Tool**
 
+The tool strip also contains **mode toggles** below the main map tools:
+
+- **Authoring**
+- **Text Play**
+- **Palette Tool**
+
 ### Terminology
 
 - **Vertices**: Points that define the corners of geometry *(edited via the Vertex Tool)*.
@@ -67,6 +73,12 @@ With the [Dungeon Tool](dungeon), the lower picker area shows the **Dungeon dock
 - a structural tile palette for conceptual dungeon cells
 - a TOML settings panel for dungeon generation parameters such as floor base, height, and door settings
 
+With the [Palette Tool](palette), the lower picker area shows the **Palette** dock instead:
+
+- a palette board for selecting and reordering palette entries
+- a material inspector for roughness, metallic, opacity, and emissive
+- `Apply Color` and `Clear` actions for palette-based assignment
+
 ## 3D Detail Editing
 
 `DETAIL` replaces the older separate surface-edit workflow. Instead of switching into a dedicated editing-surface mode, you stay in the normal 3D view and click the wall, floor, or ceiling you want to edit.
@@ -86,3 +98,15 @@ The tool strip also contains an **Authoring** toggle. When enabled, contexts tha
 Authoring mode lets you enter **TOML metadata** for selected sectors, linedefs, entity instances, and item instances.
 
 For the full workflow and metadata format, see [Authoring](../authoring).
+
+## Palette Mode
+
+The **Palette Tool** is another bottom-row mode toggle. When enabled, contexts that would normally show the **Tiles** dock keep the **Palette** dock visible instead.
+
+Palette mode is used for:
+
+- editing project palette entries
+- changing palette material properties
+- applying palette-index sources to geometry and Builder material slots
+
+For the full workflow, see [Palette Tool](palette).

@@ -10,6 +10,7 @@ pub mod builder;
 pub mod dungeon;
 pub mod linedef;
 pub mod organic;
+pub mod palette;
 pub mod rect;
 // pub mod render;
 pub mod sector;

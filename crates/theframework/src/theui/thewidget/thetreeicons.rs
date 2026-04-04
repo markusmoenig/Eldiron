@@ -21,6 +21,8 @@ pub struct TheTreeIcons {
     icon_size: i32,
     icons_per_row: i32,
     spacing: i32,
+    dynamic_layout: bool,
+    last_debug_icons_per_row: Option<(i32, i32, i32)>,
 
     rectangles: Vec<TheDim>,
 
@@ -56,6 +58,8 @@ impl TheWidget for TheTreeIcons {
             icon_size: 18,
             icons_per_row: 10,
             spacing: 1,
+            dynamic_layout: false,
+            last_debug_icons_per_row: None,
 
             rectangles: vec![],
 
@@ -322,6 +326,7 @@ impl TheWidget for TheTreeIcons {
         let mut x_off = start_x;
         let mut y_off = start_y;
         let mut col = 0;
+        let icons_per_row = self.effective_icons_per_row();
 
         for (index, icon_opt) in self.icons.iter().enumerate() {
             // Buffer coordinates for drawing
@@ -421,7 +426,7 @@ impl TheWidget for TheTreeIcons {
             }
 
             col += 1;
-            if col >= self.icons_per_row {
+            if col >= icons_per_row {
                 col = 0;
                 x_off = start_x;
                 y_off += self.icon_size as usize + self.spacing as usize;
@@ -443,6 +448,26 @@ impl TheWidget for TheTreeIcons {
 }
 
 impl TheTreeIcons {
+    fn effective_icons_per_row(&mut self) -> i32 {
+        if !self.dynamic_layout {
+            return self.icons_per_row.max(1);
+        }
+
+        let start_x = 9;
+        let available = (self.dim.width - start_x * 2).max(self.icon_size);
+        let step = (self.icon_size + self.spacing).max(1);
+        let icons_per_row = ((available + self.spacing) / step).max(1);
+        let debug = (self.dim.width, available, icons_per_row);
+        if self.last_debug_icons_per_row != Some(debug) {
+            println!(
+                "TreeIcons layout ({}): dim_width={} available={} icons_per_row={}",
+                self.id.name, self.dim.width, available, icons_per_row
+            );
+            self.last_debug_icons_per_row = Some(debug);
+        }
+        icons_per_row
+    }
+
     /// Calculate and update the height based on the number of icons and layout
     fn update_height(&mut self) {
         if self.icons.is_empty() {
@@ -450,7 +475,8 @@ impl TheTreeIcons {
             return;
         }
 
-        let rows = (self.icons.len() as i32 + self.icons_per_row - 1) / self.icons_per_row;
+        let icons_per_row = self.effective_icons_per_row();
+        let rows = (self.icons.len() as i32 + icons_per_row - 1) / icons_per_row;
         // Account for padding: 5px top + 5px bottom = 10px total vertical padding
         // Also account for the drawing adjustments in draw():
         // - shrinker.shrink(1) removes 2px total height (1px top, 1px bottom)
@@ -467,6 +493,7 @@ pub trait TheTreeIconsTrait {
     fn set_icon_size(&mut self, size: i32);
     fn set_icons_per_row(&mut self, count: i32);
     fn set_spacing(&mut self, spacing: i32);
+    fn set_dynamic_layout(&mut self, dynamic_layout: bool);
     fn set_icon_count(&mut self, count: usize);
     fn set_icon(&mut self, index: usize, icon: TheRGBABuffer);
     fn set_text(&mut self, index: usize, text: String);
@@ -500,6 +527,12 @@ impl TheTreeIconsTrait for TheTreeIcons {
 
     fn set_spacing(&mut self, spacing: i32) {
         self.spacing = spacing;
+        self.update_height();
+        self.is_dirty = true;
+    }
+
+    fn set_dynamic_layout(&mut self, dynamic_layout: bool) {
+        self.dynamic_layout = dynamic_layout;
         self.update_height();
         self.is_dirty = true;
     }

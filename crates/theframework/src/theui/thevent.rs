@@ -47,6 +47,7 @@ pub enum TheEvent {
 
     // The index of the palette has changed.
     PaletteIndexChanged(TheId, u16),
+    PaletteEntriesSwapped(TheId, u16, u16),
     ColorButtonClicked(TheId),
 
     // Tile / Code Editor

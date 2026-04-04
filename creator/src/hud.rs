@@ -76,6 +76,29 @@ impl Hud {
         }
     }
 
+    fn active_palette_material_slots(
+        &self,
+        map: &Map,
+        _ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) -> Option<Vec<ActionMaterialSlot>> {
+        if !server_ctx.palette_tool_active {
+            return None;
+        }
+        match server_ctx.curr_map_tool_type {
+            MapToolType::Sector => {
+                crate::actions::builder_hud_material_slots_for_selected_sector(map)
+            }
+            MapToolType::Linedef => {
+                crate::actions::builder_hud_material_slots_for_selected_linedef(map)
+            }
+            MapToolType::Vertex => {
+                crate::actions::builder_hud_material_slots_for_selected_vertex(map)
+            }
+            _ => None,
+        }
+    }
+
     fn clean_coord(v: f32) -> f32 {
         if v.abs() < 0.0005 { 0.0 } else { v }
     }
@@ -205,7 +228,8 @@ impl Hud {
         let mut icons = 0;
         let action_item_slots = self.active_builder_item_slots(map, ctx, server_ctx);
         let action_material_slots = if action_item_slots.is_none() {
-            self.active_action_material_slots(map, ctx, server_ctx)
+            self.active_palette_material_slots(map, ctx, server_ctx)
+                .or_else(|| self.active_action_material_slots(map, ctx, server_ctx))
         } else {
             None
         };

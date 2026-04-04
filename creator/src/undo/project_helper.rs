@@ -1,4 +1,4 @@
-use crate::editor::{DOCKMANAGER, RUSTERIX, TOOLLIST};
+use crate::editor::{DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER, TOOLLIST};
 use crate::prelude::*;
 use theframework::prelude::*;
 
@@ -515,12 +515,66 @@ pub fn update_region(ctx: &mut TheContext) {
 }
 
 /// Apply the current palette to the tree.
+fn palette_material_values(project: &Project) -> Vec<[f32; 4]> {
+    project
+        .palette_materials
+        .iter()
+        .map(|m| [m.roughness, m.metallic, m.opacity, m.emissive])
+        .collect()
+}
+
+pub fn palette_status_text(
+    index: usize,
+    color: Option<&TheColor>,
+    material: Option<&shared::project::PaletteMaterial>,
+) -> String {
+    if let Some(color) = color {
+        let material = material.cloned().unwrap_or_default();
+        format!(
+            "Palette Index {}. Color {}. R: {:.2}, M: {:.2}, O: {:.2}, E: {:.2}",
+            index,
+            color.to_hex(),
+            material.roughness,
+            material.metallic,
+            material.opacity,
+            material.emissive
+        )
+    } else {
+        format!("Palette Index {}. Empty", index)
+    }
+}
+
+pub fn refresh_palette_runtime(project: &Project) {
+    *PALETTE.write().unwrap() = project.palette.clone();
+    {
+        let mut rusterix = RUSTERIX.write().unwrap();
+        rusterix.assets.palette = project.palette.clone();
+        rusterix.assets.palette_materials = palette_material_values(project);
+        rusterix.set_tiles(project.tiles.clone(), true);
+    }
+    SCENEMANAGER
+        .write()
+        .unwrap()
+        .set_palette(project.palette.clone(), palette_material_values(project));
+}
+
 pub fn apply_palette(
     ui: &mut TheUI,
-    _ctx: &mut TheContext,
+    ctx: &mut TheContext,
     server_ctx: &mut ServerContext,
     project: &mut Project,
 ) {
+    project.ensure_palette_materials_len();
+    for (index, color) in project.palette.colors.iter_mut().enumerate() {
+        if color.as_ref().is_some_and(|c| c.a <= f32::EPSILON) {
+            *color = None;
+            if let Some(material) = project.palette_materials.get_mut(index) {
+                *material = shared::project::PaletteMaterial::default();
+            }
+        }
+    }
+    *PALETTE.write().unwrap() = project.palette.clone();
+
     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
         if let Some(palette_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_palette_id) {
             palette_node.widgets.clear();
@@ -530,11 +584,94 @@ pub fn apply_palette(
             item.set_icon_count(256);
             item.set_icons_per_row(17);
             item.set_palette(&project.palette);
+            for index in 0..project.palette.colors.len() {
+                item.set_status_text_for(
+                    index,
+                    palette_status_text(
+                        index,
+                        project.palette.colors[index].as_ref(),
+                        project.palette_materials.get(index),
+                    ),
+                );
+            }
             item.set_selected_index(Some(project.palette.current_index as usize));
 
             palette_node.add_widget(Box::new(item));
         }
     }
+    if let Some(widget) = ui.get_widget("Palette Item") {
+        widget.set_needs_redraw(true);
+    }
+    ctx.ui.relayout = true;
+
+    if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
+        palette_picker.set_palette(project.palette.clone());
+        palette_picker.set_index(project.palette.current_index as usize);
+    }
+    if let Some(widget) = ui.get_widget("Palette Dock Picker")
+        && let Some(board) = widget
+            .as_any()
+            .downcast_mut::<crate::docks::palette::PaletteDockBoard>()
+    {
+        board.set_palette(project.palette.clone());
+        board.set_materials(project.palette_materials.clone());
+        board.set_index(project.palette.current_index as usize);
+    }
+
+    let index = project.palette.current_index as usize;
+    let hex = project.palette[index]
+        .as_ref()
+        .map(TheColor::to_hex)
+        .unwrap_or_default();
+
+    if let Some(widget) = ui.get_widget("Palette Hex Edit") {
+        widget.set_value(TheValue::Text(hex.clone()));
+    }
+    if let Some(widget) = ui.get_widget("Palette Dock Hex Edit") {
+        widget.set_value(TheValue::Text(hex));
+    }
+
+    if let Some(color) = project.palette[index].clone()
+        && let Some(widget) = ui.get_widget("Palette Color Picker")
+    {
+        widget.set_value(TheValue::ColorObject(color));
+    }
+
+    if let Some(widget) = ui.get_widget("Palette Index Text") {
+        widget.set_value(TheValue::Text(format!(
+            "{:03}",
+            project.palette.current_index
+        )));
+    }
+    if let Some(widget) = ui.get_widget("Palette Dock Index") {
+        widget.set_value(TheValue::Text(format!(
+            "Palette {}",
+            project.palette.current_index
+        )));
+    }
+
+    let material = project
+        .palette_materials
+        .get(index)
+        .cloned()
+        .unwrap_or_default();
+    if let Some(widget) = ui.get_widget("Palette Dock Roughness") {
+        widget.set_value(TheValue::Float(material.roughness));
+    }
+    if let Some(widget) = ui.get_widget("Palette Dock Metallic") {
+        widget.set_value(TheValue::Float(material.metallic));
+    }
+    if let Some(widget) = ui.get_widget("Palette Dock Opacity") {
+        widget.set_value(TheValue::Float(material.opacity));
+    }
+    if let Some(widget) = ui.get_widget("Palette Dock Emissive") {
+        widget.set_value(TheValue::Float(material.emissive));
+    }
+
+    ctx.ui.send(TheEvent::Custom(
+        TheId::named("Update Minimap"),
+        TheValue::Empty,
+    ));
 }
 
 /// Set the project context and the current docker.

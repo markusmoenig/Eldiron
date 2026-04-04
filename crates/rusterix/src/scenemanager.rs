@@ -8,7 +8,7 @@ use theframework::prelude::*;
 #[allow(clippy::large_enum_variant)]
 pub enum SceneManagerCmd {
     SetTileList(Vec<Tile>, FxHashMap<Uuid, u16>),
-    SetPalette(ThePalette),
+    SetPalette(ThePalette, Vec<[f32; 4]>),
     SetMap(Map),
     UpdateMap(Map),
     SetBuilder2D(Option<Box<dyn ChunkBuilder>>),
@@ -76,6 +76,15 @@ impl SceneManager {
         let tile = Tile::from_texture(Texture::from_color(col.to_u8_array()));
         let mut tile = tile;
         tile.id = tile_id;
+        let [roughness, metallic, opacity, emissive] = self
+            .assets
+            .palette_materials
+            .get(index as usize)
+            .copied()
+            .unwrap_or([0.5, 0.0, 1.0, 0.0]);
+        for texture in &mut tile.textures {
+            texture.set_materials_all(roughness, metallic, opacity, emissive);
+        }
 
         self.assets.tiles.insert(tile_id, tile.clone());
         if let Some(&ti) = self.assets.tile_indices.get(&tile_id) {
@@ -167,8 +176,9 @@ impl SceneManager {
                 self.dirty = Self::generate_chunk_coords(&self.map.bbox(), self.chunk_size);
                 self.all = self.dirty.clone();
             }
-            SceneManagerCmd::SetPalette(palette) => {
+            SceneManagerCmd::SetPalette(palette, palette_materials) => {
                 self.assets.palette = palette;
+                self.assets.palette_materials = palette_materials;
                 self.ensure_palette_tiles_for_map();
                 self.dirty = Self::generate_chunk_coords(&self.map.bbox(), self.chunk_size);
                 self.all = self.dirty.clone();
@@ -271,8 +281,8 @@ impl SceneManager {
         self.send(SceneManagerCmd::SetTileList(tiles, tile_indices));
     }
 
-    pub fn set_palette(&mut self, palette: ThePalette) {
-        self.send(SceneManagerCmd::SetPalette(palette));
+    pub fn set_palette(&mut self, palette: ThePalette, palette_materials: Vec<[f32; 4]>) {
+        self.send(SceneManagerCmd::SetPalette(palette, palette_materials));
     }
 
     pub fn set_builder_2d(&mut self, builder: Option<Box<dyn ChunkBuilder>>) {

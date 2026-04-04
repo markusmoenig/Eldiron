@@ -46,6 +46,24 @@ pub enum PixelSource {
 use PixelSource::*;
 
 impl PixelSource {
+    fn palette_tile_uuid(index: u16) -> Uuid {
+        Uuid::from_u128(0x50414C455454455F0000000000000000u128 | index as u128)
+    }
+
+    fn synthetic_palette_tile(assets: &Assets, index: u16) -> Option<Tile> {
+        let col = assets.palette.colors.get(index as usize)?.as_ref()?;
+        let mut tile = Tile::from_texture(Texture::from_color(col.to_u8_array()));
+        tile.id = Self::palette_tile_uuid(index);
+        if let Some([roughness, metallic, opacity, emissive]) =
+            assets.palette_materials.get(index as usize).copied()
+        {
+            for texture in &mut tile.textures {
+                texture.set_materials_all(roughness, metallic, opacity, emissive);
+            }
+        }
+        Some(tile)
+    }
+
     /// Generate a tile from the given PixelValue
     pub fn to_tile(
         &self,
@@ -58,15 +76,12 @@ impl PixelSource {
             TileId(id) => assets.tiles.get(id).cloned(),
             TileGroup(_) | TileGroupMember { .. } | ProceduralTile(_) => None,
             PaletteIndex(index) => {
-                if let Some(Some(col)) = assets.palette.colors.get(*index as usize) {
-                    let mut tile = Tile::from_texture(Texture::from_color(col.to_u8_array()));
-                    // Stable synthetic UUID namespace for palette indices
-                    tile.id =
-                        Uuid::from_u128(0x50414C455454455F0000000000000000u128 | *index as u128);
-                    Some(tile)
-                } else {
-                    None
-                }
+                let tile_id = Self::palette_tile_uuid(*index);
+                assets
+                    .tiles
+                    .get(&tile_id)
+                    .cloned()
+                    .or_else(|| Self::synthetic_palette_tile(assets, *index))
             }
             MaterialId(id) => assets.materials.get(id).cloned(),
             Color(color) => {
@@ -150,13 +165,15 @@ impl PixelSource {
             }
             TileGroup(_) | TileGroupMember { .. } | ProceduralTile(_) => None,
             PaletteIndex(index) => {
-                if let Some(Some(col)) = assets.palette.colors.get(*index as usize) {
-                    let mut tile = Tile::from_texture(Texture::from_color(col.to_u8_array()));
-                    tile.id =
-                        Uuid::from_u128(0x50414C455454455F0000000000000000u128 | *index as u128);
-                    Some(tile)
+                let tile_id = Self::palette_tile_uuid(*index);
+                if let Some(index) = assets.tile_indices.get(&tile_id) {
+                    assets.tile_list.get(*index as usize).cloned()
                 } else {
-                    None
+                    assets
+                        .tiles
+                        .get(&tile_id)
+                        .cloned()
+                        .or_else(|| Self::synthetic_palette_tile(assets, *index))
                 }
             }
             _ => None,

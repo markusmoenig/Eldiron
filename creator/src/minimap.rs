@@ -104,6 +104,10 @@ pub fn draw_minimap_context_label(
     ctx: &mut TheContext,
     server_ctx: &ServerContext,
 ) {
+    if *SIDEBARMODE.read().unwrap() == SidebarMode::Palette {
+        return;
+    }
+
     let label = if server_ctx.get_map_context() == MapContext::Region {
         "Region"
     } else if server_ctx.get_map_context() == MapContext::Screen {
