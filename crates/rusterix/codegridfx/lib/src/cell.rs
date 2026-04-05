@@ -613,7 +613,7 @@ impl Cell {
             SetAudioBusVolume => "Set volume for an audio bus.".into(),
             SetEmitLight => "Set the light emission state of the current entity or item.".into(),
             SetPlayerCamera => {
-                "Sets the player input mapping: '2d', '2d_grid', 'iso', 'firstp' or 'firstp_grid'.".into()
+                "Sets the player input mapping: '2d', '2d_grid', 'iso', 'iso_grid', 'firstp' or 'firstp_grid'.".into()
             }
             SetProximityTracking => {
                 "Enable / disable tracking of entities for the current entity or item.".into()

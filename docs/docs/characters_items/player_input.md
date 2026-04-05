@@ -101,6 +101,7 @@ The current player input mode can be:
 - `2d`: freeform cardinal movement
 - `2d_grid`: smooth grid-based cardinal movement, one tile / world unit per action
 - `iso`: same movement semantics as `2d`, usually paired with an isometric render camera
+- `iso_grid`: alias of `2d_grid`, usually paired with an isometric render camera
 - `firstp`: freeform first-person movement and turning
 - `firstp_grid`: smooth grid-based first-person movement, one tile / world unit per step and 90-degree turns
 

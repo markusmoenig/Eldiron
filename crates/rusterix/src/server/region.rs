@@ -4776,6 +4776,7 @@ fn set_player_camera(camera: String, vm: &VirtualMachine) {
         let player_camera = match camera.as_str() {
             "2d_grid" => PlayerCamera::D2Grid,
             "iso" => PlayerCamera::D3Iso,
+            "iso_grid" => PlayerCamera::D2Grid,
             "firstp" => PlayerCamera::D3FirstP,
             "firstp_grid" => PlayerCamera::D3FirstPGrid,
             _ => PlayerCamera::D2,

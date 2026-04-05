@@ -240,7 +240,7 @@ Player characters must be registered using the `player = true` in the characters
 :::
 
 :::tip
-These movement commands are interpreted by the current player input mode. Typical modes are `2d`, `2d_grid`, `iso`, `firstp`, and `firstp_grid`.
+These movement commands are interpreted by the current player input mode. Typical modes are `2d`, `2d_grid`, `iso`, `iso_grid`, `firstp`, and `firstp_grid`.
 :::
 
 ### Available Actions

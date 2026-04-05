@@ -877,6 +877,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                         let player_camera = match camera {
                             "2d_grid" => PlayerCamera::D2Grid,
                             "iso" => PlayerCamera::D3Iso,
+                            "iso_grid" => PlayerCamera::D2Grid,
                             "firstp" => PlayerCamera::D3FirstP,
                             "firstp_grid" => PlayerCamera::D3FirstPGrid,
                             _ => PlayerCamera::D2,

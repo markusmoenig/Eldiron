@@ -81,6 +81,7 @@ How these actions are interpreted depends on the current runtime player input mo
 - `2d`
 - `2d_grid`
 - `iso`
+- `iso_grid`
 - `firstp`
 - `firstp_grid`
 

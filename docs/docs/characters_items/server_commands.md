@@ -520,13 +520,14 @@ Current valid values are:
 * `2d` — **forward**, **backward**, **left**, **right** move the character directly in the given world directions. This is the default.
 * `2d_grid` — Like `2d`, but each movement action advances exactly one tile / world unit with smooth interpolation. Holding a direction repeats tile-by-tile.
 * `iso` — Same movement behavior as `2d`, typically used with an isometric view.
+* `iso_grid` — Alias of `2d_grid`, typically used with an isometric view.
 * `firstp` — **forward** moves the player in the direction they are facing, **backward** moves opposite. **left** and **right** rotate instead of strafing. Optional `strafe_left` and `strafe_right` provide sidestepping.
 * `firstp_grid` — Like `firstp`, but **forward** and **backward** move exactly one tile / world unit per action with smooth interpolation, while **left** and **right** rotate the facing by 90 degrees. Optional `strafe_left` and `strafe_right` sidestep by one tile without changing facing.
 
 Typical combinations are:
 
 * render camera `2d` with input mode `2d` or `2d_grid`
-* render camera `iso` with input mode `iso`
+* render camera `iso` with input mode `iso` or `iso_grid`
 * render camera `firstp` with input mode `firstp` or `firstp_grid`
 
 The render camera and the input mode are separate systems. For example, `firstp_grid` reuses the normal first-person visual camera but changes input behavior to grid stepping.

@@ -256,6 +256,7 @@ impl Client {
             "2d" => Some(PlayerCamera::D2),
             "2d_grid" => Some(PlayerCamera::D2Grid),
             "iso" => Some(PlayerCamera::D3Iso),
+            "iso_grid" => Some(PlayerCamera::D2Grid),
             "firstp" => Some(PlayerCamera::D3FirstP),
             "firstp_grid" => Some(PlayerCamera::D3FirstPGrid),
             _ => None,
