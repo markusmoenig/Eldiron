@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::{Edges, Material, Rect, RepeatMode};
+use crate::{Edges, Rect, RepeatMode};
 use vek::{Mat3, Vec2, Vec3};
 
 use PrimitiveMode::*;
@@ -45,9 +45,6 @@ pub struct Batch2D {
     /// Indicates whether the batch receives lighting. True by default. Turn off for skybox etc.
     pub receives_light: bool,
 
-    /// The material for the batch.
-    pub material: Option<Material>,
-
     /// Shader
     pub shader: Option<usize>,
 }
@@ -75,7 +72,6 @@ impl Batch2D {
             clipped_uvs: vec![],
             transform: Mat3::identity(),
             receives_light: true,
-            material: None,
             shader: None,
         }
     }
@@ -100,7 +96,6 @@ impl Batch2D {
             clipped_uvs: vec![],
             transform: Mat3::identity(),
             receives_light: true,
-            material: None,
             shader: None,
         }
     }

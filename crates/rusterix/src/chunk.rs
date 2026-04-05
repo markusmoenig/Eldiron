@@ -1,5 +1,5 @@
 use crate::collision_world::ChunkCollision;
-use crate::{Assets, BBox, Batch2D, Batch3D, BillboardAnimation, CompiledLight, Pixel, Texture};
+use crate::{Assets, BBox, Batch2D, Batch3D, BillboardAnimation, CompiledLight, Texture};
 use rusteria::{Program, RenderBuffer, Rusteria};
 use scenevm::GeoId;
 use std::sync::{Arc, Mutex};
@@ -29,12 +29,6 @@ pub struct Chunk {
     pub batches2d: Vec<Batch2D>,
     pub batches3d_opacity: Vec<Batch3D>,
     pub batches3d: Vec<Batch3D>,
-
-    // Terrain
-    pub terrain_batch2d: Option<Batch2D>,
-    pub terrain_batch3d: Option<Batch3D>,
-    pub terrain_texture: Option<Texture>,
-    pub terrain_scale: Vec2<f32>,
 
     // Lights
     pub lights: Vec<CompiledLight>,
@@ -68,10 +62,6 @@ impl Chunk {
             batches2d: vec![],
             batches3d_opacity: vec![],
             batches3d: vec![],
-            terrain_batch2d: None,
-            terrain_batch3d: None,
-            terrain_texture: None,
-            terrain_scale: Vec2::one(),
             lights: vec![],
             occluded_sectors: vec![],
             collision: ChunkCollision::new(),
@@ -131,25 +121,6 @@ impl Chunk {
         self.shader_textures.push(texture);
 
         Some(index)
-    }
-
-    /// Sample the baked terrain texture at the given world position
-    pub fn sample_terrain_texture(&self, world_pos: Vec2<f32>) -> Pixel {
-        let local_x = (world_pos.x / self.terrain_scale.x) - self.origin.x as f32;
-        let local_y = (world_pos.y / self.terrain_scale.y) - self.origin.y as f32;
-
-        if let Some(texture) = &self.terrain_texture {
-            let pixels_per_tile = texture.width as i32 / self.size;
-
-            let pixel_x = local_x * pixels_per_tile as f32;
-            let pixel_y = local_y * pixels_per_tile as f32;
-
-            let px = pixel_x.floor().clamp(0.0, texture.width as f32 - 1.0) as u32;
-            let py = pixel_y.floor().clamp(0.0, texture.height as f32 - 1.0) as u32;
-
-            return texture.get_pixel(px, py);
-        }
-        [0, 0, 0, 0]
     }
 
     /// Returns the sector occlusion at the given position.

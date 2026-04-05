@@ -1,6 +1,6 @@
 use crate::{
-    Assets, BBox, Batch3D, Chunk, ChunkBuilder, D2ChunkBuilder, D3ChunkBuilder, Map, PixelSource,
-    TerrainChunk, Texture, Tile, Value, ValueContainer,
+    Assets, BBox, Chunk, ChunkBuilder, D2ChunkBuilder, D3ChunkBuilder, Map, PixelSource, Texture,
+    Tile, Value, ValueContainer,
 };
 use scenevm::Chunk as VMChunk;
 use theframework::prelude::*;
@@ -15,8 +15,6 @@ pub enum SceneManagerCmd {
     SetFocusChunk(Option<(i32, i32)>),
     ReplaceDirty(Vec<(i32, i32)>),
     AddDirty(Vec<(i32, i32)>),
-    SetDirtyTerrainChunks(Vec<TerrainChunk>),
-    SetTerrainModifierState(bool),
     Quit,
 }
 
@@ -26,8 +24,6 @@ pub enum SceneManagerResult {
     Startup,
     Clear,
     Chunk(VMChunk, i32, i32, Vec<crate::BillboardMetadata>),
-    ProcessedHeights(Vec2<i32>, FxHashMap<(i32, i32), f32>),
-    UpdatedBatch3D((i32, i32), Batch3D),
     Quit,
 }
 
@@ -36,12 +32,10 @@ pub struct SceneManager {
     // Internal state (no channels needed)
     assets: Assets,
     map: Map,
-    terrain_modifiers: bool,
     chunk_size: i32,
 
     dirty: FxHashSet<(i32, i32)>,
     all: FxHashSet<(i32, i32)>,
-    terrain_modifiers_update: FxHashSet<(i32, i32)>,
     total_chunks: i32,
     focus_chunk: Option<(i32, i32)>,
 
@@ -51,10 +45,6 @@ pub struct SceneManager {
 
     // Results queue
     results: Vec<SceneManagerResult>,
-
-    // Processing state
-    processing_final_update: bool,
-    final_update_iter: std::vec::IntoIter<(i32, i32)>,
 }
 
 impl Default for SceneManager {
@@ -138,12 +128,10 @@ impl SceneManager {
         Self {
             assets: Assets::default(),
             map: Map::default(),
-            terrain_modifiers: true,
             chunk_size: 32,
 
             dirty: FxHashSet::default(),
             all: FxHashSet::default(),
-            terrain_modifiers_update: FxHashSet::default(),
             total_chunks: 0,
             focus_chunk: None,
 
@@ -152,9 +140,6 @@ impl SceneManager {
             apply_preview_filters: false,
 
             results: Vec::new(),
-
-            processing_final_update: false,
-            final_update_iter: Vec::new().into_iter(),
         }
     }
 
@@ -220,11 +205,7 @@ impl SceneManager {
                     .count();
                 self.map = new_map;
                 self.ensure_palette_tiles_for_map();
-                self.chunk_size = self.map.terrain.chunk_size.max(1);
-                let mut bbox = self.map.bbox();
-                if let Some(tbbox) = self.map.terrain.compute_bounds() {
-                    bbox.expand_bbox(tbbox);
-                }
+                let bbox = self.map.bbox();
                 println!(
                     "SceneManagerCmd::SetMap(Min: {}, Max: {}, BuilderSectors: {})",
                     bbox.min, bbox.max, builder_sector_count
@@ -240,36 +221,12 @@ impl SceneManager {
                 // Keep current dirty set; caller controls incremental invalidation via AddDirty.
                 self.map = new_map;
                 self.ensure_palette_tiles_for_map();
-                self.chunk_size = self.map.terrain.chunk_size.max(1);
             }
             SceneManagerCmd::AddDirty(dirty_chunks) => {
                 for d in dirty_chunks {
                     self.dirty.insert(d);
                     self.all.insert(d);
                 }
-            }
-            SceneManagerCmd::SetDirtyTerrainChunks(dirty_chunks) => {
-                for chunk in dirty_chunks {
-                    let coord = (chunk.origin.x, chunk.origin.y);
-                    let local = self.map.terrain.get_chunk_coords(coord.0, coord.1);
-                    self.map.terrain.chunks.insert(local, chunk);
-                    self.dirty.insert(coord);
-                    self.all.insert(coord);
-                    if !self.terrain_modifiers {
-                        self.terrain_modifiers_update.insert(coord);
-                    }
-                }
-            }
-            SceneManagerCmd::SetTerrainModifierState(state) => {
-                if state && !self.terrain_modifiers {
-                    // Update all the chunks we created w/o modifiers
-                    for d in &self.terrain_modifiers_update {
-                        self.dirty.insert(*d);
-                        self.all.insert(*d);
-                    }
-                }
-                self.terrain_modifiers = state;
-                self.terrain_modifiers_update.clear();
             }
             SceneManagerCmd::Quit => {
                 self.results.push(SceneManagerResult::Quit);
@@ -316,14 +273,6 @@ impl SceneManager {
         self.send(SceneManagerCmd::ReplaceDirty(dirty));
     }
 
-    pub fn set_dirty_terrain_chunks(&mut self, dirty: Vec<TerrainChunk>) {
-        self.send(SceneManagerCmd::SetDirtyTerrainChunks(dirty));
-    }
-
-    pub fn set_terrain_modifier_state(&mut self, state: bool) {
-        self.send(SceneManagerCmd::SetTerrainModifierState(state));
-    }
-
     pub fn startup(&mut self) {
         self.results.push(SceneManagerResult::Startup);
     }
@@ -331,27 +280,6 @@ impl SceneManager {
     /// Process one chunk per call. Call this from your main loop/update function.
     /// Returns true if there's more work to do, false if idle.
     pub fn tick(&mut self) -> bool {
-        // If we're doing final terrain mesh updates
-        if self.processing_final_update {
-            if let Some(coord) = self.final_update_iter.next() {
-                let local = self.map.terrain.get_chunk_coords(coord.0, coord.1);
-                if self.map.terrain.chunks.contains_key(&local) {
-                    if let Some(ch) = self.map.terrain.chunks.get(&local).cloned() {
-                        let batch = ch.build_mesh(&self.map.terrain);
-                        if !batch.vertices.is_empty() {
-                            self.results
-                                .push(SceneManagerResult::UpdatedBatch3D(coord, batch));
-                        }
-                    }
-                }
-                return true; // More final updates to process
-            } else {
-                // Done with final updates
-                self.processing_final_update = false;
-                return false;
-            }
-        }
-
         // Process one dirty chunk
         let next_coord = if let Some(focus) = self.focus_chunk {
             self.dirty
@@ -388,14 +316,6 @@ impl SceneManager {
                 self.total_chunks,
                 billboards,
             ));
-
-            // Check if we just finished all dirty chunks
-            if self.dirty.is_empty() {
-                // Start final terrain mesh update phase
-                let all_coords: Vec<(i32, i32)> = self.all.iter().copied().collect();
-                self.final_update_iter = all_coords.into_iter();
-                self.processing_final_update = true;
-            }
 
             true // More work to do
         } else {
@@ -434,7 +354,7 @@ impl SceneManager {
 
     /// Check if the manager is currently processing chunks
     pub fn is_busy(&self) -> bool {
-        !self.dirty.is_empty() || self.processing_final_update
+        !self.dirty.is_empty()
     }
 
     /// Get the number of chunks remaining to process

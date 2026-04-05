@@ -83,9 +83,6 @@ impl D3Builder {
             }
 
             if add_it {
-                let material: Option<Material> =
-                    super::get_material_from_geo_graph(&sector.properties, 2, map);
-
                 if let Some((vertices, indices)) = sector.generate_geometry(map) {
                     let sector_elevation = sector.properties.get_float_default("floor_height", 0.0);
 
@@ -115,18 +112,7 @@ impl D3Builder {
 
                                 let floor_uvs = vertices.iter().map(|&v| [v[0], v[1]]).collect();
 
-                                if material.is_some() {
-                                    let texture_index = textures.len();
-                                    let mut batch = Batch::emptyd3()
-                                        .repeat_mode(crate::RepeatMode::RepeatXY)
-                                        .texture_index(texture_index);
-                                    batch.material = material;
-                                    batch.add(floor_vertices, indices.clone(), floor_uvs);
-
-                                    textures.push(tile.clone());
-                                    repeated_offsets.insert(tile.id, repeated_batches.len());
-                                    repeated_batches.push(batch);
-                                } else if let Some(offset) = repeated_offsets.get(&tile.id) {
+                                if let Some(offset) = repeated_offsets.get(&tile.id) {
                                     repeated_batches[*offset].add(
                                         floor_vertices,
                                         indices.clone(),
@@ -160,9 +146,6 @@ impl D3Builder {
                     }
 
                     if create_ceiling || add_it_as_box {
-                        let material: Option<Material> =
-                            super::get_material_from_geo_graph(&sector.properties, 3, map);
-
                         let source = if add_it_as_box {
                             sector.properties.get("floor_source")
                         } else {
@@ -194,18 +177,7 @@ impl D3Builder {
                                 // let ceiling_indices =
                                 //     indices.iter().map(|&v| (v.2, v.1, v.0)).collect();
 
-                                if material.is_some() {
-                                    let texture_index = textures.len();
-                                    let mut batch = Batch::emptyd3()
-                                        .repeat_mode(crate::RepeatMode::RepeatXY)
-                                        .texture_index(texture_index);
-                                    batch.material = material;
-                                    batch.add(ceiling_vertices, indices.clone(), ceiling_uvs);
-
-                                    textures.push(tile.clone());
-                                    repeated_offsets.insert(tile.id, repeated_batches.len());
-                                    repeated_batches.push(batch);
-                                } else if let Some(offset) = repeated_offsets.get(&tile.id) {
+                                if let Some(offset) = repeated_offsets.get(&tile.id) {
                                     repeated_batches[*offset].add(
                                         ceiling_vertices,
                                         indices,

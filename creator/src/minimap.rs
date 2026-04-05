@@ -34,19 +34,6 @@ fn minimap_context_key(server_ctx: &ServerContext) -> u64 {
 
 pub fn minimap_bbox_for_map(map: &Map) -> Option<Vec4<f32>> {
     let mut bbox = map.bounding_box()?;
-    if let Some(tbbox) = map.terrain.compute_bounds() {
-        let bbox_min = Vec2::new(bbox.x, bbox.y);
-        let bbox_max = bbox_min + Vec2::new(bbox.z, bbox.w);
-
-        let new_min = bbox_min.map2(tbbox.min, f32::min);
-        let new_max = bbox_max.map2(tbbox.max, f32::max);
-
-        bbox.x = new_min.x;
-        bbox.y = new_min.y;
-        bbox.z = new_max.x - new_min.x;
-        bbox.w = new_max.y - new_min.y;
-    }
-
     bbox.x -= 0.5;
     bbox.y -= 0.5;
     bbox.z += 1.0;

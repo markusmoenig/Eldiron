@@ -2406,7 +2406,7 @@ impl SceneHandler {
                 hasher.write_u32(c.b.to_bits());
                 hasher.write_u32(c.a.to_bits());
             }
-            PixelSource::ShapeFXGraphId(id) => {
+            PixelSource::LegacyShapeFXGraphId(id) => {
                 hasher.write_u8(7);
                 hasher.write(id.as_bytes());
             }
@@ -2425,7 +2425,6 @@ impl SceneHandler {
                 hasher.write_u8(px[2]);
                 hasher.write_u8(px[3]);
             }
-            PixelSource::Terrain => hasher.write_u8(11),
         }
     }
 

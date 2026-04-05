@@ -16,8 +16,8 @@ pub mod tilesource;
 pub mod vertex;
 
 use crate::{
-    BBox, Keyform, MapMini, OrganicBrushGraph, PixelSource, ShapeFXGraph, SoftRig, SoftRigAnimator,
-    Surface, Terrain, Value, ValueContainer,
+    BBox, Keyform, MapMini, OrganicBrushGraph, PixelSource, SoftRig, SoftRigAnimator, Surface,
+    Value, ValueContainer,
 };
 use codegridfx::Module;
 use indexmap::IndexMap;
@@ -66,9 +66,6 @@ pub struct Map {
     pub subdivisions: f32,
 
     #[serde(default)]
-    pub terrain: Terrain,
-
-    #[serde(default)]
     pub dungeon: dungeon::DungeonMap,
 
     // When adding linedefs we keep track of them to check if we have a closed polygon
@@ -89,8 +86,6 @@ pub struct Map {
     pub linedefs: Vec<Linedef>,
     pub sectors: Vec<Sector>,
 
-    #[serde(default)]
-    pub shapefx_graphs: IndexMap<Uuid, ShapeFXGraph>,
     #[serde(default)]
     pub organic_brush_graphs: IndexMap<Uuid, OrganicBrushGraph>,
 
@@ -169,7 +164,6 @@ impl Map {
             grid_size: 30.0,
             subdivisions: 1.0,
 
-            terrain: Terrain::default(),
             dungeon: dungeon::DungeonMap::default(),
 
             possible_polygon: vec![],
@@ -182,7 +176,6 @@ impl Map {
             linedefs: vec![],
             sectors: vec![],
 
-            shapefx_graphs: IndexMap::default(),
             organic_brush_graphs: IndexMap::default(),
             sky_texture: None,
 
@@ -1813,7 +1806,6 @@ impl Map {
             grid_size: self.grid_size,
             subdivisions: self.subdivisions,
 
-            terrain: Terrain::default(),
             dungeon: dungeon::DungeonMap::default(),
 
             possible_polygon: vec![],
@@ -1826,7 +1818,6 @@ impl Map {
             linedefs: self.linedefs.clone(),
             sectors: self.sectors.clone(),
 
-            shapefx_graphs: self.shapefx_graphs.clone(),
             organic_brush_graphs: self.organic_brush_graphs.clone(),
             sky_texture: None,
 

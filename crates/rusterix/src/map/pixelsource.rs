@@ -1,4 +1,4 @@
-use crate::{Assets, BLACK, Map, Pixel, Texture, Tile, ValueContainer};
+use crate::{Assets, Map, Pixel, Texture, Tile, ValueContainer};
 use theframework::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,11 +36,11 @@ pub enum PixelSource {
     EntityTile(u32, u32),
     ItemTile(u32, u32),
     Color(TheColor),
-    ShapeFXGraphId(Uuid),
+    #[serde(rename = "ShapeFXGraphId")]
+    LegacyShapeFXGraphId(Uuid),
     StaticTileIndex(u16),
     DynamicTileIndex(u16),
     Pixel(Pixel),
-    Terrain,
 }
 
 use PixelSource::*;
@@ -70,7 +70,7 @@ impl PixelSource {
         assets: &Assets,
         size: usize,
         values: &ValueContainer,
-        map: &Map,
+        _map: &Map,
     ) -> Option<Tile> {
         match self {
             TileId(id) => assets.tiles.get(id).cloned(),
@@ -134,19 +134,6 @@ impl PixelSource {
                     }
                 }
                 tile.append(Texture::new(buffer, size, size));
-                Some(tile)
-            }
-            ShapeFXGraphId(id) => {
-                let mut tile = Tile::empty();
-                // let mut texture = Texture::alloc(size, size);
-
-                let texture = if let Some(graph) = map.shapefx_graphs.get(id) {
-                    //graph.preview(&mut texture, &assets.palette);
-                    Texture::from_color(graph.get_dominant_color(&assets.palette))
-                } else {
-                    Texture::from_color(BLACK)
-                };
-                tile.append(texture);
                 Some(tile)
             }
             _ => None,

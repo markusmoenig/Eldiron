@@ -1,15 +1,11 @@
 use crate::{
-    Assets, Batch2D, Chunk, Map, MapToolType, PixelSource, Rect, Scene, SceneHandler, Surface,
-    Tile, Value, ValueContainer,
-    chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
-    chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator},
+    Assets, Batch2D, Map, MapToolType, PixelSource, Rect, Scene, SceneHandler, Surface, Tile,
+    Value, ValueContainer,
 };
 use MapToolType::*;
 use scenevm::{Atom, DynamicObject, GeoId, Light};
-use std::str::FromStr;
 use theframework::prelude::*;
 use toml::*;
-use uuid::Uuid;
 use vek::Vec2;
 
 pub struct D2PreviewBuilder {
@@ -252,90 +248,6 @@ impl D2PreviewBuilder {
                 }
             }
         }
-
-        // Procedural terrain preview in 2D (same source map properties used by 3D terrain generation).
-        if map.properties.get_bool_default("terrain_enabled", false)
-            && !map.vertices.is_empty()
-            && let Ok(fallback_tile_id) = Uuid::from_str(DEFAULT_TILE_ID)
-        {
-            let default_tile_id = if let Some(Value::Source(pixel_source)) =
-                map.properties.get("default_terrain_tile")
-            {
-                pixel_source
-                    .tile_from_tile_list(assets)
-                    .map(|tile| tile.id)
-                    .unwrap_or(fallback_tile_id)
-            } else {
-                fallback_tile_id
-            };
-
-            let tile_overrides = map.properties.get("tiles").and_then(|v| {
-                if let Value::TileOverrides(map) = v {
-                    Some(map)
-                } else {
-                    None
-                }
-            });
-
-            let generator = TerrainGenerator::new(TerrainConfig::default());
-            let terrain_bbox = {
-                let mut bbox = map.bbox();
-                if let Some(tbbox) = map.terrain.compute_bounds() {
-                    bbox.expand_bbox(tbbox);
-                }
-                bbox
-            };
-            if terrain_bbox.min.x.is_finite()
-                && terrain_bbox.min.y.is_finite()
-                && terrain_bbox.max.x.is_finite()
-                && terrain_bbox.max.y.is_finite()
-            {
-                let chunk_size = map.terrain.chunk_size.max(1);
-                let min_x = (terrain_bbox.min.x / chunk_size as f32).floor() as i32;
-                let min_y = (terrain_bbox.min.y / chunk_size as f32).floor() as i32;
-                let max_x = (terrain_bbox.max.x / chunk_size as f32).ceil() as i32;
-                let max_y = (terrain_bbox.max.y / chunk_size as f32).ceil() as i32;
-
-                for cy in min_y..max_y {
-                    for cx in min_x..max_x {
-                        let chunk_origin = Vec2::new(cx * chunk_size, cy * chunk_size);
-                        let chunk = Chunk::new(chunk_origin, chunk_size);
-
-                        if let Some(meshes) =
-                            generator.generate(map, &chunk, assets, default_tile_id, tile_overrides)
-                        {
-                            for (tile_id, vertices, indices, uvs) in meshes {
-                                let Some(texture_index) = assets.tile_index(&tile_id) else {
-                                    continue;
-                                };
-                                let mut vertices_2d: Vec<[f32; 2]> =
-                                    Vec::with_capacity(vertices.len());
-                                for vertex in &vertices {
-                                    let local = self.map_grid_to_local(
-                                        screen_size,
-                                        Vec2::new(vertex.x, vertex.z),
-                                        map,
-                                    );
-                                    vertices_2d.push([local.x, local.y]);
-                                }
-                                let indices_2d: Vec<(usize, usize, usize)> = indices
-                                    .chunks_exact(3)
-                                    .map(|tri| (tri[0] as usize, tri[1] as usize, tri[2] as usize))
-                                    .collect();
-                                if indices_2d.is_empty() || vertices_2d.is_empty() {
-                                    continue;
-                                }
-                                let batch = Batch2D::new(vertices_2d, indices_2d, uvs)
-                                    .repeat_mode(crate::RepeatMode::RepeatXY)
-                                    .source(PixelSource::StaticTileIndex(texture_index));
-                                scene.d2_static.push(batch);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         let tiles = assets.blocking_tiles();
         scene.mapmini = map.as_mini(&tiles);
         scene

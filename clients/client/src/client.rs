@@ -171,7 +171,6 @@ impl TheTrait for Client {
                     self.rusterix.client.set_server_time(time);
                 }
 
-                rusterix::tile_builder(&mut r.map, &mut self.rusterix.assets);
                 let messages = self.rusterix.server.get_messages(&r.map.id);
                 let says = self.rusterix.server.get_says(&r.map.id);
                 let choices = self.rusterix.server.get_choices(&r.map.id);

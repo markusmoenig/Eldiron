@@ -163,18 +163,12 @@ impl Scene {
             for chunk2d in &mut chunk.1.batches2d {
                 chunk2d.project(projection_matrix_2d);
             }
-            if let Some(terrain2d) = &mut chunk.1.terrain_batch2d {
-                terrain2d.project(projection_matrix_2d);
-            }
 
             for chunk3d in &mut chunk.1.batches3d_opacity {
                 chunk3d.clip_and_project(view_matrix_3d, projection_matrix_3d, width, height);
             }
             for chunk3d in &mut chunk.1.batches3d {
                 chunk3d.clip_and_project(view_matrix_3d, projection_matrix_3d, width, height);
-            }
-            if let Some(terrain3d) = &mut chunk.1.terrain_batch3d {
-                terrain3d.clip_and_project(view_matrix_3d, projection_matrix_3d, width, height);
             }
         });
 
@@ -234,14 +228,6 @@ impl Scene {
                         } else {
                             hitinfo = hit;
                         }
-                    }
-                }
-            }
-
-            if let Some(batch) = &chunk.terrain_batch3d {
-                if let Some(hit) = batch.intersect(&ray, true) {
-                    if hit.t < hitinfo.t {
-                        hitinfo = hit;
                     }
                 }
             }

@@ -11,8 +11,8 @@ use std::str::FromStr;
 
 use crate::prelude::*;
 use crate::{
-    AccumBuffer, BrushPreview, Command, D2ConceptBuilder, D2PreviewBuilder, EntityAction,
-    PlayerCamera, Rect, SceneHandler, ShapeFXGraph, Surface, Tracer, Value,
+    BrushPreview, Command, D2ConceptBuilder, D2PreviewBuilder, EntityAction, PlayerCamera, Rect,
+    SceneHandler, Surface, Value,
     client::action::ClientAction,
     client::widget::{
         Widget, avatar::AvatarWidget, deco::DecoWidget, game::GameWidget, messages::MessagesWidget,
@@ -45,9 +45,6 @@ pub struct Client {
     pub server_time: TheTime,
 
     pub brush_preview: Option<BrushPreview>,
-
-    /// Global render graph
-    pub global: ShapeFXGraph,
 
     pub messages_font: Option<Font>,
     pub messages_font_size: f32,
@@ -298,8 +295,6 @@ impl Client {
             server_time: TheTime::default(),
 
             brush_preview: None,
-
-            global: ShapeFXGraph::default(),
 
             messages_font: None,
             draw2d: Draw2D::default(),
@@ -626,7 +621,6 @@ impl Client {
 
         let mut rast = Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
             .render_mode(RenderMode::render_2d());
-        rast.render_graph = self.global.clone();
         rast.hour = self.server_time.to_f32();
         rast.mapmini = self.scene_d2.mapmini.clone();
         rast.rasterize(&mut self.scene_d2, pixels, width, height, 64, assets);
@@ -725,13 +719,6 @@ impl Client {
             1.0,
         );
         let transform = translation_matrix * scale_matrix;
-
-        // let mut rast = Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
-        //     .render_mode(RenderMode::render_2d());
-        // rast.render_graph = self.global.clone();
-        // rast.hour = self.server_time.to_f32();
-        // rast.mapmini = self.scene.mapmini.clone();
-        // rast.rasterize(&mut self.scene, pixels, width, height, 64, assets);
 
         let scenevm_mode_2d = scene_handler.settings.scenevm_mode_2d();
         scene_handler.vm.set_active_vm(0);
@@ -1004,15 +991,6 @@ impl Client {
                 );
             }
         }
-    }
-
-    /// Trace the 3D scene.
-    pub fn trace(&mut self, accum: &mut AccumBuffer, assets: &Assets) {
-        self.scene.animation_frame = self.animation_frame;
-        let mut tracer = Tracer::default();
-        tracer.render_graph = self.global.clone();
-        tracer.hour = self.server_time.to_f32();
-        tracer.trace(self.camera_d3.as_ref(), &mut self.scene, accum, 64, assets);
     }
 
     /// Get an i32 config value
@@ -2781,15 +2759,6 @@ impl Client {
                 let height = bb.size().y * self.grid_size;
 
                 let textures = vec![];
-
-                // if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
-                //     widget.properties.get("screen_graph")
-                // {
-                //     if let Some(graph) = screen.shapefx_graphs.get(id) {
-                //         textures =
-                //             graph.create_screen_widgets(width as usize, height as usize, assets);
-                //     }
-                // }
 
                 if let Some(crate::Value::Str(data)) = widget.properties.get("data") {
                     if let Ok(table) = data.parse::<Table>() {

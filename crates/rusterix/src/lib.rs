@@ -15,12 +15,14 @@ pub mod client;
 pub mod collision_world;
 pub mod command;
 pub mod edge;
+pub mod hitinfo;
 pub mod intodata;
 pub mod map;
 pub mod material_profile;
 pub mod particleharness;
 pub mod rasterizer;
 pub mod rect;
+pub mod ray;
 #[cfg(feature = "graphics")]
 pub mod render_settings;
 pub mod rendermode;
@@ -34,10 +36,7 @@ pub mod scenemanager;
 // pub mod script;
 pub mod server;
 pub mod shader;
-pub mod shapestack;
-pub mod terrain;
 pub mod texture;
-pub mod tracer;
 pub mod utils;
 pub mod value;
 pub mod value_toml;
@@ -189,21 +188,9 @@ pub use crate::{
         regionctx::RegionCtx,
     },
     shader::{Shader, grid::GridShader, vgradient::VGrayGradientShader},
-    shapestack::{
-        ShapeStack,
-        material::{Material, MaterialModifier, MaterialRole},
-        shape::{Shape, ShapeType},
-        shapecontext::ShapeContext,
-        shapefx::{ShapeFX, ShapeFXModifierPass, ShapeFXParam, ShapeFXRole},
-        shapefxgraph::ShapeFXGraph,
-        tilebuilder::tile_builder,
-    },
-    terrain::{
-        Terrain, TerrainHit,
-        chunk::{TerrainBlendMode, TerrainChunk},
-    },
     texture::{RepeatMode, SampleMode, Texture},
-    tracer::{HitInfo, Ray, buffer::AccumBuffer, trace::Tracer},
+    hitinfo::HitInfo,
+    ray::Ray,
     value::{HeightControlPoint, Value, ValueContainer},
     value_toml::{ValueGroups, ValueTomlLoader},
     vertexblend::VertexBlendPreset,
@@ -248,7 +235,6 @@ pub mod prelude {
         default_organic_bush_clusters, default_organic_layers, default_organic_vine_strokes,
     };
     pub use crate::{GridShader, Shader, VGrayGradientShader};
-    pub use crate::{Material, MaterialModifier, MaterialRole};
     pub use crate::{
         Rect, Scene, SceneManager, SceneManagerCmd, SceneManagerResult, Value, ValueContainer,
     };

@@ -300,28 +300,6 @@ impl Editor {
                 });
         }
 
-        let terrain_visible = !dungeon_only;
-        for chunk in map.terrain.chunks.values() {
-            for dx in 0..chunk.size {
-                for dz in 0..chunk.size {
-                    let id = scenevm::GeoId::Terrain(chunk.origin.x + dx, chunk.origin.y + dz);
-                    rusterix
-                        .scene_handler
-                        .vm
-                        .execute(scenevm::Atom::SetGeoVisible {
-                            id,
-                            visible: terrain_visible,
-                        });
-                    rusterix
-                        .scene_handler
-                        .vm
-                        .execute(scenevm::Atom::SetGeoOpacity {
-                            id,
-                            opacity: if terrain_visible { 1.0 } else { 0.0 },
-                        });
-                }
-            }
-        }
     }
 
     fn log_segment_has_warning_or_error(segment: &str) -> bool {
@@ -1746,14 +1724,6 @@ impl TheTrait for Editor {
                 SceneManagerResult::Startup => {
                     println!("Scene manager has started up.");
                 }
-                SceneManagerResult::ProcessedHeights(coord, heights) => {
-                    if let Some(map) = &mut self.project.get_map_mut(&self.server_ctx) {
-                        let local = map.terrain.get_chunk_coords(coord.x, coord.y);
-                        if let Some(chunk) = &mut map.terrain.chunks.get_mut(&local) {
-                            chunk.processed_heights = Some(heights);
-                        }
-                    }
-                }
                 SceneManagerResult::Chunk(chunk, togo, total, billboards) => {
                     if togo == 0 {
                         self.server_ctx.background_progress = None;
@@ -1787,12 +1757,6 @@ impl TheTrait for Editor {
                         TheId::named("Update Minimap"),
                         TheValue::Empty,
                     ));
-                }
-                SceneManagerResult::UpdatedBatch3D(coord, batch) => {
-                    let mut rusterix = RUSTERIX.write().unwrap();
-                    if let Some(chunk) = rusterix.client.scene.chunks.get_mut(&coord) {
-                        chunk.terrain_batch3d = Some(batch);
-                    }
                 }
                 SceneManagerResult::Clear => {
                     let mut rusterix = RUSTERIX.write().unwrap();
@@ -1943,7 +1907,6 @@ impl TheTrait for Editor {
                                     widget.set_value(TheValue::Time(rusterix.client.server_time));
                                 }
                             }
-                            rusterix::tile_builder(&mut r.map, &mut rusterix.assets);
                             messages = rusterix.server.get_messages(&r.map.id);
                             says = rusterix.server.get_says(&r.map.id);
                             choices = rusterix.server.get_choices(&r.map.id);

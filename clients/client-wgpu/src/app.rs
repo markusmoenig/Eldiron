@@ -157,7 +157,6 @@ impl EldironPlayerApp {
                 self.rusterix.client.set_server_time(time);
             }
 
-            rusterix::tile_builder(&mut r.map, &mut self.rusterix.assets);
             let says = self.rusterix.server.get_says(&r.map.id);
             self.rusterix.client.process_messages(&r.map, says);
             self.pending_messages = self.rusterix.server.get_messages(&r.map.id);

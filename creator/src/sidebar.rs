@@ -671,13 +671,21 @@ impl Sidebar {
                                 && server_ctx.get_map_context() == MapContext::Region
                                 && server_ctx.editing_surface.is_none()
                             {
-                                let y = map.terrain.sample_height_bilinear(grid_x, grid_y);
-                                update_look_at_3d = Some(Vec3::new(grid_x, y, grid_y));
+                                let current_y = project
+                                    .get_region(&server_ctx.curr_region)
+                                    .map(|region| region.editing_look_at_3d.y)
+                                    .unwrap_or(0.0);
+                                update_look_at_3d =
+                                    Some(Vec3::new(grid_x, current_y, grid_y));
                             } else if server_ctx.get_map_context() == MapContext::Region
                                 && server_ctx.editing_surface.is_none()
                             {
-                                let y = map.terrain.sample_height_bilinear(grid_x, grid_y);
-                                update_pos_3d = Some(Vec3::new(grid_x, y, grid_y));
+                                let current_y = project
+                                    .get_region(&server_ctx.curr_region)
+                                    .map(|region| region.editing_position_3d.y)
+                                    .unwrap_or(0.0);
+                                update_pos_3d =
+                                    Some(Vec3::new(grid_x, current_y, grid_y));
                             }
                             handled_minimap_input = true;
                         }
@@ -864,15 +872,8 @@ impl Sidebar {
                         self.show_empty_action_toml(ui, ctx);
                     }
                 } else if id.name == "Nodegraph Id Changed" {
-                    if let Some(map) = project.get_map(server_ctx) {
-                        if let Some(widget) = ui.get_widget("Graph Id Text") {
-                            // map.shapefx_graphs.gener
-                            if let Some(index) = map.shapefx_graphs.get_index_of(&id.uuid) {
-                                widget.set_value(TheValue::Text(format!("({index:02})")));
-                            } else {
-                                widget.set_value(TheValue::Text("(--)".into()));
-                            }
-                        }
+                    if let Some(widget) = ui.get_widget("Graph Id Text") {
+                        widget.set_value(TheValue::Text("(--)".into()));
                     }
                 } else if id.name == "Update Minimap" {
                     // Rerenders the minimap
@@ -3883,19 +3884,6 @@ impl Sidebar {
                 widget.set_disabled(true);
             }
         }
-        if let Some(widget) = ui
-            .canvas
-            .get_widget(Some(&"Region Tracer Samples Edit".to_string()), None)
-        {
-            if let Some(region) = region {
-                widget.set_value(TheValue::Text(region.pathtracer_samples.to_string()));
-                widget.set_disabled(false);
-            } else {
-                widget.set_value(TheValue::Empty);
-                widget.set_disabled(true);
-            }
-        }
-
         if let Some(region) = region {
             if let Some(zoom) = ui.get_widget("Region Editor Zoom") {
                 zoom.set_value(TheValue::Float(region.zoom));

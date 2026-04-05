@@ -1,4 +1,4 @@
-use crate::{AccumBuffer, Command, PlayerCamera, SceneHandler, Surface, prelude::*};
+use crate::{Command, PlayerCamera, SceneHandler, Surface, prelude::*};
 use indexmap::IndexMap;
 use scenevm::Atom;
 use theframework::prelude::*;
@@ -373,10 +373,6 @@ impl Rusterix {
                 );
             }
         }
-    }
-
-    pub fn trace_scene(&mut self, accum: &mut AccumBuffer) {
-        self.client.trace(accum, &self.assets);
     }
 
     /// Set up the client for processing the game.

@@ -386,11 +386,8 @@ impl GameWidget {
     }
 
     fn desired_stream_chunks(&self, map: &Map, radius_chunks: i32) -> FxHashSet<(i32, i32)> {
-        let chunk_size = map.terrain.chunk_size.max(1);
-        let mut bbox = map.bbox();
-        if let Some(tbbox) = map.terrain.compute_bounds() {
-            bbox.expand_bbox(tbbox);
-        }
+        let chunk_size = 32;
+        let bbox = map.bbox();
         let min_x = (bbox.min.x / chunk_size as f32).floor() as i32;
         let min_y = (bbox.min.y / chunk_size as f32).floor() as i32;
         let max_x = (bbox.max.x / chunk_size as f32).ceil() as i32;
@@ -413,7 +410,7 @@ impl GameWidget {
     }
 
     fn update_streaming_chunks(&mut self, map: &Map, scene_handler: &mut SceneHandler) {
-        let chunk_size = map.terrain.chunk_size.max(1);
+        let chunk_size = 32;
         let focus = self.player_chunk_origin(chunk_size);
         if self.last_stream_focus_chunk == Some(focus) {
             return;
@@ -492,9 +489,8 @@ impl GameWidget {
         let startup = self.desired_stream_chunks(map, self.stream_load_radius_chunks.max(1));
         self.scenemanager
             .replace_dirty(startup.iter().copied().collect::<Vec<_>>());
-        self.scenemanager.set_focus_chunk(Some(
-            self.player_chunk_origin(map.terrain.chunk_size.max(1)),
-        ));
+        self.scenemanager
+            .set_focus_chunk(Some(self.player_chunk_origin(32)));
         self.build_region_name = map.name.clone();
         self.iso_hidden_sectors.clear();
         self.iso_sector_fade.clear();

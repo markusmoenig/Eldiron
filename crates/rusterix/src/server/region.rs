@@ -1446,21 +1446,13 @@ impl RegionInstance {
         let mut chunk_builder = D3ChunkBuilder::new();
         let chunk_size = 10; // Match collision_world chunk size
 
-        // Calculate chunk bounds from full map extents (vertices + terrain), not only surfaces.
+        // Calculate chunk bounds from full map extents, not only surfaces.
         // Feature collisions (e.g. palisade/fence on linedefs) can extend beyond sector surfaces.
-        let mut world_bbox = if ctx.map.vertices.is_empty() {
+        let world_bbox = if ctx.map.vertices.is_empty() {
             None
         } else {
             Some(ctx.map.bbox())
         };
-        if let Some(tbbox) = ctx.map.terrain.compute_bounds() {
-            if let Some(bbox) = &mut world_bbox {
-                bbox.expand_bbox(tbbox);
-            } else {
-                world_bbox = Some(tbbox);
-            }
-        }
-
         if let Some(bbox) = world_bbox {
             let min_chunk = vek::Vec2::new(
                 (bbox.min.x / chunk_size as f32).floor() as i32,

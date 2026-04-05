@@ -1,6 +1,5 @@
 use crate::editor::{ACTIONLIST, RUSTERIX};
 use crate::prelude::*;
-use rusterix::ShapeStack;
 use rusterix::prelude::*;
 use theframework::prelude::*;
 
@@ -28,7 +27,6 @@ pub struct Hud {
 
     mouse_pos: Vec2<i32>,
 
-    is_playing: bool,
     light_icon: Option<TheRGBABuffer>,
 
     // Plane picker widget for 3D mode
@@ -114,7 +112,6 @@ impl Hud {
 
             mouse_pos: Vec2::zero(),
 
-            is_playing: false,
             light_icon: None,
 
             plane_picker_rects: vec![],
@@ -129,7 +126,7 @@ impl Hud {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
         id: Option<u32>,
-        assets: &Assets,
+        _assets: &Assets,
     ) {
         if (self.mode == HudMode::Linedef || self.mode == HudMode::Sector)
             && self.light_icon.is_none()
@@ -518,16 +515,6 @@ impl Hud {
         if server_ctx.get_map_context() == MapContext::Character
             || server_ctx.get_map_context() == MapContext::Item
         {
-            if self.is_playing {
-                let size = 128;
-                let mut texture = Texture::alloc(size as usize, size as usize);
-
-                let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
-                stack.render_geometry(&mut texture, map, assets, false, &FxHashMap::default());
-
-                map.properties.set("shape", Value::Texture(texture));
-            }
-
             if let Some(Value::Texture(texture)) = map.properties.get("shape") {
                 let w = texture.width as i32;
                 let h = texture.height as i32;
@@ -540,34 +527,6 @@ impl Hud {
                 );
             }
         } else if server_ctx.get_map_context() == MapContext::Screen {
-            // Show the widget previews in the icon rects
-            if let Some(id) = map.selected_sectors.get(0) {
-                if let Some(sector) = map.find_sector(*id) {
-                    if let Some(Value::Source(PixelSource::ShapeFXGraphId(id))) =
-                        sector.properties.get("screen_graph")
-                    {
-                        if let Some(graph) = map.shapefx_graphs.get(id)
-                            && self.icon_rects.len() == 2
-                        {
-                            let w = self.icon_rects[0].width;
-                            let h = self.icon_rects[0].height;
-
-                            let textures =
-                                graph.create_screen_widgets(w as usize, h as usize, assets);
-
-                            for i in 0..2 {
-                                ctx.draw.blend_slice(
-                                    buffer.pixels_mut(),
-                                    &textures[i as usize].data,
-                                    &self.icon_rects[i as usize].to_buffer_utuple(),
-                                    stride,
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-
             //let mut stack = ShapeStack::new(Vec2::new(-5.0, -5.0), Vec2::new(5.0, 5.0));
             //stack.render_geometry(&mut texture, map, assets, false, &FxHashMap::default());
 

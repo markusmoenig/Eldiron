@@ -5,7 +5,6 @@ use ToolEvent::*;
 use organicgraph::{OrganicBrushGraph, OrganicNodeKind};
 use rusterix::PixelSource;
 use rusterix::Surface;
-use rusterix::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 use rusterix::map::organic::OrganicGrowthShape;
 use scenevm::GeoId;
 use std::collections::HashSet;
@@ -503,7 +502,7 @@ impl OrganicTool {
             if let Some(surface_ref) = map.surfaces.get(&surface.id)
                 && Self::should_redirect_surface_to_terrain(map, surface_ref)
             {
-                return Self::paint_terrain_line(map, start_pos, end_pos, brush.clone(), erase);
+                return false;
             }
             if brush.supports_path_paint() {
                 return Self::paint_surface_path(
@@ -531,35 +530,9 @@ impl OrganicTool {
         }
 
         match server_ctx.geo_hit {
-            Some(GeoId::Terrain(_, _)) => {
-                if brush.supports_path_paint() {
-                    Self::paint_terrain_path(
-                        map,
-                        start_pos,
-                        end_pos,
-                        brush.clone(),
-                        vine_seq,
-                        erase,
-                    )
-                } else {
-                    Self::paint_terrain_line(map, start_pos, end_pos, brush.clone(), erase)
-                }
-            }
+            Some(GeoId::Terrain(_, _)) => false,
             Some(GeoId::Sector(_)) => false,
-            _ => {
-                if brush.supports_path_paint() {
-                    Self::paint_terrain_path(
-                        map,
-                        start_pos,
-                        end_pos,
-                        brush.clone(),
-                        vine_seq,
-                        erase,
-                    )
-                } else {
-                    Self::paint_terrain_line(map, start_pos, end_pos, brush.clone(), erase)
-                }
-            }
+            _ => false,
         }
     }
 
@@ -584,7 +557,7 @@ impl OrganicTool {
             if let Some(surface_ref) = map.surfaces.get(&surface.id)
                 && Self::should_redirect_surface_to_terrain(map, surface_ref)
             {
-                return Self::paint_terrain(map, hit_pos, brush.clone(), stroke_dir_world, erase);
+                return false;
             }
             return Self::paint_surface(
                 map,
@@ -599,11 +572,9 @@ impl OrganicTool {
         }
 
         match server_ctx.geo_hit {
-            Some(GeoId::Terrain(_, _)) => {
-                Self::paint_terrain(map, hit_pos, brush.clone(), stroke_dir_world, erase)
-            }
+            Some(GeoId::Terrain(_, _)) => false,
             Some(GeoId::Sector(_)) => false,
-            _ => Self::paint_terrain(map, hit_pos, brush.clone(), stroke_dir_world, erase),
+            _ => false,
         }
     }
 
@@ -908,14 +879,9 @@ impl OrganicTool {
         {
             let surface_normal = surface_ref.normal();
             if Self::should_redirect_surface_to_terrain(map, surface_ref) {
-                let terrain_height = TerrainGenerator::sample_height_at(
-                    map,
-                    Vec2::new(hit_pos.x, hit_pos.z),
-                    &TerrainConfig::default(),
-                );
                 return format!(
-                    "Organic debug: redirect down-facing surface sector={} to terrain h={:.3} hit=({:.2},{:.2},{:.2})",
-                    surface_ref.sector_id, terrain_height, hit_pos.x, hit_pos.y, hit_pos.z
+                    "Organic debug: legacy terrain redirect disabled for sector={} hit=({:.2},{:.2},{:.2})",
+                    surface_ref.sector_id, hit_pos.x, hit_pos.y, hit_pos.z
                 );
             }
             let signed_dist = (hit_pos - surface_ref.plane.origin).dot(surface_normal);
@@ -939,33 +905,16 @@ impl OrganicTool {
         }
 
         match server_ctx.geo_hit {
-            Some(GeoId::Terrain(_, _)) | None => {
-                let height = TerrainGenerator::sample_height_at(
-                    map,
-                    Vec2::new(hit_pos.x, hit_pos.z),
-                    &TerrainConfig::default(),
-                );
-                format!(
-                    "Organic debug: terrain h={:.3} hit=({:.2},{:.2},{:.2})",
-                    height, hit_pos.x, hit_pos.y, hit_pos.z
-                )
-            }
+            Some(GeoId::Terrain(_, _)) | None => format!(
+                "Organic debug: no active surface hit=({:.2},{:.2},{:.2})",
+                hit_pos.x, hit_pos.y, hit_pos.z
+            ),
             Some(geo) => format!("Organic debug: hit {:?}", geo),
         }
     }
 
-    fn should_redirect_surface_to_terrain(map: &Map, surface: &Surface) -> bool {
-        if surface.normal().y >= -0.7 {
-            return false;
-        }
-        let Some(sector) = map.find_sector(surface.sector_id) else {
-            return false;
-        };
-        let terrain_mode = sector.properties.get_int_default("terrain_mode", 0);
-        let water_enabled = sector
-            .properties
-            .get_bool_default("ridge_water_enabled", false);
-        terrain_mode == 2 || water_enabled
+    fn should_redirect_surface_to_terrain(_map: &Map, _surface: &Surface) -> bool {
+        false
     }
 
     fn resolve_surface_growth_side(
@@ -1155,148 +1104,6 @@ impl OrganicTool {
         changed
     }
 
-    fn paint_terrain(
-        map: &mut Map,
-        hit_pos: Vec3<f32>,
-        brush: OrganicBrushEval,
-        stroke_dir_world: Option<Vec3<f32>>,
-        erase: bool,
-    ) -> bool {
-        let world = Vec2::new(hit_pos.x, hit_pos.z);
-        let cell = Vec2::new(world.x.floor() as i32, world.y.floor() as i32);
-        let source = map.terrain.get_source(cell.x, cell.y).cloned();
-        let chunk = map.terrain.get_or_create_chunk_mut(cell.x, cell.y);
-        let origin = chunk.origin.map(|v| v as f32);
-        if brush.supports_growth_spawn() {
-            let changed = Self::paint_terrain_bush(chunk, world - origin, &brush, source, erase);
-            if changed {
-                chunk.mark_dirty();
-                map.changed += 1;
-            }
-            return changed;
-        }
-        if brush.uses_growth_output() {
-            return false;
-        }
-        let layer = chunk.organic_layer_for_cell_size_mut(brush.cell_size);
-        let local_dir = stroke_dir_world.and_then(|dir| {
-            let delta = Vec2::new(dir.x, dir.z);
-            let mag = delta.magnitude();
-            (mag > 0.0001).then_some(delta / mag)
-        });
-        let changed = Self::apply_graph_dabs(
-            layer,
-            world - origin,
-            local_dir,
-            0.0,
-            &brush,
-            source,
-            true,
-            erase,
-        );
-        if changed {
-            chunk.mark_dirty();
-            map.changed += 1;
-        }
-        changed
-    }
-
-    fn paint_terrain_line(
-        map: &mut Map,
-        start_pos: Vec3<f32>,
-        end_pos: Vec3<f32>,
-        brush: OrganicBrushEval,
-        erase: bool,
-    ) -> bool {
-        let start_world = Vec2::new(start_pos.x, start_pos.z);
-        let end_world = Vec2::new(end_pos.x, end_pos.z);
-        if brush.supports_line_paint() {
-            let changed =
-                Self::paint_terrain_line_world(map, start_world, end_world, &brush, erase);
-            if changed {
-                map.changed += 1;
-            }
-            return changed;
-        }
-        if brush.uses_growth_output() {
-            return false;
-        }
-        let cell = Vec2::new(end_world.x.floor() as i32, end_world.y.floor() as i32);
-        let source = map.terrain.get_source(cell.x, cell.y).cloned();
-        let chunk = map.terrain.get_or_create_chunk_mut(cell.x, cell.y);
-        let origin = chunk.origin.map(|v| v as f32);
-        let layer = chunk.organic_layer_for_cell_size_mut(brush.cell_size);
-        let changed = Self::apply_graph_line(
-            layer,
-            start_world - origin,
-            end_world - origin,
-            0.0,
-            &brush,
-            source,
-            true,
-            erase,
-        );
-        if changed {
-            chunk.mark_dirty();
-            map.changed += 1;
-        }
-        changed
-    }
-
-    fn paint_terrain_path(
-        map: &mut Map,
-        start_pos: Vec3<f32>,
-        end_pos: Vec3<f32>,
-        brush: OrganicBrushEval,
-        vine_seq: &mut i32,
-        erase: bool,
-    ) -> bool {
-        let start_world = Vec2::new(start_pos.x, start_pos.z);
-        let end_world = Vec2::new(end_pos.x, end_pos.z);
-        let delta = end_world - start_world;
-        let dist = delta.magnitude();
-        if dist <= 0.0001 {
-            return false;
-        }
-
-        let width = (brush.line_width * brush.radius).max(0.02);
-        let segment_len = (width * 2.5).max(0.10);
-        let segments = (dist / segment_len).ceil().max(1.0) as usize;
-        let mut changed = false;
-
-        for i in 0..segments {
-            let t0 = i as f32 / segments as f32;
-            let t1 = (i + 1) as f32 / segments as f32;
-            let seg_start_world = start_world + delta * t0;
-            let seg_end_world = start_world + delta * t1;
-            let mid_world = (seg_start_world + seg_end_world) * 0.5;
-            let cell = Vec2::new(mid_world.x.floor() as i32, mid_world.y.floor() as i32);
-            let source = map.terrain.get_source(cell.x, cell.y).cloned();
-            let chunk = map.terrain.get_or_create_chunk_mut(cell.x, cell.y);
-            let origin = chunk.origin.map(|v| v as f32);
-            let seg_changed = Self::paint_vine_segments(
-                &mut chunk.organic_vine_strokes,
-                seg_start_world - origin,
-                seg_end_world - origin,
-                0.0,
-                &brush,
-                source,
-                vine_seq,
-                true,
-                erase,
-            );
-            if seg_changed {
-                chunk.mark_dirty();
-                changed = true;
-            }
-        }
-
-        if changed {
-            map.changed += 1;
-        }
-        changed
-    }
-
     fn paint_vine_segments(
         strokes: &mut Vec<rusterix::OrganicVineStroke>,
         start: Vec2<f32>,
@@ -1351,7 +1158,6 @@ impl OrganicTool {
     fn finalize_vine_stroke_caps(map: &mut Map, stroke_seed: i32) {
         enum VineLoc {
             Surface(Uuid, usize),
-            Terrain((i32, i32), usize),
         }
 
         let mut first: Option<(VineLoc, i32)> = None;
@@ -1370,30 +1176,8 @@ impl OrganicTool {
                 }
             }
         }
-        for (origin, terrain_chunk) in &map.terrain.chunks {
-            for (idx, stroke) in terrain_chunk.organic_vine_strokes.iter().enumerate() {
-                if stroke.stroke_id != stroke_seed {
-                    continue;
-                }
-                if first.as_ref().is_none_or(|(_, seq)| stroke.seq < *seq) {
-                    first = Some((VineLoc::Terrain(*origin, idx), stroke.seq));
-                }
-                if last.as_ref().is_none_or(|(_, seq)| stroke.seq > *seq) {
-                    last = Some((VineLoc::Terrain(*origin, idx), stroke.seq));
-                }
-            }
-        }
-
         for surface in map.surfaces.values_mut() {
             for stroke in &mut surface.organic_vine_strokes {
-                if stroke.stroke_id == stroke_seed {
-                    stroke.cap_start = false;
-                    stroke.cap_end = false;
-                }
-            }
-        }
-        for terrain_chunk in map.terrain.chunks.values_mut() {
-            for stroke in &mut terrain_chunk.organic_vine_strokes {
                 if stroke.stroke_id == stroke_seed {
                     stroke.cap_start = false;
                     stroke.cap_end = false;
@@ -1410,13 +1194,6 @@ impl OrganicTool {
                         stroke.cap_start = true;
                     }
                 }
-                VineLoc::Terrain(origin, idx) => {
-                    if let Some(chunk) = map.terrain.chunks.get_mut(&origin)
-                        && let Some(stroke) = chunk.organic_vine_strokes.get_mut(idx)
-                    {
-                        stroke.cap_start = true;
-                    }
-                }
             }
         }
         if let Some((loc, _)) = last {
@@ -1424,13 +1201,6 @@ impl OrganicTool {
                 VineLoc::Surface(id, idx) => {
                     if let Some(surface) = map.surfaces.get_mut(&id)
                         && let Some(stroke) = surface.organic_vine_strokes.get_mut(idx)
-                    {
-                        stroke.cap_end = true;
-                    }
-                }
-                VineLoc::Terrain(origin, idx) => {
-                    if let Some(chunk) = map.terrain.chunks.get_mut(&origin)
-                        && let Some(stroke) = chunk.organic_vine_strokes.get_mut(idx)
                     {
                         stroke.cap_end = true;
                     }
@@ -1449,56 +1219,6 @@ impl OrganicTool {
         (p - (a + ab * t)).magnitude()
     }
 
-    fn paint_terrain_line_world(
-        map: &mut Map,
-        start_world: Vec2<f32>,
-        end_world: Vec2<f32>,
-        brush: &OrganicBrushEval,
-        erase: bool,
-    ) -> bool {
-        let delta = end_world - start_world;
-        let dist = delta.magnitude();
-        if dist <= 0.0001 {
-            return false;
-        }
-
-        let width = (brush.line_width * brush.radius).max(0.02);
-        let segment_len = (width * 2.5).max(0.10);
-        let segments = (dist / segment_len).ceil().max(1.0) as usize;
-        let mut changed = false;
-
-        for i in 0..segments {
-            let t0 = i as f32 / segments as f32;
-            let t1 = (i + 1) as f32 / segments as f32;
-            let seg_start_world = start_world + delta * t0;
-            let seg_end_world = start_world + delta * t1;
-            let mid_world = (seg_start_world + seg_end_world) * 0.5;
-            let cell = Vec2::new(mid_world.x.floor() as i32, mid_world.y.floor() as i32);
-            let source = map.terrain.get_source(cell.x, cell.y).cloned();
-            let chunk = map.terrain.get_or_create_chunk_mut(cell.x, cell.y);
-            let origin = chunk.origin.map(|v| v as f32);
-            let local_start = seg_start_world - origin;
-            let local_end = seg_end_world - origin;
-            let layer = chunk.organic_layer_for_cell_size_mut(brush.cell_size);
-            let seg_changed = Self::apply_graph_line(
-                layer,
-                local_start,
-                local_end,
-                0.0,
-                brush,
-                source,
-                true,
-                erase,
-            );
-            if seg_changed {
-                chunk.mark_dirty();
-                changed = true;
-            }
-        }
-
-        changed
-    }
-
     fn paint_surface_bush(
         surface: &mut Surface,
         center: Vec2<f32>,
@@ -1515,24 +1235,6 @@ impl OrganicTool {
             brush,
             source,
             grow_positive,
-            erase,
-        )
-    }
-
-    fn paint_terrain_bush(
-        chunk: &mut rusterix::TerrainChunk,
-        center: Vec2<f32>,
-        brush: &OrganicBrushEval,
-        source: Option<PixelSource>,
-        erase: bool,
-    ) -> bool {
-        Self::paint_bush_clusters(
-            &mut chunk.organic_bush_clusters,
-            center,
-            0.0,
-            brush,
-            source,
-            true,
             erase,
         )
     }
@@ -2122,11 +1824,11 @@ impl OrganicTool {
 
     fn mark_dirty_chunks(
         dirty_chunks: &mut HashSet<(i32, i32)>,
-        map: &Map,
+        _map: &Map,
         hit_pos: Vec3<f32>,
         radius: f32,
     ) {
-        let chunk_size = map.terrain.chunk_size.max(1);
+        let chunk_size = 32;
         let reach = radius.max(1.0) + 1.0;
         let min_x = ((hit_pos.x - reach).floor() as i32).div_euclid(chunk_size) * chunk_size;
         let max_x = ((hit_pos.x + reach).ceil() as i32).div_euclid(chunk_size) * chunk_size;

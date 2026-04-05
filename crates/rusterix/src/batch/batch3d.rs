@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::wavefront::Wavefront;
-use crate::{Edges, Material, Rect, RepeatMode};
+use crate::{Edges, Rect, RepeatMode};
 use crate::{HitInfo, Ray};
 use bvh::aabb::{Aabb, Bounded};
 use nalgebra::Point3;
@@ -61,9 +61,6 @@ pub struct Batch3D {
     /// Clipped normals
     pub clipped_normals: Vec<Vec3<f32>>,
 
-    // Material
-    pub material: Option<Material>,
-
     /// Shader
     pub ambient_color: Vec3<f32>,
 
@@ -98,7 +95,6 @@ impl Batch3D {
             receives_light: true,
             normals: vec![],
             clipped_normals: vec![],
-            material: None,
             ambient_color: Vec3::zero(),
             shader: None,
             profile_id: None,
@@ -128,7 +124,6 @@ impl Batch3D {
             receives_light: true,
             normals: vec![],
             clipped_normals: vec![],
-            material: None,
             ambient_color: Vec3::zero(),
             shader: None,
             profile_id: None,
@@ -229,11 +224,6 @@ impl Batch3D {
     }
 
     /// Sets the background shader using the builder pattern.
-    pub fn material(mut self, material: Material) -> Self {
-        self.material = Some(material);
-        self
-    }
-
     /// Add a set of geometry to the batch.
     pub fn add(
         &mut self,

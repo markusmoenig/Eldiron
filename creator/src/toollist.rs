@@ -397,7 +397,7 @@ impl ToolList {
                         let changed_keys = Self::changed_terrain_override_keys(old_map, new_map);
 
                         if !changed_keys.is_empty() {
-                            let chunk_size = new_map.terrain.chunk_size.max(1);
+                            let chunk_size = 32;
                             let mut dirty_chunks: FxHashSet<(i32, i32)> = FxHashSet::default();
                             for (x, z) in changed_keys {
                                 let cx = x.div_euclid(chunk_size) * chunk_size;

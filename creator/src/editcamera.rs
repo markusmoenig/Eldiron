@@ -88,11 +88,7 @@ impl EditCamera {
         if server_ctx.editor_view_mode == EditorViewMode::FirstP {
             rusterix.client.camera_d3 = Box::new(self.firstp_camera.clone());
 
-            let height = region
-                .map
-                .terrain
-                .sample_height(region.editing_position_3d.x, region.editing_position_3d.z)
-                + 1.5;
+            let height = 1.5;
 
             // let h = region.map.terrain.get_height_unprocessed(
             //     region.editing_position_3d.x as i32,
@@ -162,36 +158,26 @@ impl EditCamera {
         if server_ctx.editor_view_mode == EditorViewMode::FirstP {
             match &self.move_action {
                 Some(CustomMoveAction::Forward) => {
-                    let height_offset = region.editing_position_3d.y
-                        - region.map.terrain.sample_height_bilinear(
-                            region.editing_position_3d.x,
-                            region.editing_position_3d.z,
-                        );
                     let (mut np, mut nl) = self.move_camera(
                         region.editing_position_3d,
                         region.editing_look_at_3d,
                         Vec3::new(0.0, 0.0, 1.0),
                         speed,
                     );
-                    np.y = region.map.terrain.sample_height_bilinear(np.x, np.z) + height_offset;
-                    nl.y += np.y - region.editing_position_3d.y;
+                    np.y = region.editing_position_3d.y;
+                    nl.y = region.editing_look_at_3d.y;
                     region.editing_position_3d = np;
                     region.editing_look_at_3d = nl;
                 }
                 Some(CustomMoveAction::Backward) => {
-                    let height_offset = region.editing_position_3d.y
-                        - region.map.terrain.sample_height_bilinear(
-                            region.editing_position_3d.x,
-                            region.editing_position_3d.z,
-                        );
                     let (mut np, mut nl) = self.move_camera(
                         region.editing_position_3d,
                         region.editing_look_at_3d,
                         Vec3::new(0.0, 0.0, -1.0),
                         speed,
                     );
-                    np.y = region.map.terrain.sample_height_bilinear(np.x, np.z) + height_offset;
-                    nl.y += np.y - region.editing_position_3d.y;
+                    np.y = region.editing_position_3d.y;
+                    nl.y = region.editing_look_at_3d.y;
                     region.editing_position_3d = np;
                     region.editing_look_at_3d = nl;
                 }

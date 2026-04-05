@@ -2,7 +2,7 @@ use crate::{
     Assets, Batch2D, Batch3D, Chunk, LightType, MapMini, Pixel, PixelSource, PrimitiveMode, Ray,
     RenderMode, Scene, pixel_to_vec4, vec4_to_pixel,
 };
-use crate::{SampleMode, ShapeFXGraph};
+use crate::SampleMode;
 use rayon::prelude::*;
 use rusteria::Execution;
 use vek::{Mat3, Mat4, Vec2, Vec3, Vec4};
@@ -71,11 +71,6 @@ pub struct Rasterizer {
     /// Useful when the resulting framebuffer is used as an blended overlay
     pub preserve_transparency: bool,
 
-    /// The rendergraph
-    pub render_graph: ShapeFXGraph,
-    render_hit: Vec<u16>,
-    render_miss: Vec<u16>,
-
     /// The hour of the day.Used for procedural sky and ambient.
     pub hour: f32,
 
@@ -138,10 +133,6 @@ impl Rasterizer {
             scaled2,
 
             preserve_transparency: false,
-
-            render_graph: ShapeFXGraph::default(),
-            render_hit: vec![],
-            render_miss: vec![],
 
             hour: 12.0,
             time: 0.0,
@@ -219,36 +210,6 @@ impl Rasterizer {
         for chunk in scene.chunks.values() {
             for light in &chunk.lights {
                 scene.dynamic_lights.push(light.clone());
-            }
-        }
-
-        // We collect the nodes for dynamic hit and miss post processing
-        // from the terminals of the render node.
-        self.render_hit = self.render_graph.collect_nodes_from(0, 0);
-        self.render_miss = self.render_graph.collect_nodes_from(0, 1);
-
-        // Precompute hit node values
-        for node in &mut self.render_hit {
-            self.render_graph.nodes[*node as usize].render_setup(self.hour);
-        }
-
-        // Precompute missed node values
-        for node in &mut self.render_miss {
-            if let Some((sun_dir, day_factor)) =
-                self.render_graph.nodes[*node as usize].render_setup(self.hour)
-            {
-                self.sun_dir = Some(sun_dir);
-                self.day_factor = day_factor;
-            }
-        }
-
-        // Render a node based ambient color (procedural Sky) or if not
-        // available use the ambient color (if any)
-        for node in &mut self.render_miss {
-            if let Some(ambient) =
-                self.render_graph.nodes[*node as usize].render_ambient_color(self.hour)
-            {
-                self.ambient_color = Some(ambient);
             }
         }
 
@@ -340,20 +301,6 @@ impl Rasterizer {
                                 false,
                             );
                         }
-                        if let Some(terrain_chunk) = &chunk.terrain_batch3d {
-                            self.d3_rasterize(
-                                &mut buffer,
-                                &mut z_buffer,
-                                &surface_id,
-                                tile,
-                                terrain_chunk,
-                                scene,
-                                assets,
-                                Some(chunk),
-                                &mut execution,
-                                false,
-                            );
-                        }
                     }
 
                     // Static
@@ -408,11 +355,6 @@ impl Rasterizer {
                     //if !self.render_miss.is_empty() || self.brush_preview.is_some() {
                     for ty in 0..tile.height {
                         for tx in 0..tile.width {
-                            let uv = Vec2::new(
-                                (tile.x + tx) as f32 / self.width,
-                                (tile.y + ty) as f32 / self.height,
-                            );
-
                             let idx = (ty * tile.width + tx) * 4;
                             let z_idx = ty * tile.width + tx;
 
@@ -421,15 +363,6 @@ impl Rasterizer {
                                 let mut color = Vec4::new(0.0, 0.0, 0.0, 1.0);
                                 let ray =
                                     self.screen_ray((tile.x + tx) as f32, (tile.y + ty) as f32);
-                                for node in &self.render_miss {
-                                    self.render_graph.nodes[*node as usize].render_miss_d3(
-                                        &mut color,
-                                        &self.camera_pos,
-                                        &ray,
-                                        &uv,
-                                        self.hour,
-                                    );
-                                }
 
                                 // Brush preview
                                 if let Some(brush_preview) = &self.brush_preview {
@@ -506,17 +439,6 @@ impl Rasterizer {
                                 &mut buffer,
                                 tile,
                                 batch2d,
-                                scene,
-                                assets,
-                                Some(chunk),
-                                &mut execution,
-                            );
-                        }
-                        if let Some(terrain_chunk) = &chunk.terrain_batch2d {
-                            self.d2_rasterize(
-                                &mut buffer,
-                                tile,
-                                terrain_chunk,
                                 scene,
                                 assets,
                                 Some(chunk),
@@ -743,13 +665,6 @@ impl Rasterizer {
                                                     } else {
                                                         [0, 0, 0, 0]
                                                     }
-                                                } else {
-                                                    [0, 0, 0, 0]
-                                                }
-                                            }
-                                            PixelSource::Terrain => {
-                                                if let Some(chunk) = chunk {
-                                                    chunk.sample_terrain_texture(world)
                                                 } else {
                                                     [0, 0, 0, 0]
                                                 }
@@ -1077,7 +992,6 @@ impl Rasterizer {
 
                                     // Get the screen coordinates of the hitpoint
                                     let world = self.screen_to_world(p[0], p[1], z);
-                                    let world_2d = Vec2::new(world.x, world.z);
 
                                     // Compute the normal
                                     let mut normal = if !batch.normals.is_empty() {
@@ -1186,38 +1100,6 @@ impl Rasterizer {
                                                 ([0, 0, 0, 0], false)
                                             }
                                         }
-                                        PixelSource::Terrain => {
-                                            if let Some(chunk) = chunk {
-                                                let mut texel =
-                                                    chunk.sample_terrain_texture(world_2d);
-                                                if let Some(brush_preview) = &self.brush_preview {
-                                                    let dist = (world - brush_preview.position)
-                                                        .magnitude();
-
-                                                    if dist < brush_preview.radius {
-                                                        let normalized =
-                                                            dist / brush_preview.radius;
-                                                        let falloff =
-                                                            brush_preview.falloff.clamp(0.001, 1.0); // avoid divide-by-zero
-                                                        let fade = ((1.0 - normalized) / falloff)
-                                                            .clamp(0.0, 1.0);
-
-                                                        let blend = 0.2 + 0.6 * fade; // blend between 20% and 80% white
-
-                                                        for channel in &mut texel[..3] {
-                                                            *channel = ((*channel as f32)
-                                                                * (1.0 - blend)
-                                                                + 255.0 * blend)
-                                                                .min(255.0)
-                                                                as u8;
-                                                        }
-                                                    }
-                                                }
-                                                (texel, true)
-                                            } else {
-                                                ([255, 0, 0, 255], false)
-                                            }
-                                        }
                                         _ => ([0, 0, 0, 255], false),
                                     };
 
@@ -1324,11 +1206,7 @@ impl Rasterizer {
 
                                     let mut lit = Vec3::<f32>::zero();
 
-                                    let occlusion = if let Some(chunk) = chunk {
-                                        chunk.get_occlusion(world_2d)
-                                    } else {
-                                        self.mapmini.get_occlusion(world_2d)
-                                    };
+                                    let occlusion = 1.0;
 
                                     // Sky hemisphere + directional sun
                                     if occlusion > 0.0 {
@@ -1513,7 +1391,6 @@ impl Rasterizer {
 
                                     // Get the screen coordinates of the hitpoint
                                     let world = self.screen_to_world(p[0], p[1], z);
-                                    let world_2d = Vec2::new(world.x, world.z);
 
                                     let (mut texel, _is_terrain) = match batch.source {
                                         PixelSource::StaticTileIndex(index) => {
@@ -1592,38 +1469,6 @@ impl Rasterizer {
                                                 }
                                             } else {
                                                 ([0, 0, 0, 0], false)
-                                            }
-                                        }
-                                        PixelSource::Terrain => {
-                                            if let Some(chunk) = chunk {
-                                                let mut texel =
-                                                    chunk.sample_terrain_texture(world_2d);
-                                                if let Some(brush_preview) = &self.brush_preview {
-                                                    let dist = (world - brush_preview.position)
-                                                        .magnitude();
-
-                                                    if dist < brush_preview.radius {
-                                                        let normalized =
-                                                            dist / brush_preview.radius;
-                                                        let falloff =
-                                                            brush_preview.falloff.clamp(0.001, 1.0); // avoid divide-by-zero
-                                                        let fade = ((1.0 - normalized) / falloff)
-                                                            .clamp(0.0, 1.0);
-
-                                                        let blend = 0.2 + 0.6 * fade; // blend between 20% and 80% white
-
-                                                        for channel in &mut texel[..3] {
-                                                            *channel = ((*channel as f32)
-                                                                * (1.0 - blend)
-                                                                + 255.0 * blend)
-                                                                .min(255.0)
-                                                                as u8;
-                                                        }
-                                                    }
-                                                }
-                                                (texel, true)
-                                            } else {
-                                                ([255, 0, 0, 255], false)
                                             }
                                         }
                                         _ => ([0, 0, 0, 255], false),

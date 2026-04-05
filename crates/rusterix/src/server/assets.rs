@@ -1,4 +1,4 @@
-use crate::{ShapeFXGraph, Value, prelude::*};
+use crate::{Value, prelude::*};
 use indexmap::IndexMap;
 use std::path::Path;
 use theframework::prelude::*;
@@ -46,9 +46,6 @@ pub struct Assets {
     pub audio: FxHashMap<String, Vec<u8>>,
     pub palette: ThePalette,
     pub palette_materials: Vec<[f32; 4]>,
-
-    // The global render graph
-    pub global: ShapeFXGraph,
 
     /// A map of locale names to their translations.
     pub locales: FxHashMap<String, FxHashMap<String, String>>,
@@ -111,7 +108,6 @@ impl Assets {
             audio: FxHashMap::default(),
             palette: ThePalette::default(),
             palette_materials: vec![[0.5, 0.0, 1.0, 0.0]; 256],
-            global: ShapeFXGraph::default(),
             locales: FxHashMap::default(),
             avatars: FxHashMap::default(),
         }
