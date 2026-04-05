@@ -2799,9 +2799,37 @@ impl TheTrait for Editor {
 
                     let mut grid_pos = Vec2::zero();
                     let mut spawn_y = 0.0;
+                    let use_3d_hit = self.server_ctx.editor_view_mode != EditorViewMode::D2;
 
                     if let Some(map) = self.project.get_map(&self.server_ctx) {
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                        if use_3d_hit && let Some(render_view) = ui.get_render_view("PolyView") {
+                            let dim = *render_view.dim();
+                            let screen_uv = [
+                                location.x as f32 / dim.width as f32,
+                                location.y as f32 / dim.height as f32,
+                            ];
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            rusterix.scene_handler.vm.set_active_vm(0);
+
+                            if let Some(raw) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
+                                dim.width as u32,
+                                dim.height as u32,
+                                screen_uv,
+                                false,
+                                false,
+                            ) {
+                                grid_pos = Vec2::new(raw.1.x, raw.1.z);
+                                spawn_y = raw.1.y;
+                            } else {
+                                grid_pos = self.server_ctx.local_to_map_cell(
+                                    Vec2::new(dim.width as f32, dim.height as f32),
+                                    Vec2::new(location.x as f32, location.y as f32),
+                                    map,
+                                    map.subdivisions,
+                                );
+                                grid_pos += 0.5;
+                            }
+                        } else if let Some(render_view) = ui.get_render_view("PolyView") {
                             let dim = *render_view.dim();
                             grid_pos = self.server_ctx.local_to_map_cell(
                                 Vec2::new(dim.width as f32, dim.height as f32),

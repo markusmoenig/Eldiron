@@ -23,6 +23,8 @@ You can edit character behavior using either **Visual Scripting** or **Eldrin Sc
 
 You can instantiate a character template into the map of the region by simply dragging and dropping the character template into the map (Click left of the *Name* item and drag).
 
+In 3D region views, the drop uses the actual surface hit position, so the instance also stores the correct `y` height. This makes drag-and-drop placement work correctly on stairs, elevated geometry, and lowered dungeon floors.
+
 You can use the [Entity Tool](tools/entity) to move or delete character instances after creation.
 
 ## Items
@@ -32,6 +34,8 @@ Item templates have similar functionality as *characters templates* but define a
 Like with *characters* you can edit item behavior using either **Visual Scripting** or **Eldrin Scripting** or edit the **Attributes** of the item.
 
 You can instantiate an item template into the map of the region by simply dragging and dropping the item template into the map (Click left of the *Name* item and drag).
+
+In 3D region views, the drop uses the actual surface hit position, so the instance also stores the correct `y` height. This makes drag-and-drop placement work correctly on stairs, elevated geometry, and lowered dungeon floors.
 
 You can use the [Entity Tool](tools/entity) to move or delete item instances after creation.
 
