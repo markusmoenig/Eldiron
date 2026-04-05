@@ -26,6 +26,36 @@ pub struct DungeonDock {
 }
 
 impl DungeonDock {
+    fn default_render_toml() -> String {
+        "[render]\ntransition_seconds = 1.0\nsun_enabled = false\nshadow_enabled = true\nfog_density = 5.0\nfog_color = \"#000000\"\n".to_string()
+    }
+
+    fn legacy_render_toml(map: &Map, server_ctx: &ServerContext) -> String {
+        format!(
+            "[render]\ntransition_seconds = {}\nsun_enabled = {}\nshadow_enabled = {}\nfog_density = {}\nfog_color = \"{}\"\n",
+            map.properties.get_float_default(
+                "dungeon_render_transition_seconds",
+                server_ctx.curr_dungeon_render_transition_seconds,
+            ),
+            map.properties.get_bool_default(
+                "dungeon_render_sun_enabled",
+                server_ctx.curr_dungeon_render_sun_enabled,
+            ),
+            map.properties.get_bool_default(
+                "dungeon_render_shadow_enabled",
+                server_ctx.curr_dungeon_render_shadow_enabled,
+            ),
+            map.properties.get_float_default(
+                "dungeon_render_fog_density",
+                server_ctx.curr_dungeon_render_fog_density,
+            ),
+            map.properties.get_str_default(
+                "dungeon_render_fog_color",
+                server_ctx.curr_dungeon_render_fog_color.clone(),
+            ),
+        )
+    }
+
     fn load_settings_from_map(project: &Project, server_ctx: &mut ServerContext) {
         if let Some(map) = project.get_map(server_ctx) {
             server_ctx.curr_dungeon_floor_base = map
@@ -89,6 +119,20 @@ impl DungeonDock {
                 "dungeon_stair_tile_mode",
                 server_ctx.curr_dungeon_stair_tile_mode,
             );
+            server_ctx.curr_dungeon_render_toml = if let Some(render_toml) =
+                map.properties.get_str("dungeon_render_toml")
+            {
+                render_toml.to_string()
+            } else if map.properties.get("dungeon_render_transition_seconds").is_some()
+                || map.properties.get("dungeon_render_sun_enabled").is_some()
+                || map.properties.get("dungeon_render_shadow_enabled").is_some()
+                || map.properties.get("dungeon_render_fog_density").is_some()
+                || map.properties.get("dungeon_render_fog_color").is_some()
+            {
+                Self::legacy_render_toml(map, server_ctx)
+            } else {
+                server_ctx.curr_dungeon_render_toml.clone()
+            };
         }
     }
 
@@ -149,6 +193,10 @@ impl DungeonDock {
             map.properties.set(
                 "dungeon_stair_tile_mode",
                 Value::Int(server_ctx.curr_dungeon_stair_tile_mode),
+            );
+            map.properties.set(
+                "dungeon_render_toml",
+                Value::Str(server_ctx.curr_dungeon_render_toml.clone()),
             );
         }
     }
@@ -278,11 +326,26 @@ impl DungeonDock {
         nodeui
     }
 
+    fn settings_toml(server_ctx: &ServerContext) -> String {
+        let mut text = nodeui_to_toml(&Self::settings_nodeui(server_ctx)).trim_end().to_string();
+        let render = if server_ctx.curr_dungeon_render_toml.trim().is_empty() {
+            Self::default_render_toml()
+        } else {
+            server_ctx.curr_dungeon_render_toml.trim().to_string()
+        };
+        if !text.is_empty() {
+            text.push_str("\n\n");
+        }
+        text.push_str(&render);
+        text.push('\n');
+        text
+    }
+
     fn sync_settings_ui(&self, ui: &mut TheUI, _ctx: &mut TheContext, server_ctx: &ServerContext) {
         if let Some(widget) = ui.get_widget(DUNGEON_SETTINGS_TOML)
             && let Some(edit) = widget.as_text_area_edit()
         {
-            let toml_text = nodeui_to_toml(&Self::settings_nodeui(server_ctx));
+            let toml_text = Self::settings_toml(server_ctx);
             if edit.text() != toml_text {
                 let previous = edit.get_state();
                 edit.set_text(toml_text);
@@ -752,7 +815,8 @@ impl Dock for DungeonDock {
             TheEvent::ValueChanged(id, value) if id.name == DUNGEON_SETTINGS_TOML => {
                 if let Some(source) = value.to_string() {
                     let mut nodeui = Self::settings_nodeui(server_ctx);
-                    if apply_toml_to_nodeui(&mut nodeui, &source).is_ok() {
+                    let doc = toml::from_str::<toml::Value>(&source);
+                    if doc.is_ok() && apply_toml_to_nodeui(&mut nodeui, &source).is_ok() {
                         let mut rebuild_geometry = false;
                         let mut refresh_preview = false;
                         for (key, val) in nodeui_to_value_pairs(&nodeui) {
@@ -811,6 +875,15 @@ impl Dock for DungeonDock {
                         }
                         if let Some(item) = nodeui.get_text_value("Item") {
                             server_ctx.curr_dungeon_tile_item = item.trim().to_string();
+                        }
+                        if let Ok(doc) = doc
+                            && let Some(render_table) =
+                                doc.get("render").and_then(toml::Value::as_table)
+                        {
+                            let render_body =
+                                toml::to_string_pretty(render_table).unwrap_or_default();
+                            server_ctx.curr_dungeon_render_toml =
+                                format!("[render]\n{}", render_body);
                         }
 
                         Self::store_settings_to_map(_project, server_ctx);

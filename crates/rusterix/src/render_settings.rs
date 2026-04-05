@@ -277,6 +277,7 @@ enum SettingKey {
     SunIntensity,
     SunDirection,
     SunEnabled,
+    ShadowEnabled,
     AmbientColor,
     AmbientStrength,
     FogColor,
@@ -284,11 +285,17 @@ enum SettingKey {
     AoSamples,
     AoRadius,
     BumpStrength,
+    MsaaSamples,
     MaxTransparencyBounces,
     MaxShadowDistance,
     MaxSkyDistance,
     MaxShadowSteps,
     ReflectionSamples,
+    FirstPBlurNear,
+    FirstPBlurFar,
+    ShadowStrength,
+    ShadowResolution,
+    ShadowBias,
     FrameTimeMs,
 }
 
@@ -989,6 +996,7 @@ impl RenderSettings {
             SettingKey::SunIntensity => SettingValue::Float(self.sun_intensity),
             SettingKey::SunDirection => SettingValue::Vec3(self.sun_direction),
             SettingKey::SunEnabled => SettingValue::Bool(self.sun_enabled),
+            SettingKey::ShadowEnabled => SettingValue::Bool(self.raster_shadow_enabled),
             SettingKey::AmbientColor => SettingValue::Vec3(self.ambient_color),
             SettingKey::AmbientStrength => SettingValue::Float(self.ambient_strength),
             SettingKey::FogColor => SettingValue::Vec3(self.fog_color),
@@ -996,6 +1004,7 @@ impl RenderSettings {
             SettingKey::AoSamples => SettingValue::Float(self.ao_samples),
             SettingKey::AoRadius => SettingValue::Float(self.ao_radius),
             SettingKey::BumpStrength => SettingValue::Float(self.bump_strength),
+            SettingKey::MsaaSamples => SettingValue::Float(self.msaa_samples as f32),
             SettingKey::MaxTransparencyBounces => {
                 SettingValue::Float(self.max_transparency_bounces)
             }
@@ -1003,6 +1012,11 @@ impl RenderSettings {
             SettingKey::MaxSkyDistance => SettingValue::Float(self.max_sky_distance),
             SettingKey::MaxShadowSteps => SettingValue::Float(self.max_shadow_steps),
             SettingKey::ReflectionSamples => SettingValue::Float(self.reflection_samples),
+            SettingKey::FirstPBlurNear => SettingValue::Float(self.firstp_blur_near),
+            SettingKey::FirstPBlurFar => SettingValue::Float(self.firstp_blur_far),
+            SettingKey::ShadowStrength => SettingValue::Float(self.raster_shadow_strength),
+            SettingKey::ShadowResolution => SettingValue::Float(self.raster_shadow_resolution),
+            SettingKey::ShadowBias => SettingValue::Float(self.raster_shadow_bias),
             SettingKey::FrameTimeMs => SettingValue::Float(self.frame_time_ms),
         }
     }
@@ -1014,6 +1028,7 @@ impl RenderSettings {
             (SettingKey::SunIntensity, SettingValue::Float(v)) => self.sun_intensity = v,
             (SettingKey::SunDirection, SettingValue::Vec3(v)) => self.sun_direction = v,
             (SettingKey::SunEnabled, SettingValue::Bool(v)) => self.sun_enabled = v,
+            (SettingKey::ShadowEnabled, SettingValue::Bool(v)) => self.raster_shadow_enabled = v,
             (SettingKey::AmbientColor, SettingValue::Vec3(v)) => self.ambient_color = v,
             (SettingKey::AmbientStrength, SettingValue::Float(v)) => self.ambient_strength = v,
             (SettingKey::FogColor, SettingValue::Vec3(v)) => self.fog_color = v,
@@ -1021,6 +1036,9 @@ impl RenderSettings {
             (SettingKey::AoSamples, SettingValue::Float(v)) => self.ao_samples = v,
             (SettingKey::AoRadius, SettingValue::Float(v)) => self.ao_radius = v,
             (SettingKey::BumpStrength, SettingValue::Float(v)) => self.bump_strength = v,
+            (SettingKey::MsaaSamples, SettingValue::Float(v)) => {
+                self.msaa_samples = if v.round().max(0.0) as u32 == 0 { 0 } else { 4 }
+            }
             (SettingKey::MaxTransparencyBounces, SettingValue::Float(v)) => {
                 self.max_transparency_bounces = v
             }
@@ -1028,6 +1046,13 @@ impl RenderSettings {
             (SettingKey::MaxSkyDistance, SettingValue::Float(v)) => self.max_sky_distance = v,
             (SettingKey::MaxShadowSteps, SettingValue::Float(v)) => self.max_shadow_steps = v,
             (SettingKey::ReflectionSamples, SettingValue::Float(v)) => self.reflection_samples = v,
+            (SettingKey::FirstPBlurNear, SettingValue::Float(v)) => self.firstp_blur_near = v,
+            (SettingKey::FirstPBlurFar, SettingValue::Float(v)) => self.firstp_blur_far = v,
+            (SettingKey::ShadowStrength, SettingValue::Float(v)) => self.raster_shadow_strength = v,
+            (SettingKey::ShadowResolution, SettingValue::Float(v)) => {
+                self.raster_shadow_resolution = v
+            }
+            (SettingKey::ShadowBias, SettingValue::Float(v)) => self.raster_shadow_bias = v,
             (SettingKey::FrameTimeMs, SettingValue::Float(v)) => self.frame_time_ms = v,
             _ => {}
         }
@@ -1048,9 +1073,9 @@ impl RenderSettings {
                 Value::Str(s) => Ok(SettingValue::Vec3(parse_hex_color(&s)?)),
                 _ => Err(format!("Expected Vec3 or hex color for {:?}", key).into()),
             },
-            SettingKey::SunEnabled => match value {
+            SettingKey::SunEnabled | SettingKey::ShadowEnabled => match value {
                 Value::Bool(b) => Ok(SettingValue::Bool(b)),
-                _ => Err("Expected bool for sun_enabled".into()),
+                _ => Err("Expected bool for render setting".into()),
             },
             SettingKey::SunIntensity
             | SettingKey::AmbientStrength
@@ -1058,11 +1083,17 @@ impl RenderSettings {
             | SettingKey::AoSamples
             | SettingKey::AoRadius
             | SettingKey::BumpStrength
+            | SettingKey::MsaaSamples
             | SettingKey::MaxTransparencyBounces
             | SettingKey::MaxShadowDistance
             | SettingKey::MaxSkyDistance
             | SettingKey::MaxShadowSteps
             | SettingKey::ReflectionSamples
+            | SettingKey::FirstPBlurNear
+            | SettingKey::FirstPBlurFar
+            | SettingKey::ShadowStrength
+            | SettingKey::ShadowResolution
+            | SettingKey::ShadowBias
             | SettingKey::FrameTimeMs => {
                 let Some(v) = Self::value_to_f32(&value) else {
                     return Err(format!("Expected numeric value for {:?}", key).into());
@@ -1089,6 +1120,7 @@ impl RenderSettings {
             "sun_intensity" => Some(SettingKey::SunIntensity),
             "sun_direction" => Some(SettingKey::SunDirection),
             "sun_enabled" => Some(SettingKey::SunEnabled),
+            "shadow_enabled" => Some(SettingKey::ShadowEnabled),
             "ambient_color" => Some(SettingKey::AmbientColor),
             "ambient_strength" => Some(SettingKey::AmbientStrength),
             "fog_color" => Some(SettingKey::FogColor),
@@ -1096,12 +1128,79 @@ impl RenderSettings {
             "ao_samples" => Some(SettingKey::AoSamples),
             "ao_radius" => Some(SettingKey::AoRadius),
             "bump_strength" => Some(SettingKey::BumpStrength),
+            "msaa_samples" => Some(SettingKey::MsaaSamples),
             "max_transparency_bounces" => Some(SettingKey::MaxTransparencyBounces),
             "max_shadow_distance" => Some(SettingKey::MaxShadowDistance),
             "max_sky_distance" => Some(SettingKey::MaxSkyDistance),
             "max_shadow_steps" => Some(SettingKey::MaxShadowSteps),
             "reflection_samples" => Some(SettingKey::ReflectionSamples),
+            "firstp_blur_near" => Some(SettingKey::FirstPBlurNear),
+            "firstp_blur_far" => Some(SettingKey::FirstPBlurFar),
+            "shadow_strength" => Some(SettingKey::ShadowStrength),
+            "shadow_resolution" => Some(SettingKey::ShadowResolution),
+            "shadow_bias" => Some(SettingKey::ShadowBias),
             "ms_per_frame" => Some(SettingKey::FrameTimeMs),
+            _ => None,
+        }
+    }
+
+    pub fn runtime_override_names() -> &'static [&'static str] {
+        &[
+            "sky_color",
+            "sun_color",
+            "sun_intensity",
+            "sun_direction",
+            "sun_enabled",
+            "shadow_enabled",
+            "ambient_color",
+            "ambient_strength",
+            "fog_color",
+            "fog_density",
+            "ao_samples",
+            "ao_radius",
+            "bump_strength",
+            "msaa_samples",
+            "max_transparency_bounces",
+            "max_shadow_distance",
+            "max_sky_distance",
+            "max_shadow_steps",
+            "reflection_samples",
+            "firstp_blur_near",
+            "firstp_blur_far",
+            "shadow_strength",
+            "shadow_resolution",
+            "shadow_bias",
+            "ms_per_frame",
+        ]
+    }
+
+    pub fn value_for_name(&self, name: &str) -> Option<Value> {
+        match name {
+            "sky_color" => Some(Value::Vec3(self.sky_color)),
+            "sun_color" => Some(Value::Vec3(self.sun_color)),
+            "sun_intensity" => Some(Value::Float(self.sun_intensity)),
+            "sun_direction" => Some(Value::Vec3(self.sun_direction)),
+            "sun_enabled" => Some(Value::Bool(self.sun_enabled)),
+            "shadow_enabled" => Some(Value::Bool(self.raster_shadow_enabled)),
+            "ambient_color" => Some(Value::Vec3(self.ambient_color)),
+            "ambient_strength" => Some(Value::Float(self.ambient_strength)),
+            "fog_color" => Some(Value::Vec3(self.fog_color)),
+            "fog_density" => Some(Value::Float(self.fog_density)),
+            "ao_samples" => Some(Value::Float(self.ao_samples)),
+            "ao_radius" => Some(Value::Float(self.ao_radius)),
+            "bump_strength" => Some(Value::Float(self.bump_strength)),
+            "msaa_samples" => Some(Value::Float(self.msaa_samples as f32)),
+            "max_transparency_bounces" => Some(Value::Float(self.max_transparency_bounces)),
+            "max_shadow_distance" => Some(Value::Float(self.max_shadow_distance)),
+            "max_sky_distance" => Some(Value::Float(self.max_sky_distance)),
+            "max_shadow_steps" => Some(Value::Float(self.max_shadow_steps)),
+            "reflection_samples" => Some(Value::Float(self.reflection_samples)),
+            "firstp_blur_near" => Some(Value::Float(self.firstp_blur_near)),
+            "firstp_blur_far" => Some(Value::Float(self.firstp_blur_far)),
+            "shadow_strength" => Some(Value::Float(self.raster_shadow_strength)),
+            "shadow_resolution" => Some(Value::Float(self.raster_shadow_resolution)),
+            "shadow_bias" => Some(Value::Float(self.raster_shadow_bias)),
+            "ms_per_frame" => Some(Value::Float(self.frame_time_ms)),
             _ => None,
         }
     }

@@ -857,6 +857,7 @@ impl Client {
         let hour = self.server_time.to_f32();
 
         scene_handler.settings.apply_hour(hour);
+        scene_handler.apply_dungeon_render_overrides(map);
         scene_handler.settings.apply_3d(&mut scene_handler.vm);
 
         scene_handler
@@ -1091,7 +1092,7 @@ impl Client {
         self.permanently_activated_widgets.clear();
         self.activated_widgets.clear();
 
-        _ = scene_handler.settings.read(&assets.config);
+        scene_handler.sync_base_render_settings(&assets.config);
 
         // Init config
         match assets.config.parse::<Table>() {

@@ -587,7 +587,10 @@ impl Sidebar {
                         let dim = *render_view.dim();
 
                         // Color selected
-                        if *SIDEBARMODE.read().unwrap() == SidebarMode::Palette {
+                        let palette_minimap_active =
+                            server_ctx.palette_tool_active
+                                && DOCKMANAGER.read().unwrap().dock == "Palette";
+                        if palette_minimap_active {
                             let buffer = render_view.render_buffer_mut();
                             if let Some(col) = buffer.get_pixel(coord.x, coord.y) {
                                 let color = TheColor::from(col);

@@ -821,7 +821,7 @@ impl Dock for TilesEditorDock {
                         return true;
                     } else if item_id.name == "Tile Node Add Box Divide" {
                         push_node(TileNodeKind::BoxDivide {
-                            scale: 1.0,
+                            scale: 0.08,
                             gap: 1.0,
                             rotation: 0.15,
                             rounding: 0.04,
@@ -1622,7 +1622,7 @@ impl Dock for TilesEditorDock {
                             && let Some(new_value) = value.to_f32()
                         {
                             let (target, new_value) = if id.name == "tileNodeBoxDivideScale" {
-                                (scale, new_value.clamp(0.1, 2.0))
+                                (scale, new_value.clamp(0.0, 0.2))
                             } else if id.name == "tileNodeBoxDivideGap" {
                                 (gap, new_value.clamp(0.0, 2.0))
                             } else if id.name == "tileNodeBoxDivideRotation" {
@@ -2458,7 +2458,7 @@ impl Dock for TilesEditorDock {
                             && let Some(new_value) = value.to_f32()
                         {
                             let (target, new_value) = if id.name == "tileNodeBoxDivideScale" {
-                                (scale, new_value.clamp(0.1, 2.0))
+                                (scale, new_value.clamp(0.0, 0.2))
                             } else if id.name == "tileNodeBoxDivideGap" {
                                 (gap, new_value.clamp(0.0, 2.0))
                             } else if id.name == "tileNodeBoxDivideRotation" {
@@ -3653,7 +3653,7 @@ impl TilesEditorDock {
                         "Density".into(),
                         "Subdivision density across the full output group.".into(),
                         *scale,
-                        0.1..=2.0,
+                        0.0..=0.2,
                         false,
                     ));
                     nodeui.add_item(TheNodeUIItem::FloatEditSlider(

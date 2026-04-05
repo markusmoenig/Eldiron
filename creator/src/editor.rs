@@ -146,6 +146,66 @@ impl Editor {
     const STARTER_CREATE_ID: &'static str = "Starter Project Create";
     const STARTER_CANCEL_ID: &'static str = "Starter Project Cancel";
 
+    fn sector_is_dungeon_generated(sector: &rusterix::Sector) -> bool {
+        sector
+            .properties
+            .get_str_default("generated_by", String::new())
+            == "dungeon_tool"
+    }
+
+    fn linedef_has_dungeon_host(map: &Map, linedef_id: u32) -> bool {
+        if map.sectors.iter().any(|sector| {
+            Self::sector_is_dungeon_generated(sector) && sector.linedefs.contains(&linedef_id)
+        }) {
+            return true;
+        }
+
+        let Some(linedef) = map.find_linedef(linedef_id) else {
+            return false;
+        };
+        let (Some(v0), Some(v1)) = (
+            map.find_vertex(linedef.start_vertex),
+            map.find_vertex(linedef.end_vertex),
+        ) else {
+            return false;
+        };
+        let midpoint = Vec2::new((v0.x + v1.x) * 0.5, (v0.y + v1.y) * 0.5);
+        map.sectors.iter().any(|sector| {
+            if !Self::sector_is_dungeon_generated(sector) {
+                return false;
+            }
+            let mut bbox = sector.bounding_box(map);
+            bbox.expand(Vec2::new(0.25, 0.25));
+            bbox.contains(midpoint)
+        })
+    }
+
+    fn vertex_has_dungeon_host(map: &Map, vertex_id: u32) -> bool {
+        if map.sectors.iter().any(|sector| {
+            Self::sector_is_dungeon_generated(sector)
+                && sector.linedefs.iter().any(|linedef_id| {
+                    map.find_linedef(*linedef_id).is_some_and(|linedef| {
+                        linedef.start_vertex == vertex_id || linedef.end_vertex == vertex_id
+                    })
+                })
+        }) {
+            return true;
+        }
+
+        let Some(vertex) = map.find_vertex(vertex_id) else {
+            return false;
+        };
+        let pos = Vec2::new(vertex.x, vertex.y);
+        map.sectors.iter().any(|sector| {
+            if !Self::sector_is_dungeon_generated(sector) {
+                return false;
+            }
+            let mut bbox = sector.bounding_box(map);
+            bbox.expand(Vec2::new(0.25, 0.25));
+            bbox.contains(pos)
+        })
+    }
+
     fn apply_editor_geo_filter(
         filter: EditingGeoFilter,
         dungeon_no_ceiling: bool,
@@ -158,10 +218,7 @@ impl Editor {
         }
 
         for sector in &map.sectors {
-            let is_dungeon = sector
-                .properties
-                .get_str_default("generated_by", String::new())
-                == "dungeon_tool";
+            let is_dungeon = Self::sector_is_dungeon_generated(sector);
             let dungeon_part = sector
                 .properties
                 .get_str_default("dungeon_part", String::new());
@@ -193,6 +250,52 @@ impl Editor {
                 .vm
                 .execute(scenevm::Atom::SetGeoOpacity {
                     id: scenevm::GeoId::Sector(sector.id),
+                    opacity,
+                });
+        }
+
+        for linedef in &map.linedefs {
+            let visible = if dungeon_only {
+                Self::linedef_has_dungeon_host(map, linedef.id)
+            } else {
+                true
+            };
+            let opacity = if visible { 1.0 } else { 0.0 };
+            rusterix
+                .scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGeoVisible {
+                    id: scenevm::GeoId::Linedef(linedef.id),
+                    visible,
+                });
+            rusterix
+                .scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGeoOpacity {
+                    id: scenevm::GeoId::Linedef(linedef.id),
+                    opacity,
+                });
+        }
+
+        for vertex in &map.vertices {
+            let visible = if dungeon_only {
+                Self::vertex_has_dungeon_host(map, vertex.id)
+            } else {
+                true
+            };
+            let opacity = if visible { 1.0 } else { 0.0 };
+            rusterix
+                .scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGeoVisible {
+                    id: scenevm::GeoId::Vertex(vertex.id),
+                    visible,
+                });
+            rusterix
+                .scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGeoOpacity {
+                    id: scenevm::GeoId::Vertex(vertex.id),
                     opacity,
                 });
         }

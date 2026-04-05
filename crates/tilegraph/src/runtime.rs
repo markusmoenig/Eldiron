@@ -23,21 +23,26 @@ fn rot(a: f32) -> Mat2<f32> {
     Mat2::new(a.cos(), -a.sin(), a.sin(), a.cos())
 }
 
-fn box_divide(p: Vec2<f32>, gap: f32, rotation: f32, rounding: f32) -> (f32, f32) {
+fn box_divide(
+    p: Vec2<f32>,
+    cell: Vec2<f32>,
+    gap: f32,
+    rotation: f32,
+    rounding: f32,
+    iterations: i32,
+) -> (f32, f32) {
     fn s_box(p: Vec2<f32>, b: Vec2<f32>, r: f32) -> f32 {
         let d = p.map(|v| v.abs()) - b + Vec2::new(r, r);
         d.x.max(d.y).min(0.0) + (d.map(|v| v.max(0.0))).magnitude() - r
     }
 
     let mut p = p;
-    let ip = p.map(|v| v.floor());
-    p -= ip;
 
     let mut l = Vec2::new(1.0, 1.0);
     let mut last_l;
-    let mut r = hash21(ip);
+    let mut r = hash21(cell);
 
-    for _ in 0..6 {
+    for _ in 0..iterations.max(1) {
         r = (l + Vec2::new(r, r)).dot(Vec2::new(123.71, 439.43)).fract() * 0.4 + 0.3;
 
         last_l = l;
@@ -61,7 +66,7 @@ fn box_divide(p: Vec2<f32>, gap: f32, rotation: f32, rounding: f32) -> (f32, f32
     }
     p -= 0.5;
 
-    let id = hash21(ip + l);
+    let id = hash21(cell + l);
     p = rot((id - 0.5) * rotation) * p;
 
     let th = l * 0.02 * gap;
@@ -3032,6 +3037,14 @@ impl TileGraphRenderer {
         ((scale.clamp(0.05, 2.0) * 6.0).round() as i32).max(1)
     }
 
+    fn box_divide_repeat_from_density(density: f32) -> i32 {
+        (1 + (density.clamp(0.0, 0.2) * 20.0).round() as i32).max(1)
+    }
+
+    fn box_divide_iterations_from_density(density: f32) -> i32 {
+        (1 + (density.clamp(0.0, 0.2) / 0.2 * 5.0).round() as i32).max(1)
+    }
+
     fn voronoi_data(
         eval: TileEvalContext,
         warp: Vec2<f32>,
@@ -3273,10 +3286,27 @@ impl TileGraphRenderer {
         rounding: f32,
         falloff: f32,
     ) -> (f32, f32, f32) {
+        let repeat = Self::box_divide_repeat_from_density(scale);
+        let iterations = Self::box_divide_iterations_from_density(scale);
         let u = (eval.group_u() + warp.x).rem_euclid(1.0);
         let v = (eval.group_v() + warp.y).rem_euclid(1.0);
-        let uv = Vec2::new(u, v) * scale.max(0.1);
-        let (dist, id) = box_divide(uv, gap.clamp(0.0, 4.0), rotation, rounding.clamp(0.0, 0.5));
+        let x = u * repeat as f32;
+        let y = v * repeat as f32;
+        let cell_x = x.floor() as i32;
+        let cell_y = y.floor() as i32;
+        let local = Vec2::new(x.fract(), y.fract());
+        let wrapped_cell = Vec2::new(
+            cell_x.rem_euclid(repeat) as f32,
+            cell_y.rem_euclid(repeat) as f32,
+        );
+        let (dist, id) = box_divide(
+            local,
+            wrapped_cell,
+            gap.clamp(0.0, 4.0),
+            rotation,
+            rounding.clamp(0.0, 0.5),
+            iterations,
+        );
         let center = (1.0 - (dist.abs() * 6.0)).clamp(0.0, 1.0);
         let height = (1.0 - (dist.max(0.0) * 12.0))
             .clamp(0.0, 1.0)

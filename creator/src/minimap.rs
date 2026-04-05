@@ -3,7 +3,7 @@ use rusterix::ValueContainer;
 use std::collections::hash_map::DefaultHasher;
 use vek::Vec2;
 
-use crate::editor::{PALETTE, RUSTERIX, SIDEBARMODE};
+use crate::editor::{DOCKMANAGER, PALETTE, RUSTERIX};
 use std::hash::{Hash, Hasher};
 
 pub static MINIMAPBUFFER: LazyLock<RwLock<TheRGBABuffer>> =
@@ -11,6 +11,10 @@ pub static MINIMAPBUFFER: LazyLock<RwLock<TheRGBABuffer>> =
 
 pub static MINIMAPBOX: LazyLock<RwLock<Vec4<f32>>> = LazyLock::new(|| RwLock::new(Vec4::one()));
 pub static MINIMAPCACHEKEY: LazyLock<RwLock<u64>> = LazyLock::new(|| RwLock::new(0));
+
+fn palette_minimap_active(server_ctx: &ServerContext) -> bool {
+    server_ctx.palette_tool_active && DOCKMANAGER.read().unwrap().dock == "Palette"
+}
 
 fn minimap_context_key(server_ctx: &ServerContext) -> u64 {
     let mut hasher = DefaultHasher::default();
@@ -104,7 +108,7 @@ pub fn draw_minimap_context_label(
     ctx: &mut TheContext,
     server_ctx: &ServerContext,
 ) {
-    if *SIDEBARMODE.read().unwrap() == SidebarMode::Palette {
+    if palette_minimap_active(server_ctx) {
         return;
     }
 
@@ -159,7 +163,7 @@ pub fn draw_minimap(
     server_ctx: &ServerContext,
     hard: bool,
 ) {
-    if *SIDEBARMODE.read().unwrap() == SidebarMode::Palette {
+    if palette_minimap_active(server_ctx) {
         buffer.render_hsl_hue_waveform();
 
         if let Some(color) = PALETTE.read().unwrap().get_current_color() {

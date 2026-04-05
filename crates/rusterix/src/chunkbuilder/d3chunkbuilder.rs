@@ -59,6 +59,63 @@ fn sector_is_dungeon_filtered(
     false
 }
 
+fn sector_is_dungeon_generated(sector: &crate::Sector) -> bool {
+    sector
+        .properties
+        .get_str_default("generated_by", String::new())
+        == "dungeon_tool"
+}
+
+fn linedef_has_dungeon_host(map: &Map, linedef: &crate::Linedef) -> bool {
+    if map.sectors.iter().any(|sector| {
+        sector_is_dungeon_generated(sector) && sector.linedefs.contains(&linedef.id)
+    }) {
+        return true;
+    }
+
+    let Some(v0) = map.find_vertex(linedef.start_vertex) else {
+        return false;
+    };
+    let Some(v1) = map.find_vertex(linedef.end_vertex) else {
+        return false;
+    };
+    let midpoint = Vec2::new((v0.x + v1.x) * 0.5, (v0.y + v1.y) * 0.5);
+    map.sectors.iter().any(|sector| {
+        if !sector_is_dungeon_generated(sector) {
+            return false;
+        }
+        let mut bbox = sector.bounding_box(map);
+        bbox.expand(Vec2::new(0.25, 0.25));
+        bbox.contains(midpoint)
+    })
+}
+
+fn vertex_has_dungeon_host(map: &Map, vertex_id: u32) -> bool {
+    if map.sectors.iter().any(|sector| {
+        sector_is_dungeon_generated(sector)
+            && sector.linedefs.iter().any(|linedef_id| {
+                map.find_linedef(*linedef_id).is_some_and(|linedef| {
+                    linedef.start_vertex == vertex_id || linedef.end_vertex == vertex_id
+                })
+            })
+    }) {
+        return true;
+    }
+
+    let Some(vertex) = map.find_vertex(vertex_id) else {
+        return false;
+    };
+    let pos = Vec2::new(vertex.x, vertex.y);
+    map.sectors.iter().any(|sector| {
+        if !sector_is_dungeon_generated(sector) {
+            return false;
+        }
+        let mut bbox = sector.bounding_box(map);
+        bbox.expand(Vec2::new(0.25, 0.25));
+        bbox.contains(pos)
+    })
+}
+
 fn profile_sector_item(map: &Map, profile_id: Uuid, sector_id: u32) -> Option<&Item> {
     let profile_map = map.profiles.get(&profile_id)?;
     profile_map
@@ -1707,15 +1764,20 @@ impl ChunkBuilder for D3ChunkBuilder {
             }
         }
 
-        // Build optional non-destructive linedef features (palisade, fence, ...).
+        // Build optional non-destructive linedef/features. In dungeon-only mode,
+        // keep builder features that are attached to dungeon-generated hosts.
         if !dungeon_only {
             generate_sector_stairs(map, assets, chunk, vmchunk);
             generate_sector_campfires(map, assets, chunk, vmchunk);
-            generate_sector_builder_features(map, assets, chunk, vmchunk);
+            generate_sector_builder_features(map, assets, chunk, vmchunk, false);
             generate_sector_roofs(map, assets, chunk, vmchunk);
-            generate_vertex_builder_features(map, assets, chunk, vmchunk);
-            generate_builder_linedef_features(map, assets, chunk, vmchunk);
+            generate_vertex_builder_features(map, assets, chunk, vmchunk, false);
+            generate_builder_linedef_features(map, assets, chunk, vmchunk, false);
             generate_linedef_features(map, assets, chunk, vmchunk);
+        } else {
+            generate_sector_builder_features(map, assets, chunk, vmchunk, true);
+            generate_vertex_builder_features(map, assets, chunk, vmchunk, true);
+            generate_builder_linedef_features(map, assets, chunk, vmchunk, true);
         }
 
         // Generate terrain for this chunk
@@ -3795,6 +3857,7 @@ fn generate_builder_linedef_features(
     assets: &Assets,
     chunk: &Chunk,
     vmchunk: &mut scenevm::Chunk,
+    dungeon_only: bool,
 ) {
     let mut grouped: FxHashMap<
         Uuid,
@@ -3802,6 +3865,9 @@ fn generate_builder_linedef_features(
     > = FxHashMap::default();
 
     for linedef in &map.linedefs {
+        if dungeon_only && !linedef_has_dungeon_host(map, linedef) {
+            continue;
+        }
         let builder_graph_data = linedef
             .properties
             .get_str_default("builder_graph_data", String::new());
@@ -4115,11 +4181,15 @@ fn generate_vertex_builder_features(
     assets: &Assets,
     chunk: &Chunk,
     vmchunk: &mut scenevm::Chunk,
+    dungeon_only: bool,
 ) {
     let mut grouped: FxHashMap<Uuid, Vec<(u32, Vec3<f32>, ValueContainer, String, i32)>> =
         FxHashMap::default();
 
     for vertex in &map.vertices {
+        if dungeon_only && !vertex_has_dungeon_host(map, vertex.id) {
+            continue;
+        }
         let builder_graph_data = vertex
             .properties
             .get_str_default("builder_graph_data", String::new());
@@ -7726,8 +7796,12 @@ fn generate_sector_builder_features(
     assets: &Assets,
     chunk: &mut Chunk,
     vmchunk: &mut scenevm::Chunk,
+    dungeon_only: bool,
 ) {
     for sector in &map.sectors {
+        if dungeon_only && !sector_is_dungeon_generated(sector) {
+            continue;
+        }
         let builder_graph_data = sector
             .properties
             .get_str_default("builder_graph_data", String::new());

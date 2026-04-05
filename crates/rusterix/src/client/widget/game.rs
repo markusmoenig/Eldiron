@@ -706,7 +706,7 @@ impl GameWidget {
         if self.camera == PlayerCamera::D2 {
             self.prepare_d2(time, animation_frame, scene_handler);
         } else {
-            self.prepare_d3(time, animation_frame, scene_handler);
+            self.prepare_d3(map, time, animation_frame, scene_handler);
         }
     }
 
@@ -897,6 +897,7 @@ impl GameWidget {
 
     fn prepare_d3(
         &mut self,
+        map: &Map,
         time: &TheTime,
         animation_frame: usize,
         scene_handler: &mut SceneHandler,
@@ -928,6 +929,7 @@ impl GameWidget {
         let hour = time.to_f32();
 
         scene_handler.settings.apply_hour(hour);
+        scene_handler.apply_dungeon_render_overrides(map);
         scene_handler.settings.apply_3d(&mut scene_handler.vm);
 
         scene_handler

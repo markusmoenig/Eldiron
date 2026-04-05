@@ -1,9 +1,14 @@
-use std::{hash::Hasher, str::FromStr};
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    str::FromStr,
+};
 
 use crate::{
     Assets, AvatarDirection, AvatarShadingOptions, BillboardAnimation, BillboardMetadata, D3Camera,
     Item, Map, ParticleEmitter, PixelSource, RenderSettings, Texture, Tile, Value,
-    avatar_builder::AvatarRuntimeBuilder, chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
+    ValueTomlLoader, avatar_builder::AvatarRuntimeBuilder,
+    chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
 };
 use buildergraph::{BuilderDocument, BuilderOutputTarget, BuilderPrimitive};
 use indexmap::IndexMap;
@@ -109,6 +114,7 @@ pub struct SceneHandler {
     pub yellow: Uuid,
 
     pub settings: RenderSettings,
+    pub base_settings: RenderSettings,
 
     // Billboards for dynamic doors/gates (indexed by GeoId for fast lookup)
     pub billboards: FxHashMap<GeoId, BillboardMetadata>,
@@ -139,6 +145,7 @@ pub struct SceneHandler {
     game_tick_fps: f32,
     pending_particle_steps_2d: usize,
     pending_particle_steps_3d: usize,
+    last_dungeon_render_signature: Option<u64>,
 }
 
 impl Default for SceneHandler {
@@ -248,6 +255,175 @@ impl SceneHandler {
             ],
             [36, 32, 32, 255],
         ]
+    }
+
+    pub fn sync_base_render_settings(&mut self, config: &str) {
+        let mut base = RenderSettings::default();
+        _ = base.read(config);
+        self.base_settings = base.clone();
+        self.settings = base;
+        self.last_dungeon_render_signature = None;
+    }
+
+    fn sector_floor_height_for_player(map: &Map, sector: &crate::Sector) -> Option<f32> {
+        if map
+            .get_surface_for_sector_id(sector.id)
+            .map(|surface| surface.plane.normal.y.abs() <= 0.7)
+            .unwrap_or(true)
+        {
+            return None;
+        }
+        if sector.properties.get_float_default("roof_height", 0.0) > 0.0 {
+            return None;
+        }
+
+        let mut vertex_ids: FxHashSet<u32> = FxHashSet::default();
+        let mut sum_y = 0.0f32;
+        let mut count = 0usize;
+        for linedef_id in &sector.linedefs {
+            let Some(ld) = map.find_linedef(*linedef_id) else {
+                continue;
+            };
+            for vertex_id in [ld.start_vertex, ld.end_vertex] {
+                if vertex_ids.insert(vertex_id)
+                    && let Some(v) = map.get_vertex_3d(vertex_id)
+                {
+                    sum_y += v.y;
+                    count += 1;
+                }
+            }
+        }
+        if count == 0 {
+            None
+        } else {
+            Some(sum_y / count as f32)
+        }
+    }
+
+    fn current_player_sector<'a>(map: &'a Map) -> Option<&'a crate::Sector> {
+        let player = map.entities.iter().find(|entity| entity.is_player())?;
+        let player_pos = player.get_pos_xz();
+        let reference_y = player.position.y;
+        let mut best_below: Option<(&crate::Sector, f32)> = None;
+        let mut best_above: Option<(&crate::Sector, f32)> = None;
+        const FLOOR_EPS: f32 = 0.05;
+
+        for sector in map
+            .sectors
+            .iter()
+            .filter(|s| s.layer.is_none() && s.is_inside(map, player_pos))
+        {
+            let Some(h) = Self::sector_floor_height_for_player(map, sector) else {
+                continue;
+            };
+            if h <= reference_y + FLOOR_EPS {
+                if best_below.is_none_or(|(_, curr_h)| h > curr_h) {
+                    best_below = Some((sector, h));
+                }
+            } else {
+                let dist = h - reference_y;
+                if best_above.is_none_or(|(_, curr_dist)| dist < curr_dist) {
+                    best_above = Some((sector, dist));
+                }
+            }
+        }
+
+        best_below
+            .map(|(sector, _)| sector)
+            .or_else(|| best_above.map(|(sector, _)| sector))
+            .or_else(|| map.find_sector_at(player_pos))
+    }
+
+    fn dungeon_render_signature(map: &Map, active: bool) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        active.hash(&mut hasher);
+        Self::dungeon_render_toml(map).hash(&mut hasher);
+        if let Some(sector) = Self::current_player_sector(map) {
+            sector.id.hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
+    fn dungeon_render_toml(map: &Map) -> String {
+        if let Some(render_toml) = map.properties.get_str("dungeon_render_toml")
+            && !render_toml.trim().is_empty()
+        {
+            return render_toml.to_string();
+        }
+
+        if map.properties.get("dungeon_render_transition_seconds").is_some()
+            || map.properties.get("dungeon_render_sun_enabled").is_some()
+            || map.properties.get("dungeon_render_shadow_enabled").is_some()
+            || map.properties.get("dungeon_render_fog_density").is_some()
+            || map.properties.get("dungeon_render_fog_color").is_some()
+        {
+            return format!(
+                "[render]\ntransition_seconds = {}\nsun_enabled = {}\nshadow_enabled = {}\nfog_density = {}\nfog_color = \"{}\"\n",
+                map.properties
+                    .get_float_default("dungeon_render_transition_seconds", 1.0),
+                map.properties
+                    .get_bool_default("dungeon_render_sun_enabled", false),
+                map.properties
+                    .get_bool_default("dungeon_render_shadow_enabled", true),
+                map.properties
+                    .get_float_default("dungeon_render_fog_density", 5.0),
+                map.properties
+                    .get_str_default("dungeon_render_fog_color", "#000000".to_string()),
+            );
+        }
+
+        "[render]\ntransition_seconds = 1.0\nsun_enabled = false\nshadow_enabled = true\nfog_density = 5.0\nfog_color = \"#000000\"\n".to_string()
+    }
+
+    pub fn apply_dungeon_render_overrides(&mut self, map: &Map) {
+        let current_sector = Self::current_player_sector(map);
+        let in_dungeon = current_sector
+            .map(|sector| {
+                sector
+                    .properties
+                    .get_str_default("generated_by", String::new())
+                    == "dungeon_tool"
+            })
+            .unwrap_or(false);
+
+        let signature = Self::dungeon_render_signature(map, in_dungeon);
+        if self.last_dungeon_render_signature == Some(signature) {
+            return;
+        }
+        self.last_dungeon_render_signature = Some(signature);
+
+        let render_toml = Self::dungeon_render_toml(map);
+        let render_group = if in_dungeon {
+            ValueTomlLoader::from_str(&render_toml)
+                .ok()
+                .and_then(|groups| groups.get("render").cloned())
+        } else {
+            None
+        };
+        let transition = render_group
+            .as_ref()
+            .and_then(|render| render.get_float("transition_seconds"))
+            .unwrap_or(1.0)
+            .max(0.0);
+
+        for name in RenderSettings::runtime_override_names() {
+            let mut target = render_group
+                .as_ref()
+                .and_then(|render| render.get(name).cloned())
+                .or_else(|| self.base_settings.value_for_name(name));
+            if *name == "fog_density"
+                && let Some(Value::Float(v)) = target.as_mut()
+                && render_group
+                    .as_ref()
+                    .and_then(|render| render.get(name))
+                    .is_some()
+            {
+                *v /= 100.0;
+            }
+            if let Some(target) = target {
+                let _ = self.settings.set(name, target, transition);
+            }
+        }
     }
 
     fn rebuild_campfire_particles(
@@ -2092,6 +2268,7 @@ impl SceneHandler {
             yellow: Uuid::new_v4(),
 
             settings: RenderSettings::default(),
+            base_settings: RenderSettings::default(),
 
             billboards: FxHashMap::default(),
             billboard_anim_states: FxHashMap::default(),
@@ -2114,6 +2291,7 @@ impl SceneHandler {
             game_tick_fps: 4.0, // default 250ms ticks
             pending_particle_steps_2d: 0,
             pending_particle_steps_3d: 0,
+            last_dungeon_render_signature: None,
         }
     }
 

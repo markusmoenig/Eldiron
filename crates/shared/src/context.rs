@@ -463,6 +463,27 @@ pub struct ServerContext {
     /// Default tile mode for newly painted stair tiles.
     pub curr_dungeon_stair_tile_mode: i32,
 
+    /// Raw dungeon render override TOML block.
+    pub curr_dungeon_render_toml: String,
+
+    /// Whether dungeon-specific render overrides are enabled in gameplay.
+    pub curr_dungeon_render_enabled: bool,
+
+    /// Transition duration in seconds for dungeon render overrides.
+    pub curr_dungeon_render_transition_seconds: f32,
+
+    /// Whether sunlight is enabled while inside dungeon-generated sectors.
+    pub curr_dungeon_render_sun_enabled: bool,
+
+    /// Whether sun shadows are enabled while inside dungeon-generated sectors.
+    pub curr_dungeon_render_shadow_enabled: bool,
+
+    /// Fog density override for dungeon-generated sectors (same percent scale as [render]).
+    pub curr_dungeon_render_fog_density: f32,
+
+    /// Fog color override for dungeon-generated sectors.
+    pub curr_dungeon_render_fog_color: String,
+
     /// Previous subdivision setting before entering Dungeon Tool.
     pub prev_dungeon_subdivisions: Option<f32>,
 
@@ -691,6 +712,13 @@ impl ServerContext {
             curr_dungeon_stair_steps: 4,
             curr_dungeon_stair_tile_id: String::new(),
             curr_dungeon_stair_tile_mode: 1,
+            curr_dungeon_render_toml: "[render]\ntransition_seconds = 1.0\nsun_enabled = false\nshadow_enabled = true\nfog_density = 5.0\nfog_color = \"#000000\"\n".to_string(),
+            curr_dungeon_render_enabled: true,
+            curr_dungeon_render_transition_seconds: 1.0,
+            curr_dungeon_render_sun_enabled: false,
+            curr_dungeon_render_shadow_enabled: true,
+            curr_dungeon_render_fog_density: 5.0,
+            curr_dungeon_render_fog_color: "#000000".to_string(),
             prev_dungeon_subdivisions: None,
             builder_tool_active: false,
             palette_tool_active: false,

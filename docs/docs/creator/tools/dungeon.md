@@ -70,6 +70,19 @@ door_depth = 0.5
 door_height = 2.25
 open_mode = "Auto"
 item = "Door Handler"
+
+[steps]
+floor_delta = -1.0
+steps = 4
+tile_id = ""
+tile_mode = "Repeat"
+
+[render]
+transition_seconds = 1.0
+sun_enabled = false
+shadow_enabled = true
+fog_density = 5.0
+fog_color = "#000000"
 ```
 
 ### `dungeon`
@@ -92,6 +105,42 @@ For door tiles:
 - `open_mode`: how the runtime door opens
 - `item`: item handler attached to the generated door sector
 
+### `steps`
+
+These settings apply to stair tiles.
+
+- `floor_delta`: relative floor-base change across the stair tile. Negative values go down.
+- `steps`: number of generated steps inside the tile.
+- `tile_id`: default source applied to generated stair geometry.
+- `tile_mode`: how the stair source is mapped. `Repeat` is the normal mode, `Scale` stretches the source across the stair assembly.
+
+### `render`
+
+These settings override the normal region or game `[render]` settings while the player is inside dungeon-generated geometry.
+
+- `transition_seconds`: smooth blend duration when entering or leaving the dungeon space
+- `sun_enabled`: override sun lighting inside the dungeon
+- `shadow_enabled`: override sun shadows inside the dungeon
+- `fog_density`: fog density, using the same percent-style value as normal `[render]`
+- `fog_color`: fog color override
+
+The global game or region `[render]` settings remain the source of truth.  
+Dungeon Tool only overrides the keys you specify in its own `[render]` block, and normal rendering is restored automatically when the player leaves the dungeon geometry.
+
+## Tile Types
+
+The palette is not room-based. Each icon represents the structure of **one tile**.
+
+That includes:
+
+- floor
+- single-edge wall tiles
+- corner and multi-edge wall tiles
+- oriented door tiles
+- oriented stair tiles
+
+You compose rooms, corridors, and shafts by painting many tiles together.
+
 ## Navigation
 
 Dungeon Tool switches into the top-down authoring view and uses the normal map HUD.
@@ -111,6 +160,8 @@ When you leave the tool, the previous editor view and subdivision setting are re
 - Hold **Shift** while painting to erase
 - Hold **Cmd/Ctrl** while dragging to lock the stroke to a straight horizontal or vertical line
 
+Door tiles can stamp wider openings based on `door_width`.
+
 ## Reference Geometry
 
 The conceptual view can show nearby existing world geometry as a weak reference layer.
@@ -120,6 +171,40 @@ This is useful when:
 - continuing walls toward an existing staircase or shaft
 - aligning a dungeon blockout to already authored geometry
 - connecting generated dungeon spaces to hand-built world structures
+
+## Doors
+
+Dungeon doors generate **real geometry**, not only billboards.
+
+That means:
+
+- door panels are paintable in the editor
+- split doors can use two moving leaves
+- jambs and lintels are generated as normal geometry
+- the generated door can still be driven by an item handler such as `Door Handler`
+
+Door panels support the configured `open_mode`, including:
+
+- `Auto`
+- `Slide Up`
+- `Slide Down`
+- `Slide Left`
+- `Slide Right`
+- `Split Sides`
+
+At runtime, the generated door geometry is animated from item state.
+
+## Stairs
+
+Stair tiles generate editable stair geometry directly into the map.
+
+This includes:
+
+- stair treads
+- risers
+- optional stair ceilings when dungeon ceilings are enabled
+
+Because the result is normal geometry, it can still be painted and refined with the existing tools.
 
 ## Generated Geometry
 
@@ -132,6 +217,20 @@ That generated geometry can then be:
 - connected to the rest of the world
 
 Door panels use real geometry and can be painted like normal sectors.
+
+Stair assemblies can also receive a shared source through the stair tile settings.
+
+## Texturing Workflow
+
+Dungeon geometry is often hidden under terrain, roofs, or other authored world geometry.
+
+For texturing and detailing, use the general **Filter Geometry** action:
+
+- `All`: normal editor view
+- `Dungeon`: show only dungeon-generated geometry
+- `Dungeon No Ceiling`: hide dungeon ceilings as well, so interior spaces stay visible
+
+This is especially useful when painting dungeon walls, doors, and stair assemblies in 3D editor views.
 
 ## Related Pages
 

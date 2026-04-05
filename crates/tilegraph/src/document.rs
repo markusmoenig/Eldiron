@@ -212,7 +212,7 @@ fn node_kind_from_doc(
             falloff: table_f32(table, "falloff", 1.0),
         },
         "box_divide" => TileNodeKind::BoxDivide {
-            scale: table_f32(table, "scale", 1.0),
+            scale: table_f32(table, "scale", 0.08),
             gap: table_f32(table, "gap", 1.0),
             rotation: table_f32(table, "rotation", 0.15),
             rounding: table_f32(table, "rounding", 0.04),

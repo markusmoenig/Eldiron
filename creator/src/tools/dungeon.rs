@@ -211,6 +211,8 @@ impl Tool for DungeonTool {
                         1.0,
                     );
                     server_ctx.hover_cursor = Some(cell_pos);
+                    let hovered_cell = Vec2::new(cell_pos.x.floor() as i32, cell_pos.y.floor() as i32);
+                    self.update_status_text(ctx, map, server_ctx, hovered_cell);
                     RUSTERIX.write().unwrap().set_dirty();
                 }
             }
@@ -242,6 +244,108 @@ impl Tool for DungeonTool {
 }
 
 impl DungeonTool {
+    fn update_status_text(
+        &self,
+        ctx: &mut TheContext,
+        map: &Map,
+        server_ctx: &ServerContext,
+        cell: Vec2<i32>,
+    ) {
+        let status = if let Some(layer) = map.dungeon.active_layer() {
+            if let Some(dcell) = layer
+                .cells
+                .iter()
+                .find(|dcell| dcell.x == cell.x && dcell.y == cell.y)
+            {
+                let mut text = format!(
+                    "{} ({}, {}), floor_base = {:.2}, height = {:.2}",
+                    dcell.kind.label(),
+                    dcell.x,
+                    dcell.y,
+                    dcell.floor_base,
+                    dcell.height
+                );
+                text.push_str(&format!(
+                    ", floors = {}, ceilings = {}",
+                    server_ctx.curr_dungeon_create_floor, server_ctx.curr_dungeon_create_ceiling
+                ));
+                if dcell.standalone {
+                    text.push_str(", standalone = true");
+                } else {
+                    text.push_str(", standalone = false");
+                }
+                if dcell.kind.is_door() {
+                    text.push_str(&format!(
+                        ", door_width = {}, door_depth = {:.2}, door_height = {:.2}",
+                        dcell.door_width, dcell.door_depth, dcell.door_height
+                    ));
+                }
+                if dcell.kind.is_stair() {
+                    text.push_str(&format!(
+                        ", floor_delta = {:.2}, steps = {}",
+                        dcell.stair_target_floor_base - dcell.floor_base,
+                        dcell.stair_steps
+                    ));
+                    if !dcell.stair_tile_id.trim().is_empty() {
+                        text.push_str(&format!(", tile_id = {}", dcell.stair_tile_id));
+                    }
+                }
+                text
+            } else {
+                let mut text = format!(
+                    "{} ({}, {}), floor_base = {:.2}, height = {:.2}",
+                    server_ctx.curr_dungeon_tile.label(),
+                    cell.x,
+                    cell.y,
+                    server_ctx.curr_dungeon_floor_base,
+                    server_ctx.curr_dungeon_height
+                );
+                text.push_str(&format!(
+                    ", floors = {}, ceilings = {}, standalone = {}",
+                    server_ctx.curr_dungeon_create_floor,
+                    server_ctx.curr_dungeon_create_ceiling,
+                    server_ctx.curr_dungeon_standalone
+                ));
+                if server_ctx.curr_dungeon_tile.is_door() {
+                    text.push_str(&format!(
+                        ", door_width = {}, door_depth = {:.2}, door_height = {:.2}",
+                        server_ctx.curr_dungeon_tile_span.max(1),
+                        server_ctx.curr_dungeon_tile_depth.max(0.05),
+                        server_ctx.curr_dungeon_tile_height.max(0.5)
+                    ));
+                }
+                if server_ctx.curr_dungeon_tile.is_stair() {
+                    text.push_str(&format!(
+                        ", floor_delta = {:.2}, steps = {}",
+                        server_ctx.curr_dungeon_stair_target_floor_base,
+                        server_ctx.curr_dungeon_stair_steps.max(1)
+                    ));
+                    if !server_ctx.curr_dungeon_stair_tile_id.trim().is_empty() {
+                        text.push_str(&format!(
+                            ", tile_id = {}",
+                            server_ctx.curr_dungeon_stair_tile_id
+                        ));
+                    }
+                }
+                text
+            }
+        } else {
+            format!(
+                "{} ({}, {}), floor_base = {:.2}, height = {:.2}, floors = {}, ceilings = {}, standalone = {}",
+                server_ctx.curr_dungeon_tile.label(),
+                cell.x,
+                cell.y,
+                server_ctx.curr_dungeon_floor_base,
+                server_ctx.curr_dungeon_height,
+                server_ctx.curr_dungeon_create_floor,
+                server_ctx.curr_dungeon_create_ceiling,
+                server_ctx.curr_dungeon_standalone
+            )
+        };
+
+        ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+    }
+
     fn begin_stroke(&mut self, map: &Map) {
         if !self.stroke_active {
             self.stroke_active = true;
@@ -388,6 +492,8 @@ impl DungeonTool {
             ));
             let cell_pos = server_ctx.local_to_map_cell(screen_size, local, map, 1.0);
             server_ctx.hover_cursor = Some(cell_pos);
+            let hovered_cell = Vec2::new(cell_pos.x.floor() as i32, cell_pos.y.floor() as i32);
+            self.update_status_text(ctx, map, server_ctx, hovered_cell);
             RUSTERIX.write().unwrap().set_dirty();
         }
     }
