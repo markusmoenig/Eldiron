@@ -32,7 +32,7 @@ Each entry value supports one of:
 - `action(<type>)`
 - `intent(<name>)`
 - `spell(<template>)`
-- bare action alias (`"forward"`, `"left"`, `"right"`, `"backward"`)
+- bare action alias (`"forward"`, `"left"`, `"right"`, `"backward"`, `"strafe_left"`, `"strafe_right"`)
 
 ---
 
@@ -41,22 +41,48 @@ Each entry value supports one of:
 ### `forward`
 
 - **2D / Isometric**: Move the player north.
+- **2D Grid**: Move the player one tile north with smooth interpolation.
 - **First-Person**: Move the player forward in current facing direction.
+- **First-Person Grid**: Move the player one tile forward in current facing direction with smooth interpolation.
 
 ### `left`
 
 - **2D / Isometric**: Move the player west.
+- **2D Grid**: Move the player one tile west with smooth interpolation.
 - **First-Person**: Rotate left.
+- **First-Person Grid**: Rotate left by 90 degrees.
 
 ### `right`
 
 - **2D / Isometric**: Move the player east.
+- **2D Grid**: Move the player one tile east with smooth interpolation.
 - **First-Person**: Rotate right.
+- **First-Person Grid**: Rotate right by 90 degrees.
 
 ### `backward`
 
 - **2D / Isometric**: Move the player south.
+- **2D Grid**: Move the player one tile south with smooth interpolation.
 - **First-Person**: Move backward in current facing direction.
+- **First-Person Grid**: Move the player one tile backward in current facing direction with smooth interpolation.
+
+### `strafe_left`
+
+- **First-Person**: Sidestep left without changing facing.
+- **First-Person Grid**: Sidestep one tile left with smooth interpolation without changing facing.
+
+### `strafe_right`
+
+- **First-Person**: Sidestep right without changing facing.
+- **First-Person Grid**: Sidestep one tile right with smooth interpolation without changing facing.
+
+How these actions are interpreted depends on the current runtime player input mode set by [`set_player_camera`](server_commands#set_player_camera):
+
+- `2d`
+- `2d_grid`
+- `iso`
+- `firstp`
+- `firstp_grid`
 
 ## Intents
 

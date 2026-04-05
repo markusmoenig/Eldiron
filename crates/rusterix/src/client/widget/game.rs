@@ -67,6 +67,10 @@ impl Default for GameWidget {
 }
 
 impl GameWidget {
+    fn is_2d_camera(camera: &PlayerCamera) -> bool {
+        matches!(camera, PlayerCamera::D2 | PlayerCamera::D2Grid)
+    }
+
     pub fn new() -> Self {
         Self {
             name: String::new(),
@@ -151,13 +155,13 @@ impl GameWidget {
         self.camera = camera;
         self.force_dynamics_rebuild = true;
         match self.camera {
-            PlayerCamera::D2 => {}
+            PlayerCamera::D2 | PlayerCamera::D2Grid => {}
             PlayerCamera::D3Iso => {
                 let mut iso = D3IsoCamera::new();
                 self.apply_iso_camera_overrides(&mut iso);
                 self.camera_d3 = Box::new(iso);
             }
-            PlayerCamera::D3FirstP => {
+            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid => {
                 self.camera_d3 = Box::new(D3FirstPCamera::new());
             }
         }
@@ -240,7 +244,7 @@ impl GameWidget {
     fn update_player_context(&mut self, map: &Map) {
         for entity in &map.entities {
             if entity.is_player() {
-                if self.camera != PlayerCamera::D2 {
+                if !Self::is_2d_camera(&self.camera) {
                     entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
                 }
                 self.player_pos = entity.get_pos_xz();
@@ -525,7 +529,7 @@ impl GameWidget {
 
         self.update_player_context(map);
 
-        if self.camera == PlayerCamera::D2 {
+        if Self::is_2d_camera(&self.camera) {
             scene_handler.build_dynamics_2d(map, animation_frame, assets);
         } else {
             scene_handler.build_dynamics_3d(map, self.camera_d3.as_ref(), animation_frame, assets);
@@ -604,7 +608,7 @@ impl GameWidget {
         scene_handler: &mut SceneHandler,
     ) {
         self.graphical_prepare_frame(map, time, animation_frame, assets, scene_handler);
-        if self.camera == PlayerCamera::D2 {
+        if Self::is_2d_camera(&self.camera) {
             self.render_prepared_d2(time, animation_frame, scene_handler);
         } else {
             self.render_prepared_d3(time, animation_frame, scene_handler);
@@ -703,7 +707,7 @@ impl GameWidget {
             scene_handler.vm.set_layer_enabled(2, false);
         }
 
-        if self.camera == PlayerCamera::D2 {
+        if Self::is_2d_camera(&self.camera) {
             self.prepare_d2(time, animation_frame, scene_handler);
         } else {
             self.prepare_d3(map, time, animation_frame, scene_handler);

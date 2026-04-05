@@ -511,15 +511,25 @@ fn event(event, value) {
 
 *This command can only be used with player characters.*
 
-Defines how incoming player [actions](input_mapping#action-types) are translated into movement and camera behavior.  
-This command **does not change the visual rendering camera**. This is done by the game widgets [camera setting](/docs/screens/widgets/#camera-section)
+Defines how incoming player [actions](input_mapping#action-types) are translated into movement behavior.  
+This command **does not change the visual rendering camera**. That is controlled by the game widget [camera setting](/docs/screens/widgets/#camera-section).
 It only changes how player input is interpreted.
 
 Current valid values are:
 
 * `2d` — **forward**, **backward**, **left**, **right** move the character directly in the given world directions. This is the default.
+* `2d_grid` — Like `2d`, but each movement action advances exactly one tile / world unit with smooth interpolation. Holding a direction repeats tile-by-tile.
 * `iso` — Same movement behavior as `2d`, typically used with an isometric view.
-* `firstp` — **forward** moves the player in the direction they are facing, **backward** moves opposite. **left** and **right** rotate the view instead of strafing.
+* `firstp` — **forward** moves the player in the direction they are facing, **backward** moves opposite. **left** and **right** rotate instead of strafing. Optional `strafe_left` and `strafe_right` provide sidestepping.
+* `firstp_grid` — Like `firstp`, but **forward** and **backward** move exactly one tile / world unit per action with smooth interpolation, while **left** and **right** rotate the facing by 90 degrees. Optional `strafe_left` and `strafe_right` sidestep by one tile without changing facing.
+
+Typical combinations are:
+
+* render camera `2d` with input mode `2d` or `2d_grid`
+* render camera `iso` with input mode `iso`
+* render camera `firstp` with input mode `firstp` or `firstp_grid`
+
+The render camera and the input mode are separate systems. For example, `firstp_grid` reuses the normal first-person visual camera but changes input behavior to grid stepping.
 
 ```eldrin
 set_player_camera("firstp");

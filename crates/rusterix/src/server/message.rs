@@ -78,6 +78,8 @@ pub enum EntityAction {
     Forward,
     Right,
     Backward,
+    StrafeLeft,
+    StrafeRight,
     ForwardLeft,
     ForwardRight,
     BackwardLeft,
@@ -108,6 +110,10 @@ pub enum EntityAction {
     Intent(String),
     /// Goto: Move to a specific position with a given speed
     Goto(Vec2<f32>, f32),
+    /// Smoothly move to a specific position while keeping an explicit facing.
+    StepTo(Vec2<f32>, f32, Vec2<f32>, Vec2<f32>, Vec2<f32>),
+    /// Smoothly rotate to a specific facing.
+    RotateTo(Vec2<f32>),
     /// CloseIn: Move within a radius of a target entity with a given speed
     CloseIn(u32, f32, f32),
     /// Set how player input is mapped to movement
@@ -126,8 +132,10 @@ pub enum EntityAction {
 pub enum PlayerCamera {
     #[default]
     D2,
+    D2Grid,
     D3Iso,
     D3FirstP,
+    D3FirstPGrid,
 }
 
 use std::fmt;
@@ -143,6 +151,8 @@ impl FromStr for EntityAction {
             "forward" => Ok(EntityAction::Forward),
             "right" => Ok(EntityAction::Right),
             "backward" => Ok(EntityAction::Backward),
+            "strafe_left" => Ok(EntityAction::StrafeLeft),
+            "strafe_right" => Ok(EntityAction::StrafeRight),
             "forward_left" => Ok(EntityAction::ForwardLeft),
             "forward_right" => Ok(EntityAction::ForwardRight),
             "backward_left" => Ok(EntityAction::BackwardLeft),
@@ -160,6 +170,8 @@ impl fmt::Display for EntityAction {
             EntityAction::Forward => "forward",
             EntityAction::Right => "right",
             EntityAction::Backward => "backward",
+            EntityAction::StrafeLeft => "strafe_left",
+            EntityAction::StrafeRight => "strafe_right",
             EntityAction::ForwardLeft => "forward_left",
             EntityAction::ForwardRight => "forward_right",
             EntityAction::BackwardLeft => "backward_left",

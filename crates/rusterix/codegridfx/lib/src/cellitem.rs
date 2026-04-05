@@ -1507,7 +1507,7 @@ impl CellItem {
                 grid.insert(
                     (pos.0 + 1, pos.1),
                     CellItem::new_dependency(
-                        Cell::Value("\"firstp\"".into()),
+                        Cell::Value("\"firstp_grid\"".into()),
                         self.id,
                         true,
                         "Camera",

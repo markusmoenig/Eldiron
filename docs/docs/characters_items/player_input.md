@@ -23,13 +23,20 @@ Examples:
 - `left`
 - `right`
 - `backward`
+- `strafe_left`
+- `strafe_right`
 
 They are sent as runtime `EntityAction` values and are interpreted based on the current player camera mode:
 
 - **2D / Isometric**: directional movement
-- **First-Person**: forward/backward movement plus left/right turning
+- **2D Grid**: cardinal one-tile movement with smooth interpolation
+- **First-Person**: forward/backward movement plus left/right turning, with optional strafing via `strafe_left` / `strafe_right`
+- **First-Person Grid**: one-tile forward/backward/strafe movement with smooth interpolation, plus 90-degree left/right turning
 
 If no intent is active, pressing an action key simply moves or turns the player.
+
+The input mapping mode is controlled at runtime with [`set_player_camera`](server_commands#set_player_camera).
+This affects how actions are interpreted, but it does not change the visual render camera by itself.
 
 ## Intents
 
@@ -66,6 +73,11 @@ In 2D-style play, an intent is usually **one-shot**:
 
 If no valid target is found, the engine sends the localized fallback `{system.cant_do_that}`.
 
+This applies to both:
+
+- `2d`
+- `2d_grid`
+
 ### Isometric / First-Person
 
 In isometric and first-person play, intents behave more like a **persistent interaction mode**:
@@ -75,6 +87,22 @@ In isometric and first-person play, intents behave more like a **persistent inte
 3. click the target to apply that intent
 
 The active intent can also change the cursor if the corresponding button widget defines intent cursor tiles.
+
+This applies to:
+
+- `iso`
+- `firstp`
+- `firstp_grid`
+
+## Camera Input Modes
+
+The current player input mode can be:
+
+- `2d`: freeform cardinal movement
+- `2d_grid`: smooth grid-based cardinal movement, one tile / world unit per action
+- `iso`: same movement semantics as `2d`, usually paired with an isometric render camera
+- `firstp`: freeform first-person movement and turning
+- `firstp_grid`: smooth grid-based first-person movement, one tile / world unit per step and 90-degree turns
 
 ## Intent Events
 

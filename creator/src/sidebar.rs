@@ -2026,6 +2026,9 @@ impl Sidebar {
                 }
             }
             TheEvent::KeyDown(TheValue::Char(c)) => {
+                if server_ctx.game_mode || server_ctx.game_input_mode || server_ctx.text_game_mode {
+                    return false;
+                }
                 let action_list = ACTIONLIST.write().unwrap();
                 let mut needs_scene_redraw: bool = false;
                 let mut action_applied = false;

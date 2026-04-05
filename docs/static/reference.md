@@ -240,27 +240,43 @@ Player characters must be registered using the `player = true` in the characters
 :::
 
 :::tip
-These movement commands are **camera-independent** and work for **2D, isometric, and first-person cameras**.
+These movement commands are interpreted by the current player input mode. Typical modes are `2d`, `2d_grid`, `iso`, `firstp`, and `firstp_grid`.
 :::
 
 ### Available Actions
 
 ```python
-# 2D and Isometric: Move the player north.
+# 2D / Isometric: Move the player north.
+# 2D Grid: Move one tile north.
 # First-Person: Move the player forward in their current facing direction.
+# First-Person Grid: Move one tile forward.
 action("forward")
 
-# 2D and Isometric: Move the player west.
+# 2D / Isometric: Move the player west.
+# 2D Grid: Move one tile west.
 # First-Person: Rotate the player to their left.
+# First-Person Grid: Rotate the player 90 degrees to the left.
 action("left")
 
-# 2D and Isometric: Move the player east.
+# 2D / Isometric: Move the player east.
+# 2D Grid: Move one tile east.
 # First-Person: Rotate the player to their right.
+# First-Person Grid: Rotate the player 90 degrees to the right.
 action("right")
 
-# 2D and Isometric: Move the player south.
+# 2D / Isometric: Move the player south.
+# 2D Grid: Move one tile south.
 # First-Person: Move the player backward in their current facing direction.
+# First-Person Grid: Move one tile backward.
 action("backward")
+
+# First-Person: Sidestep left without changing facing.
+# First-Person Grid: Sidestep one tile left without changing facing.
+action("strafe_left")
+
+# First-Person: Sidestep right without changing facing.
+# First-Person Grid: Sidestep one tile right without changing facing.
+action("strafe_right")
 
 # Stop any movement / action.
 action("none")

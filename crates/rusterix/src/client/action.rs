@@ -16,6 +16,8 @@ pub struct ClientAction {
     backward_down: bool,
     left_down: bool,
     right_down: bool,
+    strafe_left_down: bool,
+    strafe_right_down: bool,
 }
 
 impl Default for ClientAction {
@@ -33,6 +35,8 @@ impl ClientAction {
             backward_down: false,
             left_down: false,
             right_down: false,
+            strafe_left_down: false,
+            strafe_right_down: false,
         }
     }
 
@@ -43,6 +47,8 @@ impl ClientAction {
         self.backward_down = false;
         self.left_down = false;
         self.right_down = false;
+        self.strafe_left_down = false;
+        self.strafe_right_down = false;
         self.class_name = class_name;
 
         if let Some((_, entity_data)) = assets.entities.get(&self.class_name) {
@@ -148,12 +154,16 @@ impl ClientAction {
             EntityAction::Backward => self.backward_down = is_down,
             EntityAction::Left => self.left_down = is_down,
             EntityAction::Right => self.right_down = is_down,
+            EntityAction::StrafeLeft => self.strafe_left_down = is_down,
+            EntityAction::StrafeRight => self.strafe_right_down = is_down,
             EntityAction::Off => {
                 if is_down {
                     self.forward_down = false;
                     self.backward_down = false;
                     self.left_down = false;
                     self.right_down = false;
+                    self.strafe_left_down = false;
+                    self.strafe_right_down = false;
                 }
             }
             _ => {}
@@ -181,7 +191,11 @@ impl ClientAction {
             (1, -1) => EntityAction::ForwardLeft,
             (-1, 1) => EntityAction::BackwardRight,
             (-1, -1) => EntityAction::BackwardLeft,
-            _ => EntityAction::Off,
+            _ => match (self.strafe_left_down, self.strafe_right_down) {
+                (true, false) => EntityAction::StrafeLeft,
+                (false, true) => EntityAction::StrafeRight,
+                _ => EntityAction::Off,
+            },
         }
     }
 }

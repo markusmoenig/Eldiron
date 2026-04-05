@@ -33,6 +33,17 @@ Combat rules are now more flexible and can work with attacker, defender, equipme
 
 UI text and localized messages can now also resolve more game data directly, including time and derived equipment values such as attack and armor totals. This makes HUDs and combat feedback much easier to build.
 
+## Grid Movement And Input Mapping
+
+This release also expands player input mapping with two new grid-based modes for `set_player_camera(...)`:
+
+- `2d_grid`
+- `firstp_grid`
+
+These modes keep movement smooth, but interpret each action as a single tile / world-unit step. `firstp_grid` also supports 90-degree turning and tile-based sidestepping via `strafe_left` and `strafe_right`.
+
+Grid movement now also works correctly with collision-driven interactions such as doors and gates, so item handlers that react to bump contact continue to behave as expected in both 2D and first-person grid play.
+
 ## Editor and Documentation Polish
 
 The editor also received a long list of quality-of-life improvements, including better 3D entity previews and selection behavior, improved sector selection in 3D, cleaner in-editor game rendering, and more complete documentation. The docs now also include built-in local search.

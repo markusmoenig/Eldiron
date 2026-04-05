@@ -752,7 +752,9 @@ impl<'a> HostHandler for RegionHost<'a> {
                         caster_dir = entity.orientation;
                         is_firstp = matches!(
                             entity.attributes.get("player_camera"),
-                            Some(Value::PlayerCamera(PlayerCamera::D3FirstP))
+                            Some(Value::PlayerCamera(
+                                PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid
+                            ))
                         );
                     }
                     let flight_height = spell_item
@@ -873,8 +875,10 @@ impl<'a> HostHandler for RegionHost<'a> {
                 if let Some(entity) = self.ctx.get_current_entity_mut() {
                     if let Some(camera) = args.get(0).and_then(|v| v.as_string()) {
                         let player_camera = match camera {
+                            "2d_grid" => PlayerCamera::D2Grid,
                             "iso" => PlayerCamera::D3Iso,
                             "firstp" => PlayerCamera::D3FirstP,
+                            "firstp_grid" => PlayerCamera::D3FirstPGrid,
                             _ => PlayerCamera::D2,
                         };
                         entity.set_attribute("player_camera", Value::PlayerCamera(player_camera));

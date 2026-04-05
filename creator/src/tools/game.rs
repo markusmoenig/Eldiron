@@ -3,7 +3,7 @@ use crate::{
     prelude::*,
 };
 use MapEvent::*;
-use rusterix::{EntityAction, PlayerCamera, Value};
+use rusterix::{EntityAction, Value};
 use std::sync::Mutex;
 use theframework::prelude::*;
 
@@ -12,7 +12,6 @@ pub struct GameTool {
 
     toolbar: Option<Mutex<Box<TheCanvas>>>,
     sidebar: Option<Mutex<Box<TheCanvas>>>,
-    editor_routed_prev_camera: Option<PlayerCamera>,
 }
 
 impl Tool for GameTool {
@@ -25,7 +24,6 @@ impl Tool for GameTool {
 
             toolbar: None,
             sidebar: None,
-            editor_routed_prev_camera: None,
         }
     }
 
@@ -86,46 +84,6 @@ impl Tool for GameTool {
                 }
                 server_ctx.curr_map_tool_type = MapToolType::Game;
                 server_ctx.game_mode = true;
-
-                // If editor-routed input temporarily forced a different camera mapping
-                // (e.g. Iso), restore the previous game camera mapping when entering
-                // actual Game Tool mode.
-                if RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running {
-                    let map_camera_to_player_camera = |mode: MapCamera| -> PlayerCamera {
-                        match mode {
-                            MapCamera::TwoD => PlayerCamera::D2,
-                            MapCamera::ThreeDIso => PlayerCamera::D3Iso,
-                            MapCamera::ThreeDFirstPerson => PlayerCamera::D3FirstP,
-                        }
-                    };
-                    let restore_camera = if let Some(prev) = self.editor_routed_prev_camera.take() {
-                        prev
-                    } else {
-                        let rusterix = RUSTERIX.read().unwrap();
-                        let by_active_game_widget =
-                            rusterix.client.active_game_widget_camera_mode();
-                        let by_running_map = project
-                            .regions
-                            .iter()
-                            .find(|r| r.map.name == rusterix.client.current_map)
-                            .map(|r| map_camera_to_player_camera(r.map.camera));
-                        let by_editor_region = project
-                            .get_region(&server_ctx.curr_region)
-                            .map(|r| map_camera_to_player_camera(r.map.camera));
-                        by_active_game_widget
-                            .or(by_running_map)
-                            .or(by_editor_region)
-                            .unwrap_or_else(|| rusterix.player_camera.clone())
-                    };
-
-                    RUSTERIX
-                        .write()
-                        .unwrap()
-                        .server
-                        .local_player_action(EntityAction::SetPlayerCamera(restore_camera));
-                } else {
-                    self.editor_routed_prev_camera = None;
-                }
 
                 if let Some(stack) = ui.get_stack_layout("Game Output Stack") {
                     stack.set_index(if server_ctx.text_game_mode { 1 } else { 0 });
@@ -230,12 +188,6 @@ impl Tool for GameTool {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let editor_view_to_player_camera = |mode: EditorViewMode| match mode {
-            EditorViewMode::D2 => PlayerCamera::D2,
-            EditorViewMode::FirstP => PlayerCamera::D3FirstP,
-            EditorViewMode::Iso | EditorViewMode::Orbit => PlayerCamera::D3Iso,
-        };
-
         #[allow(clippy::single_match)]
         match event {
             TheEvent::KeyDown(TheValue::Char(char)) => {
@@ -245,16 +197,6 @@ impl Tool for GameTool {
                 let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
                 if rusterix.server.state == rusterix::ServerState::Running {
                     if server_ctx.game_input_mode && !server_ctx.game_mode {
-                        // While routing editor input, temporarily enforce movement mapping from
-                        // the current editor camera mode (D2 / Iso / FirstP).
-                        if self.editor_routed_prev_camera.is_none() {
-                            self.editor_routed_prev_camera = Some(rusterix.player_camera.clone());
-                        }
-                        let camera = editor_view_to_player_camera(server_ctx.editor_view_mode);
-                        rusterix
-                            .server
-                            .local_player_action(EntityAction::SetPlayerCamera(camera));
-
                         let action = rusterix
                             .client
                             .user_event("key_down".into(), Value::Str(char.to_string()));
@@ -279,11 +221,6 @@ impl Tool for GameTool {
                             .client
                             .user_event("key_up".into(), Value::Str(char.to_string()));
                         rusterix.server.local_player_action(action);
-                        if let Some(prev) = self.editor_routed_prev_camera.take() {
-                            rusterix
-                                .server
-                                .local_player_action(EntityAction::SetPlayerCamera(prev));
-                        }
                     } else {
                         let action = rusterix
                             .client

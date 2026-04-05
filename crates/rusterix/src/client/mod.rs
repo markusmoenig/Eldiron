@@ -235,9 +235,11 @@ impl Client {
         let mut found_d2 = false;
         for widget in self.game_widgets.values() {
             match widget.camera {
-                PlayerCamera::D3FirstP => return Some(PlayerCamera::D3FirstP),
+                PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid => {
+                    return Some(widget.camera.clone());
+                }
                 PlayerCamera::D3Iso => found_iso = true,
-                PlayerCamera::D2 => found_d2 = true,
+                PlayerCamera::D2 | PlayerCamera::D2Grid => found_d2 = true,
             }
         }
         if found_iso {
@@ -252,10 +254,16 @@ impl Client {
     fn parse_player_camera_mode(camera: &str) -> Option<PlayerCamera> {
         match camera.to_ascii_lowercase().as_str() {
             "2d" => Some(PlayerCamera::D2),
+            "2d_grid" => Some(PlayerCamera::D2Grid),
             "iso" => Some(PlayerCamera::D3Iso),
             "firstp" => Some(PlayerCamera::D3FirstP),
+            "firstp_grid" => Some(PlayerCamera::D3FirstPGrid),
             _ => None,
         }
+    }
+
+    fn is_2d_camera(camera: &PlayerCamera) -> bool {
+        matches!(camera, PlayerCamera::D2 | PlayerCamera::D2Grid)
     }
 
     fn set_game_widget_camera_mode(&mut self, target: Option<&str>, camera: PlayerCamera) {
@@ -1239,7 +1247,7 @@ impl Client {
                 scene_handler,
             );
 
-            if widget.camera != PlayerCamera::D2 {
+            if !Self::is_2d_camera(&widget.camera) {
                 if let Some(font) = &self.messages_font {
                     let width = widget.buffer.dim().width as usize;
                     let height = widget.buffer.dim().height as usize;
@@ -1685,7 +1693,7 @@ impl Client {
             let overlay_h = self.overlay.dim().height as usize;
             let pixels = self.overlay.pixels_mut();
             for game in self.game_widgets.values() {
-                if game.camera == PlayerCamera::D2 {
+                if Self::is_2d_camera(&game.camera) {
                     continue;
                 }
                 let gw = game.rect.width.max(1.0) as usize;
@@ -2116,7 +2124,7 @@ impl Client {
                 let dx = p.x as f32 - widget.rect.x;
                 let dy = p.y as f32 - widget.rect.y;
 
-                if widget.camera != crate::PlayerCamera::D2 {
+                if !Self::is_2d_camera(&widget.camera) {
                     // We cast a ray into the game view and get the GeoId
                     let screen_uv = Vec2::new(dx / widget.rect.width, dy / widget.rect.height);
                     if let Some((geoid, _, distance)) = scene_handler.vm.pick_geo_id_at_uv(
@@ -2396,7 +2404,7 @@ impl Client {
 
             for (_, widget) in self.game_widgets.iter() {
                 if widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
-                    if widget.camera == crate::PlayerCamera::D2 {
+                    if Self::is_2d_camera(&widget.camera) {
                         let dx = p.x as f32 - widget.rect.x;
                         let dy = p.y as f32 - widget.rect.y;
 
@@ -2514,7 +2522,7 @@ impl Client {
     pub fn user_event(&mut self, event: String, value: Value) -> EntityAction {
         let immediate_2d_intent = matches!(
             self.active_game_widget_camera_mode(),
-            Some(crate::PlayerCamera::D2)
+            Some(crate::PlayerCamera::D2 | crate::PlayerCamera::D2Grid)
         );
 
         // Make sure we do not send action events after a key down intent was handled
@@ -3073,7 +3081,7 @@ impl Client {
     /// Returns true if the game camera is 2D
     fn game_widget_is_2d(&self) -> bool {
         for (_, w) in &self.game_widgets {
-            if w.camera == crate::PlayerCamera::D2 {
+            if Self::is_2d_camera(&w.camera) {
                 return true;
             }
         }

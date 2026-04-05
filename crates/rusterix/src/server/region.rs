@@ -207,6 +207,15 @@ enum CollisionMode {
     Mesh,
 }
 
+struct MovementResult {
+    geometry_blocked: bool,
+    dynamic_collision: bool,
+}
+
+struct DynamicCollisionProbe {
+    blocking_collision: bool,
+}
+
 pub struct RegionInstance {
     pub id: u32,
 
@@ -233,6 +242,540 @@ pub struct RegionInstance {
 }
 
 impl RegionInstance {
+    fn probe_dynamic_collisions_in_ctx(
+        &self,
+        ctx: &mut RegionCtx,
+        entity: &Entity,
+        test_position: Vec2<f32>,
+    ) -> DynamicCollisionProbe {
+        let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
+        let mut blocking_collision = false;
+
+        for other in ctx.map.entities.iter() {
+            if other.id == entity.id || other.get_mode() == "dead" {
+                continue;
+            }
+
+            let other_pos = other.get_pos_xz();
+            let other_radius = other.attributes.get_float_default("radius", 0.5) - 0.01;
+            let combined_radius = radius + other_radius;
+            let combined_radius_sq = combined_radius * combined_radius;
+
+            let dist_vec = test_position - other_pos;
+            let dist_sq = dist_vec.magnitude_squared();
+            if dist_sq < combined_radius_sq {
+                blocking_collision = true;
+                if let Some(_class_name) = ctx.entity_classes.get(&entity.id) {
+                    ctx.to_execute_entity.push((
+                        entity.id,
+                        "bumped_into_entity".into(),
+                        VMValue::broadcast(other.id as f32),
+                    ));
+                }
+                if let Some(_class_name) = ctx.entity_classes.get(&other.id) {
+                    ctx.to_execute_entity.push((
+                        other.id,
+                        "bumped_by_entity".into(),
+                        VMValue::broadcast(entity.id as f32),
+                    ));
+                }
+            }
+        }
+
+        for other in ctx.map.items.iter() {
+            if !other.attributes.get_bool_default("visible", false) {
+                continue;
+            }
+
+            let other_pos = other.get_pos_xz();
+            let other_radius = other.attributes.get_float_default("radius", 0.5) - 0.01;
+            let combined_radius = radius + other_radius;
+            let combined_radius_sq = combined_radius * combined_radius;
+
+            let dist_vec = test_position - other_pos;
+            let dist_sq = dist_vec.magnitude_squared();
+            if dist_sq < combined_radius_sq {
+                if let Some(_class_name) = ctx.entity_classes.get(&entity.id) {
+                    ctx.to_execute_entity.push((
+                        entity.id,
+                        "bumped_into_item".into(),
+                        VMValue::broadcast(other.id as f32),
+                    ));
+                }
+                if let Some(_class_name) = ctx.item_classes.get(&other.id) {
+                    ctx.to_execute_item.push((
+                        other.id,
+                        "bumped_by_entity".into(),
+                        VMValue::broadcast(entity.id as f32),
+                    ));
+                }
+
+                if other.attributes.get_bool_default("blocking", false) {
+                    blocking_collision = true;
+                }
+            }
+        }
+
+        DynamicCollisionProbe { blocking_collision }
+    }
+
+    fn is_first_person_camera(player_camera: &PlayerCamera) -> bool {
+        matches!(
+            player_camera,
+            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid
+        )
+    }
+
+    fn is_grid_camera(player_camera: &PlayerCamera) -> bool {
+        matches!(player_camera, PlayerCamera::D2Grid | PlayerCamera::D3FirstPGrid)
+    }
+
+    fn is_movement_input_action(action: &EntityAction) -> bool {
+        matches!(
+            action,
+            EntityAction::Off
+                | EntityAction::Left
+                | EntityAction::Forward
+                | EntityAction::Right
+                | EntityAction::Backward
+                | EntityAction::StrafeLeft
+                | EntityAction::StrafeRight
+                | EntityAction::ForwardLeft
+                | EntityAction::ForwardRight
+                | EntityAction::BackwardLeft
+                | EntityAction::BackwardRight
+        )
+    }
+
+    fn snapped_cardinal_direction(direction: Vec2<f32>) -> Vec2<f32> {
+        if direction.magnitude_squared() <= 1e-6 {
+            return Vec2::new(1.0, 0.0);
+        }
+
+        if direction.x.abs() >= direction.y.abs() {
+            Vec2::new(direction.x.signum(), 0.0)
+        } else {
+            Vec2::new(0.0, direction.y.signum())
+        }
+    }
+
+    fn queue_step_to(&self, entity: &mut Entity, target: Vec2<f32>, facing: Vec2<f32>) {
+        let facing = Self::snapped_cardinal_direction(facing);
+        let start = entity.get_pos_xz();
+        entity.set_orientation(facing);
+        let step_dir = target - start;
+        entity.action = EntityAction::StepTo(target, 1.0, facing, start, step_dir);
+    }
+
+    fn rotate_grid_left(&self, entity: &mut Entity) {
+        let facing = Self::snapped_cardinal_direction(entity.orientation);
+        let target = Vec2::new(facing.y, -facing.x);
+        entity.action = EntityAction::RotateTo(target);
+    }
+
+    fn rotate_grid_right(&self, entity: &mut Entity) {
+        let facing = Self::snapped_cardinal_direction(entity.orientation);
+        let target = Vec2::new(-facing.y, facing.x);
+        entity.action = EntityAction::RotateTo(target);
+    }
+
+    fn grid_desired_action(entity: &Entity) -> EntityAction {
+        entity
+            .attributes
+            .get_str_default("__grid_desired_action", "none".into())
+            .parse()
+            .unwrap_or(EntityAction::Off)
+    }
+
+    fn set_grid_desired_action(entity: &mut Entity, action: &EntityAction) {
+        entity.set_attribute(
+            "__grid_desired_action",
+            Value::Str(action.to_string()),
+        );
+    }
+
+    fn clear_grid_blocked_action(entity: &mut Entity) {
+        entity.set_attribute("__grid_blocked_action", Value::Str("none".into()));
+    }
+
+    fn blocked_grid_action(entity: &Entity) -> EntityAction {
+        entity
+            .attributes
+            .get_str_default("__grid_blocked_action", "none".into())
+            .parse()
+            .unwrap_or(EntityAction::Off)
+    }
+
+    fn set_blocked_grid_action(entity: &mut Entity, action: &EntityAction) {
+        entity.set_attribute(
+            "__grid_blocked_action",
+            Value::Str(action.to_string()),
+        );
+    }
+
+    fn activate_grid_desired_action(&self, entity: &mut Entity) {
+        let desired = Self::grid_desired_action(entity);
+        let blocked = Self::blocked_grid_action(entity);
+        if !matches!(
+            desired,
+            EntityAction::Off
+                | EntityAction::Left
+                | EntityAction::Forward
+                | EntityAction::Right
+                | EntityAction::Backward
+                | EntityAction::StrafeLeft
+                | EntityAction::StrafeRight
+        ) || desired == blocked
+        {
+            entity.action = EntityAction::Off;
+            return;
+        }
+
+        entity.action = desired;
+    }
+
+    fn queue_grid_action_from_desired(
+        &self,
+        entity: &mut Entity,
+        player_camera: &PlayerCamera,
+    ) -> bool {
+        let desired = Self::grid_desired_action(entity);
+        let blocked = Self::blocked_grid_action(entity);
+        if desired == EntityAction::Off || desired == blocked {
+            entity.action = EntityAction::Off;
+            return false;
+        }
+
+        match desired {
+            EntityAction::Forward => {
+                if Self::is_first_person_camera(player_camera) {
+                    let facing = Self::snapped_cardinal_direction(entity.orientation);
+                    let target = entity.get_pos_xz() + facing;
+                    self.queue_step_to(entity, target, facing);
+                } else {
+                    entity.face_north();
+                    let target = entity.get_pos_xz() + Vec2::new(0.0, -1.0);
+                    self.queue_step_to(entity, target, Vec2::new(0.0, -1.0));
+                }
+                true
+            }
+            EntityAction::Backward => {
+                if Self::is_first_person_camera(player_camera) {
+                    let facing = Self::snapped_cardinal_direction(entity.orientation);
+                    let target = entity.get_pos_xz() - facing;
+                    self.queue_step_to(entity, target, facing);
+                } else {
+                    entity.face_south();
+                    let target = entity.get_pos_xz() + Vec2::new(0.0, 1.0);
+                    self.queue_step_to(entity, target, Vec2::new(0.0, 1.0));
+                }
+                true
+            }
+            EntityAction::Left => {
+                if Self::is_first_person_camera(player_camera) {
+                    self.rotate_grid_left(entity);
+                } else {
+                    entity.face_west();
+                    let target = entity.get_pos_xz() + Vec2::new(-1.0, 0.0);
+                    self.queue_step_to(entity, target, Vec2::new(-1.0, 0.0));
+                }
+                true
+            }
+            EntityAction::Right => {
+                if Self::is_first_person_camera(player_camera) {
+                    self.rotate_grid_right(entity);
+                } else {
+                    entity.face_east();
+                    let target = entity.get_pos_xz() + Vec2::new(1.0, 0.0);
+                    self.queue_step_to(entity, target, Vec2::new(1.0, 0.0));
+                }
+                true
+            }
+            EntityAction::StrafeLeft => {
+                if Self::is_first_person_camera(player_camera) {
+                    let facing = Self::snapped_cardinal_direction(entity.orientation);
+                    let step = Vec2::new(facing.y, -facing.x);
+                    let target = entity.get_pos_xz() + step;
+                    self.queue_step_to(entity, target, facing);
+                    true
+                } else {
+                    entity.action = EntityAction::Off;
+                    false
+                }
+            }
+            EntityAction::StrafeRight => {
+                if Self::is_first_person_camera(player_camera) {
+                    let facing = Self::snapped_cardinal_direction(entity.orientation);
+                    let step = Vec2::new(-facing.y, facing.x);
+                    let target = entity.get_pos_xz() + step;
+                    self.queue_step_to(entity, target, facing);
+                    true
+                } else {
+                    entity.action = EntityAction::Off;
+                    false
+                }
+            }
+            _ => {
+                entity.action = EntityAction::Off;
+                false
+            }
+        }
+    }
+
+    fn update_grid_input_state(entity: &mut Entity, action: &EntityAction) {
+        Self::set_grid_desired_action(entity, action);
+        if *action == EntityAction::Off || *action != Self::blocked_grid_action(entity) {
+            Self::clear_grid_blocked_action(entity);
+        }
+    }
+
+    fn rotate_towards_cardinal(entity: &mut Entity, target: Vec2<f32>, step_deg: f32) -> bool {
+        let current = if entity.orientation.magnitude_squared() <= 1e-6 {
+            Vec2::new(1.0, 0.0)
+        } else {
+            entity.orientation.normalized()
+        };
+        let target = Self::snapped_cardinal_direction(target);
+        let current_angle = current.y.atan2(current.x);
+        let target_angle = target.y.atan2(target.x);
+        let mut delta = target_angle - current_angle;
+        while delta > std::f32::consts::PI {
+            delta -= std::f32::consts::TAU;
+        }
+        while delta < -std::f32::consts::PI {
+            delta += std::f32::consts::TAU;
+        }
+
+        if delta.abs() <= step_deg.to_radians() {
+            entity.set_orientation(target);
+            true
+        } else {
+            let angle = current_angle + step_deg.to_radians() * delta.signum();
+            entity.set_orientation(Vec2::new(angle.cos(), angle.sin()).normalized());
+            false
+        }
+    }
+
+    fn move_entity_by_vector(
+        &self,
+        entity: &mut Entity,
+        move_vector: Vec2<f32>,
+        entity_block_mode: i32,
+    ) -> bool {
+        self.move_entity_by_vector_with_result(entity, move_vector, entity_block_mode)
+            .geometry_blocked
+    }
+
+    fn move_entity_by_vector_with_result(
+        &self,
+        entity: &mut Entity,
+        move_vector: Vec2<f32>,
+        entity_block_mode: i32,
+    ) -> MovementResult {
+        with_regionctx(self.id, |ctx| {
+            self.move_entity_by_vector_with_result_in_ctx(ctx, entity, move_vector, entity_block_mode)
+        })
+        .unwrap()
+    }
+
+    fn move_entity_by_vector_with_result_in_ctx(
+        &self,
+        ctx: &mut RegionCtx,
+        entity: &mut Entity,
+        move_vector: Vec2<f32>,
+        entity_block_mode: i32,
+    ) -> MovementResult {
+        let position = entity.get_pos_xz();
+        let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
+
+        let mut new_position = position + move_vector;
+        let mut dynamic_collision = false;
+
+        const MAX_ITERATIONS: usize = 5;
+
+        for _attempt in 0..MAX_ITERATIONS {
+            let mut pushed = false;
+
+            for other in ctx.map.entities.iter() {
+                if other.id == entity.id || other.get_mode() == "dead" {
+                    continue;
+                }
+
+                let other_pos = other.get_pos_xz();
+                let other_radius = other.attributes.get_float_default("radius", 0.5) - 0.01;
+                let combined_radius = radius + other_radius;
+                let combined_radius_sq = combined_radius * combined_radius;
+
+                let dist_vec = new_position - other_pos;
+                let dist_sq = dist_vec.magnitude_squared();
+                if dist_sq < combined_radius_sq {
+                    dynamic_collision = true;
+                    if let Some(_class_name) = ctx.entity_classes.get(&entity.id) {
+                        ctx.to_execute_entity.push((
+                            entity.id,
+                            "bumped_into_entity".into(),
+                            VMValue::broadcast(other.id as f32),
+                        ));
+                    }
+                    if let Some(_class_name) = ctx.entity_classes.get(&other.id) {
+                        ctx.to_execute_entity.push((
+                            other.id,
+                            "bumped_by_entity".into(),
+                            VMValue::broadcast(entity.id as f32),
+                        ));
+                    }
+
+                    if entity_block_mode > 0 {
+                        let normal = dist_vec.normalized();
+                        let total_move = new_position - position;
+                        let slide = total_move - normal * total_move.dot(normal);
+                        let slide_pos = position + slide;
+                        let slide_dist_sq = (slide_pos - other_pos).magnitude_squared();
+
+                        if slide_dist_sq >= combined_radius_sq {
+                            new_position = slide_pos;
+                        } else {
+                            let actual_dist = (slide_pos - other_pos).magnitude();
+                            if actual_dist < combined_radius {
+                                let push_amount = combined_radius - actual_dist;
+                                new_position = slide_pos + normal * push_amount;
+                            }
+                        }
+                        pushed = true;
+                    }
+                }
+            }
+
+            for other in ctx.map.items.iter() {
+                if !other.attributes.get_bool_default("visible", false) {
+                    continue;
+                }
+
+                let other_pos = other.get_pos_xz();
+                let other_radius = other.attributes.get_float_default("radius", 0.5) - 0.01;
+                let combined_radius = radius + other_radius;
+                let combined_radius_sq = combined_radius * combined_radius;
+
+                let dist_vec = new_position - other_pos;
+                let dist_sq = dist_vec.magnitude_squared();
+                if dist_sq < combined_radius_sq {
+                    dynamic_collision = true;
+                    if let Some(_class_name) = ctx.entity_classes.get(&entity.id) {
+                        ctx.to_execute_entity.push((
+                            entity.id,
+                            "bumped_into_item".into(),
+                            VMValue::broadcast(other.id as f32),
+                        ));
+                    }
+                    if let Some(_class_name) = ctx.item_classes.get(&other.id) {
+                        ctx.to_execute_item.push((
+                            other.id,
+                            "bumped_by_entity".into(),
+                            VMValue::broadcast(entity.id as f32),
+                        ));
+                    }
+
+                    if other.attributes.get_bool_default("blocking", false) {
+                        let normal = dist_vec.normalized();
+                        let total_move = new_position - position;
+                        let slide = total_move - normal * total_move.dot(normal);
+                        let slide_pos = position + slide;
+                        let slide_dist_sq = (slide_pos - other_pos).magnitude_squared();
+
+                        if slide_dist_sq >= combined_radius_sq {
+                            new_position = slide_pos;
+                        } else {
+                            let actual_dist = (slide_pos - other_pos).magnitude();
+                            if actual_dist < combined_radius {
+                                let push_amount = combined_radius - actual_dist;
+                                new_position = slide_pos + normal * push_amount;
+                            }
+                        }
+                        pushed = true;
+                    }
+                }
+            }
+
+            if !pushed {
+                break;
+            }
+        }
+
+        entity.set_pos_xz(new_position);
+
+        let blocked = match self.collision_mode {
+            CollisionMode::Tile => {
+                let (end_position, geometry_blocked) =
+                    ctx.mapmini
+                        .move_distance(position, new_position - position, radius);
+                entity.set_pos_xz(end_position);
+                geometry_blocked
+            }
+            CollisionMode::Mesh => {
+                if ctx.collision_world.has_collision_data() {
+                    let move_vec = new_position - position;
+                    let desired_dist = move_vec.magnitude();
+                    if desired_dist > 1e-6 {
+                        if let Some((end_pos, arrived)) =
+                            ctx.collision_world.move_towards_on_floors_direct(
+                                position,
+                                new_position,
+                                desired_dist,
+                                radius,
+                                1.0,
+                                entity.position.y,
+                            )
+                        {
+                            entity.set_pos_xz(vek::Vec2::new(end_pos.x, end_pos.z));
+                            entity.position.y = end_pos.y;
+                            !arrived
+                        } else {
+                            let start_pos =
+                                vek::Vec3::new(position.x, entity.position.y, position.y);
+                            let move_vec_3d = vek::Vec3::new(move_vec.x, 0.0, move_vec.y);
+                            let (collision_pos, blocked) =
+                                ctx.collision_world.move_distance(start_pos, move_vec_3d, radius);
+                            entity.set_pos_xz(vek::Vec2::new(collision_pos.x, collision_pos.z));
+                            blocked
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    let (end_position, geometry_blocked) =
+                        ctx.mapmini
+                            .move_distance(position, new_position - position, radius);
+                    entity.set_pos_xz(end_position);
+                    geometry_blocked
+                }
+            }
+        };
+
+        let final_pos = entity.get_pos_xz();
+        let mut base_y = None;
+        if self.collision_mode == CollisionMode::Mesh && ctx.collision_world.has_collision_data() {
+            base_y = ctx
+                .collision_world
+                .get_floor_height_reachable(final_pos, entity.position.y, 1.0);
+        }
+        if base_y.is_none() {
+            let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+            base_y = Some(crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                &ctx.map, final_pos, &config,
+            ));
+        }
+
+        if let Some(y) = base_y {
+            entity.position.y = y;
+        }
+
+        ctx.check_player_for_section_change(entity);
+        MovementResult {
+            geometry_blocked: blocked,
+            dynamic_collision,
+        }
+    }
+
     fn run_instance_setup_program(
         &mut self,
         source: &str,
@@ -1999,6 +2542,37 @@ impl RegionInstance {
                                 .iter_mut()
                                 .find(|entity| entity.id == entity_id)
                             {
+                                let is_grid_player = matches!(
+                                    entity.attributes.get("player_camera"),
+                                    Some(Value::PlayerCamera(camera))
+                                        if Self::is_grid_camera(camera)
+                                );
+                                if is_grid_player && Self::is_movement_input_action(&action) {
+                                    Self::update_grid_input_state(entity, &action);
+                                }
+                                if is_grid_player
+                                    && matches!(
+                                        entity.action,
+                                        EntityAction::StepTo(_, _, _, _, _)
+                                            | EntityAction::RotateTo(_)
+                                    )
+                                    && Self::is_movement_input_action(&action)
+                                {
+                                    return;
+                                }
+                                if is_grid_player
+                                    && Self::is_movement_input_action(&action)
+                                    && action == Self::blocked_grid_action(entity)
+                                {
+                                    return;
+                                }
+                                if is_grid_player
+                                    && Self::is_movement_input_action(&action)
+                                    && action == EntityAction::Off
+                                {
+                                    entity.action = EntityAction::Off;
+                                    return;
+                                }
                                 entity.action = action;
                             }
                         });
@@ -2122,10 +2696,23 @@ impl RegionInstance {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
-                                if *player_camera != PlayerCamera::D3FirstP {
-                                    entity.face_north();
+                                if Self::is_grid_camera(player_camera) {
+                                    if Self::is_first_person_camera(player_camera) {
+                                        let facing =
+                                            Self::snapped_cardinal_direction(entity.orientation);
+                                        let target = entity.get_pos_xz() + facing;
+                                        self.queue_step_to(entity, target, facing);
+                                    } else {
+                                        entity.face_north();
+                                        let target = entity.get_pos_xz() + Vec2::new(0.0, -1.0);
+                                        self.queue_step_to(entity, target, Vec2::new(0.0, -1.0));
+                                    }
+                                } else {
+                                    if !Self::is_first_person_camera(player_camera) {
+                                        entity.face_north();
+                                    }
+                                    self.move_entity(entity, 1.0, self.entity_block_mode);
                                 }
-                                self.move_entity(entity, 1.0, self.entity_block_mode);
                             }
                         } else {
                             // If intent is set we send "intent" events
@@ -2145,7 +2732,15 @@ impl RegionInstance {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
-                                if *player_camera != PlayerCamera::D3FirstP {
+                                if Self::is_grid_camera(player_camera) {
+                                    if Self::is_first_person_camera(player_camera) {
+                                        self.rotate_grid_left(entity);
+                                    } else {
+                                        entity.face_west();
+                                        let target = entity.get_pos_xz() + Vec2::new(-1.0, 0.0);
+                                        self.queue_step_to(entity, target, Vec2::new(-1.0, 0.0));
+                                    }
+                                } else if !Self::is_first_person_camera(player_camera) {
                                     entity.face_west();
                                     self.move_entity(entity, 1.0, self.entity_block_mode);
                                 } else {
@@ -2171,7 +2766,15 @@ impl RegionInstance {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
-                                if *player_camera != PlayerCamera::D3FirstP {
+                                if Self::is_grid_camera(player_camera) {
+                                    if Self::is_first_person_camera(player_camera) {
+                                        self.rotate_grid_right(entity);
+                                    } else {
+                                        entity.face_east();
+                                        let target = entity.get_pos_xz() + Vec2::new(1.0, 0.0);
+                                        self.queue_step_to(entity, target, Vec2::new(1.0, 0.0));
+                                    }
+                                } else if !Self::is_first_person_camera(player_camera) {
                                     entity.face_east();
                                     self.move_entity(entity, 1.0, self.entity_block_mode);
                                 } else {
@@ -2196,7 +2799,18 @@ impl RegionInstance {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
-                                if *player_camera != PlayerCamera::D3FirstP {
+                                if Self::is_grid_camera(player_camera) {
+                                    if Self::is_first_person_camera(player_camera) {
+                                        let facing =
+                                            Self::snapped_cardinal_direction(entity.orientation);
+                                        let target = entity.get_pos_xz() - facing;
+                                        self.queue_step_to(entity, target, facing);
+                                    } else {
+                                        entity.face_south();
+                                        let target = entity.get_pos_xz() + Vec2::new(0.0, 1.0);
+                                        self.queue_step_to(entity, target, Vec2::new(0.0, 1.0));
+                                    }
+                                } else if !Self::is_first_person_camera(player_camera) {
                                     entity.face_south();
                                     self.move_entity(entity, 1.0, self.entity_block_mode);
                                 } else {
@@ -2214,6 +2828,74 @@ impl RegionInstance {
                         self.move_entity(entity, -1.0, self.entity_block_mode);
                     }
                 }
+                EntityAction::StrafeLeft => {
+                    if entity.is_player() {
+                        let intent = entity.attributes.get_str_default("intent", "".into());
+                        if intent.is_empty() {
+                            if let Some(Value::PlayerCamera(player_camera)) =
+                                entity.attributes.get("player_camera")
+                            {
+                                if Self::is_first_person_camera(player_camera) {
+                                    if Self::is_grid_camera(player_camera) {
+                                        let facing =
+                                            Self::snapped_cardinal_direction(entity.orientation);
+                                        let step = Vec2::new(facing.y, -facing.x);
+                                        let target = entity.get_pos_xz() + step;
+                                        self.queue_step_to(entity, target, facing);
+                                    } else {
+                                        let right = Vec2::new(-entity.orientation.y, entity.orientation.x)
+                                            .normalized();
+                                        self.move_entity_by_vector(
+                                            entity,
+                                            -right * (self.movement_units_per_sec * redraw_dt),
+                                            self.entity_block_mode,
+                                        );
+                                    }
+                                } else {
+                                    entity.action = EntityAction::Off;
+                                }
+                            }
+                        } else {
+                            entity.action = EntityAction::Off;
+                        }
+                    } else {
+                        entity.action = EntityAction::Off;
+                    }
+                }
+                EntityAction::StrafeRight => {
+                    if entity.is_player() {
+                        let intent = entity.attributes.get_str_default("intent", "".into());
+                        if intent.is_empty() {
+                            if let Some(Value::PlayerCamera(player_camera)) =
+                                entity.attributes.get("player_camera")
+                            {
+                                if Self::is_first_person_camera(player_camera) {
+                                    if Self::is_grid_camera(player_camera) {
+                                        let facing =
+                                            Self::snapped_cardinal_direction(entity.orientation);
+                                        let step = Vec2::new(-facing.y, facing.x);
+                                        let target = entity.get_pos_xz() + step;
+                                        self.queue_step_to(entity, target, facing);
+                                    } else {
+                                        let right = Vec2::new(-entity.orientation.y, entity.orientation.x)
+                                            .normalized();
+                                        self.move_entity_by_vector(
+                                            entity,
+                                            right * (self.movement_units_per_sec * redraw_dt),
+                                            self.entity_block_mode,
+                                        );
+                                    }
+                                } else {
+                                    entity.action = EntityAction::Off;
+                                }
+                            }
+                        } else {
+                            entity.action = EntityAction::Off;
+                        }
+                    } else {
+                        entity.action = EntityAction::Off;
+                    }
+                }
                 EntityAction::ForwardLeft => {
                     if entity.is_player() {
                         let intent = entity.attributes.get_str_default("intent", "".into());
@@ -2221,7 +2903,9 @@ impl RegionInstance {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
-                                if *player_camera != PlayerCamera::D3FirstP {
+                                if Self::is_grid_camera(player_camera) {
+                                    self.activate_grid_desired_action(entity);
+                                } else if !Self::is_first_person_camera(player_camera) {
                                     entity.set_orientation(vek::Vec2::new(-1.0, 1.0).normalized());
                                     self.move_entity(entity, 1.0, self.entity_block_mode);
                                 } else {
@@ -2246,7 +2930,9 @@ impl RegionInstance {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
-                                if *player_camera != PlayerCamera::D3FirstP {
+                                if Self::is_grid_camera(player_camera) {
+                                    self.activate_grid_desired_action(entity);
+                                } else if !Self::is_first_person_camera(player_camera) {
                                     entity.set_orientation(vek::Vec2::new(1.0, 1.0).normalized());
                                     self.move_entity(entity, 1.0, self.entity_block_mode);
                                 } else {
@@ -2271,7 +2957,9 @@ impl RegionInstance {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
-                                if *player_camera != PlayerCamera::D3FirstP {
+                                if Self::is_grid_camera(player_camera) {
+                                    self.activate_grid_desired_action(entity);
+                                } else if !Self::is_first_person_camera(player_camera) {
                                     entity.set_orientation(vek::Vec2::new(-1.0, -1.0).normalized());
                                     self.move_entity(entity, 1.0, self.entity_block_mode);
                                 } else {
@@ -2296,7 +2984,9 @@ impl RegionInstance {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
-                                if *player_camera != PlayerCamera::D3FirstP {
+                                if Self::is_grid_camera(player_camera) {
+                                    self.activate_grid_desired_action(entity);
+                                } else if !Self::is_first_person_camera(player_camera) {
                                     entity.set_orientation(vek::Vec2::new(1.0, -1.0).normalized());
                                     self.move_entity(entity, 1.0, self.entity_block_mode);
                                 } else {
@@ -2585,6 +3275,217 @@ impl RegionInstance {
                         };
                         ctx.check_player_for_section_change(entity);
                     });
+                }
+                EntityAction::StepTo(coord, speed, facing, start, step_dir) => {
+                    with_regionctx(self.id, |ctx| {
+                        let mut remaining_speed =
+                            self.movement_units_per_sec * speed * ctx.delta_time;
+                        let mut curr_coord = *coord;
+                        let mut curr_facing = *facing;
+                        let mut curr_start = *start;
+                        let mut curr_step_dir = *step_dir;
+
+                        for _ in 0..4 {
+                            let position = entity.get_pos_xz();
+                            let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
+                            let use_3d_nav = self.collision_mode == CollisionMode::Mesh
+                                && ctx.collision_world.has_collision_data();
+                            let (new_position, new_y, arrived, geometry_blocked, dynamic_collision) =
+                                if use_3d_nav {
+                                    let to_target = curr_coord - position;
+                                    let dist = to_target.magnitude();
+                                    if dist <= 0.05 {
+                                        (position, entity.position.y, true, false, false)
+                                    } else {
+                                        let step = to_target.normalized() * remaining_speed.min(dist);
+                                        let probe = self.probe_dynamic_collisions_in_ctx(
+                                            ctx,
+                                            entity,
+                                            position + step,
+                                        );
+                                        if probe.blocking_collision {
+                                            (position, entity.position.y, false, false, true)
+                                        } else {
+                                            let (p, arrived) = ctx
+                                                .collision_world
+                                                .move_towards_on_floors(
+                                                    position,
+                                                    curr_coord,
+                                                    remaining_speed,
+                                                    radius,
+                                                    1.0,
+                                                    entity.position.y,
+                                                )
+                                                .unwrap_or_else(|| {
+                                                    let to_target = curr_coord - position;
+                                                    let dist = to_target.magnitude();
+                                                    if dist <= 0.05 {
+                                                        (
+                                                            Vec3::new(
+                                                                position.x,
+                                                                entity.position.y,
+                                                                position.y,
+                                                            ),
+                                                            true,
+                                                        )
+                                                    } else if dist <= f32::EPSILON {
+                                                        (
+                                                            Vec3::new(
+                                                                position.x,
+                                                                entity.position.y,
+                                                                position.y,
+                                                            ),
+                                                            false,
+                                                        )
+                                                    } else {
+                                                        let step = to_target.normalized()
+                                                            * remaining_speed.min(dist);
+                                                        let start_3d = vek::Vec3::new(
+                                                            position.x,
+                                                            entity.position.y,
+                                                            position.y,
+                                                        );
+                                                        let step_3d =
+                                                            vek::Vec3::new(step.x, 0.0, step.y);
+                                                        let (end_3d, _) = ctx
+                                                            .collision_world
+                                                            .move_distance(
+                                                                start_3d, step_3d, radius,
+                                                            );
+                                                        let end_2d =
+                                                            vek::Vec2::new(end_3d.x, end_3d.z);
+                                                        let arrived =
+                                                            (curr_coord - end_2d).magnitude()
+                                                                <= 0.05;
+                                                        (end_3d, arrived)
+                                                    }
+                                                });
+                                            (Vec2::new(p.x, p.z), p.y, arrived, false, false)
+                                        }
+                                    }
+                                } else {
+                                    let to_target = curr_coord - position;
+                                    let dist = to_target.magnitude();
+                                    if dist <= 0.05 {
+                                        (position, entity.position.y, true, false, false)
+                                    } else {
+                                        let step = to_target.normalized() * remaining_speed.min(dist);
+                                        let move_result = self.move_entity_by_vector_with_result_in_ctx(
+                                            ctx,
+                                            entity,
+                                            step,
+                                            self.entity_block_mode,
+                                        );
+                                        let p = entity.get_pos_xz();
+                                        let y = entity.position.y;
+                                        let arrived = (curr_coord - p).magnitude() <= 0.05;
+                                        (
+                                            p,
+                                            y,
+                                            arrived,
+                                            move_result.geometry_blocked,
+                                            move_result.dynamic_collision,
+                                        )
+                                    }
+                                };
+
+                            let move_delta = new_position - position;
+                            let progress =
+                                (curr_coord - position).magnitude() - (curr_coord - new_position).magnitude();
+                            let axis = if curr_step_dir.magnitude_squared() > 1e-6 {
+                                curr_step_dir.normalized()
+                            } else {
+                                curr_facing
+                            };
+                            let axis_stable = if axis.x.abs() > axis.y.abs() {
+                                (new_position.y - curr_start.y).abs() <= 0.05
+                            } else {
+                                (new_position.x - curr_start.x).abs() <= 0.05
+                            };
+                            let blocked = geometry_blocked
+                                || (!arrived && progress <= 0.0005)
+                                || (!arrived && !axis_stable)
+                                || (move_delta.magnitude_squared() <= 1e-8 && !arrived);
+
+                            if blocked {
+                                entity.set_pos_xz(curr_start);
+                                entity.set_orientation(curr_facing);
+                                entity.action = EntityAction::Off;
+                                if !dynamic_collision {
+                                    Self::set_blocked_grid_action(
+                                        entity,
+                                        &Self::grid_desired_action(entity),
+                                    );
+                                } else {
+                                    Self::clear_grid_blocked_action(entity);
+                                }
+                                break;
+                            }
+
+                            entity.set_pos_xz(new_position);
+                            entity.position.y = new_y;
+                            entity.set_orientation(curr_facing);
+
+                            if !arrived {
+                                break;
+                            }
+
+                            let traveled = move_delta.magnitude();
+                            remaining_speed = (remaining_speed - traveled).max(0.0);
+
+                            entity.set_pos_xz(curr_coord);
+                            entity.set_orientation(curr_facing);
+                            Self::clear_grid_blocked_action(entity);
+                            let player_camera = match entity.attributes.get("player_camera") {
+                                Some(Value::PlayerCamera(player_camera)) => {
+                                    Some(player_camera.clone())
+                                }
+                                _ => None,
+                            };
+                            if let Some(player_camera) = player_camera {
+                                self.queue_grid_action_from_desired(entity, &player_camera);
+                            } else {
+                                entity.action = EntityAction::Off;
+                            }
+
+                            if remaining_speed <= 0.0001 {
+                                break;
+                            }
+
+                            match entity.action.clone() {
+                                EntityAction::StepTo(
+                                    next_coord,
+                                    _,
+                                    next_facing,
+                                    next_start,
+                                    next_step_dir,
+                                ) => {
+                                    curr_coord = next_coord;
+                                    curr_facing = next_facing;
+                                    curr_start = next_start;
+                                    curr_step_dir = next_step_dir;
+                                }
+                                _ => break,
+                            }
+                        }
+
+                        ctx.check_player_for_section_change(entity);
+                    });
+                }
+                EntityAction::RotateTo(target) => {
+                    let finished = Self::rotate_towards_cardinal(entity, *target, turn_step_deg);
+                    if finished {
+                        Self::clear_grid_blocked_action(entity);
+                        let player_camera = match entity.attributes.get("player_camera") {
+                            Some(Value::PlayerCamera(player_camera)) => Some(player_camera.clone()),
+                            _ => None,
+                        };
+                        if let Some(player_camera) = player_camera {
+                            self.queue_grid_action_from_desired(entity, &player_camera);
+                        } else {
+                            entity.action = EntityAction::Off;
+                        }
+                    }
                 }
                 EntityAction::RandomWalk(distance, speed, max_sleep, state, target) => {
                     if *state == 0 {
@@ -3387,241 +4288,9 @@ impl RegionInstance {
     fn move_entity(&self, entity: &mut Entity, dir: f32, entity_block_mode: i32) -> bool {
         with_regionctx(self.id, |ctx| {
             let speed = self.movement_units_per_sec * ctx.delta_time;
-            let move_vector = entity.orientation * speed * dir;
-            let position = entity.get_pos_xz();
-            let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
-
-            let mut new_position = position + move_vector;
-
-            // We'll do up to N attempts to resolve collisions via sliding
-            const MAX_ITERATIONS: usize = 5;
-
-            for _attempt in 0..MAX_ITERATIONS {
-                let mut pushed = false; // Track if we had to push/slide this iteration
-
-                // 1) Check collisions with ENTITIES
-                for other in ctx.map.entities.iter() {
-                    if other.id == entity.id || other.get_mode() == "dead" {
-                        continue;
-                    }
-
-                    let other_pos = other.get_pos_xz();
-                    let other_radius = other.attributes.get_float_default("radius", 0.5) - 0.01;
-                    let combined_radius = radius + other_radius;
-                    let combined_radius_sq = combined_radius * combined_radius;
-
-                    // Are we colliding now?
-                    let dist_vec = new_position - other_pos;
-                    let dist_sq = dist_vec.magnitude_squared();
-                    if dist_sq < combined_radius_sq {
-                        // Send events
-                        if let Some(_class_name) = ctx.entity_classes.get(&entity.id) {
-                            // let cmd = format!(
-                            //     "{}.event('{}', {})",
-                            //     class_name, "bumped_into_entity", other.id
-                            // );
-                            ctx.to_execute_entity.push((
-                                entity.id,
-                                "bumped_into_entity".into(),
-                                VMValue::broadcast(other.id as f32),
-                            ));
-                        }
-                        if let Some(_class_name) = ctx.entity_classes.get(&other.id) {
-                            // let cmd = format!(
-                            //     "{}.event('{}', {})",
-                            //     class_name, "bumped_by_entity", entity.id
-                            // );
-                            ctx.to_execute_entity.push((
-                                other.id,
-                                "bumped_by_entity".into(),
-                                VMValue::broadcast(entity.id as f32),
-                            ));
-                        }
-
-                        // If blocking, we attempt to slide
-                        if entity_block_mode > 0 {
-                            // Normal from the obstacle center to the entity
-                            let normal = dist_vec.normalized();
-
-                            let total_move = new_position - position;
-                            let slide = total_move - normal * total_move.dot(normal);
-
-                            let slide_pos = position + slide;
-                            let slide_dist_sq = (slide_pos - other_pos).magnitude_squared();
-
-                            if slide_dist_sq >= combined_radius_sq {
-                                // We successfully slid away
-                                new_position = slide_pos;
-                            } else {
-                                // If even after sliding we still collide, we push out just enough
-                                // to stand exactly at the boundary
-                                let actual_dist = (slide_pos - other_pos).magnitude();
-                                if actual_dist < combined_radius {
-                                    let push_amount = combined_radius - actual_dist;
-                                    new_position = slide_pos + normal * push_amount;
-                                    // Re-check again next iteration
-                                }
-                            }
-                            pushed = true;
-                        }
-                    }
-                }
-
-                // 2) Check collisions with ITEMS
-                for other in ctx.map.items.iter() {
-                    if !other.attributes.get_bool_default("visible", false) {
-                        continue;
-                    }
-
-                    let other_pos = other.get_pos_xz();
-                    let other_radius = other.attributes.get_float_default("radius", 0.5) - 0.01;
-                    let combined_radius = radius + other_radius;
-                    let combined_radius_sq = combined_radius * combined_radius;
-
-                    let dist_vec = new_position - other_pos;
-                    let dist_sq = dist_vec.magnitude_squared();
-                    if dist_sq < combined_radius_sq {
-                        // Send events
-                        if let Some(_class_name) = ctx.entity_classes.get(&entity.id) {
-                            // let cmd = format!(
-                            //     "{}.event('{}', {})",
-                            //     class_name, "bumped_into_item", other.id
-                            // );
-                            ctx.to_execute_entity.push((
-                                entity.id,
-                                "bumped_into_item".into(),
-                                VMValue::broadcast(other.id as f32),
-                            ));
-                        }
-                        if let Some(_class_name) = ctx.item_classes.get(&other.id) {
-                            // let cmd = format!(
-                            //     "{}.event('{}', {})",
-                            //     class_name, "bumped_by_entity", entity.id
-                            // );
-                            ctx.to_execute_item.push((
-                                other.id,
-                                "bumped_by_entity".into(),
-                                VMValue::broadcast(entity.id as f32),
-                            ));
-                        }
-
-                        // If item is blocking, we attempt to slide
-                        if other.attributes.get_bool_default("blocking", false) {
-                            let normal = dist_vec.normalized();
-
-                            let total_move = new_position - position;
-                            let slide = total_move - normal * total_move.dot(normal);
-
-                            let slide_pos = position + slide;
-                            let slide_dist_sq = (slide_pos - other_pos).magnitude_squared();
-
-                            if slide_dist_sq >= combined_radius_sq {
-                                // we successfully slid away
-                                new_position = slide_pos;
-                            } else {
-                                // If still colliding, push to boundary
-                                let actual_dist = (slide_pos - other_pos).magnitude();
-                                if actual_dist < combined_radius {
-                                    let push_amount = combined_radius - actual_dist;
-                                    new_position = slide_pos + normal * push_amount;
-                                    // We'll re-check next iteration
-                                }
-                            }
-                            pushed = true;
-                        }
-                    }
-                }
-
-                // If we didn't have to push at all, we’re clear => break early
-                if !pushed {
-                    break;
-                }
-            }
-
-            // Now we set the new position after we've done all the entity/item collision resolution
-            entity.set_pos_xz(new_position);
-
-            let blocked = match self.collision_mode {
-                CollisionMode::Tile => {
-                    let (end_position, geometry_blocked) =
-                        ctx.mapmini
-                            .move_distance(position, new_position - position, radius);
-                    entity.set_pos_xz(end_position);
-                    geometry_blocked
-                }
-                CollisionMode::Mesh => {
-                    if ctx.collision_world.has_collision_data() {
-                        let move_vec = new_position - position;
-                        let desired_dist = move_vec.magnitude();
-                        if desired_dist > 1e-6 {
-                            if let Some((end_pos, arrived)) =
-                                ctx.collision_world.move_towards_on_floors_direct(
-                                    position,
-                                    new_position,
-                                    desired_dist,
-                                    radius,
-                                    1.0,
-                                    entity.position.y,
-                                )
-                            {
-                                entity.set_pos_xz(vek::Vec2::new(end_pos.x, end_pos.z));
-                                entity.position.y = end_pos.y;
-                                !arrived
-                            } else {
-                                let start_pos =
-                                    vek::Vec3::new(position.x, entity.position.y, position.y);
-                                let move_vec_3d = vek::Vec3::new(move_vec.x, 0.0, move_vec.y);
-                                let (collision_pos, blocked) = ctx.collision_world.move_distance(
-                                    start_pos,
-                                    move_vec_3d,
-                                    radius,
-                                );
-                                entity.set_pos_xz(vek::Vec2::new(collision_pos.x, collision_pos.z));
-                                blocked
-                            }
-                        } else {
-                            false
-                        }
-                    } else {
-                        let (end_position, geometry_blocked) =
-                            ctx.mapmini
-                                .move_distance(position, new_position - position, radius);
-                        entity.set_pos_xz(end_position);
-                        geometry_blocked
-                    }
-                }
-            };
-
-            // Adjust vertical position based on collision floors/terrain at the final XZ.
-            let final_pos = entity.get_pos_xz();
-
-            let mut base_y = None;
-            if self.collision_mode == CollisionMode::Mesh
-                && ctx.collision_world.has_collision_data()
-            {
-                base_y = ctx.collision_world.get_floor_height_reachable(
-                    final_pos,
-                    entity.position.y,
-                    1.0,
-                );
-            }
-            // Fallback to terrain if no floor found.
-            if base_y.is_none() {
-                let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
-                base_y = Some(
-                    crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
-                        &ctx.map, final_pos, &config,
-                    ),
-                );
-            }
-
-            if let Some(y) = base_y {
-                entity.position.y = y;
-            }
-
-            ctx.check_player_for_section_change(entity);
-            blocked
+            entity.orientation * speed * dir
         })
+        .map(|move_vector| self.move_entity_by_vector(entity, move_vector, entity_block_mode))
         .unwrap()
     }
 
@@ -4105,8 +4774,10 @@ fn apply_spawn_item_lists_for_entity(entity_id: u32, ctx: &mut RegionCtx) {
 fn set_player_camera(camera: String, vm: &VirtualMachine) {
     with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
         let player_camera = match camera.as_str() {
+            "2d_grid" => PlayerCamera::D2Grid,
             "iso" => PlayerCamera::D3Iso,
             "firstp" => PlayerCamera::D3FirstP,
+            "firstp_grid" => PlayerCamera::D3FirstPGrid,
             _ => PlayerCamera::D2,
         };
 
@@ -4728,7 +5399,9 @@ fn cast_spell_for_entity(
     let caster_orientation = caster.orientation;
     let caster_is_firstp = matches!(
         caster.attributes.get("player_camera"),
-        Some(Value::PlayerCamera(PlayerCamera::D3FirstP))
+        Some(Value::PlayerCamera(
+            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid
+        ))
     );
     let target_pos = target.position;
     let had_cast_height = spell_item.attributes.contains("spell_cast_height");
@@ -4847,7 +5520,9 @@ fn cast_spell_for_entity_to_pos(
     let caster_orientation = caster.orientation;
     let caster_is_firstp = matches!(
         caster.attributes.get("player_camera"),
-        Some(Value::PlayerCamera(PlayerCamera::D3FirstP))
+        Some(Value::PlayerCamera(
+            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid
+        ))
     );
     let had_cast_height = spell_item.attributes.contains("spell_cast_height");
 
