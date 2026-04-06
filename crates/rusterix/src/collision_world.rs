@@ -291,7 +291,7 @@ impl CollisionWorld {
                     let in_polygon = self.point_in_polygon_2d(
                         Vec2::new(position.x, position.z),
                         &opening.boundary_2d,
-                        radius,
+                        0.0,
                     );
                     if in_polygon {
                         // Player is in a passable opening - don't check static volumes
@@ -618,7 +618,7 @@ impl CollisionWorld {
                             && self.point_in_polygon_2d(
                                 Vec2::new(position.x, position.z),
                                 &opening.boundary_2d,
-                                radius,
+                                0.0,
                             )
                         {
                             return true;

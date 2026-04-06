@@ -3,7 +3,9 @@ use crate::chunkbuilder::surface_mesh_builder::{
     GeneratedMesh, SurfaceMeshBuilder, fix_winding as mesh_fix_winding,
 };
 use crate::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
-use crate::collision_world::{BlockingVolume, DynamicOpening, OpeningType, WalkableFloor};
+use crate::collision_world::{
+    BlockingVolume, DynamicOpening, OpeningType, StaticBarrier, WalkableFloor,
+};
 use crate::map::organic::OrganicGrowthShape;
 use crate::{
     Assets, BBox, Batch3D, Chunk, ChunkBuilder, Item, Map, PixelSource, Value, ValueContainer,
@@ -21,6 +23,28 @@ use vek::{Vec2, Vec3};
 pub const DEFAULT_TILE_ID: &str = "27826750-a9e7-4346-994b-fb318b238452";
 
 pub struct D3ChunkBuilder {}
+
+fn vertical_surface_y_range(
+    surface: &crate::Surface,
+    path: &[Vec2<f32>],
+    fallback_base_y: f32,
+    fallback_height: f32,
+) -> (f32, f32) {
+    let mut min_y = f32::INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+
+    for uv in path {
+        let world_pos = surface.uv_to_world(*uv);
+        min_y = min_y.min(world_pos.y);
+        max_y = max_y.max(world_pos.y);
+    }
+
+    if min_y.is_finite() && max_y.is_finite() && (max_y - min_y) > 1e-4 {
+        (min_y, max_y)
+    } else {
+        (fallback_base_y, fallback_base_y + fallback_height)
+    }
+}
 
 fn matches_preview_hide_pattern(name: &str, pattern: &str) -> bool {
     let name = name.trim();
@@ -222,22 +246,6 @@ fn build_surface_uvs(
     uvs
 }
 
-fn shrink_polygon(points: &mut [Vec2<f32>], amount: f32) {
-    if points.is_empty() || amount <= 0.0 {
-        return;
-    }
-    let centroid =
-        points.iter().copied().fold(Vec2::zero(), |acc, p| acc + p) / (points.len() as f32);
-    for p in points.iter_mut() {
-        let dir = *p - centroid;
-        let len = dir.magnitude();
-        if len > f32::EPSILON {
-            let new_len = (len - amount).max(0.0);
-            *p = centroid + dir * (new_len / len);
-        }
-    }
-}
-
 fn distance_point_to_segment_2d(point: Vec2<f32>, seg_start: Vec2<f32>, seg_end: Vec2<f32>) -> f32 {
     let seg = seg_end - seg_start;
     let len_sq = seg.magnitude_squared();
@@ -436,6 +444,172 @@ fn extract_thin_wall_edge_volumes(
     }
 
     volumes
+}
+
+fn build_wall_opening_boundary_2d(
+    hole_points: &[Vec2<f32>],
+    wall_normal_2d: Vec2<f32>,
+) -> Vec<Vec2<f32>> {
+    if hole_points.len() < 2 {
+        return hole_points.to_vec();
+    }
+
+    let normal_len = wall_normal_2d.magnitude();
+    if normal_len <= 1e-6 {
+        return hole_points.to_vec();
+    }
+
+    let normal = wall_normal_2d / normal_len;
+    let tangent = Vec2::new(-normal.y, normal.x);
+
+    let mut min_t = f32::INFINITY;
+    let mut max_t = f32::NEG_INFINITY;
+    let mut min_n = f32::INFINITY;
+    let mut max_n = f32::NEG_INFINITY;
+
+    for point in hole_points {
+        let t = point.dot(tangent);
+        let n = point.dot(normal);
+        min_t = min_t.min(t);
+        max_t = max_t.max(t);
+        min_n = min_n.min(n);
+        max_n = max_n.max(n);
+    }
+
+    if !min_t.is_finite() || !max_t.is_finite() || !min_n.is_finite() || !max_n.is_finite() {
+        return hole_points.to_vec();
+    }
+
+    let half_depth = ((max_n - min_n) * 0.5).max(0.08);
+    let center_n = (min_n + max_n) * 0.5;
+    let min_n = center_n - half_depth;
+    let max_n = center_n + half_depth;
+
+    vec![
+        tangent * min_t + normal * min_n,
+        tangent * max_t + normal * min_n,
+        tangent * max_t + normal * max_n,
+        tangent * min_t + normal * max_n,
+    ]
+}
+
+fn extract_wall_barriers_with_openings(
+    geo_id: GeoId,
+    wall_points: &[Vec2<f32>],
+    opening_paths: &[Vec<Vec2<f32>>],
+    min_y: f32,
+    max_y: f32,
+) -> Option<Vec<StaticBarrier>> {
+    let mut points: Vec<Vec2<f32>> = Vec::new();
+    for &p in wall_points {
+        if points
+            .last()
+            .is_none_or(|last| (*last - p).magnitude() > 0.01)
+        {
+            points.push(p);
+        }
+    }
+    if points.len() >= 2 && (points[0] - *points.last().unwrap()).magnitude() <= 0.01 {
+        points.pop();
+    }
+    if points.len() < 2 {
+        return None;
+    }
+
+    let mut best_pair = None;
+    let mut best_dist_sq = 0.0;
+    for i in 0..points.len() {
+        for j in (i + 1)..points.len() {
+            let dist_sq = (points[j] - points[i]).magnitude_squared();
+            if dist_sq > best_dist_sq {
+                best_dist_sq = dist_sq;
+                best_pair = Some((points[i], points[j]));
+            }
+        }
+    }
+    let (a, b) = best_pair?;
+    if best_dist_sq <= 1e-6 {
+        return None;
+    }
+
+    let tangent = (b - a).normalized();
+    let normal = Vec2::new(-tangent.y, tangent.x);
+
+    let wall_min_t = points
+        .iter()
+        .map(|p| p.dot(tangent))
+        .fold(f32::INFINITY, f32::min);
+    let wall_max_t = points
+        .iter()
+        .map(|p| p.dot(tangent))
+        .fold(f32::NEG_INFINITY, f32::max);
+    let wall_center_n =
+        points.iter().map(|p| p.dot(normal)).sum::<f32>() / points.len().max(1) as f32;
+
+    if !wall_min_t.is_finite() || !wall_max_t.is_finite() || wall_max_t - wall_min_t <= 0.05 {
+        return None;
+    }
+
+    let mut spans: Vec<(f32, f32)> = opening_paths
+        .iter()
+        .filter_map(|path| {
+            if path.len() < 2 {
+                return None;
+            }
+            let min_t = path.iter().map(|p| p.dot(tangent)).fold(f32::INFINITY, f32::min);
+            let max_t = path
+                .iter()
+                .map(|p| p.dot(tangent))
+                .fold(f32::NEG_INFINITY, f32::max);
+            if !min_t.is_finite() || !max_t.is_finite() || max_t - min_t <= 0.01 {
+                None
+            } else {
+                Some((min_t.max(wall_min_t), max_t.min(wall_max_t)))
+            }
+        })
+        .collect();
+
+    if spans.is_empty() {
+        return None;
+    }
+
+    spans.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    let mut merged: Vec<(f32, f32)> = Vec::new();
+    for (start, end) in spans {
+        if let Some(last) = merged.last_mut()
+            && start <= last.1 + 0.02
+        {
+            last.1 = last.1.max(end);
+        } else {
+            merged.push((start, end));
+        }
+    }
+
+    let mut barriers = Vec::new();
+    let mut cursor = wall_min_t;
+    for (start, end) in merged {
+        if start - cursor > 0.05 {
+            barriers.push(StaticBarrier {
+                geo_id,
+                start: tangent * cursor + normal * wall_center_n,
+                end: tangent * start + normal * wall_center_n,
+                min_y,
+                max_y,
+            });
+        }
+        cursor = cursor.max(end);
+    }
+    if wall_max_t - cursor > 0.05 {
+        barriers.push(StaticBarrier {
+            geo_id,
+            start: tangent * cursor + normal * wall_center_n,
+            end: tangent * wall_max_t + normal * wall_center_n,
+            min_y,
+            max_y,
+        });
+    }
+
+    Some(barriers)
 }
 
 /// Split triangles into per-tile batches using 1x1 UV cells. Only routes a triangle
@@ -1906,6 +2080,9 @@ impl ChunkBuilder for D3ChunkBuilder {
                 }
 
                 let base_y = surface.plane.origin.y;
+                const WALL_HEIGHT: f32 = 2.5;
+                let (wall_min_y, wall_max_y) =
+                    vertical_surface_y_range(surface, &outer_loop.path, base_y, WALL_HEIGHT);
 
                 // Determine if this is a vertical surface (wall) or horizontal (floor/ceiling)
                 // Check the normal vector: if it's mostly horizontal (small Y), it's a wall
@@ -1940,12 +2117,24 @@ impl ChunkBuilder for D3ChunkBuilder {
                             Vec2::new(world_pos.x, world_pos.z)
                         })
                         .collect();
+                    let opening_paths_2d: Vec<Vec<Vec2<f32>>> = hole_loops
+                        .iter()
+                        .filter(|h| matches!(h.op, LoopOp::None | LoopOp::Billboard { .. }))
+                        .map(|h| {
+                            h.path
+                                .iter()
+                                .map(|uv| {
+                                    let world_pos = surface.uv_to_world(*uv);
+                                    Vec2::new(world_pos.x, world_pos.z)
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect();
                     // Add blocking volume for vertical surfaces (both extruded and non-extruded)
                     if surface.extrusion.enabled && extrude_abs > 1e-6 {
-                        // Extruded surface - full volume
-                        let (offset_min, offset_max) = surface.extrusion.span();
-                        let min_y = base_y + offset_min;
-                        let max_y = base_y + offset_max;
+                        // Extruded surface: use the profile for height and extrusion for thickness.
+                        let min_y = wall_min_y;
+                        let max_y = wall_max_y;
 
                         // Expand paper-thin dimensions (walls that are flat planes)
                         const MIN_THICKNESS: f32 = 0.1;
@@ -1963,20 +2152,30 @@ impl ChunkBuilder for D3ChunkBuilder {
                             wall_max.z = mid + MIN_THICKNESS * 0.5;
                         }
 
-                        let edge_volumes = extract_thin_wall_edge_volumes(
+                        if let Some(barriers) = extract_wall_barriers_with_openings(
                             GeoId::Sector(sector.id),
                             &wall_path_2d,
+                            &opening_paths_2d,
                             min_y,
                             max_y,
-                        );
-                        if edge_volumes.is_empty() {
-                            collision.static_volumes.push(BlockingVolume {
-                                geo_id: GeoId::Sector(sector.id),
-                                min: wall_min,
-                                max: wall_max,
-                            });
+                        ) {
+                            collision.static_barriers.extend(barriers);
                         } else {
-                            collision.static_volumes.extend(edge_volumes);
+                            let edge_volumes = extract_thin_wall_edge_volumes(
+                                GeoId::Sector(sector.id),
+                                &wall_path_2d,
+                                min_y,
+                                max_y,
+                            );
+                            if edge_volumes.is_empty() {
+                                collision.static_volumes.push(BlockingVolume {
+                                    geo_id: GeoId::Sector(sector.id),
+                                    min: wall_min,
+                                    max: wall_max,
+                                });
+                            } else {
+                                collision.static_volumes.extend(edge_volumes);
+                            }
                         }
 
                         // Add walkable floor at base level
@@ -1995,12 +2194,11 @@ impl ChunkBuilder for D3ChunkBuilder {
                         }
                     } else {
                         // Non-extruded surface - thin wall
-                        // Create thin blocking volume (small height to represent wall)
-                        const WALL_HEIGHT: f32 = 2.5; // Default wall height for collision
+                        // Use the profile's world-space height when available.
                         const MIN_THICKNESS: f32 = 0.1;
 
-                        let mut wall_min = Vec3::new(min_x, base_y, min_z);
-                        let mut wall_max = Vec3::new(max_x, base_y + WALL_HEIGHT, max_z);
+                        let mut wall_min = Vec3::new(min_x, wall_min_y, min_z);
+                        let mut wall_max = Vec3::new(max_x, wall_max_y, max_z);
 
                         // Expand paper-thin dimensions
                         if (wall_max.x - wall_min.x).abs() < MIN_THICKNESS {
@@ -2014,20 +2212,30 @@ impl ChunkBuilder for D3ChunkBuilder {
                             wall_max.z = mid + MIN_THICKNESS * 0.5;
                         }
 
-                        let edge_volumes = extract_thin_wall_edge_volumes(
+                        if let Some(barriers) = extract_wall_barriers_with_openings(
                             GeoId::Sector(sector.id),
                             &wall_path_2d,
-                            base_y,
-                            base_y + WALL_HEIGHT,
-                        );
-                        if edge_volumes.is_empty() {
-                            collision.static_volumes.push(BlockingVolume {
-                                geo_id: GeoId::Sector(sector.id),
-                                min: wall_min,
-                                max: wall_max,
-                            });
+                            &opening_paths_2d,
+                            wall_min_y,
+                            wall_max_y,
+                        ) {
+                            collision.static_barriers.extend(barriers);
                         } else {
-                            collision.static_volumes.extend(edge_volumes);
+                            let edge_volumes = extract_thin_wall_edge_volumes(
+                                GeoId::Sector(sector.id),
+                                &wall_path_2d,
+                                wall_min_y,
+                                wall_max_y,
+                            );
+                            if edge_volumes.is_empty() {
+                                collision.static_volumes.push(BlockingVolume {
+                                    geo_id: GeoId::Sector(sector.id),
+                                    min: wall_min,
+                                    max: wall_max,
+                                });
+                            } else {
+                                collision.static_volumes.extend(edge_volumes);
+                            }
                         }
                     }
                 } else {
@@ -2122,25 +2330,10 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 })
                                 .collect();
 
-                            // Expand the hole polygon perpendicular to the wall surface
-                            // to create a passable corridor through the wall
                             let normal = surface.plane.normal;
-                            let normal_2d = Vec2::new(normal.x, normal.z).normalized();
-                            const DOOR_DEPTH: f32 = 0.0; // No expansion; we'll shrink after
-
-                            // Create expanded polygon by offsetting in both directions
-                            let mut boundary_2d = Vec::new();
-                            for point in &hole_points {
-                                // Add point offset in one direction
-                                boundary_2d.push(*point + normal_2d * DOOR_DEPTH);
-                            }
-                            // Add points offset in opposite direction (reverse order for correct winding)
-                            for point in hole_points.iter().rev() {
-                                boundary_2d.push(*point - normal_2d * DOOR_DEPTH);
-                            }
-
-                            // Slightly shrink the boundary to avoid overly generous collision
-                            shrink_polygon(&mut boundary_2d, 0.5);
+                            let normal_2d = Vec2::new(normal.x, normal.z);
+                            let boundary_2d =
+                                build_wall_opening_boundary_2d(&hole_points, normal_2d);
 
                             // For door/window openings, use a simple approach:
                             // Doors/passages should allow passage from floor level up to a reasonable ceiling height
@@ -2190,7 +2383,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 boundary_2d,
                                 floor_height,
                                 ceiling_height,
-                                opening_type,
+                                opening_type: opening_type.clone(),
                                 item_blocking: surface.profile.and_then(|pid| {
                                     h.origin_profile_sector
                                         .and_then(|sid| profile_sector_item_blocking(map, pid, sid))
@@ -2210,18 +2403,9 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 .collect();
 
                             let normal = surface.plane.normal;
-                            let normal_2d = Vec2::new(normal.x, normal.z).normalized();
-                            const DOOR_DEPTH: f32 = 0.0;
-
-                            let mut boundary_2d = Vec::new();
-                            for point in &hole_points {
-                                boundary_2d.push(*point + normal_2d * DOOR_DEPTH);
-                            }
-                            for point in hole_points.iter().rev() {
-                                boundary_2d.push(*point - normal_2d * DOOR_DEPTH);
-                            }
-
-                            shrink_polygon(&mut boundary_2d, 0.5);
+                            let normal_2d = Vec2::new(normal.x, normal.z);
+                            let boundary_2d =
+                                build_wall_opening_boundary_2d(&hole_points, normal_2d);
 
                             let floor_height = 0.0;
                             let ceiling_height = 10.0;
@@ -2240,7 +2424,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 boundary_2d,
                                 floor_height,
                                 ceiling_height,
-                                opening_type,
+                                opening_type: opening_type.clone(),
                                 item_blocking: surface.profile.and_then(|pid| {
                                     h.origin_profile_sector
                                         .and_then(|sid| profile_sector_item_blocking(map, pid, sid))
@@ -2375,12 +2559,14 @@ impl ChunkBuilder for D3ChunkBuilder {
                         }
                         // Vertical wall - add blocking volume
                         let extrude_abs = surface.extrusion.depth.abs();
+                        const WALL_HEIGHT: f32 = 2.5;
+                        let wall_min_y = base_y;
+                        let wall_max_y = base_y + WALL_HEIGHT;
                         const MIN_THICKNESS: f32 = 0.1;
 
                         if surface.extrusion.enabled && extrude_abs > 1e-6 {
-                            let (offset_min, offset_max) = surface.extrusion.span();
-                            let min_y = base_y + offset_min;
-                            let max_y = base_y + offset_max;
+                            let min_y = wall_min_y;
+                            let max_y = wall_max_y;
 
                             let mut wall_min = Vec3::new(min_x, min_y, min_z);
                             let mut wall_max = Vec3::new(max_x, max_y, max_z);
@@ -2414,10 +2600,8 @@ impl ChunkBuilder for D3ChunkBuilder {
                             }
                         } else {
                             // Non-extruded wall
-                            const WALL_HEIGHT: f32 = 2.5;
-
-                            let mut wall_min = Vec3::new(min_x, base_y, min_z);
-                            let mut wall_max = Vec3::new(max_x, base_y + WALL_HEIGHT, max_z);
+                            let mut wall_min = Vec3::new(min_x, wall_min_y, min_z);
+                            let mut wall_max = Vec3::new(max_x, wall_max_y, max_z);
 
                             // Expand paper-thin dimensions
                             if (wall_max.x - wall_min.x).abs() < MIN_THICKNESS {
@@ -2434,8 +2618,8 @@ impl ChunkBuilder for D3ChunkBuilder {
                             let edge_volumes = extract_thin_wall_edge_volumes(
                                 GeoId::Sector(sector.id),
                                 &sector_points,
-                                base_y,
-                                base_y + WALL_HEIGHT,
+                                wall_min_y,
+                                wall_max_y,
                             );
                             if edge_volumes.is_empty() {
                                 collision.static_volumes.push(BlockingVolume {
