@@ -1,7 +1,7 @@
 [package]
 name = "eldiron-creator"
 edition = "2024"
-version = "0.9.1"
+version = "0.9.2"
 license = "MIT"
 authors = ["Markus Moenig"]
 description = "A game creator for classical RPGs."
@@ -16,12 +16,12 @@ path = "src/main.rs"
 
 [dependencies]
 rusterix.workspace = true
-organicgraph = { path = "../crates/organicgraph", version = "0.9.1" }
+organicgraph = { path = "../crates/organicgraph", version = "0.9.2" }
 codegridfx.workspace = true
 rusteria.workspace = true
-scenevm = { path = "../crates/scenevm", version = "0.9.1", default-features = false, features = ["gpu"] }
+scenevm = { path = "../crates/scenevm", version = "0.9.2", default-features = false, features = ["gpu"] }
 
-shared = { path = "../crates/shared", version = "0.9.1", package = "eldiron-shared", default-features = false, features = ["graphics"] }
+shared = { path = "../crates/shared", version = "0.9.2", package = "eldiron-shared", default-features = false, features = ["graphics"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 vectorize = "0.2.0"
@@ -41,7 +41,7 @@ rand = "0.9"
 ureq = "2.10.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-theframework = { path = "../crates/theframework", version = "0.9.1", default-features = false, features = ["ui", "i18n"] }
+theframework = { path = "../crates/theframework", version = "0.9.2", default-features = false, features = ["ui", "i18n"] }
 lazy_static = "1.5.0"
 i18n-embed = { version = "0.16.0", features = [
     "fluent-system",
@@ -53,7 +53,7 @@ self_update = { version = "0.39.0", optional = true, features = [
 ] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-theframework = { path = "../crates/theframework", version = "0.9.1", default-features = false, features = ["ui"] }
+theframework = { path = "../crates/theframework", version = "0.9.2", default-features = false, features = ["ui"] }
 
 [package.metadata.bundle.bin.eldiron-creator]
 name = "Eldiron Creator"

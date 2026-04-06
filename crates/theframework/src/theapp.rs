@@ -22,7 +22,7 @@ impl TheApp {
     /// Runs the app
     pub fn run(self, app: Box<dyn crate::TheTrait>) {
         #[cfg(feature = "log")]
-        setup_logger();
+        crate::thelogger::setup_logger();
 
         #[cfg(feature = "winit_app")]
         crate::thewinitapp::run_winit_app(self.args, app);

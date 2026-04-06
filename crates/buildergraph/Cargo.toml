@@ -7,6 +7,7 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 description = "Human-readable graph format, runtime, and CLI for Eldiron builder graphs."
+readme = "README.md"
 
 [dependencies]
 image = "0.25.5"

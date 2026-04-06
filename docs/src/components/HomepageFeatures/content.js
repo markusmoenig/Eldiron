@@ -18,7 +18,7 @@ export const homepageContent = {
     ],
     screenshot: {
       label: "Current main version",
-      version: "Eldiron v0.92",
+      version: "Eldiron v0.9.2",
       image: "/img/screenshots/Eldiron_v0.92.png",
       alt: "Eldiron main version screenshot",
     },
@@ -33,6 +33,14 @@ export const homepageContent = {
       type: "news",
       items: [
         {
+          date: "Apr 6, 2026",
+          title: "Eldiron v0.9.2",
+          description:
+            "Dungeon Tool, Tile Picker rewrite, expanded Tile Graph workflows, Builder Graph, and broader authoring improvements.",
+          href: "/blog/2026/04/06/eldiron-v0.9.2",
+          linkLabel: "Read more",
+        },
+        {
           date: "Mar 15, 2026",
           title: "Eldiron v0.9.1",
           description:
@@ -46,14 +54,6 @@ export const homepageContent = {
           description:
             "Avatars, redesigned spellcasting, procedural meshes, audio support, and the core building blocks for v1.",
           href: "/blog/2026_03_07-eldiron-v0.9",
-          linkLabel: "Read more",
-        },
-        {
-          date: "Feb 7, 2026",
-          title: "Eldiron v0.8.100",
-          description:
-            "Creator workflow improvements, bug fixes, and another step toward a more polished authoring pipeline.",
-          href: "/blog/2026/02/07/eldiron-v0.8.100",
           linkLabel: "Read more",
         },
       ],

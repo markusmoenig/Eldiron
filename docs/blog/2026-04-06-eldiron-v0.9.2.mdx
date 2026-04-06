@@ -1,0 +1,88 @@
+---
+title: Eldiron v0.9.2 Released
+authors: [markusm]
+tags: [releases]
+---
+
+<!-- truncate -->
+
+![Eldiron v0.9.2](/img/screenshots/Eldiron_v0.92.png)
+
+Eldiron v0.9.2 is a big creator-focused release. The main work in this update went into the new **Dungeon Tool**, a major rewrite of the **Tile Picker**, the expanded **Tile Graph** workflow, and the first release of the new **Builder Graph** system. Together, these features push Eldiron much closer to a faster and more connected world-building workflow for both 2D and 3D projects.
+
+This release also adds a large amount of supporting work around progression, text-style play, authoring, palette editing, and 3D editing quality-of-life improvements.
+
+## Dungeon Tool
+
+The new **Dungeon Tool** is one of the main additions in v0.9.2.
+
+Instead of building every room, corridor, and doorway from low-level geometry by hand, you can now paint a conceptual dungeon layout directly on a grid and let Eldiron generate the matching map geometry for you. That makes it much faster to block out first-person dungeons, connected rooms, shafts, and multi-part interiors before refining them further with the normal editor tools.
+
+![Dungeon Tool](/img/screenshots/Eldiron_v0.92_DT.png)
+
+The generated result is still normal map geometry, so the workflow stays flexible. You can paint it with tiles, detail it further, and combine it with the rest of your world instead of being trapped in a separate one-way dungeon mode.
+
+This release also adds new filtering support for dungeon-generated geometry in 3D, which makes it much easier to texture and inspect dungeon regions without visual clutter from unrelated geometry.
+
+## Tile Picker Rewrite
+
+The **Tile Picker** has been reworked into a much stronger central asset workflow.
+
+Instead of feeling like a flat selector, it now acts more like a real board for organizing and browsing project tiles, groups, collections, and shared content. This makes it easier to curate reusable sets of material, decorative tiles, and procedural content while staying inside the same editing flow.
+
+![Tile Picker](/img/screenshots/Eldiron_v0.92_TP.png)
+
+At the same time, tile assignment is now more direct. `Apply Tile` and `Clear Tile` have been moved into the Tile Picker dock itself, and tile assignment can now target action-driven HUD material slots where appropriate. The result is a workflow that feels much more immediate and much less fragmented.
+
+## Tile Graph
+
+The **Tile Graph** workflow continues to expand and is now much more capable for procedural tile authoring.
+
+This release reworks the FX side of Tile Graph with explicit particle and light authoring nodes, including **Particle Spawn**, **Particle Motion**, **Particle Render**, and **Light Emitter**, plus a one-click **Particle Template** setup to get started quickly.
+
+![Tile Graph](/img/screenshots/Eldiron_v0.92_TG.png)
+
+There are also live minimap previews for particles, particle and light thumbnails, ramp-based particle coloring, optional flame-base support, and runtime propagation of tile-graph particle updates into the 3D preview. Altogether, Tile Graph is moving beyond static tile generation and toward a broader procedural authoring system for animated and reactive content.
+
+## Builder Graph
+
+v0.9.2 also introduces the first release of **Builder Graph**.
+
+Builder Graph is a new workflow for authoring reusable structural assets such as tables, torches, lanterns, campfires, fences, and other assemblies. Builder assets are currently created as text-based `.buildergraph` scripts and edited with a live preview, which makes them fast to iterate on while still staying precise and reusable.
+
+![Builder Graph](/img/screenshots/Eldiron_v0.92_BG.png)
+
+Builder graphs can define geometry, material slots, item slots, and host targets such as sectors, linedefs, and vertices. That means one builder can be reused in different contexts, skinned with different materials, and extended through attachments instead of forcing every prop to be rebuilt from scratch.
+
+This first version also includes presets such as **Table**, **Wall Torch**, **Wall Lantern**, and **Campfire**, along with improved picker previews and more stable placement for wall-mounted and floor-based props.
+
+## Interactive Fiction And Shared World Authoring
+
+Another important theme in v0.9.2 is that Eldiron’s world model is becoming more shared across presentation styles.
+
+The Creator now includes a persistent **Authoring** mode and dock for room, connection, entity, and item metadata, along with global **Game / Authoring** settings for startup text, terminal behavior, exit presentation, and text-style colors.
+
+![Interactive Fiction](/img/screenshots/Eldiron_v0.92_IF.png)
+
+This work connects directly to the new text-style play support. Eldiron projects can now be explored through a terminal-style client as well as directly inside the Creator’s Game Tool, with shared text-session logic, inventory display, authored room descriptions, intent-driven commands, and configurable presentation rules.
+
+## More In v0.9.2
+
+There is a lot more in this release besides the headline editor changes:
+
+- new progression rules with configurable level and XP handling
+- `attack()` and `gain_xp(...)` as higher-level gameplay commands
+- automatic kill XP and `level_up` events
+- race and class metadata integrated into the rules pipeline
+- a new Palette Tool and Palette dock with per-entry material properties
+- direct 3D detail editing on walls, floors, and ceilings without switching into a separate editing-surface mode
+- a new `Build Room` action for generating room geometry from wall sectors
+- starter project browsing for quickly creating new 2D and 3D projects
+- stronger top-level documentation for Features, Architecture, Authoring, Builder Tool, Tile Graph, Rules, and Getting Started
+
+Overall, v0.9.2 is about speeding up authoring while also making Eldiron’s systems connect more cleanly: procedural content, world geometry, text-style play, and reusable assets are starting to feel like parts of the same editor instead of isolated features.
+
+---
+
+Take care,  
+Markus
