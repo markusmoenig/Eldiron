@@ -28,6 +28,7 @@ pub trait ChunkBuilder: Send + Sync {
     fn build_collision(
         &mut self,
         map: &Map,
+        assets: &Assets,
         chunk_origin: Vec2<i32>,
         chunk_size: i32,
     ) -> ChunkCollision {

@@ -1468,7 +1468,7 @@ impl RegionInstance {
                 for cx in min_chunk.x..=max_chunk.x {
                     let chunk_origin = vek::Vec2::new(cx, cy);
                     let chunk_collision =
-                        chunk_builder.build_collision(&ctx.map, chunk_origin, chunk_size);
+                        chunk_builder.build_collision(&ctx.map, &ctx.assets, chunk_origin, chunk_size);
 
                     ctx.collision_world
                         .update_chunk(chunk_origin, chunk_collision);

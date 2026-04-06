@@ -3,6 +3,8 @@ use rustc_hash::FxHashMap;
 use scenevm::GeoId;
 use vek::{Vec2, Vec3};
 
+const PASSABLE_OPENING_EXTRA_TOLERANCE: f32 = 0.12;
+
 /// Manages collision data across all chunks in the world
 pub struct CollisionWorld {
     /// Collision data indexed by chunk coordinates
@@ -288,10 +290,11 @@ impl CollisionWorld {
                 if position.y + radius >= opening.floor_height
                     && position.y - radius <= opening.ceiling_height
                 {
-                    let in_polygon = self.point_in_polygon_2d(
+                    let in_polygon = self.footprint_intersects_polygon_2d(
                         Vec2::new(position.x, position.z),
                         &opening.boundary_2d,
-                        0.0,
+                        radius + PASSABLE_OPENING_EXTRA_TOLERANCE,
+                        radius,
                     );
                     if in_polygon {
                         // Player is in a passable opening - don't check static volumes
@@ -459,11 +462,13 @@ impl CollisionWorld {
             let mut best_same: Option<f32> = None;
             let mut best_down: Option<f32> = None;
             let mut best_down_delta = f32::INFINITY;
+            let mut candidates: Vec<f32> = Vec::new();
 
             for floor in &chunk_collision.walkable_floors {
                 if !self.point_in_polygon_2d(position, &floor.polygon_2d, 0.0) {
                     continue;
                 }
+                candidates.push(floor.height);
                 let delta = floor.height - reference_y;
                 if delta > SAME_LEVEL_EPS && delta <= max_step_height + 1e-3 {
                     if delta < best_up_delta {
@@ -615,10 +620,11 @@ impl CollisionWorld {
                         if self.opening_is_passable(opening)
                             && position.y + radius >= opening.floor_height
                             && position.y - radius <= opening.ceiling_height
-                            && self.point_in_polygon_2d(
+                            && self.footprint_intersects_polygon_2d(
                                 Vec2::new(position.x, position.z),
                                 &opening.boundary_2d,
-                                0.0,
+                                radius + PASSABLE_OPENING_EXTRA_TOLERANCE,
+                                radius,
                             )
                         {
                             return true;
@@ -1053,6 +1059,31 @@ impl CollisionWorld {
         }
 
         inside
+    }
+
+    fn footprint_intersects_polygon_2d(
+        &self,
+        center: Vec2<f32>,
+        polygon: &[Vec2<f32>],
+        padding: f32,
+        radius: f32,
+    ) -> bool {
+        let sample = (radius * 0.7).max(0.12);
+        let offsets = [
+            Vec2::zero(),
+            Vec2::new(sample, 0.0),
+            Vec2::new(-sample, 0.0),
+            Vec2::new(0.0, sample),
+            Vec2::new(0.0, -sample),
+            Vec2::new(sample * 0.7, sample * 0.7),
+            Vec2::new(sample * 0.7, -sample * 0.7),
+            Vec2::new(-sample * 0.7, sample * 0.7),
+            Vec2::new(-sample * 0.7, -sample * 0.7),
+        ];
+
+        offsets
+            .iter()
+            .any(|offset| self.point_in_polygon_2d(center + *offset, polygon, padding))
     }
 
     fn point_to_segment_distance_2d(&self, point: Vec2<f32>, a: Vec2<f32>, b: Vec2<f32>) -> f32 {

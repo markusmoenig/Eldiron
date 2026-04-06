@@ -259,39 +259,6 @@ fn distance_point_to_segment_2d(point: Vec2<f32>, seg_start: Vec2<f32>, seg_end:
     (point - projection).magnitude()
 }
 
-fn closest_point_on_segment_2d(
-    point: Vec2<f32>,
-    seg_start: Vec2<f32>,
-    seg_end: Vec2<f32>,
-) -> Vec2<f32> {
-    let seg = seg_end - seg_start;
-    let len_sq = seg.magnitude_squared();
-    if len_sq < 1e-8 {
-        return seg_start;
-    }
-    let t = ((point - seg_start).dot(seg) / len_sq).clamp(0.0, 1.0);
-    seg_start + seg * t
-}
-
-fn closest_point_on_polygon_edges_2d(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> Vec2<f32> {
-    if polygon.is_empty() {
-        return point;
-    }
-    let mut best = polygon[0];
-    let mut best_d = (point - best).magnitude_squared();
-    for i in 0..polygon.len() {
-        let a = polygon[i];
-        let b = polygon[(i + 1) % polygon.len()];
-        let c = closest_point_on_segment_2d(point, a, b);
-        let d = (point - c).magnitude_squared();
-        if d < best_d {
-            best_d = d;
-            best = c;
-        }
-    }
-    best
-}
-
 fn distance_segment_to_segment_2d(
     a0: Vec2<f32>,
     a1: Vec2<f32>,
@@ -1976,6 +1943,7 @@ impl ChunkBuilder for D3ChunkBuilder {
     fn build_collision(
         &mut self,
         map: &Map,
+        assets: &Assets,
         chunk_origin: Vec2<i32>,
         chunk_size: i32,
     ) -> crate::collision_world::ChunkCollision {
@@ -2081,8 +2049,6 @@ impl ChunkBuilder for D3ChunkBuilder {
 
                 let base_y = surface.plane.origin.y;
                 const WALL_HEIGHT: f32 = 2.5;
-                let (wall_min_y, wall_max_y) =
-                    vertical_surface_y_range(surface, &outer_loop.path, base_y, WALL_HEIGHT);
 
                 // Determine if this is a vertical surface (wall) or horizontal (floor/ceiling)
                 // Check the normal vector: if it's mostly horizontal (small Y), it's a wall
@@ -2130,11 +2096,15 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 .collect::<Vec<_>>()
                         })
                         .collect();
+                    let has_embedded_openings = !opening_paths_2d.is_empty();
                     // Add blocking volume for vertical surfaces (both extruded and non-extruded)
                     if surface.extrusion.enabled && extrude_abs > 1e-6 {
-                        // Extruded surface: use the profile for height and extrusion for thickness.
-                        let min_y = wall_min_y;
-                        let max_y = wall_max_y;
+                        let (offset_min, offset_max) = surface.extrusion.span();
+                        let (min_y, max_y) = if has_embedded_openings {
+                            vertical_surface_y_range(surface, &outer_loop.path, base_y, WALL_HEIGHT)
+                        } else {
+                            (base_y + offset_min, base_y + offset_max)
+                        };
 
                         // Expand paper-thin dimensions (walls that are flat planes)
                         const MIN_THICKNESS: f32 = 0.1;
@@ -2194,8 +2164,12 @@ impl ChunkBuilder for D3ChunkBuilder {
                         }
                     } else {
                         // Non-extruded surface - thin wall
-                        // Use the profile's world-space height when available.
                         const MIN_THICKNESS: f32 = 0.1;
+                        let (wall_min_y, wall_max_y) = if has_embedded_openings {
+                            vertical_surface_y_range(surface, &outer_loop.path, base_y, WALL_HEIGHT)
+                        } else {
+                            (base_y, base_y + WALL_HEIGHT)
+                        };
 
                         let mut wall_min = Vec3::new(min_x, wall_min_y, min_z);
                         let mut wall_max = Vec3::new(max_x, wall_max_y, max_z);
@@ -2646,6 +2620,15 @@ impl ChunkBuilder for D3ChunkBuilder {
             }
         }
 
+        add_terrain_collision(
+            map,
+            assets,
+            chunk_origin,
+            chunk_size,
+            &chunk_bbox,
+            &mut collision,
+        );
+
         // Linedef feature collisions (palisade/fence) are generated non-destructively,
         // so add blocking volumes here to match render geometry.
         add_generated_feature_collision(map, &chunk_bbox, &mut collision);
@@ -2706,6 +2689,110 @@ fn add_dungeon_door_collision(
             ceiling_height,
             opening_type: OpeningType::Door,
         });
+    }
+}
+
+fn add_terrain_collision(
+    map: &Map,
+    assets: &Assets,
+    chunk_origin: Vec2<i32>,
+    chunk_size: i32,
+    chunk_bbox: &crate::BBox,
+    collision: &mut crate::collision_world::ChunkCollision,
+) {
+    if !map.properties.get_bool_default("terrain_enabled", false) {
+        return;
+    }
+
+    let default_tile_id =
+        if let Some(Value::Source(pixel_source)) = map.properties.get("default_terrain_tile") {
+            if let Some(tile) = pixel_source.tile_from_tile_list(assets) {
+                tile.id
+            } else {
+                Uuid::from_str(DEFAULT_TILE_ID).unwrap()
+            }
+        } else {
+            Uuid::from_str(DEFAULT_TILE_ID).unwrap()
+        };
+
+    let tile_overrides = map.properties.get("tiles").and_then(|v| {
+        if let Value::TileOverrides(map) = v {
+            Some(map)
+        } else {
+            None
+        }
+    });
+
+    let mut config = TerrainConfig::default();
+    let mut chunk_ridge_subdiv = config.subdivisions.max(1);
+    let mut chunk_exclusion_subdiv = config.subdivisions.max(1);
+    for sector in &map.sectors {
+        match sector.properties.get_int_default("terrain_mode", 0) {
+            1 => {
+                if sector.bounding_box(map).intersects(chunk_bbox) {
+                    let exclusion_subdiv = sector
+                        .properties
+                        .get_int_default("terrain_exclusion_subdiv", 4)
+                        .clamp(1, 8) as u32;
+                    chunk_exclusion_subdiv = chunk_exclusion_subdiv.max(exclusion_subdiv);
+                }
+            }
+            2 => {
+                let mut expanded_bbox = sector.bounding_box(map);
+                let influence = sector
+                    .properties
+                    .get_float_default("ridge_plateau_width", 0.0)
+                    .max(0.0)
+                    + sector
+                        .properties
+                        .get_float_default("ridge_falloff_distance", 0.0)
+                        .max(0.0);
+                if influence > 0.0 {
+                    expanded_bbox.expand(Vec2::broadcast(influence * 2.0));
+                }
+                if !expanded_bbox.intersects(chunk_bbox) {
+                    continue;
+                }
+                let ridge_subdiv = sector
+                    .properties
+                    .get_int_default("ridge_subdiv", 1)
+                    .clamp(1, 8) as u32;
+                chunk_ridge_subdiv = chunk_ridge_subdiv.max(ridge_subdiv);
+            }
+            _ => {}
+        }
+    }
+    config.subdivisions = chunk_ridge_subdiv.max(chunk_exclusion_subdiv);
+    let generator = TerrainGenerator::new(config);
+    let terrain_chunk = Chunk::new(chunk_origin.map(|v| v * chunk_size), chunk_size);
+
+    let Some(meshes) = generator.generate(map, &terrain_chunk, assets, default_tile_id, tile_overrides)
+    else {
+        return;
+    };
+
+    for (_tile_id, vertices, indices, _uvs) in meshes {
+        for tri in indices.chunks_exact(3) {
+            let i0 = tri[0] as usize;
+            let i1 = tri[1] as usize;
+            let i2 = tri[2] as usize;
+            let p0 = vertices[i0];
+            let p1 = vertices[i1];
+            let p2 = vertices[i2];
+            let center = Vec2::new((p0.x + p1.x + p2.x) / 3.0, (p0.z + p1.z + p2.z) / 3.0);
+            if !chunk_bbox.contains(center) {
+                continue;
+            }
+            collision.walkable_floors.push(WalkableFloor {
+                geo_id: GeoId::Terrain(center.x.floor() as i32, center.y.floor() as i32),
+                height: (p0.y + p1.y + p2.y) / 3.0,
+                polygon_2d: vec![
+                    Vec2::new(p0.x, p0.z),
+                    Vec2::new(p1.x, p1.z),
+                    Vec2::new(p2.x, p2.z),
+                ],
+            });
+        }
     }
 }
 
@@ -8039,33 +8126,30 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                 } else {
                     Vec3::new(0.0, 0.0, 1.0)
                 };
-                let base_poly_xz: Vec<Vec2<f32>> =
-                    base_ring.iter().map(|p| Vec2::new(p.x, p.z)).collect();
-                let snap_cap_base_to_footprint = |v: [f32; 4]| -> [f32; 4] {
-                    if roof_overhang <= 0.0 {
-                        return v;
-                    }
-                    let snapped =
-                        closest_point_on_polygon_edges_2d(Vec2::new(v[0], v[2]), &base_poly_xz);
-                    [snapped.x, v[1], snapped.y, v[3]]
-                };
                 for (idx, p) in patches.iter().enumerate() {
                     if !p.local_swap {
                         if !start_linked[idx] {
-                            let lo = p.s0.0.min(p.s0.1);
-                            let hi = p.s0.0.max(p.s0.1);
+                            // Use u0s (the actual position where side panel starts) instead of p.u0
+                            let u_actual = (p.u0 + along_eps).min(p.u1 - along_eps);
+                            let segs = cross_segments(u_actual);
+                            if segs.is_empty() {
+                                continue;
+                            }
+                            let lo = segs[0].0.min(segs[0].1);
+                            let hi = segs[0].0.max(segs[0].1);
                             let width = (hi - lo).abs();
                             if width > 1e-4 {
-                                let b0 = snap_cap_base_to_footprint(world_from_along_sample(
-                                    p.u0,
+                                // Don't snap - side panels use overhung positions, end cap must match
+                                let b0 = world_from_along_sample(
+                                    u_actual,
                                     lo,
                                     best_base_y,
-                                ));
-                                let b1 = snap_cap_base_to_footprint(world_from_along_sample(
-                                    p.u0,
+                                );
+                                let b1 = world_from_along_sample(
+                                    u_actual,
                                     hi,
                                     best_base_y,
-                                ));
+                                );
                                 let apex_xz =
                                     Vec2::new((b0[0] + b1[0]) * 0.5, (b0[2] + b1[2]) * 0.5);
                                 let tri_vertices = vec![
@@ -8092,20 +8176,27 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                             }
                         }
                         if !end_linked[idx] {
-                            let lo = p.s1.0.min(p.s1.1);
-                            let hi = p.s1.0.max(p.s1.1);
+                            // Use u1s (the actual position where side panel ends) instead of p.u1
+                            let u_actual = (p.u1 - along_eps).max(p.u0 + along_eps);
+                            let segs = cross_segments(u_actual);
+                            if segs.is_empty() {
+                                continue;
+                            }
+                            let lo = segs[0].0.min(segs[0].1);
+                            let hi = segs[0].0.max(segs[0].1);
                             let width = (hi - lo).abs();
                             if width > 1e-4 {
-                                let b0 = snap_cap_base_to_footprint(world_from_along_sample(
-                                    p.u1,
+                                // Don't snap - side panels use overhung positions, end cap must match
+                                let b0 = world_from_along_sample(
+                                    u_actual,
                                     lo,
                                     best_base_y,
-                                ));
-                                let b1 = snap_cap_base_to_footprint(world_from_along_sample(
-                                    p.u1,
+                                );
+                                let b1 = world_from_along_sample(
+                                    u_actual,
                                     hi,
                                     best_base_y,
-                                ));
+                                );
                                 let apex_xz =
                                     Vec2::new((b0[0] + b1[0]) * 0.5, (b0[2] + b1[2]) * 0.5);
                                 let tri_vertices = vec![
@@ -8141,16 +8232,17 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                         let width = (p.u1 - p.u0).abs();
                         if width > 1e-4 {
                             {
-                                let b0 = snap_cap_base_to_footprint(world_from_along_sample(
+                                // Don't snap - side panels use overhung positions, end cap must match
+                                let b0 = world_from_along_sample(
                                     p.u0,
                                     p.s0.0,
                                     best_base_y,
-                                ));
-                                let b1 = snap_cap_base_to_footprint(world_from_along_sample(
+                                );
+                                let b1 = world_from_along_sample(
                                     p.u1,
                                     p.s1.0,
                                     best_base_y,
-                                ));
+                                );
                                 let apex0_xz =
                                     Vec2::new((b0[0] + b1[0]) * 0.5, (b0[2] + b1[2]) * 0.5);
                                 let tri0 = vec![
@@ -8177,16 +8269,17 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                             }
 
                             {
-                                let b0 = snap_cap_base_to_footprint(world_from_along_sample(
+                                // Don't snap - side panels use overhung positions, end cap must match
+                                let b0 = world_from_along_sample(
                                     p.u0,
                                     p.s0.1,
                                     best_base_y,
-                                ));
-                                let b1 = snap_cap_base_to_footprint(world_from_along_sample(
+                                );
+                                let b1 = world_from_along_sample(
                                     p.u1,
                                     p.s1.1,
                                     best_base_y,
-                                ));
+                                );
                                 let apex1_xz =
                                     Vec2::new((b0[0] + b1[0]) * 0.5, (b0[2] + b1[2]) * 0.5);
                                 let tri1 = vec![
