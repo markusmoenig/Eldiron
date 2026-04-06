@@ -162,6 +162,10 @@
   padding: 1rem;
 }
 
+.toolImageWrap {
+  padding: 1rem 1rem 0;
+}
+
 .formatCopy,
 .toolCopy {
   padding: 1.5rem;
@@ -231,6 +235,7 @@
   }
 
   .formatImageWrap,
+  .toolImageWrap,
   .formatCopy,
   .toolCopy {
     padding: 1rem;
