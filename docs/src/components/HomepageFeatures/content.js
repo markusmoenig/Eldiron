@@ -86,6 +86,16 @@ export const homepageContent = {
           href: "/docs/building_maps/creating_3d_maps",
           linkLabel: "Explore 3D Workflow",
         },
+        {
+          eyebrow: "Text",
+          title: "Build text-based adventures in the same world",
+          description:
+            "Use authoring, intents, rules, and shared world data to create interactive fiction and text-style play directly from your Eldiron project.",
+          image: "/img/screenshots/Eldiron_v0.92_CLI.png",
+          alt: "Eldiron text-based play screenshot",
+          href: "/docs/creator/authoring",
+          linkLabel: "Explore Text Workflow",
+        },
       ],
     },
     {
