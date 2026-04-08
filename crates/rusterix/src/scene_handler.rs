@@ -3046,6 +3046,14 @@ impl SceneHandler {
 
             if entity.attributes.get_bool_default("visible", false) {
                 let geo_id = GeoId::Character(entity.id);
+                let size_2d = entity
+                    .attributes
+                    .get_float_default("size_2d", 1.0)
+                    .max(0.01);
+                // 2D avatar billboards are center-anchored. Shift the center upward so
+                // increasing size_2d keeps the avatar inside the tile instead of growing
+                // downward out of the cell.
+                let avatar_pos_2d = Vec2::new(pos.x, pos.y - (size_2d - 1.0) * 0.5);
                 let has_avatar_binding = AvatarRuntimeBuilder::has_avatar_binding(entity);
                 let keep_cached_avatar = self.avatar_builder.has_cached_avatar(geo_id);
                 if let Some(avatar) = AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets) {
@@ -3070,8 +3078,13 @@ impl SceneHandler {
                         );
                     if uploaded {
                         active_avatar_geo.insert(geo_id);
-                        let dynamic = DynamicObject::billboard_avatar_2d(geo_id, pos, 1.0, 1.0)
-                            .with_layer(20);
+                        let dynamic = DynamicObject::billboard_avatar_2d(
+                            geo_id,
+                            avatar_pos_2d,
+                            size_2d,
+                            size_2d,
+                        )
+                        .with_layer(20);
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                         continue;
                     }
@@ -3080,8 +3093,13 @@ impl SceneHandler {
                 if has_avatar_binding {
                     if keep_cached_avatar {
                         active_avatar_geo.insert(geo_id);
-                        let dynamic = DynamicObject::billboard_avatar_2d(geo_id, pos, 1.0, 1.0)
-                            .with_layer(20);
+                        let dynamic = DynamicObject::billboard_avatar_2d(
+                            geo_id,
+                            avatar_pos_2d,
+                            size_2d,
+                            size_2d,
+                        )
+                        .with_layer(20);
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                     }
                     continue;

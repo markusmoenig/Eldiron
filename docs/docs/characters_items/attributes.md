@@ -596,6 +596,21 @@ size = 2.0
 
 ---
 
+## `size_2d`
+
+*Character-only attribute.*
+
+2D avatar scale for characters rendered from an `avatar` in 2D views.  
+Default is `1.0` if no `size_2d` attribute is set.
+
+Unlike `size`, this only affects 2D avatar billboards. The avatar stays aligned to the tile bottom and grows upward within the grid cell.
+
+```toml
+size_2d = 1.25
+```
+
+---
+
 ## `billboard_alignment`
 
 *Item-only attribute.*

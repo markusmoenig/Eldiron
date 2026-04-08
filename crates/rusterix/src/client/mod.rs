@@ -1593,12 +1593,16 @@ impl Client {
 
         let pixels = buffer.pixels_mut();
         for widget in widgets {
-            let x0 = widget.rect.x.max(0.0).floor() as usize;
-            let y0 = widget.rect.y.max(0.0).floor() as usize;
-            let x1 = (widget.rect.x + widget.rect.width).ceil().max(0.0) as usize;
-            let y1 = (widget.rect.y + widget.rect.height).ceil().max(0.0) as usize;
-            let x1 = x1.min(bw);
-            let y1 = y1.min(bh);
+            // Match the exact integer placement used when the game widget buffer is copied
+            // into the target. Using the float rect with ceil/floor can expose a 1 px edge.
+            let x0 = (widget.rect.x as i32).max(0) as usize;
+            let y0 = (widget.rect.y as i32).max(0) as usize;
+            let x1 = x0
+                .saturating_add(widget.buffer.dim().width.max(0) as usize)
+                .min(bw);
+            let y1 = y0
+                .saturating_add(widget.buffer.dim().height.max(0) as usize)
+                .min(bh);
             if x0 >= x1 || y0 >= y1 {
                 continue;
             }
