@@ -52,6 +52,8 @@ height = 540
 window_scale = 1.0
 grid_size = 32
 upscale = "aspect"
+background_color_2d = "#000000"
+screen_background = "#000000"
 cursor_id = ""
 
 [say]

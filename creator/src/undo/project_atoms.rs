@@ -49,6 +49,7 @@ pub enum ProjectUndoAtom {
         Vec<PaletteMaterial>,
     ),
     TileEdit(rusterix::Tile, rusterix::Tile),
+    TileBatchEdit(Vec<(rusterix::Tile, rusterix::Tile)>),
 }
 
 use ProjectUndoAtom::*;
@@ -124,6 +125,7 @@ impl ProjectUndoAtom {
             }
             PaletteEdit(_old, _old_mats, _new, _new_mats) => format!("Palette Changed"),
             TileEdit(_old, _new) => format!("Tile Changed"),
+            TileBatchEdit(_edits) => format!("Tiles Changed"),
         }
     }
 
@@ -725,6 +727,15 @@ impl ProjectUndoAtom {
             }
             TileEdit(old, _new) => {
                 project.tiles.insert(old.id, old.clone());
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Tiles"),
+                    TheValue::Empty,
+                ));
+            }
+            TileBatchEdit(edits) => {
+                for (old, _new) in edits {
+                    project.tiles.insert(old.id, old.clone());
+                }
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Tiles"),
                     TheValue::Empty,
@@ -1447,6 +1458,15 @@ impl ProjectUndoAtom {
             }
             TileEdit(_old, new) => {
                 project.tiles.insert(new.id, new.clone());
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Tiles"),
+                    TheValue::Empty,
+                ));
+            }
+            TileBatchEdit(edits) => {
+                for (_old, new) in edits {
+                    project.tiles.insert(new.id, new.clone());
+                }
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Tiles"),
                     TheValue::Empty,

@@ -16,6 +16,7 @@ pub struct ScreenWidget {
     pub offset: Vec2<f32>,
 
     pub grid_size: f32,
+    pub background_color: [u8; 4],
 }
 
 impl Default for ScreenWidget {
@@ -38,6 +39,7 @@ impl ScreenWidget {
             offset: zero(),
 
             grid_size: 32.0,
+            background_color: [0, 0, 0, 255],
         }
     }
 
@@ -84,6 +86,7 @@ impl ScreenWidget {
         rast.preserve_transparency = true;
         rast.mapmini = self.scene.mapmini.clone();
         rast.render_mode = RenderMode::render_2d();
+        rast.background_color = Some(self.background_color);
 
         rast.rasterize(
             &mut self.scene,

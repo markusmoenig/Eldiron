@@ -753,10 +753,14 @@ impl Client {
 
         scene_handler.settings.apply_hour(hour);
         scene_handler.settings.apply_2d(&mut scene_handler.vm);
-        // 2D should render against black, independent of project sky color/simulation.
-        scene_handler
-            .vm
-            .execute(scenevm::Atom::SetGP0(Vec4::zero()));
+        if matches!(scenevm_mode_2d, scenevm::RenderMode::Compute2D) {
+            scene_handler.vm.execute(scenevm::Atom::SetGP0(Vec4::new(
+                map.grid_size,
+                map.subdivisions,
+                map.offset.x,
+                -map.offset.y,
+            )));
+        }
 
         scene_handler
             .vm
@@ -788,10 +792,6 @@ impl Client {
         scene_handler
             .vm
             .execute(scenevm::Atom::SetAnimationCounter(self.animation_frame));
-
-        scene_handler
-            .vm
-            .execute(scenevm::Atom::SetBackground(Vec4::zero()));
 
         scene_handler
             .vm
@@ -1312,6 +1312,11 @@ impl Client {
 
                 screen_widget.build(screen, assets);
                 screen_widget.draw(screen, &self.server_time, assets);
+                Self::punch_game_widget_holes(
+                    &mut screen_widget.buffer,
+                    screen_widget.background_color,
+                    self.game_widgets.values(),
+                );
 
                 self.target.blend_into(0, 0, &screen_widget.buffer);
             }
@@ -1572,6 +1577,48 @@ impl Client {
         }
     }
 
+    fn punch_game_widget_holes<'a, I>(
+        buffer: &mut TheRGBABuffer,
+        background_color: [u8; 4],
+        widgets: I,
+    )
+    where
+        I: IntoIterator<Item = &'a GameWidget>,
+    {
+        let bw = buffer.dim().width.max(0) as usize;
+        let bh = buffer.dim().height.max(0) as usize;
+        if bw == 0 || bh == 0 {
+            return;
+        }
+
+        let pixels = buffer.pixels_mut();
+        for widget in widgets {
+            let x0 = widget.rect.x.max(0.0).floor() as usize;
+            let y0 = widget.rect.y.max(0.0).floor() as usize;
+            let x1 = (widget.rect.x + widget.rect.width).ceil().max(0.0) as usize;
+            let y1 = (widget.rect.y + widget.rect.height).ceil().max(0.0) as usize;
+            let x1 = x1.min(bw);
+            let y1 = y1.min(bh);
+            if x0 >= x1 || y0 >= y1 {
+                continue;
+            }
+
+            for y in y0..y1 {
+                let row = y * bw * 4;
+                for x in x0..x1 {
+                    let i = row + x * 4;
+                    if pixels[i] == background_color[0]
+                        && pixels[i + 1] == background_color[1]
+                        && pixels[i + 2] == background_color[2]
+                        && pixels[i + 3] == background_color[3]
+                    {
+                        pixels[i + 3] = 0;
+                    }
+                }
+            }
+        }
+    }
+
     /// Prepare the primary game widget for direct GPU presentation.
     /// Returns false when no game widget exists.
     pub fn prepare_scenevm_direct(
@@ -1663,6 +1710,11 @@ impl Client {
             screen_widget.offset = Vec2::new(start_x, start_y);
             screen_widget.build(screen, assets);
             screen_widget.draw(screen, &self.server_time, assets);
+            Self::punch_game_widget_holes(
+                &mut screen_widget.buffer,
+                screen_widget.background_color,
+                self.game_widgets.values(),
+            );
             self.overlay.blend_into(0, 0, &screen_widget.buffer);
         }
 
@@ -2723,6 +2775,11 @@ impl Client {
 
         self.screen_widget = Some(ScreenWidget {
             buffer: TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y)),
+            background_color: Self::hex_to_rgba_u8(&self.get_config_string_default(
+                "viewport",
+                "screen_background",
+                &self.get_config_string_default("viewport", "background_color_2d", "#000000"),
+            )),
             ..Default::default()
         });
 
@@ -3046,6 +3103,7 @@ impl Client {
                 }
             }
         }
+
     }
 
     /// Returns true if the game camera is 2D

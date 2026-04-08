@@ -351,6 +351,74 @@ impl Tool for EntityTool {
 }
 
 impl EntityTool {
+    fn remove_selected_character_instance(
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        character_id: Uuid,
+    ) {
+        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+            if let Some(region_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id) {
+                region_node.remove_widget_by_uuid(&character_id);
+            }
+        }
+
+        if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+            region.characters.shift_remove(&character_id);
+            region.map.entities.retain(|e| e.creator_id != character_id);
+            region.map.selected_entity_item = None;
+        }
+
+        if let Some(region) = project.get_region(&server_ctx.curr_region)
+            && let Some(tree_layout) = ui.get_tree_layout("Project Tree")
+            && let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id)
+        {
+            region_node.set_open(true);
+        }
+
+        shared::rusterix_utils::insert_content_into_maps(project);
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Map Selection Changed"),
+            TheValue::Empty,
+        ));
+        update_region(ctx);
+    }
+
+    fn remove_selected_item_instance(
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        item_id: Uuid,
+    ) {
+        if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
+            if let Some(region_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id) {
+                region_node.remove_widget_by_uuid(&item_id);
+            }
+        }
+
+        if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+            region.items.shift_remove(&item_id);
+            region.map.items.retain(|i| i.creator_id != item_id);
+            region.map.selected_entity_item = None;
+        }
+
+        if let Some(region) = project.get_region(&server_ctx.curr_region)
+            && let Some(tree_layout) = ui.get_tree_layout("Project Tree")
+            && let Some(region_node) = tree_layout.get_node_by_id_mut(&region.id)
+        {
+            region_node.set_open(true);
+        }
+
+        shared::rusterix_utils::insert_content_into_maps(project);
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Map Selection Changed"),
+            TheValue::Empty,
+        ));
+        update_region(ctx);
+    }
+
     /// Convert screen coords to map space without snapping so clicking doesn't move things
     fn map_pos_unsnapped(
         &self,
@@ -483,32 +551,43 @@ impl EntityTool {
             return false;
         };
 
-        if let Some(region) = project.get_region_ctx_mut(server_ctx) {
-            if let Some(index) = region.characters.get_index_of(&selected) {
-                if let Some(character) = region.characters.get(&selected).cloned() {
-                    let atom = ProjectUndoAtom::RemoveRegionCharacterInstance(
-                        index,
-                        server_ctx.curr_region,
-                        character,
-                    );
-                    atom.redo(project, ui, ctx, server_ctx);
-                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
-                    return true;
-                }
+        let mut character_to_remove: Option<(usize, Character)> = None;
+        let mut item_to_remove: Option<(usize, shared::prelude::Item)> = None;
+
+        if let Some(region) = project.get_region_ctx(server_ctx) {
+            if let Some(index) = region.characters.get_index_of(&selected)
+                && let Some(character) = region.characters.get(&selected).cloned()
+            {
+                character_to_remove = Some((index, character));
             }
 
-            if let Some(index) = region.items.get_index_of(&selected) {
-                if let Some(item) = region.items.get(&selected).cloned() {
-                    let atom = ProjectUndoAtom::RemoveRegionItemInstance(
-                        index,
-                        server_ctx.curr_region,
-                        item,
-                    );
-                    atom.redo(project, ui, ctx, server_ctx);
-                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
-                    return true;
-                }
+            if let Some(index) = region.items.get_index_of(&selected)
+                && let Some(item) = region.items.get(&selected).cloned()
+            {
+                item_to_remove = Some((index, item));
             }
+        }
+
+        if let Some((index, character)) = character_to_remove {
+            let atom = ProjectUndoAtom::RemoveRegionCharacterInstance(
+                index,
+                server_ctx.curr_region,
+                character.clone(),
+            );
+            Self::remove_selected_character_instance(project, ui, ctx, server_ctx, character.id);
+            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+            return true;
+        }
+
+        if let Some((index, item)) = item_to_remove {
+            let atom = ProjectUndoAtom::RemoveRegionItemInstance(
+                index,
+                server_ctx.curr_region,
+                item.clone(),
+            );
+            Self::remove_selected_item_instance(project, ui, ctx, server_ctx, item.id);
+            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+            return true;
         }
 
         false

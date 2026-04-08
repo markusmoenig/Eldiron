@@ -224,6 +224,8 @@ height = 720        # Height of the game viewport in pixels.
 window_scale = 1.0  # Multiplies startup window size (e.g. 2.0 = 2x bigger window).
 grid_size = 32      # Size of one grid tile in pixels.
 upscale = "aspect"  # 'aspect' upscales the game output to the screen dimensions. 'none' otherwise.
+background_color_2d = "#000000" # 2D viewport background color.
+screen_background = "#000000" # Screen/widget background color.
 cursor_id = "..."   # The tile id of the default mouse cursor.
 ```
 
@@ -245,6 +247,14 @@ cursor_id = "..."   # The tile id of the default mouse cursor.
 - **`upscale`**
     If set to **"aspect"** upscales the game output to the screen / window resolution keeping the viewport aspect-ratio intact.
     **"none"** (the default) does not upscale and centers the output.
+
+- **`background_color_2d`**
+    Background color used for the 2D game viewport and the editor's 2D game preview.
+    Accepts `#RRGGBB` or `#RRGGBBAA`.
+
+- **`screen_background`**
+    Background color used when rendering screens and screen widgets.
+    If omitted, it falls back to `background_color_2d`.
 
 - **`cursor_id`**
     The [tile id](/docs/what_is/#tileid) for the default mouse cursor.

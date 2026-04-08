@@ -472,7 +472,6 @@ impl GameWidget {
         if let Some(bbox) = map.bounding_box() {
             self.map_bbox = bbox;
         }
-
         // Force dynamic overlays (billboards/lights) to rebuild immediately after map swaps.
         scene_handler.mark_dynamics_dirty();
         self.force_dynamics_rebuild = true;
@@ -524,7 +523,6 @@ impl GameWidget {
         }
 
         self.update_player_context(map);
-
         if Self::is_2d_camera(&self.camera) {
             scene_handler.build_dynamics_2d(map, animation_frame, assets);
         } else {
@@ -693,7 +691,6 @@ impl GameWidget {
             scene_handler.mark_dynamics_dirty();
             self.force_dynamics_rebuild = true;
         }
-
         self.apply_iso_sector_visibility(map, scene_handler, geometry_changed);
 
         if scene_handler.vm.vm_layer_count() > 1 {
@@ -819,10 +816,6 @@ impl GameWidget {
 
         scene_handler.settings.apply_hour(hour);
         scene_handler.settings.apply_2d(&mut scene_handler.vm);
-        // 2D should always render against black, independent of project sky color/simulation.
-        scene_handler
-            .vm
-            .execute(scenevm::Atom::SetGP0(Vec4::zero()));
 
         scene_handler
             .vm
@@ -852,10 +845,6 @@ impl GameWidget {
         scene_handler
             .vm
             .execute(scenevm::Atom::SetAnimationCounter(animation_frame));
-
-        scene_handler
-            .vm
-            .execute(scenevm::Atom::SetBackground(Vec4::zero()));
 
         // Draw Messages
 

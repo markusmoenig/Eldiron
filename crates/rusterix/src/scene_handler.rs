@@ -3046,6 +3046,8 @@ impl SceneHandler {
 
             if entity.attributes.get_bool_default("visible", false) {
                 let geo_id = GeoId::Character(entity.id);
+                let has_avatar_binding = AvatarRuntimeBuilder::has_avatar_binding(entity);
+                let keep_cached_avatar = self.avatar_builder.has_cached_avatar(geo_id);
                 if let Some(avatar) = AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets) {
                     let uploaded = self
                         .avatar_builder
@@ -3073,6 +3075,16 @@ impl SceneHandler {
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                         continue;
                     }
+                }
+
+                if has_avatar_binding {
+                    if keep_cached_avatar {
+                        active_avatar_geo.insert(geo_id);
+                        let dynamic = DynamicObject::billboard_avatar_2d(geo_id, pos, 1.0, 1.0)
+                            .with_layer(20);
+                        self.vm.execute(Atom::AddDynamic { object: dynamic });
+                    }
+                    continue;
                 }
 
                 if let Some(Value::Source(source)) = entity.attributes.get("source") {

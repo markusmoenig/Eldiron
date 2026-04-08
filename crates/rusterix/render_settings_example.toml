@@ -7,6 +7,12 @@ backend_3d = "raster"
 # Quality preset: "low", "medium", "high", "ultra", "custom".
 quality = "custom"
 
+[viewport]
+# 2D viewport background color used in the game widget and editor 2D preview.
+background_color_2d = "#000000"
+# Screen/widget background color used by screen rendering.
+screen_background = "#000000"
+
 [render]
 # Sky color used when simulation is disabled.
 sky_color = "#87CEEB"

@@ -106,6 +106,8 @@ pub struct RenderSettings {
 
     /// Sky color (RGB) - set from TOML or dynamically by apply_hour()
     pub sky_color: [f32; 3],
+    /// 2D viewport background color (RGBA).
+    pub background_color_2d: [f32; 4],
 
     /// Sun color (RGB) - set from TOML or dynamically by apply_hour()
     pub sun_color: [f32; 3],
@@ -331,11 +333,12 @@ enum SettingValue {
 impl Default for RenderSettings {
     fn default() -> Self {
         Self {
-            backend_2d: RendererBackend::Compute,
+            backend_2d: RendererBackend::Raster,
             backend_3d: RendererBackend::Raster,
             quality: RenderQualityPreset::Custom,
             post: PostStackSettings::default(),
             sky_color: [0.529, 0.808, 0.922], // #87CEEB
+            background_color_2d: [0.0, 0.0, 0.0, 1.0],
             sun_color: [1.0, 0.980, 0.804],   // #FFFACD
             sun_intensity: 1.0,
             sun_direction: [-0.5, -1.0, -0.3],
@@ -430,6 +433,14 @@ impl RenderSettings {
                 self.quality = parse_quality(v);
                 self.apply_quality_preset(self.quality);
             }
+        }
+
+        if let Some(viewport) = doc.get("viewport").and_then(toml::Value::as_table)
+            && let Some(v) = viewport
+                .get("background_color_2d")
+                .and_then(toml::Value::as_str)
+        {
+            self.background_color_2d = parse_hex_color_rgba(v)?;
         }
 
         if let Some(raster3d) = doc.get("raster_3d").and_then(toml::Value::as_table) {
@@ -762,13 +773,16 @@ impl RenderSettings {
         self.update_transitions();
         let to_linear = |c: f32| c.powf(2.2);
 
-        // gp0: Sky color (RGB, linear) + unused w
-        vm.execute(Atom::SetGP0(Vec4::new(
-            to_linear(self.sky_color[0]),
-            to_linear(self.sky_color[1]),
-            to_linear(self.sky_color[2]),
-            0.0,
+        vm.execute(Atom::SetBackground(Vec4::new(
+            to_linear(self.background_color_2d[0]),
+            to_linear(self.background_color_2d[1]),
+            to_linear(self.background_color_2d[2]),
+            self.background_color_2d[3],
         )));
+
+        // In 2D, SceneVM uses non-zero GP0 as a clear/sky override.
+        // Keep GP0 cleared so viewport background_color_2d remains authoritative.
+        vm.execute(Atom::SetGP0(Vec4::zero()));
 
         // gp1: Sun color (RGB, linear) + sun intensity (w)
         vm.execute(Atom::SetGP1(Vec4::new(
@@ -1409,6 +1423,35 @@ fn parse_hex_color(hex: &str) -> Result<[f32; 3], Box<dyn std::error::Error>> {
     let b = u8::from_str_radix(&hex[4..6], 16)?;
 
     Ok([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0])
+}
+
+/// Parse a hex color string like "#RRGGBB" or "#RRGGBBAA" into RGBA floats (0.0-1.0)
+fn parse_hex_color_rgba(hex: &str) -> Result<[f32; 4], Box<dyn std::error::Error>> {
+    let hex = hex.trim_start_matches('#');
+
+    match hex.len() {
+        6 => {
+            let rgb = parse_hex_color(hex)?;
+            Ok([rgb[0], rgb[1], rgb[2], 1.0])
+        }
+        8 => {
+            let r = u8::from_str_radix(&hex[0..2], 16)?;
+            let g = u8::from_str_radix(&hex[2..4], 16)?;
+            let b = u8::from_str_radix(&hex[4..6], 16)?;
+            let a = u8::from_str_radix(&hex[6..8], 16)?;
+            Ok([
+                r as f32 / 255.0,
+                g as f32 / 255.0,
+                b as f32 / 255.0,
+                a as f32 / 255.0,
+            ])
+        }
+        _ => Err(format!(
+            "Invalid hex color: expected 6 or 8 characters, got {}",
+            hex.len()
+        )
+        .into()),
+    }
 }
 
 fn parse_backend(v: &str) -> RendererBackend {

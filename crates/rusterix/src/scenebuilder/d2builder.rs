@@ -1,4 +1,4 @@
-use crate::{Assets, Batch2D, Map, PixelSource, Scene, Value};
+use crate::{Assets, Batch2D, Map, PixelSource, Scene, Value, avatar_builder::AvatarRuntimeBuilder};
 use theframework::prelude::*;
 use uuid::Uuid;
 use vek::Vec2;
@@ -274,6 +274,7 @@ impl D2Builder {
                 self.map_grid_to_local(screen_size, Vec2::new(entity_pos.x, entity_pos.y), map);
             let size = 1.0;
             let hsize = 0.5;
+            let has_avatar = AvatarRuntimeBuilder::has_avatar_binding(entity);
 
             // Find light on entity
             if let Some(Value::Light(light)) = entity.attributes.get("light") {
@@ -295,7 +296,9 @@ impl D2Builder {
                 }
             }
 
-            if let Some(Value::Source(source)) = entity.attributes.get("source") {
+            if has_avatar {
+                continue;
+            } else if let Some(Value::Source(source)) = entity.attributes.get("source") {
                 if entity.attributes.get_bool_default("visible", false) {
                     if let Some(tile) = source.tile_from_tile_list(assets) {
                         if let Some(texture_index) = assets.tile_index(&tile.id) {
@@ -308,15 +311,6 @@ impl D2Builder {
                             repeated_offsets.insert(tile.id, repeated_batches.len());
                             repeated_batches.push(batch);
                         }
-                    }
-                }
-            } else if let Some(Value::Source(source)) = entity.attributes.get("_source_seq") {
-                if entity.attributes.get_bool_default("visible", false) {
-                    if let Some(entity_tile) = source.entity_tile_id(entity.id, assets) {
-                        let batch =
-                            Batch2D::from_rectangle(pos.x - hsize, pos.y - hsize, size, size)
-                                .source(entity_tile);
-                        scene.d2_dynamic.push(batch);
                     }
                 }
             }

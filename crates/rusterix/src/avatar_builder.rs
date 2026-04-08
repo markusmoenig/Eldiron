@@ -35,6 +35,14 @@ enum WeaponLayer {
 }
 
 impl AvatarRuntimeBuilder {
+    pub fn has_avatar_binding(entity: &Entity) -> bool {
+        entity.attributes.get("avatar_id").is_some() || entity.attributes.get("avatar").is_some()
+    }
+
+    pub fn has_cached_avatar(&self, id: GeoId) -> bool {
+        self.avatar_frame_cache.contains_key(&id)
+    }
+
     pub fn build_preview_for_entity(
         entity: &Entity,
         avatar: &Avatar,
@@ -150,7 +158,14 @@ impl AvatarRuntimeBuilder {
             }
         }
         if let Some(name) = entity.attributes.get_str("avatar") {
-            return assets.avatars.get(name);
+            if let Some(avatar) = assets.avatars.get(name) {
+                return Some(avatar);
+            }
+            for (key, avatar) in &assets.avatars {
+                if key.eq_ignore_ascii_case(name) || avatar.name.eq_ignore_ascii_case(name) {
+                    return Some(avatar);
+                }
+            }
         }
         None
     }
@@ -925,7 +940,40 @@ impl AvatarRuntimeBuilder {
         let Some(cache) = self.avatar_frame_cache.get_mut(&geo_id) else {
             return false;
         };
-        let Some((size, rgba)) = cache.frames.get(&key) else {
+        let fallback_key = cache.last_uploaded.as_ref().and_then(|last| {
+            if last.0.eq_ignore_ascii_case(anim_name) && last.1 == persp_dir {
+                Some(last.clone())
+            } else {
+                None
+            }
+        });
+        let Some((resolved_key, size, rgba)) = cache
+            .frames
+            .get(&key)
+            .map(|entry| (key.clone(), entry.0, entry.1.clone()))
+            .or_else(|| {
+                fallback_key.as_ref().and_then(|last| {
+                    cache.frames
+                        .get(last)
+                        .map(|entry| (last.clone(), entry.0, entry.1.clone()))
+                })
+            })
+            .or_else(|| {
+                let zero_key = (anim_name.to_string(), persp_dir, 0);
+                cache.frames
+                    .get(&zero_key)
+                    .map(|entry| (zero_key, entry.0, entry.1.clone()))
+            })
+            .or_else(|| {
+                cache.frames.iter().find_map(|(candidate, entry)| {
+                    if candidate.0.eq_ignore_ascii_case(anim_name) && candidate.1 == persp_dir {
+                        Some((candidate.clone(), entry.0, entry.1.clone()))
+                    } else {
+                        None
+                    }
+                })
+            })
+        else {
             return false;
         };
 
@@ -933,10 +981,10 @@ impl AvatarRuntimeBuilder {
         // including fully transparent frames.
         vm.execute(Atom::SetAvatarBillboardData {
             id: geo_id,
-            size: *size,
-            rgba: rgba.clone(),
+            size,
+            rgba,
         });
-        cache.last_uploaded = Some(key);
+        cache.last_uploaded = Some(resolved_key);
         true
     }
 
