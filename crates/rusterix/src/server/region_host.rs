@@ -9,7 +9,7 @@ use crate::{
     ValueContainer,
 };
 use rand::Rng;
-use scenevm::GeoId;
+use scenevm::{GeoId, PaletteRemap2DMode};
 use theframework::prelude::TheValue;
 use vek::{Vec2, Vec3};
 
@@ -269,6 +269,179 @@ impl<'a> RegionHost<'a> {
             return None;
         }
         Some(arg.x.max(0.0) as u32)
+    }
+
+    fn parse_palette_remap_2d_mode(arg: &VMValue) -> PaletteRemap2DMode {
+        if let Some(s) = arg.as_string() {
+            match s.trim().to_ascii_lowercase().as_str() {
+                "off" | "disable" | "disabled" | "none" => PaletteRemap2DMode::Disabled,
+                "luma" | "ramp" | "luma_ramp" => PaletteRemap2DMode::LumaRamp,
+                "nearest" | "closest" => PaletteRemap2DMode::Nearest,
+                "dither" | "dithered" | "dithered_ramp" | "bayer" => {
+                    PaletteRemap2DMode::DitheredRamp
+                }
+                _ => PaletteRemap2DMode::Disabled,
+            }
+        } else {
+            match arg.x.round() as i32 {
+                1 => PaletteRemap2DMode::LumaRamp,
+                2 => PaletteRemap2DMode::Nearest,
+                3 => PaletteRemap2DMode::DitheredRamp,
+                _ => PaletteRemap2DMode::Disabled,
+            }
+        }
+    }
+
+    fn split_context_path(path: &str) -> Option<(&str, &str)> {
+        let (root, key) = path.split_once('.')?;
+        if matches!(root, "world" | "region") && !key.is_empty() {
+            Some((root, Self::normalize_context_key(key)))
+        } else {
+            None
+        }
+    }
+
+    fn normalize_context_key(key: &str) -> &str {
+        match key {
+            "render.pal.start" => "render.palette_remap.start",
+            "render.pal.end" => "render.palette_remap.end",
+            "render.pal.mode" => "render.palette_remap.mode",
+            "render.pal.blend" => "render.palette_remap.blend",
+            _ => key,
+        }
+    }
+
+    fn get_context_value(&self, path: &str) -> Option<Value> {
+        let (root, key) = Self::split_context_path(path)?;
+        match root {
+            "world" => RegionCtx::get_world_value(key),
+            "region" => self.ctx.get_region_value(key),
+            _ => None,
+        }
+    }
+
+    fn set_context_value(&mut self, path: &str, value: Value) {
+        let Some((root, key)) = Self::split_context_path(path) else {
+            return;
+        };
+
+        match root {
+            "world" => RegionCtx::set_world_value(key, value.clone()),
+            "region" => self.ctx.set_region_value(key, value.clone()),
+            _ => return,
+        }
+
+        self.apply_render_context_value(root, key, &value);
+    }
+
+    fn apply_render_context_value(&mut self, root: &str, key: &str, value: &Value) {
+        let Some(sender) = self.ctx.from_sender.get() else {
+            return;
+        };
+
+        match key {
+            "render.palette_remap.start"
+            | "render.palette_remap.start_index"
+            | "render.palette_remap.end"
+            | "render.palette_remap.end_index"
+            | "render.palette_remap.mode"
+            | "render.palette_remap.blend" => {
+                let start_index = self
+                    .get_context_value(&format!("{root}.render.palette_remap.start"))
+                    .or_else(|| {
+                        self.get_context_value(&format!("{root}.render.palette_remap.start_index"))
+                    })
+                    .and_then(|v| Self::value_to_u32(&v))
+                    .unwrap_or(0)
+                    .min(255);
+                let end_index = self
+                    .get_context_value(&format!("{root}.render.palette_remap.end"))
+                    .or_else(|| {
+                        self.get_context_value(&format!("{root}.render.palette_remap.end_index"))
+                    })
+                    .and_then(|v| Self::value_to_u32(&v))
+                    .unwrap_or(0)
+                    .min(255);
+                let mode = self
+                    .get_context_value(&format!("{root}.render.palette_remap.mode"))
+                    .map(|v| Self::parse_palette_remap_2d_mode(&VMValue::from_value(&v)))
+                    .unwrap_or(PaletteRemap2DMode::Disabled);
+                let blend = self
+                    .get_context_value(&format!("{root}.render.palette_remap.blend"))
+                    .and_then(|v| Self::value_to_f32(&v))
+                    .unwrap_or(0.0)
+                    .clamp(0.0, 1.0);
+
+                let _ = match root {
+                    "world" => sender.send(RegionMessage::SetWorldPaletteRemap2D(
+                        start_index,
+                        end_index,
+                        mode,
+                    )),
+                    "region" => sender.send(RegionMessage::SetPaletteRemap2D(
+                        self.ctx.region_id,
+                        start_index,
+                        end_index,
+                        mode,
+                    )),
+                    _ => Ok(()),
+                };
+                let _ = match root {
+                    "world" => sender.send(RegionMessage::SetWorldPaletteRemap2DBlend(blend)),
+                    "region" => {
+                        sender.send(RegionMessage::SetPaletteRemap2DBlend(self.ctx.region_id, blend))
+                    }
+                    _ => Ok(()),
+                };
+            }
+            _ if key.starts_with("render.") => {
+                let name = key.trim_start_matches("render.").to_string();
+                let _ = match root {
+                    "world" => sender.send(RegionMessage::SetWorldRenderValue(name, value.clone())),
+                    "region" => sender.send(RegionMessage::SetRenderValue(
+                        self.ctx.region_id,
+                        name,
+                        value.clone(),
+                    )),
+                    _ => Ok(()),
+                };
+            }
+            _ if key.starts_with("post.") => {
+                let name = key.trim_start_matches("post.").to_string();
+                let _ = match root {
+                    "world" => sender.send(RegionMessage::SetWorldPostValue(name, value.clone())),
+                    "region" => sender.send(RegionMessage::SetPostValue(
+                        self.ctx.region_id,
+                        name,
+                        value.clone(),
+                    )),
+                    _ => Ok(()),
+                };
+            }
+            _ => {}
+        }
+    }
+
+    fn value_to_f32(value: &Value) -> Option<f32> {
+        match value {
+            Value::Float(v) => Some(*v),
+            Value::Int(v) => Some(*v as f32),
+            Value::UInt(v) => Some(*v as f32),
+            Value::Int64(v) => Some(*v as f32),
+            Value::Str(s) => s.parse::<f32>().ok(),
+            _ => None,
+        }
+    }
+
+    fn value_to_u32(value: &Value) -> Option<u32> {
+        match value {
+            Value::UInt(v) => Some(*v),
+            Value::Int(v) if *v >= 0 => Some(*v as u32),
+            Value::Int64(v) if *v >= 0 => Some(*v as u32),
+            Value::Float(v) if *v >= 0.0 => Some(v.round() as u32),
+            Value::Str(s) => s.parse::<u32>().ok(),
+            _ => None,
+        }
     }
 
     fn get_current_target_id(&mut self) -> Option<u32> {
@@ -884,6 +1057,22 @@ impl<'a> HostHandler for RegionHost<'a> {
                         };
                         entity.set_attribute("player_camera", Value::PlayerCamera(player_camera));
                     }
+                }
+            }
+            "get_context_var" => {
+                if let Some(path) = args.first().and_then(|v| v.as_string()) {
+                    let value = self
+                        .get_context_value(path)
+                        .map(|v| VMValue::from_value(&v))
+                        .unwrap_or_else(VMValue::zero);
+                    return self.debug_return(value);
+                }
+                return self.debug_return(VMValue::zero());
+            }
+            "set_context_var" => {
+                if let (Some(path), Some(value)) = (args.first().and_then(|v| v.as_string()), args.get(1)) {
+                    let existing = self.get_context_value(path);
+                    self.set_context_value(path, value.to_value_with_hint(existing.as_ref()));
                 }
             }
             "set_debug_loc" => {

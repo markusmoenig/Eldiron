@@ -6,6 +6,8 @@ use theframework::theui::thewidget::thetextedit::TheTextEditState;
 /// Unique identifier for entities being edited
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EntityKey {
+    World,
+    Region(Uuid),
     CharacterInstance(Uuid, Uuid),
     Character(Uuid),
     ItemInstance(Uuid, Uuid),
@@ -71,7 +73,24 @@ impl Dock for CodeDock {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
-        if let Some(region_id) = server_ctx.pc.id() {
+        if server_ctx.pc.is_world_code() {
+            ui.set_widget_value(
+                "DockCodeEditor",
+                ctx,
+                TheValue::Text(project.world_source.clone()),
+            );
+            self.switch_to_entity(EntityKey::World, ctx);
+        } else if let Some(region_id) = server_ctx.pc.id() {
+            if server_ctx.pc.is_region_code() {
+                if let Some(region) = project.get_region(&region_id) {
+                    ui.set_widget_value(
+                        "DockCodeEditor",
+                        ctx,
+                        TheValue::Text(region.source.clone()),
+                    );
+                    self.switch_to_entity(EntityKey::Region(region_id), ctx);
+                }
+            } else
             if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
                 if let Some(region) = project.get_region(&region_id)
                     && let Some(character_instance) = region.characters.get(&instance_id)
@@ -147,7 +166,22 @@ impl Dock for CodeDock {
                         }
                     }
 
-                    if let Some(id) = server_ctx.pc.id() {
+                    if server_ctx.pc.is_world_code() {
+                        if let Some(code) = value.to_string() {
+                            project.world_source = code.clone();
+                            project.world_source_debug = code;
+                            redraw = true;
+                        }
+                    } else if let Some(id) = server_ctx.pc.id() {
+                        if server_ctx.pc.is_region_code() {
+                            if let Some(code) = value.to_string()
+                                && let Some(region) = project.get_region_mut(&id)
+                            {
+                                region.source = code.clone();
+                                region.source_debug = code;
+                                redraw = true;
+                            }
+                        } else
                         if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id()
                         {
                             if let Some(code) = value.to_string()
@@ -302,12 +336,20 @@ impl CodeDock {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
-        if let Some(id) = server_ctx.pc.id() {
-            if let Some(edit) = ui.get_text_area_edit("DockCodeEditor") {
-                let state = edit.get_state();
-                let text = state.rows.join("\n");
+        if let Some(edit) = ui.get_text_area_edit("DockCodeEditor") {
+            let state = edit.get_state();
+            let text = state.rows.join("\n");
 
-                if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
+            if server_ctx.pc.is_world_code() {
+                project.world_source = text.clone();
+                project.world_source_debug = text;
+            } else if let Some(id) = server_ctx.pc.id() {
+                if server_ctx.pc.is_region_code() {
+                    if let Some(region) = project.get_region_mut(&id) {
+                        region.source = text.clone();
+                        region.source_debug = text;
+                    }
+                } else if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
                     if let Some(region) = project.get_region_mut(&id)
                         && let Some(character) = region.characters.get_mut(&instance_id)
                     {

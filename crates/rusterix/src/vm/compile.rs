@@ -43,6 +43,20 @@ impl CompileVisitor {
     fn is_string_alias(field: &str) -> bool {
         matches!(field, "string" | "text")
     }
+
+    #[inline]
+    fn is_context_path(name: &str, field_path: &[String]) -> bool {
+        matches!(name, "world" | "region") && !field_path.is_empty()
+    }
+
+    fn context_path(name: &str, field_path: &[String]) -> String {
+        let mut path = String::from(name);
+        for segment in field_path {
+            path.push('.');
+            path.push_str(segment);
+        }
+        path
+    }
 }
 
 impl Visitor for CompileVisitor {
@@ -168,6 +182,44 @@ impl Visitor for CompileVisitor {
         _loc: &Location,
         ctx: &mut Context,
     ) -> Result<ASTValue, RuntimeError> {
+        if Self::is_context_path(&name, field_path) {
+            let emit_comp = |ctx: &mut Context| match op {
+                AssignmentOperator::AddAssign => ctx.emit(NodeOp::Add),
+                AssignmentOperator::SubtractAssign => ctx.emit(NodeOp::Sub),
+                AssignmentOperator::MultiplyAssign => ctx.emit(NodeOp::Mul),
+                AssignmentOperator::DivideAssign => ctx.emit(NodeOp::Div),
+                AssignmentOperator::Assign => unreachable!(),
+            };
+
+            let path = Self::context_path(&name, field_path);
+            match op {
+                AssignmentOperator::Assign => {
+                    ctx.emit(NodeOp::Push(VMValue::from_string(path)));
+                    _ = expression.accept(self, ctx)?;
+                    ctx.emit(NodeOp::HostCall {
+                        name: "set_context_var".into(),
+                        argc: 2,
+                    });
+                }
+                _ => {
+                    ctx.emit(NodeOp::Push(VMValue::from_string(path.clone())));
+                    ctx.emit(NodeOp::HostCall {
+                        name: "get_context_var".into(),
+                        argc: 1,
+                    });
+                    _ = expression.accept(self, ctx)?;
+                    emit_comp(ctx);
+                    ctx.emit(NodeOp::Push(VMValue::from_string(path)));
+                    ctx.emit(NodeOp::Swap);
+                    ctx.emit(NodeOp::HostCall {
+                        name: "set_context_var".into(),
+                        argc: 2,
+                    });
+                }
+            }
+            return Ok(ASTValue::None);
+        }
+
         // Treat built-ins as pseudo-variables with custom load/store ops
         #[allow(dead_code)]
         enum Target {
@@ -355,6 +407,20 @@ impl Visitor for CompileVisitor {
         ctx: &mut Context,
     ) -> Result<ASTValue, RuntimeError> {
         let mut rc = ASTValue::None;
+
+        if Self::is_context_path(&name, field_path) {
+            ctx.emit(NodeOp::Push(VMValue::from_string(Self::context_path(
+                &name, field_path,
+            ))));
+            ctx.emit(NodeOp::HostCall {
+                name: "get_context_var".into(),
+                argc: 1,
+            });
+            if !swizzle.is_empty() {
+                ctx.emit(NodeOp::GetComponents(swizzle.to_vec()));
+            }
+            return Ok(rc);
+        }
 
         /*
         if name == "uv" {

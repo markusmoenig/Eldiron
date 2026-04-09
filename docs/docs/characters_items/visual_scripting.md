@@ -9,6 +9,13 @@ The **visual script** editor allows you to create **Eldrin** scripts without hav
 
 The editor has one folder for every **event** you support for this entity.
 
+The same editor is also used for:
+
+- **Game / World / Visual Scripting**
+- **Region / Visual Scripting**
+
+So visual scripting is no longer limited to characters and items. World scripts are global, while region scripts are local to a single map.
+
 ## Events
 
 Dragging and dropping the **Event** item creates a new event, re-name it to the [event](events) you want to support.
@@ -48,3 +55,21 @@ You can still drag commands from the left command list into the editor, but you 
 - Drop validation uses the same placement rules as drag-and-drop from the left command list.
 
 While dragging, the editor shows whether the current target is valid before you drop.
+
+## World And Region Variables
+
+World and region scripts can assign runtime state through variables instead of dedicated commands.
+
+Examples:
+
+```eldrin
+world.render.pal.start = 0
+world.render.pal.end = 9
+world.render.pal.mode = "nearest"
+world.render.pal.blend = 1.0
+
+region.render.background_color_2d = "#272744"
+region.post.saturation = 0.7
+```
+
+In the visual scripting editor these are just normal **variable assignment** rows. The variable cell stores the full path, while the UI may show a shorter display label for readability.

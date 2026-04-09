@@ -35,6 +35,10 @@ impl Default for Rusterix {
 }
 
 impl Rusterix {
+    fn apply_runtime_render_state(&mut self, map: &Map) {
+        self.scene_handler.runtime_render_state = self.server.get_render_state(&map.id);
+    }
+
     pub fn new() -> Self {
         let mut scene_handler = SceneHandler::default();
 
@@ -250,6 +254,7 @@ impl Rusterix {
             }
         }
         if self.draw_mode == ClientDrawMode::D2 {
+            self.apply_runtime_render_state(map);
             self.client.apply_entities_items_d2(
                 screen_size,
                 map,
@@ -315,6 +320,7 @@ impl Rusterix {
 
     /// Draw the client custom scene in 2D.
     pub fn draw_custom_d2(&mut self, map: &Map, pixels: &mut [u8], width: usize, height: usize) {
+        self.apply_runtime_render_state(map);
         self.client.draw_custom_d2(
             map,
             pixels,
@@ -327,6 +333,7 @@ impl Rusterix {
 
     /// Draw the client scene in 2D.
     pub fn draw_d2(&mut self, map: &Map, pixels: &mut [u8], width: usize, height: usize) {
+        self.apply_runtime_render_state(map);
         self.client.draw_d2(
             map,
             pixels,
@@ -339,6 +346,7 @@ impl Rusterix {
 
     /// Draw the client scene in 3D
     pub fn draw_d3(&mut self, map: &Map, pixels: &mut [u8], width: usize, height: usize) {
+        self.apply_runtime_render_state(map);
         self.client.draw_d3(
             map,
             pixels,
@@ -353,6 +361,7 @@ impl Rusterix {
     pub fn draw_scene(&mut self, map: &Map, pixels: &mut [u8], width: usize, height: usize) {
         match self.draw_mode {
             D2 => {
+                self.apply_runtime_render_state(map);
                 self.client.draw_d2(
                     map,
                     pixels,
@@ -363,6 +372,7 @@ impl Rusterix {
                 );
             }
             D3 => {
+                self.apply_runtime_render_state(map);
                 self.client.draw_d3(
                     map,
                     pixels,
@@ -390,6 +400,7 @@ impl Rusterix {
         says: Vec<crate::server::Say>,
         choices: Vec<crate::MultipleChoice>,
     ) {
+        self.apply_runtime_render_state(map);
         self.client.process_messages(map, says);
         self.client.draw_game(
             map,
@@ -403,6 +414,7 @@ impl Rusterix {
     /// Prepare the game scene in SceneVM for direct window presentation.
     /// This avoids CPU readback and lets a caller present with SceneVM's native window path.
     pub fn prepare_game_scene_for_present(&mut self, map: &Map, size: (u32, u32)) -> bool {
+        self.apply_runtime_render_state(map);
         self.client
             .prepare_scenevm_direct(map, &self.assets, &mut self.scene_handler, size)
     }
@@ -416,6 +428,7 @@ impl Rusterix {
         width: u32,
         height: u32,
     ) -> &TheRGBABuffer {
+        self.apply_runtime_render_state(map);
         self.client
             .draw_ui_overlay_only(map, &self.assets, messages, choices, width, height)
     }
@@ -481,6 +494,22 @@ impl Rusterix {
 
         self.scene_handler.build_atlas(&all_tiles, editor);
         self.assets.set_tiles(all_tiles);
+        let palette: Vec<vek::Vec4<f32>> = self
+            .assets
+            .palette
+            .colors
+            .iter()
+            .map(|entry| {
+                if let Some(col) = entry {
+                    let [r, g, b, a] = col.to_array();
+                    let to_linear = |c: f32| c.max(0.0).powf(2.2);
+                    vek::Vec4::new(to_linear(r), to_linear(g), to_linear(b), a)
+                } else {
+                    vek::Vec4::zero()
+                }
+            })
+            .collect();
+        self.scene_handler.vm.execute(Atom::SetPalette(palette));
         self.scene_handler.clear_runtime_scene();
     }
 }

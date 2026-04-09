@@ -4,7 +4,7 @@ const DUMMY_U32_1: [u32; 1] = [0];
 use crate::{
     Camera3D, CameraKind, Chunk, Light, LightType, Poly2D, Texture,
     atlas::{AtlasEntry, AtlasGpuTables, SharedAtlas, default_material_frame},
-    core::{Atom, GeoId, LayerBlendMode, RenderMode, VMDebugStats},
+    core::{Atom, GeoId, LayerBlendMode, PaletteRemap2DMode, RenderMode, VMDebugStats},
     dynamic::{DynamicKind, DynamicObject},
 };
 use bytemuck::{Pod, Zeroable};
@@ -364,12 +364,14 @@ pub struct Raster2DUniforms {
     pub ambient_color_strength: [f32; 4], // rgb + strength
     pub sun_color_intensity: [f32; 4],    // rgb + intensity
     pub sun_dir_enabled: [f32; 4],        // xyz + enabled
+    pub remap_params: [f32; 4],           // x=start, y=end, z=blend, w=mode
     pub mat2d_inv_c0: [f32; 4],
     pub mat2d_inv_c1: [f32; 4],
     pub mat2d_inv_c2: [f32; 4],
+    pub palette: [[f32; 4]; 256],
 }
 
-const RASTER2D_UNIFORM_BYTES: usize = 9 * 16;
+const RASTER2D_UNIFORM_BYTES: usize = (10 * 16) + (256 * 16);
 const _: [(); RASTER2D_UNIFORM_BYTES] = [(); std::mem::size_of::<Raster2DUniforms>()];
 
 pub const SCENEVM_2D_WGSL: &str = r#"
@@ -409,9 +411,11 @@ struct U2D {
   ambient_color_strength: vec4<f32>,
   sun_color_intensity: vec4<f32>,
   sun_dir_enabled: vec4<f32>,
+  remap_params: vec4<f32>,
   mat2d_inv_c0: vec4<f32>,
   mat2d_inv_c1: vec4<f32>,
   mat2d_inv_c2: vec4<f32>,
+  palette: array<vec4<f32>, 256>,
 };
 @group(0) @binding(0) var<uniform> UBO: U2D;
 @group(0) @binding(1) var atlas_tex: texture_2d<f32>;
@@ -631,6 +635,96 @@ fn apply_scene_lighting(albedo: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
   return albedo * lighting;
 }
 
+fn palette_remap_range() -> vec2<u32> {
+  let a = u32(max(UBO.remap_params.x, 0.0));
+  let b = u32(max(UBO.remap_params.y, 0.0));
+  return vec2<u32>(min(a, b), max(a, b));
+}
+
+fn palette_remap_blend() -> f32 {
+  return clamp(UBO.remap_params.z, 0.0, 1.0);
+}
+
+fn palette_remap_mode() -> u32 {
+  return u32(max(UBO.remap_params.w, 0.0));
+}
+
+fn palette_color(idx: u32) -> vec3<f32> {
+  return UBO.palette[min(idx, 255u)].rgb;
+}
+
+fn bayer4_threshold(pix: vec2<f32>) -> f32 {
+  let x = u32(abs(i32(floor(pix.x))) & 3);
+  let y = u32(abs(i32(floor(pix.y))) & 3);
+  let idx = y * 4u + x;
+  let table = array<f32, 16>(
+    0.0 / 16.0, 8.0 / 16.0, 2.0 / 16.0, 10.0 / 16.0,
+    12.0 / 16.0, 4.0 / 16.0, 14.0 / 16.0, 6.0 / 16.0,
+    3.0 / 16.0, 11.0 / 16.0, 1.0 / 16.0, 9.0 / 16.0,
+    15.0 / 16.0, 7.0 / 16.0, 13.0 / 16.0, 5.0 / 16.0
+  );
+  return table[idx];
+}
+
+fn remap_color_luma_ramp(color: vec3<f32>, pix: vec2<f32>, dithered: bool) -> vec3<f32> {
+  let range = palette_remap_range();
+  let count = range.y - range.x + 1u;
+  if (count <= 1u) {
+    return palette_color(range.x);
+  }
+  let luma = clamp(dot(color, vec3<f32>(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+  let pos = luma * f32(count - 1u);
+  let base = min(u32(floor(pos)), count - 1u);
+  let next = min(base + 1u, count - 1u);
+  let frac = fract(pos);
+  let c0 = palette_color(range.x + base);
+  let c1 = palette_color(range.x + next);
+  if (dithered) {
+    let choose_hi = frac > bayer4_threshold(pix);
+    return select(c0, c1, choose_hi);
+  }
+  return mix(c0, c1, frac);
+}
+
+fn remap_color_nearest(color: vec3<f32>) -> vec3<f32> {
+  let range = palette_remap_range();
+  var best = palette_color(range.x);
+  var best_d = dot(color - best, color - best);
+  for (var idx: u32 = range.x + 1u; idx <= range.y; idx = idx + 1u) {
+    let candidate = palette_color(idx);
+    let dist2 = dot(color - candidate, color - candidate);
+    if (dist2 < best_d) {
+      best_d = dist2;
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+fn apply_palette_remap_2d(color: vec3<f32>, pix: vec2<f32>) -> vec3<f32> {
+  let blend = palette_remap_blend();
+  let mode = palette_remap_mode();
+  let range = palette_remap_range();
+  if (blend <= 0.0001 || mode == 0u || range.x > range.y) {
+    return color;
+  }
+
+  var remapped = color;
+  switch mode {
+    case 1u: {
+      remapped = remap_color_luma_ramp(color, pix, false);
+    }
+    case 2u: {
+      remapped = remap_color_nearest(color);
+    }
+    case 3u: {
+      remapped = remap_color_luma_ramp(color, pix, true);
+    }
+    default: {}
+  }
+  return mix(color, remapped, blend);
+}
+
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
   var out: VsOut;
@@ -683,7 +777,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
   let mats = unpack_material_nibbles(mats_raw);
   let opacity = mats.z;
   let emission = mats.w;
-  let rgb = apply_scene_lighting(col.rgb, world) * (1.0 + emission);
+  let remapped_rgb = apply_palette_remap_2d(col.rgb, in.pos.xy);
+  let rgb = apply_scene_lighting(remapped_rgb, world) * (1.0 + emission);
   let a = col.a * opacity;
   if (a <= 0.0) {
     discard;
@@ -1611,6 +1706,10 @@ pub struct VM {
     pub gp7: Vec4<f32>,
     pub gp8: Vec4<f32>,
     pub gp9: Vec4<f32>,
+    pub palette_remap_2d_start: u32,
+    pub palette_remap_2d_end: u32,
+    pub palette_remap_2d_blend: f32,
+    pub palette_remap_2d_mode: PaletteRemap2DMode,
     pub raster3d_msaa_samples: u32,
     pub raster3d_avatar_highlight_params: Vec4<f32>,
     // --- Programmable compute shader sources
@@ -2718,6 +2817,10 @@ impl VM {
             gp7: Vec4::new(0.0, 0.0, 0.0, 0.0),
             gp8: Vec4::new(0.0, 0.0, 0.0, 0.0),
             gp9: Vec4::new(0.0, 0.0, 0.0, 0.0),
+            palette_remap_2d_start: 0,
+            palette_remap_2d_end: 0,
+            palette_remap_2d_blend: 0.0,
+            palette_remap_2d_mode: PaletteRemap2DMode::Disabled,
             raster3d_msaa_samples: 4,
             raster3d_avatar_highlight_params: Vec4::new(1.12, 0.20, 0.18, 1.0),
             source2d,
@@ -3139,6 +3242,18 @@ impl VM {
             }
             Atom::SetGP9(v) => {
                 self.gp9 = v;
+            }
+            Atom::SetPaletteRemap2D {
+                start_index,
+                end_index,
+                mode,
+            } => {
+                self.palette_remap_2d_start = start_index.min(255);
+                self.palette_remap_2d_end = end_index.min(255);
+                self.palette_remap_2d_mode = mode;
+            }
+            Atom::SetPaletteRemap2DBlend(blend) => {
+                self.palette_remap_2d_blend = blend.clamp(0.0, 1.0);
             }
             Atom::SetRaster3DMsaaSamples(samples) => {
                 // Use only WebGPU-guaranteed sample counts for RGBA8 color targets.
@@ -5043,9 +5158,16 @@ impl VM {
             ambient_color_strength: self.gp3.into_array(),
             sun_color_intensity: self.gp1.into_array(),
             sun_dir_enabled: self.gp2.into_array(),
+            remap_params: [
+                self.palette_remap_2d_start as f32,
+                self.palette_remap_2d_end as f32,
+                self.palette_remap_2d_blend.clamp(0.0, 1.0),
+                self.palette_remap_2d_mode as u32 as f32,
+            ],
             mat2d_inv_c0: [m_inv[(0, 0)], m_inv[(1, 0)], m_inv[(2, 0)], 0.0],
             mat2d_inv_c1: [m_inv[(0, 1)], m_inv[(1, 1)], m_inv[(2, 1)], 0.0],
             mat2d_inv_c2: [m_inv[(0, 2)], m_inv[(1, 2)], m_inv[(2, 2)], 0.0],
+            palette: self.palette,
         };
         let tone_mapper = self.gp9.y.max(0.0) as u32;
         let post_enabled = self.gp9.x > 0.5;

@@ -5,6 +5,13 @@ sidebar_position: 5
 
 Region Settings are stored as TOML and control region-level editor/runtime behavior.
 
+Runtime logic for a region is edited separately from this TOML file:
+
+- **Region / Visual Scripting**
+- **Region / Eldrin Scripting**
+
+Use the region scripts for dynamic runtime overrides such as local fog, palette remap, or post changes. Use **Region Settings** for authored/static map settings.
+
 ## Terrain
 
 Enable terrain rendering for the region and define the default terrain tile:

@@ -93,6 +93,12 @@ pub enum Atom {
     SetGP7(Vec4<f32>),
     SetGP8(Vec4<f32>),
     SetGP9(Vec4<f32>),
+    SetPaletteRemap2D {
+        start_index: u32,
+        end_index: u32,
+        mode: PaletteRemap2DMode,
+    },
+    SetPaletteRemap2DBlend(f32),
     SetRaster3DMsaaSamples(u32),
     SetRenderMode(RenderMode),
     SetPalette(Vec<Vec4<f32>>),
@@ -142,6 +148,16 @@ pub enum Atom {
     SetCamera3D {
         camera: Camera3D,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[repr(u32)]
+pub enum PaletteRemap2DMode {
+    #[default]
+    Disabled = 0,
+    LumaRamp = 1,
+    Nearest = 2,
+    DitheredRamp = 3,
 }
 
 #[derive(Debug, Clone, Copy, Default)]

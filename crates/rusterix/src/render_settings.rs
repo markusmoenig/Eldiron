@@ -274,6 +274,7 @@ impl Default for DaylightSimulation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum SettingKey {
+    BackgroundColor2D,
     SkyColor,
     SunColor,
     SunIntensity,
@@ -298,6 +299,20 @@ enum SettingKey {
     ShadowStrength,
     ShadowResolution,
     ShadowBias,
+    FadeMode,
+    LightingModel,
+    AvatarHighlightEnabled,
+    AvatarHighlightLift,
+    AvatarHighlightFill,
+    AvatarHighlightRim,
+    AvatarShadingEnabled,
+    AvatarSkinShadingEnabled,
+    PostEnabled,
+    PostToneMapper,
+    PostExposure,
+    PostGamma,
+    PostSaturation,
+    PostLuminance,
     FrameTimeMs,
 }
 
@@ -327,7 +342,11 @@ enum Transition {
 enum SettingValue {
     Float(f32),
     Vec3([f32; 3]),
+    Vec4([f32; 4]),
     Bool(bool),
+    FadeMode(FadeMode),
+    LightingModel(LightingModel),
+    ToneMapper(PostToneMapper),
 }
 
 impl Default for RenderSettings {
@@ -1005,6 +1024,7 @@ impl RenderSettings {
 
     fn current_value(&self, key: SettingKey) -> SettingValue {
         match key {
+            SettingKey::BackgroundColor2D => SettingValue::Vec4(self.background_color_2d),
             SettingKey::SkyColor => SettingValue::Vec3(self.sky_color),
             SettingKey::SunColor => SettingValue::Vec3(self.sun_color),
             SettingKey::SunIntensity => SettingValue::Float(self.sun_intensity),
@@ -1031,12 +1051,31 @@ impl RenderSettings {
             SettingKey::ShadowStrength => SettingValue::Float(self.raster_shadow_strength),
             SettingKey::ShadowResolution => SettingValue::Float(self.raster_shadow_resolution),
             SettingKey::ShadowBias => SettingValue::Float(self.raster_shadow_bias),
+            SettingKey::FadeMode => SettingValue::FadeMode(self.fade_mode),
+            SettingKey::LightingModel => SettingValue::LightingModel(self.lighting_model),
+            SettingKey::AvatarHighlightEnabled => {
+                SettingValue::Bool(self.avatar_highlight_enabled)
+            }
+            SettingKey::AvatarHighlightLift => SettingValue::Float(self.avatar_highlight_lift),
+            SettingKey::AvatarHighlightFill => SettingValue::Float(self.avatar_highlight_fill),
+            SettingKey::AvatarHighlightRim => SettingValue::Float(self.avatar_highlight_rim),
+            SettingKey::AvatarShadingEnabled => SettingValue::Bool(self.avatar_shading_enabled),
+            SettingKey::AvatarSkinShadingEnabled => {
+                SettingValue::Bool(self.avatar_skin_shading_enabled)
+            }
+            SettingKey::PostEnabled => SettingValue::Bool(self.post_enabled),
+            SettingKey::PostToneMapper => SettingValue::ToneMapper(self.post_tone_mapper),
+            SettingKey::PostExposure => SettingValue::Float(self.post_exposure),
+            SettingKey::PostGamma => SettingValue::Float(self.post_gamma),
+            SettingKey::PostSaturation => SettingValue::Float(self.post_saturation),
+            SettingKey::PostLuminance => SettingValue::Float(self.post_luminance),
             SettingKey::FrameTimeMs => SettingValue::Float(self.frame_time_ms),
         }
     }
 
     fn apply_setting_value(&mut self, key: SettingKey, value: SettingValue) {
         match (key, value) {
+            (SettingKey::BackgroundColor2D, SettingValue::Vec4(v)) => self.background_color_2d = v,
             (SettingKey::SkyColor, SettingValue::Vec3(v)) => self.sky_color = v,
             (SettingKey::SunColor, SettingValue::Vec3(v)) => self.sun_color = v,
             (SettingKey::SunIntensity, SettingValue::Float(v)) => self.sun_intensity = v,
@@ -1067,6 +1106,32 @@ impl RenderSettings {
                 self.raster_shadow_resolution = v
             }
             (SettingKey::ShadowBias, SettingValue::Float(v)) => self.raster_shadow_bias = v,
+            (SettingKey::FadeMode, SettingValue::FadeMode(v)) => self.fade_mode = v,
+            (SettingKey::LightingModel, SettingValue::LightingModel(v)) => self.lighting_model = v,
+            (SettingKey::AvatarHighlightEnabled, SettingValue::Bool(v)) => {
+                self.avatar_highlight_enabled = v
+            }
+            (SettingKey::AvatarHighlightLift, SettingValue::Float(v)) => {
+                self.avatar_highlight_lift = v
+            }
+            (SettingKey::AvatarHighlightFill, SettingValue::Float(v)) => {
+                self.avatar_highlight_fill = v
+            }
+            (SettingKey::AvatarHighlightRim, SettingValue::Float(v)) => {
+                self.avatar_highlight_rim = v
+            }
+            (SettingKey::AvatarShadingEnabled, SettingValue::Bool(v)) => {
+                self.avatar_shading_enabled = v
+            }
+            (SettingKey::AvatarSkinShadingEnabled, SettingValue::Bool(v)) => {
+                self.avatar_skin_shading_enabled = v
+            }
+            (SettingKey::PostEnabled, SettingValue::Bool(v)) => self.post_enabled = v,
+            (SettingKey::PostToneMapper, SettingValue::ToneMapper(v)) => self.post_tone_mapper = v,
+            (SettingKey::PostExposure, SettingValue::Float(v)) => self.post_exposure = v,
+            (SettingKey::PostGamma, SettingValue::Float(v)) => self.post_gamma = v,
+            (SettingKey::PostSaturation, SettingValue::Float(v)) => self.post_saturation = v,
+            (SettingKey::PostLuminance, SettingValue::Float(v)) => self.post_luminance = v,
             (SettingKey::FrameTimeMs, SettingValue::Float(v)) => self.frame_time_ms = v,
             _ => {}
         }
@@ -1077,6 +1142,12 @@ impl RenderSettings {
         value: Value,
     ) -> Result<SettingValue, Box<dyn std::error::Error>> {
         match key {
+            SettingKey::BackgroundColor2D => match value {
+                Value::Vec4(v) => Ok(SettingValue::Vec4(v)),
+                Value::Vec3(v) => Ok(SettingValue::Vec4([v[0], v[1], v[2], 1.0])),
+                Value::Str(s) => Ok(SettingValue::Vec4(parse_hex_color_rgba(&s)?)),
+                _ => Err("Expected Vec4 or hex color for background_color_2d".into()),
+            },
             SettingKey::SkyColor
             | SettingKey::SunColor
             | SettingKey::SunDirection
@@ -1087,7 +1158,12 @@ impl RenderSettings {
                 Value::Str(s) => Ok(SettingValue::Vec3(parse_hex_color(&s)?)),
                 _ => Err(format!("Expected Vec3 or hex color for {:?}", key).into()),
             },
-            SettingKey::SunEnabled | SettingKey::ShadowEnabled => match value {
+            SettingKey::SunEnabled
+            | SettingKey::ShadowEnabled
+            | SettingKey::AvatarHighlightEnabled
+            | SettingKey::AvatarShadingEnabled
+            | SettingKey::AvatarSkinShadingEnabled
+            | SettingKey::PostEnabled => match value {
                 Value::Bool(b) => Ok(SettingValue::Bool(b)),
                 _ => Err("Expected bool for render setting".into()),
             },
@@ -1108,12 +1184,31 @@ impl RenderSettings {
             | SettingKey::ShadowStrength
             | SettingKey::ShadowResolution
             | SettingKey::ShadowBias
+            | SettingKey::AvatarHighlightLift
+            | SettingKey::AvatarHighlightFill
+            | SettingKey::AvatarHighlightRim
+            | SettingKey::PostExposure
+            | SettingKey::PostGamma
+            | SettingKey::PostSaturation
+            | SettingKey::PostLuminance
             | SettingKey::FrameTimeMs => {
                 let Some(v) = Self::value_to_f32(&value) else {
                     return Err(format!("Expected numeric value for {:?}", key).into());
                 };
                 Ok(SettingValue::Float(v))
             }
+            SettingKey::FadeMode => match value {
+                Value::Str(s) => Ok(SettingValue::FadeMode(parse_fade_mode(&s))),
+                _ => Err("Expected string for fade_mode".into()),
+            },
+            SettingKey::LightingModel => match value {
+                Value::Str(s) => Ok(SettingValue::LightingModel(parse_lighting_model(&s))),
+                _ => Err("Expected string for lighting_model".into()),
+            },
+            SettingKey::PostToneMapper => match value {
+                Value::Str(s) => Ok(SettingValue::ToneMapper(parse_tone_mapper(&s))),
+                _ => Err("Expected string for tone_mapper".into()),
+            },
         }
     }
 
@@ -1129,6 +1224,7 @@ impl RenderSettings {
 
     fn key_from_name(name: &str) -> Option<SettingKey> {
         match name {
+            "background_color_2d" => Some(SettingKey::BackgroundColor2D),
             "sky_color" => Some(SettingKey::SkyColor),
             "sun_color" => Some(SettingKey::SunColor),
             "sun_intensity" => Some(SettingKey::SunIntensity),
@@ -1153,6 +1249,20 @@ impl RenderSettings {
             "shadow_strength" => Some(SettingKey::ShadowStrength),
             "shadow_resolution" => Some(SettingKey::ShadowResolution),
             "shadow_bias" => Some(SettingKey::ShadowBias),
+            "fade_mode" => Some(SettingKey::FadeMode),
+            "lighting_model" => Some(SettingKey::LightingModel),
+            "avatar_highlight_enabled" => Some(SettingKey::AvatarHighlightEnabled),
+            "avatar_highlight_lift" => Some(SettingKey::AvatarHighlightLift),
+            "avatar_highlight_fill" => Some(SettingKey::AvatarHighlightFill),
+            "avatar_highlight_rim" => Some(SettingKey::AvatarHighlightRim),
+            "avatar_shading_enabled" => Some(SettingKey::AvatarShadingEnabled),
+            "avatar_skin_shading_enabled" => Some(SettingKey::AvatarSkinShadingEnabled),
+            "enabled" | "post_enabled" => Some(SettingKey::PostEnabled),
+            "tone_mapper" | "post_tone_mapper" => Some(SettingKey::PostToneMapper),
+            "exposure" | "post_exposure" => Some(SettingKey::PostExposure),
+            "gamma" | "post_gamma" => Some(SettingKey::PostGamma),
+            "saturation" | "post_saturation" => Some(SettingKey::PostSaturation),
+            "luminance" | "post_luminance" => Some(SettingKey::PostLuminance),
             "ms_per_frame" => Some(SettingKey::FrameTimeMs),
             _ => None,
         }
@@ -1160,6 +1270,7 @@ impl RenderSettings {
 
     pub fn runtime_override_names() -> &'static [&'static str] {
         &[
+            "background_color_2d",
             "sky_color",
             "sun_color",
             "sun_intensity",
@@ -1184,12 +1295,32 @@ impl RenderSettings {
             "shadow_strength",
             "shadow_resolution",
             "shadow_bias",
+            "fade_mode",
+            "lighting_model",
+            "avatar_highlight_enabled",
+            "avatar_highlight_lift",
+            "avatar_highlight_fill",
+            "avatar_highlight_rim",
+            "avatar_shading_enabled",
+            "avatar_skin_shading_enabled",
             "ms_per_frame",
+        ]
+    }
+
+    pub fn runtime_post_override_names() -> &'static [&'static str] {
+        &[
+            "enabled",
+            "tone_mapper",
+            "exposure",
+            "gamma",
+            "saturation",
+            "luminance",
         ]
     }
 
     pub fn value_for_name(&self, name: &str) -> Option<Value> {
         match name {
+            "background_color_2d" => Some(Value::Vec4(self.background_color_2d)),
             "sky_color" => Some(Value::Vec3(self.sky_color)),
             "sun_color" => Some(Value::Vec3(self.sun_color)),
             "sun_intensity" => Some(Value::Float(self.sun_intensity)),
@@ -1214,17 +1345,56 @@ impl RenderSettings {
             "shadow_strength" => Some(Value::Float(self.raster_shadow_strength)),
             "shadow_resolution" => Some(Value::Float(self.raster_shadow_resolution)),
             "shadow_bias" => Some(Value::Float(self.raster_shadow_bias)),
+            "fade_mode" => Some(Value::Str(match self.fade_mode {
+                FadeMode::OrderedDither => "ordered_dither".into(),
+                FadeMode::Uniform => "uniform".into(),
+            })),
+            "lighting_model" => Some(Value::Str(match self.lighting_model {
+                LightingModel::Lambert => "lambert".into(),
+                LightingModel::CookTorrance => "cook_torrance".into(),
+                LightingModel::Pbr => "pbr".into(),
+            })),
+            "avatar_highlight_enabled" => Some(Value::Bool(self.avatar_highlight_enabled)),
+            "avatar_highlight_lift" => Some(Value::Float(self.avatar_highlight_lift)),
+            "avatar_highlight_fill" => Some(Value::Float(self.avatar_highlight_fill)),
+            "avatar_highlight_rim" => Some(Value::Float(self.avatar_highlight_rim)),
+            "avatar_shading_enabled" => Some(Value::Bool(self.avatar_shading_enabled)),
+            "avatar_skin_shading_enabled" => Some(Value::Bool(self.avatar_skin_shading_enabled)),
             "ms_per_frame" => Some(Value::Float(self.frame_time_ms)),
+            _ => None,
+        }
+    }
+
+    pub fn post_value_for_name(&self, name: &str) -> Option<Value> {
+        match name {
+            "enabled" => Some(Value::Bool(self.post_enabled)),
+            "tone_mapper" => Some(Value::Str(match self.post_tone_mapper {
+                PostToneMapper::None => "none".into(),
+                PostToneMapper::Reinhard => "reinhard".into(),
+                PostToneMapper::Aces => "aces".into(),
+            })),
+            "exposure" => Some(Value::Float(self.post_exposure)),
+            "gamma" => Some(Value::Float(self.post_gamma)),
+            "saturation" => Some(Value::Float(self.post_saturation)),
+            "luminance" => Some(Value::Float(self.post_luminance)),
             _ => None,
         }
     }
 }
 
 impl RenderSettings {
-    fn apply_render_values(
+    pub fn apply_render_values(
         &mut self,
         render: &ValueContainer,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(v) = render.get_str("background_color_2d") {
+            self.background_color_2d = parse_hex_color_rgba(v)?;
+        } else if let Some(v) = render.get_vec4("background_color_2d") {
+            self.background_color_2d = v;
+        } else if let Some(v) = render.get_vec3("background_color_2d") {
+            self.background_color_2d = [v[0], v[1], v[2], 1.0];
+        }
+
         if let Some(v) = render.get_str("sky_color") {
             self.sky_color = parse_hex_color(v)?;
         } else if let Some(v) = render.get_vec3("sky_color") {
@@ -1315,6 +1485,10 @@ impl RenderSettings {
             render.get_float_default("avatar_highlight_fill", self.avatar_highlight_fill);
         self.avatar_highlight_rim =
             render.get_float_default("avatar_highlight_rim", self.avatar_highlight_rim);
+        self.avatar_shading_enabled =
+            render.get_bool_default("avatar_shading_enabled", self.avatar_shading_enabled);
+        self.avatar_skin_shading_enabled = render
+            .get_bool_default("avatar_skin_shading_enabled", self.avatar_skin_shading_enabled);
         self.frame_time_ms = render.get_float_default("ms_per_frame", self.frame_time_ms);
         if let Some(fps) = render.get_float("fps") {
             if fps > 0.0 {
@@ -1322,6 +1496,22 @@ impl RenderSettings {
             }
         }
 
+        Ok(())
+    }
+
+    pub fn apply_post_values(
+        &mut self,
+        post: &ValueContainer,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.post_enabled = post.get_bool_default("enabled", self.post_enabled);
+        self.post.enabled = self.post_enabled;
+        if let Some(v) = post.get_str("tone_mapper") {
+            self.post_tone_mapper = parse_tone_mapper(v);
+        }
+        self.post_exposure = post.get_float_default("exposure", self.post_exposure);
+        self.post_gamma = post.get_float_default("gamma", self.post_gamma);
+        self.post_saturation = post.get_float_default("saturation", self.post_saturation);
+        self.post_luminance = post.get_float_default("luminance", self.post_luminance);
         Ok(())
     }
 

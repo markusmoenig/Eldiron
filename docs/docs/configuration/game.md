@@ -8,6 +8,8 @@ You can configure **Eldiron** by selecting the **Game -> Settings** item in the 
 Other game-level TOML documents are edited separately:
 
 - **Game -> Authoring**: [Authoring Configuration](./authoring)
+- **Game -> World / Visual Scripting**: global graph-based runtime logic
+- **Game -> World / Eldrin Scripting**: global text-based runtime logic
 - **Game -> Rules**: [Rules](../rules)
 - **Game -> Locales**: [Localization](../localization)
 - **Game -> Audio FX**: [Audio](../audio)
@@ -399,6 +401,120 @@ gamma = 2.2
 - **`saturation`** — Color saturation multiplier; `0` is grayscale, `1` keeps original saturation.
 - **`luminance`** — Overall post brightness multiplier.
 - **`gamma`** — Final output gamma value.
+
+---
+
+## Runtime Overrides
+
+`[render]`, `[post]`, and `[viewport]` define the authored defaults of your project.
+
+At runtime, scripts can override these values through **world** and **region** contexts:
+
+- `world.render.*`
+- `region.render.*`
+- `world.post.*`
+- `region.post.*`
+
+The final value is resolved in this order:
+
+1. project configuration default
+2. world script override
+3. region script override
+
+This lets you keep stable defaults in TOML and then change mood, fog, palette remap, or post processing dynamically during play.
+
+### Palette Remap
+
+The 2D palette remap lives under `render.pal.*`:
+
+```eldrin
+let world.render.pal.start = 0;
+let world.render.pal.end = 9;
+let world.render.pal.mode = "nearest";
+let world.render.pal.blend = 1.0;
+```
+
+Supported fields:
+
+- `render.pal.start`
+- `render.pal.end`
+- `render.pal.mode`
+- `render.pal.blend`
+
+Supported modes:
+
+- `"disabled"`
+- `"luma_ramp"`
+- `"nearest"`
+- `"dithered_ramp"`
+
+### Render Overrides
+
+Common runtime render overrides include:
+
+```eldrin
+let region.render.background_color_2d = "#272744";
+let region.render.fog_color = "#20242c";
+let region.render.fog_density = 5.0;
+let world.render.sun_enabled = false;
+```
+
+Most scalar values from `[render]` are available at runtime, including:
+
+- `background_color_2d`
+- `sky_color`
+- `sun_color`
+- `sun_intensity`
+- `sun_direction`
+- `sun_enabled`
+- `ambient_color`
+- `ambient_strength`
+- `fog_color`
+- `fog_density`
+- `shadow_enabled`
+- `shadow_strength`
+- `shadow_resolution`
+- `shadow_bias`
+- `fade_mode`
+- `lighting_model`
+- `avatar_highlight_enabled`
+- `avatar_highlight_lift`
+- `avatar_highlight_fill`
+- `avatar_highlight_rim`
+- `avatar_shading_enabled`
+- `avatar_skin_shading_enabled`
+- `ao_samples`
+- `ao_radius`
+- `bump_strength`
+- `msaa_samples`
+- `max_transparency_bounces`
+- `max_shadow_distance`
+- `max_sky_distance`
+- `max_shadow_steps`
+- `reflection_samples`
+- `firstp_blur_near`
+- `firstp_blur_far`
+- `ms_per_frame`
+
+### Post Overrides
+
+The main post controls are also available at runtime:
+
+```eldrin
+let world.post.enabled = true;
+let world.post.tone_mapper = "aces";
+let world.post.exposure = 0.9;
+let world.post.saturation = 0.7;
+```
+
+Supported runtime post fields:
+
+- `post.enabled`
+- `post.tone_mapper`
+- `post.exposure`
+- `post.gamma`
+- `post.saturation`
+- `post.luminance`
 
 ---
 

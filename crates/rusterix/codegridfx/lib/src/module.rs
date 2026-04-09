@@ -94,6 +94,8 @@ pub enum ModuleType {
     ItemInstance,
     CharacterTemplate,
     ItemTemplate,
+    World,
+    Region,
     Shader,
 }
 
@@ -1592,6 +1594,8 @@ impl Module {
 
         if self.module_type == ModuleType::CharacterTemplate
             || self.module_type == ModuleType::ItemTemplate
+            || self.module_type == ModuleType::World
+            || self.module_type == ModuleType::Region
         {
             out += "fn event(event, value) {\n";
 

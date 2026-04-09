@@ -1,5 +1,6 @@
-use crate::{Entity, Value};
+use crate::{Entity, Value, ValueContainer};
 use codegridfx::DebugModule;
+use scenevm::PaletteRemap2DMode;
 use theframework::prelude::*;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -17,6 +18,58 @@ pub enum AudioCommand {
     ClearAll,
     /// Set volume for one bus/layer.
     SetBusVolume { bus: String, volume: f32 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PaletteRemap2DState {
+    pub start_index: u32,
+    pub end_index: u32,
+    pub mode: PaletteRemap2DMode,
+    pub blend: f32,
+}
+
+impl Default for PaletteRemap2DState {
+    fn default() -> Self {
+        Self {
+            start_index: 0,
+            end_index: 0,
+            mode: PaletteRemap2DMode::Disabled,
+            blend: 0.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct RuntimeRenderState {
+    pub palette_remap: Option<PaletteRemap2DState>,
+    pub render: ValueContainer,
+    pub post: ValueContainer,
+}
+
+impl RuntimeRenderState {
+    pub fn merged(self, override_state: Option<Self>) -> Self {
+        if let Some(override_state) = override_state {
+            let mut render = self.render.clone();
+            for key in override_state.render.keys().cloned().collect::<Vec<_>>() {
+                if let Some(value) = override_state.render.get(&key).cloned() {
+                    render.set(&key, value);
+                }
+            }
+            let mut post = self.post.clone();
+            for key in override_state.post.keys().cloned().collect::<Vec<_>>() {
+                if let Some(value) = override_state.post.get(&key).cloned() {
+                    post.set(&key, value);
+                }
+            }
+            Self {
+                palette_remap: override_state.palette_remap.or(self.palette_remap),
+                render,
+                post,
+            }
+        } else {
+            self
+        }
+    }
 }
 
 /// Messages to / from the Region to the server or client
@@ -60,6 +113,22 @@ pub enum RegionMessage {
     MultipleChoice(MultipleChoice),
     /// Send an audio command to the client
     AudioCmd(u32, AudioCommand),
+    /// Configure 2D palette remap setup for a region.
+    SetPaletteRemap2D(u32, u32, u32, PaletteRemap2DMode),
+    /// Update the active 2D palette remap blend for a region.
+    SetPaletteRemap2DBlend(u32, f32),
+    /// Configure the global/world 2D palette remap setup.
+    SetWorldPaletteRemap2D(u32, u32, PaletteRemap2DMode),
+    /// Update the active global/world 2D palette remap blend.
+    SetWorldPaletteRemap2DBlend(f32),
+    /// Override a runtime render setting for a region.
+    SetRenderValue(u32, String, Value),
+    /// Override a runtime render setting globally/world-wide.
+    SetWorldRenderValue(String, Value),
+    /// Override a runtime post setting for a region.
+    SetPostValue(u32, String, Value),
+    /// Override a runtime post setting globally/world-wide.
+    SetWorldPostValue(String, Value),
     /// Send the debug id of a character or item
     DebugData(DebugModule),
     /// Pause the server.

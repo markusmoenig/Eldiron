@@ -7,6 +7,8 @@ use theframework::prelude::*;
 /// Unique identifier for entities being edited
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EntityKey {
+    World,
+    Region(Uuid),
     CharacterInstance(Uuid, Uuid), // (region_id, instance_id)
     CharacterTemplate(Uuid),
     ItemInstance(Uuid, Uuid), // (region_id, instance_id)
@@ -47,7 +49,22 @@ impl Dock for VisualCodeDock {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
-        if let Some(id) = server_ctx.pc.id() {
+        if server_ctx.pc.is_world_visual_code() {
+            self.module = project.world_module.clone();
+            self.module.module_type = codegridfx::ModuleType::World;
+            self.module.view_name = "DockVisualScripting".into();
+            self.module.redraw(ui, ctx);
+            self.switch_to_entity(EntityKey::World, ctx);
+        } else if let Some(id) = server_ctx.pc.id() {
+            if server_ctx.pc.is_region_visual_code() {
+                if let Some(region) = project.get_region(&id) {
+                    self.module = region.module.clone();
+                    self.module.module_type = codegridfx::ModuleType::Region;
+                    self.module.view_name = "DockVisualScripting".into();
+                    self.module.redraw(ui, ctx);
+                    self.switch_to_entity(EntityKey::Region(id), ctx);
+                }
+            } else
             if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
                 if let Some(region) = project.get_region(&id) {
                     if let Some(character_instance) = region.characters.get(&instance_id) {
@@ -275,6 +292,18 @@ impl VisualCodeDock {
         let debug_code = self.module.build(true);
 
         match self.current_entity {
+            Some(EntityKey::World) => {
+                project.world_module = self.module.clone();
+                project.world_source = code;
+                project.world_source_debug = debug_code;
+            }
+            Some(EntityKey::Region(id)) => {
+                if let Some(region) = project.get_region_mut(&id) {
+                    region.module = self.module.clone();
+                    region.source = code;
+                    region.source_debug = debug_code;
+                }
+            }
             Some(EntityKey::CharacterInstance(region_id, instance_id)) => {
                 if let Some(region) = project.get_region_mut(&region_id) {
                     if let Some(character_instance) = region.characters.get_mut(&instance_id) {

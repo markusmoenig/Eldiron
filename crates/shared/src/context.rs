@@ -178,8 +178,12 @@ pub enum ProjectContext {
     Unknown,
     Region(Uuid),
     RegionSettings(Uuid),
+    RegionVisualCode(Uuid),
+    RegionCode(Uuid),
     RegionCharacterInstance(Uuid, Uuid),
     RegionItemInstance(Uuid, Uuid),
+    WorldVisualCode,
+    WorldCode,
     Character(Uuid),
     CharacterVisualCode(Uuid),
     CharacterCode(Uuid),
@@ -209,6 +213,8 @@ impl ProjectContext {
         match self {
             ProjectContext::Unknown
             | ProjectContext::ProjectSettings
+            | ProjectContext::WorldVisualCode
+            | ProjectContext::WorldCode
             | ProjectContext::GameRules
             | ProjectContext::GameLocales
             | ProjectContext::GameAudioFx
@@ -217,6 +223,8 @@ impl ProjectContext {
             | ProjectContext::Console => None,
             ProjectContext::Region(id)
             | ProjectContext::RegionSettings(id)
+            | ProjectContext::RegionVisualCode(id)
+            | ProjectContext::RegionCode(id)
             | ProjectContext::RegionCharacterInstance(id, _)
             | ProjectContext::RegionItemInstance(id, _)
             | ProjectContext::Character(id)
@@ -241,10 +249,28 @@ impl ProjectContext {
         match self {
             ProjectContext::Region(_)
             | ProjectContext::RegionSettings(_)
+            | ProjectContext::RegionVisualCode(_)
+            | ProjectContext::RegionCode(_)
             | ProjectContext::RegionCharacterInstance(_, _)
             | ProjectContext::RegionItemInstance(_, _) => true,
             _ => false,
         }
+    }
+
+    pub fn is_region_visual_code(&self) -> bool {
+        matches!(self, ProjectContext::RegionVisualCode(_))
+    }
+
+    pub fn is_region_code(&self) -> bool {
+        matches!(self, ProjectContext::RegionCode(_))
+    }
+
+    pub fn is_world_visual_code(&self) -> bool {
+        matches!(self, ProjectContext::WorldVisualCode)
+    }
+
+    pub fn is_world_code(&self) -> bool {
+        matches!(self, ProjectContext::WorldCode)
     }
 
     pub fn get_region_character_instance_id(&self) -> Option<Uuid> {

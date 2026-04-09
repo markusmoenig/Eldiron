@@ -29,6 +29,7 @@ pub fn register_regionctx(id: u32, instance: Arc<Mutex<RegionCtx>>) {
 /// Clear the store.
 pub fn clear_regionctx_store() {
     REGIONCTX.write().unwrap().clear();
+    RegionCtx::clear_world_state();
 }
 
 /// Get a specific RegionCtx
@@ -200,6 +201,7 @@ use EntityAction::*;
 use super::data::{apply_entity_data, apply_item_data};
 use super::{AudioCommand, RegionMessage};
 use RegionMessage::*;
+use crate::server::regionctx::ScriptScope;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CollisionMode {
@@ -1169,6 +1171,30 @@ impl RegionInstance {
         ctx.blocking_tiles = assets.blocking_tiles();
         ctx.assets = assets.clone();
 
+        if !assets.world_source.trim().is_empty() {
+            match self.vm.prepare_str(&assets.world_source) {
+                Ok(program) => ctx.world_program = Some(Arc::new(program)),
+                Err(error) => ctx.startup_errors.push(format!(
+                    "[error] {}: Compiling World Script: {}",
+                    self.name,
+                    error
+                )),
+            }
+        }
+
+        if let Some(region_source) = assets.region_sources.get(&ctx.map.id)
+            && !region_source.trim().is_empty()
+        {
+            match self.vm.prepare_str(region_source) {
+                Ok(program) => ctx.region_program = Some(Arc::new(program)),
+                Err(error) => ctx.startup_errors.push(format!(
+                    "[error] {}: Compiling Region Script: {}",
+                    self.name,
+                    error
+                )),
+            }
+        }
+
         // Installing currencies
 
         _ = ctx.currencies.add_currency(Currency {
@@ -1543,6 +1569,19 @@ impl RegionInstance {
         // Register the ctx, from here on we have to lock it
         register_regionctx(self.id, Arc::new(Mutex::new(ctx)));
 
+        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+            let args = [VMValue::from_string("startup"), VMValue::zero()];
+            if let Some(program) = ctx.world_program.clone() {
+                ctx.current_script_scope = ScriptScope::World;
+                run_server_fn(&mut self.exec, &args, &program, ctx);
+            }
+            if let Some(program) = ctx.region_program.clone() {
+                ctx.current_script_scope = ScriptScope::Region;
+                run_server_fn(&mut self.exec, &args, &program, ctx);
+            }
+            ctx.current_script_scope = ScriptScope::Entity;
+        });
+
         // Send "startup" event to all entities.
         for entity in entities.iter() {
             if let Some(class_name) = entity.get_attr_string("class_name") {
@@ -1750,8 +1789,29 @@ impl RegionInstance {
                         ctx.to_execute_item
                             .push((id, "time".into(), VMValue::from_i32(hour_24)));
                     }
+
+                    let args = [VMValue::from_string("time"), VMValue::from_i32(hour_24)];
+                    if let Some(program) = ctx.world_program.clone() {
+                        ctx.current_script_scope = ScriptScope::World;
+                        run_server_fn(&mut self.exec, &args, &program, ctx);
+                    }
+                    if let Some(program) = ctx.region_program.clone() {
+                        ctx.current_script_scope = ScriptScope::Region;
+                        run_server_fn(&mut self.exec, &args, &program, ctx);
+                    }
                 }
             }
+
+            let tick_args = [VMValue::from_string("tick"), VMValue::from_i32(ctx.ticks as i32)];
+            if let Some(program) = ctx.world_program.clone() {
+                ctx.current_script_scope = ScriptScope::World;
+                run_server_fn(&mut self.exec, &tick_args, &program, ctx);
+            }
+            if let Some(program) = ctx.region_program.clone() {
+                ctx.current_script_scope = ScriptScope::Region;
+                run_server_fn(&mut self.exec, &tick_args, &program, ctx);
+            }
+            ctx.current_script_scope = ScriptScope::Entity;
         });
 
         // Process notifications for entities.

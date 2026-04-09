@@ -1,3 +1,25 @@
+# Eldiron v0.93
+
+## New Features
+
+### Creator
+
+- Improved the **Remap Tile** action with `remap_all` support, multiple remap modes, and better palette-reduction handling for aggressive color-count changes.
+- Added configurable 2D viewport and screen background colors via `background_color_2d` and `screen_background`.
+- Improved 2D avatar rendering stability and added `size_2d` for character avatars, allowing 2D-only avatar scaling without affecting the 3D `size` billboard scale.
+- Added **World** and **Region** scripting entries to the project tree, plus runtime `world.*` / `region.*` render and post overrides for palette remap, fog, background, and related visual settings.
+
+### Bug Fixes
+
+- Fixed Entity Tool delete handling so character/item deletion no longer hangs from the keyboard path.
+
+### Documentation
+
+- Added docs for `background_color_2d`, `screen_background`, and the new `size_2d` character attribute.
+- Added docs for the new world/region scripting tree items and the `world.render.*`, `region.render.*`, `world.post.*`, and `region.post.*` runtime override paths.
+
+---
+
 # Eldiron v0.92
 
 ## New Features

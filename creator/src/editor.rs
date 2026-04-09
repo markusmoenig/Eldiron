@@ -918,6 +918,18 @@ impl Editor {
                 item.source_debug = item.module.build(true);
             }
         }
+
+        if !project.world_module.routines.is_empty() && project.world_source.is_empty() {
+            project.world_source = project.world_module.build(false);
+            project.world_source_debug = project.world_module.build(true);
+        }
+
+        for region in &mut project.regions {
+            if !region.module.routines.is_empty() && region.source.is_empty() {
+                region.source = region.module.build(false);
+                region.source_debug = region.module.build(true);
+            }
+        }
     }
 
     fn close_active_session(

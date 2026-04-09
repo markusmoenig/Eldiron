@@ -752,7 +752,9 @@ impl Client {
             .execute(scenevm::Atom::SetRenderMode(scenevm_mode_2d));
 
         scene_handler.settings.apply_hour(hour);
+        scene_handler.apply_runtime_render_state_settings();
         scene_handler.settings.apply_2d(&mut scene_handler.vm);
+        scene_handler.apply_runtime_render_state_2d();
         if matches!(scenevm_mode_2d, scenevm::RenderMode::Compute2D) {
             scene_handler.vm.execute(scenevm::Atom::SetGP0(Vec4::new(
                 map.grid_size,
@@ -854,7 +856,9 @@ impl Client {
 
         scene_handler.settings.apply_hour(hour);
         scene_handler.apply_dungeon_render_overrides(map);
+        scene_handler.apply_runtime_render_state_settings();
         scene_handler.settings.apply_3d(&mut scene_handler.vm);
+        scene_handler.apply_runtime_render_state_3d();
 
         scene_handler
             .vm
@@ -910,7 +914,9 @@ impl Client {
                 .execute(scenevm::Atom::SetGP2(Vec4::zero()));
 
             scene_handler.vm.set_active_vm(2);
+            scene_handler.apply_runtime_render_state_settings();
             scene_handler.settings.apply_3d(&mut scene_handler.vm);
+            scene_handler.apply_runtime_render_state_3d();
             scene_handler.vm.execute(scenevm::Atom::SetCamera3D {
                 camera: self.camera_d3.as_scenevm_camera(),
             });

@@ -16,6 +16,7 @@ use rust_embed::EmbeddedFile;
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, Chunk, DynamicMeshVertex, DynamicObject, GeoId, Light, SceneVM};
 use theframework::prelude::*;
+use crate::server::message::RuntimeRenderState;
 
 /// Tracks per-billboard animation state so we can interpolate on visibility changes.
 #[derive(Default)]
@@ -115,6 +116,7 @@ pub struct SceneHandler {
 
     pub settings: RenderSettings,
     pub base_settings: RenderSettings,
+    pub runtime_render_state: RuntimeRenderState,
 
     // Billboards for dynamic doors/gates (indexed by GeoId for fast lookup)
     pub billboards: FxHashMap<GeoId, BillboardMetadata>,
@@ -263,6 +265,33 @@ impl SceneHandler {
         self.base_settings = base.clone();
         self.settings = base;
         self.last_dungeon_render_signature = None;
+    }
+
+    pub fn apply_runtime_render_state_settings(&mut self) {
+        let _ = self.settings.apply_render_values(&self.runtime_render_state.render);
+        let _ = self.settings.apply_post_values(&self.runtime_render_state.post);
+    }
+
+    pub fn apply_runtime_render_state_2d(&mut self) {
+        if let Some(state) = self.runtime_render_state.palette_remap {
+            self.vm.execute(Atom::SetPaletteRemap2D {
+                start_index: state.start_index,
+                end_index: state.end_index,
+                mode: state.mode,
+            });
+            self.vm.execute(Atom::SetPaletteRemap2DBlend(state.blend));
+        } else {
+            self.vm.execute(Atom::SetPaletteRemap2D {
+                start_index: 0,
+                end_index: 0,
+                mode: scenevm::PaletteRemap2DMode::Disabled,
+            });
+            self.vm.execute(Atom::SetPaletteRemap2DBlend(0.0));
+        }
+    }
+
+    pub fn apply_runtime_render_state_3d(&mut self) {
+        // 3D render/post overrides are applied to settings before settings.apply_3d().
     }
 
     fn sector_floor_height_for_player(map: &Map, sector: &crate::Sector) -> Option<f32> {
@@ -2269,6 +2298,7 @@ impl SceneHandler {
 
             settings: RenderSettings::default(),
             base_settings: RenderSettings::default(),
+            runtime_render_state: RuntimeRenderState::default(),
 
             billboards: FxHashMap::default(),
             billboard_anim_states: FxHashMap::default(),

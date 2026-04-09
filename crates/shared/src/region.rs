@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use codegridfx::Module;
 pub use rusterix::map::*;
 use theframework::prelude::*;
 
@@ -15,6 +16,15 @@ pub struct Region {
 
     #[serde(default)]
     pub config: String,
+
+    #[serde(default = "default_region_module")]
+    pub module: Module,
+
+    #[serde(default)]
+    pub source: String,
+
+    #[serde(default)]
+    pub source_debug: String,
 
     pub characters: IndexMap<Uuid, Character>,
     pub items: IndexMap<Uuid, Item>,
@@ -62,6 +72,9 @@ impl Region {
 
             map: Map::default(),
             config: String::new(),
+            module: default_region_module(),
+            source: String::new(),
+            source_debug: String::new(),
 
             characters: IndexMap::default(),
             items: IndexMap::default(),
@@ -88,4 +101,8 @@ impl Region {
     pub fn to_json(&self) -> String {
         serde_json::to_string(&self).unwrap_or_default()
     }
+}
+
+fn default_region_module() -> Module {
+    Module::as_type(codegridfx::ModuleType::Region)
 }

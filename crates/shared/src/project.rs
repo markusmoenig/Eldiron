@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use buildergraph::BuilderGraph;
+use codegridfx::Module;
 use indexmap::IndexMap;
 pub use rusterix::map::*;
 use theframework::prelude::*;
@@ -29,6 +30,10 @@ fn default_audio_fx() -> String {
 
 fn default_authoring() -> String {
     String::new()
+}
+
+fn default_world_module() -> Module {
+    Module::as_type(codegridfx::ModuleType::World)
 }
 
 fn default_tile_board_cols() -> i32 {
@@ -357,6 +362,15 @@ pub struct Project {
     #[serde(default)]
     pub config: String,
 
+    #[serde(default = "default_world_module")]
+    pub world_module: Module,
+
+    #[serde(default)]
+    pub world_source: String,
+
+    #[serde(default)]
+    pub world_source_debug: String,
+
     #[serde(default = "default_rules")]
     pub rules: String,
 
@@ -420,6 +434,9 @@ impl Project {
             palette_materials: default_palette_material_slots(),
 
             config: String::new(),
+            world_module: default_world_module(),
+            world_source: String::new(),
+            world_source_debug: String::new(),
             rules: default_rules(),
             locales: default_locales(),
             audio_fx: default_audio_fx(),

@@ -78,6 +78,20 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
     item.set_text(fl!("settings"));
     node.add_widget(Box::new(item));
 
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Region Visual Code Item",
+        region.id,
+    ));
+    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_text(fl!("visual_script"));
+    node.add_widget(Box::new(item));
+
+    let mut item =
+        TheTreeItem::new(TheId::named_with_reference("Region Code Item", region.id));
+    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_text(fl!("eldrin_scripting"));
+    node.add_widget(Box::new(item));
+
     for (id, character) in &region.characters {
         let mut item = TheTreeItem::new(TheId::named_with_id("Region Content List Item", *id));
         item.add_value_column(200, TheValue::Text(fl!("character_instance")));
@@ -701,8 +715,12 @@ pub fn set_project_context(
         pc,
         ProjectContext::Region(_)
             | ProjectContext::RegionSettings(_)
+            | ProjectContext::RegionVisualCode(_)
+            | ProjectContext::RegionCode(_)
             | ProjectContext::RegionCharacterInstance(_, _)
             | ProjectContext::RegionItemInstance(_, _)
+            | ProjectContext::WorldVisualCode
+            | ProjectContext::WorldCode
             | ProjectContext::Character(_)
             | ProjectContext::CharacterVisualCode(_)
             | ProjectContext::CharacterCode(_)
@@ -750,6 +768,34 @@ pub fn set_project_context(
                 .write()
                 .unwrap()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::RegionVisualCode(id) => {
+            if let Some(region) = project.get_region(&id) {
+                server_ctx.curr_region = id;
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Region Visual Scripting: {}", region.name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Visual Code".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::RegionCode(id) => {
+            if let Some(region) = project.get_region(&id) {
+                server_ctx.curr_region = id;
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Region Eldrin Scripting: {}", region.name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Code".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::RegionCharacterInstance(id, _) => {
             if let Some(region) = project.get_region(&id) {
@@ -1026,6 +1072,28 @@ pub fn set_project_context(
                 .unwrap()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
+        ProjectContext::WorldVisualCode => {
+            ui.set_widget_value(
+                "Project Context",
+                ctx,
+                TheValue::Text("World Visual Scripting".into()),
+            );
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Visual Code".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::WorldCode => {
+            ui.set_widget_value(
+                "Project Context",
+                ctx,
+                TheValue::Text("World Eldrin Scripting".into()),
+            );
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Code".into(), ui, ctx, project, server_ctx);
+        }
         ProjectContext::GameRules => {
             ui.set_widget_value("Project Context", ctx, TheValue::Text("Game Rules".into()));
             DOCKMANAGER
@@ -1117,6 +1185,48 @@ pub fn set_project_context(
                                 node.set_open(true);
                                 for widget in &node.widgets {
                                     if widget.id().name == "Project Settings" {
+                                        found = Some(widget.id().clone());
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        found
+                    };
+                    if let Some(id) = target_id {
+                        tree_layout.new_item_selected(id);
+                    }
+                }
+                ProjectContext::WorldVisualCode => {
+                    let target_id = {
+                        let mut found: Option<TheId> = None;
+                        for node in &mut tree_layout.get_root().childs {
+                            if node.id.name == fl!("game") {
+                                node.set_open(true);
+                                for widget in &node.widgets {
+                                    if widget.id().name == "World Visual Code" {
+                                        found = Some(widget.id().clone());
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        found
+                    };
+                    if let Some(id) = target_id {
+                        tree_layout.new_item_selected(id);
+                    }
+                }
+                ProjectContext::WorldCode => {
+                    let target_id = {
+                        let mut found: Option<TheId> = None;
+                        for node in &mut tree_layout.get_root().childs {
+                            if node.id.name == fl!("game") {
+                                node.set_open(true);
+                                for widget in &node.widgets {
+                                    if widget.id().name == "World Code" {
                                         found = Some(widget.id().clone());
                                         break;
                                     }

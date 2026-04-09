@@ -129,6 +129,27 @@ impl Parser {
             .consume(TokenType::Identifier, "Expect variable name", line)?
             .lexeme;
 
+        let mut field_path = vec![];
+        if self.check(TokenType::Dot) {
+            field_path = self.get_field_path_at_current();
+        }
+
+        if !field_path.is_empty() {
+            self.consume(TokenType::Equal, "Expected '=' after variable name", line)?;
+            let initializer = self.expression()?;
+            return Ok(Stmt::Expression(
+                Box::new(Expr::VariableAssignment(
+                    var_name,
+                    AssignmentOperator::Assign,
+                    vec![],
+                    field_path,
+                    Box::new(initializer),
+                    self.create_loc(line),
+                )),
+                self.create_loc(line),
+            ));
+        }
+
         if self.scope == VariableScope::Global {
             _ = self.verifier.define_var(&var_name, false)?;
             if !self.globals_map.contains_key(&var_name) {
@@ -1093,6 +1114,8 @@ impl Parser {
                     || token.lexeme == "normal"
                     || token.lexeme == "hitpoint"
                     || token.lexeme == "time"
+                    || token.lexeme == "world"
+                    || token.lexeme == "region"
                 {
                     Ok(Expr::Variable(
                         token.lexeme.clone(),
@@ -1212,7 +1235,7 @@ impl Parser {
     pub fn get_field_path_at_current(&mut self) -> Vec<String> {
         let mut path: Vec<String> = vec![];
 
-        if self.current + 1 < self.tokens.len()
+        while self.current + 1 < self.tokens.len()
             && self.tokens[self.current].kind == TokenType::Dot
             && self.tokens[self.current + 1].kind == TokenType::Identifier
         {

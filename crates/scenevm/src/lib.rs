@@ -52,7 +52,10 @@ pub mod prelude {
         bbox2d::BBox2D,
         camera3d::{Camera3D, CameraKind},
         chunk::Chunk,
-        core::{Atom, GeoId, LayerBlendMode, LineStrip2D, RenderMode, VMDebugStats},
+        core::{
+            Atom, GeoId, LayerBlendMode, LineStrip2D, PaletteRemap2DMode, RenderMode,
+            VMDebugStats,
+        },
         dynamic::{AlphaMode, DynamicKind, DynamicMeshVertex, DynamicObject, RepeatMode},
         intodata::IntoDataInput,
         light::{Light, LightType},
@@ -105,7 +108,9 @@ pub use crate::{
     bbox2d::BBox2D,
     camera3d::{Camera3D, CameraKind},
     chunk::Chunk,
-    core::{Atom, GeoId, LayerBlendMode, LineStrip2D, RenderMode, VMDebugStats},
+    core::{
+        Atom, GeoId, LayerBlendMode, LineStrip2D, PaletteRemap2DMode, RenderMode, VMDebugStats,
+    },
     dynamic::{AlphaMode, DynamicKind, DynamicMeshVertex, DynamicObject, RepeatMode},
     intodata::IntoDataInput,
     light::{Light, LightType},

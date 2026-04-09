@@ -209,6 +209,16 @@ impl Sidebar {
         config_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
         config_node.add_widget(Box::new(config_item));
 
+        let mut world_visual_item = TheTreeItem::new(TheId::named("World Visual Code"));
+        world_visual_item.set_text("World / Visual Scripting".to_string());
+        world_visual_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        config_node.add_widget(Box::new(world_visual_item));
+
+        let mut world_code_item = TheTreeItem::new(TheId::named("World Code"));
+        world_code_item.set_text("World / Eldrin Scripting".to_string());
+        world_code_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        config_node.add_widget(Box::new(world_code_item));
+
         let mut rules_item = TheTreeItem::new(TheId::named("Game Rules"));
         rules_item.set_text("Rules".to_string());
         rules_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
@@ -2849,6 +2859,28 @@ impl Sidebar {
                     let _ = crate::utils::update_region_settings(project, server_ctx);
                     self.apply_region(ui, ctx, Some(id.references), project);
                     redraw = true;
+                } else if id.name == "Region Visual Code Item" {
+                    server_ctx.editing_pos_buffer = None;
+                    server_ctx.curr_region = id.references;
+                    set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::RegionVisualCode(id.references),
+                    );
+                    redraw = true;
+                } else if id.name == "Region Code Item" {
+                    server_ctx.editing_pos_buffer = None;
+                    server_ctx.curr_region = id.references;
+                    set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::RegionCode(id.references),
+                    );
+                    redraw = true;
                 } else if id.name == "Character Item" {
                     if let Some(_) = project.characters.get(&id.references) {
                         server_ctx.curr_character =
@@ -3137,6 +3169,24 @@ impl Sidebar {
                         project,
                         server_ctx,
                         ProjectContext::ProjectSettings,
+                    );
+                    redraw = true;
+                } else if id.name == "World Visual Code" {
+                    set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::WorldVisualCode,
+                    );
+                    redraw = true;
+                } else if id.name == "World Code" {
+                    set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::WorldCode,
                     );
                     redraw = true;
                 } else if id.name == "Game Rules" {

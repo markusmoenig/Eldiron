@@ -15,7 +15,7 @@ use rayon::prelude::*;
 use crate::Command;
 use crate::EntityAction;
 use crate::prelude::*;
-use crate::server::message::AudioCommand;
+use crate::server::message::{AudioCommand, PaletteRemap2DState, RuntimeRenderState};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use theframework::prelude::*;
 
@@ -61,6 +61,8 @@ pub struct Server {
     pub says: FxHashMap<u32, Vec<Say>>,
     pub multiple_choice: FxHashMap<u32, Vec<MultipleChoice>>,
     pub audio_commands: FxHashMap<u32, Vec<AudioCommand>>,
+    pub world_render: RuntimeRenderState,
+    pub region_render: FxHashMap<u32, RuntimeRenderState>,
     pub times: FxHashMap<u32, TheTime>,
 
     pub state: ServerState,
@@ -97,6 +99,8 @@ impl Server {
             says: FxHashMap::default(),
             multiple_choice: FxHashMap::default(),
             audio_commands: FxHashMap::default(),
+            world_render: RuntimeRenderState::default(),
+            region_render: FxHashMap::default(),
             times: FxHashMap::default(),
 
             state: ServerState::Off,
@@ -275,6 +279,18 @@ impl Server {
         None
     }
 
+    /// Get the effective runtime render state for the given region.
+    pub fn get_render_state(&self, region_id: &Uuid) -> RuntimeRenderState {
+        self.region_id_map
+            .get(region_id)
+            .map(|region_id| {
+                self.world_render
+                    .clone()
+                    .merged(self.region_render.get(region_id).cloned())
+            })
+            .unwrap_or_else(|| self.world_render.clone())
+    }
+
     /// Set the current time for the given region.
     pub fn set_time(&mut self, region_id: &Uuid, time: TheTime) -> TheTime {
         if let Some(region_id) = self.region_id_map.get(region_id) {
@@ -407,6 +423,64 @@ impl Server {
                         } else {
                             self.audio_commands.insert(region_id, vec![cmd]);
                         }
+                    }
+                    RegionMessage::SetPaletteRemap2D(region_id, start_index, end_index, mode) => {
+                        let state = self
+                            .region_render
+                            .entry(region_id)
+                            .or_insert_with(RuntimeRenderState::default);
+                        let palette = state
+                            .palette_remap
+                            .get_or_insert_with(PaletteRemap2DState::default);
+                        palette.start_index = start_index.min(255);
+                        palette.end_index = end_index.min(255);
+                        palette.mode = mode;
+                    }
+                    RegionMessage::SetPaletteRemap2DBlend(region_id, blend) => {
+                        let state = self
+                            .region_render
+                            .entry(region_id)
+                            .or_insert_with(RuntimeRenderState::default);
+                        let palette = state
+                            .palette_remap
+                            .get_or_insert_with(PaletteRemap2DState::default);
+                        palette.blend = blend.clamp(0.0, 1.0);
+                    }
+                    RegionMessage::SetWorldPaletteRemap2D(start_index, end_index, mode) => {
+                        let palette = self
+                            .world_render
+                            .palette_remap
+                            .get_or_insert_with(PaletteRemap2DState::default);
+                        palette.start_index = start_index.min(255);
+                        palette.end_index = end_index.min(255);
+                        palette.mode = mode;
+                    }
+                    RegionMessage::SetWorldPaletteRemap2DBlend(blend) => {
+                        let palette = self
+                            .world_render
+                            .palette_remap
+                            .get_or_insert_with(PaletteRemap2DState::default);
+                        palette.blend = blend.clamp(0.0, 1.0);
+                    }
+                    RegionMessage::SetRenderValue(region_id, name, value) => {
+                        let state = self
+                            .region_render
+                            .entry(region_id)
+                            .or_insert_with(RuntimeRenderState::default);
+                        state.render.set(&name, value);
+                    }
+                    RegionMessage::SetWorldRenderValue(name, value) => {
+                        self.world_render.render.set(&name, value);
+                    }
+                    RegionMessage::SetPostValue(region_id, name, value) => {
+                        let state = self
+                            .region_render
+                            .entry(region_id)
+                            .or_insert_with(RuntimeRenderState::default);
+                        state.post.set(&name, value);
+                    }
+                    RegionMessage::SetWorldPostValue(name, value) => {
+                        self.world_render.post.set(&name, value);
                     }
                     RegionMessage::Time(id, time) => {
                         self.times.insert(id, time);
@@ -668,6 +742,8 @@ impl Server {
         self.messages.clear();
         self.says.clear();
         self.audio_commands.clear();
+        self.world_render = RuntimeRenderState::default();
+        self.region_render.clear();
         self.id_gen = 1;
         self.region_id_map.clear();
         self.region_name_id_map.clear();

@@ -43,6 +43,11 @@ pub struct CellItem {
 }
 
 impl CellItem {
+    fn display_variable_name(name: &str) -> String {
+        name.replace(".palette_remap.", ".pal.")
+            .replace(".background_color_2d", ".bg_2d")
+    }
+
     pub fn new(cell: Cell) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -126,14 +131,11 @@ impl CellItem {
         let rounding = 2.0 * zoom;
         match &self.cell {
             Cell::Variable(name) => {
+                let display_name = Self::display_variable_name(name);
                 let text = match self.option {
-                    1 => {
-                        format!("First({})", name)
-                    }
-                    2 => {
-                        format!("Length({})", name)
-                    }
-                    _ => self.cell.to_string(),
+                    1 => format!("First({})", display_name),
+                    2 => format!("Length({})", display_name),
+                    _ => display_name,
                 };
                 ctx.draw.rounded_rect(
                     buffer.pixels_mut(),
@@ -424,8 +426,60 @@ impl CellItem {
         let large_font_size = 14.0;
         let mut size = Vec2::new(30, 50);
         match &self.cell {
-            Variable(_) | Integer(_) | Float(_) | Str(_) | Boolean(_) | Textures(_)
-            | PaletteColor(_) | Value(_) => {
+            Variable(name) => {
+                let display_name = Self::display_variable_name(name);
+                let text = match self.option {
+                    1 => format!("First({})", display_name),
+                    2 => format!("Length({})", display_name),
+                    _ => display_name,
+                };
+                size.x = ctx
+                    .draw
+                    .get_text_size(
+                        &text,
+                        &TheFontSettings {
+                            size: font_size,
+                            ..Default::default()
+                        },
+                    )
+                    .0 as u32
+                    + 20;
+                size.x = size.x.min(200);
+
+                if !self.description.is_empty() {
+                    let desc = ctx
+                        .draw
+                        .get_text_size(
+                            &self.description,
+                            &TheFontSettings {
+                                size: font_size,
+                                ..Default::default()
+                            },
+                        )
+                        .0 as u32
+                        + 10;
+                    size.x = size.x.max(desc);
+                }
+
+                if let Some(debug) = debug
+                    && let Some(value) = debug.get_value(id, event, pos.0, pos.1)
+                {
+                    let desc = ctx
+                        .draw
+                        .get_text_size(
+                            &value.describe(),
+                            &TheFontSettings {
+                                size: font_size,
+                                ..Default::default()
+                            },
+                        )
+                        .0 as u32
+                        + 20;
+                    size.x = size.x.max(desc);
+                }
+            }
+            Integer(_) | Float(_) | Str(_) | Boolean(_) | Textures(_) | PaletteColor(_)
+            | Value(_) => {
                 let text = match self.option {
                     1 => {
                         format!("First({})", self.cell.to_string())

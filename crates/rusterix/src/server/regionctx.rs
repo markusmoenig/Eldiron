@@ -2,10 +2,22 @@ use crate::prelude::*;
 use crate::vm::{Program, VMValue};
 use crate::{CollisionWorld, MapMini, PlayerCamera};
 use crossbeam_channel::{Receiver, Sender};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock, OnceLock, RwLock};
 use theframework::prelude::*;
 use toml::Table;
 use uuid::Uuid;
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScriptScope {
+    #[default]
+    Entity,
+    Item,
+    Region,
+    World,
+}
+
+static WORLD_STATE: LazyLock<RwLock<ValueContainer>> =
+    LazyLock::new(|| RwLock::new(ValueContainer::default()));
 
 #[derive(Default)]
 pub struct RegionCtx {
@@ -32,6 +44,7 @@ pub struct RegionCtx {
 
     pub curr_entity_id: u32,
     pub curr_item_id: Option<u32>,
+    pub current_script_scope: ScriptScope,
 
     pub entity_classes: FxHashMap<u32, String>,
     pub item_classes: FxHashMap<u32, String>,
@@ -48,12 +61,15 @@ pub struct RegionCtx {
 
     pub entity_state_data: FxHashMap<u32, ValueContainer>,
     pub item_state_data: FxHashMap<u32, ValueContainer>,
+    pub region_state: ValueContainer,
 
     pub to_execute_entity: Vec<(u32, String, VMValue)>,
     pub to_execute_item: Vec<(u32, String, VMValue)>,
 
     pub entity_programs: FxHashMap<String, Arc<Program>>,
     pub item_programs: FxHashMap<String, Arc<Program>>,
+    pub world_program: Option<Arc<Program>>,
+    pub region_program: Option<Arc<Program>>,
 
     pub error_count: u32,
     pub startup_errors: Vec<String>,
@@ -77,6 +93,33 @@ pub struct RegionCtx {
 }
 
 impl RegionCtx {
+    pub fn clear_world_state() {
+        if let Ok(mut state) = WORLD_STATE.write() {
+            *state = ValueContainer::default();
+        }
+    }
+
+    pub fn get_world_value(key: &str) -> Option<Value> {
+        WORLD_STATE
+            .read()
+            .ok()
+            .and_then(|state| state.get(key).cloned())
+    }
+
+    pub fn set_world_value(key: &str, value: Value) {
+        if let Ok(mut state) = WORLD_STATE.write() {
+            state.set(key, value);
+        }
+    }
+
+    pub fn get_region_value(&self, key: &str) -> Option<Value> {
+        self.region_state.get(key).cloned()
+    }
+
+    pub fn set_region_value(&mut self, key: &str, value: Value) {
+        self.region_state.set(key, value);
+    }
+
     fn nearest_sector_id_for_pos(&self, pos: Vec2<f32>, max_distance: f32) -> Option<u32> {
         let mut best: Option<(u32, f32)> = None;
 

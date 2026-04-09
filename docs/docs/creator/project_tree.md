@@ -15,6 +15,17 @@ Regions are the maps in your game which define the world, dungeons and towns.
 
 You use the [geometry tools](tools/overview#map-tool-specifics) to create geometry for the regions. Regions can be viewed using a **2D** or various **3D** cameras.
 
+Each region also has its own script entries in the tree:
+
+- **Visual Scripting** for graph-based region logic.
+- **Eldrin Scripting** for text-based region logic.
+
+These region scripts are the right place for map-local behavior and runtime overrides, for example:
+
+- region-specific palette remapping
+- local fog or background overrides
+- region-only quest or event coordination
+
 ## Characters
 
 A **character template** is a reusable blueprint that defines the **behavior, attributes, and appearance** of a character in the game.
@@ -90,10 +101,14 @@ Shows the colors of your palette. Use the palette based **Actions** to clear or 
 In the game section you can select:
 
 - **Settings**. Edit your game settings, see all supported settings in the [reference](../reference/configuration).
+- **World / Visual Scripting**. Edit graph-based world/global logic.
+- **World / Eldrin Scripting**. Edit text-based world/global logic.
 - **Authoring**. Edit global text-adventure and authoring behavior like startup text and sector description policies, see [Authoring Configuration](../configuration/authoring).
 - **Rules**. Edit project-wide gameplay rules and formulas in a TOML-based data editor, see [Rules](../rules).
 - **Locales**. Edit shared localization tables like `[en]` and `[de]` in a TOML-based data editor, see [Localization](../localization).
 - **Audio FX**. Edit generated micro sound effects in a TOML-based data editor with built-in preview, see [Audio](../audio).
 - **Debug Log**. Displays state during game play, important especially to diagnose server startup or runtime errors. Shown by default after starting the game server.
+
+Use the **world** scripts for global state that should survive across regions, and use the **region** scripts for state and behavior local to one map.
 
 For editing per-sector, per-linedef, per-entity, and per-item narrative metadata inside regions, see [Authoring](./authoring).

@@ -85,10 +85,25 @@ impl TerminalApp {
 
         insert_content_into_maps_mode(&mut self.project, debug);
 
+        if !self.project.world_module.routines.is_empty() {
+            if self.project.world_source.is_empty() {
+                self.project.world_source = self.project.world_module.build(false);
+            }
+            if debug {
+                self.project.world_source_debug = self.project.world_module.build(true);
+            }
+        }
+
         self.assets.rules = self.project.rules.clone();
         self.assets.locales_src = self.project.locales.clone();
         self.assets.audio_fx_src = self.project.audio_fx.clone();
         self.assets.authoring_src = self.project.authoring.clone();
+        self.assets.world_source = if debug && !self.project.world_source_debug.is_empty() {
+            self.project.world_source_debug.clone()
+        } else {
+            self.project.world_source.clone()
+        };
+        self.assets.region_sources.clear();
         self.assets.read_locales();
 
         self.assets.entities.clear();
@@ -166,6 +181,22 @@ impl TerminalApp {
         }
 
         for region in &mut self.project.regions {
+            if !region.module.routines.is_empty() {
+                if region.source.is_empty() {
+                    region.source = region.module.build(false);
+                }
+                if debug {
+                    region.source_debug = region.module.build(true);
+                }
+            }
+            self.assets.region_sources.insert(
+                region.map.id,
+                if debug && !region.source_debug.is_empty() {
+                    region.source_debug.clone()
+                } else {
+                    region.source.clone()
+                },
+            );
             self.server.create_region_instance(
                 region.name.clone(),
                 region.map.clone(),

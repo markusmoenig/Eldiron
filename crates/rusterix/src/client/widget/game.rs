@@ -815,7 +815,9 @@ impl GameWidget {
             .execute(scenevm::Atom::SetRenderMode(scenevm_mode_2d));
 
         scene_handler.settings.apply_hour(hour);
+        scene_handler.apply_runtime_render_state_settings();
         scene_handler.settings.apply_2d(&mut scene_handler.vm);
+        scene_handler.apply_runtime_render_state_2d();
 
         scene_handler
             .vm
@@ -919,7 +921,9 @@ impl GameWidget {
 
         scene_handler.settings.apply_hour(hour);
         scene_handler.apply_dungeon_render_overrides(map);
+        scene_handler.apply_runtime_render_state_settings();
         scene_handler.settings.apply_3d(&mut scene_handler.vm);
+        scene_handler.apply_runtime_render_state_3d();
 
         scene_handler
             .vm

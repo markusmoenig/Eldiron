@@ -183,7 +183,7 @@ pub use crate::{
         entity::EntityUpdate,
         item::{Item, ItemUpdate},
         message::EntityAction,
-        message::{Choice, MultipleChoice, PlayerCamera, RegionMessage},
+        message::{Choice, MultipleChoice, PaletteRemap2DState, PlayerCamera, RegionMessage},
         region::RegionInstance,
         regionctx::RegionCtx,
     },
@@ -219,7 +219,7 @@ pub mod prelude {
     };
     pub use crate::{
         Assets, Choice, Currencies, Currency, Entity, EntityUpdate, Item, ItemUpdate,
-        MultipleChoice, RegionInstance, RegionMessage, Server, Wallet,
+        MultipleChoice, PaletteRemap2DState, RegionInstance, RegionMessage, Server, Wallet,
     };
     pub use crate::{BLACK, Pixel, TRANSPARENT, WHITE};
     pub use crate::{Batch2D, Batch3D, CullMode, GeometrySource, PrimitiveMode};

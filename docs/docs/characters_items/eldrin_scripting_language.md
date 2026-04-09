@@ -72,6 +72,13 @@ Events are chained to break complex tasks into small, manageable chunks.
 
 All supported event types are listed in the [Events](events) chapter.
 
+The same `fn event(event, value)` entry point is also used by:
+
+- **world scripts** under **Game / World / Eldrin Scripting**
+- **region scripts** under each **Region / Eldrin Scripting**
+
+Use world scripts for global state and region scripts for map-local state.
+
 ## Values
 
 Values in **Eldrin Script** are represented by a built-in data container called a **Packet**.
@@ -166,3 +173,53 @@ if event == "close_door" {
     }
 }
 ```
+
+## Runtime Render And Post State
+
+World and region scripts can write runtime render state through namespaced variables.
+
+Example:
+
+```eldrin
+fn event(event, value) {
+    if event == "startup" {
+        let world.render.pal.start = 0;
+        let world.render.pal.end = 9;
+        let world.render.pal.mode = "nearest";
+        let world.render.pal.blend = 1.0;
+
+        let region.render.background_color_2d = "#272744";
+        let region.render.fog_color = "#20242c";
+        let region.render.fog_density = 5.0;
+
+        let world.post.enabled = true;
+        let world.post.tone_mapper = "aces";
+        let world.post.exposure = 0.9;
+        let world.post.saturation = 0.7;
+    }
+}
+```
+
+The most commonly used paths are:
+
+- `world.render.pal.start`
+- `world.render.pal.end`
+- `world.render.pal.mode`
+- `world.render.pal.blend`
+- `world.render.background_color_2d`
+- `world.render.fog_color`
+- `world.render.fog_density`
+- `world.post.enabled`
+- `world.post.tone_mapper`
+- `world.post.exposure`
+- `world.post.gamma`
+- `world.post.saturation`
+- `world.post.luminance`
+
+Every `world.*` path also exists as `region.*`.
+
+Render and post values are resolved in this order:
+
+1. Project configuration defaults
+2. World script overrides
+3. Region script overrides

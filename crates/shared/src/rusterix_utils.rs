@@ -8,10 +8,24 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.server.log_changed = true;
 
     insert_content_into_maps_mode(project, debug);
+    if !project.world_module.routines.is_empty() {
+        if project.world_source.is_empty() {
+            project.world_source = project.world_module.build(false);
+        }
+        if debug {
+            project.world_source_debug = project.world_module.build(true);
+        }
+    }
     rusterix.assets.rules = project.rules.clone();
     rusterix.assets.locales_src = project.locales.clone();
     rusterix.assets.audio_fx_src = project.audio_fx.clone();
     rusterix.assets.authoring_src = project.authoring.clone();
+    if debug && !project.world_source_debug.is_empty() {
+        rusterix.assets.world_source = project.world_source_debug.clone();
+    } else {
+        rusterix.assets.world_source = project.world_source.clone();
+    }
+    rusterix.assets.region_sources.clear();
     rusterix.assets.read_locales();
 
     // Characters
@@ -90,6 +104,23 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
 
     // Create the regions
     for region in &mut project.regions {
+        if !region.module.routines.is_empty() {
+            if region.source.is_empty() {
+                region.source = region.module.build(false);
+            }
+            if debug {
+                region.source_debug = region.module.build(true);
+            }
+        }
+        let region_source = if debug && !region.source_debug.is_empty() {
+            region.source_debug.clone()
+        } else {
+            region.source.clone()
+        };
+        rusterix
+            .assets
+            .region_sources
+            .insert(region.map.id, region_source);
         rusterix.server.create_region_instance(
             region.name.clone(),
             region.map.clone(),
@@ -143,10 +174,12 @@ pub fn warmup_runtime(rusterix: &mut Rusterix, project: &mut Project, ticks: usi
 /// Setup the client
 pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Command> {
     rusterix.assets.config = project.config.clone();
+    rusterix.assets.world_source = project.world_source.clone();
     rusterix.assets.rules = project.rules.clone();
     rusterix.assets.locales_src = project.locales.clone();
     rusterix.assets.audio_fx_src = project.audio_fx.clone();
     rusterix.assets.authoring_src = project.authoring.clone();
+    rusterix.assets.region_sources.clear();
     rusterix.assets.read_locales();
     rusterix.assets.palette = project.palette.clone();
     rusterix.assets.maps.clear();
@@ -155,6 +188,10 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
             .assets
             .maps
             .insert(region.map.name.clone(), region.map.clone());
+        rusterix
+            .assets
+            .region_sources
+            .insert(region.map.id, region.source.clone());
     }
     rusterix.assets.screens.clear();
     for (_, screen) in &project.screens {
