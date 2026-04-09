@@ -9,6 +9,7 @@
 - Improved 2D avatar rendering stability and added `size_2d` for character avatars, allowing 2D-only avatar scaling without affecting the 3D `size` billboard scale.
 - Added **World** and **Region** scripting entries to the project tree, plus runtime `world.*` / `region.*` render and post overrides for palette remap, fog, background, and related visual settings.
 - Added automatic item drag-and-drop between world, inventory/equipment slots, and terrain in both 2D and 3D game views.
+- Added the first expandable party-bound UI layer for screens, including `party` widget bindings, portrait button support via `portrait_tile_id`, and party-aware inventory/equipment slot interaction without breaking existing player-bound screens.
 
 ### Bug Fixes
 
@@ -18,6 +19,7 @@
 
 - Added docs for `background_color_2d`, `screen_background`, and the new `size_2d` character attribute.
 - Added docs for the new world/region scripting tree items and the `world.render.*`, `region.render.*`, `world.post.*`, and `region.post.*` runtime override paths.
+- Added docs for party-bound screen widgets, portrait buttons, and the new `party_index`, `party_role`, and `portrait_tile_id` character attributes.
 
 ---
 

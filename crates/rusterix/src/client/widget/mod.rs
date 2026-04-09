@@ -27,8 +27,10 @@ pub struct Widget {
     pub camera: Option<PlayerCamera>,
     pub player_camera: Option<PlayerCamera>,
     pub camera_target: Option<String>,
+    pub party: Option<String>,
     pub inventory_index: Option<usize>,
     pub equipped_slot: Option<String>,
+    pub portrait: bool,
     pub drag_drop: bool,
     pub textures: Vec<Texture>,
     pub entity_cursor_id: Option<Uuid>,
@@ -61,8 +63,10 @@ impl Widget {
             camera: None,
             player_camera: None,
             camera_target: None,
+            party: None,
             inventory_index: None,
             equipped_slot: None,
+            portrait: false,
             drag_drop: false,
             textures: vec![],
             entity_cursor_id: None,
@@ -79,7 +83,7 @@ impl Widget {
         buffer: &mut TheRGBABuffer,
         _map: &Map,
         assets: &Assets,
-        entity: &Entity,
+        entity: Option<&Entity>,
         draw2d: &Draw2D,
         animation_frame: &usize,
         texture_index: usize,
@@ -104,18 +108,42 @@ impl Widget {
             );
         }
 
+        let entity = entity;
         let item_to_draw = if let Some(inventory_index) = &self.inventory_index {
-            entity
+            entity.and_then(|entity| {
+                entity
                 .inventory
                 .get(*inventory_index)
                 .and_then(|item| item.as_ref())
+            })
         } else if let Some(slot) = &self.equipped_slot {
-            entity.get_equipped_item(slot)
+            entity.and_then(|entity| entity.get_equipped_item(slot))
         } else {
             None
         };
 
-        if let Some(item) = item_to_draw
+        if self.portrait
+            && let Some(entity) = entity
+            && let Some(tile) = Self::portrait_tile_for_entity(entity, assets)
+        {
+            let index = *animation_frame % tile.textures.len();
+            let rect = self.rect.with_border(4.0);
+            draw2d.blend_scale_chunk(
+                buffer.pixels_mut(),
+                &(
+                    rect.x as usize,
+                    rect.y as usize,
+                    rect.width as usize,
+                    rect.height as usize,
+                ),
+                stride,
+                &tile.textures[index].data,
+                &(
+                    tile.textures[index].width as usize,
+                    tile.textures[index].height as usize,
+                ),
+            );
+        } else if let Some(item) = item_to_draw
             && let Some(Value::Source(source)) = item.attributes.get("source")
             && let Some(tile) = source.tile_from_tile_list(assets)
         {
@@ -152,5 +180,19 @@ impl Widget {
                 self.border_size as usize,
             );
         }
+    }
+
+    fn portrait_tile_for_entity(entity: &Entity, assets: &Assets) -> Option<crate::Tile> {
+        if let Some(source) = entity.attributes.get_source("portrait_tile_id") {
+            return source.tile_from_tile_list(assets);
+        }
+        if let Some(id) = entity.attributes.get_id("portrait_tile_id") {
+            return assets.tiles.get(&id).cloned();
+        }
+        entity
+            .attributes
+            .get_str("portrait_tile_id")
+            .and_then(|value| Uuid::parse_str(value.trim()).ok())
+            .and_then(|id| assets.tiles.get(&id).cloned())
     }
 }

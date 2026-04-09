@@ -805,6 +805,7 @@ fn trigger_text_intent(
                         distance
                     },
                     Some(intent.trim().to_string()),
+                    None,
                 ));
         }
     }

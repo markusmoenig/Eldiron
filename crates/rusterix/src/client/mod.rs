@@ -144,6 +144,7 @@ pub struct Client {
 
     // Dragged inventory/equipped item id
     dragging_item_id: Option<u32>,
+    dragging_item_owner_entity_id: Option<u32>,
     dragging_source_widget_id: Option<u32>,
     dragging_item_from_world: bool,
     dragging_started: bool,
@@ -359,6 +360,7 @@ impl Client {
 
             hover_distance: f32::MAX,
             dragging_item_id: None,
+            dragging_item_owner_entity_id: None,
             dragging_source_widget_id: None,
             dragging_item_from_world: false,
             dragging_started: false,
@@ -1199,26 +1201,18 @@ impl Client {
         choices: Vec<crate::MultipleChoice>,
         scene_handler: &mut SceneHandler,
     ) {
-        let mut player_entity = Entity::default();
-
         // Keep scene timing in sync with config
         scene_handler.set_timings(self.target_fps as f32, self.game_tick_ms);
 
         // Reset the intent to the server value
         self.current_sector.clear();
-        for entity in map.entities.iter() {
-            if entity.is_player() {
-                self.intent = entity.get_attr_string("intent").unwrap_or_default();
-                self.current_sector = entity
-                    .get_attr_string("sector")
-                    .filter(|s| !s.is_empty())
-                    .or_else(|| {
-                        map.find_sector_at(entity.get_pos_xz())
-                            .map(|s| s.name.clone())
-                    })
-                    .unwrap_or_default();
-                player_entity = entity.clone();
-            }
+        if let Some(leader) = Self::resolve_party_entity(map, Some("leader")) {
+            self.intent = leader.get_attr_string("intent").unwrap_or_default();
+            self.current_sector = leader
+                .get_attr_string("sector")
+                .filter(|s| !s.is_empty())
+                .or_else(|| map.find_sector_at(leader.get_pos_xz()).map(|s| s.name.clone()))
+                .unwrap_or_default();
         }
 
         self.target.fill([0, 0, 0, 255]);
@@ -1409,7 +1403,8 @@ impl Client {
             });
 
             if !hide {
-                widget.update_draw(&mut self.target, assets, &player_entity, &self.draw2d);
+                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                widget.update_draw(&mut self.target, assets, entity, &self.draw2d);
             }
         }
 
@@ -1425,11 +1420,12 @@ impl Client {
             });
 
             if !hide {
+                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
                 widget.update_draw(
                     &mut self.target,
                     map,
                     assets,
-                    &player_entity,
+                    entity,
                     &self.draw2d,
                     &self.animation_frame,
                     if self.activated_widgets.contains(&widget.id) {
@@ -1443,7 +1439,7 @@ impl Client {
 
         // Drag preview icon for inventory/equipped drag & drop.
         if self.dragging_started && self.dragging_item_id.is_some() {
-            let dragged_item = self.find_dragged_item(map, &player_entity);
+            let dragged_item = self.find_dragged_item(map);
             if let Some(item) = dragged_item
                 && let Some(Value::Source(source)) = item.attributes.get("source")
                 && let Some(tile) = source.tile_from_tile_list(assets)
@@ -1683,20 +1679,13 @@ impl Client {
         let say_bg_enabled = self.get_say_background_enabled();
         let say_bg_color = self.get_say_background_color();
 
-        let mut player_entity = Entity::default();
-        for entity in &map.entities {
-            if entity.is_player() {
-                self.intent = entity.get_attr_string("intent").unwrap_or_default();
-                self.current_sector = entity
-                    .get_attr_string("sector")
-                    .filter(|s| !s.is_empty())
-                    .or_else(|| {
-                        map.find_sector_at(entity.get_pos_xz())
-                            .map(|s| s.name.clone())
-                    })
-                    .unwrap_or_default();
-                player_entity = entity.clone();
-            }
+        if let Some(leader) = Self::resolve_party_entity(map, Some("leader")) {
+            self.intent = leader.get_attr_string("intent").unwrap_or_default();
+            self.current_sector = leader
+                .get_attr_string("sector")
+                .filter(|s| !s.is_empty())
+                .or_else(|| map.find_sector_at(leader.get_pos_xz()).map(|s| s.name.clone()))
+                .unwrap_or_default();
         }
 
         if let Some(screen) = assets.screens.get(&self.current_screen)
@@ -1867,7 +1856,8 @@ impl Client {
             });
 
             if !hide {
-                widget.update_draw(&mut self.overlay, assets, &player_entity, &self.draw2d);
+                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                widget.update_draw(&mut self.overlay, assets, entity, &self.draw2d);
             }
         }
 
@@ -1882,11 +1872,12 @@ impl Client {
             });
 
             if !hide {
+                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
                 widget.update_draw(
                     &mut self.overlay,
                     map,
                     assets,
-                    &player_entity,
+                    entity,
                     &self.draw2d,
                     &self.animation_frame,
                     if self.activated_widgets.contains(&widget.id) {
@@ -1899,7 +1890,7 @@ impl Client {
         }
 
         if self.dragging_started && self.dragging_item_id.is_some() {
-            let dragged_item = self.find_dragged_item(map, &player_entity);
+            let dragged_item = self.find_dragged_item(map);
             if let Some(item) = dragged_item
                 && let Some(Value::Source(source)) = item.attributes.get("source")
                 && let Some(tile) = source.tile_from_tile_list(assets)
@@ -2081,6 +2072,67 @@ impl Client {
         })
     }
 
+    fn party_members<'a>(map: &'a Map) -> Vec<&'a Entity> {
+        let mut members: Vec<&Entity> = map
+            .entities
+            .iter()
+            .filter(|entity| {
+                entity.is_player()
+                    || entity.attributes.get_int("party_index").is_some()
+                    || entity.attributes.get_bool_default("party_member", false)
+                    || entity
+                        .attributes
+                        .get_str("party_role")
+                        .is_some_and(|role| !role.trim().is_empty())
+            })
+            .collect();
+
+        if members.is_empty() {
+            if let Some(player) = map.entities.iter().find(|entity| entity.is_player()) {
+                members.push(player);
+            }
+        }
+
+        members.sort_by_key(|entity| {
+            (
+                entity.attributes.get_int("party_index").unwrap_or_else(|| {
+                    if entity.is_player() {
+                        0
+                    } else {
+                        i32::MAX / 2
+                    }
+                }),
+                entity.id,
+            )
+        });
+        members
+    }
+
+    fn resolve_party_entity<'a>(map: &'a Map, binding: Option<&str>) -> Option<&'a Entity> {
+        let binding = binding.map(str::trim).filter(|value| !value.is_empty());
+        let members = Self::party_members(map);
+
+        match binding {
+            None | Some("leader") | Some("player") => members.first().copied(),
+            Some(value) => {
+                if let Some(index) = value.strip_prefix("party.")
+                    && let Ok(index) = index.parse::<usize>()
+                {
+                    return members.get(index).copied();
+                }
+
+                members
+                    .iter()
+                    .copied()
+                    .find(|entity| {
+                        entity.attributes.get_str("party_role") == Some(value)
+                            || entity.attributes.get_str("name") == Some(value)
+                    })
+                    .or_else(|| members.first().copied())
+            }
+        }
+    }
+
     fn item_click_distance(map: &Map, item_id: u32) -> f32 {
         let Some(player_pos) = map
             .entities
@@ -2098,13 +2150,26 @@ impl Client {
             .unwrap_or(0.0)
     }
 
-    fn find_dragged_item<'a>(&self, map: &'a Map, player_entity: &'a Entity) -> Option<&'a Item> {
-        self.dragging_item_id.and_then(|item_id| {
-            player_entity
+    fn find_dragged_item<'a>(&self, map: &'a Map) -> Option<&'a Item> {
+        let item_id = self.dragging_item_id?;
+
+        if let Some(owner_id) = self.dragging_item_owner_entity_id
+            && let Some(owner) = map.entities.iter().find(|entity| entity.id == owner_id)
+            && let Some(item) = owner
                 .get_item(item_id)
-                .or_else(|| player_entity.equipped.values().find(|item| item.id == item_id))
-                .or_else(|| map.items.iter().find(|item| item.id == item_id))
-        })
+                .or_else(|| owner.equipped.values().find(|item| item.id == item_id))
+        {
+            return Some(item);
+        }
+
+        map.entities
+            .iter()
+            .find_map(|entity| {
+                entity
+                    .get_item(item_id)
+                    .or_else(|| entity.equipped.values().find(|item| item.id == item_id))
+            })
+            .or_else(|| map.items.iter().find(|item| item.id == item_id))
     }
 
     fn drag_distance_exceeded(&self, p: Vec2<i32>) -> bool {
@@ -2207,15 +2272,15 @@ impl Client {
                 }
 
                 let mut has_item = false;
-                if let Some(player) = map.entities.iter().find(|e| e.is_player()) {
+                if let Some(entity) = Self::resolve_party_entity(map, widget.party.as_deref()) {
                     if let Some(inventory_index) = widget.inventory_index {
-                        has_item = player
+                        has_item = entity
                             .inventory
                             .get(inventory_index)
                             .and_then(|item| item.as_ref())
                             .is_some();
                     } else if let Some(slot) = &widget.equipped_slot {
-                        has_item = player.get_equipped_item(slot).is_some();
+                        has_item = entity.get_equipped_item(slot).is_some();
                     }
                 }
 
@@ -2348,6 +2413,7 @@ impl Client {
         let mut render_camera_switches: Vec<(Option<String>, PlayerCamera)> = Vec::new();
         let active_intent = self.get_current_intent_for_action();
         self.dragging_item_id = None;
+        self.dragging_item_owner_entity_id = None;
         self.dragging_source_widget_id = None;
         self.dragging_item_from_world = false;
         self.dragging_started = false;
@@ -2376,6 +2442,7 @@ impl Client {
                     item_id, coord.x, coord.y
                 );
                 self.dragging_item_id = Some(item_id);
+                self.dragging_item_owner_entity_id = None;
                 self.dragging_item_from_world = true;
                 self.drag_start_pos = self.screen_to_viewport(coord);
                 return None;
@@ -2384,6 +2451,7 @@ impl Client {
                 item_id,
                 self.hover_distance,
                 self.get_current_intent_for_action(),
+                None,
             ));
         }
 
@@ -2394,10 +2462,9 @@ impl Client {
                 self.activated_widgets.push(*id);
 
                 if widget.drag_drop {
-                    for entity in map.entities.iter() {
-                        if !entity.is_player() {
-                            continue;
-                        }
+                    if let Some(entity) =
+                        Self::resolve_party_entity(map, widget.party.as_deref())
+                    {
                         if let Some(inventory_index) = &widget.inventory_index
                             && let Some(item) = entity
                                 .inventory
@@ -2405,6 +2472,7 @@ impl Client {
                                 .and_then(|item| item.as_ref())
                         {
                             self.dragging_item_id = Some(item.id);
+                            self.dragging_item_owner_entity_id = Some(entity.id);
                             self.dragging_source_widget_id = Some(*id);
                             self.drag_start_pos = p;
                             return None;
@@ -2413,6 +2481,7 @@ impl Client {
                             && let Some(item) = entity.get_equipped_item(slot)
                         {
                             self.dragging_item_id = Some(item.id);
+                            self.dragging_item_owner_entity_id = Some(entity.id);
                             self.dragging_source_widget_id = Some(*id);
                             self.drag_start_pos = p;
                             return None;
@@ -2452,10 +2521,7 @@ impl Client {
                         self.widgets_to_hide.retain(|x| x != s);
                     }
                 }
-                for entity in map.entities.iter() {
-                    if !entity.is_player() {
-                        continue;
-                    }
+                if let Some(entity) = Self::resolve_party_entity(map, widget.party.as_deref()) {
                     if let Some(inventory_index) = &widget.inventory_index
                         && let Some(item) = entity
                             .inventory
@@ -2466,18 +2532,19 @@ impl Client {
                             item.id,
                             0.0,
                             active_intent.clone(),
+                            Some(entity.id),
                         ));
-                        break;
                     }
-                    if let Some(slot) = &widget.equipped_slot
+                    if action.is_none()
+                        && let Some(slot) = &widget.equipped_slot
                         && let Some(item) = entity.get_equipped_item(slot)
                     {
                         action = Some(EntityAction::ItemClicked(
                             item.id,
                             0.0,
                             active_intent.clone(),
+                            Some(entity.id),
                         ));
-                        break;
                     }
                 }
 
@@ -2551,6 +2618,7 @@ impl Client {
                                 })
                         {
                             self.dragging_item_id = Some(item.id);
+                            self.dragging_item_owner_entity_id = None;
                             self.dragging_item_from_world = true;
                             self.drag_start_pos = self.screen_to_viewport(coord);
                             return None;
@@ -2576,7 +2644,7 @@ impl Client {
                             let item_pos = item.get_pos_xz();
                             if tile_pos == Self::quantize_2d_tile_pos(item_pos) {
                                 let distance = player_pos.distance(item_pos);
-                                return Some(EntityAction::ItemClicked(item.id, distance, None));
+                                return Some(EntityAction::ItemClicked(item.id, distance, None, None));
                             }
                         }
 
@@ -2606,6 +2674,7 @@ impl Client {
     pub fn touch_up(&mut self, coord: Vec2<i32>, map: &Map) -> Option<EntityAction> {
         let mut action = None;
         let dragged_item_id = self.dragging_item_id;
+        let dragged_item_owner_entity_id = self.dragging_item_owner_entity_id;
         let dragged_source_widget_id = self.dragging_source_widget_id;
         let dragged_item_from_world = self.dragging_item_from_world;
         let p = self.screen_to_viewport(coord);
@@ -2618,6 +2687,7 @@ impl Client {
                         item_id,
                         Self::item_click_distance(map, item_id),
                         self.get_current_intent_for_action(),
+                        None,
                     ));
                 } else if let Some(source_id) = dragged_source_widget_id
                     && let Some(widget) = self.button_widgets.get(&source_id)
@@ -2627,6 +2697,7 @@ impl Client {
                         item_id,
                         0.0,
                         self.get_current_intent_for_action(),
+                        dragged_item_owner_entity_id,
                     ));
                 }
             } else {
@@ -2635,9 +2706,13 @@ impl Client {
                     {
                         continue;
                     }
+                    let target_entity_id = Self::resolve_party_entity(map, widget.party.as_deref())
+                        .map(|entity| entity.id);
                     if let Some(target_index) = widget.inventory_index {
                         action = Some(EntityAction::MoveItem {
                             item_id,
+                            owner_entity_id: dragged_item_owner_entity_id,
+                            target_entity_id,
                             to_inventory_index: Some(target_index),
                             to_equipped_slot: None,
                         });
@@ -2646,6 +2721,8 @@ impl Client {
                     if let Some(target_slot) = &widget.equipped_slot {
                         action = Some(EntityAction::MoveItem {
                             item_id,
+                            owner_entity_id: dragged_item_owner_entity_id,
+                            target_entity_id,
                             to_inventory_index: None,
                             to_equipped_slot: Some(target_slot.clone()),
                         });
@@ -2656,11 +2733,16 @@ impl Client {
                     && !dragged_item_from_world
                     && let Some(position) = self.drop_position_at_viewport(p)
                 {
-                    action = Some(EntityAction::DropItemAt { item_id, position });
+                    action = Some(EntityAction::DropItemAt {
+                        item_id,
+                        owner_entity_id: dragged_item_owner_entity_id,
+                        position,
+                    });
                 }
             }
         }
         self.dragging_item_id = None;
+        self.dragging_item_owner_entity_id = None;
         self.dragging_source_widget_id = None;
         self.dragging_item_from_world = false;
         self.dragging_started = false;
@@ -2985,8 +3067,10 @@ impl Client {
                             let mut camera: Option<PlayerCamera> = None;
                             let mut player_camera: Option<PlayerCamera> = None;
                             let mut camera_target: Option<String> = None;
+                            let mut party: Option<String> = None;
                             let mut inventory_index: Option<usize> = None;
                             let mut equipped_slot: Option<String> = None;
+                            let mut portrait = false;
                             let mut drag_drop = false;
 
                             let mut entity_cursor_id = None;
@@ -3092,6 +3176,14 @@ impl Client {
                                     camera_target = Some(v.to_string());
                                 }
 
+                                if let Some(value) = ui.get("party").and_then(toml::Value::as_str)
+                                {
+                                    let binding = value.trim();
+                                    if !binding.is_empty() {
+                                        party = Some(binding.to_string());
+                                    }
+                                }
+
                                 // Check for active
                                 if let Some(value) = ui.get("active") {
                                     if let Some(v) = value.as_bool()
@@ -3123,6 +3215,11 @@ impl Client {
                                     && let Some(v) = value.as_bool()
                                 {
                                     drag_drop = v;
+                                }
+                                if let Some(value) = ui.get("portrait")
+                                    && let Some(v) = value.as_bool()
+                                {
+                                    portrait = v;
                                 }
 
                                 if inventory_index.is_some() || equipped_slot.is_some() {
@@ -3167,8 +3264,10 @@ impl Client {
                                 camera,
                                 player_camera,
                                 camera_target,
+                                party,
                                 inventory_index,
                                 equipped_slot,
+                                portrait,
                                 drag_drop,
                                 textures,
                                 entity_cursor_id,

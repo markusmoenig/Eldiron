@@ -14,6 +14,8 @@ Other game-level TOML documents are edited separately:
 - **Game -> Locales**: [Localization](../localization)
 - **Game -> Audio FX**: [Audio](../audio)
 
+For party-bound UI such as portraits, equipped hand slots, or member-specific inventory widgets, see [Screen Widgets](../screens/widgets) and the character [Attributes](../characters_items/attributes).
+
 ---
 
 ## Game Configuration

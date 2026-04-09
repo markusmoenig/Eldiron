@@ -92,6 +92,8 @@ In the HUD you can select between two icons per sector:
 - **spell** - Spell template name used when `intent = "spell"`. Clicking a character casts that spell at the clicked target.
 - **inventory_index** - Draw and interact with the inventory item at that slot using the intent.
 - **equipped_slot** - Draw and interact with the equipped item in that slot (for example `main_hand`, `off_hand`) using the intent.
+- **party** - Optional UI binding target for this widget. If omitted, Eldiron uses the current **leader** for backward compatibility. Supported values today are `leader`, `party.0`, `party.1`, ... and named bindings that match a character's `party_role` or `name`.
+- **portrait** - If `true`, the button draws the bound character's `portrait_tile_id` instead of an inventory/equipped item.
 - **drag_drop** - Enable drag-and-drop interaction for this inventory/equipped slot button.
 - **show / hide** - Toggle specific widgets when clicked.
 - **deactivate** - Turn off other buttons when clicked.
@@ -112,25 +114,35 @@ The following attributes are valid for 3D scenes only. They enable `intent` butt
 
 ### Drag And Drop Slots
 
-Set `drag_drop = true` on buttons that represent `inventory_index` or `equipped_slot` to enable slot drag-and-drop.
+Buttons that represent `inventory_index` or `equipped_slot` automatically enable drag-and-drop unless you explicitly set `drag_drop = false`.
 
 - Click/release on the same slot still triggers normal intent handling (for example `look`).
 - Dragging an item and releasing on another slot moves or swaps items.
 - Dropping onto an equipped slot is validated against the item's `slot` attribute.
 - Incompatible equipment drops are ignored (for example `main_hand` item into `off_hand` slot).
+- World items can also be dragged directly into slot widgets.
+- Dragging an owned item out of a slot and onto terrain drops it into the world.
+- Slot widgets can bind to different party members using `party`.
 
 ```toml
 [ui]
 role = "button"
 inventory_index = 0
-drag_drop = true
+party = "leader"
 ```
 
 ```toml
 [ui]
 role = "button"
 equipped_slot = "main_hand"
-drag_drop = true
+party = "party.1"
+```
+
+```toml
+[ui]
+role = "button"
+portrait = true
+party = "leader"
 ```
 
 ---
@@ -146,8 +158,10 @@ See the list of available actions [here](/docs/reference/scripting_client#action
 role = "button"
 action = "forward"
 # intent = "talk"
+# party = "leader"
 # inventory_index = 0
 # equipped_slot = "main_hand"
+# portrait = true
 # border_size = 1
 # border_color = "#888888"
 ```
@@ -211,7 +225,8 @@ This uses the same avatar colorization pipeline as runtime avatars and can optio
 
 ### UI Section
 
-- **avatar** - Avatar name to preview (for example `"Human"`). If omitted, the player avatar is used.
+- **avatar** - Avatar name to preview (for example `"Human"`). If omitted, the bound character avatar is used.
+- **party** - Optional binding target for the avatar widget. If omitted, Eldiron uses the current leader.
 - **animation** - Optional animation name (for example `"Idle"`). If omitted, the current avatar animation is used.
 - **frame_index** - Frame index to render (defaults to `0`).
 - **perspective** - Optional direction: `front`, `back`, `left`, `right` (defaults to `front`).
@@ -222,12 +237,26 @@ This uses the same avatar colorization pipeline as runtime avatars and can optio
 ```toml
 [ui]
 role = "avatar"
-avatar = "Human"
+party = "leader"
+# avatar = "Human"
 animation = "Idle"
 frame_index = 0
 # perspective = "front"
 # show_weapons = true
 ```
+
+### Party Binding
+
+Screen widgets that show character-related content can bind to a party target with `ui.party`.
+
+Supported values today:
+
+- `leader` - the default binding used by existing projects
+- `party.0`, `party.1`, ... - bind by party index
+- a character `party_role`
+- a character `name`
+
+This system is intentionally expandable. Current projects continue to work because omitted `party` still resolves to the leader/current player path.
 
 ---
 

@@ -153,8 +153,8 @@ pub enum EntityAction {
     ForwardRight,
     BackwardLeft,
     BackwardRight,
-    // Item clicked, item id, click distance and optional explicit intent
-    ItemClicked(u32, f32, Option<String>),
+    // Item clicked, item id, click distance, optional explicit intent and optional owner entity
+    ItemClicked(u32, f32, Option<String>, Option<u32>),
     // Entity clicked, entity id, click distance and optional explicit intent
     EntityClicked(u32, f32, Option<String>),
     // Terrain clicked
@@ -190,12 +190,15 @@ pub enum EntityAction {
     /// Move an item (inventory/equipped drag & drop).
     MoveItem {
         item_id: u32,
+        owner_entity_id: Option<u32>,
+        target_entity_id: Option<u32>,
         to_inventory_index: Option<usize>,
         to_equipped_slot: Option<String>,
     },
     /// Drop an owned item onto terrain/world at a specific position.
     DropItemAt {
         item_id: u32,
+        owner_entity_id: Option<u32>,
         position: Vec2<f32>,
     },
     /// A multiple choice item was selected by the user

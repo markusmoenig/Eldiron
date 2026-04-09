@@ -78,6 +78,15 @@ Screens in *Eldiron* define the visible user interface of your game. Paint backg
 
 See the **Working with Screens** chapter (coming soon).
 
+Screen widgets can now bind character-facing UI to a party target instead of being hardcoded to the current player. This is used for things like:
+
+- equipped hand slots for different party members
+- inventory slot widgets bound to one member
+- portrait buttons using a character's `portrait_tile_id`
+- avatar preview widgets bound to `leader` or `party.N`
+
+See [Widgets](../screens/widgets) for the `party` and `portrait` widget settings.
+
 ## Assets
 
 Assets you added for your game will be listed here. Currently supported assets:

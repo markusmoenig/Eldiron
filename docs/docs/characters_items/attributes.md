@@ -127,6 +127,47 @@ inventory_slots = 8
 
 ---
 
+## `party_index`
+
+*Character-only attribute.*
+
+Optional UI/runtime party order for party-bound screen widgets.
+Lower numbers come first, so `0` is typically the leader.
+
+```toml
+party_index = 0
+```
+
+---
+
+## `party_role`
+
+*Character-only attribute.*
+
+Optional named role used by party-bound screen widgets.
+This is useful for stable bindings such as `"leader"`, `"tank"`, or `"healer"`.
+
+```toml
+party_role = "leader"
+```
+
+---
+
+## `portrait_tile_id`
+
+*Character-only attribute.*
+
+Static portrait tile used by screen button widgets with `portrait = true`.
+This is separate from runtime `avatar` rendering and is intended for classic portrait/head UI graphics.
+
+You can store it as a tile id / UUID source the same way other tile-based attributes are authored.
+
+```toml
+portrait_tile_id = "01234567-89ab-cdef-0123-456789abcdef"
+```
+
+---
+
 ## `facing`
 
 *Character-only attribute.*
