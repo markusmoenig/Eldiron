@@ -140,10 +140,12 @@ pub struct Client {
 
     // Hover distance
     hover_distance: f32,
+    hovered_world_pos: Option<Vec3<f32>>,
 
     // Dragged inventory/equipped item id
     dragging_item_id: Option<u32>,
     dragging_source_widget_id: Option<u32>,
+    dragging_item_from_world: bool,
     dragging_started: bool,
     drag_start_pos: Vec2<i32>,
 }
@@ -353,10 +355,12 @@ impl Client {
             cursor_pos: Vec2::zero(),
             hovered_entity_id: None,
             hovered_item_id: None,
+            hovered_world_pos: None,
 
             hover_distance: f32::MAX,
             dragging_item_id: None,
             dragging_source_widget_id: None,
+            dragging_item_from_world: false,
             dragging_started: false,
             drag_start_pos: Vec2::zero(),
         }
@@ -1438,15 +1442,8 @@ impl Client {
         }
 
         // Drag preview icon for inventory/equipped drag & drop.
-        if self.dragging_started
-            && let Some(item_id) = self.dragging_item_id
-        {
-            let dragged_item = player_entity.get_item(item_id).or_else(|| {
-                player_entity
-                    .equipped
-                    .values()
-                    .find(|item| item.id == item_id)
-            });
+        if self.dragging_started && self.dragging_item_id.is_some() {
+            let dragged_item = self.find_dragged_item(map, &player_entity);
             if let Some(item) = dragged_item
                 && let Some(Value::Source(source)) = item.attributes.get("source")
                 && let Some(tile) = source.tile_from_tile_list(assets)
@@ -1901,15 +1898,8 @@ impl Client {
             }
         }
 
-        if self.dragging_started
-            && let Some(item_id) = self.dragging_item_id
-        {
-            let dragged_item = player_entity.get_item(item_id).or_else(|| {
-                player_entity
-                    .equipped
-                    .values()
-                    .find(|item| item.id == item_id)
-            });
+        if self.dragging_started && self.dragging_item_id.is_some() {
+            let dragged_item = self.find_dragged_item(map, &player_entity);
             if let Some(item) = dragged_item
                 && let Some(Value::Source(source)) = item.attributes.get("source")
                 && let Some(tile) = source.tile_from_tile_list(assets)
@@ -2084,6 +2074,67 @@ impl Client {
         Vec2::new(x, y)
     }
 
+    fn has_drag_drop_targets(&self) -> bool {
+        self.button_widgets.values().any(|widget| {
+            widget.drag_drop
+                && (widget.inventory_index.is_some() || widget.equipped_slot.is_some())
+        })
+    }
+
+    fn item_click_distance(map: &Map, item_id: u32) -> f32 {
+        let Some(player_pos) = map
+            .entities
+            .iter()
+            .find(|entity| entity.is_player())
+            .map(|entity| entity.get_pos_xz())
+        else {
+            return 0.0;
+        };
+
+        map.items
+            .iter()
+            .find(|item| item.id == item_id)
+            .map(|item| player_pos.distance(item.get_pos_xz()))
+            .unwrap_or(0.0)
+    }
+
+    fn find_dragged_item<'a>(&self, map: &'a Map, player_entity: &'a Entity) -> Option<&'a Item> {
+        self.dragging_item_id.and_then(|item_id| {
+            player_entity
+                .get_item(item_id)
+                .or_else(|| player_entity.equipped.values().find(|item| item.id == item_id))
+                .or_else(|| map.items.iter().find(|item| item.id == item_id))
+        })
+    }
+
+    fn drag_distance_exceeded(&self, p: Vec2<i32>) -> bool {
+        (p - self.drag_start_pos).map(|v| v as f32).magnitude() >= 6.0
+    }
+
+    fn quantize_2d_tile_pos(pos: Vec2<f32>) -> Vec2<f32> {
+        Vec2::new(pos.x.trunc(), pos.y.trunc())
+    }
+
+    fn drop_position_at_viewport(&self, p: Vec2<i32>) -> Option<Vec2<f32>> {
+        for widget in self.game_widgets.values() {
+            if !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
+                continue;
+            }
+            if Self::is_2d_camera(&widget.camera) {
+                let dx = p.x as f32 - widget.rect.x;
+                let dy = p.y as f32 - widget.rect.y;
+                let gx = widget.top_left.x + dx / widget.grid_size;
+                let gy = widget.top_left.y + dy / widget.grid_size;
+                return Some(Vec2::new(gx, gy));
+            }
+
+            if let Some(world_pos) = self.hovered_world_pos {
+                return Some(Vec2::new(world_pos.x, world_pos.z));
+            }
+        }
+        None
+    }
+
     /// Check if a screen coordinate is inside the game viewport area.
     pub fn is_inside_game(&self, coord: Vec2<i32>) -> bool {
         let p = self.screen_to_viewport(coord);
@@ -2100,9 +2151,32 @@ impl Client {
         let p = self.screen_to_viewport(coord);
         self.cursor_pos = p;
         if self.dragging_item_id.is_some() && !self.dragging_started {
-            let d = (p - self.drag_start_pos).map(|v| v as f32).magnitude();
-            if d >= 6.0 {
+            if self.drag_distance_exceeded(p) {
                 self.dragging_started = true;
+            }
+        }
+
+        if self.dragging_item_id.is_some() {
+            self.hovered_world_pos = None;
+            for widget in self.game_widgets.values() {
+                if !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32))
+                    || Self::is_2d_camera(&widget.camera)
+                {
+                    continue;
+                }
+                let dx = p.x as f32 - widget.rect.x;
+                let dy = p.y as f32 - widget.rect.y;
+                let screen_uv = Vec2::new(dx / widget.rect.width, dy / widget.rect.height);
+                if let Some((_, world_pos, _)) = _scene_handler.vm.pick_geo_id_at_uv(
+                    widget.rect.width as u32,
+                    widget.rect.height as u32,
+                    [screen_uv.x, screen_uv.y],
+                    false,
+                    true,
+                ) {
+                    self.hovered_world_pos = Some(world_pos);
+                }
+                break;
             }
         }
     }
@@ -2120,6 +2194,7 @@ impl Client {
         self.curr_cursor = self.default_cursor;
         self.hovered_entity_id = None;
         self.hovered_item_id = None;
+        self.hovered_world_pos = None;
         self.curr_intent_cursor = None;
         self.curr_clicked_intent_cursor = None;
         self.hover_distance = f32::MAX;
@@ -2168,13 +2243,14 @@ impl Client {
                 if !Self::is_2d_camera(&widget.camera) {
                     // We cast a ray into the game view and get the GeoId
                     let screen_uv = Vec2::new(dx / widget.rect.width, dy / widget.rect.height);
-                    if let Some((geoid, _, distance)) = scene_handler.vm.pick_geo_id_at_uv(
+                    if let Some((geoid, world_pos, distance)) = scene_handler.vm.pick_geo_id_at_uv(
                         widget.rect.width as u32,
                         widget.rect.height as u32,
                         [screen_uv.x, screen_uv.y],
                         false,
                         true,
                     ) {
+                        self.hovered_world_pos = Some(world_pos);
                         match geoid {
                             GeoId::Character(entity_id) => {
                                 self.hovered_entity_id = Some(entity_id);
@@ -2273,6 +2349,7 @@ impl Client {
         let active_intent = self.get_current_intent_for_action();
         self.dragging_item_id = None;
         self.dragging_source_widget_id = None;
+        self.dragging_item_from_world = false;
         self.dragging_started = false;
 
         // Adjust cursor
@@ -2291,8 +2368,18 @@ impl Client {
             ));
         }
 
-        // If we hovered over an item in 3D, send an explicit ItemClicked intent
+        // If we hovered over an item in 3D, send an explicit ItemClicked intent or start a drag
         if let Some(item_id) = self.hovered_item_id {
+            if self.has_drag_drop_targets() {
+                eprintln!(
+                    "[client:touch_down] 3d world-item drag start item_id={} coord=({}, {})",
+                    item_id, coord.x, coord.y
+                );
+                self.dragging_item_id = Some(item_id);
+                self.dragging_item_from_world = true;
+                self.drag_start_pos = self.screen_to_viewport(coord);
+                return None;
+            }
             return Some(EntityAction::ItemClicked(
                 item_id,
                 self.hover_distance,
@@ -2302,7 +2389,6 @@ impl Client {
 
         // Transform screen coordinates to viewport coordinates
         let p = self.screen_to_viewport(coord);
-
         for (id, widget) in self.button_widgets.iter() {
             if widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
                 self.activated_widgets.push(*id);
@@ -2453,15 +2539,31 @@ impl Client {
                         let gy = widget.top_left.y + dy / widget.grid_size;
 
                         let pos = Vec2::new(gx, gy);
+                        let tile_pos = Self::quantize_2d_tile_pos(pos);
+
+                        // In 2D, items often share a tile with the player or another entity.
+                        // When drag-drop targets exist, prefer starting an item drag before
+                        // the broader entity click path consumes the cell.
+                        if self.has_drag_drop_targets()
+                            && let Some(item) =
+                                map.items.iter().find(|item| {
+                                    tile_pos == Self::quantize_2d_tile_pos(item.get_pos_xz())
+                                })
+                        {
+                            self.dragging_item_id = Some(item.id);
+                            self.dragging_item_from_world = true;
+                            self.drag_start_pos = self.screen_to_viewport(coord);
+                            return None;
+                        }
 
                         for entity in map.entities.iter() {
                             if entity.attributes.get_str_default("mode", "active".into()) == "dead"
                             {
                                 continue;
                             }
-                            let p = entity.get_pos_xz();
-                            if pos.floor() == p.floor() {
-                                let distance = player_pos.distance(p);
+                            let entity_pos = entity.get_pos_xz();
+                            if tile_pos == Self::quantize_2d_tile_pos(entity_pos) {
+                                let distance = player_pos.distance(entity_pos);
                                 return Some(EntityAction::EntityClicked(
                                     entity.id,
                                     distance,
@@ -2471,18 +2573,18 @@ impl Client {
                         }
 
                         for item in map.items.iter() {
-                            let p = item.get_pos_xz();
-                            if pos.floor() == p.floor() {
-                                let distance = player_pos.distance(p);
+                            let item_pos = item.get_pos_xz();
+                            if tile_pos == Self::quantize_2d_tile_pos(item_pos) {
+                                let distance = player_pos.distance(item_pos);
                                 return Some(EntityAction::ItemClicked(item.id, distance, None));
                             }
                         }
 
                         // Try entities again but include dead ones too
                         for entity in map.entities.iter() {
-                            let p = entity.get_pos_xz();
-                            if pos.floor() == p.floor() {
-                                let distance = player_pos.distance(p);
+                            let entity_pos = entity.get_pos_xz();
+                            if tile_pos == Self::quantize_2d_tile_pos(entity_pos) {
+                                let distance = player_pos.distance(entity_pos);
                                 return Some(EntityAction::EntityClicked(
                                     entity.id,
                                     distance,
@@ -2491,7 +2593,7 @@ impl Client {
                             }
                         }
 
-                        return Some(EntityAction::TerrainClicked(pos));
+                        return Some(EntityAction::TerrainClicked(tile_pos));
                     }
                 }
             }
@@ -2501,16 +2603,23 @@ impl Client {
     }
 
     /// Click / touch up event
-    pub fn touch_up(&mut self, coord: Vec2<i32>, _map: &Map) -> Option<EntityAction> {
+    pub fn touch_up(&mut self, coord: Vec2<i32>, map: &Map) -> Option<EntityAction> {
         let mut action = None;
         let dragged_item_id = self.dragging_item_id;
         let dragged_source_widget_id = self.dragging_source_widget_id;
-        let dragging_started = self.dragging_started;
+        let dragged_item_from_world = self.dragging_item_from_world;
         let p = self.screen_to_viewport(coord);
+        let dragging_started = self.dragging_started || self.drag_distance_exceeded(p);
 
         if let Some(item_id) = dragged_item_id {
             if !dragging_started {
-                if let Some(source_id) = dragged_source_widget_id
+                if dragged_item_from_world {
+                    action = Some(EntityAction::ItemClicked(
+                        item_id,
+                        Self::item_click_distance(map, item_id),
+                        self.get_current_intent_for_action(),
+                    ));
+                } else if let Some(source_id) = dragged_source_widget_id
                     && let Some(widget) = self.button_widgets.get(&source_id)
                     && widget.rect.contains(Vec2::new(p.x as f32, p.y as f32))
                 {
@@ -2543,10 +2652,17 @@ impl Client {
                         break;
                     }
                 }
+                if action.is_none()
+                    && !dragged_item_from_world
+                    && let Some(position) = self.drop_position_at_viewport(p)
+                {
+                    action = Some(EntityAction::DropItemAt { item_id, position });
+                }
             }
         }
         self.dragging_item_id = None;
         self.dragging_source_widget_id = None;
+        self.dragging_item_from_world = false;
         self.dragging_started = false;
 
         self.activated_widgets = self.permanently_activated_widgets.clone();
@@ -3007,6 +3123,13 @@ impl Client {
                                     && let Some(v) = value.as_bool()
                                 {
                                     drag_drop = v;
+                                }
+
+                                if inventory_index.is_some() || equipped_slot.is_some() {
+                                    drag_drop = ui
+                                        .get("drag_drop")
+                                        .and_then(toml::Value::as_bool)
+                                        .unwrap_or(true);
                                 }
 
                                 // Check for the entity / item cursor ids

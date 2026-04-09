@@ -2519,6 +2519,11 @@ impl RegionInstance {
                             );
                         });
                     }
+                    DropItemAt { item_id, position } => {
+                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            _ = drop_item_for_entity_at(ctx, entity_id, item_id, Some(position));
+                        });
+                    }
                     Choice(choice) => match &choice {
                         Choice::ItemToSell(item_id, seller_id, buyer_id) => {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {
@@ -7946,12 +7951,28 @@ fn update_spell_items(ctx: &mut RegionCtx) {
 }
 
 fn drop_item_for_entity(ctx: &mut RegionCtx, entity_id: u32, item_id: u32) -> bool {
+    drop_item_for_entity_at(ctx, entity_id, item_id, None)
+}
+
+fn quantize_item_drop_position(pos: Vec2<f32>) -> Vec2<f32> {
+    Vec2::new(pos.x.floor() + 0.5, pos.y.floor() + 0.5)
+}
+
+fn drop_item_for_entity_at(
+    ctx: &mut RegionCtx,
+    entity_id: u32,
+    item_id: u32,
+    drop_position_override: Option<Vec2<f32>>,
+) -> bool {
     let drop_position = ctx
         .map
         .entities
         .iter()
         .find(|entity| entity.id == entity_id)
         .map(|entity| entity.get_pos_xz());
+    let final_drop_position = drop_position_override
+        .or(drop_position)
+        .map(quantize_item_drop_position);
 
     if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
         // Drop from inventory.
@@ -7962,9 +7983,13 @@ fn drop_item_for_entity(ctx: &mut RegionCtx, entity_id: u32, item_id: u32) -> bo
                 return false;
             }
             item.position = entity.position;
+            if let Some(drop_position) = final_drop_position {
+                item.position.x = drop_position.x;
+                item.position.z = drop_position.y;
+            }
             item.mark_all_dirty();
             ctx.map.items.push(item);
-            if let Some(drop_position) = drop_position {
+            if let Some(drop_position) = final_drop_position {
                 ctx.send_item_drop_message_for_position(drop_position, 1);
             }
             return true;
@@ -7985,9 +8010,13 @@ fn drop_item_for_entity(ctx: &mut RegionCtx, entity_id: u32, item_id: u32) -> bo
                 return false;
             }
             item.position = entity.position;
+            if let Some(drop_position) = final_drop_position {
+                item.position.x = drop_position.x;
+                item.position.z = drop_position.y;
+            }
             item.mark_all_dirty();
             ctx.map.items.push(item);
-            if let Some(drop_position) = drop_position {
+            if let Some(drop_position) = final_drop_position {
                 ctx.send_item_drop_message_for_position(drop_position, 1);
             }
             return true;
@@ -8003,15 +8032,18 @@ fn move_item_for_entity(
     to_inventory_index: Option<usize>,
     to_equipped_slot: Option<String>,
 ) -> bool {
+    #[derive(Clone)]
     enum Source {
         Inventory(usize),
         Equipped(String),
+        World(usize),
     }
 
-    let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) else {
+    let Some(entity_index) = ctx.map.entities.iter().position(|entity| entity.id == entity_id) else {
         return false;
     };
 
+    let entity = &ctx.map.entities[entity_index];
     let source = if let Some(slot) = entity.get_item_slot(item_id) {
         Source::Inventory(slot)
     } else if let Some(slot) = entity.equipped.iter().find_map(|(slot, item)| {
@@ -8022,9 +8054,17 @@ fn move_item_for_entity(
         }
     }) {
         Source::Equipped(slot)
+    } else if let Some(index) = ctx
+        .map
+        .items
+        .iter()
+        .position(|item| item.id == item_id && !item.attributes.get_bool_default("static", false))
+    {
+        Source::World(index)
     } else {
         return false;
     };
+    let from_world = matches!(source, Source::World(_));
 
     let moving_item_slot = match &source {
         Source::Inventory(source_index) => entity
@@ -8036,6 +8076,12 @@ fn move_item_for_entity(
         Source::Equipped(source_slot) => entity
             .equipped
             .get(source_slot)
+            .and_then(|item| item.attributes.get_str("slot"))
+            .map(|slot| slot.trim().to_ascii_lowercase()),
+        Source::World(source_index) => ctx
+            .map
+            .items
+            .get(*source_index)
             .and_then(|item| item.attributes.get_str("slot"))
             .map(|slot| slot.trim().to_ascii_lowercase()),
     };
@@ -8050,6 +8096,12 @@ fn move_item_for_entity(
         Source::Equipped(source_slot) => entity
             .equipped
             .get(source_slot)
+            .map(|item| item.attributes.get_bool_default("is_spell", false))
+            .unwrap_or(false),
+        Source::World(source_index) => ctx
+            .map
+            .items
+            .get(*source_index)
             .map(|item| item.attributes.get_bool_default("is_spell", false))
             .unwrap_or(false),
     };
@@ -8067,14 +8119,27 @@ fn move_item_for_entity(
             return true;
         }
 
+        if from_world
+            && entity.inventory.get(target_index).and_then(|item| item.as_ref()).is_some()
+            && !entity
+                .inventory
+                .iter()
+                .enumerate()
+                .any(|(index, item)| index != target_index && item.is_none())
+        {
+            return false;
+        }
+
         let moving = match &source {
-            Source::Inventory(source_index) => entity.remove_item_from_slot(*source_index),
-            Source::Equipped(source_slot) => entity.unequip_item(source_slot).ok(),
+            Source::Inventory(source_index) => ctx.map.entities[entity_index].remove_item_from_slot(*source_index),
+            Source::Equipped(source_slot) => ctx.map.entities[entity_index].unequip_item(source_slot).ok(),
+            Source::World(source_index) => Some(ctx.map.items.remove(*source_index)),
         };
         let Some(moving) = moving else {
             return false;
         };
 
+        let entity = &mut ctx.map.entities[entity_index];
         let displaced = entity.remove_item_from_slot(target_index);
         entity.inventory[target_index] = Some(moving.clone());
         entity.inventory_additions.insert(target_index, moving);
@@ -8082,18 +8147,31 @@ fn move_item_for_entity(
         entity.dirty_flags |= 0b1000;
 
         if let Some(displaced) = displaced {
-            match source {
+            match &source {
                 Source::Inventory(source_index) => {
-                    entity.inventory[source_index] = Some(displaced.clone());
-                    entity.inventory_additions.insert(source_index, displaced);
-                    entity.inventory_removals.remove(&source_index);
+                    entity.inventory[*source_index] = Some(displaced.clone());
+                    entity.inventory_additions.insert(*source_index, displaced);
+                    entity.inventory_removals.remove(source_index);
                     entity.dirty_flags |= 0b1000;
                 }
                 Source::Equipped(source_slot) => {
-                    entity.equipped.insert(source_slot, displaced);
+                    entity.equipped.insert(source_slot.clone(), displaced);
                     entity.dirty_flags |= 0b10000;
                 }
+                Source::World(_) => {
+                    if entity.add_item(displaced).is_err() {
+                        return false;
+                    }
+                }
             }
+        }
+
+        if from_world {
+            ctx.from_sender
+                .get()
+                .unwrap()
+                .send(RegionMessage::RemoveItem(ctx.region_id, item_id))
+                .unwrap();
         }
         return true;
     }
@@ -8109,31 +8187,53 @@ fn move_item_for_entity(
             return true;
         }
 
+        if from_world
+            && entity.get_equipped_item(&target_slot).is_some()
+            && !entity.inventory.iter().any(|item| item.is_none())
+        {
+            return false;
+        }
+
         let moving = match &source {
-            Source::Inventory(source_index) => entity.remove_item_from_slot(*source_index),
-            Source::Equipped(source_slot) => entity.unequip_item(source_slot).ok(),
+            Source::Inventory(source_index) => ctx.map.entities[entity_index].remove_item_from_slot(*source_index),
+            Source::Equipped(source_slot) => ctx.map.entities[entity_index].unequip_item(source_slot).ok(),
+            Source::World(source_index) => Some(ctx.map.items.remove(*source_index)),
         };
         let Some(moving) = moving else {
             return false;
         };
 
+        let entity = &mut ctx.map.entities[entity_index];
         let displaced = entity.unequip_item(&target_slot).ok();
         entity.equipped.insert(target_slot, moving);
         entity.dirty_flags |= 0b10000;
 
         if let Some(displaced) = displaced {
-            match source {
+            match &source {
                 Source::Inventory(source_index) => {
-                    entity.inventory[source_index] = Some(displaced.clone());
-                    entity.inventory_additions.insert(source_index, displaced);
-                    entity.inventory_removals.remove(&source_index);
+                    entity.inventory[*source_index] = Some(displaced.clone());
+                    entity.inventory_additions.insert(*source_index, displaced);
+                    entity.inventory_removals.remove(source_index);
                     entity.dirty_flags |= 0b1000;
                 }
                 Source::Equipped(source_slot) => {
-                    entity.equipped.insert(source_slot, displaced);
+                    entity.equipped.insert(source_slot.clone(), displaced);
                     entity.dirty_flags |= 0b10000;
                 }
+                Source::World(_) => {
+                    if entity.add_item(displaced).is_err() {
+                        return false;
+                    }
+                }
             }
+        }
+
+        if from_world {
+            ctx.from_sender
+                .get()
+                .unwrap()
+                .send(RegionMessage::RemoveItem(ctx.region_id, item_id))
+                .unwrap();
         }
         return true;
     }

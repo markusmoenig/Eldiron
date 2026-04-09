@@ -193,6 +193,11 @@ pub enum EntityAction {
         to_inventory_index: Option<usize>,
         to_equipped_slot: Option<String>,
     },
+    /// Drop an owned item onto terrain/world at a specific position.
+    DropItemAt {
+        item_id: u32,
+        position: Vec2<f32>,
+    },
     /// A multiple choice item was selected by the user
     Choice(Choice),
 }

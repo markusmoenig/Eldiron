@@ -155,10 +155,10 @@ impl Tool for GameTool {
                 let mut rusterix = RUSTERIX.write().unwrap();
                 let is_running = rusterix.server.state == rusterix::ServerState::Running;
 
-                let is_inside = rusterix.client.is_inside_game(coord);
-                if is_running && is_inside {
-                    ctx.set_cursor_visible(false);
+                if is_running {
                     rusterix.client_touch_dragged(coord, map);
+                    let is_inside = rusterix.client.is_inside_game(coord);
+                    ctx.set_cursor_visible(!is_inside);
                 } else {
                     ctx.set_cursor_visible(true);
                 }

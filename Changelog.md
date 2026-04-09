@@ -8,6 +8,7 @@
 - Added configurable 2D viewport and screen background colors via `background_color_2d` and `screen_background`.
 - Improved 2D avatar rendering stability and added `size_2d` for character avatars, allowing 2D-only avatar scaling without affecting the 3D `size` billboard scale.
 - Added **World** and **Region** scripting entries to the project tree, plus runtime `world.*` / `region.*` render and post overrides for palette remap, fog, background, and related visual settings.
+- Added automatic item drag-and-drop between world, inventory/equipment slots, and terrain in both 2D and 3D game views.
 
 ### Bug Fixes
 
