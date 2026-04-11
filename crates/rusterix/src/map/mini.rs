@@ -94,6 +94,45 @@ impl MapMini {
         true
     }
 
+    /// Tile-grid LOS using authored 2D blocking tiles.
+    /// The target tile itself stays visible even if it is blocking.
+    pub fn is_tile_visible(&self, from: Vec2<i32>, to: Vec2<i32>) -> bool {
+        if from == to {
+            return true;
+        }
+
+        let mut x0 = from.x;
+        let mut y0 = from.y;
+        let x1 = to.x;
+        let y1 = to.y;
+
+        let dx = (x1 - x0).abs();
+        let sx = if x0 < x1 { 1 } else { -1 };
+        let dy = -(y1 - y0).abs();
+        let sy = if y0 < y1 { 1 } else { -1 };
+        let mut err = dx + dy;
+
+        loop {
+            let current = Vec2::new(x0, y0);
+            if current != from && current != to && self.blocked_tiles.contains(&current) {
+                return false;
+            }
+            if current == to {
+                return true;
+            }
+
+            let e2 = err * 2;
+            if e2 >= dy {
+                err += dy;
+                x0 += sx;
+            }
+            if e2 <= dx {
+                err += dx;
+                y0 += sy;
+            }
+        }
+    }
+
     /// Test if "to" is visible from "from" and if it is lit.
     pub fn is_visible_and_lit(&self, from: Vec2<f32>, to: Vec2<f32>) -> bool {
         fn compute_normal(start: &Vec2<f32>, end: &Vec2<f32>) -> Vec2<f32> {

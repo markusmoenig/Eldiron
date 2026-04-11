@@ -1,7 +1,7 @@
-use crate::client::draw2d;
+use crate::client::{apply_2d_visibility_mask, draw2d};
 use crate::client::draw2d::Draw2D;
 use crate::prelude::*;
-use crate::{Assets, Map, Pixel, PlayerCamera, Rect, SceneHandler, WHITE};
+use crate::{Assets, Map, MapMini, Pixel, PlayerCamera, Rect, SceneHandler, WHITE};
 use crate::{ValueGroups, ValueTomlLoader};
 use theframework::prelude::*;
 use vek::Vec2;
@@ -58,6 +58,7 @@ pub struct GameWidget {
     pub text_font_name: String,
     pub text_font_size: f32,
     pub text_color: Pixel,
+    pub mapmini: MapMini,
 }
 
 impl Default for GameWidget {
@@ -118,6 +119,7 @@ impl GameWidget {
             text_font_name: String::new(),
             text_font_size: 18.0,
             text_color: WHITE,
+            mapmini: MapMini::default(),
         }
     }
 
@@ -480,6 +482,7 @@ impl GameWidget {
             .set_tile_list(assets.tile_list.clone(), assets.tile_indices.clone());
         self.scenemanager
             .set_palette(assets.palette.clone(), assets.palette_materials.clone());
+        self.mapmini = map.as_mini(&assets.blocking_tiles());
 
         self.scenemanager.send(SceneManagerCmd::SetMap(map.clone()));
         self.loaded_chunks.clear();
@@ -987,6 +990,22 @@ impl GameWidget {
                 .vm
                 .render_frame(self.buffer.pixels_mut(), width as u32, height as u32);
         }
+
+        let bg = scene_handler.settings.background_color_2d.map(|v| {
+            (v.clamp(0.0, 1.0) * 255.0).round() as u8
+        });
+        apply_2d_visibility_mask(
+            self.buffer.pixels_mut(),
+            full_width,
+            full_height,
+            &self.mapmini,
+            self.grid_size,
+            self.top_left,
+            self.player_pos,
+            scene_handler.settings.visibility_range_2d,
+            scene_handler.settings.visibility_alpha_2d,
+            bg,
+        );
     }
 
     fn render_prepared_d3(

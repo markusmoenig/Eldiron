@@ -11,8 +11,8 @@ use std::str::FromStr;
 
 use crate::prelude::*;
 use crate::{
-    BrushPreview, Command, D2ConceptBuilder, D2PreviewBuilder, EntityAction, PlayerCamera, Rect,
-    SceneHandler, Surface, Value,
+    BrushPreview, Command, D2ConceptBuilder, D2PreviewBuilder, EntityAction, MapMini,
+    PlayerCamera, Rect, SceneHandler, Surface, Value,
     client::action::ClientAction,
     client::widget::{
         Widget, avatar::AvatarWidget, deco::DecoWidget, game::GameWidget, messages::MessagesWidget,
@@ -25,6 +25,78 @@ use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 use toml::*;
+
+pub(crate) fn apply_2d_visibility_mask(
+    pixels: &mut [u8],
+    width: usize,
+    height: usize,
+    mapmini: &MapMini,
+    grid_size: f32,
+    top_left: Vec2<f32>,
+    player_pos: Vec2<f32>,
+    visibility_range_2d: f32,
+    visibility_alpha_2d: f32,
+    fill: Pixel,
+) {
+    if visibility_range_2d <= 0.0
+        || visibility_alpha_2d <= 0.0
+        || grid_size <= 0.0
+        || width == 0
+        || height == 0
+    {
+        return;
+    }
+
+    let start_x = top_left.x.floor() as i32 - 1;
+    let start_y = top_left.y.floor() as i32 - 1;
+    let end_x = (top_left.x + width as f32 / grid_size).ceil() as i32 + 1;
+    let end_y = (top_left.y + height as f32 / grid_size).ceil() as i32 + 1;
+    let from_tile = player_pos.map(|v| v.floor() as i32);
+
+    for tile_y in start_y..end_y {
+        for tile_x in start_x..end_x {
+            let center = Vec2::new(tile_x as f32 + 0.5, tile_y as f32 + 0.5);
+            let to_tile = Vec2::new(tile_x, tile_y);
+            if (center - player_pos).magnitude() <= visibility_range_2d
+                && mapmini.is_tile_visible(from_tile, to_tile)
+            {
+                continue;
+            }
+
+            let x0 = (((tile_x as f32) - top_left.x) * grid_size).floor() as i32;
+            let y0 = (((tile_y as f32) - top_left.y) * grid_size).floor() as i32;
+            let x1 = ((((tile_x + 1) as f32) - top_left.x) * grid_size).ceil() as i32;
+            let y1 = ((((tile_y + 1) as f32) - top_left.y) * grid_size).ceil() as i32;
+
+            let x0 = x0.clamp(0, width as i32) as usize;
+            let y0 = y0.clamp(0, height as i32) as usize;
+            let x1 = x1.clamp(0, width as i32) as usize;
+            let y1 = y1.clamp(0, height as i32) as usize;
+
+            if x0 >= x1 || y0 >= y1 {
+                continue;
+            }
+
+            for y in y0..y1 {
+                let row = y * width * 4;
+                for x in x0..x1 {
+                    let idx = row + x * 4;
+                    pixels[idx] = ((pixels[idx] as f32 * (1.0 - visibility_alpha_2d))
+                        + (fill[0] as f32 * visibility_alpha_2d))
+                        .round() as u8;
+                    pixels[idx + 1] =
+                        ((pixels[idx + 1] as f32 * (1.0 - visibility_alpha_2d))
+                            + (fill[1] as f32 * visibility_alpha_2d))
+                            .round() as u8;
+                    pixels[idx + 2] =
+                        ((pixels[idx + 2] as f32 * (1.0 - visibility_alpha_2d))
+                            + (fill[2] as f32 * visibility_alpha_2d))
+                            .round() as u8;
+                }
+            }
+        }
+    }
+}
 
 pub struct Client {
     pub curr_map_id: Uuid,
@@ -725,6 +797,16 @@ impl Client {
             1.0,
         );
         let transform = translation_matrix * scale_matrix;
+        let top_left = Vec2::new(
+            (-screen_size.x / 2.0 - map.offset.x) / map.grid_size,
+            (map.offset.y - screen_size.y / 2.0) / map.grid_size,
+        );
+        let player_pos = map
+            .entities
+            .iter()
+            .find(|entity| entity.is_player())
+            .map(|entity| entity.get_pos_xz())
+            .unwrap_or_else(Vec2::zero);
 
         let scenevm_mode_2d = scene_handler.settings.scenevm_mode_2d();
         scene_handler.vm.set_active_vm(0);
@@ -804,6 +886,22 @@ impl Client {
         scene_handler
             .vm
             .render_frame(pixels, width as u32, height as u32);
+
+        let bg = scene_handler.settings.background_color_2d.map(|v| {
+            (v.clamp(0.0, 1.0) * 255.0).round() as u8
+        });
+        apply_2d_visibility_mask(
+            pixels,
+            width,
+            height,
+            &self.scene_d2.mapmini,
+            map.grid_size,
+            top_left,
+            player_pos,
+            scene_handler.settings.visibility_range_2d,
+            scene_handler.settings.visibility_alpha_2d,
+            bg,
+        );
 
         // Draw Messages
 

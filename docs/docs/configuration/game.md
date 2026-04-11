@@ -229,6 +229,8 @@ window_scale = 1.0  # Multiplies startup window size (e.g. 2.0 = 2x bigger windo
 grid_size = 32      # Size of one grid tile in pixels.
 upscale = "aspect"  # 'aspect' upscales the game output to the screen dimensions. 'none' otherwise.
 background_color_2d = "#000000" # 2D viewport background color.
+visibility_range_2d = 0 # 2D visible range around the player in tiles. 0 disables the limit.
+visibility_alpha_2d = 0.82 # LOS mask blend toward the background color (0..1).
 screen_background = "#000000" # Screen/widget background color.
 cursor_id = "..."   # The tile id of the default mouse cursor.
 ```
@@ -255,6 +257,15 @@ cursor_id = "..."   # The tile id of the default mouse cursor.
 - **`background_color_2d`**
     Background color used for the 2D game viewport and the editor's 2D game preview.
     Accepts `#RRGGBB` or `#RRGGBBAA`.
+
+- **`visibility_range_2d`**
+    Limits how many tiles are visible around the player in 2D.
+    The mask uses the 2D background color outside the visible range.
+    Use `0` or a negative value to disable the limit.
+
+- **`visibility_alpha_2d`**
+    Controls how strongly hidden 2D tiles blend toward `background_color_2d`.
+    `0` keeps the original color, `1` fully hides the tile.
 
 - **`screen_background`**
     Background color used when rendering screens and screen widgets.
@@ -456,6 +467,8 @@ Common runtime render overrides include:
 
 ```eldrin
 let region.render.background_color_2d = "#272744";
+let region.render.visibility_range_2d = 6.0;
+let region.render.visibility_alpha_2d = 0.6;
 let region.render.fog_color = "#20242c";
 let region.render.fog_density = 5.0;
 let world.render.sun_enabled = false;
@@ -464,6 +477,8 @@ let world.render.sun_enabled = false;
 Most scalar values from `[render]` are available at runtime, including:
 
 - `background_color_2d`
+- `visibility_range_2d`
+- `visibility_alpha_2d`
 - `sky_color`
 - `sun_color`
 - `sun_intensity`

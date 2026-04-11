@@ -53,6 +53,8 @@ window_scale = 1.0
 grid_size = 32
 upscale = "aspect"
 background_color_2d = "#000000"
+visibility_range_2d = 0
+visibility_alpha_2d = 0.82
 screen_background = "#000000"
 cursor_id = ""
 

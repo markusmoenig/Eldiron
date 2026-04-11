@@ -108,6 +108,10 @@ pub struct RenderSettings {
     pub sky_color: [f32; 3],
     /// 2D viewport background color (RGBA).
     pub background_color_2d: [f32; 4],
+    /// 2D visibility range in tiles. `<= 0.0` means unlimited visibility.
+    pub visibility_range_2d: f32,
+    /// 2D LOS mask blend toward background color. `0.0` keeps original color, `1.0` fully hides.
+    pub visibility_alpha_2d: f32,
 
     /// Sun color (RGB) - set from TOML or dynamically by apply_hour()
     pub sun_color: [f32; 3],
@@ -275,6 +279,8 @@ impl Default for DaylightSimulation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum SettingKey {
     BackgroundColor2D,
+    VisibilityRange2D,
+    VisibilityAlpha2D,
     SkyColor,
     SunColor,
     SunIntensity,
@@ -358,6 +364,8 @@ impl Default for RenderSettings {
             post: PostStackSettings::default(),
             sky_color: [0.529, 0.808, 0.922], // #87CEEB
             background_color_2d: [0.0, 0.0, 0.0, 1.0],
+            visibility_range_2d: 0.0,
+            visibility_alpha_2d: 0.82,
             sun_color: [1.0, 0.980, 0.804],   // #FFFACD
             sun_intensity: 1.0,
             sun_direction: [-0.5, -1.0, -0.3],
@@ -460,6 +468,20 @@ impl RenderSettings {
                 .and_then(toml::Value::as_str)
         {
             self.background_color_2d = parse_hex_color_rgba(v)?;
+        }
+        if let Some(viewport) = doc.get("viewport").and_then(toml::Value::as_table)
+            && let Some(v) = viewport
+                .get("visibility_range_2d")
+                .and_then(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)))
+        {
+            self.visibility_range_2d = (v as f32).max(0.0);
+        }
+        if let Some(viewport) = doc.get("viewport").and_then(toml::Value::as_table)
+            && let Some(v) = viewport
+                .get("visibility_alpha_2d")
+                .and_then(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)))
+        {
+            self.visibility_alpha_2d = (v as f32).clamp(0.0, 1.0);
         }
 
         if let Some(raster3d) = doc.get("raster_3d").and_then(toml::Value::as_table) {
@@ -1025,6 +1047,8 @@ impl RenderSettings {
     fn current_value(&self, key: SettingKey) -> SettingValue {
         match key {
             SettingKey::BackgroundColor2D => SettingValue::Vec4(self.background_color_2d),
+            SettingKey::VisibilityRange2D => SettingValue::Float(self.visibility_range_2d),
+            SettingKey::VisibilityAlpha2D => SettingValue::Float(self.visibility_alpha_2d),
             SettingKey::SkyColor => SettingValue::Vec3(self.sky_color),
             SettingKey::SunColor => SettingValue::Vec3(self.sun_color),
             SettingKey::SunIntensity => SettingValue::Float(self.sun_intensity),
@@ -1076,6 +1100,12 @@ impl RenderSettings {
     fn apply_setting_value(&mut self, key: SettingKey, value: SettingValue) {
         match (key, value) {
             (SettingKey::BackgroundColor2D, SettingValue::Vec4(v)) => self.background_color_2d = v,
+            (SettingKey::VisibilityRange2D, SettingValue::Float(v)) => {
+                self.visibility_range_2d = v.max(0.0)
+            }
+            (SettingKey::VisibilityAlpha2D, SettingValue::Float(v)) => {
+                self.visibility_alpha_2d = v.clamp(0.0, 1.0)
+            }
             (SettingKey::SkyColor, SettingValue::Vec3(v)) => self.sky_color = v,
             (SettingKey::SunColor, SettingValue::Vec3(v)) => self.sun_color = v,
             (SettingKey::SunIntensity, SettingValue::Float(v)) => self.sun_intensity = v,
@@ -1148,6 +1178,18 @@ impl RenderSettings {
                 Value::Str(s) => Ok(SettingValue::Vec4(parse_hex_color_rgba(&s)?)),
                 _ => Err("Expected Vec4 or hex color for background_color_2d".into()),
             },
+            SettingKey::VisibilityRange2D => {
+                let Some(v) = Self::value_to_f32(&value) else {
+                    return Err("Expected numeric value for visibility_range_2d".into());
+                };
+                Ok(SettingValue::Float(v.max(0.0)))
+            }
+            SettingKey::VisibilityAlpha2D => {
+                let Some(v) = Self::value_to_f32(&value) else {
+                    return Err("Expected numeric value for visibility_alpha_2d".into());
+                };
+                Ok(SettingValue::Float(v.clamp(0.0, 1.0)))
+            }
             SettingKey::SkyColor
             | SettingKey::SunColor
             | SettingKey::SunDirection
@@ -1225,6 +1267,8 @@ impl RenderSettings {
     fn key_from_name(name: &str) -> Option<SettingKey> {
         match name {
             "background_color_2d" => Some(SettingKey::BackgroundColor2D),
+            "visibility_range_2d" => Some(SettingKey::VisibilityRange2D),
+            "visibility_alpha_2d" => Some(SettingKey::VisibilityAlpha2D),
             "sky_color" => Some(SettingKey::SkyColor),
             "sun_color" => Some(SettingKey::SunColor),
             "sun_intensity" => Some(SettingKey::SunIntensity),
@@ -1271,6 +1315,8 @@ impl RenderSettings {
     pub fn runtime_override_names() -> &'static [&'static str] {
         &[
             "background_color_2d",
+            "visibility_range_2d",
+            "visibility_alpha_2d",
             "sky_color",
             "sun_color",
             "sun_intensity",
@@ -1321,6 +1367,8 @@ impl RenderSettings {
     pub fn value_for_name(&self, name: &str) -> Option<Value> {
         match name {
             "background_color_2d" => Some(Value::Vec4(self.background_color_2d)),
+            "visibility_range_2d" => Some(Value::Float(self.visibility_range_2d)),
+            "visibility_alpha_2d" => Some(Value::Float(self.visibility_alpha_2d)),
             "sky_color" => Some(Value::Vec3(self.sky_color)),
             "sun_color" => Some(Value::Vec3(self.sun_color)),
             "sun_intensity" => Some(Value::Float(self.sun_intensity)),
@@ -1394,6 +1442,11 @@ impl RenderSettings {
         } else if let Some(v) = render.get_vec3("background_color_2d") {
             self.background_color_2d = [v[0], v[1], v[2], 1.0];
         }
+        self.visibility_range_2d =
+            render.get_float_default("visibility_range_2d", self.visibility_range_2d);
+        self.visibility_alpha_2d = render
+            .get_float_default("visibility_alpha_2d", self.visibility_alpha_2d)
+            .clamp(0.0, 1.0);
 
         if let Some(v) = render.get_str("sky_color") {
             self.sky_color = parse_hex_color(v)?;
