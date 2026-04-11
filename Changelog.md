@@ -10,6 +10,7 @@
 - Added **World** and **Region** scripting entries to the project tree, plus runtime `world.*` / `region.*` render and post overrides for palette remap, fog, background, and related visual settings.
 - Added automatic item drag-and-drop between world, inventory/equipment slots, and terrain in both 2D and 3D game views.
 - Added the first expandable party-bound UI layer for screens, including `party` widget bindings, portrait button support via `portrait_tile_id`, and party-aware inventory/equipment slot interaction without breaking existing player-bound screens.
+- Added configurable 2D visibility / LOS masking via `visibility_range_2d` and `visibility_alpha_2d`, including runtime `world.render.*` / `region.render.*` control and tile-blocked sight using `MapMini`.
 
 ### Bug Fixes
 

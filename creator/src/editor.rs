@@ -2858,12 +2858,6 @@ impl TheTrait for Editor {
                             ..Default::default()
                         };
 
-                        if let Some(bytes) = crate::Embedded::get("python/instcharacter.py") {
-                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                                instance.source = source.to_string();
-                            }
-                        }
-
                         let mut name = "Character".to_string();
                         if let Some(character) = self.project.characters.get(&drop.id.references) {
                             name.clone_from(&character.name);
@@ -2882,12 +2876,6 @@ impl TheTrait for Editor {
                             position: Vec3::new(grid_pos.x, spawn_y, grid_pos.y),
                             ..Default::default()
                         };
-
-                        if let Some(bytes) = crate::Embedded::get("python/institem.py") {
-                            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                                instance.source = source.to_string();
-                            }
-                        }
 
                         let mut name = "Item".to_string();
                         if let Some(item) = self.project.items.get(&drop.id.references) {

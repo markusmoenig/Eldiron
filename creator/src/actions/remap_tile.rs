@@ -243,7 +243,8 @@ impl Action for RemapTile {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        DOCKMANAGER.read().unwrap().dock == "Tiles" && server_ctx.curr_tile_id.is_some()
+        DOCKMANAGER.read().unwrap().dock == "Tiles"
+            && (server_ctx.curr_tile_source.is_some() || server_ctx.curr_tile_id.is_some())
     }
 
     fn apply_project(
@@ -277,15 +278,69 @@ impl Action for RemapTile {
                     TheValue::Empty,
                 ));
             }
-        } else if let Some(tile_id) = server_ctx.curr_tile_id
-            && let Some(tile) = project.tiles.get_mut(&tile_id)
-        {
-            let prev = tile.clone();
-            if remap_tile_to_palette(tile, &palette, remap_mode) {
-                UNDOMANAGER
-                    .write()
-                    .unwrap()
-                    .add_undo(ProjectUndoAtom::TileEdit(prev, tile.clone()), ctx);
+        } else {
+            let mut edits = Vec::new();
+
+            if let Some(source) = server_ctx.curr_tile_source {
+                match source {
+                    TileSource::TileGroup(group_id) => {
+                        if let Some(group) = project.tile_groups.get(&group_id).cloned() {
+                            for member in &group.members {
+                                if let Some(tile) = project.tiles.get_mut(&member.tile_id) {
+                                    let prev = tile.clone();
+                                    if remap_tile_to_palette(tile, &palette, remap_mode) {
+                                        edits.push((prev, tile.clone()));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    TileSource::TileGroupMember {
+                        group_id,
+                        member_index,
+                    } => {
+                        if let Some(group) = project.tile_groups.get(&group_id)
+                            && let Some(member) = group.members.get(member_index as usize)
+                            && let Some(tile) = project.tiles.get_mut(&member.tile_id)
+                        {
+                            let prev = tile.clone();
+                            if remap_tile_to_palette(tile, &palette, remap_mode) {
+                                edits.push((prev, tile.clone()));
+                            }
+                        }
+                    }
+                    TileSource::SingleTile(tile_id) => {
+                        if let Some(tile) = project.tiles.get_mut(&tile_id) {
+                            let prev = tile.clone();
+                            if remap_tile_to_palette(tile, &palette, remap_mode) {
+                                edits.push((prev, tile.clone()));
+                            }
+                        }
+                    }
+                    TileSource::Procedural(_) => {}
+                }
+            } else if let Some(tile_id) = server_ctx.curr_tile_id
+                && let Some(tile) = project.tiles.get_mut(&tile_id)
+            {
+                let prev = tile.clone();
+                if remap_tile_to_palette(tile, &palette, remap_mode) {
+                    edits.push((prev, tile.clone()));
+                }
+            }
+
+            if !edits.is_empty() {
+                if edits.len() == 1 {
+                    let (prev, next) = edits.into_iter().next().unwrap();
+                    UNDOMANAGER
+                        .write()
+                        .unwrap()
+                        .add_undo(ProjectUndoAtom::TileEdit(prev, next), ctx);
+                } else {
+                    UNDOMANAGER
+                        .write()
+                        .unwrap()
+                        .add_undo(ProjectUndoAtom::TileBatchEdit(edits), ctx);
+                }
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Tiles"),
                     TheValue::Empty,

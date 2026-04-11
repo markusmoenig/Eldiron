@@ -807,10 +807,29 @@ impl RegionInstance {
         .unwrap_or(false))
     }
 
+    fn is_legacy_python_instance_setup(source: &str) -> bool {
+        source.trim_start().starts_with("def setup")
+    }
+
     fn run_entity_instance_setup(&mut self, entity: &Entity, region_name: &str, context: &str) {
         if let Some(setup) = entity.get_attr_string("setup")
             && !setup.trim().is_empty()
         {
+            if Self::is_legacy_python_instance_setup(&setup) {
+                send_log_message(
+                    self.id,
+                    format!(
+                        "{}: Ignoring legacy Python setup on '{}/{}' {}.",
+                        region_name,
+                        entity.get_attr_string("name").unwrap_or("Unknown".into()),
+                        entity
+                            .get_attr_string("class_name")
+                            .unwrap_or("Unknown".into()),
+                        context,
+                    ),
+                );
+                return;
+            }
             match self.run_instance_setup_program(&setup, Some(entity.id), None) {
                 Ok(_) => {}
                 Err(err) => {
@@ -839,6 +858,20 @@ impl RegionInstance {
         if let Some(setup) = item.get_attr_string("setup")
             && !setup.trim().is_empty()
         {
+            if Self::is_legacy_python_instance_setup(&setup) {
+                send_log_message(
+                    self.id,
+                    format!(
+                        "{}: Ignoring legacy Python item setup on '{}/{}' {}.",
+                        region_name,
+                        item.get_attr_string("name").unwrap_or("Unknown".into()),
+                        item.get_attr_string("class_name")
+                            .unwrap_or("Unknown".into()),
+                        context,
+                    ),
+                );
+                return;
+            }
             match self.run_instance_setup_program(&setup, None, Some(item.id)) {
                 Ok(_) => {}
                 Err(err) => {

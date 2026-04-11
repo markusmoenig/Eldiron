@@ -225,10 +225,18 @@ pub fn insert_content_into_maps(project: &mut Project) {
     insert_content_into_maps_mode(project, false);
 }
 
+fn is_legacy_python_instance_setup(source: &str) -> bool {
+    source.trim_start().starts_with("def setup")
+}
+
 pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
     for region in &mut project.regions {
         region.map.entities.clear();
         for instance in region.characters.values_mut() {
+            if is_legacy_python_instance_setup(&instance.source) {
+                instance.source.clear();
+                instance.source_debug.clear();
+            }
             if !instance.module.routines.is_empty() {
                 if instance.source.is_empty() {
                     instance.source = instance.module.build(false);
@@ -263,6 +271,10 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
 
         region.map.items.clear();
         for instance in region.items.values_mut() {
+            if is_legacy_python_instance_setup(&instance.source) {
+                instance.source.clear();
+                instance.source_debug.clear();
+            }
             if !instance.module.routines.is_empty() {
                 if instance.source.is_empty() {
                     instance.source = instance.module.build(false);

@@ -171,10 +171,8 @@ impl Action for DuplicateTile {
         if let Some(source) = server_ctx.curr_tile_source {
             match source {
                 TileSource::TileGroup(group_id) => {
-                    if project.is_tile_node_group(&group_id) {
-                        self.clone_tile_group(project, group_id, server_ctx, ctx);
-                        return;
-                    }
+                    self.clone_tile_group(project, group_id, server_ctx, ctx);
+                    return;
                 }
                 TileSource::TileGroupMember { group_id, .. } => {
                     if project.is_tile_node_group(&group_id) {

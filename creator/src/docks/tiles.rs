@@ -57,6 +57,7 @@ pub struct TilesDock {
 
     pub curr_tile: Option<Uuid>,
     pub curr_source: Option<TileSource>,
+    selected_reserved_slot: Option<(usize, Vec2<i32>)>,
 
     pub tile_preview_mode: bool,
     pub tile_hover_source: Option<TileSource>,
@@ -92,6 +93,7 @@ impl Dock for TilesDock {
             apply_tile_mode: 1,
             curr_tile: None,
             curr_source: None,
+            selected_reserved_slot: None,
             tile_preview_mode: false,
             tile_hover_source: None,
             treasury_packages: Vec::new(),
@@ -864,9 +866,17 @@ impl Dock for TilesDock {
                     }
                     if let Some(source) = self.pick_source(project, tab, *coord) {
                         self.select_source(project, source, ui, ctx, server_ctx);
-                        self.render_views(ui, ctx, project);
-                        redraw = true;
+                    } else if let Some(cell) = self.coord_to_board_cell(tab, *coord) {
+                        if self.is_reserved_slot(project, tab, cell) {
+                            self.select_reserved_slot(tab, cell, server_ctx);
+                        } else {
+                            self.clear_selection(server_ctx);
+                        }
+                    } else {
+                        self.clear_selection(server_ctx);
                     }
+                    self.render_views(ui, ctx, project);
+                    redraw = true;
                 }
             }
             TheEvent::RenderViewDragged(id, coord) => {
@@ -995,10 +1005,14 @@ impl Dock for TilesDock {
                     if self.board_has_active_focus(ctx)
                         && !ui.focus_widget_supports_text_input(ctx)
                         && server_ctx.tile_node_group_id.is_none()
-                        && let Some(source) = self.curr_source
-                        && self.delete_source(project, source, ui, ctx, server_ctx)
                     {
-                        redraw = true;
+                        if let Some(source) = self.curr_source {
+                            if self.delete_source(project, source, ui, ctx, server_ctx) {
+                                redraw = true;
+                            }
+                        } else if self.delete_reserved_slot(project, ui, ctx, server_ctx) {
+                            redraw = true;
+                        }
                     }
                 } else if *key == TheKeyCode::Escape && self.entered_group.is_some() {
                     self.leave_group(ui, ctx, project);
@@ -1422,6 +1436,7 @@ impl TilesDock {
     fn clear_selection(&mut self, server_ctx: &mut ServerContext) {
         self.curr_source = None;
         self.curr_tile = None;
+        self.selected_reserved_slot = None;
         server_ctx.curr_tile_source = None;
         server_ctx.curr_tile_id = None;
     }
@@ -1500,6 +1515,9 @@ impl TilesDock {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let before = project.clone();
+        let deleted_reserved_slot =
+            self.board_position_for_tab(project, self.active_tab, source)
+                .map(|pos| (self.active_tab, pos));
         match source {
             TileSource::SingleTile(tile_id) => {
                 if let Some(pos) = project.tile_board_tiles.get(&tile_id).copied() {
@@ -1560,6 +1578,40 @@ impl TilesDock {
             TileSource::Procedural(_) => return false,
         }
 
+        self.clear_selection(server_ctx);
+        self.selected_reserved_slot = deleted_reserved_slot;
+        self.tile_hover_source = None;
+        self.tile_preview_mode = false;
+        let after = project.clone();
+        UNDOMANAGER.write().unwrap().add_undo(
+            ProjectUndoAtom::TilePickerEdit(Box::new(before), Box::new(after)),
+            ctx,
+        );
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Tilepicker"),
+            TheValue::Empty,
+        ));
+        self.render_views(ui, ctx, project);
+        true
+    }
+
+    fn delete_reserved_slot(
+        &mut self,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        let Some((tab, pos)) = self.selected_reserved_slot else {
+            return false;
+        };
+        if !self.is_reserved_slot(project, tab, pos) {
+            self.selected_reserved_slot = None;
+            return false;
+        }
+
+        let before = project.clone();
+        self.clear_reserved_slot_for_tab(project, tab, pos);
         self.clear_selection(server_ctx);
         self.tile_hover_source = None;
         self.tile_preview_mode = false;
@@ -1753,7 +1805,9 @@ impl TilesDock {
 
         for row in 0..visible_rows.max(total_rows) {
             for col in 0..board_cols {
-                if occupied.contains(&(col, row)) {
+                let cell_pos = Vec2::new(col, row);
+                let is_reserved = self.is_reserved_slot(project, tab, cell_pos);
+                if occupied.contains(&(col, row)) && !is_reserved {
                     continue;
                 }
                 let x = col * cell - offset.x;
@@ -1762,10 +1816,17 @@ impl TilesDock {
                     continue;
                 }
                 if let Some(rect) = Self::clip_rect(buffer, Vec4::new(x, y, cell, cell), 2) {
-                    ctx.draw
-                        .rect(buffer.pixels_mut(), &rect, stride, &[62, 62, 62, 255]);
-                    ctx.draw
-                        .rect_outline(buffer.pixels_mut(), &rect, stride, &[74, 74, 74, 255]);
+                    if is_reserved {
+                        if Some((tab, cell_pos)) == self.selected_reserved_slot {
+                            ctx.draw
+                                .rect_outline(buffer.pixels_mut(), &rect, stride, &WHITE);
+                        }
+                    } else {
+                        ctx.draw
+                            .rect(buffer.pixels_mut(), &rect, stride, &[62, 62, 62, 255]);
+                        ctx.draw
+                            .rect_outline(buffer.pixels_mut(), &rect, stride, &[74, 74, 74, 255]);
+                    }
                 }
             }
         }
@@ -2550,6 +2611,31 @@ impl TilesDock {
         }
     }
 
+    fn is_reserved_slot(&self, project: &Project, tab: usize, pos: Vec2<i32>) -> bool {
+        self.empty_slots_for_tab(project, tab).contains(&pos)
+    }
+
+    fn clear_reserved_slot_for_tab(&self, project: &mut Project, tab: usize, pos: Vec2<i32>) {
+        match self
+            .tab_specs(project)
+            .get(tab)
+            .map(|spec| spec.kind)
+            .unwrap_or(TileTabKind::Project)
+        {
+            TileTabKind::Collection(collection_id) => {
+                if let Some(collection) = project.tile_collections.get_mut(&collection_id)
+                    && let Some(index) =
+                        collection.tile_board_empty_slots.iter().position(|p| *p == pos)
+                {
+                    collection.tile_board_empty_slots.swap_remove(index);
+                }
+            }
+            _ => {
+                project.clear_tile_board_empty_slot(pos);
+            }
+        }
+    }
+
     fn set_board_position_for_tab(
         &self,
         project: &mut Project,
@@ -2869,6 +2955,7 @@ impl TilesDock {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
+        self.selected_reserved_slot = None;
         server_ctx.curr_tile_source = Some(source);
         self.curr_source = Some(source);
         match source {
@@ -2924,6 +3011,16 @@ impl TilesDock {
         ));
         self.sync_collection_menu(_ui, project);
         self.sync_sidebar(ctx, project);
+    }
+
+    fn select_reserved_slot(
+        &mut self,
+        tab: usize,
+        pos: Vec2<i32>,
+        server_ctx: &mut ServerContext,
+    ) {
+        self.clear_selection(server_ctx);
+        self.selected_reserved_slot = Some((tab, pos));
     }
 
     fn status_text_for_source(&self, project: &Project, source: TileSource) -> String {
