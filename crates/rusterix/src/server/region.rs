@@ -7,6 +7,7 @@ use crate::{
 };
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use instant::Instant;
+use pathfinding::prelude::astar;
 use rand::*;
 
 use std::sync::{Arc, Mutex};
@@ -332,6 +333,20 @@ impl RegionInstance {
         matches!(player_camera, PlayerCamera::D2Grid | PlayerCamera::D3FirstPGrid)
     }
 
+    fn should_keep_player_intent(ctx: &RegionCtx, entity: &Entity) -> bool {
+        if !entity.is_player()
+            || !get_config_bool_default(ctx, "game", "click_intents_2d", false)
+                && !get_config_bool_default(ctx, "game", "persistent_2d_intents", false)
+        {
+            return false;
+        }
+
+        matches!(
+            entity.attributes.get("player_camera"),
+            Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid))
+        )
+    }
+
     fn is_movement_input_action(action: &EntityAction) -> bool {
         matches!(
             action,
@@ -349,6 +364,75 @@ impl RegionInstance {
         )
     }
 
+    fn should_use_directional_player_intent(entity: &Entity, click_intents_2d: bool) -> bool {
+        let intent = entity.attributes.get_str_default("intent", "".into());
+        if intent.is_empty() {
+            return false;
+        }
+
+        if !click_intents_2d || !entity.is_player() {
+            return true;
+        }
+
+        !matches!(
+            entity.attributes.get("player_camera"),
+            Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid))
+        )
+    }
+
+    fn entity_click_distance(ctx: &RegionCtx, entity_id: u32, target_entity_id: u32) -> Option<f32> {
+        let actor_pos = ctx
+            .map
+            .entities
+            .iter()
+            .find(|e| e.id == entity_id)
+            .map(|e| e.get_pos_xz())?;
+        let target_pos = ctx
+            .map
+            .entities
+            .iter()
+            .find(|e| e.id == target_entity_id)
+            .map(|e| e.get_pos_xz())?;
+        Some(actor_pos.distance(target_pos))
+    }
+
+    fn item_click_distance(
+        ctx: &RegionCtx,
+        entity_id: u32,
+        item_id: u32,
+        owner_entity_id: Option<u32>,
+    ) -> Option<f32> {
+        let actor_pos = ctx
+            .map
+            .entities
+            .iter()
+            .find(|e| e.id == entity_id)
+            .map(|e| e.get_pos_xz())?;
+
+        if let Some(item_pos) = ctx
+            .map
+            .items
+            .iter()
+            .find(|i| i.id == item_id)
+            .map(|i| i.get_pos_xz())
+        {
+            return Some(actor_pos.distance(item_pos));
+        }
+
+        if let Some(owner_id) = owner_entity_id
+            && let Some(owner_pos) = ctx
+                .map
+                .entities
+                .iter()
+                .find(|e| e.id == owner_id)
+                .map(|e| e.get_pos_xz())
+        {
+            return Some(actor_pos.distance(owner_pos));
+        }
+
+        Some(0.0)
+    }
+
     fn snapped_cardinal_direction(direction: Vec2<f32>) -> Vec2<f32> {
         if direction.magnitude_squared() <= 1e-6 {
             return Vec2::new(1.0, 0.0);
@@ -361,11 +445,16 @@ impl RegionInstance {
         }
     }
 
+    fn snapped_grid_center(pos: Vec2<f32>) -> Vec2<f32> {
+        Vec2::new(pos.x.floor() + 0.5, pos.y.floor() + 0.5)
+    }
+
     fn queue_step_to(&self, entity: &mut Entity, target: Vec2<f32>, facing: Vec2<f32>) {
         let facing = Self::snapped_cardinal_direction(facing);
         let start = entity.get_pos_xz();
+        let target = Self::snapped_grid_center(target);
         entity.set_orientation(facing);
-        let step_dir = target - start;
+        let step_dir = target - Self::snapped_grid_center(start);
         entity.action = EntityAction::StepTo(target, 1.0, facing, start, step_dir);
     }
 
@@ -530,6 +619,92 @@ impl RegionInstance {
             Self::clear_grid_blocked_action(entity);
         }
     }
+
+    fn parse_vec2_attr(entity: &Entity, key: &str) -> Option<Vec2<f32>> {
+        let raw = entity
+            .attributes
+            .get_str(key)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())?;
+        let (x, y) = raw.split_once(',')?;
+        Some(Vec2::new(
+            x.trim().parse::<f32>().ok()?,
+            y.trim().parse::<f32>().ok()?,
+        ))
+    }
+
+    fn compute_grid_goto_step_in_ctx(
+        &self,
+        ctx: &RegionCtx,
+        position: Vec2<f32>,
+        target: Vec2<f32>,
+    ) -> Option<(Vec2<f32>, Vec2<f32>, Vec2<f32>)> {
+        let position_cell = position.map(|value| value.floor());
+        let target_cell = target.map(|value| value.floor());
+        let anchor = position - position_cell;
+        let target_pos = target_cell + anchor;
+
+        if (target_pos - position).magnitude_squared() <= 0.001 {
+            return None;
+        }
+
+        let from_tile = position_cell.map(|value| value as i32);
+        let to_tile = target_cell.map(|value| value as i32);
+        let blocked = &ctx.mapmini.blocked_tiles;
+        let manhattan = (to_tile - from_tile).map(|x| x.abs()).sum();
+        let padding = manhattan.clamp(8, 128);
+        let min_bound = Vec2::new(
+            from_tile.x.min(to_tile.x) - padding,
+            from_tile.y.min(to_tile.y) - padding,
+        );
+        let max_bound = Vec2::new(
+            from_tile.x.max(to_tile.x) + padding,
+            from_tile.y.max(to_tile.y) + padding,
+        );
+        let successors = |pos: &Vec2<i32>| {
+            [
+                Vec2::new(-1, 0),
+                Vec2::new(1, 0),
+                Vec2::new(0, -1),
+                Vec2::new(0, 1),
+            ]
+            .iter()
+            .map(|d| *pos + *d)
+            .filter(|p| {
+                p.x >= min_bound.x
+                    && p.x <= max_bound.x
+                    && p.y >= min_bound.y
+                    && p.y <= max_bound.y
+            })
+            .filter(|p| !blocked.contains(p))
+            .map(|p| (p, 1))
+            .collect::<Vec<_>>()
+        };
+        let heuristic = |a: &Vec2<i32>| (to_tile - *a).map(|x| x.abs()).sum();
+        let next_tile = astar(&from_tile, successors, heuristic, |p| *p == to_tile).and_then(
+            |(path, _)| {
+                if path.len() >= 2 {
+                    Some(path[1])
+                } else {
+                    None
+                }
+            },
+        );
+
+        let Some(next_tile) = next_tile else {
+            return None;
+        };
+
+        let next = next_tile.map(|value| value as f32) + anchor;
+        let step = next - position;
+        if step.magnitude_squared() <= 0.001 {
+            return None;
+        }
+
+        let facing = Self::snapped_cardinal_direction(step);
+        Some((next, facing, target_pos))
+    }
+
 
     fn rotate_towards_cardinal(entity: &mut Entity, target: Vec2<f32>, step_deg: f32) -> bool {
         let current = if entity.orientation.magnitude_squared() <= 1e-6 {
@@ -2098,11 +2273,44 @@ impl RegionInstance {
                             }
                         });
                     }
+                    action if Self::is_movement_input_action(&action) && action != EntityAction::Off => {
+                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            if let Some(entity) = ctx
+                                .map
+                                .entities
+                                .iter_mut()
+                                .find(|entity| entity.id == entity_id)
+                            {
+                                entity.set_attribute("__grid_goto_target", Value::Str(String::new()));
+                                let is_grid_player = matches!(
+                                    entity.attributes.get("player_camera"),
+                                    Some(Value::PlayerCamera(camera))
+                                        if Self::is_grid_camera(camera)
+                                );
+                                if is_grid_player {
+                                    Self::update_grid_input_state(entity, &action);
+                                    if matches!(
+                                        entity.action,
+                                        EntityAction::StepTo(_, _, _, _, _)
+                                            | EntityAction::RotateTo(_)
+                                    ) {
+                                        return;
+                                    }
+                                    if action == Self::blocked_grid_action(entity) {
+                                        return;
+                                    }
+                                }
+                                entity.action = action;
+                            }
+                        });
+                    }
                     EntityClicked(clicked_entity_id, distance, explicit_intent) => {
                         with_regionctx(self.id, |ctx: &mut RegionCtx| {
                             if ctx.entity_classes.get(&entity_id).is_none() {
                                 return;
                             }
+                            let distance = Self::entity_click_distance(ctx, entity_id, clicked_entity_id)
+                                .unwrap_or(distance);
 
                             let intent_raw = if let Some(int) = explicit_intent {
                                 int
@@ -2117,6 +2325,13 @@ impl RegionInstance {
                             let intent = intent_raw.trim().to_string();
                             let intent_lower = intent.to_ascii_lowercase();
                             let mut handled_shortcut = false;
+                            let keep_intent = ctx
+                                .map
+                                .entities
+                                .iter()
+                                .find(|e| e.id == entity_id)
+                                .map(|entity| Self::should_keep_player_intent(ctx, entity))
+                                .unwrap_or(false);
                             let subject = ctx.map.entities.iter().find(|e| e.id == entity_id);
                             let target_entity =
                                 ctx.map.entities.iter().find(|e| e.id == clicked_entity_id);
@@ -2133,7 +2348,9 @@ impl RegionInstance {
                                     "{system.too_far_away}".into(),
                                     "warning",
                                 );
-                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                    && !keep_intent
+                                {
                                     entity.set_attribute("intent", Value::Str(String::new()));
                                 }
                                 return;
@@ -2159,7 +2376,9 @@ impl RegionInstance {
                                         .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
                                     "warning",
                                 );
-                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                    && !keep_intent
+                                {
                                     entity.set_attribute("intent", Value::Str(String::new()));
                                 }
                                 return;
@@ -2234,7 +2453,9 @@ impl RegionInstance {
                                 rules.cooldown_minutes,
                             );
 
-                            if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                            if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                && !keep_intent
+                            {
                                 entity.set_attribute("intent", Value::Str(String::new()));
                             }
                         });
@@ -2246,6 +2467,9 @@ impl RegionInstance {
                             }
 
                             let item_owner_id = owner_entity_id.unwrap_or(entity_id);
+                            let distance =
+                                Self::item_click_distance(ctx, entity_id, clicked_item_id, owner_entity_id)
+                                    .unwrap_or(distance);
 
                             let intent_raw = if let Some(int) = explicit_intent {
                                 int
@@ -2260,6 +2484,13 @@ impl RegionInstance {
                             let intent = intent_raw.trim().to_string();
                             let intent_lower = intent.to_ascii_lowercase();
                             let mut handled_shortcut = false;
+                            let keep_intent = ctx
+                                .map
+                                .entities
+                                .iter()
+                                .find(|e| e.id == entity_id)
+                                .map(|entity| Self::should_keep_player_intent(ctx, entity))
+                                .unwrap_or(false);
                             let subject = ctx.map.entities.iter().find(|e| e.id == entity_id);
                             let target_item = ctx
                                 .map
@@ -2302,7 +2533,9 @@ impl RegionInstance {
                                     "{system.too_far_away}".into(),
                                     "warning",
                                 );
-                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                    && !keep_intent
+                                {
                                     entity.set_attribute("intent", Value::Str(String::new()));
                                 }
                                 return;
@@ -2328,7 +2561,9 @@ impl RegionInstance {
                                         .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
                                     "warning",
                                 );
-                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                    && !keep_intent
+                                {
                                     entity.set_attribute("intent", Value::Str(String::new()));
                                 }
                                 return;
@@ -2519,8 +2754,77 @@ impl RegionInstance {
                                 rules.cooldown_minutes,
                             );
 
-                            if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                            if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                && !keep_intent
+                            {
                                 entity.set_attribute("intent", Value::Str(String::new()));
+                            }
+                        });
+                    }
+                    TerrainClicked(position) => {
+                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            if !get_config_bool_default(ctx, "game", "auto_walk_2d", false) {
+                                return;
+                            }
+
+                            let Some(snapshot) = ctx
+                                .map
+                                .entities
+                                .iter()
+                                .find(|entity| entity.id == entity_id)
+                                .cloned()
+                            else {
+                                return;
+                            };
+                            if !snapshot.is_player() {
+                                return;
+                            }
+
+                            if !matches!(
+                                snapshot.attributes.get("player_camera"),
+                                Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid))
+                            ) {
+                                return;
+                            }
+
+                            let intent = snapshot.attributes.get_str_default("intent", "".into());
+                            if !intent.trim().is_empty() {
+                                return;
+                            }
+                            if matches!(
+                                snapshot.attributes.get("player_camera"),
+                                Some(Value::PlayerCamera(PlayerCamera::D2Grid))
+                            ) {
+                                let step = self.compute_grid_goto_step_in_ctx(
+                                    ctx,
+                                    snapshot.get_pos_xz(),
+                                    position,
+                                );
+                                let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) else {
+                                    return;
+                                };
+                                if let Some((next, facing, target)) = step {
+                                    let start = entity.get_pos_xz();
+                                    let step_dir = next - start;
+                                    entity.set_orientation(facing);
+                                    entity.action =
+                                        EntityAction::StepTo(next, 1.0, facing, start, step_dir);
+                                    entity.set_attribute(
+                                        "__grid_goto_target",
+                                        Value::Str(format!("{},{}", target.x, target.y)),
+                                    );
+                                } else {
+                                    entity.set_attribute(
+                                        "__grid_goto_target",
+                                        Value::Str(String::new()),
+                                    );
+                                    entity.action = EntityAction::Off;
+                                }
+                            } else {
+                                let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) else {
+                                    return;
+                                };
+                                entity.action = Goto(position, 1.0);
                             }
                         });
                     }
@@ -2776,6 +3080,7 @@ impl RegionInstance {
             .clamp(1.0 / 240.0, 0.1);
         self.last_redraw_at = now;
         let mut turn_step_deg: f32 = 4.0;
+        let mut click_intents_2d = false;
 
         let mut entities = vec![];
         with_regionctx(self.id, |ctx: &mut RegionCtx| {
@@ -2788,6 +3093,8 @@ impl RegionInstance {
             let turn_speed_deg_per_sec =
                 get_config_i32_default(ctx, "game", "turn_speed_deg_per_sec", 120).max(1) as f32;
             turn_step_deg = turn_speed_deg_per_sec * redraw_dt;
+            click_intents_2d = get_config_bool_default(ctx, "game", "click_intents_2d", false)
+                || get_config_bool_default(ctx, "game", "persistent_2d_intents", false);
         });
 
         for entity in &mut entities {
@@ -2795,8 +3102,7 @@ impl RegionInstance {
             match &entity.action.clone() {
                 EntityAction::Forward => {
                     if entity.is_player() {
-                        let intent = entity.attributes.get_str_default("intent", "".into());
-                        if intent.is_empty() {
+                        if !Self::should_use_directional_player_intent(entity, click_intents_2d) {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
@@ -2831,8 +3137,7 @@ impl RegionInstance {
                 }
                 EntityAction::Left => {
                     if entity.is_player() {
-                        let intent = entity.attributes.get_str_default("intent", "".into());
-                        if intent.is_empty() {
+                        if !Self::should_use_directional_player_intent(entity, click_intents_2d) {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
@@ -2864,8 +3169,7 @@ impl RegionInstance {
                 }
                 EntityAction::Right => {
                     if entity.is_player() {
-                        let intent = entity.attributes.get_str_default("intent", "".into());
-                        if intent.is_empty() {
+                        if !Self::should_use_directional_player_intent(entity, click_intents_2d) {
                             // If no intent we walk
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
@@ -2898,8 +3202,7 @@ impl RegionInstance {
                 }
                 EntityAction::Backward => {
                     if entity.is_player() {
-                        let intent = entity.attributes.get_str_default("intent", "".into());
-                        if intent.is_empty() {
+                        if !Self::should_use_directional_player_intent(entity, click_intents_2d) {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
@@ -2934,8 +3237,7 @@ impl RegionInstance {
                 }
                 EntityAction::StrafeLeft => {
                     if entity.is_player() {
-                        let intent = entity.attributes.get_str_default("intent", "".into());
-                        if intent.is_empty() {
+                        if !Self::should_use_directional_player_intent(entity, click_intents_2d) {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
@@ -2968,8 +3270,7 @@ impl RegionInstance {
                 }
                 EntityAction::StrafeRight => {
                     if entity.is_player() {
-                        let intent = entity.attributes.get_str_default("intent", "".into());
-                        if intent.is_empty() {
+                        if !Self::should_use_directional_player_intent(entity, click_intents_2d) {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
@@ -3002,8 +3303,7 @@ impl RegionInstance {
                 }
                 EntityAction::ForwardLeft => {
                     if entity.is_player() {
-                        let intent = entity.attributes.get_str_default("intent", "".into());
-                        if intent.is_empty() {
+                        if !Self::should_use_directional_player_intent(entity, click_intents_2d) {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
@@ -3029,8 +3329,7 @@ impl RegionInstance {
                 }
                 EntityAction::ForwardRight => {
                     if entity.is_player() {
-                        let intent = entity.attributes.get_str_default("intent", "".into());
-                        if intent.is_empty() {
+                        if !Self::should_use_directional_player_intent(entity, click_intents_2d) {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
@@ -3056,8 +3355,7 @@ impl RegionInstance {
                 }
                 EntityAction::BackwardLeft => {
                     if entity.is_player() {
-                        let intent = entity.attributes.get_str_default("intent", "".into());
-                        if intent.is_empty() {
+                        if !Self::should_use_directional_player_intent(entity, click_intents_2d) {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
@@ -3083,8 +3381,7 @@ impl RegionInstance {
                 }
                 EntityAction::BackwardRight => {
                     if entity.is_player() {
-                        let intent = entity.attributes.get_str_default("intent", "".into());
-                        if intent.is_empty() {
+                        if !Self::should_use_directional_player_intent(entity, click_intents_2d) {
                             if let Some(Value::PlayerCamera(player_camera)) =
                                 entity.attributes.get("player_camera")
                             {
@@ -3380,6 +3677,25 @@ impl RegionInstance {
                         ctx.check_player_for_section_change(entity);
                     });
                 }
+                EntityAction::GotoGrid(coord, speed) => {
+                    with_regionctx(self.id, |ctx| {
+                        let step =
+                            self.compute_grid_goto_step_in_ctx(ctx, entity.get_pos_xz(), *coord);
+                        if let Some((next, facing, target)) = step {
+                            let start = entity.get_pos_xz();
+                            let step_dir = next - start;
+                            entity.set_orientation(facing);
+                            entity.action = EntityAction::StepTo(next, *speed, facing, start, step_dir);
+                            entity.set_attribute(
+                                "__grid_goto_target",
+                                Value::Str(format!("{},{}", target.x, target.y)),
+                            );
+                        } else {
+                            entity.set_attribute("__grid_goto_target", Value::Str(String::new()));
+                            entity.action = EntityAction::Off;
+                        }
+                    });
+                }
                 EntityAction::StepTo(coord, speed, facing, start, step_dir) => {
                     with_regionctx(self.id, |ctx| {
                         let mut remaining_speed =
@@ -3540,13 +3856,25 @@ impl RegionInstance {
                             entity.set_pos_xz(curr_coord);
                             entity.set_orientation(curr_facing);
                             Self::clear_grid_blocked_action(entity);
+                            let grid_goto_target =
+                                Self::parse_vec2_attr(entity, "__grid_goto_target");
                             let player_camera = match entity.attributes.get("player_camera") {
                                 Some(Value::PlayerCamera(player_camera)) => {
                                     Some(player_camera.clone())
                                 }
                                 _ => None,
                             };
-                            if let Some(player_camera) = player_camera {
+                            if let Some(target) = grid_goto_target {
+                                if (target - curr_coord).magnitude_squared() <= 0.001 {
+                                    entity.set_attribute(
+                                        "__grid_goto_target",
+                                        Value::Str(String::new()),
+                                    );
+                                    entity.action = EntityAction::Off;
+                                } else {
+                                    entity.action = EntityAction::GotoGrid(target, 1.0);
+                                }
+                            } else if let Some(player_camera) = player_camera {
                                 self.queue_grid_action_from_desired(entity, &player_camera);
                             } else {
                                 entity.action = EntityAction::Off;
@@ -3584,7 +3912,21 @@ impl RegionInstance {
                             Some(Value::PlayerCamera(player_camera)) => Some(player_camera.clone()),
                             _ => None,
                         };
-                        if let Some(player_camera) = player_camera {
+                        let grid_goto_target = Self::parse_vec2_attr(entity, "__grid_goto_target");
+                        if let Some(target) = grid_goto_target {
+                            if (target - entity.get_pos_xz().map(|value| value.floor()))
+                                .magnitude_squared()
+                                <= 0.001
+                            {
+                                entity.set_attribute(
+                                    "__grid_goto_target",
+                                    Value::Str(String::new()),
+                                );
+                                entity.action = EntityAction::Off;
+                            } else {
+                                entity.action = EntityAction::GotoGrid(target, 1.0);
+                            }
+                        } else if let Some(player_camera) = player_camera {
                             self.queue_grid_action_from_desired(entity, &player_camera);
                         } else {
                             entity.action = EntityAction::Off;
@@ -4546,6 +4888,7 @@ impl RegionInstance {
     fn send_entity_intent_events(&self, entity: &mut Entity, position: Vec2<f32>) {
         with_regionctx(self.id, |ctx: &mut RegionCtx| {
             // Send "intent" event for the entity
+            let keep_intent = Self::should_keep_player_intent(ctx, entity);
 
             let mut value = VMValue::zero();
             value.y = 1.0; // Distance
@@ -4604,7 +4947,9 @@ impl RegionInstance {
             }
 
             if !found_target {
-                entity.set_attribute("intent", Value::Str(String::new()));
+                if !keep_intent {
+                    entity.set_attribute("intent", Value::Str(String::new()));
+                }
                 send_message(ctx, entity.id, "{system.cant_do_that}".into(), "warning");
                 return;
             }
@@ -4634,7 +4979,9 @@ impl RegionInstance {
                         .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
                     "warning",
                 );
-                entity.set_attribute("intent", Value::Str(String::new()));
+                if !keep_intent {
+                    entity.set_attribute("intent", Value::Str(String::new()));
+                }
                 return;
             }
 
@@ -4644,13 +4991,17 @@ impl RegionInstance {
                         let msg = msg.trim();
                         if !msg.is_empty() {
                             send_message(ctx, entity.id, msg.to_string(), "system");
-                            entity.set_attribute("intent", Value::Str(String::new()));
+                            if !keep_intent {
+                                entity.set_attribute("intent", Value::Str(String::new()));
+                            }
                             return;
                         }
                     }
                     if let Some(msg) = entity_look_description(ctx, target_entity) {
                         send_message(ctx, entity.id, msg, "system");
-                        entity.set_attribute("intent", Value::Str(String::new()));
+                        if !keep_intent {
+                            entity.set_attribute("intent", Value::Str(String::new()));
+                        }
                         return;
                     }
                 }
@@ -4659,13 +5010,17 @@ impl RegionInstance {
                         let msg = msg.trim();
                         if !msg.is_empty() {
                             send_message(ctx, entity.id, msg.to_string(), "system");
-                            entity.set_attribute("intent", Value::Str(String::new()));
+                            if !keep_intent {
+                                entity.set_attribute("intent", Value::Str(String::new()));
+                            }
                             return;
                         }
                     }
                     if let Some(msg) = item_look_description(ctx, target_item) {
                         send_message(ctx, entity.id, msg, "system");
-                        entity.set_attribute("intent", Value::Str(String::new()));
+                        if !keep_intent {
+                            entity.set_attribute("intent", Value::Str(String::new()));
+                        }
                         return;
                     }
                 }
@@ -4701,7 +5056,9 @@ impl RegionInstance {
 
             queue_intent_cooldown(ctx, entity.id, &intent_lower, rules.cooldown_minutes);
 
-            entity.set_attribute("intent", Value::Str(String::new()));
+            if !keep_intent {
+                entity.set_attribute("intent", Value::Str(String::new()));
+            }
         });
     }
 
@@ -4949,6 +5306,19 @@ fn get_config_i32_default(ctx: &RegionCtx, table: &str, key: &str, default: i32)
                 value = v as i32;
             }
         }
+    }
+    value
+}
+
+/// Get a bool config value
+fn get_config_bool_default(ctx: &RegionCtx, table: &str, key: &str, default: bool) -> bool {
+    let mut value = default;
+    let tab = &ctx.config;
+    if let Some(game) = tab.get(table).and_then(toml::Value::as_table)
+        && let Some(val) = game.get(key)
+        && let Some(v) = val.as_bool()
+    {
+        value = v;
     }
     value
 }

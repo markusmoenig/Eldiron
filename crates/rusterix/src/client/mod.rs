@@ -178,6 +178,7 @@ pub struct Client {
     // Intent
     intent: String,
     key_down_intent: Option<String>,
+    click_intents_2d: bool,
 
     currencies: Currencies,
 
@@ -413,6 +414,7 @@ impl Client {
             currencies: Currencies::default(),
             intent: String::new(),
             key_down_intent: None,
+            click_intents_2d: false,
 
             choice_map: None,
 
@@ -1239,6 +1241,8 @@ impl Client {
         self.target_fps = self.get_config_i32_default("game", "target_fps", 30);
         self.game_tick_ms = self.get_config_i32_default("game", "game_tick_ms", 250);
         self.firstp_eye_level = self.get_config_f32_default("game", "firstp_eye_level", 1.7);
+        self.click_intents_2d = self.get_config_bool_default("game", "click_intents_2d", false)
+            || self.get_config_bool_default("game", "persistent_2d_intents", false);
         self.grid_size = self.get_config_i32_default("viewport", "grid_size", 32) as f32;
         self.upscale_mode = self.get_config_string_default("viewport", "upscale", "none");
 
@@ -1563,6 +1567,8 @@ impl Client {
                 );
             }
         }
+
+        self.draw_current_target_rect(map);
 
         // Draw the cursor (centered on cursor_pos)
         if let Some(cursor) = self.curr_cursor {
@@ -2232,10 +2238,8 @@ impl Client {
     }
 
     fn item_click_distance(map: &Map, item_id: u32) -> f32 {
-        let Some(player_pos) = map
-            .entities
-            .iter()
-            .find(|entity| entity.is_player())
+        let Some(player_pos) = Self::resolve_party_entity(map, Some("leader"))
+            .or_else(|| map.entities.iter().find(|entity| entity.is_player()))
             .map(|entity| entity.get_pos_xz())
         else {
             return 0.0;
@@ -2275,7 +2279,62 @@ impl Client {
     }
 
     fn quantize_2d_tile_pos(pos: Vec2<f32>) -> Vec2<f32> {
-        Vec2::new(pos.x.trunc(), pos.y.trunc())
+        Vec2::new(pos.x.floor(), pos.y.floor())
+    }
+
+    fn active_intent_cursor_ids(
+        &self,
+    ) -> Option<(
+        Option<Uuid>,
+        Option<Uuid>,
+        Option<Uuid>,
+        Option<Uuid>,
+    )> {
+        self.activated_widgets.iter().rev().find_map(|button_id| {
+            self.button_widgets.get(button_id).and_then(|widget| {
+                widget
+                    .intent
+                    .as_ref()
+                    .filter(|intent| !intent.trim().is_empty())
+                    .map(|_| {
+                        (
+                            widget.entity_cursor_id,
+                            widget.entity_clicked_cursor_id,
+                            widget.item_cursor_id,
+                            widget.item_clicked_cursor_id,
+                        )
+                    })
+            })
+        })
+    }
+
+    fn apply_active_intent_cursor(&mut self, entity_target: bool, item_target: bool) {
+        let Some((entity_cursor_id, entity_clicked_cursor_id, item_cursor_id, item_clicked_cursor_id)) =
+            self.active_intent_cursor_ids()
+        else {
+            return;
+        };
+
+        if entity_target {
+            self.curr_intent_cursor = entity_cursor_id.or(item_cursor_id);
+            self.curr_clicked_intent_cursor = entity_clicked_cursor_id.or(item_clicked_cursor_id);
+            if let Some(cursor_id) = self.curr_intent_cursor {
+                self.curr_cursor = Some(cursor_id);
+            }
+        } else if item_target {
+            self.curr_intent_cursor = item_cursor_id;
+            self.curr_clicked_intent_cursor = item_clicked_cursor_id;
+            if let Some(cursor_id) = self.curr_intent_cursor {
+                self.curr_cursor = Some(cursor_id);
+            }
+        }
+    }
+
+    fn immediate_2d_intent_mode(&self) -> bool {
+        matches!(
+            self.active_game_widget_camera_mode(),
+            Some(crate::PlayerCamera::D2 | crate::PlayerCamera::D2Grid)
+        ) && !self.click_intents_2d
     }
 
     fn drop_position_at_viewport(&self, p: Vec2<i32>) -> Option<Vec2<f32>> {
@@ -2361,6 +2420,7 @@ impl Client {
         self.curr_intent_cursor = None;
         self.curr_clicked_intent_cursor = None;
         self.hover_distance = f32::MAX;
+        let mut pending_cursor_target: Option<(bool, bool)> = None;
 
         // Drop intent targets inventory/equipped widgets, not world billboards/items.
         if drop_intent_active {
@@ -2403,7 +2463,30 @@ impl Client {
                 let dx = p.x as f32 - widget.rect.x;
                 let dy = p.y as f32 - widget.rect.y;
 
-                if !Self::is_2d_camera(&widget.camera) {
+                if Self::is_2d_camera(&widget.camera) {
+                    let gx = widget.top_left.x + dx / widget.grid_size;
+                    let gy = widget.top_left.y + dy / widget.grid_size;
+                    let tile_pos = Self::quantize_2d_tile_pos(Vec2::new(gx, gy));
+
+                    if let Some(entity) = map.entities.iter().find(|entity| {
+                        Self::quantize_2d_tile_pos(entity.get_pos_xz()) == tile_pos
+                            && entity.attributes.get_str_default("mode", "active".into())
+                                != "dead"
+                    }) {
+                        self.hovered_entity_id = Some(entity.id);
+                        pending_cursor_target = Some((true, false));
+                    } else if let Some(item) = map.items.iter().find(|item| {
+                        Self::quantize_2d_tile_pos(item.get_pos_xz()) == tile_pos
+                    }) {
+                        self.hovered_item_id = Some(item.id);
+                        pending_cursor_target = Some((false, true));
+                    } else if let Some(entity) = map.entities.iter().find(|entity| {
+                        Self::quantize_2d_tile_pos(entity.get_pos_xz()) == tile_pos
+                    }) {
+                        self.hovered_entity_id = Some(entity.id);
+                        pending_cursor_target = Some((true, false));
+                    }
+                } else {
                     // We cast a ray into the game view and get the GeoId
                     let screen_uv = Vec2::new(dx / widget.rect.width, dy / widget.rect.height);
                     if let Some((geoid, world_pos, distance)) = scene_handler.vm.pick_geo_id_at_uv(
@@ -2417,22 +2500,8 @@ impl Client {
                         match geoid {
                             GeoId::Character(entity_id) => {
                                 self.hovered_entity_id = Some(entity_id);
-                                for button_id in &self.activated_widgets {
-                                    if let Some(widget) = self.button_widgets.get(button_id) {
-                                        self.curr_intent_cursor =
-                                            widget.entity_cursor_id.or(widget.item_cursor_id);
-                                        self.curr_clicked_intent_cursor = widget
-                                            .entity_clicked_cursor_id
-                                            .or(widget.item_clicked_cursor_id);
-                                        self.hover_distance = distance;
-
-                                        if let Some(cursor_id) =
-                                            widget.entity_cursor_id.or(widget.item_cursor_id)
-                                        {
-                                            self.curr_cursor = Some(cursor_id);
-                                        }
-                                    }
-                                }
+                                self.hover_distance = distance;
+                                pending_cursor_target = Some((true, false));
                             }
                             GeoId::Hole(sector_id, hole_id) => {
                                 if let Some(item) = SceneHandler::find_item_by_profile_attrs(
@@ -2448,18 +2517,8 @@ impl Client {
                                     //     }
                                     // }
                                     self.hovered_item_id = Some(item.id);
-                                    for button_id in &self.activated_widgets {
-                                        if let Some(widget) = self.button_widgets.get(button_id) {
-                                            self.curr_intent_cursor = widget.item_cursor_id;
-                                            self.curr_clicked_intent_cursor =
-                                                widget.item_clicked_cursor_id;
-                                            self.hover_distance = distance;
-
-                                            if let Some(cursor_id) = widget.item_cursor_id {
-                                                self.curr_cursor = Some(cursor_id);
-                                            }
-                                        }
-                                    }
+                                    self.hover_distance = distance;
+                                    pending_cursor_target = Some((false, true));
                                 }
                             }
                             GeoId::Sector(sector_id) => {
@@ -2467,40 +2526,24 @@ impl Client {
                                     SceneHandler::find_item_by_sector_id(map, sector_id)
                                 {
                                     self.hovered_item_id = Some(item.id);
-                                    for button_id in &self.activated_widgets {
-                                        if let Some(widget) = self.button_widgets.get(button_id) {
-                                            self.curr_intent_cursor = widget.item_cursor_id;
-                                            self.curr_clicked_intent_cursor =
-                                                widget.item_clicked_cursor_id;
-                                            self.hover_distance = distance;
-
-                                            if let Some(cursor_id) = widget.item_cursor_id {
-                                                self.curr_cursor = Some(cursor_id);
-                                            }
-                                        }
-                                    }
+                                    self.hover_distance = distance;
+                                    pending_cursor_target = Some((false, true));
                                 }
                             }
                             GeoId::Item(item_id) => {
                                 self.hovered_item_id = Some(item_id);
-                                for button_id in &self.activated_widgets {
-                                    if let Some(widget) = self.button_widgets.get(button_id) {
-                                        self.curr_intent_cursor = widget.item_cursor_id;
-                                        self.curr_clicked_intent_cursor =
-                                            widget.item_clicked_cursor_id;
-                                        self.hover_distance = distance;
-
-                                        if let Some(cursor_id) = widget.item_cursor_id {
-                                            self.curr_cursor = Some(cursor_id);
-                                        }
-                                    }
-                                }
+                                self.hover_distance = distance;
+                                pending_cursor_target = Some((false, true));
                             }
                             _ => {}
                         }
                     }
                 }
             }
+        }
+
+        if let Some((entity_target, item_target)) = pending_cursor_target {
+            self.apply_active_intent_cursor(entity_target, item_target);
         }
     }
 
@@ -2687,12 +2730,10 @@ impl Client {
 
         // Test against clicks on the map
         if action.is_none() {
-            let mut player_pos: Vec2<f32> = Vec2::zero();
-            for entity in map.entities.iter() {
-                if entity.is_player() {
-                    player_pos = entity.get_pos_xz();
-                }
-            }
+            let player_pos = Self::resolve_party_entity(map, Some("leader"))
+                .or_else(|| map.entities.iter().find(|entity| entity.is_player()))
+                .map(|entity| entity.get_pos_xz())
+                .unwrap_or(Vec2::zero());
 
             for (_, widget) in self.game_widgets.iter() {
                 if widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
@@ -2742,7 +2783,12 @@ impl Client {
                             let item_pos = item.get_pos_xz();
                             if tile_pos == Self::quantize_2d_tile_pos(item_pos) {
                                 let distance = player_pos.distance(item_pos);
-                                return Some(EntityAction::ItemClicked(item.id, distance, None, None));
+                                return Some(EntityAction::ItemClicked(
+                                    item.id,
+                                    distance,
+                                    self.get_current_intent_for_action(),
+                                    None,
+                                ));
                             }
                         }
 
@@ -2857,10 +2903,7 @@ impl Client {
     }
 
     pub fn user_event(&mut self, event: String, value: Value) -> EntityAction {
-        let immediate_2d_intent = matches!(
-            self.active_game_widget_camera_mode(),
-            Some(crate::PlayerCamera::D2 | crate::PlayerCamera::D2Grid)
-        );
+        let immediate_2d_intent = self.immediate_2d_intent_mode();
 
         // Make sure we do not send action events after a key down intent was handled
         // Otherwise the character would move a bit because "intent" is already cleared
@@ -2905,14 +2948,13 @@ impl Client {
 
         if is_key_down && let EntityAction::Intent(intent_name) = &action {
             if immediate_2d_intent {
-                // 2D uses immediate intents (one-shot on next directional action),
-                // so shortcuts must not force sticky button activation.
+                // Classic 2D uses one-shot directional intents, so shortcuts should
+                // not toggle persistent button activation.
                 self.intent = intent_name.clone();
             } else {
-                // 3D uses intent as a persistent state (same behavior as clicking a button).
+                // 3D and click-intents-in-2D use intent as a persistent UI state.
                 self.apply_intent_button_activation(intent_name);
-                // In 3D, keyboard intent shortcuts are UI state changes only.
-                // Do not forward intent actions to the server directly.
+                // Keyboard intent shortcuts only update selection state here.
                 action = EntityAction::Off;
             }
         }
@@ -3489,6 +3531,84 @@ impl Client {
             None
         } else {
             Some(self.intent.clone())
+        }
+    }
+
+    fn current_target_entity_id(map: &Map) -> Option<u32> {
+        let leader = Self::resolve_party_entity(map, Some("leader"))?;
+
+        let parse_target_attr = |value: Option<&Value>| -> Option<u32> {
+            match value {
+                Some(Value::UInt(id)) => Some(*id),
+                Some(Value::Int(id)) if *id > 0 => Some(*id as u32),
+                Some(Value::Int64(id)) if *id > 0 => Some(*id as u32),
+                Some(Value::Str(value)) => value.trim().parse::<u32>().ok().filter(|id| *id > 0),
+                _ => None,
+            }
+        };
+
+        parse_target_attr(leader.attributes.get("attack_target"))
+            .or_else(|| parse_target_attr(leader.attributes.get("target")))
+    }
+
+    fn draw_current_target_rect(&mut self, map: &Map) {
+        let color_hex = self.get_config_string_default("viewport", "target_rect_color", "");
+        if color_hex.trim().is_empty() {
+            return;
+        }
+
+        let Some(target_id) = Self::current_target_entity_id(map) else {
+            return;
+        };
+        let Some(target) = map.entities.iter().find(|entity| entity.id == target_id) else {
+            return;
+        };
+
+        let color = Self::hex_to_rgba_u8(&color_hex);
+        let stride = self.target.stride();
+
+        for widget in self.game_widgets.values() {
+            if !Self::is_2d_camera(&widget.camera) {
+                continue;
+            }
+
+            let x = widget.rect.x + (target.get_pos_xz().x - widget.top_left.x) * widget.grid_size;
+            let y = widget.rect.y + (target.get_pos_xz().y - widget.top_left.y) * widget.grid_size;
+            let size = widget.grid_size.max(1.0).round() as usize;
+
+            let rx = x.floor() as isize;
+            let ry = y.floor() as isize;
+            let rw = size as isize;
+            let rh = size as isize;
+
+            let safe = (
+                0isize,
+                0isize,
+                self.target.dim().width as isize,
+                self.target.dim().height as isize,
+            );
+            if rx + rw <= safe.0
+                || ry + rh <= safe.1
+                || rx >= safe.2
+                || ry >= safe.3
+                || rw <= 0
+                || rh <= 0
+            {
+                continue;
+            }
+
+            let rect = (
+                rx.max(0) as usize,
+                ry.max(0) as usize,
+                size.min((safe.2 - rx.max(0)) as usize),
+                size.min((safe.3 - ry.max(0)) as usize),
+            );
+            if rect.2 == 0 || rect.3 == 0 {
+                continue;
+            }
+
+            self.draw2d
+                .rect_outline_thickness(self.target.pixels_mut(), &rect, stride, &color, 2);
         }
     }
 }

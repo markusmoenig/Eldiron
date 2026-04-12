@@ -43,7 +43,7 @@ impl Dock for DataEditorDock {
             textedit.set_code_theme("Gruvbox Dark");
         }
         textedit.set_continuous(true);
-        textedit.display_line_number(true);
+        textedit.display_line_number(false);
         textedit.use_global_statusbar(true);
         textedit.set_font_size(14.0);
         textedit.set_supports_undo(false);

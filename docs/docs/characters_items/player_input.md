@@ -78,6 +78,22 @@ This applies to both:
 - `2d`
 - `2d_grid`
 
+You can opt into click-targeted 2D intent behavior with:
+
+```toml
+[game]
+click_intents_2d = true
+```
+
+With that enabled, 2D behaves more like 3D:
+
+1. select an intent like `use`, `attack`, or `spell`
+2. move the cursor over an entity or item
+3. click the target to apply that intent
+4. the selected intent stays active until you switch it
+
+Movement keys still walk normally. Intent hover / clicked cursors from screen buttons also apply in 2D when this mode is enabled.
+
 ### Isometric / First-Person
 
 In isometric and first-person play, intents behave more like a **persistent interaction mode**:

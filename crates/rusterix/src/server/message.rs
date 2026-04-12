@@ -179,6 +179,8 @@ pub enum EntityAction {
     Intent(String),
     /// Goto: Move to a specific position with a given speed
     Goto(Vec2<f32>, f32),
+    /// Grid-aware click-to-walk target for 2D grid movement.
+    GotoGrid(Vec2<f32>, f32),
     /// Smoothly move to a specific position while keeping an explicit facing.
     StepTo(Vec2<f32>, f32, Vec2<f32>, Vec2<f32>, Vec2<f32>),
     /// Smoothly rotate to a specific facing.

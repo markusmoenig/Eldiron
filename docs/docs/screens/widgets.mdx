@@ -104,7 +104,7 @@ In the HUD you can select between two icons per sector:
 - **border_size** - An optional border for the button. Default size is 0 (no border).
 - **border_color** - The color for the border. Default is white ("#FFFFFF").
 
-The following attributes are valid for 3D scenes only. They enable `intent` buttons to be able to show specific mouse cursors when hovering or clicking an entity or item:
+The following attributes let `intent` buttons show specific mouse cursors when hovering or clicking an entity or item. They work in 3D, and also in 2D when `[game].click_intents_2d = true`:
 - **entity_cursor_id** - The [tile id](/docs/what_is/#tileid) for the mouse cursor when hovering above a character.
 - **entity_clicked_cursor_id** - The [tile id](/docs/what_is/#tileid) for the mouse cursor when clicking a character.
 - **item_cursor_id** - The [tile id](/docs/what_is/#tileid) for the mouse cursor when hovering above an item.

@@ -35,6 +35,8 @@ collision_mode = "tile"        # Collision/path mode: "tile" or "mesh".
 auto_create_player = true      # Whether to auto-create a player entity.
 start_region = ""              # The name of the region to start the game in.
 start_screen = ""              # The name of the screen to show at startup.
+click_intents_2d = false       # Target 2D intents with mouse clicks while keeping WASD movement.
+auto_walk_2d = false           # In walk mode, clicking terrain in 2D makes the player path-walk there.
 
 # Base currency configuration
 base_currency_name = "Gold"      # Display name of the primary in-game currency.
@@ -118,6 +120,19 @@ avatar_skin_auto_shading = false
 - **`start_screen`**
   The **name of the screen** to load on startup.
   If empty, Eldiron will display a black screen.
+
+- **`click_intents_2d`**
+  - Enables click-targeted intents in `2d` and `2d_grid` input modes.
+  - When enabled, selecting an intent changes mouse interaction, but movement keys still walk as usual.
+  - Click a target to apply the current intent; the selected intent stays active until you switch it.
+  - Intent hover / clicked cursors also apply in 2D while this mode is active.
+  - Default: `false`.
+
+- **`auto_walk_2d`**
+  - Enables terrain click-to-walk for `2d` and `2d_grid` input modes.
+  - Only applies when no intent is active, so walk mode stays separate from click-targeted intents.
+  - Uses the normal runtime `Goto` pathing action.
+  - Default: `false`.
 
 - **`gear_slots`**
   The **valid gear slots** of items. Items can define it's gear slot by setting `slot` in the data tool.
@@ -233,6 +248,7 @@ visibility_range_2d = 0 # 2D visible range around the player in tiles. 0 disable
 visibility_alpha_2d = 0.82 # LOS mask blend toward the background color (0..1).
 screen_background = "#000000" # Screen/widget background color.
 cursor_id = "..."   # The tile id of the default mouse cursor.
+target_rect_color = "" # Optional target rectangle color for the current leader target in 2D.
 ```
 
 ### **Option Descriptions**
@@ -273,6 +289,11 @@ cursor_id = "..."   # The tile id of the default mouse cursor.
 
 - **`cursor_id`**
     The [tile id](/docs/what_is/#tileid) for the default mouse cursor.
+
+- **`target_rect_color`**
+    Optional rectangle color for drawing the current leader target in 2D game widgets.
+    Uses `target` / `attack_target` from the current leader entity.
+    Leave empty to disable.
 ---
 
 ## Render Configuration

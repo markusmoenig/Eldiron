@@ -18,7 +18,7 @@ avatar = "human"
 size_2d = 1.25
 ```
 
-Use `size_2d` when a 2D avatar should fill more of its tile without affecting the 3D `size` billboard scale.
+Use `size_2d` when a 2D avatar should render larger without affecting the 3D `size` billboard scale or any gameplay/collision behavior.
 
 ---
 

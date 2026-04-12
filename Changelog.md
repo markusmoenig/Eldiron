@@ -11,6 +11,7 @@
 - Added automatic item drag-and-drop between world, inventory/equipment slots, and terrain in both 2D and 3D game views.
 - Added the first expandable party-bound UI layer for screens, including `party` widget bindings, portrait button support via `portrait_tile_id`, and party-aware inventory/equipment slot interaction without breaking existing player-bound screens.
 - Added configurable 2D visibility / LOS masking via `visibility_range_2d` and `visibility_alpha_2d`, including runtime `world.render.*` / `region.render.*` control and tile-blocked sight using `MapMini`.
+- Added optional click-based 2D intents via `click_intents_2d`, optional 2D terrain auto-walk via `auto_walk_2d`, and optional 2D target highlighting via `target_rect_color`.
 
 ### Bug Fixes
 
@@ -21,6 +22,7 @@
 - Added docs for `background_color_2d`, `screen_background`, and the new `size_2d` character attribute.
 - Added docs for the new world/region scripting tree items and the `world.render.*`, `region.render.*`, `world.post.*`, and `region.post.*` runtime override paths.
 - Added docs for party-bound screen widgets, portrait buttons, and the new `party_index`, `party_role`, and `portrait_tile_id` character attributes.
+- Added docs for `click_intents_2d`, `auto_walk_2d`, `target_rect_color`, and 2D intent cursor support on screen widgets.
 
 ---
 

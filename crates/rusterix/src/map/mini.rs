@@ -470,7 +470,7 @@ impl MapMini {
         if let Some((path, _)) = result {
             let next_tile = if path.len() >= 2 { path[1] } else { to_tile };
 
-            let target_pos = (next_tile.map(|x| x as f32) + Vec2::new(0.5, 0.5)) * tile_size;
+            let target_pos = next_tile.map(|x| x as f32) * tile_size;
 
             let to_vector = target_pos - from;
             let max_distance = speed;
@@ -542,14 +542,14 @@ impl MapMini {
 
         // Manhattan is fine; subtract dest_radius so heuristic is admissible
         let heuristic = |cell: &Vec2<i32>| {
-            let center = (cell.map(|i| i as f32) + Vec2::new(0.5, 0.5)) * tile_size;
+            let center = cell.map(|i| i as f32) * tile_size;
             let d = (target - center).magnitude() - dest_radius;
             d.max(0.0) as i32 // cast to int for admissibility
         };
 
         // Goal when cell centre is within dest_radius
         let is_goal = |cell: &Vec2<i32>| {
-            let centre = (cell.map(|i| i as f32) + Vec2::new(0.5, 0.5)) * tile_size;
+            let centre = cell.map(|i| i as f32) * tile_size;
             (centre - target).magnitude() <= dest_radius
         };
 
@@ -557,7 +557,7 @@ impl MapMini {
             Some((path, _)) => {
                 // Next step along path (skip [0] == start)
                 let next_cell = if path.len() >= 2 { path[1] } else { path[0] };
-                let step_target = (next_cell.map(|i| i as f32) + Vec2::new(0.5, 0.5)) * tile_size;
+                let step_target = next_cell.map(|i| i as f32) * tile_size;
 
                 // --- 3 · move toward that step ----------------------------------
                 let to_vec = step_target - from;
