@@ -3,6 +3,18 @@ title: "Authoring"
 sidebar_position: 3
 ---
 
+<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;margin-bottom:1rem;">
+  <iframe
+    src="https://www.youtube.com/embed/YLHWBTcqfps"
+    title="Eldiron Authoring"
+    style="position:absolute;top:0;left:0;width:100%;height:100%;"
+    frameborder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    referrerpolicy="strict-origin-when-cross-origin"
+    allowfullscreen>
+  </iframe>
+</div>
+
 Authoring in **Eldiron Creator** adds narrative and descriptive metadata to the world. It is used by the terminal client already, and the same data can also drive room descriptions, sector enter text, and other presentation in normal 2D and 3D games.
 
 ## Authoring Dock
