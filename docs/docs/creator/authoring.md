@@ -3,15 +3,15 @@ title: "Authoring"
 sidebar_position: 3
 ---
 
-<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;margin-bottom:1rem;">
+<div style={{position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', marginBottom: '1rem'}}>
   <iframe
     src="https://www.youtube.com/embed/YLHWBTcqfps"
     title="Eldiron Authoring"
-    style="position:absolute;top:0;left:0;width:100%;height:100%;"
-    frameborder="0"
+    style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%'}}
+    frameBorder="0"
     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    referrerpolicy="strict-origin-when-cross-origin"
-    allowfullscreen>
+    referrerPolicy="strict-origin-when-cross-origin"
+    allowFullScreen>
   </iframe>
 </div>
 
