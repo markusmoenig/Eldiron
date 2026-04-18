@@ -894,27 +894,29 @@ impl ToolList {
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
                 if let Some(id) = &ctx.ui.focus {
                     if id.name == "PolyView" {
+                        let invert_2d_pan = server_ctx.editor_view_mode == EditorViewMode::D2
+                            && !cfg!(target_os = "macos");
                         if *code == TheKeyCode::Up {
                             if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
-                                map.offset.y += 50.0;
+                                map.offset.y += if invert_2d_pan { -50.0 } else { 50.0 };
                             }
                             return false;
                         }
                         if *code == TheKeyCode::Down {
                             if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
-                                map.offset.y -= 50.0;
+                                map.offset.y += if invert_2d_pan { 50.0 } else { -50.0 };
                             }
                             return false;
                         }
                         if *code == TheKeyCode::Left {
                             if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
-                                map.offset.x -= 50.0;
+                                map.offset.x += if invert_2d_pan { 50.0 } else { -50.0 };
                             }
                             return false;
                         }
                         if *code == TheKeyCode::Right {
                             if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
-                                map.offset.x += 50.0;
+                                map.offset.x += if invert_2d_pan { -50.0 } else { 50.0 };
                             }
                             return false;
                         }
