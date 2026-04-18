@@ -1200,7 +1200,7 @@ impl TheTrait for Editor {
     }
 
     fn window_title(&self) -> String {
-        "Eldiron Creator".to_string()
+        format!("Eldiron Creator v{}", env!("CARGO_PKG_VERSION"))
     }
 
     fn target_fps(&self) -> f64 {
