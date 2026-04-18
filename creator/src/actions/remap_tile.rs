@@ -3,6 +3,7 @@ use crate::prelude::*;
 
 const REMAP_ALL_ID: &str = "actionRemapAll";
 const REMAP_MODE_ID: &str = "actionRemapMode";
+const REMAP_RANGE_ID: &str = "actionRemapRange";
 
 #[derive(Clone, Copy)]
 enum RemapMode {
@@ -43,6 +44,48 @@ fn nearest_palette_color_u8(palette: &ThePalette, color: [u8; 4]) -> Option<[u8;
         .get(index)
         .and_then(|entry| entry.as_ref())
         .map(TheColor::to_u8_array)
+}
+
+fn parse_palette_range(text: &str, palette_len: usize) -> Option<(usize, usize)> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("all") {
+        if palette_len == 0 {
+            None
+        } else {
+            Some((0, palette_len.saturating_sub(1)))
+        }
+    } else if let Some((start, end)) = trimmed.split_once('-') {
+        let start = start.trim().parse::<usize>().ok()?;
+        let end = end.trim().parse::<usize>().ok()?;
+        if palette_len == 0 {
+            return None;
+        }
+        let start = start.min(palette_len.saturating_sub(1));
+        let end = end.min(palette_len.saturating_sub(1));
+        Some((start.min(end), start.max(end)))
+    } else {
+        let index = trimmed.parse::<usize>().ok()?;
+        if palette_len == 0 {
+            None
+        } else {
+            let index = index.min(palette_len.saturating_sub(1));
+            Some((index, index))
+        }
+    }
+}
+
+fn palette_for_range(palette: &ThePalette, range_text: &str) -> ThePalette {
+    let Some((start, end)) = parse_palette_range(range_text, palette.colors.len()) else {
+        return palette.clone();
+    };
+
+    let mut filtered = palette.clone();
+    for (index, entry) in filtered.colors.iter_mut().enumerate() {
+        if index < start || index > end {
+            *entry = None;
+        }
+    }
+    filtered
 }
 
 fn remap_texture_nearest(tex: &mut rusterix::Texture, palette: &ThePalette) {
@@ -213,6 +256,14 @@ impl Action for RemapTile {
             ],
             0,
         ));
+        nodeui.add_item(TheNodeUIItem::Text(
+            REMAP_RANGE_ID.into(),
+            "".into(),
+            "".into(),
+            "all".into(),
+            Some("all".into()),
+            false,
+        ));
         nodeui.add_item(TheNodeUIItem::Checkbox(
             REMAP_ALL_ID.into(),
             "".into(),
@@ -256,7 +307,11 @@ impl Action for RemapTile {
     ) {
         let remap_all = self.nodeui.get_bool_value(REMAP_ALL_ID).unwrap_or(false);
         let remap_mode = RemapMode::from_index(self.nodeui.get_i32_value(REMAP_MODE_ID).unwrap_or(0));
-        let palette = project.palette.clone();
+        let range_text = self
+            .nodeui
+            .get_text_value(REMAP_RANGE_ID)
+            .unwrap_or_else(|| "all".to_string());
+        let palette = palette_for_range(&project.palette, &range_text);
 
         if remap_all {
             let mut edits = Vec::new();
