@@ -184,22 +184,17 @@ impl ExtrudeLinedef {
             ld_id,
         );
 
-        // Build on duplicated base vertices so generated profile geometry never shares
-        // the original host linedef. This allows safe replace/delete of generated sectors.
-        let v0_base = map.add_vertex_at_3d(p0_base.x, p0_base.y, p0_base.z, false);
-        let v1_base = map.add_vertex_at_3d(p1_base.x, p1_base.y, p1_base.z, false);
-
-        // Use manual linedef creation to avoid premature sector detection
-        // (auto-detection can find wrong cycles when vertices are reused)
-        map.possible_polygon = vec![];
-        let _ = map.create_linedef_manual(v0_base, v1_base); // bottom
-        let mut prev = v1_base;
+        // Reuse the original host linedef as the bottom edge of the extruded polygon.
+        // Duplicating the base vertices creates near-overlapping geometry and is the
+        // source of the reported "duplicate base vertices" behavior.
+        map.possible_polygon = vec![ld_id];
+        let mut prev = v1;
         for p in top_points {
             let v = map.add_vertex_at_3d(p.x, p.y, p.z, false);
             let _ = map.create_linedef_manual(prev, v);
             prev = v;
         }
-        let _ = map.create_linedef_manual(prev, v0_base); // close side
+        let _ = map.create_linedef_manual(prev, v0); // close side
 
         map.close_polygon_manual()
     }

@@ -19,6 +19,7 @@
 - Fixed tile metadata blocking changes so tile status, live tile caches, and runtime blocking update immediately without requiring a save/restart.
 - Inverted 2D editor arrow-key panning on Windows and Linux so the cursor keys move the view in the expected direction, while keeping macOS behavior unchanged.
 - Added `Home` / `End` keyboard support to text editing widgets, including line start/end navigation and `Shift` selection in both single-line and multi-line editors.
+- Fixed `Extrude Linedef` so it no longer duplicates the base vertices / bottom edge of the source linedef during extrusion.
 
 ### Documentation
 
