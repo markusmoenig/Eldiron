@@ -86,7 +86,7 @@ impl Action for EditTileMeta {
         &self,
         project: &mut Project,
         _ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
         let role = self.nodeui.get_i32_value("actionTileRole").unwrap_or(0);
@@ -98,11 +98,30 @@ impl Action for EditTileMeta {
 
         if let Some(tile_id) = server_ctx.curr_tile_id {
             if let Some(tile) = project.get_tile_mut(&tile_id) {
+                let role = TileRole::from_index(role as u8);
+                let blocking = blocking == 1;
+
+                tile.role = role;
+                tile.blocking = blocking;
+                tile.name = name.clone();
+            }
+
+            if let Some(tile) = project.tiles.get_mut(&tile_id) {
                 tile.role = TileRole::from_index(role as u8);
                 tile.blocking = blocking == 1;
-                tile.name = name;
+                tile.tags = name.clone();
             }
         }
+
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Tiles"),
+            TheValue::Empty,
+        ));
+
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Render SceneManager Map"),
+            TheValue::Empty,
+        ));
     }
 
     fn params(&self) -> TheNodeUI {
