@@ -569,6 +569,8 @@ impl ApplicationHandler for TheWinitApp {
                                 Key::Named(NamedKey::Delete) | Key::Named(NamedKey::Backspace) => {
                                     Some(TheKeyCode::Delete)
                                 }
+                                Key::Named(NamedKey::Home) => Some(TheKeyCode::Home),
+                                Key::Named(NamedKey::End) => Some(TheKeyCode::End),
                                 Key::Named(NamedKey::ArrowUp) => Some(TheKeyCode::Up),
                                 Key::Named(NamedKey::ArrowRight) => Some(TheKeyCode::Right),
                                 Key::Named(NamedKey::ArrowDown) => Some(TheKeyCode::Down),
@@ -692,6 +694,8 @@ impl ApplicationHandler for TheWinitApp {
                                 Key::Named(NamedKey::Delete) | Key::Named(NamedKey::Backspace) => {
                                     Some(TheKeyCode::Delete)
                                 }
+                                Key::Named(NamedKey::Home) => Some(TheKeyCode::Home),
+                                Key::Named(NamedKey::End) => Some(TheKeyCode::End),
                                 Key::Named(NamedKey::ArrowUp) => Some(TheKeyCode::Up),
                                 Key::Named(NamedKey::ArrowRight) => Some(TheKeyCode::Right),
                                 Key::Named(NamedKey::ArrowDown) => Some(TheKeyCode::Down),

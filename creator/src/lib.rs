@@ -80,12 +80,14 @@ pub mod prelude {
     pub const KEY_ESCAPE: u32 = 0;
     pub const KEY_RETURN: u32 = 1;
     pub const KEY_DELETE: u32 = 2;
-    pub const KEY_UP: u32 = 3;
-    pub const KEY_RIGHT: u32 = 4;
-    pub const KEY_DOWN: u32 = 5;
-    pub const KEY_LEFT: u32 = 6;
-    pub const KEY_SPACE: u32 = 7;
-    pub const KEY_TAB: u32 = 8;
+    pub const KEY_HOME: u32 = 3;
+    pub const KEY_END: u32 = 4;
+    pub const KEY_UP: u32 = 5;
+    pub const KEY_RIGHT: u32 = 6;
+    pub const KEY_DOWN: u32 = 7;
+    pub const KEY_LEFT: u32 = 8;
+    pub const KEY_SPACE: u32 = 9;
+    pub const KEY_TAB: u32 = 10;
 }
 
 // --- FFI exports for the Xcode static library build ---
@@ -240,6 +242,14 @@ mod ffi {
             UI.lock()
                 .unwrap()
                 .key_down(None, Some(TheKeyCode::Delete), &mut CTX.lock().unwrap())
+        } else if key == KEY_HOME {
+            UI.lock()
+                .unwrap()
+                .key_down(None, Some(TheKeyCode::Home), &mut CTX.lock().unwrap())
+        } else if key == KEY_END {
+            UI.lock()
+                .unwrap()
+                .key_down(None, Some(TheKeyCode::End), &mut CTX.lock().unwrap())
         } else if key == KEY_UP {
             UI.lock()
                 .unwrap()

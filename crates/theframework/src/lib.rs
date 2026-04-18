@@ -40,6 +40,8 @@ pub enum TheKeyCode {
     Escape,
     Return,
     Delete,
+    Home,
+    End,
     Up,
     Right,
     Down,

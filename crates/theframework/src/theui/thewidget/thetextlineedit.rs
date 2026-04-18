@@ -581,6 +581,110 @@ impl TheWidget for TheTextLineEdit {
                                 }
                             }
                         }
+                        TheKeyCode::Home => {
+                            if self.modifier_shift {
+                                let cursor_index = self.state.find_cursor_index();
+                                let is_cursor_at_selection_start =
+                                    cursor_index == self.state.selection.start;
+                                let is_cursor_at_selection_end =
+                                    cursor_index == self.state.selection.end;
+
+                                if self.state.move_cursor_to_line_start() {
+                                    let new_cursor_index = self.state.find_cursor_index();
+                                    if self.state.selection.is_none() {
+                                        self.state.select(new_cursor_index, cursor_index);
+                                    } else {
+                                        if is_cursor_at_selection_start {
+                                            self.state.selection.start = new_cursor_index;
+                                        }
+                                        if is_cursor_at_selection_end {
+                                            self.state.selection.end = new_cursor_index;
+                                        }
+                                    }
+
+                                    self.renderer.scroll_to_cursor(
+                                        self.state.find_cursor_index(),
+                                        self.state.cursor.row,
+                                    );
+                                    self.is_dirty = true;
+                                    redraw = true;
+                                }
+                            } else {
+                                let updated = {
+                                    if self.state.selection.is_none() {
+                                        self.state.move_cursor_to_line_start()
+                                    } else {
+                                        let (row, column) = self
+                                            .state
+                                            .find_row_col_of_index(self.state.selection.start);
+                                        self.state.set_cursor(TheCursor::new(row, column));
+                                        self.state.reset_selection();
+                                        true
+                                    }
+                                };
+
+                                if updated {
+                                    self.renderer.scroll_to_cursor(
+                                        self.state.find_cursor_index(),
+                                        self.state.cursor.row,
+                                    );
+                                    self.is_dirty = true;
+                                    redraw = true;
+                                }
+                            }
+                        }
+                        TheKeyCode::End => {
+                            if self.modifier_shift {
+                                let cursor_index = self.state.find_cursor_index();
+                                let is_cursor_at_selection_start =
+                                    cursor_index == self.state.selection.start;
+                                let is_cursor_at_selection_end =
+                                    cursor_index == self.state.selection.end;
+
+                                if self.state.move_cursor_to_line_end() {
+                                    let new_cursor_index = self.state.find_cursor_index();
+                                    if self.state.selection.is_none() {
+                                        self.state.select(cursor_index, new_cursor_index);
+                                    } else {
+                                        if is_cursor_at_selection_start {
+                                            self.state.selection.start = new_cursor_index;
+                                        }
+                                        if is_cursor_at_selection_end {
+                                            self.state.selection.end = new_cursor_index;
+                                        }
+                                    }
+
+                                    self.renderer.scroll_to_cursor(
+                                        self.state.find_cursor_index(),
+                                        self.state.cursor.row,
+                                    );
+                                    self.is_dirty = true;
+                                    redraw = true;
+                                }
+                            } else {
+                                let updated = {
+                                    if self.state.selection.is_none() {
+                                        self.state.move_cursor_to_line_end()
+                                    } else {
+                                        let (row, column) = self
+                                            .state
+                                            .find_row_col_of_index(self.state.selection.end);
+                                        self.state.set_cursor(TheCursor::new(row, column));
+                                        self.state.reset_selection();
+                                        true
+                                    }
+                                };
+
+                                if updated {
+                                    self.renderer.scroll_to_cursor(
+                                        self.state.find_cursor_index(),
+                                        self.state.cursor.row,
+                                    );
+                                    self.is_dirty = true;
+                                    redraw = true;
+                                }
+                            }
+                        }
                         TheKeyCode::Up => {
                             if let Some(range) = &self.range {
                                 if let Some(range_f32) = range.to_range_f32() {
