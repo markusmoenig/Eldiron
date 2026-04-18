@@ -1,4 +1,4 @@
-# Eldiron v0.93
+# Eldiron v0.9.3
 
 ## New Features
 
@@ -20,6 +20,7 @@
 - Inverted 2D editor arrow-key panning on Windows and Linux so the cursor keys move the view in the expected direction, while keeping macOS behavior unchanged.
 - Added `Home` / `End` keyboard support to text editing widgets, including line start/end navigation and `Shift` selection in both single-line and multi-line editors.
 - Fixed `Extrude Linedef` so it no longer duplicates the base vertices / bottom edge of the source linedef during extrusion.
+- Fixed Messages widget word wrapping so wrapped lines no longer intermittently show `...` from the text truncation path.
 - Added the Eldiron Creator version number to the window title bar.
 
 ### Documentation
@@ -31,7 +32,7 @@
 
 ---
 
-# Eldiron v0.92
+# Eldiron v0.9.2
 
 ## New Features
 
@@ -92,7 +93,7 @@
 
 ---
 
-# Eldiron v0.91
+# Eldiron v0.9.1
 
 ## New Features
 

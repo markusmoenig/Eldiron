@@ -860,6 +860,78 @@ impl Draw2D {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// Blends a text aligned inside a rect, clipped to the safe rect, without adding ellipsis.
+    pub fn text_rect_blend_safe_clip(
+        &self,
+        frame: &mut [u8],
+        rect: &(isize, isize, isize, isize),
+        stride: usize,
+        font: &Font,
+        size: f32,
+        text: &str,
+        color: &[u8; 4],
+        halign: TheHorizontalAlign,
+        valign: TheVerticalAlign,
+        safe_rect: &(isize, isize, isize, isize),
+    ) {
+        let text_to_use = text.trim_end().to_string();
+        if text_to_use.trim_end().is_empty() {
+            return;
+        }
+
+        let layout = self.get_text_layout(
+            font,
+            size,
+            &text_to_use,
+            LayoutSettings {
+                max_width: Some(rect.2 as f32),
+                max_height: Some(rect.3 as f32),
+                horizontal_align: if halign == TheHorizontalAlign::Left {
+                    HorizontalAlign::Left
+                } else if halign == TheHorizontalAlign::Right {
+                    HorizontalAlign::Right
+                } else {
+                    HorizontalAlign::Center
+                },
+                vertical_align: if valign == TheVerticalAlign::Top {
+                    VerticalAlign::Top
+                } else if valign == TheVerticalAlign::Bottom {
+                    VerticalAlign::Bottom
+                } else {
+                    VerticalAlign::Middle
+                },
+                ..LayoutSettings::default()
+            },
+        );
+        for glyph in layout.glyphs() {
+            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+
+            for y in 0..metrics.height {
+                if rect.1 + y as isize + glyph.y as isize >= safe_rect.1
+                    && rect.1 + y as isize + (glyph.y as isize) < safe_rect.1 + safe_rect.3
+                {
+                    for x in 0..metrics.width {
+                        if rect.0 + x as isize + glyph.x as isize >= safe_rect.0
+                            && rect.0 + x as isize + (glyph.x as isize) < safe_rect.0 + safe_rect.2
+                        {
+                            let i = (x + rect.0 as usize + glyph.x as usize) * 4
+                                + (y + rect.1 as usize + glyph.y as usize) * stride * 4;
+                            let m = alphamap[x + y * metrics.width];
+
+                            let background = &[frame[i], frame[i + 1], frame[i + 2], frame[i + 3]];
+                            frame[i..i + 4].copy_from_slice(&self.mix_color(
+                                background,
+                                color,
+                                m as f32 / 255.0,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
     /// Blends a text aligned inside a rect and blends it with the existing background
     pub fn text_rect_blend_clip(
         &self,

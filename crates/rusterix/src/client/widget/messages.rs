@@ -267,10 +267,11 @@ impl MessagesWidget {
             } else {
                 self.rect.y + self.rect.height - self.font_size.ceil()
             };
+            let draw2d = &self.draw2d;
 
             for (id, message, rect, _choice, color) in self.messages.iter_mut().rev() {
                 let lines =
-                    Self::wrap_message_lines(font, self.font_size, message, self.rect.width);
+                    Self::wrap_message_lines(draw2d, font, self.font_size, message, self.rect.width);
                 let line_height = self.font_size + self.spacing;
                 let block_height = if lines.is_empty() {
                     self.font_size
@@ -304,7 +305,7 @@ impl MessagesWidget {
                             self.font_size as isize,
                         );
 
-                        self.draw2d.text_rect_blend_safe(
+                        self.draw2d.text_rect_blend_safe_clip(
                             buffer.pixels_mut(),
                             &tuple,
                             stride,
@@ -336,7 +337,7 @@ impl MessagesWidget {
                             self.font_size as isize,
                         );
 
-                        self.draw2d.text_rect_blend_safe(
+                        self.draw2d.text_rect_blend_safe_clip(
                             buffer.pixels_mut(),
                             &tuple,
                             stride,
@@ -415,12 +416,13 @@ impl MessagesWidget {
     }
 
     fn wrap_message_lines(
+        draw2d: &Draw2D,
         font: &fontdue::Font,
         font_size: f32,
         message: &str,
         max_width: f32,
     ) -> Vec<String> {
-        let max_width = max_width.max(font_size);
+        let max_width = (max_width - 1.0).max(font_size);
         let mut lines = Vec::new();
 
         for paragraph in message.split('\n') {
@@ -437,21 +439,22 @@ impl MessagesWidget {
                     format!("{} {}", current, word)
                 };
 
-                if Self::measure_text_width(font, font_size, &candidate) <= max_width {
+                if Self::measure_text_width(draw2d, font, font_size, &candidate) <= max_width {
                     current = candidate;
                 } else {
                     if !current.is_empty() {
                         lines.push(current);
                     }
 
-                    if Self::measure_text_width(font, font_size, word) <= max_width {
+                    if Self::measure_text_width(draw2d, font, font_size, word) <= max_width {
                         current = word.to_string();
                     } else {
                         let mut chunk = String::new();
                         for ch in word.chars() {
                             let candidate = format!("{}{}", chunk, ch);
                             if !chunk.is_empty()
-                                && Self::measure_text_width(font, font_size, &candidate) > max_width
+                                && Self::measure_text_width(draw2d, font, font_size, &candidate)
+                                    > max_width
                             {
                                 lines.push(chunk);
                                 chunk = ch.to_string();
@@ -478,9 +481,12 @@ impl MessagesWidget {
         lines
     }
 
-    fn measure_text_width(font: &fontdue::Font, font_size: f32, text: &str) -> f32 {
-        text.chars()
-            .map(|ch| font.metrics(ch, font_size).advance_width)
-            .sum()
+    fn measure_text_width(
+        draw2d: &Draw2D,
+        font: &fontdue::Font,
+        font_size: f32,
+        text: &str,
+    ) -> f32 {
+        draw2d.get_text_size(font, font_size, text).0 as f32
     }
 }
