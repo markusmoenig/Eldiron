@@ -13,6 +13,6 @@ readme = "README.md"
 serde = { version = "1.0", features = ["derive"] }
 uuid = { version = "1.1.2", features = ["v4", "fast-rng", "macro-diagnostics", "serde", "js"] }
 vek = { version = "0.17.1", default-features = true }
-image = "0.25.5"
+image = { version = "0.25.10", default-features = false, features = ["png"] }
 serde_json = "1.0"
 toml = "0.9.5"

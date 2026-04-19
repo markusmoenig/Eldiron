@@ -1016,6 +1016,7 @@ fn trigger_text_intent(app: &mut TerminalApp, intent: &str, query: &str) -> Vec<
                     distance
                 },
                 Some(intent.trim().to_string()),
+                None,
             ));
         }
     }

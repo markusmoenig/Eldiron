@@ -1,4 +1,4 @@
-use crate::{Assets, Batch2D, Map, PixelSource, Scene, Value, avatar_builder::AvatarRuntimeBuilder};
+use crate::{Assets, Batch2D, Map, PixelSource, Scene, Value};
 use theframework::prelude::*;
 use uuid::Uuid;
 use vek::Vec2;
@@ -14,6 +14,16 @@ impl Default for D2Builder {
 }
 
 impl D2Builder {
+    #[cfg(feature = "graphics")]
+    fn entity_has_avatar(entity: &crate::Entity) -> bool {
+        crate::avatar_builder::AvatarRuntimeBuilder::has_avatar_binding(entity)
+    }
+
+    #[cfg(not(feature = "graphics"))]
+    fn entity_has_avatar(_entity: &crate::Entity) -> bool {
+        false
+    }
+
     pub fn new() -> Self {
         Self {
             activated_widgets: vec![],
@@ -274,7 +284,7 @@ impl D2Builder {
                 self.map_grid_to_local(screen_size, Vec2::new(entity_pos.x, entity_pos.y), map);
             let size = 1.0;
             let hsize = 0.5;
-            let has_avatar = AvatarRuntimeBuilder::has_avatar_binding(entity);
+            let has_avatar = Self::entity_has_avatar(entity);
 
             // Find light on entity
             if let Some(Value::Light(light)) = entity.attributes.get("light") {

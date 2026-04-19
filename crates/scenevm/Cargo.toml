@@ -17,7 +17,7 @@ uuid = { version = "1.18.1", features = ["v4", "rng-getrandom"] }
 rustc-hash = "2.1.1"
 vek = { version = "0.17.1", default-features = true }
 bytemuck = "1.24.0"
-image = { version = "0.25.8", default-features = false, features = [
+image = { version = "0.25.10", default-features = false, features = [
     "png",
     "jpeg",
     "gif",
