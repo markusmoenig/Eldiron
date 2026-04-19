@@ -1,28 +1,49 @@
-use std::sync::Arc;
 #[cfg(feature = "winit_app_softbuffer")]
 use std::num::NonZeroU32;
-#[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer"), target_arch = "wasm32"))]
+use std::sync::Arc;
+#[cfg(all(
+    feature = "winit_app_pixels",
+    not(feature = "winit_app_softbuffer"),
+    target_arch = "wasm32"
+))]
 use std::{cell::RefCell, rc::Rc};
 
-use winit::{
-    dpi::PhysicalSize,
-    window::Window,
-};
+use winit::{dpi::PhysicalSize, window::Window};
 
+#[cfg(all(
+    feature = "winit_app_pixels",
+    not(feature = "winit_app_softbuffer"),
+    target_arch = "wasm32"
+))]
+use js_sys::{Function, Reflect};
+#[cfg(all(
+    feature = "winit_app_pixels",
+    not(feature = "winit_app_softbuffer"),
+    target_arch = "wasm32"
+))]
+use pixels::PixelsBuilder;
 #[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer")))]
 use pixels::{Pixels, SurfaceTexture};
-#[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer"), target_arch = "wasm32"))]
-use pixels::PixelsBuilder;
-#[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer"), not(target_arch = "wasm32")))]
-use web_time::Instant;
 #[cfg(feature = "winit_app_softbuffer")]
 use softbuffer::Surface;
-#[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer"), target_arch = "wasm32"))]
+#[cfg(all(
+    feature = "winit_app_pixels",
+    not(feature = "winit_app_softbuffer"),
+    target_arch = "wasm32"
+))]
 use wasm_bindgen::{JsCast, JsValue};
-#[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer"), target_arch = "wasm32"))]
+#[cfg(all(
+    feature = "winit_app_pixels",
+    not(feature = "winit_app_softbuffer"),
+    target_arch = "wasm32"
+))]
 use wasm_bindgen_futures::spawn_local;
-#[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer"), target_arch = "wasm32"))]
-use js_sys::{Function, Reflect};
+#[cfg(all(
+    feature = "winit_app_pixels",
+    not(feature = "winit_app_softbuffer"),
+    not(target_arch = "wasm32")
+))]
+use web_time::Instant;
 
 #[cfg(not(any(feature = "winit_app_pixels", feature = "winit_app_softbuffer")))]
 compile_error!(
@@ -143,23 +164,11 @@ impl SoftbufferBackend {
         };
 
         let mut buffer = self.surface.buffer_mut().unwrap();
-        blit_rgba_into_softbuffer(
-            ui_frame,
-            blit_scale_factor,
-            width,
-            height,
-            &mut *buffer,
-        );
+        blit_rgba_into_softbuffer(ui_frame, blit_scale_factor, width, height, &mut *buffer);
         buffer.present().unwrap();
     }
 
-    fn resize(
-        &mut self,
-        size: PhysicalSize<u32>,
-        width: u32,
-        height: u32,
-        scale_factor: f32,
-    ) {
+    fn resize(&mut self, size: PhysicalSize<u32>, width: u32, height: u32, scale_factor: f32) {
         #[cfg(target_os = "macos")]
         let _ = (size, width, height, scale_factor);
         #[cfg(not(target_os = "macos"))]
@@ -191,7 +200,11 @@ pub(crate) struct PixelsBackend {
     last_present_failed_at: Option<Instant>,
 }
 
-#[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer"), target_arch = "wasm32"))]
+#[cfg(all(
+    feature = "winit_app_pixels",
+    not(feature = "winit_app_softbuffer"),
+    target_arch = "wasm32"
+))]
 enum PixelsBackendState {
     Pending {
         surface_size: PhysicalSize<u32>,
@@ -204,7 +217,11 @@ enum PixelsBackendState {
     },
 }
 
-#[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer"), target_arch = "wasm32"))]
+#[cfg(all(
+    feature = "winit_app_pixels",
+    not(feature = "winit_app_softbuffer"),
+    target_arch = "wasm32"
+))]
 fn preferred_canvas_format() -> pixels::wgpu::TextureFormat {
     let fallback = pixels::wgpu::TextureFormat::Bgra8Unorm;
 
@@ -237,12 +254,15 @@ fn preferred_canvas_format() -> pixels::wgpu::TextureFormat {
     }
 }
 
-#[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer"), target_arch = "wasm32"))]
+#[cfg(all(
+    feature = "winit_app_pixels",
+    not(feature = "winit_app_softbuffer"),
+    target_arch = "wasm32"
+))]
 fn is_srgb_format(format: pixels::wgpu::TextureFormat) -> bool {
     matches!(
         format,
-        pixels::wgpu::TextureFormat::Rgba8UnormSrgb
-            | pixels::wgpu::TextureFormat::Bgra8UnormSrgb
+        pixels::wgpu::TextureFormat::Rgba8UnormSrgb | pixels::wgpu::TextureFormat::Bgra8UnormSrgb
     )
 }
 
@@ -280,8 +300,8 @@ impl PixelsBackend {
                         _ => (size, (width.max(1), height.max(1))),
                     };
                     let _ = pixels.resize_buffer(buffer_size.0, buffer_size.1);
-                    let _ =
-                        pixels.resize_surface(surface_size.width.max(1), surface_size.height.max(1));
+                    let _ = pixels
+                        .resize_surface(surface_size.width.max(1), surface_size.height.max(1));
                     *state_ref = PixelsBackendState::Ready(pixels);
                 }
                 Err(err) => {
@@ -368,7 +388,9 @@ impl PixelsBackend {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn resize(&mut self, size: PhysicalSize<u32>, width: u32, height: u32) {
-        self.pixels.resize_buffer(width.max(1), height.max(1)).unwrap();
+        self.pixels
+            .resize_buffer(width.max(1), height.max(1))
+            .unwrap();
         self.pixels
             .resize_surface(size.width.max(1), size.height.max(1))
             .unwrap();
