@@ -3968,11 +3968,15 @@ impl RegionInstance {
                         let curr_pos = entity.get_pos_xz().clone();
                         with_regionctx(self.id, |ctx| {
                             if let Some(sector) = ctx.map.find_sector_at(curr_pos) {
+                                let radius =
+                                    entity.attributes.get_float_default("radius", 0.5) - 0.01;
                                 let mut new_pos = find_random_position(curr_pos, *distance);
                                 let mut found = false;
 
-                                for _ in 0..10 {
-                                    if sector.is_inside(&ctx.map, new_pos) {
+                                for _ in 0..16 {
+                                    if sector.is_inside(&ctx.map, new_pos)
+                                        && ctx.mapmini.is_walkable_position(new_pos, radius)
+                                    {
                                         found = true;
                                         break;
                                     } else {

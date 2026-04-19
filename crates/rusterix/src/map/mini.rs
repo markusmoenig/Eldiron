@@ -255,6 +255,31 @@ impl MapMini {
         (current_pos, blocked)
     }
 
+    /// Returns true if the given position is free for a circle with `radius`.
+    pub fn is_walkable_position(&self, position: Vec2<f32>, radius: f32) -> bool {
+        let tile = position.map(|c| c.floor() as i32);
+        if self.blocked_tiles.contains(&tile) {
+            return false;
+        }
+
+        for linedef in self.linedefs.iter().chain(self.dynamic_linedefs.iter()) {
+            let coll_radius = radius + linedef.wall_width / 2.0;
+            if let Some((dist, _normal)) = self.check_point_against_segment(
+                position,
+                linedef.start,
+                linedef.end,
+                coll_radius,
+            ) {
+                let penetration = coll_radius - dist;
+                if penetration > 0.0 {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+
     /// Precise collision detection with corner handling
     fn check_intersection(
         &self,

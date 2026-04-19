@@ -1,0 +1,72 @@
+---
+title: Eldiron v0.9.3 Released
+authors: [markusm]
+tags: [releases]
+---
+
+<!-- truncate -->
+
+![Eldiron v0.9.3](/img/screenshots/Eldiron_v0.93.png)
+
+Eldiron v0.9.3 is mostly a bugfix release, but it also adds a meaningful set of new 2D gameplay and workflow features. The main focus of this update is tightening up reliability across the Creator and runtime, while also making 2D projects feel more complete and more in line with Eldiron's 3D interaction model.
+
+The biggest additions in this release are tile-based 2D line-of-sight, point-and-click style 2D intents, optional 2D auto-walk, and broader support for dynamic 2D rendering control from scripts.
+
+## A Stronger 2D Runtime
+
+The most visible gameplay work in v0.9.3 is on the 2D side.
+
+Eldiron now supports configurable 2D visibility / LOS masking, including tile-blocked line of sight based on `MapMini`. This makes it possible to tune how much of the map is visible around the player and shape a stronger sense of day, night, interior darkness, or local vision limits without having to fake the effect through art alone.
+
+At the same time, 2D interaction has been pushed closer to the way Eldiron already behaves in 3D. Optional click-based 2D intents and optional 2D terrain auto-walk allow top-down projects to work much more like point-and-click adventures, instead of forcing strictly directional input for everything.
+
+Together, these additions make 2D feel less like a reduced mode and more like a first-class presentation style with its own strong interaction model.
+
+## Runtime Render Control From Scripts
+
+Another important piece of v0.9.3 is the new world and region runtime render control path.
+
+Projects can now attach **World** and **Region** scripts directly in the project tree, and those scripts can drive runtime `world.*` and `region.*` values for rendering and post-processing behavior. In practice, that means visual changes like palette remapping, 2D visibility tuning, backgrounds, and related presentation state can now be authored as part of the world itself instead of being treated as hardcoded one-off behavior.
+
+This is an architectural step toward larger dynamic worlds, because the same system can keep expanding over time as more shared runtime state moves into world and region contexts.
+
+## More Flexible 2D And Screen Workflows
+
+This release also adds several smaller but important 2D-facing systems:
+
+- configurable 2D viewport and screen background colors
+- better 2D avatar handling, including `size_2d`
+- automatic drag-and-drop of items between world, inventory/equipment, and terrain in both 2D and 3D
+- the first expandable party-bound screen UI layer, including portrait support via `portrait_tile_id`
+
+These are not all headline features by themselves, but together they make it easier to build more readable 2D interfaces and party-style RPG screens without hardcoding everything around a single player path.
+
+## Reliability And Bug Fixes
+
+v0.9.3 is still primarily a stabilization release.
+
+A lot of work in this version went into fixing issues that interrupted normal editing or made behavior feel inconsistent:
+
+- tile blocking metadata now updates live instead of only after restart
+- Entity Tool deletion no longer hangs
+- the Messages widget no longer randomly shows `...` on wrapped lines
+- `Extrude Linedef` no longer duplicates base vertices
+- Creator Debug Log auto-opening is more reliable for scripting warnings and errors
+- 2D editor arrow-key panning is corrected for Windows and Linux expectations
+- text editing now supports `Home` / `End`
+
+There are also many smaller workflow fixes around remapping, game widgets, screens, avatars, and immediate runtime feedback.
+
+## More In v0.9.3
+
+- improved **Remap Tile** with `remap_all`, multiple remap modes, and palette range control
+- new party-aware widget bindings and portrait button support
+- new docs for world/region runtime scripting, party-bound UI, and 2D intent/render settings
+- Creator title bar now shows the app version
+
+Overall, v0.9.3 is about making Eldiron more dependable while pushing 2D support forward in practical ways. It is not a flashy rewrite release, but it closes several gaps that made 2D authoring and play feel rougher than they needed to be.
+
+---
+
+Take care,  
+Markus

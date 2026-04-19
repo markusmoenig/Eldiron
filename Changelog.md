@@ -22,6 +22,7 @@
 - Fixed `Extrude Linedef` so it no longer duplicates the base vertices / bottom edge of the source linedef during extrusion.
 - Fixed Messages widget word wrapping so wrapped lines no longer intermittently show `...` from the text truncation path.
 - Fixed Creator Debug Log auto-opening so general scripting warnings/errors, including runtime setup script failures, are surfaced more reliably instead of only some startup cases.
+- Fixed 2D `random_walk_in_sector` target picking so NPCs no longer jitter against sector borders from repeatedly choosing borderline-invalid walk destinations.
 - Added the Eldiron Creator version number to the window title bar.
 
 ### Documentation

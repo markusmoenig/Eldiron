@@ -18,8 +18,8 @@ export const homepageContent = {
     ],
     screenshot: {
       label: "Current main version",
-      version: "Eldiron v0.9.2",
-      image: "/img/screenshots/Eldiron_v0.92.png",
+      version: "Eldiron v0.9.3",
+      image: "/img/screenshots/Eldiron_v0.93.png",
       alt: "Eldiron main version screenshot",
     },
   },
@@ -32,6 +32,14 @@ export const homepageContent = {
         "Follow the latest Eldiron releases, workflow improvements, and documentation updates as the project moves toward v1.",
       type: "news",
       items: [
+        {
+          date: "Apr 19, 2026",
+          title: "Eldiron v0.9.3",
+          description:
+            "A mostly bugfix release with stronger 2D support, including LOS, point-and-click style intents, auto-walk, and runtime world/region render control.",
+          href: "/blog/2026/04/19/eldiron-v0.9.3",
+          linkLabel: "Read more",
+        },
         {
           date: "Apr 6, 2026",
           title: "Eldiron v0.9.2",
@@ -46,14 +54,6 @@ export const homepageContent = {
           description:
             "Global rules, localization, audio FX, much better realtime visual scripting debugging, and workflow improvements.",
           href: "/blog/2026/03/15/eldiron-v0.9.1",
-          linkLabel: "Read more",
-        },
-        {
-          date: "Mar 7, 2026",
-          title: "Eldiron v0.9",
-          description:
-            "Avatars, redesigned spellcasting, procedural meshes, audio support, and the core building blocks for v1.",
-          href: "/blog/2026_03_07-eldiron-v0.9",
           linkLabel: "Read more",
         },
       ],
