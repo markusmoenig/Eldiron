@@ -3813,10 +3813,15 @@ impl RegionInstance {
                             } else {
                                 curr_facing
                             };
+                            let start_anchor = Self::snapped_grid_center(curr_start);
                             let axis_stable = if axis.x.abs() > axis.y.abs() {
-                                (new_position.y - curr_start.y).abs() <= 0.05
+                                let start_lateral = (curr_start.y - start_anchor.y).abs();
+                                let new_lateral = (new_position.y - start_anchor.y).abs();
+                                new_lateral <= (start_lateral + 0.05)
                             } else {
-                                (new_position.x - curr_start.x).abs() <= 0.05
+                                let start_lateral = (curr_start.x - start_anchor.x).abs();
+                                let new_lateral = (new_position.x - start_anchor.x).abs();
+                                new_lateral <= (start_lateral + 0.05)
                             };
                             let blocked = geometry_blocked
                                 || (!arrived && progress <= 0.0005)

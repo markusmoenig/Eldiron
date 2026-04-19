@@ -1140,13 +1140,17 @@ impl<'a> HostHandler for RegionHost<'a> {
                 }
             }
             "set_tile" => {
-                if let (Some(mode), Some(item_id)) = (
-                    args.get(0).and_then(|v| v.as_string()),
-                    self.ctx.curr_item_id,
-                ) {
+                if let Some(mode) = args.get(0).and_then(|v| v.as_string()) {
                     if let Ok(uuid) = theframework::prelude::Uuid::try_parse(mode) {
-                        if let Some(item) = self.ctx.get_item_mut(item_id) {
-                            item.set_attribute("source", Value::Source(PixelSource::TileId(uuid)));
+                        if let Some(item_id) = self.ctx.curr_item_id {
+                            if let Some(item) = self.ctx.get_item_mut(item_id) {
+                                item.set_attribute(
+                                    "source",
+                                    Value::Source(PixelSource::TileId(uuid)),
+                                );
+                            }
+                        } else if let Some(entity) = self.ctx.get_current_entity_mut() {
+                            entity.set_attribute("source", Value::Source(PixelSource::TileId(uuid)));
                         }
                     }
                 }

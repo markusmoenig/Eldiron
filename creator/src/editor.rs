@@ -908,20 +908,6 @@ impl Editor {
             }
         }
 
-        for (_, character) in project.characters.iter_mut() {
-            if character.source.starts_with("class") {
-                character.source = character.module.build(false);
-                character.source_debug = character.module.build(true);
-            }
-        }
-
-        for (_, item) in project.items.iter_mut() {
-            if item.source.starts_with("class") {
-                item.source = item.module.build(false);
-                item.source_debug = item.module.build(true);
-            }
-        }
-
         if !project.world_module.routines.is_empty() && project.world_source.is_empty() {
             project.world_source = project.world_module.build(false);
             project.world_source_debug = project.world_module.build(true);

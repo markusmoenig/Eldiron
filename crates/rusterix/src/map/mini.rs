@@ -27,6 +27,38 @@ impl Default for MapMini {
 }
 
 impl MapMini {
+    fn tile_center(cell: Vec2<i32>, tile_size: f32) -> Vec2<f32> {
+        (cell.map(|i| i as f32) + Vec2::broadcast(0.5)) * tile_size
+    }
+
+    fn clamp_move_against_blocked_tiles(
+        &self,
+        start: Vec2<f32>,
+        delta: Vec2<f32>,
+    ) -> (Vec2<f32>, bool) {
+        const SAMPLE_STEP: f32 = 0.1;
+
+        let distance = delta.magnitude();
+        if distance <= f32::EPSILON {
+            return (start, false);
+        }
+
+        let steps = (distance / SAMPLE_STEP).ceil().max(1.0) as i32;
+        let mut last_free = start;
+
+        for i in 1..=steps {
+            let t = i as f32 / steps as f32;
+            let sample = start + delta * t;
+            let tile = sample.map(|c| c.floor() as i32);
+            if self.blocked_tiles.contains(&tile) {
+                return (last_free, true);
+            }
+            last_free = sample;
+        }
+
+        (start + delta, false)
+    }
+
     pub fn empty() -> Self {
         Self {
             offset: Vec2::zero(),
@@ -201,7 +233,12 @@ impl MapMini {
                     // Move up to (just before) collision point
                     let move_dir = remaining.normalized();
                     let allowed_move = move_dir * (distance - EPSILON);
-                    current_pos += allowed_move;
+                    let (next_pos, tile_blocked) =
+                        self.clamp_move_against_blocked_tiles(current_pos, allowed_move);
+                    current_pos = next_pos;
+                    if tile_blocked {
+                        break;
+                    }
 
                     // Project leftover movement onto the wall's tangent
                     let leftover = remaining.magnitude() - distance;
@@ -227,7 +264,12 @@ impl MapMini {
                 }
                 None => {
                     // No collision => just move the full vector
-                    current_pos += remaining;
+                    let (next_pos, tile_blocked) =
+                        self.clamp_move_against_blocked_tiles(current_pos, remaining);
+                    current_pos = next_pos;
+                    if tile_blocked {
+                        blocked = true;
+                    }
                     remaining = Vec2::zero();
                 }
             }
@@ -495,7 +537,7 @@ impl MapMini {
         if let Some((path, _)) = result {
             let next_tile = if path.len() >= 2 { path[1] } else { to_tile };
 
-            let target_pos = next_tile.map(|x| x as f32) * tile_size;
+            let target_pos = Self::tile_center(next_tile, tile_size);
 
             let to_vector = target_pos - from;
             let max_distance = speed;
@@ -567,14 +609,14 @@ impl MapMini {
 
         // Manhattan is fine; subtract dest_radius so heuristic is admissible
         let heuristic = |cell: &Vec2<i32>| {
-            let center = cell.map(|i| i as f32) * tile_size;
+            let center = Self::tile_center(*cell, tile_size);
             let d = (target - center).magnitude() - dest_radius;
             d.max(0.0) as i32 // cast to int for admissibility
         };
 
         // Goal when cell centre is within dest_radius
         let is_goal = |cell: &Vec2<i32>| {
-            let centre = cell.map(|i| i as f32) * tile_size;
+            let centre = Self::tile_center(*cell, tile_size);
             (centre - target).magnitude() <= dest_radius
         };
 
@@ -582,7 +624,7 @@ impl MapMini {
             Some((path, _)) => {
                 // Next step along path (skip [0] == start)
                 let next_cell = if path.len() >= 2 { path[1] } else { path[0] };
-                let step_target = next_cell.map(|i| i as f32) * tile_size;
+                let step_target = Self::tile_center(next_cell, tile_size);
 
                 // --- 3 · move toward that step ----------------------------------
                 let to_vec = step_target - from;

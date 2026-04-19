@@ -538,6 +538,9 @@ impl Entity {
 
         // Update dynamic attributes
         for (key, value) in update.attributes {
+            if key == "source" {
+                rc = true;
+            }
             self.attributes.set(&key, value.clone());
             self.mark_dirty_attribute(&key);
         }

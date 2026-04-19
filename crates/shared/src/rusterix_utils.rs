@@ -12,7 +12,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
         if project.world_source.is_empty() {
             project.world_source = project.world_module.build(false);
         }
-        if debug {
+        if debug && project.world_source_debug.is_empty() {
             project.world_source_debug = project.world_module.build(true);
         }
     }
@@ -38,7 +38,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
             if character.source.is_empty() {
                 character.source = character.module.build(false);
             }
-            if debug {
+            if debug && character.source_debug.is_empty() {
                 character.source_debug = character.module.build(true);
             }
         }
@@ -75,7 +75,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
             if item.source.is_empty() {
                 item.source = item.module.build(false);
             }
-            if debug {
+            if debug && item.source_debug.is_empty() {
                 item.source_debug = item.module.build(true);
             }
         }
@@ -108,7 +108,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
             if region.source.is_empty() {
                 region.source = region.module.build(false);
             }
-            if debug {
+            if debug && region.source_debug.is_empty() {
                 region.source_debug = region.module.build(true);
             }
         }
@@ -241,7 +241,7 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
                 if instance.source.is_empty() {
                     instance.source = instance.module.build(false);
                 }
-                if debug {
+                if debug && instance.source_debug.is_empty() {
                     instance.source_debug = instance.module.build(true);
                 }
             }
@@ -279,7 +279,7 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
                 if instance.source.is_empty() {
                     instance.source = instance.module.build(false);
                 }
-                if debug {
+                if debug && instance.source_debug.is_empty() {
                     instance.source_debug = instance.module.build(true);
                 }
             }

@@ -251,6 +251,7 @@ impl Map {
         let mut occluded_sectors: Vec<(BBox, f32)> = vec![];
 
         let mut blocked_tiles = FxHashSet::default();
+        let mut unnamed_blocking_layer_sectors = FxHashSet::default();
 
         for sector in self.sectors.iter() {
             let mut add_it = false;
@@ -273,6 +274,9 @@ impl Map {
                     Some(PixelSource::TileId(id)) => {
                         if blocking_tiles.contains(id) {
                             add_it = true;
+                            if sector.name.is_empty() {
+                                unnamed_blocking_layer_sectors.insert(sector.id);
+                            }
                             if let Some(center) = sector.center(self) {
                                 blocked_tiles.insert(center.map(|c| (c.floor()) as i32));
                             }
@@ -281,6 +285,9 @@ impl Map {
                     Some(PixelSource::MaterialId(id)) => {
                         if blocking_tiles.contains(id) {
                             add_it = true;
+                            if sector.name.is_empty() {
+                                unnamed_blocking_layer_sectors.insert(sector.id);
+                            }
                         }
                     }
                     _ => {}
@@ -290,6 +297,14 @@ impl Map {
             if add_it {
                 for linedef_id in sector.linedefs.iter() {
                     if let Some(linedef) = self.find_linedef(*linedef_id) {
+                        let is_internal_unnamed_blocking_seam = linedef.sector_ids.len() > 1
+                            && linedef
+                                .sector_ids
+                                .iter()
+                                .all(|sid| unnamed_blocking_layer_sectors.contains(sid));
+                        if is_internal_unnamed_blocking_seam {
+                            continue;
+                        }
                         if let Some(start) = self.find_vertex(linedef.start_vertex) {
                             if let Some(end) = self.find_vertex(linedef.end_vertex) {
                                 let sy = start.as_vec3_world().y;
