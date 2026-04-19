@@ -1300,18 +1300,17 @@ fn sample_shadow(world_pos: vec3<f32>, NdotL: f32) -> f32 {
     let nx = lx / half_w;
     let ny = ly / half_h;
     let depth = clamp((lz - near_z) / (far_z - near_z), 0.0, 1.0);
-    if (depth >= 0.9999) {
-        return 1.0;
-    }
     // Render target space is Y-down for texture sampling; flip Y from NDC.
     let uv = vec2<f32>(nx * 0.5 + 0.5, 1.0 - (ny * 0.5 + 0.5));
     // Keep a border margin so PCF taps never sample outside the shadow map.
     let shadow_dims = vec2<f32>(textureDimensions(shadow_tex));
     let texel = 1.0 / max(shadow_dims, vec2<f32>(1.0));
     let margin = texel * 2.0;
-    if (uv.x <= margin.x || uv.x >= 1.0 - margin.x || uv.y <= margin.y || uv.y >= 1.0 - margin.y) {
-        return 1.0;
-    }
+    let max_uv = vec2<f32>(1.0, 1.0) - margin;
+    let clamped_uv = clamp(uv, margin, max_uv);
+    let valid_depth = depth < 0.9999;
+    let valid_uv = uv.x > margin.x && uv.x < max_uv.x && uv.y > margin.y && uv.y < max_uv.y;
+    let sample_valid = valid_depth && valid_uv;
     // Slope- and depth-scaled bias; first-person needs stronger bias to suppress distant acne.
     let slope_bias = select(0.004, 0.010, UBO.cam_kind == 2u) * (1.0 - NdotL);
     let depth_bias = depth * 0.0015;
@@ -1319,16 +1318,17 @@ fn sample_shadow(world_pos: vec3<f32>, NdotL: f32) -> f32 {
     let ref_depth = depth - bias;
     // 3x3 PCF to reduce shadow shimmer/aliasing and single-pixel black speckles.
     var occ = 0.0;
-    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>(-1.0, -1.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>( 0.0, -1.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>( 1.0, -1.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>(-1.0,  0.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, uv, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>( 1.0,  0.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>(-1.0,  1.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>( 0.0,  1.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, uv + vec2<f32>( 1.0,  1.0) * texel, ref_depth);
-    return occ * (1.0 / 9.0);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.0, -1.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0, -1.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.0, -1.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.0,  0.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.0,  0.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.0,  1.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0,  1.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.0,  1.0) * texel, ref_depth);
+    let shadow = occ * (1.0 / 9.0);
+    return select(1.0, shadow, sample_valid);
 }
 
 fn apply_post(color_linear: vec3<f32>) -> vec3<f32> {
@@ -1445,6 +1445,26 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let is_avatar = (in.tile_index2 & TILE_INDEX_AVATAR_FLAG) != 0u;
     let is_billboard = (in.tile_index2 & TILE_INDEX_BILLBOARD_FLAG) != 0u;
     let is_particle = (in.tile_index2 & TILE_INDEX_PARTICLE_FLAG) != 0u;
+    let dpdx_pos = dpdx(in.world_pos);
+    let dpdy_pos = dpdy(in.world_pos);
+    let dpdx_uv = dpdx(in.uv);
+    let dpdy_uv = dpdy(in.uv);
+    let sun_enabled = select(0.0, 1.0, UBO.sun_dir_enabled.w > 0.5);
+    let L = normalize(-UBO.sun_dir_enabled.xyz);
+    let V_shadow = normalize(UBO.cam_pos.xyz - in.world_pos);
+    let N_shadow = normalize(in.normal);
+    let Nf_shadow = select(-N_shadow, N_shadow, dot(N_shadow, V_shadow) >= 0.0);
+    let NdotL_shadow = max(dot(Nf_shadow, L), 0.0);
+    let shadow_receiver = in.world_pos + Nf_shadow * select(0.01, 0.03, UBO.cam_kind == 2u);
+    let shadow = sample_shadow(shadow_receiver, NdotL_shadow);
+    let phase_start = select(0u, u32(max(in.blend_factor, 0.0)), is_billboard);
+    let blend = clamp(in.blend_factor, 0.0, 1.0);
+    let c0 = select(sample_tile(in.tile_index, in.uv, clamp_uv, phase_start), sample_avatar(in.tile_index, in.uv), is_avatar);
+    let c1 = sample_tile(tile_index2, in.uv, clamp_uv, phase_start);
+    let c0_base = select(sample_tile_lod0(in.tile_index, in.uv, clamp_uv, phase_start), sample_avatar(in.tile_index, in.uv), is_avatar);
+    let c1_base = sample_tile_lod0(tile_index2, in.uv, clamp_uv, phase_start);
+    let m0_raw = sample_tile_material(in.tile_index, in.uv, clamp_uv, phase_start);
+    let m1_raw = sample_tile_material(tile_index2, in.uv, clamp_uv, phase_start);
     if (is_particle) {
         let local = in.uv * 2.0 - vec2<f32>(1.0, 1.0);
         let dist = length(local);
@@ -1461,14 +1481,6 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         }
         return vec4<f32>(apply_post(color * 1.1), alpha);
     }
-    let phase_start = select(0u, u32(max(in.blend_factor, 0.0)), is_billboard);
-    let blend = clamp(in.blend_factor, 0.0, 1.0);
-    let c0 = select(sample_tile(in.tile_index, in.uv, clamp_uv, phase_start), sample_avatar(in.tile_index, in.uv), is_avatar);
-    let c1 = sample_tile(tile_index2, in.uv, clamp_uv, phase_start);
-    let c0_base = select(sample_tile_lod0(in.tile_index, in.uv, clamp_uv, phase_start), sample_avatar(in.tile_index, in.uv), is_avatar);
-    let c1_base = sample_tile_lod0(tile_index2, in.uv, clamp_uv, phase_start);
-    let m0_raw = sample_tile_material(in.tile_index, in.uv, clamp_uv, phase_start);
-    let m1_raw = sample_tile_material(tile_index2, in.uv, clamp_uv, phase_start);
     let m0 = select(
         unpack_material_nibbles(m0_raw),
         vec4<f32>(1.0, 0.0, 1.0, 0.0),
@@ -1547,19 +1559,14 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     if (intrinsic_alpha < 0.999) {
         bump_strength = 0.0;
     }
-    if (bump_strength > 0.001 && !is_avatar) {
-        let dpdx_pos = dpdx(in.world_pos);
-        let dpdy_pos = dpdy(in.world_pos);
-        let dpdx_uv = dpdx(in.uv);
-        let dpdy_uv = dpdy(in.uv);
-        let det = dpdx_uv.x * dpdy_uv.y - dpdx_uv.y * dpdy_uv.x;
-        if (abs(det) > 1e-6) {
-            let T = normalize((dpdx_pos * dpdy_uv.y - dpdy_pos * dpdx_uv.y) / det);
-            let B = normalize((-dpdx_pos * dpdy_uv.x + dpdy_pos * dpdx_uv.x) / det);
-            let N_ws = normalize(mat3x3<f32>(T, B, N) * n_ts);
-            N = normalize(mix(N, N_ws, bump_strength));
-        }
-    }
+    let det = dpdx_uv.x * dpdy_uv.y - dpdx_uv.y * dpdy_uv.x;
+    let safe_det = select(1.0, det, abs(det) > 1e-6);
+    let T = normalize((dpdx_pos * dpdy_uv.y - dpdy_pos * dpdx_uv.y) / safe_det);
+    let B = normalize((-dpdx_pos * dpdy_uv.x + dpdy_pos * dpdx_uv.x) / safe_det);
+    let N_ws = normalize(mat3x3<f32>(T, B, N) * n_ts);
+    let bump_apply = (!is_avatar) && bump_strength > 0.001 && abs(det) > 1e-6;
+    let bump_mix = select(0.0, bump_strength, bump_apply);
+    N = normalize(mix(N, N_ws, bump_mix));
     // Two-sided lighting: orient normal toward the viewer to avoid inverted-winding dark faces.
     let Nf = select(-N, N, dot(N, V) >= 0.0);
     let lighting_model = UBO._pad0.y;
@@ -1569,12 +1576,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let metallic = clamp(mat.y, 0.0, 1.0);
     let albedo = color_linear;
     let F0 = mix(vec3<f32>(0.04), albedo, metallic);
-    let sun_enabled = select(0.0, 1.0, UBO.sun_dir_enabled.w > 0.5);
-    let L = normalize(-UBO.sun_dir_enabled.xyz);
     let NdotL = max(dot(Nf, L), 0.0);
-    // Offset receiver slightly along the geometric normal to reduce self-shadow acne.
-    let shadow_receiver = in.world_pos + Nf * select(0.01, 0.03, UBO.cam_kind == 2u);
-    let shadow = sample_shadow(shadow_receiver, NdotL);
     let shadow_strength = clamp(UBO.shadow_params.y, 0.0, 1.0);
     let shadow_term = mix(1.0, shadow, shadow_strength);
     let sun_radiance = UBO.sun_color_intensity.xyz * UBO.sun_color_intensity.w * sun_enabled * shadow_term;

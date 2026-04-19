@@ -1,15 +1,15 @@
-use std::{num::NonZeroU32, sync::Arc};
+use std::sync::Arc;
 
 #[cfg(feature = "ui")]
 use rfd::MessageDialog;
 
 use crate::thecontext::TheCursorIcon;
+use crate::thewinitbackend::TheWinitBackend;
 
 #[cfg(target_os = "macos")]
 use winit::platform::macos::WindowExtMacOS;
 
 use crate::prelude::*;
-use softbuffer::Surface;
 use web_time::{Duration, Instant};
 use winit::{
     application::ApplicationHandler,
@@ -99,51 +99,6 @@ fn accel_physical_to_ascii(code: KeyCode, shift: bool) -> Option<char> {
     Some(if shift { shifted } else { base })
 }
 
-fn blit_rgba_into_softbuffer(
-    ui_frame: &[u8],
-    scale_factor: f32,
-    width: usize,
-    height: usize,
-    dest: &mut [u32],
-) {
-    // Round to match the resized surface at fractional DPI across platforms
-    let dest_width = (width as f32 * scale_factor).round() as usize;
-    let dest_height = (height as f32 * scale_factor).round() as usize;
-
-    if scale_factor == 1.0 {
-        // Direct copy without extra allocation.
-        for (dst, rgba) in dest.iter_mut().zip(ui_frame.chunks_exact(4)) {
-            *dst = (rgba[2] as u32) | ((rgba[1] as u32) << 8) | ((rgba[0] as u32) << 16);
-        }
-    } else {
-        // Nearest-neighbor upscaling with fractional scale factors
-        for dest_y in 0..dest_height {
-            let src_y = (dest_y as f32 / scale_factor) as usize;
-            if src_y >= height {
-                continue;
-            }
-
-            for dest_x in 0..dest_width {
-                let src_x = (dest_x as f32 / scale_factor) as usize;
-                if src_x >= width {
-                    continue;
-                }
-
-                let src_offset = (src_y * width + src_x) * 4;
-                let r = ui_frame[src_offset] as u32;
-                let g = ui_frame[src_offset + 1] as u32;
-                let b = ui_frame[src_offset + 2] as u32;
-                let color = b | (g << 8) | (r << 16);
-
-                let dest_offset = dest_y * dest_width + dest_x;
-                if dest_offset < dest.len() {
-                    dest[dest_offset] = color;
-                }
-            }
-        }
-    }
-}
-
 fn translate_coord_to_local(x: f32, y: f32, scale_factor: f32) -> (f32, f32) {
     (x / scale_factor, y / scale_factor)
 }
@@ -152,7 +107,7 @@ struct TheWinitContext {
     window: Arc<Window>,
     ctx: TheContext,
     ui_frame: Vec<u8>,
-    surface: Surface<Arc<Window>, Arc<Window>>,
+    backend: TheWinitBackend,
 }
 
 impl TheWinitContext {
@@ -192,38 +147,13 @@ impl TheWinitContext {
 
         let ui_frame = vec![0; (width * height * 4) as usize];
 
-        let context = softbuffer::Context::new(window.clone()).unwrap();
-        let mut surface = softbuffer::Surface::new(&context, window.clone()).unwrap();
-
-        // Desktop and WASM surfaces use physical size; logical UI size stays in `ctx`.
-        let (surface_width, surface_height) = {
-            #[cfg(target_os = "macos")]
-            let surface_scale = scale_factor;
-            #[cfg(all(not(target_os = "macos"), not(target_arch = "wasm32")))]
-            let surface_scale = 1.0;
-            #[cfg(target_arch = "wasm32")]
-            let surface_scale = scale_factor;
-
-            (
-                size.width * surface_scale as u32,
-                size.height * surface_scale as u32,
-            )
-        };
-        // println!("Surface size: {}x{}", surface_width, surface_height);
-
-        if let (Some(width), Some(height)) = (
-            NonZeroU32::new(surface_width),
-            NonZeroU32::new(surface_height),
-        ) {
-            surface.resize(width, height).unwrap();
-        }
-        // println!("========================\n");
+        let backend = TheWinitBackend::new(window.clone(), width, height, scale_factor);
 
         TheWinitContext {
             window,
             ctx,
             ui_frame,
-            surface,
+            backend,
         }
     }
 }
@@ -350,48 +280,47 @@ impl TheWinitApp {
         // but do not use the UI API
         self.app.draw(&mut ctx.ui_frame, &mut ctx.ctx);
 
-        // On Windows/Linux, try to use the actual scale_factor, but verify the dest buffer is large enough
-        // On macOS, use the actual scale_factor for Retina displays
-        #[cfg(target_os = "macos")]
-        let blit_scale_factor = ctx.ctx.scale_factor;
-        #[cfg(not(target_os = "macos"))]
-        let blit_scale_factor = {
-            let buffer = ctx.surface.buffer_mut().unwrap();
-            let inner_size = ctx.window.inner_size();
-            // Derive scale from the actual surface size to avoid double rounding (Windows fractional DPI)
-            let desired_scale = inner_size.width as f32 / ctx.ctx.width as f32;
-
-            let dest_width = inner_size.width as usize;
-            let dest_height = inner_size.height as usize;
-            let required_size = dest_width * dest_height;
-
-            // Check if the destination buffer is large enough for the upscaled blit
-            // If not, fall back to scale_factor = 1.0 to avoid crashes/panics
-            if buffer.len() >= required_size {
-                desired_scale
-            } else {
-                println!(
-                    "Warning: Buffer too small for scale_factor {}. Required: {}, Available: {}. Falling back to scale_factor = 1.0",
-                    desired_scale,
-                    required_size,
-                    buffer.len()
-                );
-                1.0
-            }
-        };
-
-        let mut buffer = ctx.surface.buffer_mut().unwrap();
-        blit_rgba_into_softbuffer(
+        ctx.backend.present(
+            &ctx.window,
             &ctx.ui_frame,
-            blit_scale_factor,
             ctx.ctx.width,
             ctx.ctx.height,
-            &mut *buffer,
+            ctx.ctx.scale_factor,
         );
-        buffer.present().unwrap();
 
         #[cfg(feature = "ui")]
         self.app.post_ui(&mut ctx.ctx);
+    }
+
+    fn process_updates(&mut self) -> bool {
+        let Some(ctx) = &mut self.ctx else {
+            return false;
+        };
+
+        let mut wants_redraw = false;
+
+        let current_has_changes = self.app.has_changes();
+        if current_has_changes != self.has_changes {
+            self.has_changes = current_has_changes;
+            #[cfg(target_os = "macos")]
+            ctx.window.set_document_edited(current_has_changes);
+        }
+
+        #[cfg(feature = "ui")]
+        if self.ui.update(&mut ctx.ctx) {
+            wants_redraw = true;
+        }
+
+        #[cfg(feature = "ui")]
+        if self.app.update_ui(&mut self.ui, &mut ctx.ctx) {
+            wants_redraw = true;
+        }
+
+        if self.app.update(&mut ctx.ctx) {
+            wants_redraw = true;
+        }
+
+        wants_redraw
     }
 
     fn resize(&mut self, size: PhysicalSize<u32>) {
@@ -426,30 +355,8 @@ impl TheWinitApp {
 
             ctx.ctx.scale_factor = effective_scale;
 
-            // Surface uses physical size on all platforms; logical UI size stays in `ctx`.
-            {
-                #[cfg(all(not(target_os = "macos"), not(target_arch = "wasm32")))]
-                ctx.surface
-                    .resize(
-                        NonZeroU32::new(size.width).unwrap(),
-                        NonZeroU32::new(size.height).unwrap(),
-                    )
-                    .unwrap();
-                #[cfg(target_arch = "wasm32")]
-                ctx.surface
-                    .resize(
-                        NonZeroU32::new((width as f32 * scale_factor).round() as u32).unwrap(),
-                        NonZeroU32::new((height as f32 * scale_factor).round() as u32).unwrap(),
-                    )
-                    .unwrap();
-                #[cfg(target_os = "macos")]
-                ctx.surface
-                    .resize(
-                        NonZeroU32::new(size.width).unwrap(),
-                        NonZeroU32::new(size.height).unwrap(),
-                    )
-                    .unwrap();
-            }
+            ctx.backend
+                .resize(&ctx.window, size, width, height, scale_factor);
 
             // println!("Window scale_factor: {}", scale_factor);
             // println!("New logical size: {}x{}", width, height);
@@ -1157,8 +1064,6 @@ impl ApplicationHandler for TheWinitApp {
         #[cfg(target_arch = "wasm32")]
         {
             if let Some(ctx) = &self.ctx {
-                // On the web, let the browser's rAF cadence drive presentation.
-                // Gating redraw requests with our own timer causes visible frame skips.
                 ctx.window.request_redraw();
             }
         }
@@ -1173,7 +1078,6 @@ impl ApplicationHandler for TheWinitApp {
         }
 
         if timer_due {
-            // Keep a stable cadence instead of resetting from `now`, which accumulates jitter.
             while self.next_frame_time <= now {
                 self.next_frame_time += self.target_frame_time;
             }
@@ -1181,7 +1085,6 @@ impl ApplicationHandler for TheWinitApp {
 
         #[cfg(target_arch = "wasm32")]
         {
-            // Web timers don't behave like desktop sleep timers; polling aligns better with rAF cadence.
             event_loop.set_control_flow(ControlFlow::Poll);
         }
 
@@ -1202,32 +1105,12 @@ impl ApplicationHandler for TheWinitApp {
             return;
         }
 
-        let Some(ctx) = &mut self.ctx else {
+        let Some(window) = self.ctx.as_ref().map(|ctx| ctx.window.clone()) else {
             return;
         };
 
-        // Check for changes and update window document modified state
-        let current_has_changes = self.app.has_changes();
-        if current_has_changes != self.has_changes {
-            self.has_changes = current_has_changes;
-            #[cfg(target_os = "macos")]
-            ctx.window.set_document_edited(current_has_changes);
-        }
-
-        #[cfg(feature = "ui")]
-        if self.ui.update(&mut ctx.ctx) {
-            ctx.window.request_redraw();
-        }
-
-        #[cfg(feature = "ui")]
-        // Test if the app needs an update
-        if self.app.update_ui(&mut self.ui, &mut ctx.ctx) {
-            ctx.window.request_redraw();
-        }
-
-        // Test if the app needs an update
-        if self.app.update(&mut ctx.ctx) {
-            ctx.window.request_redraw();
+        if self.process_updates() {
+            window.request_redraw();
         }
     }
 }

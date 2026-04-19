@@ -24,10 +24,10 @@ impl TheApp {
         #[cfg(feature = "log")]
         crate::thelogger::setup_logger();
 
-        #[cfg(feature = "winit_app")]
+        #[cfg(any(feature = "winit_app", feature = "winit_app_softbuffer"))]
         crate::thewinitapp::run_winit_app(self.args, app);
 
-        #[cfg(not(feature = "winit_app"))]
+        #[cfg(not(any(feature = "winit_app", feature = "winit_app_softbuffer")))]
         let _ = app;
     }
 }

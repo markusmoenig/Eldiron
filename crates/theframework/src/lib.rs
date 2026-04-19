@@ -8,7 +8,9 @@ pub mod thepalette;
 pub mod thergbabuffer;
 pub mod thetime;
 pub mod thetrait;
-#[cfg(feature = "winit_app")]
+#[cfg(any(feature = "winit_app", feature = "winit_app_softbuffer"))]
+mod thewinitbackend;
+#[cfg(any(feature = "winit_app", feature = "winit_app_softbuffer"))]
 pub mod thewinitapp;
 
 #[cfg(feature = "ui")]
@@ -118,7 +120,7 @@ pub mod prelude {
     #[cfg(feature = "log")]
     pub use crate::thelogger::setup_logger;
 
-    #[cfg(feature = "winit_app")]
+    #[cfg(any(feature = "winit_app", feature = "winit_app_softbuffer"))]
     pub use crate::thewinitapp::run_winit_app;
 
     #[cfg(feature = "i18n")]
