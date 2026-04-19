@@ -303,7 +303,10 @@ impl Editor {
     }
 
     fn log_segment_has_warning_or_error(segment: &str) -> bool {
-        segment.contains("[error]") || segment.contains("[warning]")
+        let segment = segment.to_ascii_lowercase();
+        segment.contains("[error]")
+            || segment.contains("[warning]")
+            || segment.contains("[warn]")
     }
 
     fn starter_manifest_url() -> String {

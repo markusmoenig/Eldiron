@@ -21,6 +21,7 @@
 - Added `Home` / `End` keyboard support to text editing widgets, including line start/end navigation and `Shift` selection in both single-line and multi-line editors.
 - Fixed `Extrude Linedef` so it no longer duplicates the base vertices / bottom edge of the source linedef during extrusion.
 - Fixed Messages widget word wrapping so wrapped lines no longer intermittently show `...` from the text truncation path.
+- Fixed Creator Debug Log auto-opening so general scripting warnings/errors, including runtime setup script failures, are surfaced more reliably instead of only some startup cases.
 - Added the Eldiron Creator version number to the window title bar.
 
 ### Documentation

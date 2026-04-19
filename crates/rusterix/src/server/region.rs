@@ -1011,7 +1011,7 @@ impl RegionInstance {
                     send_log_message(
                         self.id,
                         format!(
-                            "{}: Setup '{}/{}' {}: {}",
+                            "[error] {}: Setup '{}/{}' {}: {}",
                             region_name,
                             entity.get_attr_string("name").unwrap_or("Unknown".into()),
                             entity
@@ -1053,7 +1053,7 @@ impl RegionInstance {
                     send_log_message(
                         self.id,
                         format!(
-                            "{}: Item Setup '{}/{}' {}: {}",
+                            "[error] {}: Item Setup '{}/{}' {}: {}",
                             region_name,
                             item.get_attr_string("name").unwrap_or("Unknown".into()),
                             item.get_attr_string("class_name")

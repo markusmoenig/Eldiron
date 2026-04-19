@@ -12,11 +12,11 @@ readme = "README.md"
 
 [dependencies]
 theframework.workspace = true
-scenevm = { path = "../scenevm", version = "0.9.2", default-features = false }
+scenevm = { path = "../scenevm", version = "0.9.3", default-features = false }
 rusteria.workspace = true
 codegridfx.workspace = true
-organicgraph = { path = "../organicgraph", version = "0.9.2" }
-buildergraph = { path = "../buildergraph", version = "0.9.2" }
+organicgraph = { path = "../organicgraph", version = "0.9.3" }
+buildergraph = { path = "../buildergraph", version = "0.9.3" }
 
 fontdue = "0.9.3"
 rayon = "1.10"
