@@ -402,32 +402,28 @@ impl RegionInstance {
         item_id: u32,
         owner_entity_id: Option<u32>,
     ) -> Option<f32> {
-        let actor_pos = ctx
+        let actor = ctx
             .map
             .entities
             .iter()
-            .find(|e| e.id == entity_id)
-            .map(|e| e.get_pos_xz())?;
+            .find(|e| e.id == entity_id)?;
+        let actor_pos = actor.get_pos_xz();
+        let actor_radius = actor.attributes.get_float_default("radius", 0.5).max(0.0);
 
-        if let Some(item_pos) = ctx
-            .map
-            .items
-            .iter()
-            .find(|i| i.id == item_id)
-            .map(|i| i.get_pos_xz())
-        {
-            return Some(actor_pos.distance(item_pos));
+        if let Some(item) = ctx.map.items.iter().find(|i| i.id == item_id) {
+            let item_radius = item.attributes.get_float_default("radius", 0.5).max(0.0);
+            return Some((actor_pos.distance(item.get_pos_xz()) - actor_radius - item_radius).max(0.0));
         }
 
         if let Some(owner_id) = owner_entity_id
-            && let Some(owner_pos) = ctx
+            && let Some(owner) = ctx
                 .map
                 .entities
                 .iter()
                 .find(|e| e.id == owner_id)
-                .map(|e| e.get_pos_xz())
         {
-            return Some(actor_pos.distance(owner_pos));
+            let owner_radius = owner.attributes.get_float_default("radius", 0.5).max(0.0);
+            return Some((actor_pos.distance(owner.get_pos_xz()) - actor_radius - owner_radius).max(0.0));
         }
 
         Some(0.0)

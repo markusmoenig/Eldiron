@@ -2578,10 +2578,6 @@ impl Client {
         // If we hovered over an item in 3D, send an explicit ItemClicked intent or start a drag
         if let Some(item_id) = self.hovered_item_id {
             if self.has_drag_drop_targets() {
-                eprintln!(
-                    "[client:touch_down] 3d world-item drag start item_id={} coord=({}, {})",
-                    item_id, coord.x, coord.y
-                );
                 self.dragging_item_id = Some(item_id);
                 self.dragging_item_owner_entity_id = None;
                 self.dragging_item_from_world = true;
@@ -2590,7 +2586,7 @@ impl Client {
             }
             return Some(EntityAction::ItemClicked(
                 item_id,
-                self.hover_distance,
+                Self::item_click_distance(map, item_id),
                 self.get_current_intent_for_action(),
                 None,
             ));

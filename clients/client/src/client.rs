@@ -225,7 +225,10 @@ impl TheTrait for Client {
                             self.rusterix.server.apply_entities_items(&mut r.map);
 
                             if r.map.name == self.rusterix.client.current_map {
-                                self.rusterix.client.touch_up(coord, &r.map);
+                                if let Some(action) = self.rusterix.client.touch_up(coord, &r.map)
+                                {
+                                    self.rusterix.server.local_player_action(action);
+                                }
                                 self.rusterix.server.local_player_action(EntityAction::Off);
                             }
                         }

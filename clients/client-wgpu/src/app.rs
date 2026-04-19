@@ -357,7 +357,9 @@ impl SceneVMApp for EldironPlayerApp {
         if let Some(idx) = self.current_region_index() {
             let map = &mut self.project.regions[idx].map;
             self.rusterix.server.apply_entities_items(map);
-            self.rusterix.client.touch_up(coord, map);
+            if let Some(action) = self.rusterix.client.touch_up(coord, map) {
+                self.rusterix.server.local_player_action(action);
+            }
             self.rusterix.server.local_player_action(EntityAction::Off);
         }
         std::mem::swap(_vm, &mut self.rusterix.scene_handler.vm);
