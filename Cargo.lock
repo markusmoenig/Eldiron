@@ -4709,6 +4709,7 @@ dependencies = [
  "half",
  "image",
  "indexmap 2.13.0",
+ "js-sys",
  "lazy_static",
  "log",
  "log4rs",

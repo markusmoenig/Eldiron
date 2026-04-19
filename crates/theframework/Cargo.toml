@@ -71,6 +71,7 @@ log4rs = { version = "1.3.0", features = [
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
 console_log = "1.0.0"
+js-sys = "0.3"
 getrandom_0_2 = { package = "getrandom", version = "0.2.16", features = ["js"] }
 getrandom_0_3 = { package = "getrandom", version = "0.3.3", features = [
     "wasm_js",
@@ -84,7 +85,7 @@ web-sys = { version = "0.3", features = ["Gpu", "GpuTextureFormat", "Navigator",
 
 [features]
 ui = ["rfd", "rayon", "zeno"]
-winit_app = ["winit", "winit_app_pixels", "softbuffer"]
+winit_app = ["winit", "winit_app_pixels"]
 winit_app_pixels = ["pixels"]
 winit_app_softbuffer = ["winit", "softbuffer"]
 log = ["log4rs"]

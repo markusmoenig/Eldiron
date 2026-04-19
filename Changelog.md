@@ -4,6 +4,10 @@
 
 ### Creator
 
+### Framework
+
+- Added the new `pixels` Winit backend as the default accelerated path, including wasm/Chrome surface-format negotiation and an explicit `softbuffer` fallback feature for platforms or builds that need it.
+
 ### Bug Fixes
 
 - Fixed standalone client game-widget mouse release handling so 3D item click intents and world-item drag-and-drop into inventory/equipment slots are no longer dropped on `touch_up()`.
