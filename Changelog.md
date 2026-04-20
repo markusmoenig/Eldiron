@@ -15,6 +15,7 @@
 
 - Fixed debug-mode Play startup so existing Eldrin `source_debug` scripts are no longer silently regenerated from visual scripts unless the debug source is actually empty.
 - Fixed `set_tile()` for entity scripts so player / character tile changes now update through the active server host path and propagate as appearance changes to clients.
+- Fixed standalone client palette-index geometry so clients now initialize `rusterix` with the project palette and palette materials before building runtime tiles, matching Creator behavior.
 - Fixed 2D movement collision so unnamed internal rect-tool seams no longer behave like blocking walls, while arbitrary sector shapes and real boundary linedefs still block correctly.
 - Fixed 2D pathing so tile-based movement targets tile centers instead of tile corners, preventing NPCs from drifting onto `.0` tile boundaries instead of `.5` centers.
 - Fixed 2D direct movement so blocked tiles are still respected even when collision comes from tile occupancy rather than linedef walls.
