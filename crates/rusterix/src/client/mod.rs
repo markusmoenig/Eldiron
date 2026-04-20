@@ -7,6 +7,7 @@ pub mod resolver;
 pub mod widget;
 
 use scenevm::GeoId;
+use instant::{Duration, Instant};
 use std::str::FromStr;
 
 use crate::prelude::*;
@@ -214,6 +215,7 @@ pub struct Client {
     // Hover distance
     hover_distance: f32,
     hovered_world_pos: Option<Vec3<f32>>,
+    last_3d_hover_pick_at: Option<Instant>,
 
     // Dragged inventory/equipped item id
     dragging_item_id: Option<u32>,
@@ -433,6 +435,7 @@ impl Client {
             hovered_world_pos: None,
 
             hover_distance: f32::MAX,
+            last_3d_hover_pick_at: None,
             dragging_item_id: None,
             dragging_item_owner_entity_id: None,
             dragging_source_widget_id: None,
@@ -2363,6 +2366,25 @@ impl Client {
         p.x >= 0 && p.y >= 0 && p.x < self.viewport.x && p.y < self.viewport.y
     }
 
+    fn hovered_3d_widget_at(&self, p: Vec2<i32>) -> bool {
+        self.game_widgets.values().any(|widget| {
+            widget.rect.contains(Vec2::new(p.x as f32, p.y as f32))
+                && !Self::is_2d_camera(&widget.camera)
+        })
+    }
+
+    fn should_refresh_3d_hover_pick(&mut self) -> bool {
+        const HOVER_PICK_INTERVAL: Duration = Duration::from_millis(33);
+        let now = Instant::now();
+        if let Some(last) = self.last_3d_hover_pick_at
+            && now.saturating_duration_since(last) < HOVER_PICK_INTERVAL
+        {
+            return false;
+        }
+        self.last_3d_hover_pick_at = Some(now);
+        true
+    }
+
     /// Drag event
     pub fn touch_dragged(
         &mut self,
@@ -2379,6 +2401,9 @@ impl Client {
         }
 
         if self.dragging_item_id.is_some() {
+            if self.hovered_3d_widget_at(p) && !self.should_refresh_3d_hover_pick() {
+                return;
+            }
             self.hovered_world_pos = None;
             for widget in self.game_widgets.values() {
                 if !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32))
@@ -2411,6 +2436,13 @@ impl Client {
             .get_current_intent()
             .map(|i| i.eq_ignore_ascii_case("drop"))
             .unwrap_or(false);
+
+        if !drop_intent_active
+            && self.hovered_3d_widget_at(p)
+            && !self.should_refresh_3d_hover_pick()
+        {
+            return;
+        }
 
         // Temporary, we have to make this widget dependent
         self.curr_cursor = self.default_cursor;

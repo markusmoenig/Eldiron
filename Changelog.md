@@ -21,6 +21,7 @@
 - Fixed 2D direct movement so blocked tiles are still respected even when collision comes from tile occupancy rather than linedef walls.
 - Fixed `2d_grid` step movement from off-center start positions so forward / backward movement recenters onto the grid instead of falsely treating lateral correction as blocked movement.
 - Fixed sector `left` events so leaving a sector no longer routes through the wrong internal event name and is now delivered correctly to Eldrin scripts.
+- Fixed Windows mouse-move stutter in dense 3D scenes like `Village3D` by throttling expensive 3D hover-picking in both the Creator and the graphical clients to the game’s 30 FPS cadence instead of recomputing picks on every raw cursor event.
 
 ---
 

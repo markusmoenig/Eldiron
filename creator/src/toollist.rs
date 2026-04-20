@@ -8,6 +8,7 @@ use rusterix::PixelSource;
 use rusterix::Surface;
 use rusterix::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 use scenevm::GeoId;
+use std::time::{Duration, Instant};
 
 pub struct ToolList {
     pub server_time: TheTime,
@@ -24,6 +25,7 @@ pub struct ToolList {
     pub editor_tools: Vec<Box<dyn EditorTool>>,
     pub curr_editor_tool: usize,
     pub editor_mode: bool,
+    last_3d_hover_pick_at: Option<Instant>,
 }
 
 impl Default for ToolList {
@@ -148,7 +150,20 @@ impl ToolList {
             editor_tools: Vec::new(),
             curr_editor_tool: 0,
             editor_mode: false,
+            last_3d_hover_pick_at: None,
         }
+    }
+
+    fn should_refresh_3d_hover_pick(&mut self) -> bool {
+        const HOVER_PICK_INTERVAL: Duration = Duration::from_millis(33);
+        let now = Instant::now();
+        if let Some(last) = self.last_3d_hover_pick_at
+            && now.saturating_duration_since(last) < HOVER_PICK_INTERVAL
+        {
+            return false;
+        }
+        self.last_3d_hover_pick_at = Some(now);
+        true
     }
 
     /// Build the UI
@@ -2357,12 +2372,16 @@ impl ToolList {
 
     /// Get the geometry hit at the given screen position.
     fn get_geometry_hit(
-        &self,
+        &mut self,
         render_view: &dyn TheRenderViewTrait,
         coord: Vec2<i32>,
         project: &Project,
         server_ctx: &mut ServerContext,
     ) -> Option<(GeoId, Vec3<f32>)> {
+        if !self.should_refresh_3d_hover_pick() {
+            return server_ctx.geo_hit.map(|geo_id| (geo_id, server_ctx.geo_hit_pos));
+        }
+
         let dim = *render_view.dim();
 
         let screen_uv = [
