@@ -2540,6 +2540,72 @@ impl TheTrait for Editor {
                         }
                     } else if id.name == "Set Project Undo State" {
                         UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
+                    } else if id.name == "Pick Tile Source" {
+                        if let TheValue::List(values) = value {
+                            let picked = match values.as_slice() {
+                                [TheValue::Text(kind), TheValue::Id(id)] if kind == "single" => {
+                                    Some(rusterix::TileSource::SingleTile(*id))
+                                }
+                                [TheValue::Text(kind), TheValue::Id(id)] if kind == "group" => {
+                                    Some(rusterix::TileSource::TileGroup(*id))
+                                }
+                                [TheValue::Text(kind), TheValue::Id(id), TheValue::Int(index)]
+                                    if kind == "group_member" =>
+                                {
+                                    Some(rusterix::TileSource::TileGroupMember {
+                                        group_id: *id,
+                                        member_index: (*index).max(0) as u16,
+                                    })
+                                }
+                                [TheValue::Text(kind), TheValue::Id(id)] if kind == "procedural" => {
+                                    Some(rusterix::TileSource::Procedural(*id))
+                                }
+                                _ => None,
+                            };
+
+                            if let Some(source) = picked {
+                                self.server_ctx.curr_tile_source = Some(source.clone());
+                                self.server_ctx.curr_tile_id = match source {
+                                    rusterix::TileSource::SingleTile(tile_id) => Some(tile_id),
+                                    rusterix::TileSource::TileGroupMember {
+                                        group_id,
+                                        member_index,
+                                    } => self
+                                        .project
+                                        .tile_groups
+                                        .get(&group_id)
+                                        .and_then(|group| group.members.get(member_index as usize))
+                                        .map(|member| member.tile_id),
+                                    rusterix::TileSource::TileGroup(group_id) => self
+                                        .project
+                                        .tile_groups
+                                        .get(&group_id)
+                                        .and_then(|group| group.members.first())
+                                        .map(|member| member.tile_id),
+                                    rusterix::TileSource::Procedural(_) => None,
+                                };
+
+                                if let Some(tile_id) = self.server_ctx.curr_tile_id {
+                                    ctx.ui.send(TheEvent::Custom(
+                                        TheId::named("Tile Picked"),
+                                        TheValue::Id(tile_id),
+                                    ));
+                                }
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Tilepicker"),
+                                    TheValue::Empty,
+                                ));
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Reveal Tilepicker Source"),
+                                    TheValue::Empty,
+                                ));
+                                ctx.ui.send(TheEvent::Custom(
+                                    TheId::named("Update Action List"),
+                                    TheValue::Empty,
+                                ));
+                                redraw = true;
+                            }
+                        }
                     } else if id.name == "Open Tile Node Group Workflow" {
                         self.server_ctx.tile_node_group_id = if let TheValue::Id(group_id) = value {
                             Some(group_id)

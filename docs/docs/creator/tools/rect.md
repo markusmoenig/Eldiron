@@ -12,7 +12,10 @@ Unlike other map-based tools, the **Rect Tool does not edit geometry**—instead
 - The **Rect Tool automatically creates the geometry** for a **sector** and **assigns the selected tile**.
 - Click on the map to **draw**.
 - Hold **Shift** while drawing to **erase content**.
+- Hold **Alt/Opt** and click to **pick the tile source from the map** into the tile picker.
 - Hold **Cmd/Ctrl** while drawing to paint **straight lines** (axis-constrained from the start cell).
+
+The picker works in both **2D** and **3D** Rect workflows. When possible, the picked source is also revealed in the **Tiles** dock.
 
 ## When to Use the Rect Tool
 

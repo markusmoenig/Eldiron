@@ -173,7 +173,7 @@ action_remap_tile_desc = Ordnet die Farben der Kachel der Palette zu
 # Tools
 tool_game = Spiel-Tool (A). Wenn der Server läuft, werden Eingabeereignisse an das Spiel gesendet.
 tool_linedef = Linedef-Tool (L). Liniendefinitionen und Sektoren erstellen.
-tool_rect = Rect-Tool (R). Klicken, um die aktuelle Kachel zu zeichnen. Shift-Klick zum Löschen.
+tool_rect = Rect-Tool (R). Klicken, um die aktuelle Kachel zu zeichnen. Shift-Klick zum Löschen. Alt/Opt-Klick zum Aufnehmen aus der Karte.
 tool_sector = Sektor-Tool (E).
 tool_vertex = Vertex-Tool (V). 'Shift' + Klick erstellt einen neuen Vertex.
 tool_entity = Entity-Tool (Y). Spiel-Entitäten platzieren, verschieben, auswählen und löschen.

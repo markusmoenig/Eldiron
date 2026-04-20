@@ -5,6 +5,7 @@
 ### Creator
 
 - Added tile aliases for single-tile sources via **Edit Tile Meta**, with alias-aware tile lookup across Creator inputs and runtime tile-source usage such as `tile_id` and `set_tile()`.
+- Added `Alt/Opt` tile picking to the **Rect Tool**, so clicked 2D/3D rect sources can be sampled from the map and revealed in the tile picker.
 
 ### Documentation
 

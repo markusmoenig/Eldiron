@@ -173,7 +173,7 @@ action_remap_tile_desc = 將圖塊的顏色對應到調色盤
 # Tools
 tool_game = 遊戲工具 (A)。伺服器運行時輸入事件會傳送到遊戲
 tool_linedef = 線段工具 (L)。建立線段定義與區域
-tool_rect = 矩形工具 (R)。點擊繪製當前圖塊，按住 Shift 點擊刪除
+tool_rect = 矩形工具 (R)。點擊繪製當前圖塊，按住 Shift 點擊刪除。按住 Alt/Opt 點擊可從地圖拾取圖塊
 tool_sector = 區域工具 (E)
 tool_vertex = 頂點工具 (V)。按住 'Shift' + 點擊可建立新頂點。
 tool_entity = 實體工具 (Y)。放置、移動、選擇和刪除遊戲實體。

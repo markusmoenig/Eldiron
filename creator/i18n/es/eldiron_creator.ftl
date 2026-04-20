@@ -173,7 +173,7 @@ action_remap_tile_desc = Remapea los colores de la baldosa a la paleta
 # Tools
 tool_game = Herramienta de juego (A). Si el servidor está en marcha, los eventos de entrada se envían al juego.
 tool_linedef = Herramienta de linedef (L). Crear definiciones de línea y sectores.
-tool_rect = Herramienta de rectángulo (R). Clic para dibujar la baldosa actual. Shift-clic para borrar.
+tool_rect = Herramienta de rectángulo (R). Clic para dibujar la baldosa actual. Shift-clic para borrar. Alt/Opt-clic para tomarla del mapa.
 tool_sector = Herramienta de sector (E).
 tool_vertex = Herramienta de vértice (V). 'Shift' + clic para crear un nuevo vértice.
 tool_entity = Herramienta de entidad (Y). Coloca, mueve, selecciona y elimina entidades del juego.

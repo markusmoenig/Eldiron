@@ -1021,8 +1021,21 @@ impl Dock for TilesDock {
             }
             TheEvent::Custom(id, _) => {
                 if id.name == "Update Tilepicker" {
+                    self.curr_tile = server_ctx.curr_tile_id;
+                    self.curr_source = server_ctx.curr_tile_source;
+                    self.sync_collection_menu(ui, project);
+                    self.sync_sidebar(ctx, project);
                     self.render_views(ui, ctx, project);
                     redraw = true;
+                } else if id.name == "Reveal Tilepicker Source" {
+                    self.curr_tile = server_ctx.curr_tile_id;
+                    self.curr_source = server_ctx.curr_tile_source;
+                    if let Some(source) = self.curr_source {
+                        self.reveal_source(project, ui, ctx, source);
+                        self.sync_collection_menu(ui, project);
+                        self.sync_sidebar(ctx, project);
+                        redraw = true;
+                    }
                 } else if id.name == "Soft Update Minimap" {
                     let now = Instant::now();
                     let elapsed = now
@@ -1330,6 +1343,52 @@ impl TilesDock {
             TheId::named("Close Tile Node Editor Skeleton"),
             TheValue::Empty,
         ));
+        self.render_views(ui, ctx, project);
+    }
+
+    fn set_active_tab_ui(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        tab: usize,
+    ) {
+        self.active_tab = tab;
+        self.sync_tabs(ui, ctx, project);
+        if let Some(layout) = ui
+            .canvas
+            .get_layout(Some(&TILES_TAB_LAYOUT.to_string()), None)
+            && let Some(tab_layout) = layout.as_tab_layout()
+        {
+            tab_layout.set_index(tab);
+        }
+    }
+
+    fn reveal_source(
+        &mut self,
+        project: &Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        source: TileSource,
+    ) {
+        match source {
+            TileSource::TileGroupMember { group_id, .. } => {
+                self.set_active_tab_ui(ui, ctx, project, 0);
+                if self.entered_group != Some(group_id) {
+                    self.enter_group(group_id, ui, ctx, project);
+                }
+            }
+            _ => {
+                if self.entered_group.is_some() {
+                    self.leave_group(ui, ctx, project);
+                }
+                self.set_active_tab_ui(ui, ctx, project, 0);
+            }
+        }
+
+        if let Some(cell) = self.source_board_cell(project, self.active_tab, source) {
+            self.scroll_cell_into_view(ui, self.active_tab, cell, Vec2::new(1, 1));
+        }
         self.render_views(ui, ctx, project);
     }
 

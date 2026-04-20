@@ -309,6 +309,22 @@ impl Tool for RectTool {
                 }
 
                 self.processed.clear();
+                if ui.alt {
+                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                        self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
+                    } else {
+                        self.compute_3d_tile(coord, map, ui, server_ctx);
+                    }
+
+                    if let Some(source) = Self::sample_source_at_current_target(map, server_ctx) {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Pick Tile Source"),
+                            Self::encode_tile_source(source),
+                        ));
+                    }
+                    return None;
+                }
+
                 if server_ctx.editor_view_mode == EditorViewMode::D2 {
                     let use_terrain_paint =
                         map.properties.get_bool_default("terrain_enabled", false);
@@ -363,6 +379,15 @@ impl Tool for RectTool {
             MapDragged(coord) => {
                 if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    return None;
+                }
+                if ui.alt {
+                    self.reset_stroke();
+                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                        self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
+                    } else {
+                        self.compute_3d_tile(coord, map, ui, server_ctx);
+                    }
                     return None;
                 }
                 if server_ctx.editor_view_mode == EditorViewMode::D2 {
@@ -565,6 +590,150 @@ impl Tool for RectTool {
 }
 
 impl RectTool {
+    fn encode_tile_source(source: TileSource) -> TheValue {
+        match source {
+            TileSource::SingleTile(id) => TheValue::List(vec![
+                TheValue::Text("single".to_string()),
+                TheValue::Id(id),
+            ]),
+            TileSource::TileGroup(id) => TheValue::List(vec![
+                TheValue::Text("group".to_string()),
+                TheValue::Id(id),
+            ]),
+            TileSource::TileGroupMember {
+                group_id,
+                member_index,
+            } => TheValue::List(vec![
+                TheValue::Text("group_member".to_string()),
+                TheValue::Id(group_id),
+                TheValue::Int(member_index as i32),
+            ]),
+            TileSource::Procedural(id) => TheValue::List(vec![
+                TheValue::Text("procedural".to_string()),
+                TheValue::Id(id),
+            ]),
+        }
+    }
+
+    fn tile_source_from_pixel_source(source: &PixelSource) -> Option<TileSource> {
+        match source {
+            PixelSource::TileId(id) => Some(TileSource::SingleTile(*id)),
+            PixelSource::TileGroup(id) => Some(TileSource::TileGroup(*id)),
+            PixelSource::TileGroupMember {
+                group_id,
+                member_index,
+            } => Some(TileSource::TileGroupMember {
+                group_id: *group_id,
+                member_index: *member_index,
+            }),
+            PixelSource::ProceduralTile(id) => Some(TileSource::Procedural(*id)),
+            _ => None,
+        }
+    }
+
+    fn sample_terrain_source(map: &Map, key: (i32, i32)) -> Option<TileSource> {
+        if let Some(Value::TileOverrides(tiles)) = map.properties.get("tiles")
+            && let Some(source) = tiles.get(&key)
+            && let Some(source) = Self::tile_source_from_pixel_source(source)
+        {
+            return Some(source);
+        }
+
+        if let Some(Value::BlendOverrides(blend_tiles)) = map.properties.get("blend_tiles")
+            && let Some((_, source)) = blend_tiles.get(&key)
+        {
+            return Self::tile_source_from_pixel_source(source);
+        }
+
+        map.properties
+            .get("default_terrain_tile")
+            .and_then(|value| {
+                if let Value::Source(source) = value {
+                    Self::tile_source_from_pixel_source(source)
+                } else {
+                    None
+                }
+            })
+    }
+
+    fn sample_sector_source_at_cell(map: &Map, cell: Vec2<i32>) -> Option<TileSource> {
+        let x = cell.x as f32;
+        let y = cell.y as f32;
+
+        let exact_sector = (|| {
+            let ev0 = map.find_vertex_at(x, y)?;
+            let ev1 = map.find_vertex_at(x, y + 1.0)?;
+            let ev2 = map.find_vertex_at(x + 1.0, y + 1.0)?;
+            let ev3 = map.find_vertex_at(x + 1.0, y)?;
+            let sectors = map.find_sectors_with_vertex_indices(&[ev0, ev1, ev2, ev3]);
+            sectors.last().copied()
+        })();
+
+        if let Some(sector_id) = exact_sector
+            && let Some(sector) = map.find_sector(sector_id)
+            && let Some(source) = sector.properties.get_default_source()
+            && let Some(source) = Self::tile_source_from_pixel_source(source)
+        {
+            return Some(source);
+        }
+
+        map.find_sector_at(Vec2::new(x + 0.5, y + 0.5))
+            .and_then(|sector| sector.properties.get_default_source())
+            .and_then(Self::tile_source_from_pixel_source)
+    }
+
+    fn sample_sector_override_source(
+        map: &Map,
+        sector_id: u32,
+        key: (i32, i32),
+    ) -> Option<TileSource> {
+        let sector = map.find_sector(sector_id)?;
+
+        if let Some(Value::TileOverrides(tiles)) = sector.properties.get("tiles")
+            && let Some(source) = tiles.get(&key)
+            && let Some(source) = Self::tile_source_from_pixel_source(source)
+        {
+            return Some(source);
+        }
+
+        if let Some(Value::BlendOverrides(blend_tiles)) = sector.properties.get("blend_tiles")
+            && let Some((_, source)) = blend_tiles.get(&key)
+            && let Some(source) = Self::tile_source_from_pixel_source(source)
+        {
+            return Some(source);
+        }
+
+        sector
+            .properties
+            .get_default_source()
+            .and_then(Self::tile_source_from_pixel_source)
+    }
+
+    fn sample_source_at_current_target(map: &Map, server_ctx: &ServerContext) -> Option<TileSource> {
+        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+            if map.properties.get_bool_default("terrain_enabled", false) {
+                return server_ctx
+                    .rect_terrain_id
+                    .and_then(|key| Self::sample_terrain_source(map, key));
+            }
+
+            return server_ctx.hover_cursor.and_then(|cp| {
+                let cell = Vec2::new(cp.x.floor() as i32, cp.y.floor() as i32);
+                Self::sample_sector_source_at_cell(map, cell)
+            });
+        }
+
+        if let Some(key) = server_ctx.rect_terrain_id {
+            return Self::sample_terrain_source(map, key);
+        }
+
+        if let Some(sector_id) = server_ctx.rect_sector_id_3d {
+            return Self::sample_sector_override_source(map, sector_id, server_ctx.rect_tile_id_3d);
+        }
+
+        None
+    }
+
     fn begin_stroke_if_needed(&mut self, map: &Map) {
         if !self.stroke_active {
             self.stroke_active = true;
