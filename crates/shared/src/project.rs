@@ -1073,6 +1073,36 @@ impl Project {
         None
     }
 
+    pub fn find_tile_id_by_alias(&self, alias: &str) -> Option<Uuid> {
+        let needle = alias.trim();
+        if needle.is_empty() {
+            return None;
+        }
+
+        let matches_alias = |value: &str| {
+            value
+                .split([',', ';', '\n'])
+                .map(str::trim)
+                .any(|part| !part.is_empty() && part.eq_ignore_ascii_case(needle))
+        };
+
+        for (id, tile) in &self.tiles {
+            if matches_alias(&tile.alias) {
+                return Some(*id);
+            }
+        }
+
+        for tilemap in &self.tilemaps {
+            for tile in &tilemap.tiles {
+                if !tile.name.trim().is_empty() && tile.name.trim().eq_ignore_ascii_case(needle) {
+                    return Some(tile.id);
+                }
+            }
+        }
+
+        None
+    }
+
     /// Extract all tiles from all tilemaps and store them in a hash.
     pub fn extract_tiles(&self) -> IndexMap<Uuid, TheRGBATile> {
         let mut tiles = IndexMap::default();

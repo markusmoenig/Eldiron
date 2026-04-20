@@ -112,6 +112,28 @@ See also: [set_target](#set_target), [target](#target), [has_target](#has_target
 
 ---
 
+## `set_tile`
+
+*This command can be used with both characters and items.*
+
+Changes the current visual tile source of the executing character or item.
+
+Accepted forms:
+
+- tile UUID
+- tile alias
+- palette index
+
+```eldrin
+set_tile("03160f57-90e3-4455-a16e-f0b8edfaa415")
+set_tile("player_tile")
+set_tile("2")
+```
+
+This updates the runtime `source` attribute directly.
+
+---
+
 ## `deal_damage`
 
 *This command can be used with both characters and items.*

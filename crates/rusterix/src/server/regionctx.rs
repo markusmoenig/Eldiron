@@ -661,11 +661,9 @@ impl RegionCtx {
             // Send left event
             if !old_sector_name.is_empty() {
                 if let Some(_class_name) = self.entity_classes.get(&entity.id) {
-                    // let cmd = format!("{}.event(\"left\", \"{}\")", class_name, old_sector_name);
-                    // println!("{cmd}");
                     self.to_execute_entity.push((
                         entity.id,
-                        "bumped_into_item".into(),
+                        "left".into(),
                         VMValue::from(old_sector_name.clone()),
                     ));
                 }

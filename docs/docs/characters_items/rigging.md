@@ -85,14 +85,17 @@ Weapons are drawn as overlays attached to avatar hand anchors.
 
 Useful item attributes:
 
-- `tile_id` (required): source tile for weapon sprite
+- `tile_id` (required): source tile for weapon sprite. Accepts UUID, tile alias, or palette index.
 - `rig_scale` (optional): weapon scale, default `1.0`
 - `rig_pivot` (optional): attach point on weapon sprite, default center
 - `rig_layer` (optional): hand-depth ordering, `"front"` or `"back"` (default `"front"`)
 - `rig_flip_back` (optional): if no `tile_id_back` is set, flip weapon horizontally in back view (default `true`)
 
 ```toml
-tile_id = "YOUR_WEAPON_TILE_UUID"
+tile_id = "YOUR_WEAPON_TILE"
+# or:
+# tile_id = "weapon_sword"
+# tile_id = "12"
 rig_scale = 0.8
 rig_pivot = [0.5, 0.5]
 rig_layer = "back"
@@ -230,7 +233,7 @@ legs_index = 4
 
 # Weapon-like item
 slot = "weapon_main"
-tile_id = "YOUR_SWORD_TILE_UUID"
+tile_id = "YOUR_SWORD_TILE"
 rig_scale = 0.9
 rig_pivot = [0.45, 0.5]
 ```

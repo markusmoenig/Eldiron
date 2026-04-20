@@ -4,6 +4,12 @@
 
 ### Creator
 
+- Added tile aliases for single-tile sources via **Edit Tile Meta**, with alias-aware tile lookup across Creator inputs and runtime tile-source usage such as `tile_id` and `set_tile()`.
+
+### Documentation
+
+- Updated the docs to consistently describe tile sources as supporting UUIDs, tile aliases, and palette indices, including `tile_id` usage, `set_tile()`, and the **Edit Tile Meta** alias workflow.
+
 ### Bug Fixes
 
 - Fixed debug-mode Play startup so existing Eldrin `source_debug` scripts are no longer silently regenerated from visual scripts unless the debug source is actually empty.
@@ -12,6 +18,7 @@
 - Fixed 2D pathing so tile-based movement targets tile centers instead of tile corners, preventing NPCs from drifting onto `.0` tile boundaries instead of `.5` centers.
 - Fixed 2D direct movement so blocked tiles are still respected even when collision comes from tile occupancy rather than linedef walls.
 - Fixed `2d_grid` step movement from off-center start positions so forward / backward movement recenters onto the grid instead of falsely treating lateral correction as blocked movement.
+- Fixed sector `left` events so leaving a sector no longer routes through the wrong internal event name and is now delivered correctly to Eldrin scripts.
 
 ---
 

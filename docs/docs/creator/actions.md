@@ -90,6 +90,7 @@ In 2D view (no surface selected), toggle rectangular placement helpers for geome
 
 > Any `tile_id`-style parameter in actions accepts either:
 > - a tile UUID string (v4), or
+> - a tile alias string, or
 > - a palette index (integer, or numeric string like `"2"`).
 
 ### Extrude Linedef
@@ -153,10 +154,10 @@ Parameter meaning:
 - `[stairs].steps`: number of treads (`1..64`).
 - `[stairs].total_height`: total vertical rise of the full staircase (`0..16` world units).
 - `[stairs].fill_sides`: when enabled (default), side geometry is generated so stairs are closed instead of hanging.
-- `[material].tile_id`: default tile UUID used by stair geometry if a per-part tile is not set.
-- `[material].tread_tile_id`: optional tile UUID for tread surfaces.
-- `[material].riser_tile_id`: optional tile UUID for riser (vertical) surfaces.
-- `[material].side_tile_id`: optional tile UUID for side surfaces.
+- `[material].tile_id`: default stair tile source if a per-part tile is not set.
+- `[material].tread_tile_id`: optional tread tile source.
+- `[material].riser_tile_id`: optional riser (vertical) tile source.
+- `[material].side_tile_id`: optional side tile source.
 
 Material fallback order:
 - tread: `tread_tile_id` -> `tile_id` -> sector/source fallback
@@ -178,8 +179,8 @@ Parameter meaning:
 - `[roof].style`: `flat`, `pyramid`, or `gable`.
 - `[roof].height`: roof rise above the sector top surface. `0` clears roof generation.
 - `[roof].overhang`: outward roof extension in world units (applies to top and side eaves).
-- `[material].tile_id`: optional tile UUID for roof top surfaces.
-- `[material].side_tile_id`: optional tile UUID for roof side surfaces.
+- `[material].tile_id`: optional tile source for roof top surfaces.
+- `[material].side_tile_id`: optional tile source for roof side surfaces.
 
 Material fallback order:
 - top: `tile_id` -> sector `cap_source` -> sector `source`
@@ -208,8 +209,8 @@ Parameter groups:
 
 ### `[material]`
 
-- `flame_tile_id`: flame material source (UUID or palette index).
-- `base_tile_id`: log/ember material source (UUID or palette index).
+- `flame_tile_id`: flame material source (UUID, tile alias, or palette index).
+- `base_tile_id`: log/ember material source (UUID, tile alias, or palette index).
 
 Notes:
 - Logs are procedural 3D meshes placed in a circle and oriented inward.
@@ -270,8 +271,8 @@ Parameters:
 
 ### `[material]`
 
-- `frame_tile_id`: frame material source (UUID or palette index).
-- `glass_tile_id`: glass material source (UUID or palette index).
+- `frame_tile_id`: frame material source (UUID, tile alias, or palette index).
+- `glass_tile_id`: glass material source (UUID, tile alias, or palette index).
   - if `glass_tile_id` is empty/unset, no glass mesh is generated and the opening remains a passable hole.
 
 ### Cut Hole
@@ -418,7 +419,7 @@ Parameter groups:
 - `chair_width`: chair seat width/footprint scale.
 - `chair_back_height`: multiplier for chair back height.
 - `chair_tile_id`: optional chair material source.
-  - accepts UUID or palette index.
+  - accepts UUID, tile alias, or palette index.
 
 ### `[bookcase]`
 
@@ -444,12 +445,12 @@ Parameter groups:
 - `headboard_side`: choose which side of the bed length gets the headboard (`start`/`end`).
 - `headboard_height`: height of the headboard above mattress/frame.
 - `mattress_tile_id`: optional mattress material source.
-  - accepts UUID or palette index.
+  - accepts UUID, tile alias, or palette index.
 
 ### `[material]`
 
 - `tile_id`: base prop material source (carcass/table surfaces).
-  - accepts UUID or palette index.
+  - accepts UUID, tile alias, or palette index.
 
 Notes:
 - Bookcase footprint is derived from the selected floor sector shape/depth.
@@ -590,7 +591,9 @@ Copy the selected tile’s UUID to both the internal and system clipboard.
 
 ### Edit Tile Meta
 
-Set tile *role*, *blocking* flag (2D collisions), and *tags* for the currently selected tile in the tile picker.
+Set tile *role*, *blocking* flag (2D collisions), and *alias* for the currently selected tile in the tile picker.
+
+The alias can then be used anywhere a `tile_id`-style tile source is accepted, alongside UUIDs and palette indices.
 
 ### Set Tile Material
 

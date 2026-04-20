@@ -77,7 +77,7 @@ status_tile_picker_filter_edit = Show tiles containing the given text.
 status_tilemap_clear_button = Clear the current selection.
 status_tilemap_add_button = Adds the current tile selection.
 ## Tiles
-status_tiles_filter_edit = Show tiles containing the given tags.
+status_tiles_filter_edit = Show tiles containing the given alias.
 status_tiles_apply_tile = Apply the selected tile to the selected icon slot.
 status_tiles_clear_tile = Clear the selected icon slot.
 ## World Editor

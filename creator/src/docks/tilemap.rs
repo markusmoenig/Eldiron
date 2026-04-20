@@ -435,15 +435,15 @@ impl Dock for TilemapDock {
                                         }
                                         let mut tile = rusterix::Tile {
                                             id: t.id,
-                                            role: rusterix::TileRole::from_index(t.role),
-                                            textures: texture_array.clone(),
-                                            module: None,
-                                            blocking: t.blocking,
-                                            scale: t.scale,
-                                            tags: t.name.clone(),
-                                            particle_emitter: None,
-                                            light_emitter: None,
-                                        };
+            role: rusterix::TileRole::from_index(t.role),
+            textures: texture_array.clone(),
+            module: None,
+            blocking: t.blocking,
+            scale: t.scale,
+            alias: t.name.clone(),
+            particle_emitter: None,
+            light_emitter: None,
+        };
                                         tile.set_default_materials();
                                         project.tiles.insert(id, tile);
                                     }
@@ -647,7 +647,7 @@ impl TilemapDock {
             module: None,
             blocking: rgba_tile.blocking,
             scale: rgba_tile.scale,
-            tags: rgba_tile.name.clone(),
+            alias: rgba_tile.name.clone(),
             particle_emitter: None,
             light_emitter: None,
         });

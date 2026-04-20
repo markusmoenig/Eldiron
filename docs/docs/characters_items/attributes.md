@@ -160,10 +160,12 @@ party_role = "leader"
 Static portrait tile used by screen button widgets with `portrait = true`.
 This is separate from runtime `avatar` rendering and is intended for classic portrait/head UI graphics.
 
-You can store it as a tile id / UUID source the same way other tile-based attributes are authored.
+You can store it the same way other tile-based attributes are authored: as a tile UUID, a tile alias, or a palette index.
 
 ```toml
 portrait_tile_id = "01234567-89ab-cdef-0123-456789abcdef"
+portrait_tile_id = "hero_portrait"
+portrait_tile_id = "2"
 ```
 
 ---
@@ -440,11 +442,14 @@ spell_radius = 0.4
 
 ## `effect_id`
 
-Optional impact tile UUID.
+Optional impact tile source.
+Accepts a tile UUID, tile alias, or palette index.
 If set, projectile spells switch to this tile on hit before despawn.
 
 ```toml
 effect_id = "c4323247-0b92-4bf6-b303-643d8350f794"
+# effect_id = "fire_impact"
+# effect_id = "7"
 ```
 
 ## `effect_duration`
@@ -712,8 +717,19 @@ static = true
 
 Tile ID for the visual representation. Use the tile picker to find valid IDs.
 
+Accepted forms:
+
+- tile UUID
+- tile alias
+- palette index
+
+Examples:
+
 ```toml
-tile_id = "abc123"
+tile_id = "03160f57-90e3-4455-a16e-f0b8edfaa415"
+tile_id = "player_tile"
+tile_id = 2
+tile_id = "2"
 ```
 
 ---

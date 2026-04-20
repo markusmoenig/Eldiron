@@ -1,4 +1,5 @@
 pub use crate::prelude::*;
+use crate::editor::RUSTERIX;
 use rusterix::{PixelSource, ValueContainer};
 
 #[derive(Clone, Debug)]
@@ -20,6 +21,17 @@ pub fn parse_tile_id_pixelsource(text: &str) -> Option<PixelSource> {
     }
     if let Ok(id) = Uuid::parse_str(trimmed) {
         return Some(PixelSource::TileId(id));
+    }
+    {
+        let rusterix = RUSTERIX.read().unwrap();
+        if let Some((id, _tile)) = rusterix.assets.tiles.iter().find(|(_id, tile)| {
+            tile.alias
+                .split([',', ';', '\n'])
+                .map(str::trim)
+                .any(|part| !part.is_empty() && part.eq_ignore_ascii_case(trimmed))
+        }) {
+            return Some(PixelSource::TileId(*id));
+        }
     }
     if let Ok(index) = trimmed.parse::<u16>() {
         return Some(PixelSource::PaletteIndex(index));

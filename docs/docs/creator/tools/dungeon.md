@@ -112,6 +112,7 @@ These settings apply to stair tiles.
 - `floor_delta`: relative floor-base change across the stair tile. Negative values go down.
 - `steps`: number of generated steps inside the tile.
 - `tile_id`: default source applied to generated stair geometry.
+  - accepts UUID, tile alias, or palette index.
 - `tile_mode`: how the stair source is mapped. `Repeat` is the normal mode, `Scale` stretches the source across the stair assembly.
 
 ### `render`

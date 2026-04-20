@@ -13,6 +13,8 @@ The **Tile Picker** dock is the main asset browser and assignment dock for map w
 - apply or clear that source on geometry
 - open the pixel editor or node graph editor via [Edit / Maximize](/docs/creator/actions/#edit--maximize)
 
+For single tiles, **Edit Tile Meta** can also assign an alias. That alias can then be used anywhere a `tile_id`-style source is accepted, alongside UUIDs and palette indices.
+
 The currently selected source is used by the **Apply Tile** button in the dock toolbar, by **Clear Tile**, and by tools such as [Rect](/docs/creator/tools/rect).
 
 ## Sources

@@ -31,7 +31,7 @@ impl Action for EditTileMeta {
         nodeui.add_item(item);
 
         let item = TheNodeUIItem::Text(
-            "actionTileTags".into(),
+            "actionTileAlias".into(),
             "".into(),
             "".into(),
             "".into(),
@@ -77,7 +77,7 @@ impl Action for EditTileMeta {
                 self.nodeui
                     .set_i32_value("actionTileBlocking", if tile.blocking { 1 } else { 0 });
                 self.nodeui
-                    .set_text_value("actionTileTags", tile.name.clone());
+                    .set_text_value("actionTileAlias", tile.name.clone());
             }
         }
     }
@@ -93,7 +93,7 @@ impl Action for EditTileMeta {
         let blocking = self.nodeui.get_i32_value("actionTileBlocking").unwrap_or(0);
         let name = self
             .nodeui
-            .get_text_value("actionTileTags")
+            .get_text_value("actionTileAlias")
             .unwrap_or(String::new());
 
         if let Some(tile_id) = server_ctx.curr_tile_id {
@@ -109,7 +109,7 @@ impl Action for EditTileMeta {
             if let Some(tile) = project.tiles.get_mut(&tile_id) {
                 tile.role = TileRole::from_index(role as u8);
                 tile.blocking = blocking == 1;
-                tile.tags = name.clone();
+                tile.alias = name.clone();
             }
         }
 

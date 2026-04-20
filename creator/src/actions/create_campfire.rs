@@ -15,13 +15,7 @@ impl CreateCampfire {
         if trimmed.is_empty() {
             return None;
         }
-        if let Ok(id) = Uuid::parse_str(trimmed) {
-            return Some(Value::Source(PixelSource::TileId(id)));
-        }
-        if let Ok(index) = trimmed.parse::<u16>() {
-            return Some(Value::Source(PixelSource::PaletteIndex(index)));
-        }
-        None
+        Some(Value::Source(parse_tile_id_pixelsource(trimmed)?))
     }
 
     fn source_to_text(source: Option<&Value>) -> String {

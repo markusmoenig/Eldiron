@@ -9,11 +9,8 @@ pub struct CreateProp {
 fn parse_source_from_text_or_tile(text: &str, fallback_tile_id: Uuid) -> Option<PixelSource> {
     let trimmed = text.trim();
     if !trimmed.is_empty() {
-        if let Ok(id) = Uuid::parse_str(trimmed) {
-            return Some(PixelSource::TileId(id));
-        }
-        if let Ok(index) = trimmed.parse::<u16>() {
-            return Some(PixelSource::PaletteIndex(index));
+        if let Some(source) = parse_tile_id_pixelsource(trimmed) {
+            return Some(source);
         }
     }
     if fallback_tile_id != Uuid::nil() {

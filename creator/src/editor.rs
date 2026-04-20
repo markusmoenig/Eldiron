@@ -892,7 +892,7 @@ impl Editor {
                     module: None,
                     blocking: t.blocking,
                     scale: t.scale,
-                    tags: t.name.clone(),
+                    alias: t.name.clone(),
                     particle_emitter: None,
                     light_emitter: None,
                 };

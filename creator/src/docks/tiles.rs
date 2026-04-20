@@ -3027,7 +3027,7 @@ impl TilesDock {
         match source {
             TileSource::SingleTile(tile_id) => {
                 if let Some(tile) = project.tiles.get(&tile_id) {
-                    if tile.tags.is_empty() {
+                    if tile.alias.is_empty() {
                         format!(
                             "{}, Blocking: {}",
                             tile.role.to_string(),
@@ -3035,10 +3035,10 @@ impl TilesDock {
                         )
                     } else {
                         format!(
-                            "{}, Blocking: {}, Tags: \"{}\"",
+                            "{}, Blocking: {}, Alias: \"{}\"",
                             tile.role.to_string(),
                             if tile.blocking { "Yes" } else { "No" },
-                            tile.tags
+                            tile.alias
                         )
                     }
                 } else {
@@ -3106,7 +3106,7 @@ impl TilesDock {
     }
 
     fn matches_tile(&self, tile: &rusterix::Tile) -> bool {
-        tile.tags.to_lowercase().contains(&self.filter)
+        tile.alias.to_lowercase().contains(&self.filter)
             && (self.filter_role == 0 || tile.role == TileRole::from_index(self.filter_role - 1))
     }
 
@@ -3118,7 +3118,7 @@ impl TilesDock {
                 project
                     .tiles
                     .get(&member.tile_id)
-                    .map(|tile| tile.tags.to_lowercase().contains(&self.filter))
+                    .map(|tile| tile.alias.to_lowercase().contains(&self.filter))
                     .unwrap_or(false)
             });
 

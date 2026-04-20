@@ -5,7 +5,7 @@ use crate::server::region::{
 };
 use crate::vm::*;
 use crate::{
-    Choice, EntityAction, Item, Map, MultipleChoice, PixelSource, PlayerCamera, RegionCtx, Value,
+    Choice, EntityAction, Item, Map, MultipleChoice, PlayerCamera, RegionCtx, Value,
     ValueContainer,
 };
 use rand::Rng;
@@ -1141,16 +1141,13 @@ impl<'a> HostHandler for RegionHost<'a> {
             }
             "set_tile" => {
                 if let Some(mode) = args.get(0).and_then(|v| v.as_string()) {
-                    if let Ok(uuid) = theframework::prelude::Uuid::try_parse(mode) {
+                    if let Some(source) = crate::server::data::parse_tile_source_from_str(mode) {
                         if let Some(item_id) = self.ctx.curr_item_id {
                             if let Some(item) = self.ctx.get_item_mut(item_id) {
-                                item.set_attribute(
-                                    "source",
-                                    Value::Source(PixelSource::TileId(uuid)),
-                                );
+                                item.set_attribute("source", Value::Source(source.clone()));
                             }
                         } else if let Some(entity) = self.ctx.get_current_entity_mut() {
-                            entity.set_attribute("source", Value::Source(PixelSource::TileId(uuid)));
+                            entity.set_attribute("source", Value::Source(source));
                         }
                     }
                 }

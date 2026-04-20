@@ -170,6 +170,7 @@ impl Assets {
         }*/
 
         self.tiles = tiles;
+        crate::server::data::rebuild_tile_alias_lookup(&self.tiles);
 
         // Update tile_list and tile_indices
         for (id, tile) in &self.tiles {

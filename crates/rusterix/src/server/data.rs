@@ -1,6 +1,34 @@
 use crate::{Entity, Item, Light, LightType, PixelSource, Value};
+use indexmap::IndexMap;
+use std::sync::{LazyLock, RwLock};
 use theframework::prelude::*;
 use toml::Table;
+
+static TILE_ALIAS_LOOKUP: LazyLock<RwLock<FxHashMap<String, PixelSource>>> =
+    LazyLock::new(|| RwLock::new(FxHashMap::default()));
+
+pub fn rebuild_tile_alias_lookup(tiles: &IndexMap<Uuid, crate::Tile>) {
+    let mut lookup = FxHashMap::default();
+
+    for (id, tile) in tiles {
+        for alias in tile.alias.split([',', ';', '\n']) {
+            let key = alias.trim().to_ascii_lowercase();
+            if !key.is_empty() {
+                lookup.insert(key, PixelSource::TileId(*id));
+            }
+        }
+    }
+
+    *TILE_ALIAS_LOOKUP.write().unwrap() = lookup;
+}
+
+fn lookup_tile_alias(value: &str) -> Option<PixelSource> {
+    TILE_ALIAS_LOOKUP
+        .read()
+        .unwrap()
+        .get(&value.trim().to_ascii_lowercase())
+        .cloned()
+}
 
 fn facing_to_orientation(facing: &str) -> Option<vek::Vec2<f32>> {
     match facing.trim().to_ascii_lowercase().as_str() {
@@ -18,6 +46,9 @@ fn parse_tile_source_from_toml(value: &toml::Value) -> Option<PixelSource> {
         if let Ok(uuid) = Uuid::parse_str(trimmed) {
             return Some(PixelSource::TileId(uuid));
         }
+        if let Some(source) = lookup_tile_alias(trimmed) {
+            return Some(source);
+        }
         if let Ok(idx) = trimmed.parse::<u16>() {
             return Some(PixelSource::PaletteIndex(idx));
         }
@@ -31,10 +62,13 @@ fn parse_tile_source_from_toml(value: &toml::Value) -> Option<PixelSource> {
     None
 }
 
-fn parse_tile_source_from_str(value: &str) -> Option<PixelSource> {
+pub(crate) fn parse_tile_source_from_str(value: &str) -> Option<PixelSource> {
     let trimmed = value.trim();
     if let Ok(uuid) = Uuid::parse_str(trimmed) {
         return Some(PixelSource::TileId(uuid));
+    }
+    if let Some(source) = lookup_tile_alias(trimmed) {
+        return Some(source);
     }
     if let Ok(idx) = trimmed.parse::<u16>() {
         return Some(PixelSource::PaletteIndex(idx));

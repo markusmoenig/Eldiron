@@ -100,8 +100,9 @@ pub struct Tile {
     pub blocking: bool,
     /// The scale of the tile (mostly used for billboard rendering)
     pub scale: f32,
-    /// Tags
-    pub tags: String,
+    /// Human-readable alias used for filtering and source lookup.
+    #[serde(default, alias = "tags")]
+    pub alias: String,
     /// Optional particle emitter definition derived from a tilegraph output.
     #[serde(default)]
     pub particle_emitter: Option<ParticleEmitter>,
@@ -120,7 +121,7 @@ impl Tile {
             module: None,
             blocking: false,
             scale: 1.0,
-            tags: String::new(),
+            alias: String::new(),
             particle_emitter: None,
             light_emitter: None,
         }
@@ -134,7 +135,7 @@ impl Tile {
             module: None,
             blocking: false,
             scale: 1.0,
-            tags: String::new(),
+            alias: String::new(),
             particle_emitter: None,
             light_emitter: None,
             ..Default::default()
@@ -149,7 +150,7 @@ impl Tile {
             module: None,
             blocking: false,
             scale: 1.0,
-            tags: String::new(),
+            alias: String::new(),
             particle_emitter: None,
             light_emitter: None,
             ..Default::default()
@@ -201,7 +202,7 @@ impl Tile {
             module: self.module.clone(),
             blocking: self.blocking,
             scale: self.scale,
-            tags: self.tags.clone(),
+            alias: self.alias.clone(),
             particle_emitter: self.particle_emitter.clone(),
             light_emitter: self.light_emitter.clone(),
         }

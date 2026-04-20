@@ -21,6 +21,8 @@ Before adding the tile(s) make sure you selected the role as needed (to be able 
 
 In the tile picker you can further edit tile sources and assign them to geometry. The dock toolbar contains **Apply Tile** and **Clear Tile** for assigning or removing tile sources on map geometry and action material slots.
 
+Single tiles can also have a human-readable alias. Set it with **Edit Tile Meta** and then use that alias anywhere a `tile_id`-style source is accepted in TOML, actions, or `set_tile(...)`.
+
 The tile picker can now contain:
 
 - single tiles

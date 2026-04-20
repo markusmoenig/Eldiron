@@ -21,8 +21,11 @@ The attributes can be set inside the templates or the [instance scripts](/docs/c
 # Give the character or item a name (if they differ from the template)
 set_attr("name", "Golden Key")
 
-# Set the tile ID for the character or item. Get the tile ID from the tile-picker.
+# Set the tile for the character or item.
+# Accepted forms: tile UUID, tile alias, or palette index.
 set_tile("tile_id")
+set_tile("player_tile")
+set_tile("2")
 
 # Make the character or item visible / invisible
 set_attr("visible", False)
@@ -52,8 +55,11 @@ STR = 10
 # Give the character or item a name (if they differ from the template)
 name = "Orc"
 
-# Set the tile ID for the character or item. Get the tile ID from the tile-picker
+# Set the tile for the character or item.
+# Accepted forms: tile UUID, tile alias, or palette index.
 tile_id = "tile_id"
+tile_id = "player_tile"
+tile_id = "2"
 
 # Make the character or item visible / invisible
 visible = false

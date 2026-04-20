@@ -14,14 +14,19 @@ See the [Eldrin Script](/docs/characters_items/eldrin_scripting_language/#values
 
 ## Tile Id
 
-A tile id is a unique identifier string for a given tile in the [Tile Picker](#tile-picker). Characters and items use tile ids in their attribute *TOML* files, or in scripts, to reference a specific tile. When a tile is selected in the tile picker, use the [Copy Tile ID](/docs/creator/actions/#copy-tile-id) action to copy the id to the clipboard (and paste it where you need it).
+A tile id is the canonical UUID for a given tile in the [Tile Picker](#tile-picker). Characters, items, geometry actions, and scripts can reference tiles in three supported forms:
 
-In many configuration/action fields, `tile_id` also accepts a **palette index** instead of a UUID.
+- tile UUID
+- tile alias
+- palette index
+
+When a tile is selected in the tile picker, use the [Copy Tile ID](/docs/creator/actions/#copy-tile-id) action to copy the UUID to the clipboard. You can also assign a human-readable alias in **Edit Tile Meta** and use that alias anywhere a `tile_id`-style source is accepted.
 
 Examples:
 
 ```toml
 tile_id = "03160f57-90e3-4455-a16e-f0b8edfaa415" # UUID
+tile_id = "player_tile"                           # tile alias
 tile_id = 2                                      # palette index
 tile_id = "2"                                    # palette index (string form)
 ```

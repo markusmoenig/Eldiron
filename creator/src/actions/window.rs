@@ -228,11 +228,8 @@ impl Action for Window {
         let parse_source = |text: &str, fallback: Uuid| -> Option<PixelSource> {
             let t = text.trim();
             if !t.is_empty() {
-                if let Ok(id) = Uuid::parse_str(t) {
-                    return Some(PixelSource::TileId(id));
-                }
-                if let Ok(idx) = t.parse::<u16>() {
-                    return Some(PixelSource::PaletteIndex(idx));
+                if let Some(source) = parse_tile_id_pixelsource(t) {
+                    return Some(source);
                 }
             }
             if fallback != Uuid::nil() {
@@ -303,11 +300,8 @@ impl Action for Window {
         let parse_source = |text: &str, fallback: Uuid| -> Option<PixelSource> {
             let t = text.trim();
             if !t.is_empty() {
-                if let Ok(id) = Uuid::parse_str(t) {
-                    return Some(PixelSource::TileId(id));
-                }
-                if let Ok(idx) = t.parse::<u16>() {
-                    return Some(PixelSource::PaletteIndex(idx));
+                if let Some(source) = parse_tile_id_pixelsource(t) {
+                    return Some(source);
                 }
             }
             if fallback != Uuid::nil() {
