@@ -77,7 +77,7 @@ impl Action for EditTileMeta {
                 self.nodeui
                     .set_i32_value("actionTileBlocking", if tile.blocking { 1 } else { 0 });
                 self.nodeui
-                    .set_text_value("actionTileAlias", tile.name.clone());
+                    .set_text_value("actionTileAlias", tile.alias.clone());
             }
         }
     }
@@ -103,12 +103,6 @@ impl Action for EditTileMeta {
 
                 tile.role = role;
                 tile.blocking = blocking;
-                tile.name = name.clone();
-            }
-
-            if let Some(tile) = project.tiles.get_mut(&tile_id) {
-                tile.role = TileRole::from_index(role as u8);
-                tile.blocking = blocking == 1;
                 tile.alias = name.clone();
             }
         }

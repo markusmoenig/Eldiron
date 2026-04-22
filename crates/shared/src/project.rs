@@ -1043,34 +1043,17 @@ impl Project {
 
     /// Removes the given tile from the project.
     pub fn remove_tile(&mut self, id: &Uuid) {
-        for tilemap in &mut self.tilemaps {
-            tilemap.tiles.retain(|t| t.id != *id);
-        }
         self.tiles.shift_remove(id);
     }
 
     /// Gets the given tile from the project.
-    pub fn get_tile(&self, id: &Uuid) -> Option<&Tile> {
-        for tilemap in &self.tilemaps {
-            for tile in &tilemap.tiles {
-                if tile.id == *id {
-                    return Some(tile);
-                }
-            }
-        }
-        None
+    pub fn get_tile(&self, id: &Uuid) -> Option<&rusterix::Tile> {
+        self.tiles.get(id)
     }
 
     /// Gets the given mutable tile from the project.
-    pub fn get_tile_mut(&mut self, id: &Uuid) -> Option<&mut Tile> {
-        for tilemap in &mut self.tilemaps {
-            for tile in &mut tilemap.tiles {
-                if tile.id == *id {
-                    return Some(tile);
-                }
-            }
-        }
-        None
+    pub fn get_tile_mut(&mut self, id: &Uuid) -> Option<&mut rusterix::Tile> {
+        self.tiles.get_mut(id)
     }
 
     pub fn find_tile_id_by_alias(&self, alias: &str) -> Option<Uuid> {
@@ -1092,66 +1075,7 @@ impl Project {
             }
         }
 
-        for tilemap in &self.tilemaps {
-            for tile in &tilemap.tiles {
-                if !tile.name.trim().is_empty() && tile.name.trim().eq_ignore_ascii_case(needle) {
-                    return Some(tile.id);
-                }
-            }
-        }
-
         None
     }
 
-    /// Extract all tiles from all tilemaps and store them in a hash.
-    pub fn extract_tiles(&self) -> IndexMap<Uuid, TheRGBATile> {
-        let mut tiles = IndexMap::default();
-        for tilemap in &self.tilemaps {
-            for tile in &tilemap.tiles {
-                let mut rgba_tile = TheRGBATile::new();
-                rgba_tile.id = tile.id;
-                rgba_tile.name.clone_from(&tile.name);
-                rgba_tile.buffer = tilemap.buffer.extract_sequence(&tile.sequence);
-                rgba_tile.role = tile.role as u8;
-                rgba_tile.scale = tile.scale;
-                rgba_tile.render_mode = tile.render_mode;
-                rgba_tile.blocking = tile.blocking;
-                tiles.insert(tile.id, rgba_tile);
-            }
-        }
-        tiles
-    }
-
-    /// Extract all tiles from all tilemaps and store them in a vec.
-    pub fn extract_tiles_vec(&self) -> Vec<TheRGBATile> {
-        let mut tiles = vec![];
-        for tilemap in &self.tilemaps {
-            for tile in &tilemap.tiles {
-                let mut rgba_tile = TheRGBATile::new();
-                rgba_tile.id = tile.id;
-                rgba_tile.name.clone_from(&tile.name);
-                rgba_tile.buffer = tilemap.buffer.extract_sequence(&tile.sequence);
-                rgba_tile.role = tile.role as u8;
-                tiles.push(rgba_tile);
-            }
-        }
-        tiles
-    }
-
-    /// Extract the given tile from the tilemaps.
-    pub fn extract_tile(&self, id: &Uuid) -> Option<TheRGBATile> {
-        for tilemap in &self.tilemaps {
-            for tile in &tilemap.tiles {
-                if tile.id == *id {
-                    let mut rgba_tile = TheRGBATile::new();
-                    rgba_tile.id = tile.id;
-                    rgba_tile.name.clone_from(&tile.name);
-                    rgba_tile.buffer = tilemap.buffer.extract_sequence(&tile.sequence);
-                    rgba_tile.role = tile.role as u8;
-                    return Some(rgba_tile);
-                }
-            }
-        }
-        None
-    }
 }

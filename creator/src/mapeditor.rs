@@ -824,8 +824,6 @@ impl MapEditor {
                 } else if id.name == "Tilemap Editor Add Anim"
                     || id.name == "Tilemap Editor Add Multi"
                 {
-                    // TILEDRAWER.lock().unwrap().tiles = project.extract_tiles();
-                    // server.update_tiles(project.extract_tiles());
                 }
             }
             _ => {}

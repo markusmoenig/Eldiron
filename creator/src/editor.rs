@@ -872,34 +872,6 @@ impl Editor {
             screen.map.sanitize();
         }
 
-        if project.tiles.is_empty() {
-            let tiles = project.extract_tiles();
-            for (id, t) in &tiles {
-                let mut texture_array: Vec<Texture> = vec![];
-                for b in &t.buffer {
-                    let mut texture = Texture::new(
-                        b.pixels().to_vec(),
-                        b.dim().width as usize,
-                        b.dim().height as usize,
-                    );
-                    texture.generate_normals(true);
-                    texture_array.push(texture);
-                }
-                let tile = rusterix::Tile {
-                    id: t.id,
-                    role: rusterix::TileRole::from_index(t.role),
-                    textures: texture_array.clone(),
-                    module: None,
-                    blocking: t.blocking,
-                    scale: t.scale,
-                    alias: t.name.clone(),
-                    particle_emitter: None,
-                    light_emitter: None,
-                };
-                project.tiles.insert(*id, tile);
-            }
-        }
-
         for (_, tile) in project.tiles.iter_mut() {
             for texture in &mut tile.textures {
                 if texture.data_ext.is_none() {

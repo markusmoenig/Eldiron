@@ -8,7 +8,6 @@ use crate::{
     dynamic::{DynamicKind, DynamicObject},
 };
 use bytemuck::{Pod, Zeroable};
-#[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::hash::Hasher;
@@ -7132,36 +7131,43 @@ impl VM {
 
         let m = self.transform3d;
 
-        for chunk in self.chunks_map.values() {
-            for poly_list in chunk.polys3d_map.values() {
-                for poly in poly_list {
-                    if poly.indices.is_empty() || poly.vertices.is_empty() {
-                        continue;
-                    }
+        let chunks: Vec<&Chunk> = self.chunks_map.values().collect();
+        if let Some((t, geo, pos)) = chunks
+            .par_iter()
+            .filter_map(|chunk| {
+                let mut best_t = f32::INFINITY;
+                let mut best_geo: Option<GeoId> = None;
+                let mut best_pos = Vec3::new(0.0, 0.0, 0.0);
 
-                    if !poly.visible && !include_hidden {
-                        continue;
-                    }
+                for poly_list in chunk.polys3d_map.values() {
+                    for poly in poly_list {
+                        if poly.indices.is_empty() || poly.vertices.is_empty() {
+                            continue;
+                        }
 
-                    let mut poly_pos: Vec<[f32; 3]> = Vec::with_capacity(poly.vertices.len());
-                    for v in &poly.vertices {
-                        let p = m * Vec4::new(v[0], v[1], v[2], v[3]);
-                        let w = if p.w != 0.0 { p.w } else { 1.0 };
-                        poly_pos.push([p.x / w, p.y / w, p.z / w]);
-                    }
+                        if !poly.visible && !include_hidden {
+                            continue;
+                        }
 
-                    for &(ia, ib, ic) in &poly.indices {
-                        let a = poly_pos.get(ia).copied();
-                        let b = poly_pos.get(ib).copied();
-                        let c = poly_pos.get(ic).copied();
-                        let (a, b, c) = match (a, b, c) {
-                            (Some(a), Some(b), Some(c)) => (a, b, c),
-                            _ => continue,
-                        };
-                        if let Some((t, _, _)) =
-                            ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
-                        {
-                            if t > 1e-5 && t < best_t {
+                        let mut poly_pos: Vec<[f32; 3]> = Vec::with_capacity(poly.vertices.len());
+                        for v in &poly.vertices {
+                            let p = m * Vec4::new(v[0], v[1], v[2], v[3]);
+                            let w = if p.w != 0.0 { p.w } else { 1.0 };
+                            poly_pos.push([p.x / w, p.y / w, p.z / w]);
+                        }
+
+                        for &(ia, ib, ic) in &poly.indices {
+                            let a = poly_pos.get(ia).copied();
+                            let b = poly_pos.get(ib).copied();
+                            let c = poly_pos.get(ic).copied();
+                            let (a, b, c) = match (a, b, c) {
+                                (Some(a), Some(b), Some(c)) => (a, b, c),
+                                _ => continue,
+                            };
+                            if let Some((t, _, _)) = ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
+                                && t > 1e-5
+                                && t < best_t
+                            {
                                 best_t = t;
                                 best_geo = Some(poly.id);
                                 best_pos = ray_origin + ray_dir * t;
@@ -7169,7 +7175,14 @@ impl VM {
                         }
                     }
                 }
-            }
+
+                best_geo.map(|geo| (best_t, geo, best_pos))
+            })
+            .reduce_with(|a, b| if a.0 <= b.0 { a } else { b })
+        {
+            best_t = t;
+            best_geo = Some(geo);
+            best_pos = pos;
         }
 
         if include_billboards {

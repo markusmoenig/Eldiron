@@ -1,3 +1,15 @@
+# Eldiron v0.9.6
+
+## Bug Fixes
+
+- Reduced 3D mouse-hover sampling in the Creator and graphical clients to 5 times per second and accelerated static geometry hover picking with `rayon`, improving dense-scene mouse-move performance on projects like `Village3D`.
+- Fixed `random_walk()` in 2D so it now uses the same tile-centered pathing behavior as `random_walk_in_sector()`, keeping characters aligned to `.5 / .5` tile centers instead of drifting toward tile boundaries.
+- Fixed 2D `random_walk()` / pathfinding hangs by rejecting blocked destination tiles before running unbounded A* searches.
+- Fixed 2D `random_walk()` target picking in tight spaces so NPCs prefer nearby walkable tile centers before falling back to continuous random points.
+- Fixed 2D blocked-tile movement so actors spawned inside blocking content can step out of their starting tile instead of getting trapped permanently.
+
+---
+
 # Eldiron v0.9.5
 
 ## New Features

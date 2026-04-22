@@ -9,6 +9,7 @@ use crossbeam_channel::{Receiver, Sender, unbounded};
 use instant::Instant;
 use pathfinding::prelude::astar;
 use rand::*;
+use rand::seq::SliceRandom;
 
 use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
@@ -3937,9 +3938,84 @@ impl RegionInstance {
                 EntityAction::RandomWalk(distance, speed, max_sleep, state, target) => {
                     if *state == 0 {
                         // State 0: Uninitialized, find a target location.
-                        let pos = find_random_position(entity.get_pos_xz(), *distance);
-                        entity.action = RandomWalk(*distance, *speed, *max_sleep, 1, pos);
-                        entity.face_at(pos);
+                        let curr_pos = entity.get_pos_xz();
+                        let mut next_pos = curr_pos;
+                        let mut found = false;
+
+                        with_regionctx(self.id, |ctx| {
+                            let radius =
+                                entity.attributes.get_float_default("radius", 0.5) - 0.01;
+
+                            // Prefer discrete nearby tile centers first. In narrow 2D spaces
+                            // (for example behind counters) arbitrary points on a distance-radius
+                            // circle are almost always invalid, even though left/right tile moves
+                            // are perfectly fine.
+                            let curr_tile = curr_pos.map(|c| c.floor() as i32);
+                            let curr_center =
+                                curr_tile.map(|i| i as f32) + Vec2::broadcast(0.5);
+                            let max_steps = (*distance).ceil().max(1.0) as i32;
+                            let mut center_candidates = Vec::new();
+
+                            if (curr_center - curr_pos).magnitude() > 0.05
+                                && ctx.mapmini.is_walkable_position(curr_center, radius)
+                            {
+                                center_candidates.push(curr_center);
+                            }
+
+                            for y in -max_steps..=max_steps {
+                                for x in -max_steps..=max_steps {
+                                    let manhattan = x.abs() + y.abs();
+                                    if manhattan == 0 || manhattan > max_steps {
+                                        continue;
+                                    }
+                                    let tile = curr_tile + Vec2::new(x, y);
+                                    let center =
+                                        tile.map(|i| i as f32) + Vec2::broadcast(0.5);
+                                    if ctx.mapmini.is_walkable_position(center, radius) {
+                                        center_candidates.push(center);
+                                    }
+                                }
+                            }
+
+                            let mut rng = rand::rng();
+                            center_candidates.shuffle(&mut rng);
+
+                            if let Some(candidate) = center_candidates.into_iter().next() {
+                                next_pos = candidate;
+                                found = true;
+                                return;
+                            }
+
+                            for _ in 0..16 {
+                                let candidate = find_random_position(curr_pos, *distance);
+                                if ctx.mapmini.is_walkable_position(candidate, radius) {
+                                    next_pos = candidate;
+                                    found = true;
+                                    break;
+                                }
+                            }
+
+                            if !found {
+                                let min_sleep = (*max_sleep / 2).max(1);
+                                let max_sleep_guard = (*max_sleep).max(1);
+                                let sleep_minutes =
+                                    rng.random_range(min_sleep..=max_sleep_guard) as u32;
+                                let wake_tick =
+                                    ctx.ticks + (sleep_minutes as i64 * ctx.ticks_per_minute as i64);
+                                entity.action = SleepAndSwitch(
+                                    wake_tick,
+                                    Box::new(RandomWalk(
+                                        *distance, *speed, *max_sleep, 0, curr_pos,
+                                    )),
+                                );
+                            }
+                        });
+
+                        if found {
+                            entity.action =
+                                RandomWalk(*distance, *speed, *max_sleep, 1, next_pos);
+                            entity.face_at(next_pos);
+                        }
                     } else if *state == 1 {
                         // State 1: Walk towards
                         if target.distance(entity.get_pos_xz()) < 0.1 {
@@ -3950,16 +4026,223 @@ impl RegionInstance {
                                 RandomWalk(*distance, *speed, *max_sleep, 0, *target),
                             );
                         } else {
-                            let t = RandomWalk(*distance, *speed, *max_sleep, 0, *target);
                             let max_sleep = *max_sleep;
-                            let blocked = self.move_entity(entity, 1.0, self.entity_block_mode);
-                            if blocked {
-                                let mut rng = rand::rng();
-                                entity.action = self.create_sleep_switch_action(
-                                    rng.random_range(max_sleep / 2..=max_sleep) as u32,
-                                    t,
+                            with_regionctx(self.id, |ctx| {
+                                let position = entity.get_pos_xz();
+                                let radius =
+                                    entity.attributes.get_float_default("radius", 0.5) - 0.01;
+                                // Keep RandomWalk speed behavior aligned with legacy move_entity().
+                                let step_speed = self.movement_units_per_sec * ctx.delta_time;
+                                let terrain_cfg =
+                                    crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                                let terrain_y =
+                                    crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                                        &ctx.map,
+                                        position,
+                                        &terrain_cfg,
+                                    );
+                                let is_elevated_floor =
+                                    (entity.position.y - terrain_y).abs() > 0.25;
+                                let use_3d_nav = ctx.collision_world.has_collision_data()
+                                    && (self.collision_mode == CollisionMode::Mesh
+                                        || is_elevated_floor);
+
+                                let mut mesh_blocked = false;
+                                let (new_position, new_y, mut arrived) = if use_3d_nav {
+                                    let (desired_position, arrived_hint) = ctx
+                                        .collision_world
+                                        .move_towards_on_floors(
+                                            position,
+                                            *target,
+                                            step_speed,
+                                            radius,
+                                            1.0,
+                                            entity.position.y,
+                                        )
+                                        .unwrap_or_else(|| {
+                                            let to_target = *target - position;
+                                            let dist = to_target.magnitude();
+                                            if dist <= 0.1 {
+                                                (
+                                                    Vec3::new(
+                                                        position.x,
+                                                        entity.position.y,
+                                                        position.y,
+                                                    ),
+                                                    true,
+                                                )
+                                            } else if dist <= f32::EPSILON {
+                                                (
+                                                    Vec3::new(
+                                                        position.x,
+                                                        entity.position.y,
+                                                        position.y,
+                                                    ),
+                                                    false,
+                                                )
+                                            } else {
+                                                let step =
+                                                    to_target.normalized() * step_speed.min(dist);
+                                                (
+                                                    Vec3::new(
+                                                        position.x + step.x,
+                                                        entity.position.y,
+                                                        position.y + step.y,
+                                                    ),
+                                                    false,
+                                                )
+                                            }
+                                        });
+
+                                    let desired_move =
+                                        Vec2::new(desired_position.x, desired_position.z)
+                                            - position;
+                                    let start_3d =
+                                        vek::Vec3::new(position.x, entity.position.y, position.y);
+                                    let step_3d =
+                                        vek::Vec3::new(desired_move.x, 0.0, desired_move.y);
+                                    let (end_3d, blocked) = ctx
+                                        .collision_world
+                                        .move_distance(start_3d, step_3d, radius);
+                                    mesh_blocked = blocked;
+                                    let end_2d = vek::Vec2::new(end_3d.x, end_3d.z);
+                                    let arrived = arrived_hint
+                                        && !blocked
+                                        && (*target - end_2d).magnitude() <= 0.1;
+                                    (end_2d, end_3d.y, arrived)
+                                } else {
+                                    let (p, arrived) = ctx
+                                        .mapmini
+                                        .move_towards(position, *target, step_speed, radius, 1.0);
+                                    (p, entity.position.y, arrived)
+                                };
+
+                                let mut dynamic_blocked = false;
+                                let mut resolved_position = new_position;
+
+                                if self.entity_block_mode > 0 {
+                                    for other in ctx.map.entities.iter() {
+                                        if other.id == entity.id || other.get_mode() == "dead" {
+                                            continue;
+                                        }
+                                        let other_pos = other.get_pos_xz();
+                                        let other_radius =
+                                            other.attributes.get_float_default("radius", 0.5)
+                                                - 0.01;
+                                        let combined = radius + other_radius;
+                                        if (resolved_position - other_pos).magnitude_squared()
+                                            < combined * combined
+                                        {
+                                            dynamic_blocked = true;
+                                            resolved_position = position;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if !dynamic_blocked {
+                                    for other in ctx.map.items.iter() {
+                                        if !other.attributes.get_bool_default("visible", false)
+                                            || !other.attributes.get_bool_default("blocking", false)
+                                        {
+                                            continue;
+                                        }
+                                        let other_pos = other.get_pos_xz();
+                                        let other_radius =
+                                            other.attributes.get_float_default("radius", 0.5)
+                                                - 0.01;
+                                        let combined = radius + other_radius;
+                                        if (resolved_position - other_pos).magnitude_squared()
+                                            < combined * combined
+                                        {
+                                            dynamic_blocked = true;
+                                            resolved_position = position;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if dynamic_blocked {
+                                    arrived = false;
+                                }
+
+                                let move_delta = resolved_position - position;
+                                let old_dist = (*target - position).magnitude();
+                                let new_dist = (*target - resolved_position).magnitude();
+                                let progress = old_dist - new_dist;
+
+                                if move_delta.magnitude_squared() > 1e-6 && progress > 0.002 {
+                                    entity.set_orientation(move_delta.normalized());
+                                }
+                                entity.set_pos_xz(resolved_position);
+                                entity.position.y = new_y;
+
+                                let floor_ref_y = entity.position.y;
+                                let sector_floor = sector_floor_height_below_or_nearest(
+                                    &ctx.map,
+                                    resolved_position,
+                                    floor_ref_y,
                                 );
-                            }
+                                let collision_floor = if use_3d_nav {
+                                    ctx.collision_world
+                                        .get_floor_height_nearest(resolved_position, floor_ref_y)
+                                } else {
+                                    None
+                                };
+                                let terrain_floor = {
+                                    let config =
+                                        crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                                    crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                                        &ctx.map,
+                                        resolved_position,
+                                        &config,
+                                    )
+                                };
+
+                                let base_y =
+                                    sector_floor.or(collision_floor).or(Some(terrain_floor));
+                                if let Some(y) = base_y {
+                                    entity.position.y = y;
+                                }
+
+                                let mut stall_ticks = entity
+                                    .attributes
+                                    .get_int_default("__rw_stall_ticks", 0)
+                                    .max(0);
+                                if progress < 0.01 {
+                                    stall_ticks += 1;
+                                } else {
+                                    stall_ticks = 0;
+                                }
+                                if mesh_blocked || dynamic_blocked {
+                                    stall_ticks += 2;
+                                }
+                                entity
+                                    .attributes
+                                    .set("__rw_stall_ticks", Value::Int(stall_ticks));
+
+                                if arrived
+                                    || move_delta.magnitude_squared() <= 1e-8
+                                    || stall_ticks >= 8
+                                {
+                                    entity.attributes.set("__rw_stall_ticks", Value::Int(0));
+                                    let mut rng = rand::rng();
+                                    let min_sleep = (max_sleep / 2).max(1);
+                                    let max_sleep_guard = max_sleep.max(1);
+                                    let sleep_minutes =
+                                        rng.random_range(min_sleep..=max_sleep_guard) as u32;
+                                    let wake_tick = ctx.ticks
+                                        + (sleep_minutes as i64 * ctx.ticks_per_minute as i64);
+                                    entity.action = SleepAndSwitch(
+                                        wake_tick,
+                                        Box::new(RandomWalk(
+                                            *distance, *speed, max_sleep, 0, *target,
+                                        )),
+                                    );
+                                }
+
+                                ctx.check_player_for_section_change(entity);
+                            });
                         }
                     }
                 }

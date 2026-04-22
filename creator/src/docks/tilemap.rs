@@ -413,6 +413,7 @@ impl Dock for TilemapDock {
                                     }*/
 
                                     let id = tile.id;
+                                    let tile_for_runtime = tile.clone();
                                     // Add the local tile to the bitmmap
                                     if let Some(tilemap) =
                                         project.get_tilemap_mut(self.curr_tilemap_id)
@@ -421,10 +422,12 @@ impl Dock for TilemapDock {
                                         // self.set_tilemap(tilemap, ui, ctx);
                                     }
 
-                                    if let Some(t) = project.extract_tile(&id) {
-                                        // Add it to the project
+                                    if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id)
+                                    {
+                                        let extracted =
+                                            tilemap.buffer.extract_sequence(&tile_for_runtime.sequence);
                                         let mut texture_array: Vec<rusterix::Texture> = vec![];
-                                        for b in &t.buffer {
+                                        for b in &extracted {
                                             let mut texture = rusterix::Texture::new(
                                                 b.pixels().to_vec(),
                                                 b.dim().width as usize,
@@ -434,13 +437,13 @@ impl Dock for TilemapDock {
                                             texture_array.push(texture);
                                         }
                                         let mut tile = rusterix::Tile {
-                                            id: t.id,
-            role: rusterix::TileRole::from_index(t.role),
+                                            id,
+            role: tile_for_runtime.role,
             textures: texture_array.clone(),
             module: None,
-            blocking: t.blocking,
-            scale: t.scale,
-            alias: t.name.clone(),
+            blocking: tile_for_runtime.blocking,
+            scale: tile_for_runtime.scale,
+            alias: tile_for_runtime.name.clone(),
             particle_emitter: None,
             light_emitter: None,
         };

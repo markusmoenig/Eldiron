@@ -155,7 +155,7 @@ impl ToolList {
     }
 
     fn should_refresh_3d_hover_pick(&mut self) -> bool {
-        const HOVER_PICK_INTERVAL: Duration = Duration::from_millis(33);
+        const HOVER_PICK_INTERVAL: Duration = Duration::from_millis(200);
         let now = Instant::now();
         if let Some(last) = self.last_3d_hover_pick_at
             && now.saturating_duration_since(last) < HOVER_PICK_INTERVAL

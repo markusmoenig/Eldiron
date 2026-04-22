@@ -45,18 +45,42 @@ impl MapMini {
 
         let steps = (distance / SAMPLE_STEP).ceil().max(1.0) as i32;
         let mut last_free = start;
+        let start_tile = start.map(|c| c.floor() as i32);
 
         for i in 1..=steps {
             let t = i as f32 / steps as f32;
             let sample = start + delta * t;
             let tile = sample.map(|c| c.floor() as i32);
-            if self.blocked_tiles.contains(&tile) {
+            if self.blocked_tiles.contains(&tile) && tile != start_tile {
                 return (last_free, true);
             }
             last_free = sample;
         }
 
         (start + delta, false)
+    }
+
+    fn can_step_between_tile_centers(
+        &self,
+        from_tile: Vec2<i32>,
+        to_tile: Vec2<i32>,
+        radius: f32,
+        tile_size: f32,
+    ) -> bool {
+        if self.blocked_tiles.contains(&to_tile) {
+            return false;
+        }
+
+        let from_center = Self::tile_center(from_tile, tile_size);
+        let to_center = Self::tile_center(to_tile, tile_size);
+
+        if !self.is_walkable_position(to_center, radius) {
+            return false;
+        }
+
+        let delta = to_center - from_center;
+        let (resolved, blocked) = self.move_distance(from_center, delta, radius);
+        !blocked && (resolved - to_center).magnitude_squared() <= 1e-4
     }
 
     pub fn empty() -> Self {
@@ -361,9 +385,11 @@ impl MapMini {
 
         // If motion in normal direction is extremely small, check if already "within" the line corridor
         let t = if dist_diff.abs() < f32::EPSILON {
-            // If start_dist is within ±radius, then t=0 => collision at start
+            // Moving parallel to the line should not count as a new collision just because
+            // the circle already touches or overlaps the line's radius band. That would block
+            // valid sliding motion in narrow corridors.
             if start_dist.abs() <= radius {
-                0.0
+                return None;
             } else {
                 return None;
             }
@@ -504,6 +530,12 @@ impl MapMini {
         let from_tile = (from / tile_size).floor().as_::<i32>();
         let to_tile = (to / tile_size).floor().as_::<i32>();
 
+        // A* runs on an unbounded grid. If the destination tile itself is blocked,
+        // the goal is unreachable and the search can expand indefinitely.
+        if blocked.contains(&to_tile) {
+            return (from, false);
+        }
+
         // A* neighbors: 4-directional
         let successors = |pos: &Vec2<i32>| {
             let directions = [
@@ -525,7 +557,7 @@ impl MapMini {
             directions
                 .iter()
                 .map(|d| *pos + *d)
-                .filter(|p| !blocked.contains(p))
+                .filter(|p| self.can_step_between_tile_centers(*pos, *p, radius, tile_size))
                 .map(|p| (p, 1))
                 .collect::<Vec<_>>()
         };
@@ -578,7 +610,11 @@ impl MapMini {
         let blocked = &self.blocked_tiles;
 
         let start_cell = (from / tile_size).floor().as_::<i32>();
-        // let goal_cell = (target / tile_size).floor().as_::<i32>();
+        let goal_cell = (target / tile_size).floor().as_::<i32>();
+
+        if blocked.contains(&goal_cell) {
+            return (from, false);
+        }
 
         // --- 2 · A* with early-exit radius test ----------------------------------
         let successors = |pos: &Vec2<i32>| {
@@ -602,7 +638,7 @@ impl MapMini {
             directions
                 .iter()
                 .map(|d| *pos + *d)
-                .filter(|p| !blocked.contains(p))
+                .filter(|p| self.can_step_between_tile_centers(*pos, *p, agent_radius, tile_size))
                 .map(|p| (p, 1)) // uniform cost
                 .collect::<Vec<_>>()
         };

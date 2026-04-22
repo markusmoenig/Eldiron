@@ -302,7 +302,21 @@ impl Map {
                                 .sector_ids
                                 .iter()
                                 .all(|sid| unnamed_blocking_layer_sectors.contains(sid));
-                        if is_internal_unnamed_blocking_seam {
+                        let is_reversed_unnamed_blocking_seam = linedef.sector_ids.len() == 1
+                            && unnamed_blocking_layer_sectors.contains(&linedef.sector_ids[0])
+                            && self.linedefs.iter().any(|other| {
+                                other.id != linedef.id
+                                    && other.start_vertex == linedef.end_vertex
+                                    && other.end_vertex == linedef.start_vertex
+                                    && !other.sector_ids.is_empty()
+                                    && other
+                                        .sector_ids
+                                        .iter()
+                                        .all(|sid| unnamed_blocking_layer_sectors.contains(sid))
+                            });
+                        if is_internal_unnamed_blocking_seam
+                            || is_reversed_unnamed_blocking_seam
+                        {
                             continue;
                         }
                         if let Some(start) = self.find_vertex(linedef.start_vertex) {
