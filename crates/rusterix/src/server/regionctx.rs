@@ -38,6 +38,7 @@ pub struct RegionCtx {
 
     pub notifications_entities: Vec<(u32, i64, String)>,
     pub notifications_items: Vec<(u32, i64, String)>,
+    pub active_choice_sessions: Vec<ChoiceSession>,
 
     pub ticks: i64,
     pub ticks_per_minute: u32,
@@ -90,6 +91,14 @@ pub struct RegionCtx {
     pub current_damage_source_item: Option<u32>,
 
     pub currencies: Currencies,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChoiceSession {
+    pub from: u32,
+    pub to: u32,
+    pub expires_at_tick: i64,
+    pub max_distance: f32,
 }
 
 impl RegionCtx {

@@ -6,11 +6,14 @@
 
 - Added the first NPC sequence system for character background workflows, with TOML-authored `behavior.sequences` and step-based `goto`, `use`, and `wait` actions.
 - Added sequence runtime script commands `run_sequence(...)`, `pause_sequence()`, `resume_sequence()`, and `cancel_sequence()` so event handlers can coordinate background behavior with reactive NPC logic such as talk, combat, and time-based routines.
+- Added timeout- and distance-aware `offer_inventory()` sessions for vendors, driven by the seller `timeout` attribute and `[intent_distance]` setup, with automatic `goodbye` closeout when the buyer leaves range or the session expires.
 
 ## Bug Fixes
 
 - Reduced 3D mouse-hover sampling in the Creator and graphical clients to 5 times per second and accelerated static geometry hover picking with `rayon`, improving dense-scene mouse-move performance on projects like `Village3D`.
 - Improved the screen Messages widget layout by adding explicit spacing between wrapped message blocks, making consecutive messages easier to distinguish.
+- Fixed Messages widget multiple-choice / `offer_inventory()` layout so item names and prices are rendered as separate left/right columns again instead of collapsing into one inline text run.
+- Fixed `offer_inventory()` session handling so shop interactions now end with `goodbye` when the buyer times out or moves too far away, instead of allowing stale purchases from an invalid distance.
 - Fixed `random_walk()` in 2D so it now uses the same tile-centered pathing behavior as `random_walk_in_sector()`, keeping characters aligned to `.5 / .5` tile centers instead of drifting toward tile boundaries.
 - Fixed 2D `random_walk()` / pathfinding hangs by rejecting blocked destination tiles before running unbounded A* searches.
 - Fixed 2D `random_walk()` target picking in tight spaces so NPCs prefer nearby walkable tile centers before falling back to continuous random points.

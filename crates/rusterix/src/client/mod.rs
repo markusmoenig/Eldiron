@@ -289,6 +289,15 @@ impl Client {
         [0, 0, 0, 128]
     }
 
+    fn choice_expired(&self, choice: &Choice) -> bool {
+        let ticks_per_minute = self
+            .get_config_i32_default("game", "ticks_per_minute", 4)
+            .max(1) as u32;
+        let now_ticks = self.server_time.to_ticks(ticks_per_minute);
+        let (_, _, expires_at_tick, _) = choice.session_meta();
+        now_ticks > expires_at_tick
+    }
+
     fn deactivate_matches(widget: &Widget, token: &str) -> bool {
         let t = token.trim();
         if t.is_empty() {
@@ -1460,6 +1469,8 @@ impl Client {
                 );
                 if map.is_some() {
                     self.choice_map = map;
+                } else if !widget.has_active_choices() {
+                    self.choice_map = None;
                 }
                 self.target
                     .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
@@ -1917,6 +1928,8 @@ impl Client {
                 );
                 if map.is_some() {
                     self.choice_map = map;
+                } else if !widget.has_active_choices() {
+                    self.choice_map = None;
                 }
                 self.overlay
                     .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
@@ -2958,11 +2971,16 @@ impl Client {
                 if let Value::Str(v) = &value {
                     if let Some(c) = v.chars().next() {
                         if let Some(choice) = choice_map.get(&c) {
-                            // println!("selected {:?}", choice);
-                            if matches!(choice, Choice::Cancel(_, _)) {
+                            let choice = if self.choice_expired(choice) {
+                                let (from, to, expires_at_tick, max_distance) = choice.session_meta();
+                                Choice::Cancel(from, to, expires_at_tick, max_distance)
+                            } else {
+                                choice.clone()
+                            };
+                            if matches!(choice, Choice::Cancel(_, _, _, _)) {
                                 self.choice_map = None;
                             }
-                            return EntityAction::Choice(choice.clone());
+                            return EntityAction::Choice(choice);
                         }
                     }
                 }

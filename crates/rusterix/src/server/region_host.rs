@@ -3,6 +3,7 @@ use crate::server::region::{
     add_debug_value, apply_damage_direct, apply_damage_rules, apply_spell_default_attrs,
     grant_experience, is_spell_on_cooldown, progression_stat_value, set_spell_cooldown,
 };
+use crate::server::regionctx::ChoiceSession;
 use crate::vm::*;
 use crate::{
     Choice, EntityAction, Item, Map, MultipleChoice, PlayerCamera, RegionCtx, Value,
@@ -1960,34 +1961,75 @@ impl<'a> HostHandler for RegionHost<'a> {
                     args.get(1).and_then(|v| v.as_string()),
                 ) {
                     let region_id = self.ctx.region_id;
-                    if let Some(entity) = self.ctx.get_current_entity_mut() {
-                        let matching_item_ids: Vec<u32> = entity
-                            .iter_inventory()
-                            .filter_map(|(_, item)| {
-                                let name = item.attributes.get_str("name").unwrap_or_default();
-                                let class_name =
-                                    item.attributes.get_str("class_name").unwrap_or_default();
+                    let now_ticks = self.ctx.ticks;
+                    let ticks_per_minute = self.ctx.ticks_per_minute;
+                    let Some((entity_id, matching_item_ids, expires_at_tick, max_distance)) = self
+                        .ctx
+                        .get_current_entity_mut()
+                        .map(|entity| {
+                            let matching_item_ids: Vec<u32> = entity
+                                .iter_inventory()
+                                .filter_map(|(_, item)| {
+                                    let name = item.attributes.get_str("name").unwrap_or_default();
+                                    let class_name =
+                                        item.attributes.get_str("class_name").unwrap_or_default();
 
-                                if filter.is_empty()
-                                    || name.contains(filter)
-                                    || class_name.contains(filter)
-                                {
-                                    Some(item.id)
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
+                                    if filter.is_empty()
+                                        || name.contains(filter)
+                                        || class_name.contains(filter)
+                                    {
+                                        Some(item.id)
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect();
 
-                        let mut choices = MultipleChoice::new(region_id, entity.id, to);
-                        for item_id in matching_item_ids {
-                            let choice = Choice::ItemToSell(item_id, entity.id, to);
-                            choices.add(choice);
-                        }
+                            let timeout_minutes =
+                                entity.attributes.get_float_default("timeout", 10.0).max(0.0);
+                            let expires_at_tick =
+                                now_ticks + (ticks_per_minute as f32 * timeout_minutes) as i64;
+                            let max_distance = 2.0;
+                            (
+                                entity.id,
+                                matching_item_ids,
+                                expires_at_tick,
+                                max_distance,
+                            )
+                        })
+                    else {
+                        return None;
+                    };
 
-                        if let Some(sender) = self.ctx.from_sender.get() {
-                            let _ = sender.send(RegionMessage::MultipleChoice(choices));
-                        }
+                    self.ctx
+                        .active_choice_sessions
+                        .retain(|session| !(session.from == entity_id && session.to == to));
+                    self.ctx.active_choice_sessions.push(ChoiceSession {
+                        from: entity_id,
+                        to,
+                        expires_at_tick,
+                        max_distance,
+                    });
+                    let mut choices = MultipleChoice::new(
+                        region_id,
+                        entity_id,
+                        to,
+                        expires_at_tick,
+                        max_distance,
+                    );
+                    for item_id in matching_item_ids {
+                        let choice = Choice::ItemToSell(
+                            item_id,
+                            entity_id,
+                            to,
+                            expires_at_tick,
+                            max_distance,
+                        );
+                        choices.add(choice);
+                    }
+
+                    if let Some(sender) = self.ctx.from_sender.get() {
+                        let _ = sender.send(RegionMessage::MultipleChoice(choices));
                     }
                 }
             }

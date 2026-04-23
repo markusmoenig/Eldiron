@@ -35,6 +35,8 @@ impl Default for MessagesWidget {
 }
 
 impl MessagesWidget {
+    const CHOICE_COLUMN_SEPARATOR: char = '\u{1f}';
+
     pub fn new() -> Self {
         Self {
             name: String::new(),
@@ -132,6 +134,8 @@ impl MessagesWidget {
         messages: Vec<crate::server::Message>,
         choices: Vec<crate::MultipleChoice>,
     ) -> Option<FxHashMap<char, Choice>> {
+        self.deactivate_inactive_choices(assets, map, time);
+
         // Append new messages
         for (sender_entity, sender_item, receiver_id, msg, category) in &messages {
             if category.trim().eq_ignore_ascii_case("text_only") {
@@ -168,10 +172,17 @@ impl MessagesWidget {
 
         let mut choice_map = FxHashMap::default();
 
-        let column_width = self.column_width as i32;
         for choices in choices {
             // Insert the cancel choice.
-            choice_map.insert('0', Choice::Cancel(choices.from, choices.to));
+            choice_map.insert(
+                '0',
+                Choice::Cancel(
+                    choices.from,
+                    choices.to,
+                    choices.expires_at_tick,
+                    choices.max_distance,
+                ),
+            );
 
             let mut color = self.default_color;
             if let Some(ui) = self.table.get("ui").and_then(toml::Value::as_table) {
@@ -189,7 +200,7 @@ impl MessagesWidget {
                 choice_map.insert((b'1' + index as u8) as char, choice.clone());
 
                 match choice {
-                    Choice::ItemToSell(item_id, seller_id, _) => {
+                    Choice::ItemToSell(item_id, seller_id, _, _, _) => {
                         for entity in map.entities.iter() {
                             if entity.id == *seller_id {
                                 for item in entity.inventory.iter() {
@@ -210,9 +221,9 @@ impl MessagesWidget {
                     _ => {}
                 }
 
-                // Pad item_name to fixed width, align left
-                let padded_name = format!("{:<width$}", item_name, width = column_width as usize);
-                let text = format!("{}) {} {}G", index + 1, padded_name, item_price);
+                let label = format!("{}) {}", index + 1, item_name);
+                let price = format!("{}G", item_price);
+                let text = format!("{}{}{}", label, Self::CHOICE_COLUMN_SEPARATOR, price);
 
                 self.messages.push((
                     Uuid::new_v4(),
@@ -222,13 +233,18 @@ impl MessagesWidget {
                     color,
                 ));
             }
-            self.messages.push((
-                Uuid::new_v4(),
-                self.resolve_msg("0) {system.exit_menu}", map, assets, time),
-                Rect::default(),
-                Some(Choice::Cancel(choices.from, choices.to)),
-                color,
-            ));
+                self.messages.push((
+                    Uuid::new_v4(),
+                    self.resolve_msg("0) {system.exit_menu}", map, assets, time),
+                    Rect::default(),
+                    Some(Choice::Cancel(
+                        choices.from,
+                        choices.to,
+                        choices.expires_at_tick,
+                        choices.max_distance,
+                    )),
+                    color,
+                ));
         }
 
         // Purge the messages which are scrolled out of scope
@@ -315,18 +331,46 @@ impl MessagesWidget {
                             self.font_size as isize,
                         );
 
-                        self.draw2d.text_rect_blend_safe_clip(
-                            buffer.pixels_mut(),
-                            &tuple,
-                            stride,
-                            font,
-                            self.font_size,
-                            line,
-                            &color,
-                            draw2d::TheHorizontalAlign::Left,
-                            draw2d::TheVerticalAlign::Center,
-                            &(0, 0, width as isize, height as isize),
-                        );
+                        if let Some((left, right)) = line.split_once(Self::CHOICE_COLUMN_SEPARATOR)
+                        {
+                            self.draw2d.text_rect_blend_safe_clip(
+                                buffer.pixels_mut(),
+                                &tuple,
+                                stride,
+                                font,
+                                self.font_size,
+                                left,
+                                &color,
+                                draw2d::TheHorizontalAlign::Left,
+                                draw2d::TheVerticalAlign::Center,
+                                &(0, 0, width as isize, height as isize),
+                            );
+                            self.draw2d.text_rect_blend_safe_clip(
+                                buffer.pixels_mut(),
+                                &tuple,
+                                stride,
+                                font,
+                                self.font_size,
+                                right,
+                                &color,
+                                draw2d::TheHorizontalAlign::Right,
+                                draw2d::TheVerticalAlign::Center,
+                                &(0, 0, width as isize, height as isize),
+                            );
+                        } else {
+                            self.draw2d.text_rect_blend_safe_clip(
+                                buffer.pixels_mut(),
+                                &tuple,
+                                stride,
+                                font,
+                                self.font_size,
+                                line,
+                                &color,
+                                draw2d::TheHorizontalAlign::Left,
+                                draw2d::TheVerticalAlign::Center,
+                                &(0, 0, width as isize, height as isize),
+                            );
+                        }
                     }
 
                     y += block_height + block_gap;
@@ -347,18 +391,46 @@ impl MessagesWidget {
                             self.font_size as isize,
                         );
 
-                        self.draw2d.text_rect_blend_safe_clip(
-                            buffer.pixels_mut(),
-                            &tuple,
-                            stride,
-                            font,
-                            self.font_size,
-                            line,
-                            &color,
-                            draw2d::TheHorizontalAlign::Left,
-                            draw2d::TheVerticalAlign::Center,
-                            &(0, 0, width as isize, height as isize),
-                        );
+                        if let Some((left, right)) = line.split_once(Self::CHOICE_COLUMN_SEPARATOR)
+                        {
+                            self.draw2d.text_rect_blend_safe_clip(
+                                buffer.pixels_mut(),
+                                &tuple,
+                                stride,
+                                font,
+                                self.font_size,
+                                left,
+                                &color,
+                                draw2d::TheHorizontalAlign::Left,
+                                draw2d::TheVerticalAlign::Center,
+                                &(0, 0, width as isize, height as isize),
+                            );
+                            self.draw2d.text_rect_blend_safe_clip(
+                                buffer.pixels_mut(),
+                                &tuple,
+                                stride,
+                                font,
+                                self.font_size,
+                                right,
+                                &color,
+                                draw2d::TheHorizontalAlign::Right,
+                                draw2d::TheVerticalAlign::Center,
+                                &(0, 0, width as isize, height as isize),
+                            );
+                        } else {
+                            self.draw2d.text_rect_blend_safe_clip(
+                                buffer.pixels_mut(),
+                                &tuple,
+                                stride,
+                                font,
+                                self.font_size,
+                                line,
+                                &color,
+                                draw2d::TheHorizontalAlign::Left,
+                                draw2d::TheVerticalAlign::Center,
+                                &(0, 0, width as isize, height as isize),
+                            );
+                        }
                     }
 
                     y = block_top - (self.font_size + block_gap);
@@ -412,6 +484,12 @@ impl MessagesWidget {
         self.clicked = Uuid::nil();
     }
 
+    pub fn has_active_choices(&self) -> bool {
+        self.messages
+            .iter()
+            .any(|(_, _, _, choice, _)| choice.is_some())
+    }
+
     /// Resolves a message
     fn resolve_msg(&self, msg: &str, map: &Map, assets: &Assets, time: &TheTime) -> String {
         self.resolver.resolve_with_context(
@@ -425,6 +503,44 @@ impl MessagesWidget {
         )
     }
 
+    fn deactivate_inactive_choices(&mut self, assets: &Assets, map: &Map, time: &TheTime) {
+        let ticks_per_minute = assets
+            .config
+            .parse::<toml::Table>()
+            .ok()
+            .and_then(|config| {
+                config
+                    .get("game")
+                    .and_then(toml::Value::as_table)
+                    .and_then(|game| game.get("ticks_per_minute"))
+                    .and_then(|value| value.as_integer().or_else(|| value.as_float().map(|v| v as i64)))
+            })
+            .unwrap_or(4)
+            .max(1) as u32;
+        let now_ticks = time.to_ticks(ticks_per_minute);
+
+        for (_, _, _, choice, _) in &mut self.messages {
+            let Some(active_choice) = choice.as_ref() else {
+                continue;
+            };
+
+            let (from, to, expires_at_tick, max_distance) = active_choice.session_meta();
+            let expired = now_ticks > expires_at_tick;
+            let in_range = map
+                .entities
+                .iter()
+                .find(|entity| entity.id == from)
+                .zip(map.entities.iter().find(|entity| entity.id == to))
+                .is_some_and(|(from_entity, to_entity)| {
+                    from_entity.get_pos_xz().distance(to_entity.get_pos_xz()) <= max_distance
+                });
+
+            if expired || !in_range {
+                *choice = None;
+            }
+        }
+    }
+
     fn wrap_message_lines(
         draw2d: &Draw2D,
         font: &fontdue::Font,
@@ -436,6 +552,11 @@ impl MessagesWidget {
         let mut lines = Vec::new();
 
         for paragraph in message.split('\n') {
+            if paragraph.contains(Self::CHOICE_COLUMN_SEPARATOR) {
+                lines.push(paragraph.to_string());
+                continue;
+            }
+
             if paragraph.trim().is_empty() {
                 lines.push(String::new());
                 continue;

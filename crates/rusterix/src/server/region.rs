@@ -1957,6 +1957,29 @@ impl RegionInstance {
                 }
             }
 
+            let expired_sessions: Vec<(u32, u32)> = ctx
+                .active_choice_sessions
+                .iter()
+                .filter(|session| {
+                    !choice_session_is_valid(
+                        ctx,
+                        session.from,
+                        session.to,
+                        session.expires_at_tick,
+                        session.max_distance,
+                    )
+                })
+                .map(|session| (session.from, session.to))
+                .collect();
+
+            for (from_id, to_id) in expired_sessions {
+                clear_choice_session(ctx, from_id, to_id);
+                if ctx.entity_classes.contains_key(&from_id) {
+                    ctx.to_execute_entity
+                        .push((from_id, "goodbye".into(), VMValue::broadcast(to_id as f32)));
+                }
+            }
+
             let tick_args = [VMValue::from_string("tick"), VMValue::from_i32(ctx.ticks as i32)];
             if let Some(program) = ctx.world_program.clone() {
                 ctx.current_script_scope = ScriptScope::World;
@@ -2823,8 +2846,32 @@ impl RegionInstance {
                         });
                     }
                     Choice(choice) => match &choice {
-                        Choice::ItemToSell(item_id, seller_id, buyer_id) => {
+                        Choice::ItemToSell(
+                            item_id,
+                            seller_id,
+                            buyer_id,
+                            expires_at_tick,
+                            max_distance,
+                        ) => {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                clear_choice_session(ctx, *seller_id, *buyer_id);
+                                if !choice_session_is_valid(
+                                    ctx,
+                                    *seller_id,
+                                    *buyer_id,
+                                    *expires_at_tick,
+                                    *max_distance,
+                                ) {
+                                    if let Some(_class_name) = ctx.entity_classes.get(seller_id) {
+                                        ctx.to_execute_entity.push((
+                                            *seller_id,
+                                            "goodbye".into(),
+                                            VMValue::broadcast(*buyer_id as f32),
+                                        ));
+                                    }
+                                    return;
+                                }
+
                                 let mut msg_to_buyer: Option<String> = None;
                                 let mut msg_role = "system";
 
@@ -2876,8 +2923,9 @@ impl RegionInstance {
                                 }
                             });
                         }
-                        Choice::Cancel(from_id, to_id) => {
+                        Choice::Cancel(from_id, to_id, _, _) => {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                clear_choice_session(ctx, *from_id, *to_id);
                                 if let Some(_class_name) = ctx.entity_classes.get(from_id) {
                                     // let cmd = format!("{}.event('goodbye', {})", class_name, to_id);
                                     ctx.to_execute_entity.push((
@@ -6782,6 +6830,32 @@ fn entity_intent_distance_limit(ctx: &RegionCtx, entity_id: u32, intent: &str) -
     Some(parse_intent_distance_limit(data, intent).unwrap_or(2.0))
 }
 
+fn choice_session_is_valid(
+    ctx: &RegionCtx,
+    from_id: u32,
+    to_id: u32,
+    expires_at_tick: i64,
+    max_distance: f32,
+) -> bool {
+    if ctx.ticks > expires_at_tick {
+        return false;
+    }
+
+    let Some(from_entity) = ctx.map.entities.iter().find(|entity| entity.id == from_id) else {
+        return false;
+    };
+    let Some(to_entity) = ctx.map.entities.iter().find(|entity| entity.id == to_id) else {
+        return false;
+    };
+
+    from_entity.get_pos_xz().distance(to_entity.get_pos_xz()) <= max_distance
+}
+
+fn clear_choice_session(ctx: &mut RegionCtx, from_id: u32, to_id: u32) {
+    ctx.active_choice_sessions
+        .retain(|session| !(session.from == from_id && session.to == to_id));
+}
+
 fn queue_intent_cooldown(
     ctx: &mut RegionCtx,
     entity_id: u32,
@@ -9484,9 +9558,31 @@ fn offer_inventory(to: u32, filter: String, vm: &VirtualMachine) {
                 })
                 .collect();
 
-            let mut choices = MultipleChoice::new(ctx.region_id, entity_id, to);
+            let timeout_minutes = ctx
+                .map
+                .entities
+                .iter()
+                .find(|entity| entity.id == entity_id)
+                .map(|entity| entity.attributes.get_float_default("timeout", 10.0))
+                .unwrap_or(10.0)
+                .max(0.0);
+            let expires_at_tick = ctx.ticks + (ctx.ticks_per_minute as f32 * timeout_minutes) as i64;
+            let max_distance = entity_intent_distance_limit(ctx, entity_id, "talk")
+                .or_else(|| entity_intent_distance_limit(ctx, entity_id, "use"))
+                .unwrap_or(2.0)
+                .max(0.0);
+            let mut choices =
+                MultipleChoice::new(ctx.region_id, entity_id, to, expires_at_tick, max_distance);
+            clear_choice_session(ctx, entity_id, to);
+            ctx.active_choice_sessions.push(ChoiceSession {
+                from: entity_id,
+                to,
+                expires_at_tick,
+                max_distance,
+            });
             for item_id in matching_item_ids {
-                let choice = Choice::ItemToSell(item_id, entity_id, to);
+                let choice =
+                    Choice::ItemToSell(item_id, entity_id, to, expires_at_tick, max_distance);
                 choices.add(choice);
             }
 

@@ -279,10 +279,23 @@ impl TryFrom<i32> for EntityAction {
 /// A players choice.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Choice {
-    // Cancels a multiple choice. from, to
-    Cancel(u32, u32),
-    /// An item to sell, item_id, seller_id, buyer_id
-    ItemToSell(u32, u32, u32),
+    // Cancels a multiple choice. from, to, expires_at_tick, max_distance
+    Cancel(u32, u32, i64, f32),
+    /// An item to sell. item_id, seller_id, buyer_id, expires_at_tick, max_distance
+    ItemToSell(u32, u32, u32, i64, f32),
+}
+
+impl Choice {
+    pub fn session_meta(&self) -> (u32, u32, i64, f32) {
+        match *self {
+            Choice::Cancel(from, to, expires_at_tick, max_distance) => {
+                (from, to, expires_at_tick, max_distance)
+            }
+            Choice::ItemToSell(_, seller_id, buyer_id, expires_at_tick, max_distance) => {
+                (seller_id, buyer_id, expires_at_tick, max_distance)
+            }
+        }
+    }
 }
 
 /// Multiple choices for the player
@@ -291,16 +304,20 @@ pub struct MultipleChoice {
     pub region: u32,
     pub from: u32,
     pub to: u32,
+    pub expires_at_tick: i64,
+    pub max_distance: f32,
 
     pub choices: Vec<Choice>,
 }
 
 impl MultipleChoice {
-    pub fn new(region: u32, from: u32, to: u32) -> Self {
+    pub fn new(region: u32, from: u32, to: u32, expires_at_tick: i64, max_distance: f32) -> Self {
         Self {
             region,
             from,
             to,
+            expires_at_tick,
+            max_distance,
             choices: vec![],
         }
     }

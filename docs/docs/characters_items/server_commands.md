@@ -476,6 +476,12 @@ offer_inventory(entity, "") // Offer all inventory items to the given entity.
 offer_inventory(entity, "Torch") // Offer only items named Torch.
 ```
 
+The sale session stays valid only while the buyer remains close enough and within the vendor timeout window.
+
+- Timeout comes from the seller's [timeout](attributes#timeout) attribute.
+- Maximum distance currently follows the seller's top-level `[intent_distance]` table in the **Attributes** editor and falls back to `2.0`.
+- If the buyer moves too far away or the timeout expires, the session ends and the seller receives a `goodbye` event.
+
 ---
 
 ## `patrol`

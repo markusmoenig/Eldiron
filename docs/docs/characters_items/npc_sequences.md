@@ -215,6 +215,8 @@ fn event(event, value) {
 
 This is intentionally explicit. The engine does not automatically decide whether an event should pause the sequence.
 
+For shop-style `offer_inventory()` interactions, the runtime now also sends `goodbye` automatically when the buyer moves too far away or the seller's `timeout` window expires.
+
 ---
 
 ## Timeout Convention
