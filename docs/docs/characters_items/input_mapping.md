@@ -1,6 +1,6 @@
 ---
 title: "Input Mapping"
-sidebar_position: 8
+sidebar_position: 7
 ---
 
 For the overall input model, see [Player Input](player_input).

@@ -18,6 +18,7 @@ pub struct MessagesWidget {
     pub messages: Vec<(Uuid, String, Rect, Option<Choice>, Pixel)>,
     pub draw2d: Draw2D,
     pub spacing: f32,
+    pub message_spacing: f32,
     pub column_width: f32,
     pub table: toml::Table,
     pub top_down: bool,
@@ -45,6 +46,7 @@ impl MessagesWidget {
             messages: vec![],
             draw2d: Draw2D::default(),
             spacing: 1.0,
+            message_spacing: 8.0,
             column_width: 20.0,
             table: toml::Table::default(),
             top_down: false,
@@ -86,6 +88,13 @@ impl MessagesWidget {
                         self.spacing = v as f32;
                     } else if let Some(v) = value.as_integer() {
                         self.spacing = v as f32;
+                    }
+                }
+                if let Some(value) = ui.get("message_spacing") {
+                    if let Some(v) = value.as_float() {
+                        self.message_spacing = v as f32;
+                    } else if let Some(v) = value.as_integer() {
+                        self.message_spacing = v as f32;
                     }
                 }
                 if let Some(value) = ui.get("column_width") {
@@ -273,6 +282,7 @@ impl MessagesWidget {
                 let lines =
                     Self::wrap_message_lines(draw2d, font, self.font_size, message, self.rect.width);
                 let line_height = self.font_size + self.spacing;
+                let block_gap = self.message_spacing;
                 let block_height = if lines.is_empty() {
                     self.font_size
                 } else {
@@ -319,7 +329,7 @@ impl MessagesWidget {
                         );
                     }
 
-                    y += block_height + self.spacing;
+                    y += block_height + block_gap;
                 } else {
                     let block_top = y - (lines.len().saturating_sub(1) as f32 * line_height);
                     if block_top + self.font_size < self.rect.y {
@@ -351,7 +361,7 @@ impl MessagesWidget {
                         );
                     }
 
-                    y = block_top - line_height;
+                    y = block_top - (self.font_size + block_gap);
                 }
             }
         }

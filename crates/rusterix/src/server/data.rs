@@ -1,4 +1,7 @@
-use crate::{Entity, Item, Light, LightType, PixelSource, Value};
+use crate::{
+    Entity, Item, Light, LightType, PixelSource, Value,
+    server::entity::{EntitySequence, EntitySequenceStep},
+};
 use indexmap::IndexMap;
 use std::sync::{LazyLock, RwLock};
 use theframework::prelude::*;
@@ -62,6 +65,82 @@ fn parse_tile_source_from_toml(value: &toml::Value) -> Option<PixelSource> {
     None
 }
 
+fn parse_entity_sequences_from_toml(map: &Table) -> IndexMap<String, EntitySequence> {
+    let mut sequences = IndexMap::new();
+
+    let Some(behavior) = map.get("behavior").and_then(|value| value.as_table()) else {
+        return sequences;
+    };
+    let Some(sequence_map) = behavior.get("sequences").and_then(|value| value.as_table()) else {
+        return sequences;
+    };
+
+    for (name, value) in sequence_map {
+        let Some(sequence_table) = value.as_table() else {
+            continue;
+        };
+        let Some(step_values) = sequence_table.get("steps").and_then(|value| value.as_array())
+        else {
+            continue;
+        };
+
+        let mut steps = Vec::new();
+        for step_value in step_values {
+            let Some(step_table) = step_value.as_table() else {
+                continue;
+            };
+            let action = step_table
+                .get("action")
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim().to_ascii_lowercase())
+                .unwrap_or_default();
+            if action.is_empty() {
+                continue;
+            }
+
+            let target = step_table
+                .get("target")
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim().to_string())
+                .unwrap_or_default();
+            let speed = step_table
+                .get("speed")
+                .and_then(|value| value.as_float().map(|value| value as f32))
+                .or_else(|| {
+                    step_table
+                        .get("speed")
+                        .and_then(|value| value.as_integer().map(|value| value as f32))
+                });
+            let seconds = step_table
+                .get("seconds")
+                .and_then(|value| value.as_float().map(|value| value as f32))
+                .or_else(|| {
+                    step_table
+                        .get("seconds")
+                        .and_then(|value| value.as_integer().map(|value| value as f32))
+                });
+            let intent = step_table
+                .get("intent")
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim().to_string());
+
+            steps.push(EntitySequenceStep {
+                action,
+                target,
+                speed,
+                seconds,
+                intent,
+            });
+        }
+
+        if !steps.is_empty() {
+            sequences.insert(name.trim().to_string(), EntitySequence { steps });
+        }
+    }
+
+    sequences
+}
+
 pub(crate) fn parse_tile_source_from_str(value: &str) -> Option<PixelSource> {
     let trimmed = value.trim();
     if let Ok(uuid) = Uuid::parse_str(trimmed) {
@@ -80,6 +159,7 @@ pub(crate) fn parse_tile_source_from_str(value: &str) -> Option<PixelSource> {
 pub fn apply_entity_data(entity: &mut Entity, toml: &str) {
     match toml.parse::<Table>() {
         Ok(map) => {
+            entity.sequences = parse_entity_sequences_from_toml(&map);
             for (attr, v) in map.iter() {
                 if attr == "attributes" {
                     if let Some(values) = v.as_table() {

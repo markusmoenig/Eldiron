@@ -568,6 +568,7 @@ impl MapMini {
 
         if let Some((path, _)) = result {
             let next_tile = if path.len() >= 2 { path[1] } else { to_tile };
+            let next_is_goal = next_tile == to_tile;
 
             let target_pos = Self::tile_center(next_tile, tile_size);
 
@@ -579,7 +580,7 @@ impl MapMini {
 
             // If within reach
             if to_vector.magnitude() <= max_distance {
-                return (target_pos, true);
+                return (target_pos, next_is_goal);
             }
 
             let move_vector = to_vector.normalized() * max_distance;

@@ -1,6 +1,6 @@
 ---
 title: "Player Input"
-sidebar_position: 7.5
+sidebar_position: 6.5
 ---
 
 This page explains how **player input** works in Eldiron.

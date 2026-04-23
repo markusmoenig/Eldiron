@@ -430,6 +430,211 @@ impl RegionInstance {
         Some(0.0)
     }
 
+    fn resolve_named_sector_center(map: &Map, name: &str, from: Vec2<f32>) -> Option<Vec2<f32>> {
+        let needle = name.trim();
+        if needle.is_empty() {
+            return None;
+        }
+        let needle_lower = needle.to_ascii_lowercase();
+
+        map.sectors
+            .iter()
+            .filter(|sector| sector.name.trim().eq_ignore_ascii_case(&needle_lower))
+            .filter_map(|sector| sector.center(map).map(|center| (center, from.distance_squared(center))))
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|entry| entry.0)
+    }
+
+    fn resolve_named_entity_target(
+        ctx: &RegionCtx,
+        actor_id: u32,
+        name: &str,
+    ) -> Option<(u32, f32)> {
+        let actor = ctx.map.entities.iter().find(|entity| entity.id == actor_id)?;
+        let actor_pos = actor.get_pos_xz();
+        let needle = name.trim();
+        if needle.is_empty() {
+            return None;
+        }
+
+        ctx.map
+            .entities
+            .iter()
+            .filter(|entity| entity.id != actor_id)
+            .filter_map(|entity| {
+                let entity_name = entity.attributes.get_str("name").unwrap_or_default();
+                let class_name = entity.attributes.get_str("class_name").unwrap_or_default();
+                if !entity_name.eq_ignore_ascii_case(needle) && !class_name.eq_ignore_ascii_case(needle)
+                {
+                    return None;
+                }
+                let distance =
+                    Self::entity_click_distance(ctx, actor_id, entity.id).unwrap_or_else(|| {
+                        (actor_pos - entity.get_pos_xz()).magnitude()
+                    });
+                Some((entity.id, distance, actor_pos.distance_squared(entity.get_pos_xz())))
+            })
+            .min_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|entry| (entry.0, entry.1))
+    }
+
+    fn resolve_named_item_target(
+        ctx: &RegionCtx,
+        actor_id: u32,
+        name: &str,
+    ) -> Option<(u32, Option<u32>, f32)> {
+        let actor = ctx.map.entities.iter().find(|entity| entity.id == actor_id)?;
+        let actor_pos = actor.get_pos_xz();
+        let needle = name.trim();
+        if needle.is_empty() {
+            return None;
+        }
+
+        ctx.map
+            .items
+            .iter()
+            .filter_map(|item| {
+                let item_name = item.attributes.get_str("name").unwrap_or_default();
+                let class_name = item.attributes.get_str("class_name").unwrap_or_default();
+                if !item_name.eq_ignore_ascii_case(needle) && !class_name.eq_ignore_ascii_case(needle)
+                {
+                    return None;
+                }
+                let distance =
+                    Self::item_click_distance(ctx, actor_id, item.id, None).unwrap_or_else(|| {
+                        (actor_pos - item.get_pos_xz()).magnitude()
+                    });
+                Some((item.id, None, distance, actor_pos.distance_squared(item.get_pos_xz())))
+            })
+            .min_by(|a, b| a.3.partial_cmp(&b.3).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|entry| (entry.0, entry.1, entry.2))
+    }
+
+    fn queue_named_goto(&self, entity: &mut Entity, coord: Vec2<f32>, speed: f32) {
+        let position = entity.get_pos_xz();
+        let start_center = Self::snapped_grid_center(position);
+        let target_center = Self::snapped_grid_center(coord);
+        let grid_aligned = (position - start_center).magnitude_squared() <= 0.001
+            && (coord - target_center).magnitude_squared() <= 0.001;
+        if grid_aligned {
+            entity.action = EntityAction::GotoGrid(coord, speed);
+        } else {
+            entity.action = EntityAction::Goto(coord, speed);
+        }
+    }
+
+    fn queue_sequence_use(
+        &self,
+        ctx: &RegionCtx,
+        entity_id: u32,
+        target: &str,
+        intent: &str,
+    ) -> bool {
+        if let Some((item_id, owner_entity_id, distance)) =
+            Self::resolve_named_item_target(ctx, entity_id, target)
+        {
+            let _ = self.to_sender.send(UserAction(
+                entity_id,
+                EntityAction::ItemClicked(
+                    item_id,
+                    distance,
+                    Some(intent.to_string()),
+                    owner_entity_id,
+                ),
+            ));
+            return true;
+        }
+
+        if let Some((target_entity_id, distance)) =
+            Self::resolve_named_entity_target(ctx, entity_id, target)
+        {
+            let _ = self.to_sender.send(UserAction(
+                entity_id,
+                EntityAction::EntityClicked(
+                    target_entity_id,
+                    distance,
+                    Some(intent.to_string()),
+                ),
+            ));
+            return true;
+        }
+
+        false
+    }
+
+    fn advance_entity_sequence(&self, ctx: &mut RegionCtx, entity: &mut Entity) {
+        let mut state = match entity.active_sequence.clone() {
+            Some(state) => state,
+            None => return,
+        };
+
+        loop {
+            let Some(sequence) = entity.sequences.get(&state.name) else {
+                entity.active_sequence = None;
+                return;
+            };
+
+            if state.step_index >= sequence.steps.len() {
+                entity.active_sequence = None;
+                return;
+            }
+
+            if let Some(wait_until_tick) = state.wait_until_tick {
+                if ctx.ticks < wait_until_tick {
+                    entity.active_sequence = Some(state);
+                    return;
+                }
+                state.wait_until_tick = None;
+            }
+
+            let step = &sequence.steps[state.step_index];
+            match step.action.as_str() {
+                "goto" => {
+                    let Some(target) =
+                        Self::resolve_named_sector_center(&ctx.map, &step.target, entity.get_pos_xz())
+                    else {
+                        entity.active_sequence = None;
+                        return;
+                    };
+
+                    if entity.get_pos_xz().distance(target) <= 0.1 {
+                        state.step_index += 1;
+                        continue;
+                    }
+
+                    if entity.action == EntityAction::Off {
+                        self.queue_named_goto(entity, target, step.speed.unwrap_or(1.0));
+                    }
+                    entity.active_sequence = Some(state);
+                    return;
+                }
+                "use" => {
+                    let intent = step.intent.as_deref().unwrap_or("use");
+                    if self.queue_sequence_use(ctx, entity.id, &step.target, intent) {
+                        state.step_index += 1;
+                        state.wait_until_tick = Some(ctx.ticks + 1);
+                        continue;
+                    }
+                    entity.active_sequence = None;
+                    return;
+                }
+                "wait" => {
+                    let seconds = step.seconds.unwrap_or(1.0).max(0.0);
+                    let wait_ticks = (seconds * ctx.ticks_per_minute as f32 / 60.0).round() as i64;
+                    state.step_index += 1;
+                    if wait_ticks > 0 {
+                        state.wait_until_tick = Some(ctx.ticks + wait_ticks.max(1));
+                    }
+                    continue;
+                }
+                _ => {
+                    state.step_index += 1;
+                    continue;
+                }
+            }
+        }
+    }
+
     fn snapped_cardinal_direction(direction: Vec2<f32>) -> Vec2<f32> {
         if direction.magnitude_squared() <= 1e-6 {
             return Vec2::new(1.0, 0.0);
@@ -442,7 +647,7 @@ impl RegionInstance {
         }
     }
 
-    fn snapped_grid_center(pos: Vec2<f32>) -> Vec2<f32> {
+    pub(crate) fn snapped_grid_center(pos: Vec2<f32>) -> Vec2<f32> {
         Vec2::new(pos.x.floor() + 0.5, pos.y.floor() + 0.5)
     }
 
@@ -1068,261 +1273,6 @@ impl RegionInstance {
     }
 
     pub fn new(region_id: u32) -> Self {
-        /*
-        let interp = rustpython::InterpreterConfig::new()
-            .init_stdlib()
-            .interpreter();
-
-        let scope = Arc::new(Mutex::new(interp.enter(|vm| vm.new_scope_with_builtins())));
-
-        interp.enter(|vm| {
-            let scope = scope.lock().unwrap();
-
-            let module = PyModule::new().into_ref(&vm.ctx);
-            module
-                .as_object()
-                .set_attr("__region_id", vm.new_pyobj(region_id), vm)
-                .ok()
-                .unwrap();
-
-            let sys = vm.import("sys", 0).ok().unwrap();
-            let modules = sys.get_attr("modules", vm).ok().unwrap();
-            modules
-                .set_item("__region_meta", module.into(), vm)
-                .ok()
-                .unwrap();
-
-            // let _ = scope.globals.set_item(
-            //     "register_player",
-            //     vm.new_function("register_player", register_player).into(),
-            //     vm,
-            // );
-
-            let _ = scope.globals.set_item(
-                "action",
-                vm.new_function("action", player_action).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "intent",
-                vm.new_function("intent", player_intent).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "set_player_camera",
-                vm.new_function("set_player_camera", set_player_camera)
-                    .into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "set_tile",
-                vm.new_function("set_tile", set_tile).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "set_emit_light",
-                vm.new_function("set_emit_light", set_emit_light).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "set_rig_sequence",
-                vm.new_function("set_rig_sequence", set_rig_sequence).into(),
-                vm,
-            );
-
-            let _ = scope
-                .globals
-                .set_item("take", vm.new_function("take", take).into(), vm);
-
-            let _ = scope
-                .globals
-                .set_item("equip", vm.new_function("equip", equip).into(), vm);
-
-            let _ = scope.globals.set_item(
-                "get_attr_of",
-                vm.new_function("get_attr_of", get_attr_of).into(),
-                vm,
-            );
-
-            // let _ = scope.globals.set_item(
-            //     "get_entity_attr",
-            //     vm.new_function("get_entity_attr", get_entity_attr).into(),
-            //     vm,
-            // );
-
-            // let _ = scope.globals.set_item(
-            //     "get_item_attr",
-            //     vm.new_function("get_item_attr", get_item_attr).into(),
-            //     vm,
-            // );
-
-            let _ = scope.globals.set_item(
-                "get_attr",
-                vm.new_function("get_attr", get_attr).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "set_attr",
-                vm.new_function("set_attr", set_attr).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "toggle_attr",
-                vm.new_function("toggle_attr", toggle_attr).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "random",
-                vm.new_function("random", random_in_range).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "notify_in",
-                vm.new_function("notify_in", notify_in).into(),
-                vm,
-            );
-
-            // let _ = scope.globals.set_item(
-            //     "get_sector_name",
-            //     vm.new_function("get_sector_name", get_sector_name).into(),
-            //     vm,
-            // );
-
-            // let _ = scope.globals.set_item(
-            //     "face_random",
-            //     vm.new_function("face_random", face_random).into(),
-            //     vm,
-            // );
-
-            let _ = scope.globals.set_item(
-                "random_walk",
-                vm.new_function("random_walk", random_walk).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "random_walk_in_sector",
-                vm.new_function("random_walk_in_sector", random_walk_in_sector)
-                    .into(),
-                vm,
-            );
-
-            let _ = scope
-                .globals
-                .set_item("message", vm.new_function("message", message).into(), vm);
-
-            let _ = scope
-                .globals
-                .set_item("say", vm.new_function("say", say).into(), vm);
-
-            let _ = scope
-                .globals
-                .set_item("debug", vm.new_function("debug", debug).into(), vm);
-
-            let _ = scope.globals.set_item(
-                "inventory_items",
-                vm.new_function("inventory_items", inventory_items).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "inventory_items_of",
-                vm.new_function("inventory_items_of", inventory_items_of)
-                    .into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "entities_in_radius",
-                vm.new_function("entities_in_radius", entities_in_radius)
-                    .into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "set_proximity_tracking",
-                vm.new_function("set_proximity_tracking", set_proximity_tracking)
-                    .into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "deal_damage",
-                vm.new_function("deal_damage", deal_damage).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "took_damage",
-                vm.new_function("took_damage", took_damage).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "block_events",
-                vm.new_function("block_events", block_events).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "add_item",
-                vm.new_function("add_item", add_item).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "drop_items",
-                vm.new_function("drop_items", drop_items).into(),
-                vm,
-            );
-
-            let _ = scope.globals.set_item(
-                "offer_inventory",
-                vm.new_function("offer_inventory", offer_inventory).into(),
-                vm,
-            );
-
-            let _ = scope
-                .globals
-                .set_item("drop", vm.new_function("drop", drop).into(), vm);
-
-            let _ = scope.globals.set_item(
-                "teleport",
-                vm.new_function("teleport", teleport).into(),
-                vm,
-            );
-
-            let _ = scope
-                .globals
-                .set_item("goto", vm.new_function("goto", goto).into(), vm);
-
-            let _ = scope.globals.set_item(
-                "close_in",
-                vm.new_function("close_in", close_in).into(),
-                vm,
-            );
-
-            let _ = scope
-                .globals
-                .set_item("id", vm.new_function("id", id).into(), vm);
-
-            let _ = scope.globals.set_item(
-                "set_debug_loc",
-                vm.new_function("set_debug_loc", set_debug_loc).into(),
-                vm,
-            );
-        });
-        */
-
         let (to_sender, to_receiver) = unbounded::<RegionMessage>();
         let (from_sender, from_receiver) = unbounded::<RegionMessage>();
 
@@ -3514,13 +3464,12 @@ impl RegionInstance {
                 EntityAction::Goto(coord, speed) => {
                     let position = entity.get_pos_xz();
                     let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
-
                     with_regionctx(self.id, |ctx| {
                         let speed = self.movement_units_per_sec * speed * ctx.delta_time;
 
                         let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                             && ctx.collision_world.has_collision_data();
-                        let (new_position, new_y, arrived) = if use_3d_nav {
+                        let (new_position, new_y, mut arrived) = if use_3d_nav {
                             let (p, arrived) = ctx
                                 .collision_world
                                 .move_towards_on_floors(
@@ -3565,16 +3514,29 @@ impl RegionInstance {
                             (p, entity.position.y, arrived)
                         };
 
-                        let move_delta = new_position - position;
+                        let mut resolved_position = new_position;
+                        let probe =
+                            self.probe_dynamic_collisions_in_ctx(ctx, entity, resolved_position);
+                        if probe.blocking_collision {
+                            resolved_position = position;
+                            arrived = false;
+                        }
+
+                        let move_delta = resolved_position - position;
                         let old_dist = (*coord - position).magnitude();
-                        let new_dist = (*coord - new_position).magnitude();
+                        let new_dist = (*coord - resolved_position).magnitude();
                         let progress = old_dist - new_dist;
+                        let attempted_step = speed.min(old_dist).max(1e-4);
+                        let min_movement = (attempted_step * 0.1).max(1e-4);
+                        let min_movement_sq = min_movement * min_movement;
 
                         // Prevent facing jitter when repeatedly colliding/sliding near blockers.
-                        if move_delta.magnitude_squared() > 1e-6 && progress > 0.002 {
+                        if move_delta.magnitude_squared() > min_movement_sq
+                            && progress.abs() > 1e-6
+                        {
                             entity.set_orientation(move_delta.normalized());
                         }
-                        entity.set_pos_xz(new_position);
+                        entity.set_pos_xz(resolved_position);
                         entity.position.y = new_y;
 
                         // Track long-running no-improvement oscillations near blockers.
@@ -3611,11 +3573,15 @@ impl RegionInstance {
                                 .max(0)
                         };
 
-                        if new_dist + 0.01 < best_dist {
+                        if probe.blocking_collision {
+                            no_improve_ticks = 0;
+                        } else if new_dist + attempted_step < best_dist {
                             best_dist = new_dist;
                             no_improve_ticks = 0;
-                        } else {
+                        } else if move_delta.magnitude_squared() <= min_movement_sq {
                             no_improve_ticks += 1;
+                        } else {
+                            no_improve_ticks = 0;
                         }
                         entity
                             .attributes
@@ -3627,13 +3593,12 @@ impl RegionInstance {
                             .attributes
                             .get_int_default("__goto_stall_ticks", 0)
                             .max(0);
-                        if progress < 0.01 {
-                            stall_ticks += 1;
+                        if probe.blocking_collision {
+                            stall_ticks = 0;
+                        } else if move_delta.magnitude_squared() <= min_movement_sq {
+                            stall_ticks += 2;
                         } else {
                             stall_ticks = 0;
-                        }
-                        if move_delta.magnitude_squared() <= 1e-8 {
-                            stall_ticks += 2;
                         }
                         entity
                             .attributes
@@ -3648,7 +3613,7 @@ impl RegionInstance {
 
                             let mut sector_name: String = String::new();
                             {
-                                if let Some(s) = ctx.map.find_sector_at(new_position) {
+                                if let Some(s) = ctx.map.find_sector_at(resolved_position) {
                                     sector_name = s.name.clone();
                                 }
                             }
@@ -3678,6 +3643,7 @@ impl RegionInstance {
                     with_regionctx(self.id, |ctx| {
                         let step =
                             self.compute_grid_goto_step_in_ctx(ctx, entity.get_pos_xz(), *coord);
+                        entity.set_attribute("__grid_goto_speed", Value::Float(*speed));
                         if let Some((next, facing, target)) = step {
                             let start = entity.get_pos_xz();
                             let step_dir = next - start;
@@ -3832,14 +3798,24 @@ impl RegionInstance {
                             if blocked {
                                 entity.set_pos_xz(curr_start);
                                 entity.set_orientation(curr_facing);
-                                entity.action = EntityAction::Off;
-                                if !dynamic_collision {
+                                if dynamic_collision {
+                                    if let Some(target) =
+                                        Self::parse_vec2_attr(entity, "__grid_goto_target")
+                                    {
+                                        let goto_speed = entity
+                                            .attributes
+                                            .get_float_default("__grid_goto_speed", *speed);
+                                        entity.action = EntityAction::GotoGrid(target, goto_speed);
+                                    } else {
+                                        entity.action = EntityAction::Off;
+                                    }
+                                    Self::clear_grid_blocked_action(entity);
+                                } else {
+                                    entity.action = EntityAction::Off;
                                     Self::set_blocked_grid_action(
                                         entity,
                                         &Self::grid_desired_action(entity),
                                     );
-                                } else {
-                                    Self::clear_grid_blocked_action(entity);
                                 }
                                 break;
                             }
@@ -3872,9 +3848,13 @@ impl RegionInstance {
                                         "__grid_goto_target",
                                         Value::Str(String::new()),
                                     );
+                                    entity.set_attribute("__grid_goto_speed", Value::Float(1.0));
                                     entity.action = EntityAction::Off;
                                 } else {
-                                    entity.action = EntityAction::GotoGrid(target, 1.0);
+                                    let goto_speed = entity
+                                        .attributes
+                                        .get_float_default("__grid_goto_speed", *speed);
+                                    entity.action = EntityAction::GotoGrid(target, goto_speed);
                                 }
                             } else if let Some(player_camera) = player_camera {
                                 self.queue_grid_action_from_desired(entity, &player_camera);
@@ -3924,9 +3904,13 @@ impl RegionInstance {
                                     "__grid_goto_target",
                                     Value::Str(String::new()),
                                 );
+                                entity.set_attribute("__grid_goto_speed", Value::Float(1.0));
                                 entity.action = EntityAction::Off;
                             } else {
-                                entity.action = EntityAction::GotoGrid(target, 1.0);
+                                let goto_speed = entity
+                                    .attributes
+                                    .get_float_default("__grid_goto_speed", 1.0);
+                                entity.action = EntityAction::GotoGrid(target, goto_speed);
                             }
                         } else if let Some(player_camera) = player_camera {
                             self.queue_grid_action_from_desired(entity, &player_camera);
@@ -4693,6 +4677,10 @@ impl RegionInstance {
                 }
                 _ => {}
             }
+
+            with_regionctx(self.id, |ctx| {
+                self.advance_entity_sequence(ctx, entity);
+            });
 
             // Keep avatar animation state in sync with actual movement this update.
             let moved = (entity.get_pos_xz() - action_start_pos).magnitude_squared() > 1e-6;
@@ -9784,12 +9772,76 @@ fn goto(destination: String, speed: f32, vm: &VirtualMachine) {
                 .iter_mut()
                 .find(|entity| entity.id == entity_id)
             {
-                entity.action = Goto(coord, speed);
+                let position = entity.get_pos_xz();
+                let start_center = RegionInstance::snapped_grid_center(position);
+                let target_center = RegionInstance::snapped_grid_center(coord);
+                let grid_aligned =
+                    (position - start_center).magnitude_squared() <= 0.001
+                        && (coord - target_center).magnitude_squared() <= 0.001;
+                if grid_aligned {
+                    entity.action = GotoGrid(coord, speed);
+                } else {
+                    entity.action = Goto(coord, speed);
+                }
             }
         } else {
             if ctx.debug_mode {
                 add_debug_value(ctx, TheValue::Text("Unknown Sector".into()), true);
             }
+        }
+    });
+}
+
+fn run_sequence(name: String, vm: &VirtualMachine) {
+    with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
+        let entity_id = ctx.curr_entity_id;
+        if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+            let sequence_name = name.trim();
+            if entity.sequences.contains_key(sequence_name) {
+                entity.active_sequence = Some(crate::server::entity::EntitySequenceState {
+                    name: sequence_name.to_string(),
+                    step_index: 0,
+                    wait_until_tick: None,
+                });
+                entity.paused_sequence = None;
+                entity.action = EntityAction::Off;
+            }
+        }
+    });
+}
+
+fn pause_sequence(vm: &VirtualMachine) {
+    with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
+        let entity_id = ctx.curr_entity_id;
+        if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+            && let Some(active) = entity.active_sequence.take()
+        {
+            entity.paused_sequence = Some(active);
+            entity.action = EntityAction::Off;
+        }
+    });
+}
+
+fn resume_sequence(vm: &VirtualMachine) {
+    with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
+        let entity_id = ctx.curr_entity_id;
+        if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+            && entity.active_sequence.is_none()
+            && let Some(paused) = entity.paused_sequence.take()
+        {
+            entity.active_sequence = Some(paused);
+            entity.action = EntityAction::Off;
+        }
+    });
+}
+
+fn cancel_sequence(vm: &VirtualMachine) {
+    with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
+        let entity_id = ctx.curr_entity_id;
+        if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+            entity.active_sequence = None;
+            entity.paused_sequence = None;
+            entity.action = EntityAction::Off;
         }
     });
 }

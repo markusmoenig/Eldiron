@@ -1,6 +1,6 @@
 ---
 title: "Server Commands"
-sidebar_position: 7
+sidebar_position: 10
 ---
 
 ## Commands
@@ -299,6 +299,68 @@ The character will walk to the named destination sector with the given speed. It
 ```eldrin
 goto("Garden", 1.0)
 ```
+
+---
+
+## `run_sequence`
+
+*This command can only be used with characters.*
+
+Starts the named background sequence from step `0`.
+
+Sequences are defined in the character **Attributes** editor under `behavior.sequences`.
+
+```eldrin
+run_sequence("go_to_work")
+```
+
+See [NPC Sequences](npc_sequences).
+
+---
+
+## `pause_sequence`
+
+*This command can only be used with characters.*
+
+Pauses the currently active background sequence.
+
+```eldrin
+pause_sequence()
+```
+
+This is usually called from a reactive event such as `talk`, `use`, or a custom interaction flow.
+
+See [NPC Sequences](npc_sequences).
+
+---
+
+## `resume_sequence`
+
+*This command can only be used with characters.*
+
+Resumes the previously paused background sequence.
+
+```eldrin
+resume_sequence()
+```
+
+See [NPC Sequences](npc_sequences).
+
+---
+
+## `cancel_sequence`
+
+*This command can only be used with characters.*
+
+Cancels the active sequence and clears any paused sequence.
+
+```eldrin
+cancel_sequence()
+```
+
+Use this when the NPC should abandon its current background plan completely.
+
+See [NPC Sequences](npc_sequences).
 
 ---
 

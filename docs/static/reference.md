@@ -11,13 +11,13 @@ This chapter is work in progress.
 
 ## Setting Basic Attributes
 
-Attributes can be set using **Python (Code Tool)** or **TOML (Data Tool)**.
+Attributes can be set using **script (Code Tool)** or **TOML (Data Tool)**.
 
-### **Using Python (Code Tool)**
+### **Using Script (Code Tool)**
 
 The attributes can be set inside the templates or the [instance scripts](/docs/creator/characters/#instances) of **characters** or **items**.
 
-```python
+```eldrin
 # Give the character or item a name (if they differ from the template)
 set_attr("name", "Golden Key")
 
@@ -69,7 +69,7 @@ radius = 0.3
 
 # Character specific
 
-# Register the character as a player character which receives user events
+# Register the character as a player character which receives user input events
 player = true
 
 # Item specific
@@ -105,6 +105,9 @@ monetary = false
 # Defines the amount of default inventory slots (how many items the character can carry). If not specified
 # the amount of slots is set to 0 (i.e. the character is unable to take any items).
 inventory_slots = 8
+
+# Generic timeout value scripts can use when pausing background NPC sequences.
+timeout = 10
 ```
 
 ---
@@ -115,13 +118,13 @@ inventory_slots = 8
 
 These commands can be used for both **characters** and **items**:
 
-```python
+```eldrin
 # Block the listed events from being send to the character or item for the given amount
 # of in-game minutes.
 block_events(minutes, "event1", "event2",...)
 
 # Deal damage to the given entity or item identified by its ID.
-# Damage is a Python array of information which gets send to the receiver via an
+# Damage is a dictionary of information which gets send to the receiver via a
 # `take_damage` event.
 # Example: deal_damage(id, {"physical": 10})
 # Send all relevant data to the receiver who can calculate the final damage and apply it.
@@ -155,7 +158,7 @@ get_sector_name()
 # By default, one in game minute is one second in real time.
 notify_in(minutes, event_string)
 
-# Set an attribute of the current character or item. Value can be any Python value.
+# Set an attribute of the current character or item.
 set_attr("key", value)
 
 # Enables / disable entity proximity tracking. If enabled, the entity or item will receive
@@ -167,13 +170,25 @@ set_proximity_tracking(True / False, radius)
 # Send a message to the given character. Category is optional and used for coloring
 # messages in the message widget (see Screens & Widgets).
 message(entity_id, message, category)
+
+# Start a named NPC sequence from step 0.
+run_sequence("go_to_work")
+
+# Pause the current NPC sequence.
+pause_sequence()
+
+# Resume the previously paused NPC sequence.
+resume_sequence()
+
+# Cancel the active NPC sequence and clear any paused sequence.
+cancel_sequence()
 ```
 
 ### Commands for Characters Only
 
 These commands are **exclusive to characters**:
 
-```python
+```eldrin
 
 # Creates a new item of the given class name and adds it to the character's inventory. It returns the id of the created
 # item (in case you want to equp it) or -1 on failure.
@@ -202,6 +217,9 @@ random_walk(distance, speed, max_sleep)
 # Mostly used for NPCs
 random_walk_in_sector(distance, speed, max_sleep)
 
+# Start a named NPC sequence defined in character TOML data.
+run_sequence(sequence_name)
+
 # Take an item from the region. The item is removed from the region and added to the character's inventory. Returns
 # True if successful or False otherwise (inventory is full).
 take(item_id)
@@ -216,7 +234,7 @@ equip(item_id)
 
 These commands are **exclusive to items**:
 
-```python
+```eldrin
 # None yet
 ```
 
@@ -224,21 +242,28 @@ These commands are **exclusive to items**:
 
 The `action` command is used to trigger **player actions** based on user input.
 
-By default, a character’s `user_event` method looks like this:
+In older content, a character’s input mapping often looks like this:
 
-```python
-def user_event(self, event, value):
-    if event == 'key_down':
-        if value == 'w':
+```eldrin
+fn event(event, value) {
+    if event == "key_down" {
+        if value == "w" {
             action("forward")
-        if value == 'a':
+        }
+        if value == "a" {
             action("left")
-        if value == 'd':
+        }
+        if value == "d" {
             action("right")
-        if value == 's':
+        }
+        if value == "s" {
             action("backward")
-    if event == 'key_up':
-            action("none")
+        }
+    }
+    if event == "key_up" {
+        action("none");
+    }
+}
 ```
 
 :::note
@@ -251,7 +276,7 @@ These movement commands are interpreted by the current player input mode. Typica
 
 ### Available Actions
 
-```python
+```eldrin
 # 2D / Isometric: Move the player north.
 # 2D Grid: Move one tile north.
 # First-Person: Move the player forward in their current facing direction.
@@ -290,7 +315,12 @@ action("none")
 
 ## Events
 
-This is a list of events, categorized into **System Events** (sent to `event()`) and **User Events** (sent to `user_event()`).
+This is a list of events, categorized into **System Events** and **input events**.
+
+For the up-to-date event list and the newer NPC sequence model, see:
+
+- [/docs/characters_items/events](/docs/characters_items/events)
+- [/docs/characters_items/npc_sequences](/docs/characters_items/npc_sequences)
 
 ### System Events
 

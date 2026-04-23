@@ -2180,7 +2180,17 @@ impl<'a> HostHandler for RegionHost<'a> {
 
                     if let Some(coord) = coord {
                         if let Some(entity) = self.ctx.get_current_entity_mut() {
-                            entity.action = EntityAction::Goto(coord, speed);
+                            let position = entity.get_pos_xz();
+                            let start_center = crate::server::region::RegionInstance::snapped_grid_center(position);
+                            let target_center = crate::server::region::RegionInstance::snapped_grid_center(coord);
+                            let grid_aligned =
+                                (position - start_center).magnitude_squared() <= 0.001
+                                    && (coord - target_center).magnitude_squared() <= 0.001;
+                            if grid_aligned {
+                                entity.action = EntityAction::GotoGrid(coord, speed);
+                            } else {
+                                entity.action = EntityAction::Goto(coord, speed);
+                            }
                         }
                     } else if self.ctx.debug_mode {
                         add_debug_value(
@@ -2189,6 +2199,53 @@ impl<'a> HostHandler for RegionHost<'a> {
                             true,
                         );
                     }
+                }
+            }
+            "run_sequence" => {
+                if let Some(name) = args.get(0).and_then(|v| v.as_string())
+                    && let Some(entity) = self.ctx.get_current_entity_mut()
+                {
+                    let sequence_name = name.trim();
+                    if entity.sequences.contains_key(sequence_name) {
+                        entity.active_sequence =
+                            Some(crate::server::entity::EntitySequenceState {
+                                name: sequence_name.to_string(),
+                                step_index: 0,
+                                wait_until_tick: None,
+                            });
+                        entity.paused_sequence = None;
+                        entity.action = EntityAction::Off;
+                    } else if self.ctx.debug_mode {
+                        add_debug_value(
+                            &mut self.ctx,
+                            TheValue::Text("Unknown Sequence".into()),
+                            true,
+                        );
+                    }
+                }
+            }
+            "pause_sequence" => {
+                if let Some(entity) = self.ctx.get_current_entity_mut()
+                    && let Some(active) = entity.active_sequence.take()
+                {
+                    entity.paused_sequence = Some(active);
+                    entity.action = EntityAction::Off;
+                }
+            }
+            "resume_sequence" => {
+                if let Some(entity) = self.ctx.get_current_entity_mut()
+                    && entity.active_sequence.is_none()
+                    && let Some(paused) = entity.paused_sequence.take()
+                {
+                    entity.active_sequence = Some(paused);
+                    entity.action = EntityAction::Off;
+                }
+            }
+            "cancel_sequence" => {
+                if let Some(entity) = self.ctx.get_current_entity_mut() {
+                    entity.active_sequence = None;
+                    entity.paused_sequence = None;
+                    entity.action = EntityAction::Off;
                 }
             }
             /*fn goto(destination: String, speed: f32, vm: &VirtualMachine) {

@@ -1,6 +1,6 @@
 ---
 title: "Events"
-sidebar_position: 6
+sidebar_position: 9
 ---
 
 This chapter lists all available **events** that can be received by characters and items in Eldiron.
@@ -115,7 +115,7 @@ Sent to a character after `gain_xp(...)` causes it to reach a new level.
 ### `startup`
 
 - **Value**: *(None)*
-- **Description**: Called when the entity or item is created.
+- **Description**: Called when the entity or item is created. This is a common place to start a background NPC sequence via [run_sequence](server_commands#run_sequence).
 
 ---
 
@@ -123,6 +123,13 @@ Sent to a character after `gain_xp(...)` causes it to reach a new level.
 
 - **Value**: `hour` *(int, 0..23)*
 - **Description**: Triggered for all characters and items whenever in-game time reaches a full hour (`MM == 00`). The value contains the current 24-hour hour value.
+
+This event is the current scheduling hook for NPC routines. A common pattern is:
+
+- `08:00` -> `run_sequence("go_to_work")`
+- `18:00` -> `run_sequence("go_home")`
+
+See [NPC Sequences](npc_sequences) for the bigger event + sequence model.
 
 ---
 

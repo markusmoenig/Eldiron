@@ -7,6 +7,13 @@ This chapter lists all supported **attributes** for characters and items in Eldi
 
 Attributes can be applied to characters, items, or both.
 
+This page covers individual attributes such as `tile_id`, `radius`, or `timeout`.
+
+Some character configuration in the **Attributes** editor also uses top-level TOML tables instead of single attributes, for example:
+
+- [NPC Sequences](/docs/characters_items/npc_sequences) via `behavior.sequences`
+- [Input Mapping](/docs/characters_items/input_mapping) via `[input]`
+
 ---
 
 ## Attributes
@@ -255,6 +262,28 @@ Supported values:
 
 - `loop`: restart from the first point after the last point.
 - `pingpong`: reverse direction at the route ends.
+
+---
+
+## `timeout`
+
+*Character-only attribute.*
+
+Generic NPC interaction timeout used by scripts when temporarily interrupting background behavior such as [NPC sequences](npc_sequences).
+
+```toml
+timeout = 10
+```
+
+Typical use:
+
+- pause a sequence during `talk`
+- wait for the player to finish interacting
+- resume the sequence when the interaction ends or times out
+
+This attribute is authoring data for your scripts. It does not automatically pause or resume anything by itself.
+
+NPC background workflows themselves are defined separately in the character **Attributes** editor under `behavior.sequences`. See [NPC Sequences](npc_sequences).
 
 ---
 
@@ -612,7 +641,7 @@ player = true
 
 ## `input`
 
-*Player character input mapping (top-level table in character data).*
+*Player character input mapping (top-level table in the character **Attributes** editor).*
 
 Maps keys to player actions/intents. See [Input Mapping](input_mapping) for syntax and supported commands.
 

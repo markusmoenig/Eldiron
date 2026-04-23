@@ -5,8 +5,36 @@ use vek::{Vec2, Vec3};
 
 use crate::{EntityAction, prelude::*};
 
-/// The Rust representation of an Entity. The real entity class lives in Python, this class is the Rust side
-/// instantiation (to avoid unnecessary Python look ups for common attributes). The class gets synced with the Python side.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct EntitySequenceStep {
+    pub action: String,
+    #[serde(default)]
+    pub target: String,
+    #[serde(default)]
+    pub speed: Option<f32>,
+    #[serde(default)]
+    pub seconds: Option<f32>,
+    #[serde(default)]
+    pub intent: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct EntitySequence {
+    #[serde(default)]
+    pub steps: Vec<EntitySequenceStep>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct EntitySequenceState {
+    pub name: String,
+    #[serde(default)]
+    pub step_index: usize,
+    #[serde(default)]
+    pub wait_until_tick: Option<i64>,
+}
+
+/// Server-side runtime representation of an entity.
+/// It mirrors the authored/template data and caches frequently used state.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Entity {
     /// The id of the entity in the entity manager
@@ -28,6 +56,18 @@ pub struct Entity {
 
     /// Attributes
     pub attributes: ValueContainer,
+
+    /// Named background behavior sequences defined in entity data.
+    #[serde(default)]
+    pub sequences: IndexMap<String, EntitySequence>,
+
+    /// Currently active background sequence, if any.
+    #[serde(default)]
+    pub active_sequence: Option<EntitySequenceState>,
+
+    /// Suspended background sequence, if any.
+    #[serde(default)]
+    pub paused_sequence: Option<EntitySequenceState>,
 
     /// Dirty static attributes
     /// The `dirty_flags` field is a bitmask representing changes to various components of the entity.
@@ -80,6 +120,10 @@ impl Entity {
             action: EntityAction::Off,
 
             attributes: ValueContainer::default(),
+
+            sequences: IndexMap::default(),
+            active_sequence: None,
+            paused_sequence: None,
 
             dirty_flags: 0,
             dirty_attributes: FxHashSet::default(),

@@ -461,6 +461,38 @@ impl Default for Builtins {
             },
         );
         b.insert(
+            "run_sequence",
+            1,
+            NodeOp::HostCall {
+                name: "run_sequence".into(),
+                argc: 1,
+            },
+        );
+        b.insert(
+            "pause_sequence",
+            0,
+            NodeOp::HostCall {
+                name: "pause_sequence".into(),
+                argc: 0,
+            },
+        );
+        b.insert(
+            "resume_sequence",
+            0,
+            NodeOp::HostCall {
+                name: "resume_sequence".into(),
+                argc: 0,
+            },
+        );
+        b.insert(
+            "cancel_sequence",
+            0,
+            NodeOp::HostCall {
+                name: "cancel_sequence".into(),
+                argc: 0,
+            },
+        );
+        b.insert(
             "close_in",
             3,
             NodeOp::HostCall {
