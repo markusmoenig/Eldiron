@@ -87,6 +87,7 @@ Supported step actions in v1:
 
 - `goto`
 - `use`
+- `ensure_active`
 - `wait`
 
 ### `goto`
@@ -111,6 +112,24 @@ target = "FrontDoor"
 ```
 
 This goes through the same runtime interaction path as player/item `use`, rather than bypassing it.
+
+### `ensure_active`
+
+Ensures the nearest matching item has the requested `active` state.
+
+```toml
+[[behavior.sequences.go_to_work.steps]]
+action = "ensure_active"
+target = "FrontDoor"
+value = true
+```
+
+This is useful for doors and other toggleable items:
+
+- if the door is already open (`active = true`), the step advances immediately
+- if it is closed, the sequence triggers `use` and waits until the item reaches the requested state
+
+Use `value = false` to ensure an item is closed or inactive again.
 
 ### `wait`
 

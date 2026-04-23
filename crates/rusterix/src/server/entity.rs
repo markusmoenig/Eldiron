@@ -11,6 +11,8 @@ pub struct EntitySequenceStep {
     #[serde(default)]
     pub target: String,
     #[serde(default)]
+    pub value: Option<bool>,
+    #[serde(default)]
     pub speed: Option<f32>,
     #[serde(default)]
     pub seconds: Option<f32>,

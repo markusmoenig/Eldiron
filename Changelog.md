@@ -1,3 +1,13 @@
+# Eldiron v0.9.7
+
+## New Features
+
+### Server
+
+- Added the `ensure_active` NPC sequence step so scripted routes can enforce stateful interactions such as opening a door only if needed and closing it again afterward.
+
+---
+
 # Eldiron v0.9.6
 
 ## New Features

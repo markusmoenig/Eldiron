@@ -562,6 +562,10 @@ impl RegionInstance {
         false
     }
 
+    fn resolve_named_item_id(ctx: &RegionCtx, actor_id: u32, target: &str) -> Option<u32> {
+        Self::resolve_named_item_target(ctx, actor_id, target).map(|entry| entry.0)
+    }
+
     fn advance_entity_sequence(&self, ctx: &mut RegionCtx, entity: &mut Entity) {
         let mut state = match entity.active_sequence.clone() {
             Some(state) => state,
@@ -616,6 +620,31 @@ impl RegionInstance {
                         continue;
                     }
                     entity.active_sequence = None;
+                    return;
+                }
+                "ensure_active" => {
+                    let desired = step.value.unwrap_or(true);
+                    let Some(item_id) = Self::resolve_named_item_id(ctx, entity.id, &step.target) else {
+                        entity.active_sequence = None;
+                        return;
+                    };
+
+                    let Some(item) = ctx.map.items.iter().find(|item| item.id == item_id) else {
+                        entity.active_sequence = None;
+                        return;
+                    };
+
+                    if item.attributes.get_bool_default("active", false) == desired {
+                        state.step_index += 1;
+                        continue;
+                    }
+
+                    if entity.action == EntityAction::Off
+                        && self.queue_sequence_use(ctx, entity.id, &step.target, "use")
+                    {
+                        state.wait_until_tick = Some(ctx.ticks + 1);
+                    }
+                    entity.active_sequence = Some(state);
                     return;
                 }
                 "wait" => {

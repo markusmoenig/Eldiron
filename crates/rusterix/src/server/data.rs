@@ -103,6 +103,7 @@ fn parse_entity_sequences_from_toml(map: &Table) -> IndexMap<String, EntitySeque
                 .and_then(|value| value.as_str())
                 .map(|value| value.trim().to_string())
                 .unwrap_or_default();
+            let value = step_table.get("value").and_then(|value| value.as_bool());
             let speed = step_table
                 .get("speed")
                 .and_then(|value| value.as_float().map(|value| value as f32))
@@ -127,6 +128,7 @@ fn parse_entity_sequences_from_toml(map: &Table) -> IndexMap<String, EntitySeque
             steps.push(EntitySequenceStep {
                 action,
                 target,
+                value,
                 speed,
                 seconds,
                 intent,
