@@ -2,12 +2,27 @@
 
 ## New Features
 
+### Creator
+
+- Added the new brush-based **Organic Tool** workflow for painting surface detail directly onto map surfaces, replacing the older graph-driven organic authoring direction.
+- Added a dedicated Organic dock with a live brush preview, visual brush-shape presets, and compact controls for `Base`, `Border`, `Noise`, `Brush Size`, `Border Size`, `Noise Amount`, and `Opacity`.
+- Added Organic toolbar controls for `Free / Locked`, `Clear`, and `Active / Deactive`, plus a 3D brush-footprint preview for organic painting in place of the generic hover marker.
+
 ### Server
 
 - Added the `ensure_active` NPC sequence step so scripted routes can enforce stateful interactions such as opening a door only if needed and closing it again afterward.
 - Added `hold_speed` for grid-based held movement, so characters can use a fast first-tile `speed` while keeping sustained held movement smooth and continuous.
 
+### Documentation
+
+- Added Organic Tool documentation covering the new brush-based workflow, dock layout, toolbar controls, and 3D brush preview behavior.
+
 ## Bug Fixes
+
+### Creator
+
+- Fixed Organic tool undo / redo and related dock-state restore behavior so brush painting no longer bounces the UI back into the tile picker workflow during restore.
+- Improved Organic brush editing so presets are shape-only, thumbnails reuse the current brush colors, and noise is exposed as an actual adjustable paint contribution instead of only a preview accent.
 
 ### Server
 

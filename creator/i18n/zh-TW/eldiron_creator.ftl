@@ -178,6 +178,14 @@ tool_sector = 區域工具 (E)
 tool_vertex = 頂點工具 (V)。按住 'Shift' + 點擊可建立新頂點。
 tool_entity = 實體工具 (Y)。放置、移動、選擇和刪除遊戲實體。
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
+organic_dock_title = 有機筆刷
+organic_toggle_active = 啟用
+organic_toggle_deactive = 停用
+organic_mode_free = 自由
+organic_mode_locked = 鎖定
+status_organic_toggle_visibility = 切換有機繪製層的顯示與隱藏。
+status_organic_lock_mode = 自由模式可在所有表面上繪製。鎖定模式僅在目前選取的區域或作用中的表面上繪製。
+status_organic_clear = 清除已繪製的有機細節。鎖定模式下只清除目前選取的區域或作用中的表面。
 
 # Common
 all = 全部

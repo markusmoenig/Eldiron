@@ -1797,6 +1797,16 @@ impl ToolList {
                     .add_line_3d(id, tile_id, a, b, thickness, normal, 100);
             };
 
+            let organic_preview_active = DOCKMANAGER.read().unwrap().dock == "Organic";
+            let organic_brush_radius = map
+                .properties
+                .get_float_default("organic_brush_radius", 0.6)
+                .max(0.05);
+            let organic_border_size = map
+                .properties
+                .get_float_default("organic_brush_border_size", 0.16)
+                .clamp(0.02, 0.48);
+
             // Rect tool previews
 
             if let Some((top_left, bottom_right)) = map.curr_rectangle {
@@ -1912,7 +1922,82 @@ impl ToolList {
             });
 
             if server_ctx.curr_map_tool_type != MapToolType::Rect {
-                if let Some(pos) = hover_point {
+                if organic_preview_active {
+                    if let Some(pos) = hover_point {
+                        let segments = 24usize;
+                        let outer_tile = rusterix.scene_handler.selected;
+                        let inner_tile = rusterix.scene_handler.white;
+                        if let Some(surface) = server_ctx
+                            .active_detail_surface
+                            .as_ref()
+                            .or(server_ctx.hover_surface.as_ref())
+                        {
+                            let center_local =
+                                surface.uv_to_tile_local(surface.world_to_uv(pos), map);
+                            let inner_radius =
+                                (organic_brush_radius * (1.0 - organic_border_size)).max(0.02);
+                            let mut draw_ring =
+                                |radius: f32, tile_id: Uuid, geo_base: u32, z_bias: f32| {
+                                    for i in 0..segments {
+                                        let a0 = i as f32 / segments as f32 * std::f32::consts::TAU;
+                                        let a1 =
+                                            (i + 1) as f32 / segments as f32 * std::f32::consts::TAU;
+                                        let p0_local = center_local
+                                            + Vec2::new(a0.cos() * radius, a0.sin() * radius);
+                                        let p1_local = center_local
+                                            + Vec2::new(a1.cos() * radius, a1.sin() * radius);
+                                        let p0 = surface.uv_to_world(
+                                            surface.tile_local_to_uv(p0_local, map),
+                                        ) + view_nudge
+                                            + cam_forward * z_bias;
+                                        let p1 = surface.uv_to_world(
+                                            surface.tile_local_to_uv(p1_local, map),
+                                        ) + view_nudge
+                                            + cam_forward * z_bias;
+                                        rusterix.scene_handler.overlay_3d.add_line_3d(
+                                            GeoId::Triangle(geo_base + i as u32),
+                                            tile_id,
+                                            p0,
+                                            p1,
+                                            thickness,
+                                            cam_forward,
+                                            100,
+                                        );
+                                    }
+                                };
+                            draw_ring(organic_brush_radius, outer_tile, 8000, -0.0035);
+                            draw_ring(inner_radius, inner_tile, 8100, -0.0025);
+                        } else {
+                            for i in 0..segments {
+                                let a0 = i as f32 / segments as f32 * std::f32::consts::TAU;
+                                let a1 = (i + 1) as f32 / segments as f32 * std::f32::consts::TAU;
+                                let p0 = pos
+                                    + Vec3::new(
+                                        a0.cos() * organic_brush_radius,
+                                        0.0,
+                                        a0.sin() * organic_brush_radius,
+                                    )
+                                    + view_nudge;
+                                let p1 = pos
+                                    + Vec3::new(
+                                        a1.cos() * organic_brush_radius,
+                                        0.0,
+                                        a1.sin() * organic_brush_radius,
+                                    )
+                                    + view_nudge;
+                                rusterix.scene_handler.overlay_3d.add_line_3d(
+                                    GeoId::Triangle(8200 + i as u32),
+                                    outer_tile,
+                                    p0,
+                                    p1,
+                                    thickness,
+                                    cam_forward,
+                                    100,
+                                );
+                            }
+                        }
+                    }
+                } else if let Some(pos) = hover_point {
                     let yellow = rusterix.scene_handler.yellow;
                     rusterix.scene_handler.overlay_3d.add_billboard_3d(
                         GeoId::Triangle(1000),

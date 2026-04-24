@@ -977,6 +977,10 @@ impl Editor {
             "Tiles" | "Tilemap" | "Tile Editor Dock RGBA Layout View" | "Tile Editor Tree" => {
                 Some("docs/creator/docks/tile_picker_editor".into())
             }
+            "Organic" => Some("docs/creator/tools/organic".into()),
+            "Builder" => Some("docs/creator/tools/builder".into()),
+            "Palette" => Some("docs/creator/tools/palette".into()),
+            "Dungeon" => Some("docs/creator/tools/dungeon".into()),
             "DockDataEditor" | "DockDataEditorMax" | "Data" => {
                 Some(self.help_url_for_data_context())
             }
@@ -1036,10 +1040,15 @@ impl Editor {
             if dm.state != DockManagerState::Minimized {
                 return match dm.dock.as_str() {
                     "Tiles" => Some("docs/creator/docks/tile_picker_editor".into()),
+                    "Organic" => Some("docs/creator/tools/organic".into()),
+                    "Builder" => Some("docs/creator/tools/builder".into()),
+                    "Palette" => Some("docs/creator/tools/palette".into()),
+                    "Dungeon" => Some("docs/creator/tools/dungeon".into()),
                     "Data" => Some(self.help_url_for_data_context()),
                     "Code" => Some("docs/creator/docks/eldrin_script_editor".into()),
                     "Visual Code" => Some("docs/creator/docks/visual_script_editor".into()),
-                    _ => None,
+                    _ => TOOLLIST.read().unwrap().game_tools.get(TOOLLIST.read().unwrap().curr_game_tool)
+                        .and_then(|tool| tool.help_url()),
                 };
             }
         }

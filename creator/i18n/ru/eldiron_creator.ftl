@@ -178,6 +178,14 @@ tool_sector = Инструмент секторов (E).
 tool_vertex = Инструмент вершин (V). Shift + клик — создать новую вершину.
 tool_entity = Инструмент сущностей (Y). Размещайте, перемещайте, выделяйте и удаляйте игровые сущности.
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
+organic_dock_title = Органические кисти
+organic_toggle_active = Активно
+organic_toggle_deactive = Неактивно
+organic_mode_free = Свободно
+organic_mode_locked = Заблокировано
+status_organic_toggle_visibility = Включает или отключает отображение слоя органической покраски.
+status_organic_lock_mode = Свободно рисует по всем поверхностям. Заблокировано рисует только по выбранному сектору или активной поверхности.
+status_organic_clear = Очищает нарисованные органические детали. В заблокированном режиме очищает только выбранный сектор или активную поверхность.
 
 # Common
 all = Все

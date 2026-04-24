@@ -196,6 +196,14 @@ tool_sector = Sector Tool (E).
 tool_vertex = Vertex Tool (V). 'Shift' + Click to create a new vertex.
 tool_entity = Entity Tool (Y). Place, move, select, and delete game entities.
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
+organic_dock_title = Organic Brushes
+organic_toggle_active = Active
+organic_toggle_deactive = Deactive
+organic_mode_free = Free
+organic_mode_locked = Locked
+status_organic_toggle_visibility = Toggle organic paint rendering on or off.
+status_organic_lock_mode = Free paints every surface. Locked paints only the selected sector or active surface.
+status_organic_clear = Clear painted organic detail. In locked mode this clears only the selected sector or active surface.
 
 builder_picker_title = Builder Picker
 builder_apply_build = Apply Build

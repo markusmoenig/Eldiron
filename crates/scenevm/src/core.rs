@@ -152,6 +152,9 @@ pub enum Atom {
         height: u32,
         rgba: Vec<u8>,
     },
+    SetOrganicVisible {
+        visible: bool,
+    },
     RemoveAvatarBillboardData {
         id: GeoId,
     },

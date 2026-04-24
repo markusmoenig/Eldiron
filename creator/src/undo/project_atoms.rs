@@ -1,4 +1,6 @@
 use crate::prelude::*;
+use crate::editor::{DOCKMANAGER, SCENEMANAGER, TOOLLIST};
+use crate::tools::organic::OrganicTool;
 use shared::project::PaletteMaterial;
 use theframework::prelude::*;
 
@@ -55,6 +57,42 @@ pub enum ProjectUndoAtom {
 use ProjectUndoAtom::*;
 
 impl ProjectUndoAtom {
+    fn apply_map_edit_state(
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        pc: ProjectContext,
+        restored_map: &Map,
+    ) {
+        let preserved_dock = DOCKMANAGER.read().unwrap().dock.clone();
+        set_project_context(ctx, ui, project, server_ctx, pc);
+        if let Some(map) = project.get_map_mut(server_ctx) {
+            *map = restored_map.clone();
+            map.clear_temp();
+            if pc.is_region() {
+                map.update_surfaces();
+                SCENEMANAGER.write().unwrap().update_map(map.clone());
+                update_region(ctx);
+            }
+            OrganicTool::sync_all_detail_to_vm(map);
+            OrganicTool::sync_render_active_to_vm(map);
+        }
+        if !preserved_dock.is_empty() && DOCKMANAGER.read().unwrap().dock != preserved_dock {
+            DOCKMANAGER.write().unwrap().set_dock(
+                preserved_dock,
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
+        }
+        TOOLLIST
+            .write()
+            .unwrap()
+            .update_geometry_overlay_3d(project, server_ctx);
+    }
+
     /// Returns the ProjectContext for the MapEdit
     pub fn pc(&self) -> Option<ProjectContext> {
         match self {
@@ -138,15 +176,7 @@ impl ProjectUndoAtom {
     ) {
         match self {
             MapEdit(pc, old, _new) => {
-                set_project_context(ctx, ui, project, server_ctx, *pc);
-                if let Some(map) = project.get_map_mut(server_ctx) {
-                    *map = *old.clone();
-                    map.clear_temp();
-                    if pc.is_region() {
-                        update_region(ctx);
-                        map.update_surfaces();
-                    }
-                }
+                Self::apply_map_edit_state(project, ui, ctx, server_ctx, *pc, old);
             }
             TilePickerEdit(old, _new) => {
                 *project = (*old.clone()).clone();
@@ -753,15 +783,7 @@ impl ProjectUndoAtom {
     ) {
         match self {
             MapEdit(pc, _old, new) => {
-                set_project_context(ctx, ui, project, server_ctx, *pc);
-                if let Some(map) = project.get_map_mut(server_ctx) {
-                    *map = *new.clone();
-                    map.clear_temp();
-                    if pc.is_region() {
-                        update_region(ctx);
-                        map.update_surfaces();
-                    }
-                }
+                Self::apply_map_edit_state(project, ui, ctx, server_ctx, *pc, new);
             }
             TilePickerEdit(_old, new) => {
                 *project = (*new.clone()).clone();

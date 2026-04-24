@@ -13,6 +13,7 @@ Some tools are specifically designed for **map editing** and display a common **
 - **Sector Tool**
 - **Rect Tool**
 - **Builder Tool**
+- **Organic Tool**
 - **Dungeon Tool**
 
 The tool strip also contains **mode toggles** below the main map tools:
@@ -39,7 +40,7 @@ You can navigate the map using:
 
 ![HUD](/img/docs/hud.png)
 
-- The **upper-left corner** of the HUD shows the **current map position**, which is also marked by a **yellow rectangle** on the map.
+- The **upper-left corner** of the HUD shows the **current map position**, which is also marked by a **yellow rectangle** on the map during normal geometry workflows.
 - The numbers **1, 2, ..., 0** represent **subdivisions** of the map:
   - **1** = Largest subdivision (for broad layouts)
   - **10** = Smallest subdivision (for fine details)
@@ -68,6 +69,13 @@ With the [Builder Tool](builder), the same HUD area is used for **builder slots*
 
 While Builder is active, contexts that would normally switch the lower dock to **Tiles** show the **Builder Picker** instead.
 
+With the [Organic Tool](organic), the lower picker area shows the **Organic** dock instead:
+
+- a live brush preview
+- visual brush-shape presets
+- a compact brush inspector for `Base`, `Border`, `Noise`, `Brush Size`, `Border Size`, `Noise Amount`, and `Opacity`
+- toolbar controls for `Free / Locked`, `Clear`, and `Active / Deactive`
+
 With the [Dungeon Tool](dungeon), the lower picker area shows the **Dungeon dock** instead:
 
 - a structural tile palette for conceptual dungeon cells
@@ -78,6 +86,8 @@ With the [Palette Tool](palette), the lower picker area shows the **Palette** do
 - a palette board for selecting and reordering palette entries
 - a material inspector for roughness, metallic, opacity, and emissive
 - `Apply Color` and `Clear` actions for palette-based assignment
+
+In 3D, the Organic tool also replaces the normal yellow hover marker with a brush-footprint preview so you can see the current paint radius directly on the target surface.
 
 ## 3D Detail Editing
 

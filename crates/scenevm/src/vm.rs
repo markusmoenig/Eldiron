@@ -977,11 +977,12 @@ pub struct Raster3DUniforms {
     pub _pad_tail: [u32; 4],
     pub palette: [[f32; 4]; 256],
     pub palette_tile_indices: [[u32; 4]; 64],
+    pub organic_params: [u32; 4],
 }
 
 // WGSL `U` block uses std140-like alignment rules and currently includes a 256-color palette.
 // Keep Rust-side uniform at least that size and 16-byte aligned in total size.
-const RASTER3D_UNIFORM_WGSL_MIN_BYTES: usize = 5648;
+const RASTER3D_UNIFORM_WGSL_MIN_BYTES: usize = 5664;
 const _: [(); 0] = [(); std::mem::size_of::<Raster3DUniforms>() % 16];
 const _: [(); std::mem::size_of::<Raster3DUniforms>() - RASTER3D_UNIFORM_WGSL_MIN_BYTES] =
     [(); std::mem::size_of::<Raster3DUniforms>() - RASTER3D_UNIFORM_WGSL_MIN_BYTES];
@@ -1063,6 +1064,7 @@ struct U {
     _pad1: vec2<u32>,
     palette: array<vec4<f32>, 256>,
     palette_tile_indices: array<vec4<u32>, 64>,
+    organic_params: vec4<u32>,
 };
 @group(0) @binding(0) var<uniform> UBO: U;
 @group(0) @binding(1) var atlas_tex: texture_2d<f32>;
@@ -1258,7 +1260,7 @@ fn sample_organic_detail(
     atlas_min: vec2<f32>,
     atlas_size: vec2<f32>,
 ) -> vec4<f32> {
-    if (enabled < 0.5 || local_size.x <= 0.0001 || local_size.y <= 0.0001) {
+    if (UBO.organic_params.x == 0u || enabled < 0.5 || local_size.x <= 0.0001 || local_size.y <= 0.0001) {
         return vec4<f32>(0.0);
     }
     let suv = (local - local_min) / local_size;
@@ -1871,6 +1873,7 @@ pub struct VM {
     organic_surface_pixels: FxHashMap<Uuid, OrganicSurfaceTextureData>,
     organic_detail_dirty: bool,
     organic_dirty_rects: Vec<OrganicDirtyRect>,
+    organic_visible: bool,
 
     // Camera
     pub camera3d: Camera3D,
@@ -3174,6 +3177,7 @@ impl VM {
             organic_surface_pixels: FxHashMap::default(),
             organic_detail_dirty: true,
             organic_dirty_rects: Vec::new(),
+            organic_visible: true,
             camera3d: Camera3D::default(),
             enabled: true,
             layer_index: 0,
@@ -3686,6 +3690,9 @@ impl VM {
                     });
                 }
                 let _ = meta;
+            }
+            Atom::SetOrganicVisible { visible } => {
+                self.organic_visible = visible;
             }
             Atom::RemoveAvatarBillboardData { id } => {
                 self.dynamic_avatar_data.remove(&id);
@@ -7191,6 +7198,7 @@ impl VM {
             _pad_tail: [0, 0, 0, 0],
             palette: self.palette,
             palette_tile_indices: self.palette_tile_indices_uniform(),
+            organic_params: [self.organic_visible as u32, 0, 0, 0],
         };
 
         let shadow_res = self.gp7.z.round().clamp(256.0, 4096.0) as u32;

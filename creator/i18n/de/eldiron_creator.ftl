@@ -178,6 +178,14 @@ tool_sector = Sektor-Tool (E).
 tool_vertex = Vertex-Tool (V). 'Shift' + Klick erstellt einen neuen Vertex.
 tool_entity = Entity-Tool (Y). Spiel-Entitäten platzieren, verschieben, auswählen und löschen.
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
+organic_dock_title = Organische Pinsel
+organic_toggle_active = Aktiv
+organic_toggle_deactive = Deaktiv
+organic_mode_free = Frei
+organic_mode_locked = Gesperrt
+status_organic_toggle_visibility = Schaltet die Darstellung der organischen Farbschicht ein oder aus.
+status_organic_lock_mode = Frei malt auf allen Flächen. Gesperrt malt nur auf dem ausgewählten Sektor oder der aktiven Fläche.
+status_organic_clear = Löscht gemalte organische Details. Im gesperrten Modus wird nur der ausgewählte Sektor oder die aktive Fläche gelöscht.
 
 # Common
 all = Alle

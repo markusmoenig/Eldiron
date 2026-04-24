@@ -178,6 +178,14 @@ tool_sector = Herramienta de sector (E).
 tool_vertex = Herramienta de vértice (V). 'Shift' + clic para crear un nuevo vértice.
 tool_entity = Herramienta de entidad (Y). Coloca, mueve, selecciona y elimina entidades del juego.
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
+organic_dock_title = Pinceles orgánicos
+organic_toggle_active = Activo
+organic_toggle_deactive = Desactivo
+organic_mode_free = Libre
+organic_mode_locked = Bloqueado
+status_organic_toggle_visibility = Activa o desactiva la visualización de la capa de pintura orgánica.
+status_organic_lock_mode = Libre pinta sobre todas las superficies. Bloqueado pinta solo sobre el sector seleccionado o la superficie activa.
+status_organic_clear = Borra el detalle orgánico pintado. En modo bloqueado solo borra el sector seleccionado o la superficie activa.
 
 # Common
 all = Todo

@@ -3,6 +3,7 @@ use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
 use rusterix::PixelSource;
+use rusterix::Surface;
 use scenevm::GeoId;
 use std::collections::HashSet;
 
@@ -28,6 +29,8 @@ const PROP_PALETTE_2: &str = "organic_brush_palette_2";
 const PROP_PALETTE_3: &str = "organic_brush_palette_3";
 const PROP_BORDER_SIZE: &str = "organic_brush_border_size";
 const PROP_OPACITY: &str = "organic_brush_opacity";
+pub(crate) const PROP_RENDER_ACTIVE: &str = "organic_render_active";
+pub(crate) const PROP_LOCK_MODE: &str = "organic_paint_lock_mode";
 const ORGANIC_DETAIL_TEXTURE_SIZE: u32 = 128;
 
 #[derive(Clone, Copy)]
@@ -112,7 +115,7 @@ impl Tool for OrganicTool {
     }
 
     fn icon_name(&self) -> String {
-        str!("tree")
+        str!("paint-brush")
     }
 
     fn accel(&self) -> Option<char> {
@@ -120,7 +123,7 @@ impl Tool for OrganicTool {
     }
 
     fn help_url(&self) -> Option<String> {
-        Some("docs/creator/tools/overview".to_string())
+        Some("docs/creator/tools/organic".to_string())
     }
 
     fn tool_event(
@@ -133,7 +136,7 @@ impl Tool for OrganicTool {
     ) -> bool {
         match tool_event {
             Activate => {
-                server_ctx.curr_map_tool_type = MapToolType::General;
+                server_ctx.curr_map_tool_type = MapToolType::Sector;
                 server_ctx.hover_cursor = None;
                 server_ctx.hover_cursor_3d = None;
                 if let Some(map) = project.get_map_mut(server_ctx) {
@@ -230,6 +233,14 @@ impl Tool for OrganicTool {
 }
 
 impl OrganicTool {
+    pub(crate) fn render_active(map: &Map) -> bool {
+        map.properties.get_bool_default(PROP_RENDER_ACTIVE, true)
+    }
+
+    pub(crate) fn locked_mode(map: &Map) -> bool {
+        map.properties.get_int_default(PROP_LOCK_MODE, 0) != 0
+    }
+
     fn begin_stroke_if_needed(&mut self, map: &Map) {
         if self.stroke_active {
             return;
@@ -356,12 +367,9 @@ impl OrganicTool {
         erase: bool,
         dirty_terrain_tiles: &mut HashSet<(i32, i32)>,
     ) -> bool {
-        let Some(surface) = server_ctx
-            .active_detail_surface
-            .as_ref()
-            .or(server_ctx.hover_surface.as_ref())
+        let Some(surface) = Self::paint_target_surface(map, server_ctx)
         else {
-            if matches!(server_ctx.geo_hit, Some(GeoId::Terrain(_, _))) {
+            if !Self::locked_mode(map) && matches!(server_ctx.geo_hit, Some(GeoId::Terrain(_, _))) {
                 return Self::apply_terrain_line_segment(
                     map,
                     start_pos,
@@ -427,12 +435,9 @@ impl OrganicTool {
         erase: bool,
         dirty_terrain_tiles: &mut HashSet<(i32, i32)>,
     ) -> bool {
-        let Some(surface) = server_ctx
-            .active_detail_surface
-            .as_ref()
-            .or(server_ctx.hover_surface.as_ref())
+        let Some(surface) = Self::paint_target_surface(map, server_ctx)
         else {
-            if matches!(server_ctx.geo_hit, Some(GeoId::Terrain(_, _))) {
+            if !Self::locked_mode(map) && matches!(server_ctx.geo_hit, Some(GeoId::Terrain(_, _))) {
                 return Self::apply_terrain_stroke_at(map, hit_pos, brush, erase, dirty_terrain_tiles);
             }
             return false;
@@ -478,7 +483,7 @@ impl OrganicTool {
         changed
     }
 
-    fn sync_surface_detail_to_vm(map: &Map, surface_id: Uuid) {
+    pub(crate) fn sync_surface_detail_to_vm(map: &Map, surface_id: Uuid) {
         let Some(surface) = map.surfaces.get(&surface_id) else {
             return;
         };
@@ -598,7 +603,7 @@ impl OrganicTool {
         rgba
     }
 
-    fn sync_terrain_detail_to_vm(map: &Map, tile_x: i32, tile_z: i32) {
+    pub(crate) fn sync_terrain_detail_to_vm(map: &Map, tile_x: i32, tile_z: i32) {
         let rgba = Self::terrain_tile_texture_rgba(map, tile_x, tile_z);
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix
@@ -681,6 +686,64 @@ impl OrganicTool {
                 rgba,
             });
         rusterix.set_dirty();
+    }
+
+    pub(crate) fn sync_render_active_to_vm(map: &Map) {
+        let mut rusterix = RUSTERIX.write().unwrap();
+        rusterix
+            .scene_handler
+            .vm
+            .execute(scenevm::Atom::SetOrganicVisible {
+                visible: Self::render_active(map),
+            });
+        rusterix.set_dirty();
+    }
+
+    pub(crate) fn terrain_tiles_for_sync(
+        layer: &rusterix::OrganicVolumeLayer,
+    ) -> HashSet<(i32, i32)> {
+        let mut tiles = HashSet::default();
+        let page_size = layer.page_size.max(1) as f32;
+        let page_span = page_size * layer.cell_size.max(0.01);
+        for page in layer.pages.values() {
+            let min = Vec2::new(page.page_x as f32 * page_span, page.page_y as f32 * page_span);
+            let max = min + Vec2::broadcast(page_span);
+            let min_tile_x = min.x.floor() as i32;
+            let max_tile_x = (max.x - 0.0001).floor() as i32;
+            let min_tile_z = min.y.floor() as i32;
+            let max_tile_z = (max.y - 0.0001).floor() as i32;
+            for tile_z in min_tile_z..=max_tile_z {
+                for tile_x in min_tile_x..=max_tile_x {
+                    tiles.insert((tile_x, tile_z));
+                }
+            }
+        }
+        tiles
+    }
+
+    pub(crate) fn sync_all_detail_to_vm(map: &Map) {
+        for surface_id in map.surfaces.keys().copied() {
+            Self::sync_surface_detail_to_vm(map, surface_id);
+        }
+        for (tile_x, tile_z) in Self::terrain_tiles_for_sync(&map.terrain_organic_layer) {
+            Self::sync_terrain_detail_to_vm(map, tile_x, tile_z);
+        }
+        Self::sync_render_active_to_vm(map);
+    }
+
+    fn paint_target_surface<'a>(map: &Map, server_ctx: &'a ServerContext) -> Option<&'a Surface> {
+        if Self::locked_mode(map) {
+            if let Some(surface) = server_ctx.active_detail_surface.as_ref() {
+                return Some(surface);
+            }
+            return server_ctx.hover_surface.as_ref().filter(|surface| {
+                map.selected_sectors.contains(&surface.sector_id)
+            });
+        }
+        server_ctx
+            .active_detail_surface
+            .as_ref()
+            .or(server_ctx.hover_surface.as_ref())
     }
 
     fn mark_dirty_terrain_tiles(
@@ -927,6 +990,35 @@ impl OrganicTool {
                     source,
                     grow_positive,
                 );
+                if let Some(noise_source) =
+                    Self::fixed_brush_source(brush, host_source.clone(), 2)
+                    && brush.noise_strength > 0.01
+                {
+                    let noise_count = ((brush.noise_strength * 4.0).ceil() as usize).clamp(1, 4);
+                    for noise_index in 0..noise_count {
+                        let noise_offset = Self::noise_offset(
+                            dab_center,
+                            noise_index,
+                            brush,
+                            inner_radius,
+                        );
+                        let noise_radius = (inner_radius
+                            * (0.12 + brush.noise_strength * 0.18))
+                            .max(layer.cell_size * 0.24);
+                        changed |= layer.paint_sphere(
+                            dab_center + noise_offset,
+                            noise_radius,
+                            anchor_offset,
+                            dab_depth * 0.8,
+                            brush.softness,
+                            brush.height_falloff,
+                            (dab_flow * brush.noise_strength).clamp(0.03, 1.0),
+                            brush.channel,
+                            Some(noise_source.clone()),
+                            grow_positive,
+                        );
+                    }
+                }
                 changed
             };
             changed |= dab_changed;
@@ -1010,6 +1102,36 @@ impl OrganicTool {
                 source,
                 grow_positive,
             );
+            if let Some(noise_source) = Self::fixed_brush_source(brush, None, 2)
+                && brush.noise_strength > 0.01
+            {
+                let noise_count = ((brush.noise_strength * 5.0).ceil() as usize).clamp(1, 5);
+                for noise_index in 0..noise_count {
+                    let t = (noise_index as f32 + 0.5) / noise_count as f32;
+                    let along = line_start + (line_end - line_start) * t;
+                    let lateral = Vec2::new(-(line_end - line_start).y, (line_end - line_start).x)
+                        .normalized()
+                        * ((Self::scalar_hash(
+                            t * 19.0 + brush.noise_seed as f32 * 0.73,
+                        ) * 2.0
+                            - 1.0)
+                            * inner_radius
+                            * 0.45);
+                    changed |= layer.paint_sphere(
+                        along + lateral,
+                        (inner_radius * (0.10 + brush.noise_strength * 0.18))
+                            .max(layer.cell_size * 0.22),
+                        anchor_offset,
+                        depth * 0.75,
+                        brush.line_softness,
+                        brush.height_falloff,
+                        (brush.flow * brush.noise_strength).clamp(0.03, 1.0),
+                        brush.channel,
+                        Some(noise_source.clone()),
+                        grow_positive,
+                    );
+                }
+            }
             changed
         }
     }
@@ -1050,6 +1172,24 @@ impl OrganicTool {
         let value =
             ((pos.x * scale + seed).sin() * 12.9898 + (pos.y * scale - seed).cos() * 78.233).sin();
         value * brush.noise_strength.clamp(0.0, 1.0)
+    }
+
+    fn scalar_hash(value: f32) -> f32 {
+        (value.sin() * 43_758.547).fract().abs()
+    }
+
+    fn noise_offset(
+        center: Vec2<f32>,
+        index: usize,
+        brush: &OrganicBrushEval,
+        radius: f32,
+    ) -> Vec2<f32> {
+        let seed = brush.noise_seed as f32 * 0.31 + index as f32 * 1.73;
+        let angle = Self::scalar_hash(center.x * 3.17 + center.y * 5.91 + seed)
+            * std::f32::consts::TAU;
+        let dist = radius
+            * (0.12 + Self::scalar_hash(center.x * 7.11 - center.y * 2.47 + seed * 2.0) * 0.48);
+        Vec2::new(angle.cos(), angle.sin()) * dist
     }
 
     fn scatter_offset(

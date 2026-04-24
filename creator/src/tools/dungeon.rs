@@ -51,7 +51,7 @@ impl Tool for DungeonTool {
     }
 
     fn help_url(&self) -> Option<String> {
-        Some("docs/creator/tools/overview".to_string())
+        Some("docs/creator/tools/dungeon".to_string())
     }
 
     fn tool_event(

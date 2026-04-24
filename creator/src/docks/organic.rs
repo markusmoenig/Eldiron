@@ -1,16 +1,20 @@
-use crate::editor::PALETTE;
+use crate::editor::{PALETTE, SCENEMANAGER, UNDOMANAGER};
 use crate::prelude::*;
+use crate::tools::organic::OrganicTool;
 
 const ORGANIC_SETTINGS_LAYOUT: &str = "Organic Brush Settings";
 const ORGANIC_PREVIEW_LAYOUT: &str = "Organic Brush Preview Layout";
 const ORGANIC_BRUSH_SELECTOR_LAYOUT: &str = "Organic Brush Selector Layout";
 const ORGANIC_MAIN_SPLIT_LAYOUT: &str = "Organic Brush Main Split Layout";
-const ORGANIC_RESET_BUTTON: &str = "Organic Brush Reset";
+const ORGANIC_RENDER_TOGGLE_BUTTON: &str = "Organic Brush Render Toggle";
+const ORGANIC_LOCK_MODE_DROPDOWN: &str = "Organic Brush Lock Mode";
+const ORGANIC_CLEAR_BUTTON: &str = "Organic Brush Clear";
 const ORGANIC_COLOR_BASE: &str = "organicBrushColorBase";
 const ORGANIC_COLOR_BORDER: &str = "organicBrushColorBorder";
 const ORGANIC_COLOR_NOISE: &str = "organicBrushColorNoise";
 const ORGANIC_BRUSH_SIZE: &str = "organicBrushSize";
 const ORGANIC_BORDER_SIZE: &str = "organicBrushBorderSize";
+const ORGANIC_NOISE_AMOUNT: &str = "organicBrushNoiseAmount";
 const ORGANIC_OPACITY: &str = "organicBrushOpacity";
 
 const ORGANIC_PRESET_VIEW_MOSS: &str = "organicBrushPresetMoss";
@@ -42,6 +46,8 @@ const PROP_PALETTE_2: &str = "organic_brush_palette_2";
 const PROP_PALETTE_3: &str = "organic_brush_palette_3";
 const PROP_BORDER_SIZE: &str = "organic_brush_border_size";
 const PROP_OPACITY: &str = "organic_brush_opacity";
+const PROP_RENDER_ACTIVE: &str = "organic_render_active";
+const PROP_LOCK_MODE: &str = "organic_paint_lock_mode";
 
 const PREVIEW_SIZE: i32 = 220;
 const PRESET_PREVIEW_WIDTH: i32 = 116;
@@ -116,6 +122,7 @@ struct BrushPreviewStyle {
     border: [u8; 4],
     noise: [u8; 4],
     border_size: f32,
+    noise_amount: f32,
     opacity: f32,
 }
 
@@ -139,15 +146,21 @@ impl Dock for OrganicDock {
         toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
         toolbar_hlayout.set_padding(3);
 
-        let mut title = TheText::new(TheId::named("Organic Dock Title"));
-        title.set_text("Organic Brushes".into());
-        title.set_text_size(12.0);
-        toolbar_hlayout.add_widget(Box::new(title));
+        let mut lock_mode = TheDropdownMenu::new(TheId::named(ORGANIC_LOCK_MODE_DROPDOWN));
+        lock_mode.add_option(fl!("organic_mode_free"));
+        lock_mode.add_option(fl!("organic_mode_locked"));
+        lock_mode.set_status_text(&fl!("status_organic_lock_mode"));
+        toolbar_hlayout.add_widget(Box::new(lock_mode));
 
-        let mut reset_button = TheTraybarButton::new(TheId::named(ORGANIC_RESET_BUTTON));
-        reset_button.set_text("Reset".into());
-        reset_button.set_status_text("Reset the current organic brush preset.");
-        toolbar_hlayout.add_widget(Box::new(reset_button));
+        let mut clear_button = TheTraybarButton::new(TheId::named(ORGANIC_CLEAR_BUTTON));
+        clear_button.set_text(fl!("clear"));
+        clear_button.set_status_text(&fl!("status_organic_clear"));
+        toolbar_hlayout.add_widget(Box::new(clear_button));
+
+        let mut toggle_button = TheTraybarButton::new(TheId::named(ORGANIC_RENDER_TOGGLE_BUTTON));
+        toggle_button.set_text(fl!("organic_toggle_active"));
+        toggle_button.set_status_text(&fl!("status_organic_toggle_visibility"));
+        toolbar_hlayout.add_widget(Box::new(toggle_button));
         toolbar_hlayout.set_reverse_index(Some(1));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
@@ -231,9 +244,22 @@ impl Dock for OrganicDock {
         server_ctx: &mut ServerContext,
     ) -> bool {
         match event {
+            TheEvent::Resize => {
+                self.sync_settings_ui(ui, ctx, project, server_ctx);
+                false
+            }
             TheEvent::Custom(id, _) if id.name == "Map Selection Changed" => {
                 self.sync_settings_ui(ui, ctx, project, server_ctx);
                 false
+            }
+            TheEvent::IndexChanged(id, index) if id.name == ORGANIC_LOCK_MODE_DROPDOWN => {
+                let Some(map) = project.get_map_mut(server_ctx) else {
+                    return false;
+                };
+                map.properties
+                    .set(PROP_LOCK_MODE, Value::Int((*index).clamp(0, 1) as i32));
+                self.sync_settings_ui(ui, ctx, project, server_ctx);
+                true
             }
             TheEvent::NewListItemSelected(id, _)
                 if OrganicPreset::from_widget_id(&id.name).is_some() =>
@@ -274,6 +300,9 @@ impl Dock for OrganicDock {
                         }
                         changed
                     }
+                    ORGANIC_NOISE_AMOUNT => {
+                        Self::set_float_property(map, PROP_NOISE_STRENGTH, value, 0.0, 1.0)
+                    }
                     ORGANIC_OPACITY => {
                         let changed = Self::set_float_property(map, PROP_OPACITY, value, 0.05, 1.0);
                         if let Some(opacity) = value.to_f32() {
@@ -289,15 +318,15 @@ impl Dock for OrganicDock {
                 }
                 changed
             }
-            TheEvent::StateChanged(id, _) if id.name == ORGANIC_RESET_BUTTON => {
-                if let Some(map) = project.get_map_mut(server_ctx) {
-                    let preset =
-                        OrganicPreset::from_index(map.properties.get_int_default(PROP_PRESET, 0));
-                    Self::apply_preset(map, preset);
-                    self.sync_settings_ui(ui, ctx, project, server_ctx);
-                    return true;
-                }
-                false
+            TheEvent::StateChanged(id, _) if id.name == ORGANIC_RENDER_TOGGLE_BUTTON => {
+                self.toggle_render_active(project, ctx, server_ctx);
+                self.sync_settings_ui(ui, ctx, project, server_ctx);
+                true
+            }
+            TheEvent::StateChanged(id, _) if id.name == ORGANIC_CLEAR_BUTTON => {
+                self.clear_organic(project, ctx, server_ctx);
+                self.sync_settings_ui(ui, ctx, project, server_ctx);
+                true
             }
             _ => false,
         }
@@ -320,6 +349,22 @@ impl OrganicDock {
         let preset = OrganicPreset::from_index(map.properties.get_int_default(PROP_PRESET, 0));
         let palette = PALETTE.read().unwrap().clone();
         let style = Self::brush_style_from_map(map, &palette);
+        let render_active = map.properties.get_bool_default(PROP_RENDER_ACTIVE, true);
+        let lock_mode = map.properties.get_int_default(PROP_LOCK_MODE, 0).clamp(0, 1);
+
+        OrganicTool::sync_render_active_to_vm(map);
+
+        if let Some(dropdown) = ui.get_drop_down_menu(ORGANIC_LOCK_MODE_DROPDOWN) {
+            dropdown.set_selected_index(lock_mode);
+        }
+        if let Some(widget) = ui.get_widget(ORGANIC_RENDER_TOGGLE_BUTTON) {
+            widget.set_value(TheValue::Text(if render_active {
+                fl!("organic_toggle_active")
+            } else {
+                fl!("organic_toggle_deactive")
+            }));
+            widget.set_status_text(&fl!("status_organic_toggle_visibility"));
+        }
 
         if let Some(layout) = ui.get_rgba_layout(ORGANIC_PREVIEW_LAYOUT) {
             let buffer = Self::render_preview_buffer(preset, style, PREVIEW_SIZE, PREVIEW_SIZE, true);
@@ -327,6 +372,7 @@ impl OrganicDock {
             layout.set_zoom(1.0);
         }
 
+        let (preset_width, preset_height) = Self::preset_preview_size(ui);
         for brush_preset in OrganicPreset::all() {
             if let Some(widget) = ui.get_widget(brush_preset.widget_id()) {
                 widget.set_state(if brush_preset.index() == preset.index() {
@@ -334,13 +380,19 @@ impl OrganicDock {
                 } else {
                     TheWidgetState::None
                 });
+                widget
+                    .limiter_mut()
+                    .set_max_size(Vec2::new(preset_width, preset_height));
+                widget
+                    .limiter_mut()
+                    .set_min_size(Vec2::new(preset_width, preset_height));
                 if let Some(rgba_view) = widget.as_rgba_view() {
                     let preview_style = Self::preset_style(brush_preset, style);
                     rgba_view.set_buffer(Self::render_preview_buffer(
                         brush_preset,
                         preview_style,
-                        PRESET_PREVIEW_WIDTH,
-                        PRESET_PREVIEW_HEIGHT,
+                        preset_width,
+                        preset_height,
                         false,
                     ));
                     rgba_view.set_zoom(1.0);
@@ -396,6 +448,14 @@ impl OrganicDock {
             false,
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            ORGANIC_NOISE_AMOUNT.into(),
+            "Noise Amount".into(),
+            "How much irregular breakup is added across the brush.".into(),
+            map.properties.get_float_default(PROP_NOISE_STRENGTH, 0.0),
+            0.0..=1.0,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
             ORGANIC_OPACITY.into(),
             "Opacity".into(),
             "How strong the painted detail is applied.".into(),
@@ -441,6 +501,10 @@ impl OrganicDock {
                 .properties
                 .get_float_default(PROP_BORDER_SIZE, Self::default_border_size(preset))
                 .clamp(0.02, 0.48),
+            noise_amount: map
+                .properties
+                .get_float_default(PROP_NOISE_STRENGTH, 0.0)
+                .clamp(0.0, 1.0),
             opacity: map
                 .properties
                 .get_float_default(PROP_OPACITY, map.properties.get_float_default(PROP_FLOW, 0.7))
@@ -454,8 +518,25 @@ impl OrganicDock {
             border: current.border,
             noise: current.noise,
             border_size: Self::default_border_size(preset),
+            noise_amount: current.noise_amount,
             opacity: Self::default_opacity(preset),
         }
+    }
+
+    fn preset_preview_size(ui: &mut TheUI) -> (i32, i32) {
+        let mut height = PRESET_PREVIEW_HEIGHT;
+        let mut width = PRESET_PREVIEW_WIDTH;
+        if let Some(layout) = ui.get_layout(ORGANIC_BRUSH_SELECTOR_LAYOUT) {
+            let available_h = layout.dim().height.max(PRESET_PREVIEW_HEIGHT);
+            let available_w = layout.dim().width.max(PRESET_PREVIEW_WIDTH);
+            let target_h = ((available_h - 56) / OrganicPreset::all().len() as i32)
+                .clamp(48, PRESET_PREVIEW_HEIGHT);
+            height = target_h.max(32);
+            width = ((height as f32 * 1.55).round() as i32)
+                .clamp(76, PRESET_PREVIEW_WIDTH)
+                .min((available_w - 20).max(76));
+        }
+        (width, height)
     }
 
     fn default_border_size(preset: OrganicPreset) -> f32 {
@@ -527,7 +608,11 @@ impl OrganicDock {
                     pixel = Self::blend_rgba(pixel, style.border, border * opacity);
                 }
                 if noise > 0.0 {
-                    pixel = Self::blend_rgba(pixel, style.noise, noise * opacity * 0.9);
+                    pixel = Self::blend_rgba(
+                        pixel,
+                        style.noise,
+                        noise * style.noise_amount * opacity * 0.9,
+                    );
                 }
 
                 let index = (x as usize + y as usize * stride) * 4;
@@ -601,7 +686,7 @@ impl OrganicDock {
         let fill = Self::smooth_band(dist, outer, 0.07);
         let inner_fill = Self::smooth_band(dist, inner, 0.06);
         let border = (fill - inner_fill).clamp(0.0, 1.0);
-        let noise = Self::speckle_mask(uv, noise_scale * 0.8, 0.76) * border;
+        let noise = Self::speckle_mask(uv, noise_scale * 0.8, 0.76) * fill.max(border * 0.45);
         (inner_fill, border, noise)
     }
 
@@ -626,7 +711,7 @@ impl OrganicDock {
             fill = fill.max(inner);
             border = border.max((outer - inner).clamp(0.0, 1.0));
         }
-        let noise = Self::speckle_mask(uv * 1.1, 12.0, 0.82) * border;
+        let noise = Self::speckle_mask(uv * 1.1, 12.0, 0.82) * fill.max(border * 0.45);
         (fill, border, noise)
     }
 
@@ -656,7 +741,7 @@ impl OrganicDock {
             .max(leaf_1.1)
             .max(leaf_2.1)
             .clamp(0.0, 1.0);
-        let noise = Self::speckle_mask(uv * 1.8, 10.0, 0.78) * border;
+        let noise = Self::speckle_mask(uv * 1.8, 10.0, 0.78) * fill.max(border * 0.45);
         (fill, border, noise)
     }
 
@@ -814,5 +899,109 @@ impl OrganicDock {
             .set(PROP_BORDER_SIZE, Value::Float(Self::default_border_size(preset)));
         map.properties
             .set(PROP_OPACITY, Value::Float(Self::default_opacity(preset)));
+    }
+
+    fn toggle_render_active(
+        &self,
+        project: &mut Project,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) {
+        let Some(map) = project.get_map_mut(server_ctx) else {
+            return;
+        };
+        let prev = map.clone();
+        let next = !map.properties.get_bool_default(PROP_RENDER_ACTIVE, true);
+        map.properties.set(PROP_RENDER_ACTIVE, Value::Bool(next));
+        map.changed += 1;
+        OrganicTool::sync_render_active_to_vm(map);
+        SCENEMANAGER.write().unwrap().update_map(map.clone());
+        UNDOMANAGER.write().unwrap().add_undo(
+            ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone())),
+            ctx,
+        );
+    }
+
+    fn clear_organic(
+        &self,
+        project: &mut Project,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) {
+        let Some(map) = project.get_map_mut(server_ctx) else {
+            return;
+        };
+        let prev = map.clone();
+        let changed = if map.properties.get_int_default(PROP_LOCK_MODE, 0) == 0 {
+            Self::clear_all_organic(map)
+        } else {
+            Self::clear_locked_organic(map, server_ctx)
+        };
+        if !changed {
+            return;
+        }
+        map.changed += 1;
+        SCENEMANAGER.write().unwrap().update_map(map.clone());
+        UNDOMANAGER.write().unwrap().add_undo(
+            ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone())),
+            ctx,
+        );
+    }
+
+    fn clear_all_organic(map: &mut Map) -> bool {
+        let mut changed = false;
+        let terrain_tiles = OrganicTool::terrain_tiles_for_sync(&map.terrain_organic_layer);
+        if !map.terrain_organic_layer.pages.is_empty() {
+            map.terrain_organic_layer.pages.clear();
+            changed = true;
+        }
+        for surface in map.surfaces.values_mut() {
+            if !surface.organic_layers.is_empty() {
+                surface.organic_layers.clear();
+                changed = true;
+            }
+        }
+        if changed {
+            for surface_id in map.surfaces.keys().copied() {
+                OrganicTool::sync_surface_detail_to_vm(map, surface_id);
+            }
+            for (tile_x, tile_z) in terrain_tiles {
+                OrganicTool::sync_terrain_detail_to_vm(map, tile_x, tile_z);
+            }
+            OrganicTool::sync_render_active_to_vm(map);
+        }
+        changed
+    }
+
+    fn clear_locked_organic(map: &mut Map, server_ctx: &ServerContext) -> bool {
+        let mut target_surface_ids = Vec::new();
+        if let Some(surface) = server_ctx.active_detail_surface.as_ref() {
+            target_surface_ids.push(surface.id);
+        } else {
+            for surface in map.surfaces.values() {
+                if map.selected_sectors.contains(&surface.sector_id) {
+                    target_surface_ids.push(surface.id);
+                }
+            }
+        }
+        target_surface_ids.sort_unstable();
+        target_surface_ids.dedup();
+
+        let mut changed = false;
+        for surface_id in &target_surface_ids {
+            if let Some(surface) = map.surfaces.get_mut(surface_id)
+                && !surface.organic_layers.is_empty()
+            {
+                surface.organic_layers.clear();
+                changed = true;
+            }
+        }
+        if changed {
+            for surface_id in target_surface_ids {
+                OrganicTool::sync_surface_detail_to_vm(map, surface_id);
+            }
+            OrganicTool::sync_render_active_to_vm(map);
+        }
+        changed
     }
 }
