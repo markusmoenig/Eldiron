@@ -80,6 +80,32 @@ close_in(entity_id, 4.0, 1.0) // Close in within 4.0 radius on the entity_id wit
 
 ---
 
+## `follow_attack`
+
+*This command can only be used with characters.*
+
+Starts an engine-owned melee engagement against a target character.
+
+```eldrin
+follow_attack(entity_id, 1.0)
+```
+
+Behavior:
+
+- chases the target using the given movement speed
+- attacks using the normal combat rules, weapon damage kind, and progression damage setup
+- in non-realtime 2D modes, stays grid-aligned and does not use custom script-side `close_in` / `notify_in` attack loops
+- if `speed < 1.0` in non-realtime 2D, it skips some turns and then moves a full tile instead of drifting off-grid
+- keeps the engagement active only while the target still exists, is visible/alive, and stays close enough
+- the chase leash currently comes from the attacker's [set_proximity_tracking](#set_proximity_tracking) radius
+- exact formula: `max(proximity_tracking_distance, 1.5) + 1.0`
+- if no proximity tracking radius is set, the fallback is `5.0`, so the default leash becomes `6.0`
+- emits [engagement_over](events#engagement_over) when the target is gone, no longer valid, or moves beyond that leash distance
+
+Use this for normal melee chase behavior. Prefer it over building custom combat loops from `proximity_warning`, `close_in`, `closed_in`, and `notify_in`.
+
+---
+
 ## `clear_audio`
 
 *This command can be used with both characters and items.*

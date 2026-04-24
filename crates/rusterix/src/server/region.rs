@@ -243,6 +243,8 @@ pub struct RegionInstance {
     collision_mode: CollisionMode,
     last_redraw_at: Instant,
     last_simulation_advance_at: Instant,
+    last_external_step_request_at: Instant,
+    current_frame_has_turn_step: bool,
     simulation_step_pending: bool,
     pending_system_steps: u32,
     pending_redraw_steps: u32,
@@ -692,6 +694,31 @@ impl RegionInstance {
         self.simulation_step_pending = true;
     }
 
+    fn is_click_like_step_action(action: &EntityAction) -> bool {
+        matches!(
+            action,
+            EntityAction::EntityClicked(_, _, _)
+                | EntityAction::ItemClicked(_, _, _, _)
+                | EntityAction::TerrainClicked(_)
+                | EntityAction::Choice(_)
+        )
+    }
+
+    fn should_accept_step_request(&self, ctx: &RegionCtx, action: &EntityAction) -> bool {
+        if matches!(
+            ctx.simulation_mode,
+            crate::server::regionctx::SimulationMode::Realtime
+        ) {
+            return true;
+        }
+        if Self::is_click_like_step_action(action)
+            && self.last_external_step_request_at.elapsed() < Duration::from_millis(150)
+        {
+            return false;
+        }
+        true
+    }
+
     fn non_realtime_turn_dt(ctx: &RegionCtx) -> f32 {
         get_config_i32_default(ctx, "game", "game_tick_ms", 250).max(1) as f32 / 1000.0
     }
@@ -705,6 +732,89 @@ impl RegionInstance {
             ctx.delta_time
         } else {
             Self::non_realtime_turn_dt(ctx)
+        }
+    }
+
+    fn close_in_step_distance(ctx: &RegionCtx, entity: &Entity, speed: f32, units_per_sec: f32) -> f32 {
+        let base = units_per_sec * speed * Self::autonomous_action_dt(ctx, entity);
+        if matches!(
+            ctx.simulation_mode,
+            crate::server::regionctx::SimulationMode::Realtime
+        ) || entity.is_player()
+        {
+            base
+        } else {
+            base.min(1.0)
+        }
+    }
+
+    fn close_in_arrived(
+        &self,
+        ctx: &RegionCtx,
+        position: Vec2<f32>,
+        target: Vec2<f32>,
+        target_radius: f32,
+    ) -> bool {
+        if self.collision_mode == CollisionMode::Mesh
+            || matches!(
+                ctx.simulation_mode,
+                crate::server::regionctx::SimulationMode::Realtime
+            )
+        {
+            return (target - position).magnitude() <= target_radius;
+        }
+
+        let snapped_pos = Self::snapped_grid_center(position);
+        let snapped_target = Self::snapped_grid_center(target);
+        let delta = snapped_target - snapped_pos;
+        let cardinal_distance = delta.x.abs() + delta.y.abs();
+        cardinal_distance <= target_radius + 1e-4
+    }
+
+    fn follow_attack_cooldown_ticks(ctx: &RegionCtx, entity: &Entity) -> i64 {
+        if matches!(
+            ctx.simulation_mode,
+            crate::server::regionctx::SimulationMode::Realtime
+        ) {
+            let attack_time = entity
+                .attributes
+                .get_float_default("avatar_attack_time", 0.35)
+                .max(0.05);
+            ((attack_time * ctx.ticks_per_minute as f32) / 60.0)
+                .ceil()
+                .max(1.0) as i64
+        } else {
+            1
+        }
+    }
+
+    fn end_follow_attack(ctx: &mut RegionCtx, entity: &mut Entity, reason: &str) {
+        entity.set_attribute("target", Value::Str(String::new()));
+        entity.set_attribute("attack_target", Value::Str(String::new()));
+        entity.set_attribute("__follow_attack_budget", Value::Float(0.0));
+        entity.action = EntityAction::Off;
+
+        if ctx.entity_classes.contains_key(&entity.id) {
+            ctx.to_execute_entity.push((
+                entity.id,
+                "engagement_over".into(),
+                VMValue::from_string(reason.to_string()),
+            ));
+        }
+    }
+
+    pub(crate) fn scheduled_delay_ticks(ctx: &RegionCtx, units: f32) -> i64 {
+        let units = units.max(0.0);
+        if units <= 0.0 {
+            return 0;
+        }
+        if matches!(
+            ctx.simulation_mode,
+            crate::server::regionctx::SimulationMode::Realtime
+        ) {
+            (ctx.ticks_per_minute as f32 * units).round().max(1.0) as i64
+        } else {
+            units.round().max(1.0) as i64
         }
     }
 
@@ -772,6 +882,7 @@ impl RegionInstance {
     fn simulation_dt_for_frame(&mut self, ctx: &RegionCtx, redraw_dt: f32) -> f32 {
         match ctx.simulation_mode {
             crate::server::regionctx::SimulationMode::Realtime => {
+                self.current_frame_has_turn_step = true;
                 self.last_simulation_advance_at = Instant::now();
                 redraw_dt
             }
@@ -779,12 +890,15 @@ impl RegionInstance {
                 self.grant_simulation_steps_if_due(ctx);
                 if self.pending_redraw_steps == 0 {
                     if Self::has_active_continuous_motion(ctx) {
+                        self.current_frame_has_turn_step = false;
                         redraw_dt
                     } else {
+                        self.current_frame_has_turn_step = false;
                         0.0
                     }
                 } else {
                     self.pending_redraw_steps -= 1;
+                    self.current_frame_has_turn_step = true;
                     redraw_dt
                 }
             }
@@ -792,12 +906,15 @@ impl RegionInstance {
                 self.grant_simulation_steps_if_due(ctx);
                 if self.pending_redraw_steps == 0 {
                     if Self::has_active_continuous_motion(ctx) {
+                        self.current_frame_has_turn_step = false;
                         redraw_dt
                     } else {
+                        self.current_frame_has_turn_step = false;
                         0.0
                     }
                 } else {
                     self.pending_redraw_steps -= 1;
+                    self.current_frame_has_turn_step = true;
                     redraw_dt
                 }
             }
@@ -1483,6 +1600,8 @@ impl RegionInstance {
             collision_mode: CollisionMode::Tile,
             last_redraw_at: Instant::now(),
             last_simulation_advance_at: Instant::now(),
+            last_external_step_request_at: Instant::now() - Duration::from_secs(1),
+            current_frame_has_turn_step: false,
             simulation_step_pending: false,
             pending_system_steps: 0,
             pending_redraw_steps: 0,
@@ -2283,7 +2402,29 @@ impl RegionInstance {
                         ctx.curr_item_id = None;
 
                         if let Some(program) = ctx.entity_programs.get(class_name).cloned() {
-                            let args = [VMValue::from_string(notification), VMValue::zero()];
+                            let payload = if notification == "closed_in" {
+                                let target_id = ctx
+                                    .map
+                                    .entities
+                                    .iter()
+                                    .find(|entity| entity.id == *id)
+                                    .and_then(|entity| match entity.attributes.get("target") {
+                                        Some(Value::UInt(target_id)) => Some(*target_id),
+                                        Some(Value::Int(target_id)) if *target_id >= 0 => {
+                                            Some(*target_id as u32)
+                                        }
+                                        Some(Value::Int64(target_id)) if *target_id >= 0 => {
+                                            Some(*target_id as u32)
+                                        }
+                                        Some(Value::Str(target_id)) => target_id.trim().parse::<u32>().ok(),
+                                        _ => None,
+                                    })
+                                    .unwrap_or(0);
+                                VMValue::broadcast(target_id as f32)
+                            } else {
+                                VMValue::zero()
+                            };
+                            let args = [VMValue::from_string(notification), payload];
                             run_server_fn(&mut self.exec, &args, &program, ctx);
                         }
                     }
@@ -2445,9 +2586,13 @@ impl RegionInstance {
                             if let Some(entity) =
                                 ctx.map.entities.iter().find(|entity| entity.id == entity_id)
                                 && entity.is_player()
+                                && self.should_accept_step_request(ctx, &action)
                                 && !(Self::is_movement_input_action(&action)
                                     && Self::entity_has_active_continuous_motion(entity))
                             {
+                                if Self::is_click_like_step_action(&action) {
+                                    self.last_external_step_request_at = Instant::now();
+                                }
                                 self.note_simulation_step_request();
                             }
                         });
@@ -3326,6 +3471,19 @@ impl RegionInstance {
                 continue;
             }
 
+            if !self.current_frame_has_turn_step
+                && !matches!(
+                    entity.action,
+                    EntityAction::StepTo(_, _, _, _, _) | EntityAction::RotateTo(_)
+                )
+            {
+                if entity.is_dirty() {
+                    updates.push(entity.get_update().pack());
+                    entity.clear_dirty();
+                }
+                continue;
+            }
+
             let action_start_pos = entity.get_pos_xz();
             match &entity.action.clone() {
                 EntityAction::Forward => {
@@ -3645,9 +3803,8 @@ impl RegionInstance {
                     let mut coord: Option<vek::Vec2<f32>> = None;
 
                     with_regionctx(self.id, |ctx| {
-                        let speed: f32 = self.movement_units_per_sec
-                            * speed
-                            * Self::autonomous_action_dt(ctx, entity);
+                        let speed: f32 =
+                            Self::close_in_step_distance(ctx, entity, *speed, self.movement_units_per_sec);
 
                         if let Some(entity) =
                             ctx.map.entities.iter().find(|entity| entity.id == *target)
@@ -3703,14 +3860,18 @@ impl RegionInstance {
                                                 .collision_world
                                                 .move_distance(start_3d, step_3d, radius);
                                             let end_2d = vek::Vec2::new(end_3d.x, end_3d.z);
-                                            let arrived =
-                                                (coord - end_2d).magnitude() <= *target_radius;
+                                            let arrived = self.close_in_arrived(
+                                                ctx,
+                                                end_2d,
+                                                coord,
+                                                *target_radius,
+                                            );
                                             (end_3d, arrived)
                                         }
                                     });
                                 (Vec2::new(p.x, p.z), p.y, arrived)
                             } else {
-                                let (p, arrived) = ctx.mapmini.close_in(
+                                let (p, _arrived) = ctx.mapmini.close_in(
                                     position,
                                     coord,
                                     *target_radius,
@@ -3718,11 +3879,14 @@ impl RegionInstance {
                                     radius,
                                     1.0,
                                 );
+                                let arrived =
+                                    self.close_in_arrived(ctx, p, coord, *target_radius);
                                 (p, entity.position.y, arrived)
                             };
 
                             let move_delta = new_position - position;
-                            if move_delta.magnitude_squared() > 1e-6 {
+                            let moved_this_turn = move_delta.magnitude_squared() > 1e-6;
+                            if moved_this_turn {
                                 entity.set_orientation(move_delta.normalized());
                             }
                             entity.set_pos_xz(new_position);
@@ -3732,16 +3896,169 @@ impl RegionInstance {
 
                                 // Send closed in event
                                 if let Some(_class_name) = ctx.entity_classes.get(&entity.id) {
-                                    ctx.to_execute_entity.push((
-                                        entity.id,
-                                        "closed_in".into(),
-                                        VMValue::broadcast(target_id as f32),
-                                    ));
+                                    if moved_this_turn
+                                        && !matches!(
+                                            ctx.simulation_mode,
+                                            crate::server::regionctx::SimulationMode::Realtime
+                                        )
+                                    {
+                                        entity.set_attribute("target", Value::UInt(target_id));
+                                        ctx.notifications_entities.push((
+                                            entity.id,
+                                            ctx.ticks + 1,
+                                            "closed_in".into(),
+                                        ));
+                                    } else {
+                                        ctx.to_execute_entity.push((
+                                            entity.id,
+                                            "closed_in".into(),
+                                            VMValue::broadcast(target_id as f32),
+                                        ));
+                                    }
                                 }
                             }
 
                             ctx.check_player_for_section_change(entity);
                         }
+                    });
+                }
+                EntityAction::FollowAttack(target, speed, next_attack_tick) => {
+                    let position = entity.get_pos_xz();
+                    let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
+                    let attacker_id = entity.id;
+                    let target_id = *target;
+
+                    with_regionctx(self.id, |ctx| {
+                        let Some(target_entity) = ctx
+                            .map
+                            .entities
+                            .iter()
+                            .find(|candidate| {
+                                candidate.id == target_id
+                                    && candidate.get_mode() != "dead"
+                                    && candidate.attributes.get_bool_default("visible", true)
+                            })
+                            .cloned()
+                        else {
+                            Self::end_follow_attack(ctx, entity, "lost");
+                            return;
+                        };
+
+                        let target_pos = target_entity.get_pos_xz();
+                        let leash_distance = ctx
+                            .entity_proximity_alerts
+                            .get(&attacker_id)
+                            .copied()
+                            .unwrap_or(5.0)
+                            .max(1.5)
+                            + 1.0;
+
+                        if (target_pos - position).magnitude() > leash_distance {
+                            Self::end_follow_attack(ctx, entity, "too_far");
+                            return;
+                        }
+
+                        entity.set_attribute("target", Value::UInt(target_id));
+                        entity.set_attribute("attack_target", Value::UInt(target_id));
+
+                        if self.close_in_arrived(ctx, position, target_pos, 1.0) {
+                            if ctx.ticks >= *next_attack_tick {
+                                queue_entity_attack_damage(ctx, attacker_id, target_id);
+
+                                let attack_time = entity
+                                    .attributes
+                                    .get_float_default("avatar_attack_time", 0.35)
+                                    .max(0.05);
+                                entity.set_attribute(
+                                    "avatar_attack_left",
+                                    Value::Float(attack_time),
+                                );
+
+                                let next_tick =
+                                    ctx.ticks + Self::follow_attack_cooldown_ticks(ctx, entity);
+                                entity.action =
+                                    EntityAction::FollowAttack(target_id, *speed, next_tick);
+                            } else {
+                                entity.action =
+                                    EntityAction::FollowAttack(target_id, *speed, *next_attack_tick);
+                            }
+                            return;
+                        }
+
+                        let non_realtime_grid = !matches!(
+                            ctx.simulation_mode,
+                            crate::server::regionctx::SimulationMode::Realtime
+                        ) && self.collision_mode != CollisionMode::Mesh;
+
+                        let step_speed = if non_realtime_grid {
+                            let speed_per_turn = (*speed).max(0.0);
+                            let mut budget = entity
+                                .attributes
+                                .get_float_default("__follow_attack_budget", 0.0)
+                                .max(0.0);
+                            budget += speed_per_turn;
+                            if budget + 1e-6 < 1.0 {
+                                entity.set_attribute("__follow_attack_budget", Value::Float(budget));
+                                entity.action =
+                                    EntityAction::FollowAttack(target_id, *speed, *next_attack_tick);
+                                return;
+                            }
+                            budget = (budget - 1.0).max(0.0);
+                            entity.set_attribute("__follow_attack_budget", Value::Float(budget));
+                            1.0
+                        } else {
+                            Self::close_in_step_distance(
+                                ctx,
+                                entity,
+                                *speed,
+                                self.movement_units_per_sec,
+                            )
+                        };
+
+                        let use_3d_nav = self.collision_mode == CollisionMode::Mesh
+                            && ctx.collision_world.has_collision_data();
+                        let (new_position, new_y) = if use_3d_nav {
+                            let (p, _) = ctx
+                                .collision_world
+                                .close_in_on_floors(
+                                    position,
+                                    target_pos,
+                                    1.0,
+                                    step_speed,
+                                    radius,
+                                    1.0,
+                                    entity.position.y,
+                                )
+                                .unwrap_or_else(|| {
+                                    let to_target = target_pos - position;
+                                    let dist = to_target.magnitude();
+                                    if dist <= f32::EPSILON {
+                                        (Vec3::new(position.x, entity.position.y, position.y), false)
+                                    } else {
+                                        let step = to_target.normalized() * step_speed.min(dist);
+                                        let start_3d =
+                                            vek::Vec3::new(position.x, entity.position.y, position.y);
+                                        let step_3d = vek::Vec3::new(step.x, 0.0, step.y);
+                                        ctx.collision_world.move_distance(start_3d, step_3d, radius)
+                                    }
+                                });
+                            (Vec2::new(p.x, p.z), p.y)
+                        } else {
+                            let (p, _) = ctx
+                                .mapmini
+                                .close_in(position, target_pos, 1.0, step_speed, radius, 1.0);
+                            (p, entity.position.y)
+                        };
+
+                        let move_delta = new_position - position;
+                        if move_delta.magnitude_squared() > 1e-6 {
+                            entity.set_orientation(move_delta.normalized());
+                        }
+                        entity.set_pos_xz(new_position);
+                        entity.position.y = new_y;
+                        entity.action = EntityAction::FollowAttack(target_id, *speed, *next_attack_tick);
+
+                        ctx.check_player_for_section_change(entity);
                     });
                 }
                 EntityAction::Goto(coord, speed) => {
@@ -4293,7 +4610,7 @@ impl RegionInstance {
                                 let sleep_minutes =
                                     rng.random_range(min_sleep..=max_sleep_guard) as u32;
                                 let wake_tick =
-                                    ctx.ticks + (sleep_minutes as i64 * ctx.ticks_per_minute as i64);
+                                    ctx.ticks + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
                                 entity.action = SleepAndSwitch(
                                     wake_tick,
                                     Box::new(RandomWalk(
@@ -4524,8 +4841,8 @@ impl RegionInstance {
                                     let max_sleep_guard = max_sleep.max(1);
                                     let sleep_minutes =
                                         rng.random_range(min_sleep..=max_sleep_guard) as u32;
-                                    let wake_tick = ctx.ticks
-                                        + (sleep_minutes as i64 * ctx.ticks_per_minute as i64);
+                                    let wake_tick =
+                                        ctx.ticks + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
                                     entity.action = SleepAndSwitch(
                                         wake_tick,
                                         Box::new(RandomWalk(
@@ -4801,8 +5118,8 @@ impl RegionInstance {
                                     let max_sleep_guard = max_sleep.max(1);
                                     let sleep_minutes =
                                         rng.random_range(min_sleep..=max_sleep_guard) as u32;
-                                    let wake_tick = ctx.ticks
-                                        + (sleep_minutes as i64 * ctx.ticks_per_minute as i64);
+                                    let wake_tick =
+                                        ctx.ticks + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
                                     entity.action = SleepAndSwitch(
                                         wake_tick,
                                         Box::new(RandomWalkInSector(
@@ -4818,8 +5135,8 @@ impl RegionInstance {
                                     let max_sleep_guard = max_sleep.max(1);
                                     let sleep_minutes =
                                         rng.random_range(min_sleep..=max_sleep_guard) as u32;
-                                    let wake_tick = ctx.ticks
-                                        + (sleep_minutes as i64 * ctx.ticks_per_minute as i64);
+                                    let wake_tick =
+                                        ctx.ticks + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
                                     entity.action = SleepAndSwitch(
                                         wake_tick,
                                         Box::new(RandomWalkInSector(
@@ -4943,7 +5260,7 @@ impl RegionInstance {
                             entity.position.y = new_y;
                             if arrived {
                                 let wait_ticks =
-                                    (*route_wait * ctx.ticks_per_minute as f32).max(0.0) as i64;
+                                    Self::scheduled_delay_ticks(ctx, *route_wait);
                                 wait_until = ctx.ticks + wait_ticks;
                                 if len > 1 {
                                     let pingpong = route_mode.eq_ignore_ascii_case("pingpong");
@@ -5312,7 +5629,7 @@ impl RegionInstance {
     /// Create a sleep action which switches back to the previous action.
     fn create_sleep_switch_action(&self, minutes: u32, switchback: EntityAction) -> EntityAction {
         with_regionctx(self.id, |ctx| {
-            let tick = ctx.ticks + (minutes as i64 * ctx.ticks_per_minute as i64) as i64;
+            let tick = ctx.ticks + Self::scheduled_delay_ticks(ctx, minutes as f32);
             SleepAndSwitch(tick, Box::new(switchback))
         })
         .unwrap()
@@ -6217,7 +6534,7 @@ pub fn block_events(args: rustpython_vm::function::FuncArgs, vm: &VirtualMachine
             }
         }
 
-        let target_tick = Value::Int64(ctx.ticks + (ctx.ticks_per_minute as f32 * minutes) as i64);
+        let target_tick = Value::Int64(ctx.ticks + Self::scheduled_delay_ticks(ctx, minutes));
 
         if let Some(item_id) = ctx.curr_item_id {
             let state_data = &mut ctx.item_state_data;
@@ -7133,7 +7450,7 @@ fn queue_intent_cooldown(
     if intent.is_empty() {
         return;
     }
-    let target_tick = ctx.ticks + (ctx.ticks_per_minute as f32 * minutes) as i64;
+    let target_tick = ctx.ticks + RegionInstance::scheduled_delay_ticks(ctx, minutes);
     let state = ctx.entity_state_data.entry(entity_id).or_default();
     state.set(
         &format!("__pending_intent_cooldown:{}", intent),
@@ -8136,6 +8453,135 @@ pub(crate) fn progression_stat_value(ctx: &RegionCtx, entity_id: u32, stat: &str
 
 fn item_numeric_attr(item: &Item, attr: &str) -> f32 {
     item.attributes.get_float_default(attr, 0.0)
+}
+
+fn configured_weapon_slots(ctx: &RegionCtx) -> Vec<String> {
+    ctx.config
+        .get("game")
+        .and_then(toml::Value::as_table)
+        .and_then(|game| game.get("weapon_slots"))
+        .and_then(toml::Value::as_array)
+        .map(|slots| {
+            slots
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(|slot| slot.trim().to_ascii_lowercase())
+                .filter(|slot| !slot.is_empty())
+                .collect()
+        })
+        .unwrap_or_else(|| vec!["main_hand".into(), "off_hand".into()])
+}
+
+fn current_attack_source_item_id_for_entity(ctx: &RegionCtx, entity_id: u32) -> Option<u32> {
+    let entity = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)?;
+
+    let configured_slots = configured_weapon_slots(ctx);
+    for slot in &configured_slots {
+        if let Some((_, item)) = entity
+            .equipped
+            .iter()
+            .find(|(equipped_slot, _)| equipped_slot.trim().eq_ignore_ascii_case(slot))
+        {
+            return Some(item.id);
+        }
+    }
+
+    entity
+        .equipped
+        .iter()
+        .find(|(slot, _)| {
+            matches!(
+                slot.trim().to_ascii_lowercase().as_str(),
+                "main_hand"
+                    | "mainhand"
+                    | "weapon"
+                    | "hand_main"
+                    | "off_hand"
+                    | "offhand"
+                    | "hand_off"
+            )
+        })
+        .map(|(_, item)| item.id)
+}
+
+fn current_attack_base_damage_for_entity(ctx: &RegionCtx, entity_id: u32) -> i32 {
+    progression_stat_value(ctx, entity_id, "damage")
+        .or_else(|| {
+            ctx.map
+                .entities
+                .iter()
+                .find(|entity| entity.id == entity_id)
+                .map(|entity| entity.attributes.get_float_default("DMG", 1.0))
+        })
+        .unwrap_or(1.0)
+        .round()
+        .max(0.0) as i32
+}
+
+fn current_attack_kind_for_entity(
+    ctx: &RegionCtx,
+    entity_id: u32,
+    source_item_id: Option<u32>,
+) -> String {
+    let attacker = ctx.map.entities.iter().find(|entity| entity.id == entity_id);
+
+    if let Some(kind) = source_item_id
+        .and_then(|item_id| attacker.and_then(|entity| entity.get_item(item_id)))
+        .and_then(|item| item.attributes.get_str("damage_kind"))
+        .map(str::trim)
+        .filter(|kind| !kind.is_empty())
+    {
+        return kind.to_string();
+    }
+
+    "physical".to_string()
+}
+
+fn queue_entity_attack_damage(ctx: &mut RegionCtx, attacker_id: u32, target_id: u32) {
+    let source_item_id = current_attack_source_item_id_for_entity(ctx, attacker_id);
+    let kind = current_attack_kind_for_entity(ctx, attacker_id, source_item_id);
+    let base_dmg = current_attack_base_damage_for_entity(ctx, attacker_id);
+    let dmg = apply_damage_rules(
+        ctx,
+        target_id,
+        attacker_id,
+        base_dmg,
+        &kind,
+        source_item_id.unwrap_or(0),
+    );
+
+    if dmg > 0
+        && let Some(attacker) = ctx.map.entities.iter_mut().find(|e| e.id == attacker_id)
+    {
+        let attack_time = attacker
+            .attributes
+            .get_float_default("avatar_attack_time", 0.35)
+            .max(0.05);
+        attacker.set_attribute("avatar_attack_left", Value::Float(attack_time));
+    }
+
+    let autodamage = ctx
+        .map
+        .entities
+        .iter()
+        .find(|e| e.id == target_id)
+        .map(|e| e.attributes.get_bool_default("autodamage", false))
+        .unwrap_or(false);
+
+    if autodamage {
+        _ = apply_damage_direct(ctx, target_id, attacker_id, dmg, &kind, source_item_id);
+    } else {
+        let source_item_id = source_item_id.unwrap_or(0) as f32;
+        ctx.to_execute_entity.push((
+            target_id,
+            "take_damage".into(),
+            VMValue::new_with_string(attacker_id as f32, dmg as f32, source_item_id, &kind),
+        ));
+    }
 }
 
 fn entity_numeric_attr(ctx: &RegionCtx, entity: &Entity, attr: &str) -> f32 {
@@ -10052,7 +10498,7 @@ fn equip(item_id: u32, vm: &VirtualMachine) {
 /// Notify the entity / item in the given amount of minutes.
 fn notify_in(minutes: i32, notification: String, vm: &VirtualMachine) {
     with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
-        let tick = ctx.ticks + (minutes as u32 * ctx.ticks_per_minute) as i64;
+        let tick = ctx.ticks + RegionInstance::scheduled_delay_ticks(ctx, minutes as f32);
         if let Some(item_id) = ctx.curr_item_id {
             ctx.notifications_items.push((item_id, tick, notification));
         } else {
@@ -10212,6 +10658,23 @@ fn close_in(target: u32, target_radius: f32, speed: f32, vm: &VirtualMachine) {
         let entity_id = ctx.curr_entity_id;
         if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
             entity.action = CloseIn(target, target_radius, speed);
+        }
+    });
+}
+
+fn follow_attack(target: u32, speed: f32, vm: &VirtualMachine) {
+    with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
+        let entity_id = ctx.curr_entity_id;
+        if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+            let next_attack_tick = match entity.action {
+                EntityAction::FollowAttack(existing_target, _, next_tick) if existing_target == target => {
+                    next_tick
+                }
+                _ => 0,
+            };
+            entity.set_attribute("target", Value::UInt(target));
+            entity.set_attribute("attack_target", Value::UInt(target));
+            entity.action = EntityAction::FollowAttack(target, speed, next_attack_tick);
         }
     });
 }

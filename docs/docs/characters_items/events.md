@@ -73,6 +73,33 @@ Events are categorized as:
 
 ---
 
+### `engagement_over`
+
+- **Value**: reason *(string)*
+- **Description**: Triggered when an engine-owned [follow_attack](server_commands#follow_attack) engagement ends.
+
+Current reasons:
+
+- `lost`
+- `too_far`
+
+This currently happens when the target:
+
+- no longer exists
+- is no longer a valid living/visible target
+- moves beyond the current chase leash
+
+The chase leash is currently:
+
+- `max(proximity_tracking_distance, 1.5) + 1.0`
+- fallback if no proximity tracking was set: `max(5.0, 1.5) + 1.0 = 6.0`
+
+So in practice, if you call `set_proximity_tracking(true, 4)`, `follow_attack` will currently break when the target gets beyond `5.0`.
+
+This event is useful for clearing target state and returning an NPC to idle behavior such as `random_walk_in_sector(...)` or `goto(...)`.
+
+---
+
 ### `intent`
 
 - **Value**: `dict`  

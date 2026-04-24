@@ -101,6 +101,16 @@ pub struct Entity {
 
     /// Wallet
     pub wallet: Wallet,
+
+    /// Client-side interpolation target for presentation smoothing.
+    #[serde(skip)]
+    pub interp_target_position: Option<Vec3<f32>>,
+    /// Remaining interpolation time in seconds.
+    #[serde(skip)]
+    pub interp_remaining: f32,
+    /// Total interpolation duration in seconds.
+    #[serde(skip)]
+    pub interp_duration: f32,
 }
 
 impl Default for Entity {
@@ -138,6 +148,10 @@ impl Entity {
             equipped: IndexMap::default(),
 
             wallet: Wallet::default(),
+
+            interp_target_position: None,
+            interp_remaining: 0.0,
+            interp_duration: 0.0,
         }
     }
 
@@ -632,6 +646,54 @@ impl Entity {
         }
 
         rc
+    }
+
+    pub fn begin_position_interpolation(
+        &mut self,
+        from: Vec3<f32>,
+        to: Vec3<f32>,
+        duration_secs: f32,
+    ) {
+        let duration_secs = duration_secs.max(0.0);
+        if duration_secs <= 0.0 || (to - from).magnitude_squared() <= 1e-8 {
+            self.position = to;
+            self.interp_target_position = None;
+            self.interp_remaining = 0.0;
+            self.interp_duration = 0.0;
+            return;
+        }
+
+        self.position = from;
+        self.interp_target_position = Some(to);
+        self.interp_remaining = duration_secs;
+        self.interp_duration = duration_secs;
+    }
+
+    pub fn advance_position_interpolation(&mut self, dt: f32) {
+        let Some(target) = self.interp_target_position else {
+            return;
+        };
+
+        let dt = dt.max(0.0);
+        if self.interp_duration <= 0.0 || self.interp_remaining <= 0.0 {
+            self.position = target;
+            self.interp_target_position = None;
+            self.interp_remaining = 0.0;
+            self.interp_duration = 0.0;
+            return;
+        }
+
+        let from = self.position;
+        let step = (dt / self.interp_remaining.max(f32::EPSILON)).clamp(0.0, 1.0);
+        self.position = from + (target - from) * step;
+        self.interp_remaining = (self.interp_remaining - dt).max(0.0);
+
+        if self.interp_remaining <= 0.0 || (target - self.position).magnitude_squared() <= 1e-8 {
+            self.position = target;
+            self.interp_target_position = None;
+            self.interp_remaining = 0.0;
+            self.interp_duration = 0.0;
+        }
     }
 
     /// Sets the orientation to face east.

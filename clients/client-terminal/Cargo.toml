@@ -14,8 +14,8 @@ name = "eldiron-client-terminal"
 path = "src/main.rs"
 
 [dependencies]
-rusterix = { path = "../../crates/rusterix", version = "0.9.6", default-features = false }
-shared = { path = "../../crates/shared", version = "0.9.6", package = "eldiron-shared", default-features = false }
+rusterix = { path = "../../crates/rusterix", version = "0.9.7", default-features = false }
+shared = { path = "../../crates/shared", version = "0.9.7", package = "eldiron-shared", default-features = false }
 rustyline = "15.0"
 serde_json = "1.0"
 toml = "0.9.5"

@@ -236,6 +236,41 @@ This is intentionally explicit. The engine does not automatically decide whether
 
 For shop-style `offer_inventory()` interactions, the runtime now also sends `goodbye` automatically when the buyer moves too far away or the seller's `timeout` window expires.
 
+For basic melee enemies, prefer [follow_attack](server_commands#follow_attack) over custom `close_in` + `closed_in` + `notify_in` combat loops.
+
+Example:
+
+```eldrin
+fn event(event, value) {
+    if event == "startup" {
+        random_walk_in_sector(1.0, 1.0, 4);
+        set_proximity_tracking(true, 4);
+    }
+
+    if event == "proximity_warning" {
+        let alignment = get_attr_of(value, "ALIGNMENT");
+        if alignment > 0 {
+            if target() == "" {
+                set_target(value);
+            }
+            follow_attack(value, 1.0);
+        }
+    }
+
+    if event == "engagement_over" {
+        clear_target();
+        random_walk_in_sector(1.0, 1.0, 4);
+    }
+}
+```
+
+This keeps combat rule-based:
+
+- chase behavior is owned by the engine
+- melee legality stays consistent
+- turn-based / hybrid modes keep grid alignment
+- slower chase speeds below `1.0` skip turns instead of taking fractional off-grid steps
+
 ---
 
 ## Timeout Convention

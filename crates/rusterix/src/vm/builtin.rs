@@ -501,6 +501,14 @@ impl Default for Builtins {
             },
         );
         b.insert(
+            "follow_attack",
+            2,
+            NodeOp::HostCall {
+                name: "follow_attack".into(),
+                argc: 2,
+            },
+        );
+        b.insert(
             "id",
             0,
             NodeOp::HostCall {

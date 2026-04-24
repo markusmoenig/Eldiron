@@ -2,6 +2,7 @@ use crate::server::message::{AudioCommand, RegionMessage};
 use crate::server::region::{
     add_debug_value, apply_damage_direct, apply_damage_rules, apply_spell_default_attrs,
     grant_experience, is_spell_on_cooldown, progression_stat_value, set_spell_cooldown,
+    RegionInstance,
 };
 use crate::server::regionctx::ChoiceSession;
 use crate::vm::*;
@@ -1337,8 +1338,8 @@ impl<'a> HostHandler for RegionHost<'a> {
                     (args.get(0), args.get(1).and_then(|v| v.as_string()))
                 {
                     let minutes = mins.x as i32;
-                    let target_tick =
-                        self.ctx.ticks + (self.ctx.ticks_per_minute as i32 * minutes) as i64;
+                    let target_tick = self.ctx.ticks
+                        + RegionInstance::scheduled_delay_ticks(&self.ctx, minutes as f32);
                     if let Some(item_id) = self.ctx.curr_item_id {
                         self.ctx.notifications_items.push((
                             item_id,
@@ -2324,6 +2325,24 @@ impl<'a> HostHandler for RegionHost<'a> {
                     if let Some(entity) = self.ctx.get_current_entity_mut() {
                         entity.action = EntityAction::CloseIn(target.x as u32, radius.x, speed.x);
                     }
+                }
+            }
+            "follow_attack" => {
+                if let (Some(target), Some(speed)) = (args.get(0), args.get(1))
+                    && let Some(entity) = self.ctx.get_current_entity_mut()
+                {
+                    let target_id = target.x.max(0.0) as u32;
+                    let next_attack_tick = match entity.action {
+                        EntityAction::FollowAttack(existing_target, _, next_tick)
+                            if existing_target == target_id =>
+                        {
+                            next_tick
+                        }
+                        _ => 0,
+                    };
+                    entity.set_attribute("target", Value::UInt(target_id));
+                    entity.set_attribute("attack_target", Value::UInt(target_id));
+                    entity.action = EntityAction::FollowAttack(target_id, speed.x, next_attack_tick);
                 }
             }
             "debug" => {

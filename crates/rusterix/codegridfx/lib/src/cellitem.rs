@@ -1063,6 +1063,30 @@ impl CellItem {
                 self.form = CellItemForm::LeftRounded;
                 grid.insert(pos, self)
             }
+            Cell::FollowAttack => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("0".into()),
+                        self.id,
+                        true,
+                        "Target ID",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("1.0".into()),
+                        self.id,
+                        true,
+                        "Speed",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
             Cell::DealDamage => {
                 grid.insert(
                     (pos.0 + 1, pos.1),

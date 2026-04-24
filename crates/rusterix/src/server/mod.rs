@@ -10,7 +10,9 @@ pub mod region_host;
 pub mod regionctx;
 
 use crossbeam_channel::{Receiver, Sender};
+use instant::Instant;
 use rayon::prelude::*;
+use toml::Table;
 
 use crate::Command;
 use crate::EntityAction;
@@ -72,6 +74,7 @@ pub struct Server {
     pub print_log_messages: bool,
 
     pub instances: Vec<Arc<Mutex<RegionInstance>>>,
+    last_visual_update_at: Instant,
 }
 
 impl Default for Server {
@@ -110,6 +113,7 @@ impl Server {
             print_log_messages: true,
 
             instances: vec![],
+            last_visual_update_at: Instant::now(),
         }
     }
 
@@ -314,6 +318,12 @@ impl Server {
     pub fn update(&mut self, assets: &mut Assets) -> Option<String> {
         let mut rc: Option<String> = None;
         self.debug.clear_execution();
+        let now = Instant::now();
+        let visual_dt = now
+            .saturating_duration_since(self.last_visual_update_at)
+            .as_secs_f32()
+            .clamp(0.0, 0.1);
+        self.last_visual_update_at = now;
 
         for receiver in &self.from_region {
             while let Ok(message) = receiver.try_recv() {
@@ -548,7 +558,31 @@ impl Server {
             }
         }
 
+        for entities in self.entities.values_mut() {
+            for entity in entities.iter_mut() {
+                entity.advance_position_interpolation(visual_dt);
+            }
+        }
+
         rc
+    }
+
+    fn client_entity_interp_duration(assets: &Assets) -> f32 {
+        let Ok(config) = assets.config.parse::<Table>() else {
+            return 0.0;
+        };
+        let game = config.get("game").and_then(|v| v.as_table());
+        let simulation_mode = game
+            .and_then(|table| table.get("simulation_mode"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("realtime");
+        if simulation_mode.eq_ignore_ascii_case("realtime") {
+            return 0.0;
+        }
+        game.and_then(|table| table.get("game_tick_ms"))
+            .and_then(|value| value.as_integer())
+            .map(|ms| (ms.max(1) as f32) / 1000.0)
+            .unwrap_or(0.25)
     }
 
     /// Update existing entities (or create new ones if they do not exist).
@@ -557,6 +591,7 @@ impl Server {
         updates: Vec<EntityUpdate>,
         assets: &mut Assets,
     ) {
+        let interp_duration = Self::client_entity_interp_duration(assets);
         // Create a mapping from entity ID to index for efficient lookup
         let mut entity_map: FxHashMap<u32, usize> = entities
             .iter()
@@ -566,9 +601,20 @@ impl Server {
 
         for update in updates {
             if let Some(&index) = entity_map.get(&update.id) {
+                let previous_position = entities[index].position;
+                let new_position = update.position;
+                let should_interpolate =
+                    interp_duration > 0.0 && new_position.is_some() && !entities[index].is_player();
                 // Entity exists, apply the update
                 if entities[index].apply_update(update) {
                     assets.entity_tiles.remove(&entities[index].id);
+                }
+                if should_interpolate && let Some(target_position) = new_position {
+                    entities[index].begin_position_interpolation(
+                        previous_position,
+                        target_position,
+                        interp_duration,
+                    );
                 }
             } else {
                 // Entity does not exist, create a new one

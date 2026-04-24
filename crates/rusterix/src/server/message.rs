@@ -187,6 +187,8 @@ pub enum EntityAction {
     RotateTo(Vec2<f32>),
     /// CloseIn: Move within a radius of a target entity with a given speed
     CloseIn(u32, f32, f32),
+    /// Follow and attack a target using engine-owned melee rules.
+    FollowAttack(u32, f32, i64),
     /// Set how player input is mapped to movement
     SetPlayerCamera(PlayerCamera),
     /// Move an item (inventory/equipped drag & drop).
