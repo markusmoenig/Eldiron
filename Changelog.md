@@ -12,6 +12,7 @@
 
 - Added the `ensure_active` NPC sequence step so scripted routes can enforce stateful interactions such as opening a door only if needed and closing it again afterward.
 - Added `hold_speed` for grid-based held movement, so characters can use a fast first-tile `speed` while keeping sustained held movement smooth and continuous.
+- Added configurable `[game]` simulation pacing with `simulation_mode = "realtime" | "turn_based" | "hybrid"` and `turn_timeout_ms`, so projects can choose between continuous simulation, fully player-driven turns, or Ultima-style idle turn stepping.
 
 ### Documentation
 

@@ -26,6 +26,8 @@ Game configuration options are located in the `[game]` section.
 [game]
 target_fps = 30                # The target frames per second for the game.
 game_tick_ms = 250             # The milliseconds per game tick.
+simulation_mode = "realtime"   # Gameplay pacing: "realtime", "turn_based", or "hybrid".
+turn_timeout_ms = 600          # In hybrid mode, advance one gameplay step after this idle timeout.
 ticks_per_minute = 4           # The amount of ticks per in-game minute.
 movement_units_per_sec = 4     # Base movement speed in world units per second.
 turn_speed_deg_per_sec = 120   # First-person turn speed in degrees per second.
@@ -75,6 +77,21 @@ avatar_skin_auto_shading = false
   - Sets the **milliseconds per game tick**, which is **Eldiron’s internal clock**.
   - Events, actions, and player interactions are processed **each tick**.
   - Default: `250 ms`, meaning **4 ticks per second** (suitable for most games).
+  - In `turn_based` and `hybrid` simulation modes, this also defines the size of one discrete gameplay step.
+
+- **`simulation_mode`**
+  - Controls how gameplay simulation advances.
+  - `"realtime"` → Current Eldiron behavior. Gameplay advances continuously with wall-clock time.
+  - `"turn_based"` → Gameplay advances only when the player commits an action.
+  - `"hybrid"` → Gameplay advances when the player commits an action, or automatically after `turn_timeout_ms` of inactivity.
+  - Rendering and UI stay realtime in all modes; this setting gates gameplay progression, not screen refresh.
+  - Default: `"realtime"`.
+
+- **`turn_timeout_ms`**
+  - Idle timeout used by `simulation_mode = "hybrid"`.
+  - When the player does nothing for this long, Eldiron advances one discrete gameplay step automatically.
+  - Ignored in `realtime` and `turn_based`.
+  - Default: `600`.
 
 - **`ticks_per_minute`**
   - Defines the **number of ticks per in-game minute**.

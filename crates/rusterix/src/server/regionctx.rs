@@ -16,6 +16,24 @@ pub enum ScriptScope {
     World,
 }
 
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SimulationMode {
+    #[default]
+    Realtime,
+    TurnBased,
+    Hybrid,
+}
+
+impl SimulationMode {
+    pub fn from_config_value(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "turn_based" | "turnbased" => Self::TurnBased,
+            "hybrid" => Self::Hybrid,
+            _ => Self::Realtime,
+        }
+    }
+}
+
 static WORLD_STATE: LazyLock<RwLock<ValueContainer>> =
     LazyLock::new(|| RwLock::new(ValueContainer::default()));
 
@@ -76,6 +94,8 @@ pub struct RegionCtx {
     pub startup_errors: Vec<String>,
 
     pub delta_time: f32,
+    pub simulation_mode: SimulationMode,
+    pub turn_timeout_ms: u32,
     pub config: Table,
     pub rules: Table,
     pub assets: Assets,

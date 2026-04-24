@@ -6,7 +6,7 @@ use crate::{
     RegionCtx, Value, ValueContainer,
 };
 use crossbeam_channel::{Receiver, Sender, unbounded};
-use instant::Instant;
+use instant::{Duration, Instant};
 use pathfinding::prelude::astar;
 use rand::*;
 use rand::seq::SliceRandom;
@@ -242,6 +242,10 @@ pub struct RegionInstance {
     entity_block_mode: i32,
     collision_mode: CollisionMode,
     last_redraw_at: Instant,
+    last_simulation_advance_at: Instant,
+    simulation_step_pending: bool,
+    pending_system_steps: u32,
+    pending_redraw_steps: u32,
     movement_units_per_sec: f32,
 }
 
@@ -682,6 +686,122 @@ impl RegionInstance {
 
     fn grid_press_speed(entity: &Entity) -> f32 {
         entity.attributes.get_float_default("speed", 1.0).max(0.01)
+    }
+
+    fn note_simulation_step_request(&mut self) {
+        self.simulation_step_pending = true;
+    }
+
+    fn non_realtime_turn_dt(ctx: &RegionCtx) -> f32 {
+        get_config_i32_default(ctx, "game", "game_tick_ms", 250).max(1) as f32 / 1000.0
+    }
+
+    fn autonomous_action_dt(ctx: &RegionCtx, entity: &Entity) -> f32 {
+        if matches!(
+            ctx.simulation_mode,
+            crate::server::regionctx::SimulationMode::Realtime
+        ) || entity.is_player()
+        {
+            ctx.delta_time
+        } else {
+            Self::non_realtime_turn_dt(ctx)
+        }
+    }
+
+    fn queue_simulation_step(&mut self) {
+        self.pending_system_steps = self.pending_system_steps.saturating_add(1);
+        self.pending_redraw_steps = self.pending_redraw_steps.saturating_add(1);
+        self.last_simulation_advance_at = Instant::now();
+    }
+
+    fn grant_simulation_steps_if_due(&mut self, ctx: &RegionCtx) {
+        match ctx.simulation_mode {
+            crate::server::regionctx::SimulationMode::Realtime => {}
+            crate::server::regionctx::SimulationMode::TurnBased => {
+                if self.simulation_step_pending {
+                    self.simulation_step_pending = false;
+                    self.queue_simulation_step();
+                }
+            }
+            crate::server::regionctx::SimulationMode::Hybrid => {
+                let timeout_elapsed = self.last_simulation_advance_at.elapsed()
+                    >= Duration::from_millis(ctx.turn_timeout_ms.max(1) as u64);
+                if self.simulation_step_pending || timeout_elapsed {
+                    self.simulation_step_pending = false;
+                    self.queue_simulation_step();
+                }
+            }
+        }
+    }
+
+    fn consume_system_step_if_allowed(&mut self, ctx: &RegionCtx) -> bool {
+        match ctx.simulation_mode {
+            crate::server::regionctx::SimulationMode::Realtime => true,
+            crate::server::regionctx::SimulationMode::TurnBased
+            | crate::server::regionctx::SimulationMode::Hybrid => {
+                self.grant_simulation_steps_if_due(ctx);
+                if self.pending_system_steps == 0 {
+                    return false;
+                }
+                self.pending_system_steps -= 1;
+                true
+            }
+        }
+    }
+
+    fn action_requests_simulation_step(action: &EntityAction) -> bool {
+        !matches!(action, EntityAction::Off | EntityAction::Intent(_))
+    }
+
+    fn has_active_continuous_motion(ctx: &RegionCtx) -> bool {
+        ctx.map.entities.iter().any(|entity| {
+            matches!(
+                entity.action,
+                EntityAction::StepTo(_, _, _, _, _) | EntityAction::RotateTo(_)
+            )
+        })
+    }
+
+    fn entity_has_active_continuous_motion(entity: &Entity) -> bool {
+        matches!(
+            entity.action,
+            EntityAction::StepTo(_, _, _, _, _) | EntityAction::RotateTo(_)
+        )
+    }
+
+    fn simulation_dt_for_frame(&mut self, ctx: &RegionCtx, redraw_dt: f32) -> f32 {
+        match ctx.simulation_mode {
+            crate::server::regionctx::SimulationMode::Realtime => {
+                self.last_simulation_advance_at = Instant::now();
+                redraw_dt
+            }
+            crate::server::regionctx::SimulationMode::TurnBased => {
+                self.grant_simulation_steps_if_due(ctx);
+                if self.pending_redraw_steps == 0 {
+                    if Self::has_active_continuous_motion(ctx) {
+                        redraw_dt
+                    } else {
+                        0.0
+                    }
+                } else {
+                    self.pending_redraw_steps -= 1;
+                    redraw_dt
+                }
+            }
+            crate::server::regionctx::SimulationMode::Hybrid => {
+                self.grant_simulation_steps_if_due(ctx);
+                if self.pending_redraw_steps == 0 {
+                    if Self::has_active_continuous_motion(ctx) {
+                        redraw_dt
+                    } else {
+                        0.0
+                    }
+                } else {
+                    self.pending_redraw_steps -= 1;
+                    redraw_dt
+                }
+            }
+        }
     }
 
     fn grid_hold_speed(entity: &Entity) -> f32 {
@@ -1362,6 +1482,10 @@ impl RegionInstance {
             entity_block_mode: 0,
             collision_mode: CollisionMode::Tile,
             last_redraw_at: Instant::now(),
+            last_simulation_advance_at: Instant::now(),
+            simulation_step_pending: false,
+            pending_system_steps: 0,
+            pending_redraw_steps: 0,
             movement_units_per_sec: 4.0,
         }
     }
@@ -1731,6 +1855,11 @@ impl RegionInstance {
 
         ctx.ticks_per_minute = 4;
         ctx.ticks_per_minute = get_config_i32_default(&ctx, "game", "ticks_per_minute", 4) as u32;
+        ctx.simulation_mode = crate::server::regionctx::SimulationMode::from_config_value(
+            &get_config_string_default(&ctx, "game", "simulation_mode", "realtime"),
+        );
+        ctx.turn_timeout_ms = get_config_i32_default(&ctx, "game", "turn_timeout_ms", 600)
+            .max(0) as u32;
 
         let target_fps = get_config_i32_default(&ctx, "game", "target_fps", 30).max(1) as f32;
         ctx.delta_time = 1.0 / target_fps;
@@ -1977,9 +2106,15 @@ impl RegionInstance {
     /// System tick
     pub fn system_tick(&mut self) {
         let mut ticks = 0;
+        let mut should_advance = true;
 
         with_regionctx(self.id, |ctx| {
             if ctx.paused {
+                should_advance = false;
+                return;
+            }
+            if !self.consume_system_step_if_allowed(ctx) {
+                should_advance = false;
                 return;
             }
             if ctx.debug_mode {
@@ -2061,6 +2196,10 @@ impl RegionInstance {
             }
             ctx.current_script_scope = ScriptScope::Entity;
         });
+
+        if !should_advance {
+            return;
+        }
 
         // Process notifications for entities.
         let to_process = {
@@ -2300,7 +2439,20 @@ impl RegionInstance {
                     //     );
                     // }
                 }
-                UserAction(entity_id, action) => match action {
+                UserAction(entity_id, action) => {
+                    if Self::action_requests_simulation_step(&action) {
+                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                            if let Some(entity) =
+                                ctx.map.entities.iter().find(|entity| entity.id == entity_id)
+                                && entity.is_player()
+                                && !(Self::is_movement_input_action(&action)
+                                    && Self::entity_has_active_continuous_motion(entity))
+                            {
+                                self.note_simulation_step_request();
+                            }
+                        });
+                    }
+                    match action {
                     Intent(intent) => {
                         with_regionctx(self.id, |ctx: &mut RegionCtx| {
                             if let Some(entity) = ctx
@@ -3050,6 +3202,7 @@ impl RegionInstance {
                             }
                         });
                     }
+                }
                 },
                 CreateEntity(_id, entity) => self.create_entity_instance(entity),
                 ShowStartupSectorDescription(entity_id) => {
@@ -3146,23 +3299,33 @@ impl RegionInstance {
         self.last_redraw_at = now;
         let mut turn_step_deg: f32 = 4.0;
         let mut click_intents_2d = false;
+        let mut sim_dt = redraw_dt;
 
         let mut entities = vec![];
         with_regionctx(self.id, |ctx: &mut RegionCtx| {
             if ctx.paused {
                 return;
             }
-            ctx.delta_time = redraw_dt;
-            update_spell_cooldowns(ctx, redraw_dt);
+            sim_dt = self.simulation_dt_for_frame(ctx, redraw_dt);
+            ctx.delta_time = sim_dt;
+            update_spell_cooldowns(ctx, sim_dt);
             entities = ctx.map.entities.clone();
             let turn_speed_deg_per_sec =
                 get_config_i32_default(ctx, "game", "turn_speed_deg_per_sec", 120).max(1) as f32;
-            turn_step_deg = turn_speed_deg_per_sec * redraw_dt;
+            turn_step_deg = turn_speed_deg_per_sec * sim_dt;
             click_intents_2d = get_config_bool_default(ctx, "game", "click_intents_2d", false)
                 || get_config_bool_default(ctx, "game", "persistent_2d_intents", false);
         });
 
         for entity in &mut entities {
+            if sim_dt <= 0.0 {
+                if entity.is_dirty() {
+                    updates.push(entity.get_update().pack());
+                    entity.clear_dirty();
+                }
+                continue;
+            }
+
             let action_start_pos = entity.get_pos_xz();
             match &entity.action.clone() {
                 EntityAction::Forward => {
@@ -3482,7 +3645,9 @@ impl RegionInstance {
                     let mut coord: Option<vek::Vec2<f32>> = None;
 
                     with_regionctx(self.id, |ctx| {
-                        let speed: f32 = self.movement_units_per_sec * speed * ctx.delta_time;
+                        let speed: f32 = self.movement_units_per_sec
+                            * speed
+                            * Self::autonomous_action_dt(ctx, entity);
 
                         if let Some(entity) =
                             ctx.map.entities.iter().find(|entity| entity.id == *target)
@@ -3583,7 +3748,9 @@ impl RegionInstance {
                     let position = entity.get_pos_xz();
                     let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
                     with_regionctx(self.id, |ctx| {
-                        let speed = self.movement_units_per_sec * speed * ctx.delta_time;
+                        let speed = self.movement_units_per_sec
+                            * speed
+                            * Self::autonomous_action_dt(ctx, entity);
 
                         let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                             && ctx.collision_world.has_collision_data();
@@ -3960,6 +4127,7 @@ impl RegionInstance {
                                 }
                                 _ => None,
                             };
+                            let mut continue_grid_chain = true;
                             if let Some(target) = grid_goto_target {
                                 if (target - curr_coord).magnitude_squared() <= 0.001 {
                                     entity.set_attribute(
@@ -3975,12 +4143,23 @@ impl RegionInstance {
                                     entity.action = EntityAction::GotoGrid(target, goto_speed);
                                 }
                             } else if let Some(player_camera) = player_camera {
-                                self.queue_grid_action_from_desired(entity, &player_camera);
+                                if matches!(
+                                    ctx.simulation_mode,
+                                    crate::server::regionctx::SimulationMode::Realtime
+                                ) {
+                                    self.queue_grid_action_from_desired(entity, &player_camera);
+                                } else if self.queue_grid_action_from_desired(entity, &player_camera)
+                                {
+                                    self.queue_simulation_step();
+                                    continue_grid_chain = false;
+                                } else {
+                                    entity.action = EntityAction::Off;
+                                }
                             } else {
                                 entity.action = EntityAction::Off;
                             }
 
-                            if remaining_speed <= 0.0001 {
+                            if remaining_speed <= 0.0001 || !continue_grid_chain {
                                 break;
                             }
 
@@ -4007,6 +4186,8 @@ impl RegionInstance {
                 EntityAction::RotateTo(target) => {
                     let finished = Self::rotate_towards_cardinal(entity, *target, turn_step_deg);
                     if finished {
+                        let simulation_mode = with_regionctx(self.id, |ctx| ctx.simulation_mode)
+                            .unwrap_or(crate::server::regionctx::SimulationMode::Realtime);
                         Self::clear_grid_blocked_action(entity);
                         let player_camera = match entity.attributes.get("player_camera") {
                             Some(Value::PlayerCamera(player_camera)) => Some(player_camera.clone()),
@@ -4031,7 +4212,16 @@ impl RegionInstance {
                                 entity.action = EntityAction::GotoGrid(target, goto_speed);
                             }
                         } else if let Some(player_camera) = player_camera {
-                            self.queue_grid_action_from_desired(entity, &player_camera);
+                            if matches!(
+                                simulation_mode,
+                                crate::server::regionctx::SimulationMode::Realtime
+                            ) {
+                                self.queue_grid_action_from_desired(entity, &player_camera);
+                            } else if self.queue_grid_action_from_desired(entity, &player_camera) {
+                                self.queue_simulation_step();
+                            } else {
+                                entity.action = EntityAction::Off;
+                            }
                         } else {
                             entity.action = EntityAction::Off;
                         }
@@ -4134,7 +4324,8 @@ impl RegionInstance {
                                 let radius =
                                     entity.attributes.get_float_default("radius", 0.5) - 0.01;
                                 // Keep RandomWalk speed behavior aligned with legacy move_entity().
-                                let step_speed = self.movement_units_per_sec * ctx.delta_time;
+                                let step_speed = self.movement_units_per_sec
+                                    * Self::autonomous_action_dt(ctx, entity);
                                 let terrain_cfg =
                                     crate::chunkbuilder::terrain_generator::TerrainConfig::default();
                                 let terrain_y =
@@ -4398,7 +4589,8 @@ impl RegionInstance {
                                 let radius =
                                     entity.attributes.get_float_default("radius", 0.5) - 0.01;
                                 // Keep RandomWalkInSector speed behavior aligned with legacy move_entity().
-                                let step_speed = self.movement_units_per_sec * ctx.delta_time;
+                                let step_speed = self.movement_units_per_sec
+                                    * Self::autonomous_action_dt(ctx, entity);
                                 let terrain_cfg =
                                     crate::chunkbuilder::terrain_generator::TerrainConfig::default(
                                     );
@@ -4681,7 +4873,9 @@ impl RegionInstance {
                             let target = points[idx];
                             let position = entity.get_pos_xz();
                             let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
-                            let speed = self.movement_units_per_sec * *route_speed * ctx.delta_time;
+                            let speed = self.movement_units_per_sec
+                                * *route_speed
+                                * Self::autonomous_action_dt(ctx, entity);
 
                             let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                                 && ctx.collision_world.has_collision_data();
