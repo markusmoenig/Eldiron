@@ -153,9 +153,11 @@ pub use crate::{
         meta::MapMeta,
         mini::MapMini,
         organic::{
-            OrganicBushCluster, OrganicChannelBinding, OrganicColumn, OrganicSpan,
+            OrganicBatchDetail, OrganicBushCluster, OrganicChannelBinding, OrganicColumn,
+            OrganicDetailCell, OrganicDetailPage, OrganicGrowthShape, OrganicSpan,
             OrganicVineStroke, OrganicVolumeLayer, default_organic_bush_clusters,
             default_organic_layers, default_organic_vine_strokes,
+            terrain_organic_detail_id,
         },
         particle::{Particle, ParticleEmitter},
         pixelsource::NoiseTarget,
@@ -195,7 +197,6 @@ pub use crate::{
     value_toml::{ValueGroups, ValueTomlLoader},
     vertexblend::VertexBlendPreset,
 };
-pub use organicgraph::{OrganicBrushGraph, OrganicBrushNode, OrganicNodeKind};
 
 // Prelude
 pub mod prelude {
@@ -228,11 +229,13 @@ pub mod prelude {
     pub use crate::{D3Camera, D3FirstPCamera, D3IsoCamera, D3OrbitCamera};
     pub use crate::{
         DungeonCell, DungeonLayer, DungeonMap, DungeonTileKind, Keyform, Light, LightType, Map,
-        MapMeta, MapToolType, NoiseTarget, OrganicBrushGraph, OrganicBrushNode, OrganicBushCluster,
-        OrganicChannelBinding, OrganicColumn, OrganicNodeKind, OrganicSpan, OrganicVineStroke,
-        OrganicVolumeLayer, Particle, ParticleEmitter, PixelSource, Sector, SoftRig,
-        SoftRigAnimator, Tile, TileGroup, TileGroupMemberRef, TileRole, TileSource, Vertex,
+        MapMeta, MapToolType, NoiseTarget, OrganicBatchDetail, OrganicBushCluster,
+        OrganicChannelBinding, OrganicColumn, OrganicDetailCell, OrganicDetailPage,
+        OrganicGrowthShape, OrganicSpan, OrganicVineStroke, OrganicVolumeLayer, Particle,
+        ParticleEmitter, PixelSource, Sector, SoftRig, SoftRigAnimator, Tile, TileGroup,
+        TileGroupMemberRef, TileRole, TileSource, Vertex,
         default_organic_bush_clusters, default_organic_layers, default_organic_vine_strokes,
+        terrain_organic_detail_id,
     };
     pub use crate::{GridShader, Shader, VGrayGradientShader};
     pub use crate::{

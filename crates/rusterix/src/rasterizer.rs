@@ -32,6 +32,43 @@ fn linear_to_srgb_fast(x: f32) -> f32 {
     1.055 * sqrt_x - 0.055 * sqrt_x * sqrt_x
 }
 
+fn apply_organic_detail(
+    texel: &mut Pixel,
+    batch: &Batch3D,
+    u: f32,
+    v: f32,
+    assets: &Assets,
+) {
+    let Some(detail) = &batch.organic_detail else {
+        return;
+    };
+
+    let local = Vec2::new(
+        if detail.flip_x {
+            detail.anchor_uv.x - u
+        } else {
+            u - detail.anchor_uv.x
+        },
+        v - detail.anchor_uv.y,
+    );
+
+    for layer in &detail.layers {
+        let Some(cell) = layer.sample(local) else {
+            continue;
+        };
+        let Some(Some(color)) = assets.palette.colors.get(cell.palette_index as usize) else {
+            continue;
+        };
+        let alpha = cell.coverage as f32 / 255.0;
+        let inv_alpha = 1.0 - alpha;
+        let src = color.to_u8_array();
+        texel[0] = (texel[0] as f32 * inv_alpha + src[0] as f32 * alpha).round() as u8;
+        texel[1] = (texel[1] as f32 * inv_alpha + src[1] as f32 * alpha).round() as u8;
+        texel[2] = (texel[2] as f32 * inv_alpha + src[2] as f32 * alpha).round() as u8;
+        texel[3] = texel[3].max(cell.coverage);
+    }
+}
+
 pub struct Rasterizer {
     pub render_mode: RenderMode,
 
@@ -1103,6 +1140,14 @@ impl Rasterizer {
                                         _ => ([0, 0, 0, 255], false),
                                     };
 
+                                    apply_organic_detail(
+                                        &mut texel,
+                                        batch,
+                                        interpolated_u,
+                                        interpolated_v,
+                                        assets,
+                                    );
+
                                     let mut color: Vec4<f32> = pixel_to_vec4(&texel);
 
                                     if let Some(shader_index) = batch.shader {
@@ -1473,6 +1518,14 @@ impl Rasterizer {
                                         }
                                         _ => ([0, 0, 0, 255], false),
                                     };
+
+                                    apply_organic_detail(
+                                        &mut texel,
+                                        batch,
+                                        interpolated_u,
+                                        interpolated_v,
+                                        assets,
+                                    );
 
                                     let mut color: Vec4<f32> = pixel_to_vec4(&texel);
                                     color.x = srgb_to_linear_fast(color.x);

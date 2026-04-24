@@ -109,6 +109,41 @@ color_targets = ["left_leg", "right_leg"]
 
 ---
 
+## `damage_kind`
+
+*Item-only attribute.*
+
+Damage kind used by `attack()` when this item is the active weapon.
+Default: `physical`.
+
+```toml
+damage_kind = "fire"
+```
+
+This maps weapon attacks to the matching `combat.kinds.<kind>` rule path, for example:
+
+- `damage_kind = "physical"` -> `combat.kinds.physical`
+- `damage_kind = "fire"` -> `combat.kinds.fire`
+- `damage_kind = "ice"` -> `combat.kinds.ice`
+
+See [Rules](../rules) for the full rules format and combat kind configuration.
+
+---
+
+## `facing`
+
+*Character-only attribute.*
+
+Initial facing direction on spawn.  
+Supported values: `"front"`, `"back"`, `"left"`, `"right"`  
+(also accepts `"north"`, `"south"`, `"west"`, `"east"`).
+
+```toml
+facing = "right"
+```
+
+---
+
 ## `geo_targets`
 
 *Item-only attribute.*
@@ -119,6 +154,29 @@ Used only when automatic matching by `slot` is insufficient.
 ```toml
 geo_targets = ["left_shoulder", "right_shoulder"]
 ```
+
+---
+
+## `hold_speed`
+
+*Character-only attribute.*
+
+Sustained movement speed used for held grid movement input after the first tile.
+This applies to grid-based player movement such as `2d_grid` and `firstp_grid`.
+If omitted, it falls back to `speed`.
+
+```toml
+hold_speed = 3.0
+```
+
+Example:
+
+```toml
+speed = 8.0
+hold_speed = 3.0
+```
+
+This gives a fast first tile while keeping held movement smooth and continuous.
 
 ---
 
@@ -173,20 +231,6 @@ You can store it the same way other tile-based attributes are authored: as a til
 portrait_tile_id = "01234567-89ab-cdef-0123-456789abcdef"
 portrait_tile_id = "hero_portrait"
 portrait_tile_id = "2"
-```
-
----
-
-## `facing`
-
-*Character-only attribute.*
-
-Initial facing direction on spawn.  
-Supported values: `"front"`, `"back"`, `"left"`, `"right"`  
-(also accepts `"north"`, `"south"`, `"west"`, `"east"`).
-
-```toml
-facing = "right"
 ```
 
 ---
@@ -284,27 +328,6 @@ Typical use:
 This attribute is authoring data for your scripts. It does not automatically pause or resume anything by itself.
 
 NPC background workflows themselves are defined separately in the character **Attributes** editor under `behavior.sequences`. See [NPC Sequences](npc_sequences).
-
----
-
-## `damage_kind`
-
-*Item-only attribute.*
-
-Damage kind used by `attack()` when this item is the active weapon.
-Default: `physical`.
-
-```toml
-damage_kind = "fire"
-```
-
-This maps weapon attacks to the matching `combat.kinds.<kind>` rule path, for example:
-
-- `damage_kind = "physical"` -> `combat.kinds.physical`
-- `damage_kind = "fire"` -> `combat.kinds.fire`
-- `damage_kind = "ice"` -> `combat.kinds.ice`
-
-See [Rules](../rules) for the full rules format and combat kind configuration.
 
 ---
 
@@ -682,6 +705,26 @@ Unlike `size`, this only affects 2D avatar rendering. It does not change gamepla
 
 ```toml
 size_2d = 1.25
+```
+
+---
+
+## `speed`
+
+*Character-only attribute.*
+
+Movement speed multiplier used by server-driven character movement such as `goto()`, `random_walk()`, `patrol()`, and grid tile traversal.
+Higher values make each tile or movement step complete faster.
+Default: `1.0`.
+
+```toml
+speed = 1.0
+```
+
+Example:
+
+```toml
+speed = 8.0
 ```
 
 ---

@@ -72,6 +72,9 @@ pub struct Batch3D {
 
     /// Geometry Source
     pub geometry_source: GeometrySource,
+
+    /// Optional per-surface organic paint detail sampled during shading.
+    pub organic_detail: Option<OrganicBatchDetail>,
 }
 
 /// A batch of 4D vertices, indices and their UVs which make up a 3D mesh.
@@ -99,6 +102,7 @@ impl Batch3D {
             shader: None,
             profile_id: None,
             geometry_source: GeometrySource::Unknown,
+            organic_detail: None,
         }
     }
 
@@ -128,6 +132,7 @@ impl Batch3D {
             shader: None,
             profile_id: None,
             geometry_source: GeometrySource::Unknown,
+            organic_detail: None,
         }
     }
 
@@ -465,6 +470,11 @@ impl Batch3D {
     /// Set the source of the geometry for this batch.
     pub fn geometry_source(mut self, geometry_source: GeometrySource) -> Self {
         self.geometry_source = geometry_source;
+        self
+    }
+
+    pub fn organic_detail(mut self, organic_detail: Option<OrganicBatchDetail>) -> Self {
+        self.organic_detail = organic_detail;
         self
     }
 

@@ -16,7 +16,6 @@ path = "src/main.rs"
 
 [dependencies]
 rusterix.workspace = true
-organicgraph = { path = "../crates/organicgraph", version = "0.9.6" }
 codegridfx.workspace = true
 rusteria.workspace = true
 scenevm = { path = "../crates/scenevm", version = "0.9.6", default-features = false, features = ["gpu"] }

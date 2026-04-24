@@ -1,6 +1,5 @@
 use crate::PixelSource;
 use indexmap::IndexMap;
-pub use organicgraph::{OrganicBrushGraph, OrganicBrushNode, OrganicNodeKind};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vek::Vec2;
@@ -149,13 +148,42 @@ pub fn default_organic_bush_clusters() -> Vec<OrganicBushCluster> {
     Vec::new()
 }
 
+pub fn terrain_organic_detail_id(tile_x: i32, tile_y: i32) -> Uuid {
+    let mut bytes = [0u8; 16];
+    bytes[..4].copy_from_slice(b"trgn");
+    bytes[4..8].copy_from_slice(&tile_x.to_le_bytes());
+    bytes[8..12].copy_from_slice(&tile_y.to_le_bytes());
+    Uuid::from_bytes(bytes)
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct OrganicVolumeLayer {
     pub id: Uuid,
     pub name: String,
     pub cell_size: f32,
-    pub columns: Vec<OrganicColumn>,
+    pub page_size: i32,
+    pub pages: IndexMap<i64, OrganicDetailPage>,
     pub channel_bindings: Vec<OrganicChannelBinding>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct OrganicDetailCell {
+    pub palette_index: u8,
+    pub coverage: u8,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct OrganicDetailPage {
+    pub page_x: i32,
+    pub page_y: i32,
+    pub cells: Vec<OrganicDetailCell>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct OrganicBatchDetail {
+    pub anchor_uv: Vec2<f32>,
+    pub flip_x: bool,
+    pub layers: Vec<OrganicVolumeLayer>,
 }
 
 impl Default for OrganicVolumeLayer {
@@ -163,14 +191,186 @@ impl Default for OrganicVolumeLayer {
         Self {
             id: Uuid::new_v4(),
             name: "Main Organic Layer".to_string(),
-            cell_size: 0.25,
-            columns: Vec::new(),
+            cell_size: 0.05,
+            page_size: 16,
+            pages: IndexMap::default(),
             channel_bindings: OrganicChannelBinding::defaults(),
         }
     }
 }
 
 impl OrganicVolumeLayer {
+    fn page_key(page_x: i32, page_y: i32) -> i64 {
+        ((page_x as i64) << 32) ^ (page_y as u32 as i64)
+    }
+
+    fn palette_index_from_source(source: Option<PixelSource>) -> Option<u8> {
+        match source {
+            Some(PixelSource::PaletteIndex(index)) => u8::try_from(index).ok(),
+            _ => None,
+        }
+    }
+
+    fn local_to_cell(&self, local: Vec2<f32>) -> (i32, i32) {
+        let inv = 1.0 / self.cell_size.max(0.01);
+        (
+            (local.x * inv).floor() as i32,
+            (local.y * inv).floor() as i32,
+        )
+    }
+
+    fn cell_center(&self, cell_x: i32, cell_y: i32) -> Vec2<f32> {
+        Vec2::new(
+            (cell_x as f32 + 0.5) * self.cell_size,
+            (cell_y as f32 + 0.5) * self.cell_size,
+        )
+    }
+
+    fn page_slot(&self, cell_x: i32, cell_y: i32) -> (i32, i32, usize) {
+        let page_size = self.page_size.max(1);
+        let page_x = cell_x.div_euclid(page_size);
+        let page_y = cell_y.div_euclid(page_size);
+        let local_x = cell_x.rem_euclid(page_size) as usize;
+        let local_y = cell_y.rem_euclid(page_size) as usize;
+        let slot = local_y * page_size as usize + local_x;
+        (page_x, page_y, slot)
+    }
+
+    fn page_mut(&mut self, page_x: i32, page_y: i32) -> &mut OrganicDetailPage {
+        let key = Self::page_key(page_x, page_y);
+        let page_size = self.page_size.max(1);
+        self.pages
+            .entry(key)
+            .or_insert_with(|| {
+                let len = (page_size * page_size) as usize;
+                OrganicDetailPage {
+                    page_x,
+                    page_y,
+                    cells: vec![
+                        OrganicDetailCell {
+                            palette_index: 0,
+                            coverage: 0,
+                        };
+                        len
+                    ],
+                }
+            })
+    }
+
+    fn cleanup_page_if_empty(&mut self, page_x: i32, page_y: i32) {
+        let key = Self::page_key(page_x, page_y);
+        let remove = self
+            .pages
+            .get(&key)
+            .map(|page| page.cells.iter().all(|cell| cell.coverage == 0))
+            .unwrap_or(false);
+        if remove {
+            self.pages.shift_remove(&key);
+        }
+    }
+
+    fn blend_cell(
+        &mut self,
+        cell_x: i32,
+        cell_y: i32,
+        palette_index: u8,
+        amount: u8,
+        erase: bool,
+    ) -> bool {
+        if amount == 0 {
+            return false;
+        }
+        let (page_x, page_y, slot) = self.page_slot(cell_x, cell_y);
+        let page = self.page_mut(page_x, page_y);
+        let cell = &mut page.cells[slot];
+        let before = cell.clone();
+        if erase {
+            cell.coverage = cell.coverage.saturating_sub(amount);
+            if cell.coverage == 0 {
+                cell.palette_index = 0;
+            }
+        } else {
+            cell.coverage = cell.coverage.max(amount);
+            if amount > 0 {
+                cell.palette_index = palette_index;
+            }
+        }
+        let changed = *cell != before;
+        if erase {
+            self.cleanup_page_if_empty(page_x, page_y);
+        }
+        changed
+    }
+
+    fn radial_mask(radius: f32, softness: f32, dist: f32) -> f32 {
+        if radius <= 0.0001 || dist >= radius {
+            return 0.0;
+        }
+        let feather = softness.clamp(0.0, 1.0) * 0.85 + 0.05;
+        let inner = radius * (1.0 - feather);
+        if dist <= inner {
+            1.0
+        } else {
+            1.0 - ((dist - inner) / (radius - inner).max(0.0001))
+        }
+    }
+
+    fn apply_blob(
+        &mut self,
+        center: Vec2<f32>,
+        radius: f32,
+        softness: f32,
+        density: f32,
+        palette_index: u8,
+        erase: bool,
+    ) -> bool {
+        let radius = radius.max(self.cell_size * 0.5);
+        let density = density.clamp(0.0, 1.0);
+        let min = center - Vec2::broadcast(radius);
+        let max = center + Vec2::broadcast(radius);
+        let (min_x, min_y) = self.local_to_cell(min);
+        let (max_x, max_y) = self.local_to_cell(max);
+        let mut changed = false;
+        for cell_y in min_y..=max_y {
+            for cell_x in min_x..=max_x {
+                let cell_center = self.cell_center(cell_x, cell_y);
+                let mask = Self::radial_mask(radius, softness, (cell_center - center).magnitude());
+                let amount = (mask * density * 255.0).round().clamp(0.0, 255.0) as u8;
+                changed |= self.blend_cell(cell_x, cell_y, palette_index, amount, erase);
+            }
+        }
+        changed
+    }
+
+    fn apply_capsule(
+        &mut self,
+        start: Vec2<f32>,
+        end: Vec2<f32>,
+        radius: f32,
+        softness: f32,
+        density: f32,
+        palette_index: u8,
+        erase: bool,
+    ) -> bool {
+        let radius = radius.max(self.cell_size * 0.5);
+        let density = density.clamp(0.0, 1.0);
+        let min = Vec2::new(start.x.min(end.x), start.y.min(end.y)) - Vec2::broadcast(radius);
+        let max = Vec2::new(start.x.max(end.x), start.y.max(end.y)) + Vec2::broadcast(radius);
+        let (min_x, min_y) = self.local_to_cell(min);
+        let (max_x, max_y) = self.local_to_cell(max);
+        let mut changed = false;
+        for cell_y in min_y..=max_y {
+            for cell_x in min_x..=max_x {
+                let cell_center = self.cell_center(cell_x, cell_y);
+                let dist = Self::point_segment_distance(cell_center, start, end);
+                let mask = Self::radial_mask(radius, softness, dist);
+                let amount = (mask * density * 255.0).round().clamp(0.0, 255.0) as u8;
+                changed |= self.blend_cell(cell_x, cell_y, palette_index, amount, erase);
+            }
+        }
+        changed
+    }
+
     pub fn set_channel_source(&mut self, channel: i32, source: Option<PixelSource>) {
         if let Some(binding) = self
             .channel_bindings
@@ -247,64 +447,14 @@ impl OrganicVolumeLayer {
         source: Option<PixelSource>,
         grow_positive: bool,
     ) -> bool {
-        let cell_size = self.cell_size.max(0.01);
-        let radius = radius.max(cell_size * 0.5);
-        let min_x = ((center.x - radius) / cell_size).floor() as i32;
-        let max_x = ((center.x + radius) / cell_size).ceil() as i32;
-        let min_y = ((center.y - radius) / cell_size).floor() as i32;
-        let max_y = ((center.y + radius) / cell_size).ceil() as i32;
-
-        let mut changed = false;
-
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
-                let cell_center =
-                    Vec2::new((x as f32 + 0.5) * cell_size, (y as f32 + 0.5) * cell_size);
-                let delta = cell_center - center;
-                let dist = delta.magnitude();
-                if dist > radius {
-                    continue;
-                }
-
-                let radial = 1.0 - (dist / radius).clamp(0.0, 1.0);
-                let softness = edge_softness.clamp(0.0, 0.999);
-                let edge = if softness <= 0.001 {
-                    if radial > 0.0 { 1.0 } else { 0.0 }
-                } else {
-                    let start = 1.0 - softness;
-                    if radial >= start {
-                        1.0
-                    } else {
-                        (radial / start.max(0.001)).clamp(0.0, 1.0)
-                    }
-                };
-                let falloff = radial.powf((1.0 - height_falloff.clamp(0.0, 1.0)) * 2.0 + 0.5);
-                let height = (max_height * falloff).max(cell_size * 0.20);
-                if height <= 0.0 {
-                    continue;
-                }
-
-                let offset = if grow_positive {
-                    anchor_offset
-                } else {
-                    anchor_offset - height
-                };
-
-                if self.paint_column_span(
-                    x,
-                    y,
-                    channel,
-                    source.clone(),
-                    offset,
-                    height,
-                    density * edge,
-                ) {
-                    changed = true;
-                }
-            }
+        let _ = (anchor_offset, max_height, height_falloff, channel, grow_positive);
+        if density <= 0.001 {
+            return false;
         }
-
-        changed
+        let Some(palette_index) = Self::palette_index_from_source(source) else {
+            return false;
+        };
+        self.apply_blob(center, radius, edge_softness, density, palette_index, false)
     }
 
     pub fn paint_capsule(
@@ -321,71 +471,14 @@ impl OrganicVolumeLayer {
         source: Option<PixelSource>,
         grow_positive: bool,
     ) -> bool {
-        let cell_size = self.cell_size.max(0.01);
-        let radius = radius.max(cell_size * 0.5);
-        let min_x = ((start.x.min(end.x) - radius) / cell_size).floor() as i32;
-        let max_x = ((start.x.max(end.x) + radius) / cell_size).ceil() as i32;
-        let min_y = ((start.y.min(end.y) - radius) / cell_size).floor() as i32;
-        let max_y = ((start.y.max(end.y) + radius) / cell_size).ceil() as i32;
-        let segment = end - start;
-        let segment_len_sq = segment.magnitude_squared();
-
-        let mut changed = false;
-
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
-                let cell_center =
-                    Vec2::new((x as f32 + 0.5) * cell_size, (y as f32 + 0.5) * cell_size);
-                let t = if segment_len_sq <= f32::EPSILON {
-                    0.0
-                } else {
-                    ((cell_center - start).dot(segment) / segment_len_sq).clamp(0.0, 1.0)
-                };
-                let closest = start + segment * t;
-                let dist = (cell_center - closest).magnitude();
-                if dist > radius {
-                    continue;
-                }
-
-                let radial = 1.0 - (dist / radius).clamp(0.0, 1.0);
-                let softness = edge_softness.clamp(0.0, 0.999);
-                let edge = if softness <= 0.001 {
-                    if radial > 0.0 { 1.0 } else { 0.0 }
-                } else {
-                    let start = 1.0 - softness;
-                    if radial >= start {
-                        1.0
-                    } else {
-                        (radial / start.max(0.001)).clamp(0.0, 1.0)
-                    }
-                };
-                let falloff = radial.powf((1.0 - height_falloff.clamp(0.0, 1.0)) * 2.0 + 0.5);
-                let height = (max_height * falloff).max(cell_size * 0.20);
-                if height <= 0.0 {
-                    continue;
-                }
-
-                let offset = if grow_positive {
-                    anchor_offset
-                } else {
-                    anchor_offset - height
-                };
-
-                if self.paint_column_span(
-                    x,
-                    y,
-                    channel,
-                    source.clone(),
-                    offset,
-                    height,
-                    density * edge,
-                ) {
-                    changed = true;
-                }
-            }
+        let _ = (anchor_offset, max_height, height_falloff, channel, grow_positive);
+        if density <= 0.001 {
+            return false;
         }
-
-        changed
+        let Some(palette_index) = Self::palette_index_from_source(source) else {
+            return false;
+        };
+        self.apply_capsule(start, end, radius, edge_softness, density, palette_index, false)
     }
 
     pub fn erase_sphere(
@@ -398,52 +491,8 @@ impl OrganicVolumeLayer {
         height_falloff: f32,
         grow_positive: bool,
     ) -> bool {
-        let cell_size = self.cell_size.max(0.01);
-        let radius = radius.max(cell_size * 0.5);
-        let min_x = ((center.x - radius) / cell_size).floor() as i32;
-        let max_x = ((center.x + radius) / cell_size).ceil() as i32;
-        let min_y = ((center.y - radius) / cell_size).floor() as i32;
-        let max_y = ((center.y + radius) / cell_size).ceil() as i32;
-
-        let mut changed = false;
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
-                let cell_center =
-                    Vec2::new((x as f32 + 0.5) * cell_size, (y as f32 + 0.5) * cell_size);
-                let delta = cell_center - center;
-                let dist = delta.magnitude();
-                if dist > radius {
-                    continue;
-                }
-                let radial = 1.0 - (dist / radius).clamp(0.0, 1.0);
-                let softness = edge_softness.clamp(0.0, 0.999);
-                let edge = if softness <= 0.001 {
-                    if radial > 0.0 { 1.0 } else { 0.0 }
-                } else {
-                    let start = 1.0 - softness;
-                    if radial >= start {
-                        1.0
-                    } else {
-                        (radial / start.max(0.001)).clamp(0.0, 1.0)
-                    }
-                };
-                if edge <= 0.0 {
-                    continue;
-                }
-                let falloff = radial.powf((1.0 - height_falloff.clamp(0.0, 1.0)) * 2.0 + 0.5);
-                let height = (max_height * falloff).max(cell_size * 0.20);
-                let start = if grow_positive {
-                    anchor_offset
-                } else {
-                    anchor_offset - height
-                };
-                let end = start + height;
-                if self.erase_column_range(x, y, start, end) {
-                    changed = true;
-                }
-            }
-        }
-        changed
+        let _ = (anchor_offset, max_height, height_falloff, grow_positive);
+        self.apply_blob(center, radius, edge_softness, 1.0, 0, true)
     }
 
     pub fn erase_capsule(
@@ -457,266 +506,58 @@ impl OrganicVolumeLayer {
         height_falloff: f32,
         grow_positive: bool,
     ) -> bool {
-        let cell_size = self.cell_size.max(0.01);
-        let radius = radius.max(cell_size * 0.5);
-        let min_x = ((start.x.min(end.x) - radius) / cell_size).floor() as i32;
-        let max_x = ((start.x.max(end.x) + radius) / cell_size).ceil() as i32;
-        let min_y = ((start.y.min(end.y) - radius) / cell_size).floor() as i32;
-        let max_y = ((start.y.max(end.y) + radius) / cell_size).ceil() as i32;
-        let segment = end - start;
-        let segment_len_sq = segment.magnitude_squared();
-
-        let mut changed = false;
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
-                let cell_center =
-                    Vec2::new((x as f32 + 0.5) * cell_size, (y as f32 + 0.5) * cell_size);
-                let t = if segment_len_sq <= f32::EPSILON {
-                    0.0
-                } else {
-                    ((cell_center - start).dot(segment) / segment_len_sq).clamp(0.0, 1.0)
-                };
-                let closest = start + segment * t;
-                let dist = (cell_center - closest).magnitude();
-                if dist > radius {
-                    continue;
-                }
-                let radial = 1.0 - (dist / radius).clamp(0.0, 1.0);
-                let softness = edge_softness.clamp(0.0, 0.999);
-                let edge = if softness <= 0.001 {
-                    if radial > 0.0 { 1.0 } else { 0.0 }
-                } else {
-                    let start = 1.0 - softness;
-                    if radial >= start {
-                        1.0
-                    } else {
-                        (radial / start.max(0.001)).clamp(0.0, 1.0)
-                    }
-                };
-                if edge <= 0.0 {
-                    continue;
-                }
-                let falloff = radial.powf((1.0 - height_falloff.clamp(0.0, 1.0)) * 2.0 + 0.5);
-                let height = (max_height * falloff).max(cell_size * 0.20);
-                let start = if grow_positive {
-                    anchor_offset
-                } else {
-                    anchor_offset - height
-                };
-                let end = start + height;
-                if self.erase_column_range(x, y, start, end) {
-                    changed = true;
-                }
-            }
-        }
-        changed
+        let _ = (anchor_offset, max_height, height_falloff, grow_positive);
+        self.apply_capsule(start, end, radius, edge_softness, 1.0, 0, true)
     }
 
-    pub fn paint_bush_cluster(
-        &mut self,
-        center: Vec2<f32>,
-        radius: f32,
-        total_height: f32,
-        anchor_offset: f32,
-        layers: i32,
-        taper: f32,
-        breakup: f32,
-        edge_softness: f32,
-        density: f32,
-        channel: i32,
-        source: Option<PixelSource>,
-        grow_positive: bool,
-    ) -> bool {
-        let cell_size = self.cell_size.max(0.01);
-        let radius = radius.max(cell_size * 1.5);
-        let total_height = total_height.max(cell_size * 1.5);
-        let layer_count = layers.max(2) as usize;
-        let min_x = ((center.x - radius) / cell_size).floor() as i32;
-        let max_x = ((center.x + radius) / cell_size).ceil() as i32;
-        let min_y = ((center.y - radius) / cell_size).floor() as i32;
-        let max_y = ((center.y + radius) / cell_size).ceil() as i32;
-        let slice_height = (total_height / layer_count as f32).max(cell_size * 0.6);
+    pub fn sample(&self, local: Vec2<f32>) -> Option<OrganicDetailCell> {
+        let (cell_x, cell_y) = self.local_to_cell(local);
+        let (page_x, page_y, slot) = self.page_slot(cell_x, cell_y);
+        let key = Self::page_key(page_x, page_y);
+        let page = self.pages.get(&key)?;
+        let cell = page.cells.get(slot)?;
+        if cell.coverage == 0 {
+            None
+        } else {
+            Some(cell.clone())
+        }
+    }
 
-        let mut changed = false;
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
-                let cell_center =
-                    Vec2::new((x as f32 + 0.5) * cell_size, (y as f32 + 0.5) * cell_size);
-                let to_cell = cell_center - center;
-                let dist = to_cell.magnitude();
-                if dist > radius {
+    pub fn painted_local_bounds(&self) -> Option<(Vec2<f32>, Vec2<f32>)> {
+        let mut min = Vec2::new(f32::INFINITY, f32::INFINITY);
+        let mut max = Vec2::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
+        let mut found = false;
+        let page_size = self.page_size.max(1);
+        for page in self.pages.values() {
+            for (slot, cell) in page.cells.iter().enumerate() {
+                if cell.coverage == 0 {
                     continue;
                 }
-
-                // Stable per-cell breakup so the bush silhouette is chunky instead of conical.
-                let hash = (((x * 73_856_093) ^ (y * 19_349_663)) & 1023) as f32 / 1023.0;
-                let noise = (hash - 0.5) * 2.0;
-
-                for layer_index in 0..layer_count {
-                    let t = if layer_count <= 1 {
-                        0.0
-                    } else {
-                        layer_index as f32 / (layer_count - 1) as f32
-                    };
-                    let layer_radius =
-                        radius * (1.0 - t * taper.clamp(0.0, 1.0) * 0.72 + noise * breakup * 0.12);
-                    if dist > layer_radius.max(cell_size * 0.6) {
-                        continue;
-                    }
-                    let radial = 1.0 - (dist / layer_radius.max(cell_size * 0.6)).clamp(0.0, 1.0);
-                    let softness = edge_softness.clamp(0.0, 0.999);
-                    let edge = if softness <= 0.001 {
-                        if radial > 0.0 { 1.0 } else { 0.0 }
-                    } else {
-                        let start = 1.0 - softness;
-                        if radial >= start {
-                            1.0
-                        } else {
-                            (radial / start.max(0.001)).clamp(0.0, 1.0)
-                        }
-                    };
-                    if edge <= 0.0 {
-                        continue;
-                    }
-
-                    let vertical = total_height * t * 0.72;
-                    let span_height = (slice_height * (1.05 - t * 0.18 + noise * breakup * 0.08))
-                        .max(cell_size * 0.45);
-                    let offset = if grow_positive {
-                        anchor_offset + vertical
-                    } else {
-                        anchor_offset - vertical - span_height
-                    };
-                    if self.paint_column_span(
-                        x,
-                        y,
-                        channel,
-                        source.clone(),
-                        offset,
-                        span_height,
-                        density * edge,
-                    ) {
-                        changed = true;
-                    }
-                }
+                let local_x = (slot as i32).rem_euclid(page_size);
+                let local_y = (slot as i32).div_euclid(page_size);
+                let cell_x = page.page_x * page_size + local_x;
+                let cell_y = page.page_y * page_size + local_y;
+                let cell_min =
+                    Vec2::new(cell_x as f32 * self.cell_size, cell_y as f32 * self.cell_size);
+                let cell_max = cell_min + Vec2::broadcast(self.cell_size);
+                min.x = min.x.min(cell_min.x);
+                min.y = min.y.min(cell_min.y);
+                max.x = max.x.max(cell_max.x);
+                max.y = max.y.max(cell_max.y);
+                found = true;
             }
         }
-        changed
+        if found { Some((min, max)) } else { None }
     }
 
-    fn paint_column_span(
-        &mut self,
-        x: i32,
-        y: i32,
-        channel: i32,
-        source: Option<PixelSource>,
-        offset: f32,
-        height: f32,
-        density: f32,
-    ) -> bool {
-        let Some(column_index) = self
-            .columns
-            .iter()
-            .position(|column| column.x == x && column.y == y)
-        else {
-            self.columns.push(OrganicColumn {
-                x,
-                y,
-                spans: vec![OrganicSpan {
-                    channel,
-                    source,
-                    offset,
-                    height,
-                    density,
-                }],
-            });
-            return true;
-        };
-
-        let start = offset;
-        let end = offset + height;
-        let column = &mut self.columns[column_index];
-
-        for span in &mut column.spans {
-            if span.channel != channel || span.source != source {
-                continue;
-            }
-            let span_start = span.offset;
-            let span_end = span.offset + span.height;
-            if end < span_start || start > span_end {
-                continue;
-            }
-            let merged_start = span_start.min(start);
-            let merged_end = span_end.max(end);
-            let merged_density = span.density.max(density);
-            if (span.offset - merged_start).abs() > f32::EPSILON
-                || (span.height - (merged_end - merged_start)).abs() > f32::EPSILON
-                || (span.density - merged_density).abs() > f32::EPSILON
-            {
-                span.offset = merged_start;
-                span.height = merged_end - merged_start;
-                span.density = merged_density;
-                return true;
-            }
-            return false;
+    fn point_segment_distance(p: Vec2<f32>, a: Vec2<f32>, b: Vec2<f32>) -> f32 {
+        let ab = b - a;
+        let len_sq = ab.magnitude_squared();
+        if len_sq <= f32::EPSILON {
+            return (p - a).magnitude();
         }
-
-        column.spans.push(OrganicSpan {
-            channel,
-            source,
-            offset,
-            height,
-            density,
-        });
-        true
-    }
-
-    fn erase_column_range(&mut self, x: i32, y: i32, start: f32, end: f32) -> bool {
-        let Some(column_index) = self
-            .columns
-            .iter()
-            .position(|column| column.x == x && column.y == y)
-        else {
-            return false;
-        };
-
-        let mut changed = false;
-        let column = &mut self.columns[column_index];
-        let mut new_spans = Vec::with_capacity(column.spans.len());
-
-        for span in &column.spans {
-            let span_start = span.offset;
-            let span_end = span.offset + span.height;
-            if end <= span_start || start >= span_end {
-                new_spans.push(span.clone());
-                continue;
-            }
-            changed = true;
-            if start > span_start {
-                new_spans.push(OrganicSpan {
-                    channel: span.channel,
-                    source: span.source.clone(),
-                    offset: span_start,
-                    height: start - span_start,
-                    density: span.density,
-                });
-            }
-            if end < span_end {
-                new_spans.push(OrganicSpan {
-                    channel: span.channel,
-                    source: span.source.clone(),
-                    offset: end,
-                    height: span_end - end,
-                    density: span.density,
-                });
-            }
-        }
-
-        column.spans = new_spans;
-        if column.spans.is_empty() {
-            self.columns.remove(column_index);
-        }
-        changed
+        let t = ((p - a).dot(ab) / len_sq).clamp(0.0, 1.0);
+        (p - (a + ab * t)).magnitude()
     }
 }
 

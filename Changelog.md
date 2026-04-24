@@ -5,6 +5,13 @@
 ### Server
 
 - Added the `ensure_active` NPC sequence step so scripted routes can enforce stateful interactions such as opening a door only if needed and closing it again afterward.
+- Added `hold_speed` for grid-based held movement, so characters can use a fast first-tile `speed` while keeping sustained held movement smooth and continuous.
+
+## Bug Fixes
+
+### Server
+
+- Fixed grid-based player movement so the character `speed` attribute now actually affects direct tile stepping, instead of being hardcoded to `1.0`.
 
 ---
 

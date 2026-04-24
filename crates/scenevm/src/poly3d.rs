@@ -3,11 +3,21 @@ use uuid::Uuid;
 use vek::Vec3;
 
 #[derive(Debug, Clone)]
+pub struct OrganicSurfaceDetail {
+    pub surface_id: Uuid,
+    pub anchor_uv: [f32; 2],
+    pub local_min: [f32; 2],
+    pub local_size: [f32; 2],
+    pub flip_x: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct Poly3D {
     pub id: GeoId,
     pub tile_id: uuid::Uuid,
     pub vertices: Vec<[f32; 4]>, // world-space XYZ(W)
     pub uvs: Vec<[f32; 2]>,      // per-vertex UV
+    pub organic_uvs: Vec<[f32; 2]>,
     pub indices: Vec<(usize, usize, usize)>,
     pub layer: i32, // for future (not used by ray depth)
     pub visible: bool,
@@ -15,6 +25,7 @@ pub struct Poly3D {
     // Vertex blending support (optional)
     pub tile_id2: Option<uuid::Uuid>, // Secondary texture for blending
     pub blend_weights: Vec<f32>,      // Per-vertex blend factor (0.0=primary, 1.0=secondary)
+    pub organic_detail: Option<OrganicSurfaceDetail>,
 }
 
 impl Poly3D {
@@ -32,12 +43,14 @@ impl Poly3D {
             tile_id,
             vertices,
             uvs,
+            organic_uvs: Vec::new(),
             indices,
             layer: 0,
             visible: true,
             opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
+            organic_detail: None,
         }
     }
 
@@ -102,12 +115,14 @@ impl Poly3D {
             tile_id,
             vertices,
             uvs,
+            organic_uvs: Vec::new(),
             indices,
             layer: 0,
             visible: true,
             opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
+            organic_detail: None,
         }
     }
 
@@ -182,12 +197,14 @@ impl Poly3D {
             tile_id,
             vertices,
             uvs,
+            organic_uvs: Vec::new(),
             indices,
             layer: 0,
             visible: true,
             opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
+            organic_detail: None,
         }
     }
 
@@ -242,12 +259,14 @@ impl Poly3D {
             tile_id,
             vertices,
             uvs,
+            organic_uvs: Vec::new(),
             indices,
             layer: 0,
             visible: true,
             opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
+            organic_detail: None,
         }
     }
 

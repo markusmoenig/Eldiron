@@ -680,13 +680,34 @@ impl RegionInstance {
         Vec2::new(pos.x.floor() + 0.5, pos.y.floor() + 0.5)
     }
 
-    fn queue_step_to(&self, entity: &mut Entity, target: Vec2<f32>, facing: Vec2<f32>) {
+    fn grid_press_speed(entity: &Entity) -> f32 {
+        entity.attributes.get_float_default("speed", 1.0).max(0.01)
+    }
+
+    fn grid_hold_speed(entity: &Entity) -> f32 {
+        entity
+            .attributes
+            .get_float_default("hold_speed", Self::grid_press_speed(entity))
+            .max(0.01)
+    }
+
+    fn queue_step_to_with_speed(
+        &self,
+        entity: &mut Entity,
+        target: Vec2<f32>,
+        facing: Vec2<f32>,
+        speed: f32,
+    ) {
         let facing = Self::snapped_cardinal_direction(facing);
         let start = entity.get_pos_xz();
         let target = Self::snapped_grid_center(target);
         entity.set_orientation(facing);
         let step_dir = target - Self::snapped_grid_center(start);
-        entity.action = EntityAction::StepTo(target, 1.0, facing, start, step_dir);
+        entity.action = EntityAction::StepTo(target, speed, facing, start, step_dir);
+    }
+
+    fn queue_step_to(&self, entity: &mut Entity, target: Vec2<f32>, facing: Vec2<f32>) {
+        self.queue_step_to_with_speed(entity, target, facing, Self::grid_press_speed(entity));
     }
 
     fn rotate_grid_left(&self, entity: &mut Entity) {
@@ -773,11 +794,16 @@ impl RegionInstance {
                 if Self::is_first_person_camera(player_camera) {
                     let facing = Self::snapped_cardinal_direction(entity.orientation);
                     let target = entity.get_pos_xz() + facing;
-                    self.queue_step_to(entity, target, facing);
+                    self.queue_step_to_with_speed(entity, target, facing, Self::grid_hold_speed(entity));
                 } else {
                     entity.face_north();
                     let target = entity.get_pos_xz() + Vec2::new(0.0, -1.0);
-                    self.queue_step_to(entity, target, Vec2::new(0.0, -1.0));
+                    self.queue_step_to_with_speed(
+                        entity,
+                        target,
+                        Vec2::new(0.0, -1.0),
+                        Self::grid_hold_speed(entity),
+                    );
                 }
                 true
             }
@@ -785,11 +811,16 @@ impl RegionInstance {
                 if Self::is_first_person_camera(player_camera) {
                     let facing = Self::snapped_cardinal_direction(entity.orientation);
                     let target = entity.get_pos_xz() - facing;
-                    self.queue_step_to(entity, target, facing);
+                    self.queue_step_to_with_speed(entity, target, facing, Self::grid_hold_speed(entity));
                 } else {
                     entity.face_south();
                     let target = entity.get_pos_xz() + Vec2::new(0.0, 1.0);
-                    self.queue_step_to(entity, target, Vec2::new(0.0, 1.0));
+                    self.queue_step_to_with_speed(
+                        entity,
+                        target,
+                        Vec2::new(0.0, 1.0),
+                        Self::grid_hold_speed(entity),
+                    );
                 }
                 true
             }
@@ -799,7 +830,12 @@ impl RegionInstance {
                 } else {
                     entity.face_west();
                     let target = entity.get_pos_xz() + Vec2::new(-1.0, 0.0);
-                    self.queue_step_to(entity, target, Vec2::new(-1.0, 0.0));
+                    self.queue_step_to_with_speed(
+                        entity,
+                        target,
+                        Vec2::new(-1.0, 0.0),
+                        Self::grid_hold_speed(entity),
+                    );
                 }
                 true
             }
@@ -809,7 +845,12 @@ impl RegionInstance {
                 } else {
                     entity.face_east();
                     let target = entity.get_pos_xz() + Vec2::new(1.0, 0.0);
-                    self.queue_step_to(entity, target, Vec2::new(1.0, 0.0));
+                    self.queue_step_to_with_speed(
+                        entity,
+                        target,
+                        Vec2::new(1.0, 0.0),
+                        Self::grid_hold_speed(entity),
+                    );
                 }
                 true
             }
@@ -818,7 +859,7 @@ impl RegionInstance {
                     let facing = Self::snapped_cardinal_direction(entity.orientation);
                     let step = Vec2::new(facing.y, -facing.x);
                     let target = entity.get_pos_xz() + step;
-                    self.queue_step_to(entity, target, facing);
+                    self.queue_step_to_with_speed(entity, target, facing, Self::grid_hold_speed(entity));
                     true
                 } else {
                     entity.action = EntityAction::Off;
@@ -830,7 +871,7 @@ impl RegionInstance {
                     let facing = Self::snapped_cardinal_direction(entity.orientation);
                     let step = Vec2::new(-facing.y, facing.x);
                     let target = entity.get_pos_xz() + step;
-                    self.queue_step_to(entity, target, facing);
+                    self.queue_step_to_with_speed(entity, target, facing, Self::grid_hold_speed(entity));
                     true
                 } else {
                     entity.action = EntityAction::Off;

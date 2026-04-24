@@ -2006,8 +2006,6 @@ mod tests {
             extrusion: ExtrusionSpec::default(),
             profile: None,
             organic_layers: indexmap::IndexMap::default(),
-            organic_vine_strokes: Vec::new(),
-            organic_bush_clusters: Vec::new(),
             world_vertices: Vec::new(),
         }
     }

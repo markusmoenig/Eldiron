@@ -60,7 +60,7 @@ pub mod prelude {
         intodata::IntoDataInput,
         light::{Light, LightType},
         poly2d::Poly2D,
-        poly3d::Poly3D,
+        poly3d::{OrganicSurfaceDetail, Poly3D},
         texture::Texture,
     };
 
@@ -115,7 +115,7 @@ pub use crate::{
     intodata::IntoDataInput,
     light::{Light, LightType},
     poly2d::Poly2D,
-    poly3d::Poly3D,
+    poly3d::{OrganicSurfaceDetail, Poly3D},
     texture::Texture,
 };
 #[cfg(feature = "gpu")]

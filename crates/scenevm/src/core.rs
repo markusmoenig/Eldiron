@@ -138,6 +138,20 @@ pub enum Atom {
         size: u32,
         rgba: Vec<u8>,
     },
+    SetOrganicSurfaceDetail {
+        surface_id: Uuid,
+        size: u32,
+        rgba: Vec<u8>,
+    },
+    SetOrganicSurfaceDetailRect {
+        surface_id: Uuid,
+        size: u32,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        rgba: Vec<u8>,
+    },
     RemoveAvatarBillboardData {
         id: GeoId,
     },

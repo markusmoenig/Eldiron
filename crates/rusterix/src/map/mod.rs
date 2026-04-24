@@ -16,7 +16,7 @@ pub mod tilesource;
 pub mod vertex;
 
 use crate::{
-    BBox, Keyform, MapMini, OrganicBrushGraph, PixelSource, SoftRig, SoftRigAnimator, Surface,
+    BBox, Keyform, MapMini, OrganicVolumeLayer, PixelSource, SoftRig, SoftRigAnimator, Surface,
     Value, ValueContainer,
 };
 use codegridfx::Module;
@@ -86,9 +86,6 @@ pub struct Map {
     pub linedefs: Vec<Linedef>,
     pub sectors: Vec<Sector>,
 
-    #[serde(default)]
-    pub organic_brush_graphs: IndexMap<Uuid, OrganicBrushGraph>,
-
     pub sky_texture: Option<Uuid>,
 
     // Camera Mode
@@ -134,6 +131,10 @@ pub struct Map {
     #[serde(default)]
     pub surfaces: IndexMap<Uuid, Surface>,
 
+    /// Sparse painted detail for terrain tiles.
+    #[serde(default)]
+    pub terrain_organic_layer: OrganicVolumeLayer,
+
     /// The optional profile of surfaces.
     #[serde(default)]
     pub profiles: FxHashMap<Uuid, Map>,
@@ -176,7 +177,6 @@ impl Map {
             linedefs: vec![],
             sectors: vec![],
 
-            organic_brush_graphs: IndexMap::default(),
             sky_texture: None,
 
             camera: MapCamera::TwoD,
@@ -199,6 +199,7 @@ impl Map {
             soft_animator: None,
 
             surfaces: IndexMap::default(),
+            terrain_organic_layer: OrganicVolumeLayer::default(),
             profiles: FxHashMap::default(),
             shaders: IndexMap::default(),
 
@@ -1847,7 +1848,6 @@ impl Map {
             linedefs: self.linedefs.clone(),
             sectors: self.sectors.clone(),
 
-            organic_brush_graphs: self.organic_brush_graphs.clone(),
             sky_texture: None,
 
             camera: self.camera,
@@ -1870,6 +1870,7 @@ impl Map {
             soft_animator: None,
 
             surfaces: IndexMap::default(),
+            terrain_organic_layer: OrganicVolumeLayer::default(),
             profiles: FxHashMap::default(),
             shaders: IndexMap::default(),
 

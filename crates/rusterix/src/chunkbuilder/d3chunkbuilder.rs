@@ -6,7 +6,6 @@ use crate::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator};
 use crate::collision_world::{
     BlockingVolume, DynamicOpening, OpeningType, StaticBarrier, WalkableFloor,
 };
-use crate::map::organic::OrganicGrowthShape;
 use crate::{
     Assets, BBox, Batch3D, Chunk, ChunkBuilder, Item, Map, PixelSource, Value, ValueContainer,
     VertexBlendPreset,
@@ -196,6 +195,112 @@ fn tile_local_to_uv_xy(
     Vec2::new(x, y)
 }
 
+fn surface_organic_detail(
+    surface: &crate::Surface,
+    map: &Map,
+) -> Option<scenevm::OrganicSurfaceDetail> {
+    let (local_min, local_max) = surface.organic_local_bounds(map)?;
+    Some(scenevm::OrganicSurfaceDetail {
+        surface_id: surface.id,
+        anchor_uv: surface.tile_local_anchor_uv(map).into_array(),
+        local_min: local_min.into_array(),
+        local_size: Vec2::new(
+            (local_max.x - local_min.x).max(0.001),
+            (local_max.y - local_min.y).max(0.001),
+        )
+        .into_array(),
+        flip_x: surface.tile_local_flip_x(),
+    })
+}
+
+fn terrain_organic_detail(tile_x: i32, tile_z: i32) -> scenevm::OrganicSurfaceDetail {
+    scenevm::OrganicSurfaceDetail {
+        surface_id: crate::terrain_organic_detail_id(tile_x, tile_z),
+        anchor_uv: [tile_x as f32, tile_z as f32],
+        local_min: [tile_x as f32, tile_z as f32],
+        local_size: [1.0, 1.0],
+        flip_x: false,
+    }
+}
+
+fn terrain_organic_uvs(vertices: &[[f32; 4]]) -> Vec<[f32; 2]> {
+    vertices.iter().map(|v| [v[0], v[2]]).collect()
+}
+
+fn add_surface_poly_3d(
+    vmchunk: &mut scenevm::Chunk,
+    surface: &crate::Surface,
+    map: &Map,
+    id: GeoId,
+    tile_id: Uuid,
+    vertices: Vec<[f32; 4]>,
+    uvs: Vec<[f32; 2]>,
+    organic_uvs: Vec<[f32; 2]>,
+    indices: Vec<(usize, usize, usize)>,
+    layer: i32,
+    visible: bool,
+) {
+    if let Some(detail) = surface_organic_detail(surface, map) {
+        vmchunk.add_surface_poly_3d(
+            id,
+            tile_id,
+            vertices,
+            uvs,
+            organic_uvs,
+            indices,
+            layer,
+            visible,
+            detail,
+        );
+    } else {
+        vmchunk.add_poly_3d(id, tile_id, vertices, uvs, indices, layer, visible);
+    }
+}
+
+fn add_surface_poly_3d_blended(
+    vmchunk: &mut scenevm::Chunk,
+    surface: &crate::Surface,
+    map: &Map,
+    id: GeoId,
+    tile_id: Uuid,
+    tile_id2: Uuid,
+    vertices: Vec<[f32; 4]>,
+    uvs: Vec<[f32; 2]>,
+    organic_uvs: Vec<[f32; 2]>,
+    blend_weights: Vec<f32>,
+    indices: Vec<(usize, usize, usize)>,
+    layer: i32,
+    visible: bool,
+) {
+    if let Some(detail) = surface_organic_detail(surface, map) {
+        vmchunk.add_surface_poly_3d_blended(
+            id,
+            tile_id,
+            tile_id2,
+            vertices,
+            uvs,
+            organic_uvs,
+            blend_weights,
+            indices,
+            layer,
+            visible,
+            detail,
+        );
+    } else {
+        vmchunk.add_poly_3d_blended(
+            id,
+            tile_id,
+            tile_id2,
+            vertices,
+            uvs,
+            blend_weights,
+            indices,
+            layer,
+            visible,
+        );
+    }
+}
+
 fn build_surface_uvs(
     verts_uv: &[[f32; 2]],
     sector: &Sector,
@@ -244,6 +349,17 @@ fn build_surface_uvs(
     }
 
     uvs
+}
+
+fn build_surface_local_uvs(
+    verts_uv: &[[f32; 2]],
+    surface: &crate::Surface,
+    map: &Map,
+) -> Vec<[f32; 2]> {
+    verts_uv
+        .iter()
+        .map(|uv| surface.uv_to_tile_local(Vec2::new(uv[0], uv[1]), map).into_array())
+        .collect()
 }
 
 fn distance_point_to_segment_2d(point: Vec2<f32>, seg_start: Vec2<f32>, seg_end: Vec2<f32>) -> f32 {
@@ -1236,6 +1352,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                     }
 
                     let uvs = build_surface_uvs(&verts_uv, sector, surface);
+                    let organic_uvs = build_surface_local_uvs(&verts_uv, surface, map);
                     #[derive(Clone, Copy)]
                     enum MaterialKind {
                         Cap,
@@ -1245,12 +1362,15 @@ impl ChunkBuilder for D3ChunkBuilder {
                     // Helper function (no captures): push a batch with sector material.
                     fn push_with_material_kind_local(
                         kind: MaterialKind,
+                        surface: &crate::Surface,
+                        map: &Map,
                         sector: &Sector,
                         assets: &Assets,
                         vmchunk: &mut scenevm::Chunk,
                         verts: Vec<[f32; 4]>,
                         inds: Vec<(usize, usize, usize)>,
                         uvs_in: Vec<[f32; 2]>,
+                        organic_uvs_in: Vec<[f32; 2]>,
                     ) {
                         let source_key = match kind {
                             MaterialKind::Side => "jamb_source",
@@ -1265,29 +1385,61 @@ impl ChunkBuilder for D3ChunkBuilder {
                             .or_else(|| sector.properties.get(fallback_key))
                         {
                             if let Some(tile) = pixelsource.tile_from_tile_list(assets) {
+                                if matches!(kind, MaterialKind::Cap) {
+                                    add_surface_poly_3d(
+                                        vmchunk,
+                                        surface,
+                                        map,
+                                        GeoId::Sector(sector.id),
+                                        tile.id,
+                                        verts.clone(),
+                                        uvs_in.clone(),
+                                        organic_uvs_in.clone(),
+                                        inds.clone(),
+                                        0,
+                                        true,
+                                    );
+                                } else {
+                                    vmchunk.add_poly_3d(
+                                        GeoId::Sector(sector.id),
+                                        tile.id,
+                                        verts.clone(),
+                                        uvs_in.clone(),
+                                        inds.clone(),
+                                        0,
+                                        true,
+                                    );
+                                }
+                                added = true;
+                            }
+                        }
+
+                        if !added {
+                            if matches!(kind, MaterialKind::Cap) {
+                                add_surface_poly_3d(
+                                    vmchunk,
+                                    surface,
+                                    map,
+                                    GeoId::Sector(sector.id),
+                                    Uuid::from_str(DEFAULT_TILE_ID).unwrap(),
+                                    verts.clone(),
+                                    uvs_in.clone(),
+                                    organic_uvs_in.clone(),
+                                    inds.clone(),
+                                    0,
+                                    true,
+                                );
+                            } else {
                                 vmchunk.add_poly_3d(
                                     GeoId::Sector(sector.id),
-                                    tile.id,
+                                    Uuid::from_str(DEFAULT_TILE_ID).unwrap(),
                                     verts.clone(),
                                     uvs_in.clone(),
                                     inds.clone(),
                                     0,
                                     true,
                                 );
-                                added = true;
                             }
-                        }
-
-                        if !added {
-                            vmchunk.add_poly_3d(
-                                GeoId::Sector(sector.id),
-                                Uuid::from_str(DEFAULT_TILE_ID).unwrap(),
-                                verts.clone(),
-                                uvs_in.clone(),
-                                inds.clone(),
-                                0,
-                                true,
-                            );
                         }
                     }
 
@@ -1413,11 +1565,15 @@ impl ChunkBuilder for D3ChunkBuilder {
                     // Apply optional per-tile overrides for the main surface (jambs/caps unchanged).
                     for (tile_id, inds) in &override_batches {
                         if !inds.is_empty() {
-                            vmchunk.add_poly_3d(
+                            add_surface_poly_3d(
+                                vmchunk,
+                                surface,
+                                map,
                                 GeoId::Sector(sector.id),
                                 *tile_id,
                                 world_vertices.clone(),
                                 override_uvs.clone(),
+                                organic_uvs.clone(),
                                 inds.clone(),
                                 0,
                                 true,
@@ -1429,12 +1585,16 @@ impl ChunkBuilder for D3ChunkBuilder {
                     if !blend_batches.is_empty() {
                         for (tile_id, tile_id2, blend_weights, inds) in &blend_batches {
                             if !inds.is_empty() {
-                                vmchunk.add_poly_3d_blended(
+                                add_surface_poly_3d_blended(
+                                    vmchunk,
+                                    surface,
+                                    map,
                                     GeoId::Sector(sector.id),
                                     *tile_id,
                                     *tile_id2,
                                     world_vertices.clone(),
                                     override_uvs.clone(),
+                                    organic_uvs.clone(),
                                     blend_weights.clone(),
                                     inds.clone(),
                                     0,
@@ -1447,12 +1607,15 @@ impl ChunkBuilder for D3ChunkBuilder {
                     if !default_indices.is_empty() {
                         push_with_material_kind_local(
                             MaterialKind::Cap,
+                            surface,
+                            map,
                             sector,
                             assets,
                             vmchunk,
                             world_vertices.clone(),
                             default_indices.clone(),
                             uvs.clone(),
+                            organic_uvs.clone(),
                         );
                     }
 
@@ -1589,15 +1752,21 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 }
 
                                 let back_uvs = build_surface_uvs(&back_verts_uv, sector, surface);
+                                let back_organic_uvs =
+                                    build_surface_local_uvs(&back_verts_uv, surface, map);
 
                                 for (tile_id, inds) in &back_override_batches {
                                     if !inds.is_empty() {
                                         // shift to back plane (already baked during build)
-                                        vmchunk.add_poly_3d(
+                                        add_surface_poly_3d(
+                                            vmchunk,
+                                            surface,
+                                            map,
                                             GeoId::Sector(sector.id),
                                             *tile_id,
                                             back_world_vertices.clone(),
                                             back_override_uvs.clone(),
+                                            back_organic_uvs.clone(),
                                             inds.clone(),
                                             0,
                                             true,
@@ -1610,12 +1779,16 @@ impl ChunkBuilder for D3ChunkBuilder {
                                         &back_blend_batches
                                     {
                                         if !inds.is_empty() {
-                                            vmchunk.add_poly_3d_blended(
+                                            add_surface_poly_3d_blended(
+                                                vmchunk,
+                                                surface,
+                                                map,
                                                 GeoId::Sector(sector.id),
                                                 *tile_id,
                                                 *tile_id2,
                                                 back_world_vertices.clone(),
                                                 back_override_uvs.clone(),
+                                                back_organic_uvs.clone(),
                                                 blend_weights.clone(),
                                                 inds.clone(),
                                                 0,
@@ -1628,12 +1801,15 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 if !back_default_indices.is_empty() {
                                     push_with_material_kind_local(
                                         MaterialKind::Cap,
+                                        surface,
+                                        map,
                                         sector,
                                         assets,
                                         vmchunk,
                                         back_world_vertices,
                                         back_default_indices,
                                         back_uvs,
+                                        back_organic_uvs,
                                     );
                                 }
                             }
@@ -1650,12 +1826,15 @@ impl ChunkBuilder for D3ChunkBuilder {
                             fix_winding(&ring_v, &mut ring_i, surface.plane.normal);
                             push_with_material_kind_local(
                                 MaterialKind::Side,
+                                surface,
+                                map,
                                 sector,
                                 assets,
                                 vmchunk,
                                 ring_v,
                                 ring_i,
                                 ring_uv,
+                                Vec::new(),
                             );
                         };
 
@@ -1771,6 +1950,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                     }
 
                     let uvs = build_surface_uvs(&verts_uv, sector, surface);
+                    let organic_uvs = build_surface_local_uvs(&verts_uv, surface, map);
                     #[allow(dead_code)]
                     #[derive(Clone, Copy)]
                     enum MaterialKind {
@@ -1781,12 +1961,15 @@ impl ChunkBuilder for D3ChunkBuilder {
                     // Helper function (no captures): push a batch with sector material.
                     fn push_with_material_kind_local(
                         kind: MaterialKind,
+                        surface: &crate::Surface,
+                        map: &Map,
                         sector: &Sector,
                         assets: &Assets,
                         vmchunk: &mut scenevm::Chunk,
                         verts: Vec<[f32; 4]>,
                         inds: Vec<(usize, usize, usize)>,
                         uvs_in: Vec<[f32; 2]>,
+                        organic_uvs_in: Vec<[f32; 2]>,
                     ) {
                         let source_key = match kind {
                             MaterialKind::Side => "jamb_source",
@@ -1802,11 +1985,15 @@ impl ChunkBuilder for D3ChunkBuilder {
                             .or_else(|| sector.properties.get(fallback_key))
                         {
                             if let Some(tile) = pixelsource.tile_from_tile_list(assets) {
-                                vmchunk.add_poly_3d(
+                                add_surface_poly_3d(
+                                    vmchunk,
+                                    surface,
+                                    map,
                                     GeoId::Sector(sector.id),
                                     tile.id,
                                     verts.clone(),
                                     uvs_in.clone(),
+                                    organic_uvs_in.clone(),
                                     inds.clone(),
                                     0,
                                     true,
@@ -1816,11 +2003,15 @@ impl ChunkBuilder for D3ChunkBuilder {
                         }
 
                         if !added {
-                            vmchunk.add_poly_3d(
+                            add_surface_poly_3d(
+                                vmchunk,
+                                surface,
+                                map,
                                 GeoId::Sector(sector.id),
                                 Uuid::from_str(DEFAULT_TILE_ID).unwrap(),
                                 verts,
                                 uvs_in,
+                                organic_uvs_in,
                                 inds,
                                 0,
                                 true,
@@ -1830,11 +2021,15 @@ impl ChunkBuilder for D3ChunkBuilder {
 
                     for (tile_id, inds) in &override_batches {
                         if !inds.is_empty() {
-                            vmchunk.add_poly_3d(
+                            add_surface_poly_3d(
+                                vmchunk,
+                                surface,
+                                map,
                                 GeoId::Sector(sector.id),
                                 *tile_id,
                                 world_vertices.clone(),
                                 uvs.clone(),
+                                organic_uvs.clone(),
                                 inds.clone(),
                                 0,
                                 true,
@@ -1845,12 +2040,16 @@ impl ChunkBuilder for D3ChunkBuilder {
                     if !blend_batches.is_empty() {
                         for (tile_id, tile_id2, blend_weights, inds) in &blend_batches {
                             if !inds.is_empty() {
-                                vmchunk.add_poly_3d_blended(
+                                add_surface_poly_3d_blended(
+                                    vmchunk,
+                                    surface,
+                                    map,
                                     GeoId::Sector(sector.id),
                                     *tile_id,
                                     *tile_id2,
                                     world_vertices.clone(),
                                     override_uvs.clone(),
+                                    organic_uvs.clone(),
                                     blend_weights.clone(),
                                     inds.clone(),
                                     0,
@@ -1862,11 +2061,15 @@ impl ChunkBuilder for D3ChunkBuilder {
 
                     for (tile_id, inds) in &override_batches {
                         if !inds.is_empty() {
-                            vmchunk.add_poly_3d(
+                            add_surface_poly_3d(
+                                vmchunk,
+                                surface,
+                                map,
                                 GeoId::Sector(sector.id),
                                 *tile_id,
                                 world_vertices.clone(),
                                 override_uvs.clone(),
+                                organic_uvs.clone(),
                                 inds.clone(),
                                 0,
                                 true,
@@ -1876,12 +2079,16 @@ impl ChunkBuilder for D3ChunkBuilder {
 
                     for (tile_id, tile_id2, blend_weights, inds) in &blend_batches {
                         if !inds.is_empty() {
-                            vmchunk.add_poly_3d_blended(
+                            add_surface_poly_3d_blended(
+                                vmchunk,
+                                surface,
+                                map,
                                 GeoId::Sector(sector.id),
                                 *tile_id,
                                 *tile_id2,
                                 world_vertices.clone(),
                                 override_uvs.clone(),
+                                organic_uvs.clone(),
                                 blend_weights.clone(),
                                 inds.clone(),
                                 0,
@@ -1893,12 +2100,15 @@ impl ChunkBuilder for D3ChunkBuilder {
                     if !default_indices.is_empty() {
                         push_with_material_kind_local(
                             MaterialKind::Cap,
+                            surface,
+                            map,
                             sector,
                             assets,
                             vmchunk,
                             world_vertices,
                             default_indices,
                             uvs,
+                            organic_uvs,
                         );
                     }
                 }
@@ -2822,8 +3032,6 @@ mod tests {
             extrusion: ExtrusionSpec::default(),
             profile: None,
             organic_layers: indexmap::IndexMap::default(),
-            organic_vine_strokes: Vec::new(),
-            organic_bush_clusters: Vec::new(),
             world_vertices: vec![],
         }
     }
@@ -5099,1702 +5307,12 @@ fn source_to_tile_id(props: &ValueContainer, key: &str, assets: &Assets) -> Opti
     ps.tile_from_tile_list(assets).map(|t| t.id)
 }
 
-fn pixel_source_to_tile_id(source: &PixelSource, assets: &Assets) -> Option<Uuid> {
-    source.tile_from_tile_list(assets).map(|tile| tile.id)
-}
-
-#[derive(Clone, Copy)]
-struct OrganicRenderSpan {
-    x: i32,
-    y: i32,
-    bottom: f32,
-    top: f32,
-    tile_id: Uuid,
-}
-
-impl OrganicRenderSpan {
-    fn outer(&self) -> f32 {
-        if self.top.abs() >= self.bottom.abs() {
-            self.top
-        } else {
-            self.bottom
-        }
-    }
-
-    fn inner(&self) -> f32 {
-        if self.top.abs() >= self.bottom.abs() {
-            self.bottom
-        } else {
-            self.top
-        }
-    }
-
-    fn outer_sign(&self) -> f32 {
-        if self.outer() >= 0.0 { 1.0 } else { -1.0 }
-    }
-}
-
-fn collect_organic_render_spans(
-    columns: &[crate::OrganicColumn],
-    tile_for_span: impl Fn(&crate::OrganicSpan) -> Uuid,
-) -> Vec<OrganicRenderSpan> {
-    let mut spans = Vec::new();
-    for column in columns {
-        for span in &column.spans {
-            spans.push(OrganicRenderSpan {
-                x: column.x,
-                y: column.y,
-                bottom: span.offset,
-                top: span.offset + span.height.max(0.01),
-                tile_id: tile_for_span(span),
-            });
-        }
-    }
-    spans
-}
-
-fn organic_overlap_top(
-    span_lookup: &FxHashMap<(i32, i32), Vec<OrganicRenderSpan>>,
-    x: i32,
-    y: i32,
-    bottom: f32,
-    top: f32,
-) -> Option<f32> {
-    let outer = if top.abs() >= bottom.abs() {
-        top
-    } else {
-        bottom
-    };
-    let inner = if top.abs() >= bottom.abs() {
-        bottom
-    } else {
-        top
-    };
-    span_lookup.get(&(x, y)).and_then(|spans| {
-        spans
-            .iter()
-            .filter(|other| other.outer().abs() > inner.abs() && other.inner().abs() < outer.abs())
-            .map(|other| {
-                if outer >= 0.0 {
-                    other.outer().min(outer)
-                } else {
-                    other.outer().max(outer)
-                }
-            })
-            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-    })
-}
-
-fn build_organic_corner_lookup(spans: &[OrganicRenderSpan]) -> FxHashMap<(i32, i32), f32> {
-    let mut accum: FxHashMap<(i32, i32), (f32, f32)> = FxHashMap::default();
-    for span in spans {
-        for corner in [
-            (span.x, span.y),
-            (span.x + 1, span.y),
-            (span.x + 1, span.y + 1),
-            (span.x, span.y + 1),
-        ] {
-            let entry = accum.entry((corner.0, corner.1)).or_insert((0.0, 0.0));
-            entry.0 += span.outer();
-            entry.1 += 1.0;
-        }
-    }
-
-    let mut result = FxHashMap::default();
-    for (key, (sum, count)) in accum {
-        if count > 0.0 {
-            result.insert(key, sum / count);
-        }
-    }
-    result
-}
-
-fn render_organic_shell(
-    vmchunk: &mut scenevm::Chunk,
-    geo: GeoId,
-    tile_id: Uuid,
-    edge_normals: [Vec3<f32>; 4],
-    side_quads: [[Vec3<f32>; 4]; 4],
-) {
-    let side_uvs = vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
-    for (edge_index, quad) in side_quads.iter().enumerate() {
-        if (quad[3] - quad[0]).magnitude() <= 0.001 && (quad[2] - quad[1]).magnitude() <= 0.001 {
-            continue;
-        }
-        push_quad_with_winding(
-            vmchunk,
-            geo,
-            tile_id,
-            vec![
-                [quad[0].x, quad[0].y, quad[0].z, 1.0],
-                [quad[1].x, quad[1].y, quad[1].z, 1.0],
-                [quad[2].x, quad[2].y, quad[2].z, 1.0],
-                [quad[3].x, quad[3].y, quad[3].z, 1.0],
-            ],
-            side_uvs.clone(),
-            edge_normals[edge_index],
-        );
-    }
-}
-
-fn is_ribbon_span(
-    north_connected: bool,
-    east_connected: bool,
-    south_connected: bool,
-    west_connected: bool,
-) -> bool {
-    (!north_connected && !south_connected && east_connected && west_connected)
-        || (!east_connected && !west_connected && north_connected && south_connected)
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum RibbonAxis {
-    Horizontal,
-    Vertical,
-}
-
-fn ribbon_axis(
-    north_connected: bool,
-    east_connected: bool,
-    south_connected: bool,
-    west_connected: bool,
-) -> Option<RibbonAxis> {
-    if !north_connected && !south_connected && east_connected && west_connected {
-        Some(RibbonAxis::Horizontal)
-    } else if !east_connected && !west_connected && north_connected && south_connected {
-        Some(RibbonAxis::Vertical)
-    } else {
-        None
-    }
-}
-
-fn ribbon_bounds(
-    min_a: f32,
-    max_a: f32,
-    min_b: f32,
-    max_b: f32,
-    inset: f32,
-    north_connected: bool,
-    east_connected: bool,
-    south_connected: bool,
-    west_connected: bool,
-) -> (f32, f32, f32, f32) {
-    if north_connected && south_connected {
-        (min_a + inset, max_a - inset, min_b, max_b)
-    } else if east_connected && west_connected {
-        (min_a, max_a, min_b + inset, max_b - inset)
-    } else {
-        (min_a, max_a, min_b, max_b)
-    }
-}
-
-fn collect_ribbon_runs(
-    spans: &[OrganicRenderSpan],
-    span_lookup: &FxHashMap<(i32, i32), Vec<OrganicRenderSpan>>,
-) -> Vec<(RibbonAxis, Vec<OrganicRenderSpan>)> {
-    let mut visited: FxHashSet<(i32, i32, i32)> = FxHashSet::default();
-    let mut runs = Vec::new();
-
-    for span in spans {
-        let key = (span.x, span.y, span.outer_sign() as i32);
-        if visited.contains(&key) {
-            continue;
-        }
-        let inner = span.inner();
-        let outer = span.outer();
-        let north = organic_overlap_top(&span_lookup, span.x, span.y - 1, inner, outer).is_some();
-        let east = organic_overlap_top(&span_lookup, span.x + 1, span.y, inner, outer).is_some();
-        let south = organic_overlap_top(&span_lookup, span.x, span.y + 1, inner, outer).is_some();
-        let west = organic_overlap_top(&span_lookup, span.x - 1, span.y, inner, outer).is_some();
-        let Some(axis) = ribbon_axis(north, east, south, west) else {
-            continue;
-        };
-
-        let mut run = vec![*span];
-        visited.insert(key);
-
-        match axis {
-            RibbonAxis::Horizontal => {
-                let mut x = span.x - 1;
-                loop {
-                    let found = spans.iter().find(|other| {
-                        other.x == x
-                            && other.y == span.y
-                            && other.tile_id == span.tile_id
-                            && other.outer_sign() as i32 == span.outer_sign() as i32
-                            && ribbon_axis(
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x,
-                                    other.y - 1,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x + 1,
-                                    other.y,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x,
-                                    other.y + 1,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x - 1,
-                                    other.y,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                            ) == Some(RibbonAxis::Horizontal)
-                    });
-                    let Some(found) = found else { break };
-                    visited.insert((found.x, found.y, found.outer_sign() as i32));
-                    run.push(*found);
-                    x -= 1;
-                }
-                let mut x = span.x + 1;
-                loop {
-                    let found = spans.iter().find(|other| {
-                        other.x == x
-                            && other.y == span.y
-                            && other.tile_id == span.tile_id
-                            && other.outer_sign() as i32 == span.outer_sign() as i32
-                            && ribbon_axis(
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x,
-                                    other.y - 1,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x + 1,
-                                    other.y,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x,
-                                    other.y + 1,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x - 1,
-                                    other.y,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                            ) == Some(RibbonAxis::Horizontal)
-                    });
-                    let Some(found) = found else { break };
-                    visited.insert((found.x, found.y, found.outer_sign() as i32));
-                    run.push(*found);
-                    x += 1;
-                }
-                run.sort_by_key(|s| s.x);
-            }
-            RibbonAxis::Vertical => {
-                let mut y = span.y - 1;
-                loop {
-                    let found = spans.iter().find(|other| {
-                        other.x == span.x
-                            && other.y == y
-                            && other.tile_id == span.tile_id
-                            && other.outer_sign() as i32 == span.outer_sign() as i32
-                            && ribbon_axis(
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x,
-                                    other.y - 1,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x + 1,
-                                    other.y,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x,
-                                    other.y + 1,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x - 1,
-                                    other.y,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                            ) == Some(RibbonAxis::Vertical)
-                    });
-                    let Some(found) = found else { break };
-                    visited.insert((found.x, found.y, found.outer_sign() as i32));
-                    run.push(*found);
-                    y -= 1;
-                }
-                let mut y = span.y + 1;
-                loop {
-                    let found = spans.iter().find(|other| {
-                        other.x == span.x
-                            && other.y == y
-                            && other.tile_id == span.tile_id
-                            && other.outer_sign() as i32 == span.outer_sign() as i32
-                            && ribbon_axis(
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x,
-                                    other.y - 1,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x + 1,
-                                    other.y,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x,
-                                    other.y + 1,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                                organic_overlap_top(
-                                    &span_lookup,
-                                    other.x - 1,
-                                    other.y,
-                                    other.inner(),
-                                    other.outer(),
-                                )
-                                .is_some(),
-                            ) == Some(RibbonAxis::Vertical)
-                    });
-                    let Some(found) = found else { break };
-                    visited.insert((found.x, found.y, found.outer_sign() as i32));
-                    run.push(*found);
-                    y += 1;
-                }
-                run.sort_by_key(|s| s.y);
-            }
-        }
-
-        if run.len() > 1 {
-            runs.push((axis, run));
-        }
-    }
-
-    runs
-}
-
-fn push_organic_top_mesh(
-    vmchunk: &mut scenevm::Chunk,
-    geo: GeoId,
-    tile_id: Uuid,
-    desired_normal: Vec3<f32>,
-    vertices: Vec<[f32; 4]>,
-    uvs: Vec<[f32; 2]>,
-    indices: Vec<(usize, usize, usize)>,
-) {
-    if vertices.is_empty() || indices.is_empty() {
-        return;
-    }
-    let mut indices = indices;
-    fix_winding(&vertices, &mut indices, desired_normal);
-    vmchunk.add_poly_3d(geo, tile_id, vertices, uvs, indices, 0, true);
-}
-
-fn push_organic_strip_mesh(
-    vmchunk: &mut scenevm::Chunk,
-    geo: GeoId,
-    tile_id: Uuid,
-    desired_normal: Vec3<f32>,
-    pairs: &[(Vec3<f32>, Vec3<f32>)],
-    uv_axis_horizontal: bool,
-) {
-    if pairs.len() < 2 {
-        return;
-    }
-    let mut vertices = Vec::with_capacity(pairs.len() * 2);
-    let mut uvs = Vec::with_capacity(pairs.len() * 2);
-    let mut indices = Vec::with_capacity((pairs.len() - 1) * 2);
-    let mut acc = 0.0f32;
-    for (i, pair) in pairs.iter().enumerate() {
-        if i > 0 {
-            acc += (pairs[i].0 - pairs[i - 1].0).magnitude();
-        }
-        vertices.push([pair.0.x, pair.0.y, pair.0.z, 1.0]);
-        vertices.push([pair.1.x, pair.1.y, pair.1.z, 1.0]);
-        if uv_axis_horizontal {
-            uvs.push([acc, 1.0]);
-            uvs.push([acc, 0.0]);
-        } else {
-            uvs.push([1.0, acc]);
-            uvs.push([0.0, acc]);
-        }
-    }
-    for i in 0..pairs.len() - 1 {
-        let a = i * 2;
-        let b = a + 1;
-        let c = a + 3;
-        let d = a + 2;
-        indices.push((a, d, c));
-        indices.push((a, c, b));
-    }
-    push_organic_top_mesh(
-        vmchunk,
-        geo,
-        tile_id,
-        desired_normal,
-        vertices,
-        uvs,
-        indices,
-    );
-}
-
-fn collect_vine_runs<'a, F>(
-    strokes: &'a [crate::OrganicVineStroke],
-    mut tile_for: F,
-) -> Vec<(Uuid, Vec<&'a crate::OrganicVineStroke>)>
-where
-    F: FnMut(&'a crate::OrganicVineStroke) -> Uuid,
-{
-    let mut by_stroke: FxHashMap<i32, Vec<&'a crate::OrganicVineStroke>> = FxHashMap::default();
-    for stroke in strokes {
-        by_stroke.entry(stroke.stroke_id).or_default().push(stroke);
-    }
-
-    let mut runs = Vec::new();
-    for (_stroke_id, mut segs) in by_stroke {
-        segs.sort_by_key(|seg| seg.seq);
-
-        let mut current_tile = None;
-        let mut current: Vec<&'a crate::OrganicVineStroke> = Vec::new();
-        let mut prev_seq = None;
-
-        for seg in segs {
-            let tile_id = tile_for(seg);
-            let split =
-                current_tile != Some(tile_id) || prev_seq.is_some_and(|prev| seg.seq != prev + 1);
-
-            if split && !current.is_empty() {
-                runs.push((current_tile.unwrap(), std::mem::take(&mut current)));
-            }
-
-            current_tile = Some(tile_id);
-            prev_seq = Some(seg.seq);
-            current.push(seg);
-        }
-
-        if !current.is_empty() {
-            runs.push((current_tile.unwrap(), current));
-        }
-    }
-
-    runs
-}
-
-fn build_vine_ribbon_pairs(
-    points: &[Vec2<f32>],
-    half_width: f32,
-    taper_start: bool,
-    taper_end: bool,
-) -> Vec<(Vec2<f32>, Vec2<f32>)> {
-    if points.len() < 2 {
-        return Vec::new();
-    }
-
-    let mut pairs = Vec::with_capacity(points.len());
-    for i in 0..points.len() {
-        let prev = if i == 0 {
-            points[1] - points[0]
-        } else {
-            points[i] - points[i - 1]
-        };
-        let next = if i + 1 == points.len() {
-            points[i] - points[i - 1]
-        } else {
-            points[i + 1] - points[i]
-        };
-        let prev_n = if prev.magnitude_squared() > 1e-8 {
-            prev.normalized()
-        } else {
-            Vec2::new(1.0, 0.0)
-        };
-        let next_n = if next.magnitude_squared() > 1e-8 {
-            next.normalized()
-        } else {
-            prev_n
-        };
-        let tangent = (prev_n + next_n).try_normalized().unwrap_or(next_n);
-        let perp = Vec2::new(-tangent.y, tangent.x);
-        let center = if i == 0 && !taper_start {
-            points[i] - next_n * (half_width * 0.9)
-        } else if i + 1 == points.len() && !taper_end {
-            points[i] + prev_n * (half_width * 0.9)
-        } else {
-            points[i]
-        };
-        let local_half_width = if (i == 0 && taper_start) || (i + 1 == points.len() && taper_end) {
-            half_width * 0.12
-        } else {
-            half_width
-        };
-        pairs.push((
-            center - perp * local_half_width,
-            center + perp * local_half_width,
-        ));
-    }
-
-    pairs
-}
-
-fn render_vine_run_top<F>(
-    vmchunk: &mut scenevm::Chunk,
-    geo: GeoId,
-    tile_id: Uuid,
-    points: &[Vec2<f32>],
-    half_width: f32,
-    desired_normal: Vec3<f32>,
-    taper_start: bool,
-    taper_end: bool,
-    world_at: F,
-) where
-    F: Fn(Vec2<f32>) -> Vec3<f32>,
-{
-    let pairs2 = build_vine_ribbon_pairs(points, half_width, taper_start, taper_end);
-    if pairs2.len() < 2 {
-        return;
-    }
-    let mut vertices = Vec::with_capacity(pairs2.len() * 2);
-    let mut uvs = Vec::with_capacity(pairs2.len() * 2);
-    let mut indices = Vec::new();
-    let pair_centers: Vec<Vec2<f32>> = pairs2
-        .iter()
-        .map(|(left, right)| (*left + *right) * 0.5)
-        .collect();
-    let mut acc = 0.0;
-    for (i, (left, right)) in pairs2.iter().enumerate() {
-        if i > 0 {
-            let prev_center = pair_centers[i - 1];
-            let center = pair_centers[i];
-            acc += (center - prev_center).magnitude();
-        }
-        let l = world_at(*left);
-        let r = world_at(*right);
-        vertices.push([l.x, l.y, l.z, 1.0]);
-        vertices.push([r.x, r.y, r.z, 1.0]);
-        uvs.push([acc, 1.0]);
-        uvs.push([acc, 0.0]);
-    }
-    for i in 0..pairs2.len().saturating_sub(1) {
-        let a = i * 2;
-        let b = a + 1;
-        let c = a + 3;
-        let d = a + 2;
-        indices.push((a, d, c));
-        indices.push((a, c, b));
-    }
-
-    push_organic_top_mesh(
-        vmchunk,
-        geo,
-        tile_id,
-        desired_normal,
-        vertices,
-        uvs,
-        indices,
-    );
-}
-
-fn emit_oriented_box(
-    vmchunk: &mut scenevm::Chunk,
-    geo: GeoId,
-    tile_id: Uuid,
-    center: Vec3<f32>,
-    right: Vec3<f32>,
-    forward: Vec3<f32>,
-    up: Vec3<f32>,
-    half_right: f32,
-    half_forward: f32,
-    half_up: f32,
-) {
-    let p000 = center - right * half_right - forward * half_forward - up * half_up;
-    let p001 = center - right * half_right - forward * half_forward + up * half_up;
-    let p010 = center - right * half_right + forward * half_forward - up * half_up;
-    let p011 = center - right * half_right + forward * half_forward + up * half_up;
-    let p100 = center + right * half_right - forward * half_forward - up * half_up;
-    let p101 = center + right * half_right - forward * half_forward + up * half_up;
-    let p110 = center + right * half_right + forward * half_forward - up * half_up;
-    let p111 = center + right * half_right + forward * half_forward + up * half_up;
-
-    let push_face =
-        |vmchunk: &mut scenevm::Chunk, a: Vec3<f32>, b: Vec3<f32>, c: Vec3<f32>, d: Vec3<f32>| {
-            let vertices = vec![
-                [a.x, a.y, a.z, 1.0],
-                [b.x, b.y, b.z, 1.0],
-                [c.x, c.y, c.z, 1.0],
-                [d.x, d.y, d.z, 1.0],
-            ];
-            let uvs = vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
-            let indices = vec![
-                (0usize, 1usize, 2usize),
-                (0usize, 2usize, 3usize),
-                (2usize, 1usize, 0usize),
-                (3usize, 2usize, 0usize),
-            ];
-            vmchunk.add_poly_3d(geo, tile_id, vertices, uvs, indices, 0, true);
-        };
-
-    push_face(vmchunk, p001, p101, p111, p011);
-    push_face(vmchunk, p000, p010, p110, p100);
-    push_face(vmchunk, p000, p001, p011, p010);
-    push_face(vmchunk, p100, p110, p111, p101);
-    push_face(vmchunk, p010, p011, p111, p110);
-    push_face(vmchunk, p000, p100, p101, p001);
-}
-
-fn emit_growth_blob(
-    vmchunk: &mut scenevm::Chunk,
-    geo: GeoId,
-    tile_id: Uuid,
-    center: Vec3<f32>,
-    up: Vec3<f32>,
-    base_right: Vec3<f32>,
-    base_forward: Vec3<f32>,
-    radius: f32,
-    height: f32,
-    layers: i32,
-    taper: f32,
-    breakup: f32,
-) {
-    let layer_count = layers.max(3) as usize;
-    let voxel_size = (radius * 0.34).clamp(0.05, 0.18);
-    let half = voxel_size * 0.5;
-    let max_ring = ((radius / voxel_size).ceil() as i32).max(1);
-    let breakup_seed = (center.x * 17.13 + center.y * 9.71 + center.z * 5.19).sin();
-
-    for layer_index in 0..layer_count {
-        let t = if layer_count <= 1 {
-            0.0
-        } else {
-            layer_index as f32 / (layer_count - 1) as f32
-        };
-        let width_scale = (1.0 - t * taper * 0.85).max(0.22);
-        let layer_radius = radius * width_scale;
-        let layer_ring = ((layer_radius / voxel_size).ceil() as i32).clamp(1, max_ring);
-        let layer_center = center + up * (height * t * 0.82);
-        let edge_hole_bias = breakup.clamp(0.0, 1.0) * 0.55;
-
-        for gx in -layer_ring..=layer_ring {
-            for gy in -layer_ring..=layer_ring {
-                let fx = gx as f32 / layer_ring as f32;
-                let fy = gy as f32 / layer_ring as f32;
-                let dist = (fx * fx + fy * fy).sqrt();
-                if dist > 1.0 {
-                    continue;
-                }
-
-                let noise = ((gx as f32 * 1.73)
-                    + (gy as f32 * 2.37)
-                    + (layer_index as f32 * 0.91)
-                    + breakup_seed)
-                    .sin()
-                    * 0.5
-                    + 0.5;
-                if dist > 0.55 && noise < edge_hole_bias * dist {
-                    continue;
-                }
-
-                let column_layers = if dist < 0.35 && layer_index + 1 < layer_count {
-                    2
-                } else {
-                    1
-                };
-                for lift in 0..column_layers {
-                    let c = layer_center
-                        + base_right * (gx as f32 * voxel_size)
-                        + base_forward * (gy as f32 * voxel_size)
-                        + up * (lift as f32 * voxel_size * 0.72);
-                    emit_oriented_box(
-                        vmchunk,
-                        geo,
-                        tile_id,
-                        c,
-                        base_right,
-                        base_forward,
-                        up,
-                        half,
-                        half,
-                        half,
-                    );
-                }
-            }
-        }
-    }
-}
-
-fn render_bush_cluster(
-    vmchunk: &mut scenevm::Chunk,
-    geo: GeoId,
-    tile_id: Uuid,
-    center: Vec3<f32>,
-    axis: Vec3<f32>,
-    right: Vec3<f32>,
-    forward: Vec3<f32>,
-    radius: f32,
-    height: f32,
-    layers: i32,
-    taper: f32,
-    breakup: f32,
-    shape: OrganicGrowthShape,
-    canopy_lobes: i32,
-    canopy_spread: f32,
-    trunk_height: f32,
-    trunk_radius: f32,
-) {
-    let up = axis.normalized();
-    let base_right = right.normalized();
-    let base_forward = forward.normalized();
-    match shape {
-        OrganicGrowthShape::Bush => {
-            emit_growth_blob(
-                vmchunk,
-                geo,
-                tile_id,
-                center,
-                up,
-                base_right,
-                base_forward,
-                radius,
-                height,
-                layers,
-                taper,
-                breakup,
-            );
-        }
-        OrganicGrowthShape::Tree => {
-            let trunk_h = trunk_height.max(height * 0.45).max(0.18);
-            let trunk_r = trunk_radius.max(radius * 0.12).max(0.03);
-            let trunk_segments = ((trunk_h / 0.12).ceil() as i32).clamp(2, 8);
-            for i in 0..trunk_segments {
-                let t = (i as f32 + 0.5) / trunk_segments as f32;
-                let c = center + up * (trunk_h * t);
-                let seg_scale = (1.0 - t * 0.22).max(0.72);
-                emit_oriented_box(
-                    vmchunk,
-                    geo,
-                    tile_id,
-                    c,
-                    base_right,
-                    base_forward,
-                    up,
-                    trunk_r * seg_scale,
-                    trunk_r * seg_scale,
-                    (trunk_h / trunk_segments as f32) * 0.55,
-                );
-            }
-
-            let crown_center = center + up * trunk_h;
-            let crown_radius = (radius * (0.72 + canopy_spread * 0.32)).max(trunk_r * 2.5);
-            let crown_height = (height - trunk_h).max(radius * 0.4);
-            emit_growth_blob(
-                vmchunk,
-                geo,
-                tile_id,
-                crown_center,
-                up,
-                base_right,
-                base_forward,
-                crown_radius * 0.72,
-                crown_height * 0.85,
-                layers.max(3),
-                taper * 0.65,
-                breakup * 0.7,
-            );
-
-            let lobe_count = canopy_lobes.max(3) as usize;
-            let ring = crown_radius * (0.22 + canopy_spread * 0.30);
-            let lobe_radius = crown_radius * (0.34 - canopy_spread * 0.06).max(0.20);
-            for i in 0..lobe_count {
-                let a = i as f32 / lobe_count as f32 * std::f32::consts::TAU;
-                let lobe_center = crown_center
-                    + base_right * (a.cos() * ring)
-                    + base_forward * (a.sin() * ring)
-                    + up * ((a * 1.7).sin() * crown_height * 0.10 + crown_height * 0.08);
-                emit_growth_blob(
-                    vmchunk,
-                    geo,
-                    tile_id,
-                    lobe_center,
-                    up,
-                    base_right,
-                    base_forward,
-                    lobe_radius,
-                    crown_height * 0.52,
-                    (layers - 1).max(3),
-                    0.35,
-                    breakup * 0.9,
-                );
-            }
-        }
-    }
-}
-
 fn generate_organic_volumes(
-    map: &Map,
-    assets: &Assets,
-    chunk: &Chunk,
-    vmchunk: &mut scenevm::Chunk,
+    _map: &Map,
+    _assets: &Assets,
+    _chunk: &Chunk,
+    _vmchunk: &mut scenevm::Chunk,
 ) {
-    let default_tile_id = Uuid::from_str(DEFAULT_TILE_ID).unwrap();
-
-    for surface in map.surfaces.values() {
-        let Some(sector) = map.find_sector(surface.sector_id) else {
-            continue;
-        };
-        let right = surface.frame.right.normalized();
-        let normal = surface.normal();
-        let forward = (-surface.frame.up).normalized();
-        let host_source = sector.properties.get_default_source().cloned();
-        let host_tile_id = host_source
-            .as_ref()
-            .and_then(|source| pixel_source_to_tile_id(source, assets));
-
-        for (tile_id, run) in collect_vine_runs(&surface.organic_vine_strokes, |stroke| {
-            stroke
-                .source
-                .as_ref()
-                .and_then(|source| pixel_source_to_tile_id(source, assets))
-                .or(host_tile_id)
-                .unwrap_or(default_tile_id)
-        }) {
-            let first = run[0];
-            let center_local = (first.start + first.end) * 0.5;
-            let center_world = surface.uv_to_world(surface.tile_local_to_uv(center_local, map));
-            if !chunk
-                .bbox
-                .contains(Vec2::new(center_world.x, center_world.z))
-            {
-                continue;
-            }
-
-            let points: Vec<Vec2<f32>> = std::iter::once(run[0].start)
-                .chain(run.iter().map(|seg| seg.end))
-                .collect();
-            let sign = if first.grow_positive { 1.0 } else { -1.0 };
-            let outer = if first.grow_positive {
-                first.anchor_offset + first.depth
-            } else {
-                first.anchor_offset - first.depth
-            };
-            let world_at = |p: Vec2<f32>| -> Vec3<f32> {
-                surface.uv_to_world(surface.tile_local_to_uv(p, map)) + normal * outer
-            };
-            render_vine_run_top(
-                vmchunk,
-                GeoId::Sector(surface.sector_id),
-                tile_id,
-                &points,
-                first.width * 0.5,
-                normal * sign,
-                first.cap_start,
-                run[run.len() - 1].cap_end,
-                world_at,
-            );
-        }
-
-        for bush in &surface.organic_bush_clusters {
-            let tile_id = bush
-                .source
-                .as_ref()
-                .and_then(|source| pixel_source_to_tile_id(source, assets))
-                .or(host_tile_id)
-                .unwrap_or(default_tile_id);
-            let sign = if bush.grow_positive { 1.0 } else { -1.0 };
-            let center_world = surface.uv_to_world(surface.tile_local_to_uv(bush.center, map))
-                + normal * bush.anchor_offset;
-            if !chunk
-                .bbox
-                .contains(Vec2::new(center_world.x, center_world.z))
-            {
-                continue;
-            }
-            render_bush_cluster(
-                vmchunk,
-                GeoId::Sector(surface.sector_id),
-                tile_id,
-                center_world,
-                normal * sign,
-                right,
-                forward,
-                bush.radius,
-                bush.height,
-                bush.layers,
-                bush.taper,
-                bush.breakup,
-                bush.shape.clone(),
-                bush.canopy_lobes,
-                bush.canopy_spread,
-                bush.trunk_height,
-                bush.trunk_radius,
-            );
-        }
-
-        for layer in surface.organic_layers.values() {
-            let spans = collect_organic_render_spans(&layer.columns, |span| {
-                let source = span
-                    .source
-                    .as_ref()
-                    .or_else(|| {
-                        layer
-                            .binding_for_channel(span.channel)
-                            .and_then(|b| b.source.as_ref())
-                    })
-                    .or(host_source.as_ref());
-                source
-                    .and_then(|source| pixel_source_to_tile_id(source, assets))
-                    .or(host_tile_id)
-                    .unwrap_or(default_tile_id)
-            });
-            let mut span_lookup: FxHashMap<(i32, i32), Vec<OrganicRenderSpan>> =
-                FxHashMap::default();
-            for span in &spans {
-                span_lookup.entry((span.x, span.y)).or_default().push(*span);
-            }
-            let corner_lookup = build_organic_corner_lookup(&spans);
-            let ribbon_runs = collect_ribbon_runs(&spans, &span_lookup);
-            let ribbon_keys: FxHashSet<(i32, i32, i32)> = ribbon_runs
-                .iter()
-                .flat_map(|(_, run)| run.iter().map(|s| (s.x, s.y, s.outer_sign() as i32)))
-                .collect();
-
-            for sign in [-1_i32, 1_i32] {
-                let group_spans: Vec<OrganicRenderSpan> = spans
-                    .iter()
-                    .copied()
-                    .filter(|span| span.outer_sign() as i32 == sign)
-                    .collect();
-                if group_spans.is_empty() {
-                    continue;
-                }
-
-                let filtered_group_spans: Vec<OrganicRenderSpan> = group_spans
-                    .iter()
-                    .copied()
-                    .filter(|span| {
-                        let inner = span.inner();
-                        let outer = span.outer();
-                        let north =
-                            organic_overlap_top(&span_lookup, span.x, span.y - 1, inner, outer)
-                                .is_some();
-                        let east =
-                            organic_overlap_top(&span_lookup, span.x + 1, span.y, inner, outer)
-                                .is_some();
-                        let south =
-                            organic_overlap_top(&span_lookup, span.x, span.y + 1, inner, outer)
-                                .is_some();
-                        let west =
-                            organic_overlap_top(&span_lookup, span.x - 1, span.y, inner, outer)
-                                .is_some();
-                        !is_ribbon_span(north, east, south, west)
-                    })
-                    .collect();
-                if filtered_group_spans.is_empty() {
-                    continue;
-                }
-                let mut top_groups: FxHashMap<Uuid, Vec<OrganicRenderSpan>> = FxHashMap::default();
-                for span in &filtered_group_spans {
-                    top_groups.entry(span.tile_id).or_default().push(*span);
-                }
-                for (tile_id, tile_spans) in top_groups {
-                    let mut vertex_map: FxHashMap<(i32, i32), usize> = FxHashMap::default();
-                    let mut vertices = Vec::new();
-                    let mut uvs = Vec::new();
-                    let mut indices = Vec::new();
-
-                    let mut ensure_vertex = |cx: i32, cy: i32| -> usize {
-                        if let Some(index) = vertex_map.get(&(cx, cy)) {
-                            return *index;
-                        }
-                        let extrude = corner_lookup.get(&(cx, cy)).copied().unwrap_or(0.0);
-                        let lx = cx as f32 * layer.cell_size;
-                        let ly = cy as f32 * layer.cell_size;
-                        let world = surface
-                            .uv_to_world(surface.tile_local_to_uv(Vec2::new(lx, ly), map))
-                            + normal * extrude;
-                        let index = vertices.len();
-                        vertices.push([world.x, world.y, world.z, 1.0]);
-                        uvs.push([lx, ly]);
-                        vertex_map.insert((cx, cy), index);
-                        index
-                    };
-
-                    for span in &tile_spans {
-                        let v00 = ensure_vertex(span.x, span.y);
-                        let v10 = ensure_vertex(span.x + 1, span.y);
-                        let v11 = ensure_vertex(span.x + 1, span.y + 1);
-                        let v01 = ensure_vertex(span.x, span.y + 1);
-                        indices.push((v00, v10, v11));
-                        indices.push((v00, v11, v01));
-                    }
-
-                    let center_span = tile_spans[tile_spans.len() / 2];
-                    let center_local = Vec2::new(
-                        (center_span.x as f32 + 0.5) * layer.cell_size,
-                        (center_span.y as f32 + 0.5) * layer.cell_size,
-                    );
-                    let center_world =
-                        surface.uv_to_world(surface.tile_local_to_uv(center_local, map));
-                    if chunk
-                        .bbox
-                        .contains(Vec2::new(center_world.x, center_world.z))
-                    {
-                        push_organic_top_mesh(
-                            vmchunk,
-                            GeoId::Sector(surface.sector_id),
-                            tile_id,
-                            normal * sign as f32,
-                            vertices,
-                            uvs,
-                            indices,
-                        );
-                    }
-                }
-            }
-
-            for (axis, run) in &ribbon_runs {
-                let sign = run[0].outer_sign();
-                let inset = (layer.cell_size * 0.28).min(layer.cell_size * 0.45);
-                let mut vertices = Vec::new();
-                let mut uvs = Vec::new();
-                let mut indices = Vec::new();
-
-                match axis {
-                    RibbonAxis::Horizontal => {
-                        let y = run[0].y;
-                        let (_, _, shell_y0, shell_y1) = ribbon_bounds(
-                            run.first().unwrap().x as f32 * layer.cell_size,
-                            (run.last().unwrap().x + 1) as f32 * layer.cell_size,
-                            y as f32 * layer.cell_size,
-                            (y + 1) as f32 * layer.cell_size,
-                            inset,
-                            false,
-                            true,
-                            false,
-                            true,
-                        );
-                        let shell_x0 = run.first().unwrap().x as f32 * layer.cell_size + inset;
-                        let shell_x1 = (run.last().unwrap().x + 1) as f32 * layer.cell_size - inset;
-                        let world_at = |lx: f32, ly: f32, extrude: f32| -> Vec3<f32> {
-                            let base = surface
-                                .uv_to_world(surface.tile_local_to_uv(Vec2::new(lx, ly), map));
-                            base + normal * extrude
-                        };
-                        for (i, x) in
-                            (run.first().unwrap().x..=run.last().unwrap().x + 1).enumerate()
-                        {
-                            let lx = if x == run.first().unwrap().x {
-                                shell_x0
-                            } else if x == run.last().unwrap().x + 1 {
-                                shell_x1
-                            } else {
-                                x as f32 * layer.cell_size
-                            };
-                            let north_top = run
-                                .iter()
-                                .find(|s| s.x == x || s.x + 1 == x)
-                                .map(|span| {
-                                    let clamp_outer = |v: f32| {
-                                        if sign >= 0.0 {
-                                            v.clamp(span.inner(), span.outer())
-                                        } else {
-                                            v.clamp(span.outer(), span.inner())
-                                        }
-                                    };
-                                    (
-                                        clamp_outer(
-                                            corner_lookup
-                                                .get(&(x, y))
-                                                .copied()
-                                                .unwrap_or(span.outer()),
-                                        ),
-                                        clamp_outer(
-                                            corner_lookup
-                                                .get(&(x, y + 1))
-                                                .copied()
-                                                .unwrap_or(span.outer()),
-                                        ),
-                                    )
-                                })
-                                .unwrap_or((run[0].outer(), run[0].outer()));
-                            vertices.push([
-                                world_at(lx, shell_y0, north_top.0).x,
-                                world_at(lx, shell_y0, north_top.0).y,
-                                world_at(lx, shell_y0, north_top.0).z,
-                                1.0,
-                            ]);
-                            vertices.push([
-                                world_at(lx, shell_y1, north_top.1).x,
-                                world_at(lx, shell_y1, north_top.1).y,
-                                world_at(lx, shell_y1, north_top.1).z,
-                                1.0,
-                            ]);
-                            uvs.push([i as f32, 1.0]);
-                            uvs.push([i as f32, 0.0]);
-                        }
-                    }
-                    RibbonAxis::Vertical => {
-                        let x = run[0].x;
-                        let (shell_x0, shell_x1, _, _) = ribbon_bounds(
-                            x as f32 * layer.cell_size,
-                            (x + 1) as f32 * layer.cell_size,
-                            run.first().unwrap().y as f32 * layer.cell_size,
-                            (run.last().unwrap().y + 1) as f32 * layer.cell_size,
-                            inset,
-                            true,
-                            false,
-                            true,
-                            false,
-                        );
-                        let shell_y0 = run.first().unwrap().y as f32 * layer.cell_size + inset;
-                        let shell_y1 = (run.last().unwrap().y + 1) as f32 * layer.cell_size - inset;
-                        let world_at = |lx: f32, ly: f32, extrude: f32| -> Vec3<f32> {
-                            let base = surface
-                                .uv_to_world(surface.tile_local_to_uv(Vec2::new(lx, ly), map));
-                            base + normal * extrude
-                        };
-                        for (i, y) in
-                            (run.first().unwrap().y..=run.last().unwrap().y + 1).enumerate()
-                        {
-                            let ly = if y == run.first().unwrap().y {
-                                shell_y0
-                            } else if y == run.last().unwrap().y + 1 {
-                                shell_y1
-                            } else {
-                                y as f32 * layer.cell_size
-                            };
-                            let west_east = run
-                                .iter()
-                                .find(|s| s.y == y || s.y + 1 == y)
-                                .map(|span| {
-                                    let clamp_outer = |v: f32| {
-                                        if sign >= 0.0 {
-                                            v.clamp(span.inner(), span.outer())
-                                        } else {
-                                            v.clamp(span.outer(), span.inner())
-                                        }
-                                    };
-                                    (
-                                        clamp_outer(
-                                            corner_lookup
-                                                .get(&(x, y))
-                                                .copied()
-                                                .unwrap_or(span.outer()),
-                                        ),
-                                        clamp_outer(
-                                            corner_lookup
-                                                .get(&(x + 1, y))
-                                                .copied()
-                                                .unwrap_or(span.outer()),
-                                        ),
-                                    )
-                                })
-                                .unwrap_or((run[0].outer(), run[0].outer()));
-                            vertices.push([
-                                world_at(shell_x0, ly, west_east.0).x,
-                                world_at(shell_x0, ly, west_east.0).y,
-                                world_at(shell_x0, ly, west_east.0).z,
-                                1.0,
-                            ]);
-                            vertices.push([
-                                world_at(shell_x1, ly, west_east.1).x,
-                                world_at(shell_x1, ly, west_east.1).y,
-                                world_at(shell_x1, ly, west_east.1).z,
-                                1.0,
-                            ]);
-                            uvs.push([0.0, i as f32]);
-                            uvs.push([1.0, i as f32]);
-                        }
-                    }
-                }
-
-                for i in 0..(vertices.len() / 2).saturating_sub(1) {
-                    let a = i * 2;
-                    let b = a + 1;
-                    let c = a + 3;
-                    let d = a + 2;
-                    indices.push((a, d, c));
-                    indices.push((a, c, b));
-                }
-                push_organic_top_mesh(
-                    vmchunk,
-                    GeoId::Sector(surface.sector_id),
-                    run[0].tile_id,
-                    normal * sign,
-                    vertices,
-                    uvs,
-                    indices,
-                );
-
-                let world_at = |lx: f32, ly: f32, extrude: f32| -> Vec3<f32> {
-                    let base =
-                        surface.uv_to_world(surface.tile_local_to_uv(Vec2::new(lx, ly), map));
-                    base + normal * extrude
-                };
-                match axis {
-                    RibbonAxis::Horizontal => {
-                        let y = run[0].y;
-                        let shell_y0 = y as f32 * layer.cell_size;
-                        let shell_y1 = (y + 1) as f32 * layer.cell_size;
-                        let shell_x0 = run.first().unwrap().x as f32 * layer.cell_size + inset;
-                        let shell_x1 = (run.last().unwrap().x + 1) as f32 * layer.cell_size - inset;
-                        let mut north_pairs = Vec::new();
-                        let mut south_pairs = Vec::new();
-                        for x in run.first().unwrap().x..=run.last().unwrap().x + 1 {
-                            let lx = if x == run.first().unwrap().x {
-                                shell_x0
-                            } else if x == run.last().unwrap().x + 1 {
-                                shell_x1
-                            } else {
-                                x as f32 * layer.cell_size
-                            };
-                            let span_ref = run
-                                .iter()
-                                .find(|s| s.x == x || s.x + 1 == x)
-                                .unwrap_or(&run[0]);
-                            let clamp_outer = |v: f32| {
-                                if sign >= 0.0 {
-                                    v.clamp(span_ref.inner(), span_ref.outer())
-                                } else {
-                                    v.clamp(span_ref.outer(), span_ref.inner())
-                                }
-                            };
-                            let nw_top = clamp_outer(
-                                corner_lookup
-                                    .get(&(x, y))
-                                    .copied()
-                                    .unwrap_or(span_ref.outer()),
-                            );
-                            let sw_top = clamp_outer(
-                                corner_lookup
-                                    .get(&(x, y + 1))
-                                    .copied()
-                                    .unwrap_or(span_ref.outer()),
-                            );
-                            let north_bottom = organic_overlap_top(
-                                &span_lookup,
-                                span_ref.x,
-                                span_ref.y - 1,
-                                span_ref.inner(),
-                                span_ref.outer(),
-                            )
-                            .unwrap_or(span_ref.inner());
-                            let south_bottom = organic_overlap_top(
-                                &span_lookup,
-                                span_ref.x,
-                                span_ref.y + 1,
-                                span_ref.inner(),
-                                span_ref.outer(),
-                            )
-                            .unwrap_or(span_ref.inner());
-                            north_pairs.push((
-                                world_at(lx, shell_y0, north_bottom),
-                                world_at(lx, shell_y0, nw_top),
-                            ));
-                            south_pairs.push((
-                                world_at(lx, shell_y1, south_bottom),
-                                world_at(lx, shell_y1, sw_top),
-                            ));
-                        }
-                        push_organic_strip_mesh(
-                            vmchunk,
-                            GeoId::Sector(surface.sector_id),
-                            run[0].tile_id,
-                            -forward * sign,
-                            &north_pairs,
-                            true,
-                        );
-                        push_organic_strip_mesh(
-                            vmchunk,
-                            GeoId::Sector(surface.sector_id),
-                            run[0].tile_id,
-                            forward * sign,
-                            &south_pairs,
-                            true,
-                        );
-                        let start_span = run.first().unwrap();
-                        let end_span = run.last().unwrap();
-                        let start_quad = [
-                            world_at(shell_x0, shell_y1, start_span.inner()),
-                            world_at(shell_x0, shell_y0, start_span.inner()),
-                            world_at(
-                                shell_x0,
-                                shell_y0,
-                                corner_lookup
-                                    .get(&(start_span.x, y))
-                                    .copied()
-                                    .unwrap_or(start_span.outer()),
-                            ),
-                            world_at(
-                                shell_x0,
-                                shell_y1,
-                                corner_lookup
-                                    .get(&(start_span.x, y + 1))
-                                    .copied()
-                                    .unwrap_or(start_span.outer()),
-                            ),
-                        ];
-                        let end_x = run.last().unwrap().x + 1;
-                        let end_quad = [
-                            world_at(shell_x1, shell_y0, end_span.inner()),
-                            world_at(shell_x1, shell_y1, end_span.inner()),
-                            world_at(
-                                shell_x1,
-                                shell_y1,
-                                corner_lookup
-                                    .get(&(end_x, y + 1))
-                                    .copied()
-                                    .unwrap_or(end_span.outer()),
-                            ),
-                            world_at(
-                                shell_x1,
-                                shell_y0,
-                                corner_lookup
-                                    .get(&(end_x, y))
-                                    .copied()
-                                    .unwrap_or(end_span.outer()),
-                            ),
-                        ];
-                        push_quad_with_winding(
-                            vmchunk,
-                            GeoId::Sector(surface.sector_id),
-                            run[0].tile_id,
-                            start_quad.iter().map(|v| [v.x, v.y, v.z, 1.0]).collect(),
-                            vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
-                            -right * sign,
-                        );
-                        push_quad_with_winding(
-                            vmchunk,
-                            GeoId::Sector(surface.sector_id),
-                            run[0].tile_id,
-                            end_quad.iter().map(|v| [v.x, v.y, v.z, 1.0]).collect(),
-                            vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
-                            right * sign,
-                        );
-                    }
-                    RibbonAxis::Vertical => {
-                        let x = run[0].x;
-                        let shell_x0 = x as f32 * layer.cell_size;
-                        let shell_x1 = (x + 1) as f32 * layer.cell_size;
-                        let shell_y0 = run.first().unwrap().y as f32 * layer.cell_size + inset;
-                        let shell_y1 = (run.last().unwrap().y + 1) as f32 * layer.cell_size - inset;
-                        let mut west_pairs = Vec::new();
-                        let mut east_pairs = Vec::new();
-                        for y in run.first().unwrap().y..=run.last().unwrap().y + 1 {
-                            let ly = if y == run.first().unwrap().y {
-                                shell_y0
-                            } else if y == run.last().unwrap().y + 1 {
-                                shell_y1
-                            } else {
-                                y as f32 * layer.cell_size
-                            };
-                            let span_ref = run
-                                .iter()
-                                .find(|s| s.y == y || s.y + 1 == y)
-                                .unwrap_or(&run[0]);
-                            let clamp_outer = |v: f32| {
-                                if sign >= 0.0 {
-                                    v.clamp(span_ref.inner(), span_ref.outer())
-                                } else {
-                                    v.clamp(span_ref.outer(), span_ref.inner())
-                                }
-                            };
-                            let nw_top = clamp_outer(
-                                corner_lookup
-                                    .get(&(x, y))
-                                    .copied()
-                                    .unwrap_or(span_ref.outer()),
-                            );
-                            let ne_top = clamp_outer(
-                                corner_lookup
-                                    .get(&(x + 1, y))
-                                    .copied()
-                                    .unwrap_or(span_ref.outer()),
-                            );
-                            let west_bottom = organic_overlap_top(
-                                &span_lookup,
-                                span_ref.x - 1,
-                                span_ref.y,
-                                span_ref.inner(),
-                                span_ref.outer(),
-                            )
-                            .unwrap_or(span_ref.inner());
-                            let east_bottom = organic_overlap_top(
-                                &span_lookup,
-                                span_ref.x + 1,
-                                span_ref.y,
-                                span_ref.inner(),
-                                span_ref.outer(),
-                            )
-                            .unwrap_or(span_ref.inner());
-                            west_pairs.push((
-                                world_at(shell_x0, ly, west_bottom),
-                                world_at(shell_x0, ly, nw_top),
-                            ));
-                            east_pairs.push((
-                                world_at(shell_x1, ly, east_bottom),
-                                world_at(shell_x1, ly, ne_top),
-                            ));
-                        }
-                        push_organic_strip_mesh(
-                            vmchunk,
-                            GeoId::Sector(surface.sector_id),
-                            run[0].tile_id,
-                            -right * sign,
-                            &west_pairs,
-                            false,
-                        );
-                        push_organic_strip_mesh(
-                            vmchunk,
-                            GeoId::Sector(surface.sector_id),
-                            run[0].tile_id,
-                            right * sign,
-                            &east_pairs,
-                            false,
-                        );
-                        let start_span = run.first().unwrap();
-                        let end_span = run.last().unwrap();
-                        let start_quad = [
-                            world_at(shell_x0, shell_y0, start_span.inner()),
-                            world_at(shell_x1, shell_y0, start_span.inner()),
-                            world_at(
-                                shell_x1,
-                                shell_y0,
-                                corner_lookup
-                                    .get(&(x + 1, start_span.y))
-                                    .copied()
-                                    .unwrap_or(start_span.outer()),
-                            ),
-                            world_at(
-                                shell_x0,
-                                shell_y0,
-                                corner_lookup
-                                    .get(&(x, start_span.y))
-                                    .copied()
-                                    .unwrap_or(start_span.outer()),
-                            ),
-                        ];
-                        let end_y = run.last().unwrap().y + 1;
-                        let end_quad = [
-                            world_at(shell_x1, shell_y1, end_span.inner()),
-                            world_at(shell_x0, shell_y1, end_span.inner()),
-                            world_at(
-                                shell_x0,
-                                shell_y1,
-                                corner_lookup
-                                    .get(&(x, end_y))
-                                    .copied()
-                                    .unwrap_or(end_span.outer()),
-                            ),
-                            world_at(
-                                shell_x1,
-                                shell_y1,
-                                corner_lookup
-                                    .get(&(x + 1, end_y))
-                                    .copied()
-                                    .unwrap_or(end_span.outer()),
-                            ),
-                        ];
-                        push_quad_with_winding(
-                            vmchunk,
-                            GeoId::Sector(surface.sector_id),
-                            run[0].tile_id,
-                            start_quad.iter().map(|v| [v.x, v.y, v.z, 1.0]).collect(),
-                            vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
-                            -forward * sign,
-                        );
-                        push_quad_with_winding(
-                            vmchunk,
-                            GeoId::Sector(surface.sector_id),
-                            run[0].tile_id,
-                            end_quad.iter().map(|v| [v.x, v.y, v.z, 1.0]).collect(),
-                            vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
-                            forward * sign,
-                        );
-                    }
-                }
-            }
-
-            for span in spans {
-                if ribbon_keys.contains(&(span.x, span.y, span.outer_sign() as i32)) {
-                    continue;
-                }
-                let local = Vec2::new(
-                    (span.x as f32 + 0.5) * layer.cell_size,
-                    (span.y as f32 + 0.5) * layer.cell_size,
-                );
-                let surface_center = surface.uv_to_world(surface.tile_local_to_uv(local, map));
-                if !chunk
-                    .bbox
-                    .contains(Vec2::new(surface_center.x, surface_center.z))
-                {
-                    continue;
-                }
-                let outer = span.outer();
-                let inner = span.inner();
-                let sign = span.outer_sign();
-                let clamp_outer = |v: f32| {
-                    if sign >= 0.0 {
-                        v.clamp(inner, outer)
-                    } else {
-                        v.clamp(outer, inner)
-                    }
-                };
-                let nw_top = clamp_outer(
-                    corner_lookup
-                        .get(&(span.x, span.y))
-                        .copied()
-                        .unwrap_or(outer),
-                );
-                let ne_top = clamp_outer(
-                    corner_lookup
-                        .get(&(span.x + 1, span.y))
-                        .copied()
-                        .unwrap_or(outer),
-                );
-                let se_top = clamp_outer(
-                    corner_lookup
-                        .get(&(span.x + 1, span.y + 1))
-                        .copied()
-                        .unwrap_or(outer),
-                );
-                let sw_top = clamp_outer(
-                    corner_lookup
-                        .get(&(span.x, span.y + 1))
-                        .copied()
-                        .unwrap_or(outer),
-                );
-                let north_bottom =
-                    organic_overlap_top(&span_lookup, span.x, span.y - 1, inner, outer)
-                        .unwrap_or(inner);
-                let north_connected =
-                    organic_overlap_top(&span_lookup, span.x, span.y - 1, inner, outer).is_some();
-                let east_bottom =
-                    organic_overlap_top(&span_lookup, span.x + 1, span.y, inner, outer)
-                        .unwrap_or(inner);
-                let east_connected =
-                    organic_overlap_top(&span_lookup, span.x + 1, span.y, inner, outer).is_some();
-                let south_bottom =
-                    organic_overlap_top(&span_lookup, span.x, span.y + 1, inner, outer)
-                        .unwrap_or(inner);
-                let south_connected =
-                    organic_overlap_top(&span_lookup, span.x, span.y + 1, inner, outer).is_some();
-                let west_bottom =
-                    organic_overlap_top(&span_lookup, span.x - 1, span.y, inner, outer)
-                        .unwrap_or(inner);
-                let west_connected =
-                    organic_overlap_top(&span_lookup, span.x - 1, span.y, inner, outer).is_some();
-
-                let x0 = span.x as f32 * layer.cell_size;
-                let x1 = (span.x + 1) as f32 * layer.cell_size;
-                let y0 = span.y as f32 * layer.cell_size;
-                let y1 = (span.y + 1) as f32 * layer.cell_size;
-                let world_at = |lx: f32, ly: f32, extrude: f32| -> Vec3<f32> {
-                    let base =
-                        surface.uv_to_world(surface.tile_local_to_uv(Vec2::new(lx, ly), map));
-                    base + normal * extrude
-                };
-                let ribbon = is_ribbon_span(
-                    north_connected,
-                    east_connected,
-                    south_connected,
-                    west_connected,
-                );
-                let mut shell_x0 = x0;
-                let mut shell_x1 = x1;
-                let mut shell_y0 = y0;
-                let mut shell_y1 = y1;
-                if ribbon {
-                    let inset = (layer.cell_size * 0.28).min(layer.cell_size * 0.45);
-                    (shell_x0, shell_x1, shell_y0, shell_y1) = ribbon_bounds(
-                        x0,
-                        x1,
-                        y0,
-                        y1,
-                        inset,
-                        north_connected,
-                        east_connected,
-                        south_connected,
-                        west_connected,
-                    );
-                }
-                render_organic_shell(
-                    vmchunk,
-                    GeoId::Sector(surface.sector_id),
-                    span.tile_id,
-                    [-forward * sign, right * sign, forward * sign, -right * sign],
-                    [
-                        [
-                            world_at(shell_x0, shell_y0, north_bottom),
-                            world_at(shell_x1, shell_y0, north_bottom),
-                            world_at(shell_x1, shell_y0, ne_top),
-                            world_at(shell_x0, shell_y0, nw_top),
-                        ],
-                        [
-                            world_at(shell_x1, shell_y0, east_bottom),
-                            world_at(shell_x1, shell_y1, east_bottom),
-                            world_at(shell_x1, shell_y1, se_top),
-                            world_at(shell_x1, shell_y0, ne_top),
-                        ],
-                        [
-                            world_at(shell_x1, shell_y1, south_bottom),
-                            world_at(shell_x0, shell_y1, south_bottom),
-                            world_at(shell_x0, shell_y1, sw_top),
-                            world_at(shell_x1, shell_y1, se_top),
-                        ],
-                        [
-                            world_at(shell_x0, shell_y1, west_bottom),
-                            world_at(shell_x0, shell_y0, west_bottom),
-                            world_at(shell_x0, shell_y0, nw_top),
-                            world_at(shell_x0, shell_y1, sw_top),
-                        ],
-                    ],
-                );
-            }
-        }
-    }
 }
 
 fn push_quad_with_winding(
@@ -8710,16 +7228,19 @@ fn generate_terrain(
                                 blend_weights.push(w.clamp(0.0, 1.0));
                             }
                         }
-                        vmchunk.add_poly_3d_blended(
+                        let organic_uvs = terrain_organic_uvs(&blended_verts);
+                        vmchunk.add_surface_poly_3d_blended(
                             GeoId::Terrain(tile_x, tile_z),
                             bg_tile,
                             road_tile_id,
                             blended_verts,
                             blended_uvs,
+                            organic_uvs,
                             blend_weights,
                             blended_indices,
                             0,
                             true,
+                            terrain_organic_detail(tile_x, tile_z),
                         );
                         continue;
                     }
@@ -8785,16 +7306,19 @@ fn generate_terrain(
                             }
                         }
 
-                        vmchunk.add_poly_3d_blended(
+                        let organic_uvs = terrain_organic_uvs(&blended_verts);
+                        vmchunk.add_surface_poly_3d_blended(
                             GeoId::Terrain(tile_x, tile_z),
                             bg_tile,
                             road_tile_id,
                             blended_verts,
                             blended_uvs,
+                            organic_uvs,
                             blend_weights,
                             blended_indices,
                             0,
                             true,
+                            terrain_organic_detail(tile_x, tile_z),
                         );
                         continue;
                     }
@@ -8857,16 +7381,19 @@ fn generate_terrain(
                             }
                         }
 
-                        vmchunk.add_poly_3d_blended(
+                        let organic_uvs = terrain_organic_uvs(&blended_verts);
+                        vmchunk.add_surface_poly_3d_blended(
                             GeoId::Terrain(tile_x, tile_z),
                             bg_tile,
                             road_tile_id,
                             blended_verts,
                             blended_uvs,
+                            organic_uvs,
                             blend_weights,
                             blended_indices,
                             0,
                             true,
+                            terrain_organic_detail(tile_x, tile_z),
                         );
                         continue;
                     }
@@ -8918,16 +7445,19 @@ fn generate_terrain(
                                 }
 
                                 // Add blended poly
-                                vmchunk.add_poly_3d_blended(
+                                let organic_uvs = terrain_organic_uvs(&blended_verts);
+                                vmchunk.add_surface_poly_3d_blended(
                                     GeoId::Terrain(tile_x, tile_z),
                                     *tile_id,
                                     tile2.id,
                                     blended_verts,
                                     blended_uvs,
+                                    organic_uvs,
                                     blend_weights,
                                     blended_indices,
                                     0,
                                     true,
+                                    terrain_organic_detail(tile_x, tile_z),
                                 );
                                 continue;
                             }
@@ -8952,14 +7482,17 @@ fn generate_terrain(
                     ];
                     let tri_indices = vec![(0, 1, 2)];
 
-                    vmchunk.add_poly_3d(
+                    let organic_uvs = terrain_organic_uvs(&tri_vertices);
+                    vmchunk.add_surface_poly_3d(
                         GeoId::Terrain(tile_x, tile_z),
                         *tile_id,
                         tri_vertices,
                         tri_uvs,
+                        organic_uvs,
                         tri_indices,
                         0,
                         true,
+                        terrain_organic_detail(tile_x, tile_z),
                     );
                 }
             }
@@ -9700,7 +8233,12 @@ fn emit_feature_meshes(
             mesh.uvs.clone(),
         )
         .repeat_mode(RepeatMode::RepeatXY)
-        .geometry_source(GeometrySource::Sector(sector.id));
+        .geometry_source(GeometrySource::Sector(sector.id))
+        .organic_detail(if is_cap {
+            surface.organic_batch_detail(map)
+        } else {
+            None
+        });
 
         let source_key = if let Some(override_key) = source_key_override {
             override_key
@@ -9714,11 +8252,15 @@ fn emit_feature_meshes(
             feature_pixelsource(surface, map, sector, loop_origin, source_key)
         {
             if let Some(tile) = pixelsource.tile_from_tile_list(assets) {
-                vmchunk.add_poly_3d(
+                add_surface_poly_3d(
+                    vmchunk,
+                    surface,
+                    map,
                     GeoId::Sector(sector.id),
                     tile.id,
                     mesh.vertices.clone(),
                     mesh.uvs.clone(),
+                    Vec::new(),
                     mesh_indices.clone(),
                     0,
                     true,
@@ -9741,11 +8283,15 @@ fn emit_feature_meshes(
                 // fallback geometry visible even when the checker tile is not present in assets.
                 batch.source = PixelSource::Pixel([180, 180, 180, 255]);
             }
-            vmchunk.add_poly_3d(
+            add_surface_poly_3d(
+                vmchunk,
+                surface,
+                map,
                 GeoId::Sector(sector.id),
                 Uuid::from_str(DEFAULT_TILE_ID).unwrap(),
                 mesh.vertices.clone(),
                 mesh.uvs.clone(),
+                Vec::new(),
                 mesh_indices,
                 0,
                 true,
@@ -10675,7 +9221,12 @@ fn process_feature_loop_with_action(
                                         mesh.uvs.clone(),
                                     )
                                     .repeat_mode(RepeatMode::RepeatXY)
-                                    .geometry_source(GeometrySource::Sector(sector.id));
+                                    .geometry_source(GeometrySource::Sector(sector.id))
+                                    .organic_detail(if is_cap {
+                                        surface.organic_batch_detail(map)
+                                    } else {
+                                        None
+                                    });
                                     if let Some(tex) = assets.tile_index(&tile.id) {
                                         batch.source = PixelSource::StaticTileIndex(tex);
                                     }
@@ -11485,7 +10036,12 @@ fn process_feature_loop_with_action(
             mesh.uvs.clone(),
         )
         .repeat_mode(RepeatMode::RepeatXY)
-        .geometry_source(GeometrySource::Sector(sector.id));
+        .geometry_source(GeometrySource::Sector(sector.id))
+        .organic_detail(if is_cap {
+            surface.organic_batch_detail(map)
+        } else {
+            None
+        });
 
         // Determine material source key based on mesh type
         // Use unified property names that work for all actions

@@ -1,6 +1,5 @@
 use crate::{
-    Map, OrganicBushCluster, OrganicVineStroke, OrganicVolumeLayer, Sector,
-    default_organic_bush_clusters, default_organic_layers, default_organic_vine_strokes,
+    Map, OrganicVolumeLayer, Sector, default_organic_layers,
 };
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -214,14 +213,6 @@ pub struct Surface {
     #[serde(default = "default_organic_layers")]
     pub organic_layers: IndexMap<Uuid, OrganicVolumeLayer>,
 
-    /// Surface-local vine strokes authored on top of this surface.
-    #[serde(default = "default_organic_vine_strokes")]
-    pub organic_vine_strokes: Vec<OrganicVineStroke>,
-
-    /// Surface-local bush foliage clusters authored on top of this surface.
-    #[serde(default = "default_organic_bush_clusters")]
-    pub organic_bush_clusters: Vec<OrganicBushCluster>,
-
     /// Optional, the vertices of the surface in world coordinates, used in cases where we need to pass standalone surfaces.
     #[serde(skip)]
     pub world_vertices: Vec<Vec3<f32>>,
@@ -238,8 +229,6 @@ impl Surface {
             extrusion: ExtrusionSpec::default(),
             profile: None,
             organic_layers: IndexMap::default(),
-            organic_vine_strokes: Vec::new(),
-            organic_bush_clusters: Vec::new(),
             world_vertices: vec![],
         }
     }
@@ -456,6 +445,146 @@ impl Surface {
         };
         let y = anchor.y + local.y;
         Vec2::new(x, y)
+    }
+
+    pub fn tile_local_bounds(&self, map: &Map) -> Option<(Vec2<f32>, Vec2<f32>)> {
+        let loop_uv = self.sector_loop_uv(map)?;
+        if loop_uv.is_empty() {
+            return None;
+        }
+        let mut min = Vec2::new(f32::INFINITY, f32::INFINITY);
+        let mut max = Vec2::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
+        for uv in loop_uv {
+            let local = self.uv_to_tile_local(uv, map);
+            min.x = min.x.min(local.x);
+            min.y = min.y.min(local.y);
+            max.x = max.x.max(local.x);
+            max.y = max.y.max(local.y);
+        }
+        if !min.x.is_finite() || !min.y.is_finite() || !max.x.is_finite() || !max.y.is_finite() {
+            return None;
+        }
+        Some((min, max))
+    }
+
+    pub fn organic_local_bounds(&self, map: &Map) -> Option<(Vec2<f32>, Vec2<f32>)> {
+        self.tile_local_bounds(map).or_else(|| {
+            self.organic_layers
+                .values()
+                .filter_map(|layer| layer.painted_local_bounds())
+                .fold(None, |acc, (min, max)| match acc {
+                    None => Some((min, max)),
+                    Some((acc_min, acc_max)) => Some((
+                        Vec2::new(acc_min.x.min(min.x), acc_min.y.min(min.y)),
+                        Vec2::new(acc_max.x.max(max.x), acc_max.y.max(max.y)),
+                    )),
+                })
+        })
+    }
+
+    pub fn organic_detail_texture_rgba(&self, map: &Map, size: u32) -> Vec<u8> {
+        let len = (size.max(1) * size.max(1) * 4) as usize;
+        let mut rgba = vec![0u8; len];
+        if self.organic_layers.is_empty() {
+            return rgba;
+        }
+        let Some((local_min, local_max)) = self.organic_local_bounds(map) else {
+            return rgba;
+        };
+        let local_size = Vec2::new(
+            (local_max.x - local_min.x).max(0.001),
+            (local_max.y - local_min.y).max(0.001),
+        );
+        let size_f = size.max(1) as f32;
+        for y in 0..size.max(1) {
+            for x in 0..size.max(1) {
+                let uv = Vec2::new((x as f32 + 0.5) / size_f, (y as f32 + 0.5) / size_f);
+                let local = Vec2::new(
+                    local_min.x + uv.x * local_size.x,
+                    local_min.y + uv.y * local_size.y,
+                );
+                let mut best: Option<crate::OrganicDetailCell> = None;
+                for layer in self.organic_layers.values() {
+                    if let Some(cell) = layer.sample(local)
+                        && best
+                            .as_ref()
+                            .map(|existing| cell.coverage > existing.coverage)
+                            .unwrap_or(true)
+                    {
+                        best = Some(cell);
+                    }
+                }
+                if let Some(cell) = best {
+                    let offset = ((y * size.max(1) + x) * 4) as usize;
+                    rgba[offset] = cell.palette_index;
+                    rgba[offset + 3] = cell.coverage;
+                }
+            }
+        }
+        rgba
+    }
+
+    pub fn organic_detail_texture_rect_rgba(
+        &self,
+        map: &Map,
+        size: u32,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) -> Vec<u8> {
+        let len = (width.max(1) * height.max(1) * 4) as usize;
+        let mut rgba = vec![0u8; len];
+        if self.organic_layers.is_empty() || width == 0 || height == 0 {
+            return rgba;
+        }
+        let Some((local_min, local_max)) = self.organic_local_bounds(map) else {
+            return rgba;
+        };
+        let local_size = Vec2::new(
+            (local_max.x - local_min.x).max(0.001),
+            (local_max.y - local_min.y).max(0.001),
+        );
+        let size_f = size.max(1) as f32;
+        for row in 0..height {
+            for col in 0..width {
+                let px = x + col;
+                let py = y + row;
+                let uv = Vec2::new((px as f32 + 0.5) / size_f, (py as f32 + 0.5) / size_f);
+                let local = Vec2::new(
+                    local_min.x + uv.x * local_size.x,
+                    local_min.y + uv.y * local_size.y,
+                );
+                let mut best: Option<crate::OrganicDetailCell> = None;
+                for layer in self.organic_layers.values() {
+                    if let Some(cell) = layer.sample(local)
+                        && best
+                            .as_ref()
+                            .map(|existing| cell.coverage > existing.coverage)
+                            .unwrap_or(true)
+                    {
+                        best = Some(cell);
+                    }
+                }
+                if let Some(cell) = best {
+                    let offset = ((row * width + col) * 4) as usize;
+                    rgba[offset] = cell.palette_index;
+                    rgba[offset + 3] = cell.coverage;
+                }
+            }
+        }
+        rgba
+    }
+
+    pub fn organic_batch_detail(&self, map: &Map) -> Option<crate::OrganicBatchDetail> {
+        if self.organic_layers.is_empty() {
+            return None;
+        }
+        Some(crate::OrganicBatchDetail {
+            anchor_uv: self.tile_local_anchor_uv(map),
+            flip_x: self.tile_local_flip_x(),
+            layers: self.organic_layers.values().cloned().collect(),
+        })
     }
 
     /// Map a world point to discrete tile coordinates (1x1 grid cells in UV space).
@@ -707,8 +836,6 @@ mod tests {
             extrusion: ExtrusionSpec::default(),
             profile: None,
             organic_layers: IndexMap::default(),
-            organic_vine_strokes: Vec::new(),
-            organic_bush_clusters: Vec::new(),
             world_vertices: vec![],
         }
     }
