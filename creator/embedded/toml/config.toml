@@ -58,12 +58,6 @@ visibility_alpha_2d = 0.82
 screen_background = "#000000"
 cursor_id = ""
 
-[say]
-duration = 1.0
-default = "#E5E501"
-background_enabled = true
-background_color = "#00000080"
-
 [render]
 # Lighting model: "lambert", "cook_torrance", or "pbr".
 lighting_model = "cook_torrance"

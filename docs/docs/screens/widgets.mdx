@@ -44,6 +44,32 @@ This setting only affects **rendering**. It does **not** change how player input
 To define player camera behavior, see [set_player_camera](/docs/characters_items/server_commands/#set_player_camera).
 </Admonition>
 
+### Say Section
+
+Use `[say]` on a game widget to style speech bubbles produced by `say(...)`.
+These settings are presentation-specific, so different game widgets can use different bubble colors or backgrounds.
+
+```toml
+[say]
+duration = 1.0                 # How long say bubbles stay visible, in in-game minutes.
+default = "#E5E501"            # Default text color when category is empty or unknown.
+background_enabled = true      # Draw a background rectangle behind say text.
+background_color = "#00000080" # Background RGBA color (#RRGGBBAA).
+
+# Optional per-category text colors:
+npc = "#FFFFFF"
+warning = "#FF6666"
+quest = "#66CCFF"
+```
+
+- **duration**: Lifetime of a `say(...)` bubble in in-game minutes. The runtime uses the first active game widget duration and falls back to `1.0`.
+- **default**: Fallback text color for `say("Text")` or unknown categories.
+- **background_enabled**: Enables or disables the bubble background rectangle.
+- **background_color**: Background color including alpha, for example `#00000080` for 50% black.
+- **Category keys**: Any extra key in `[say]` is treated as a text color category used by `say("Text", "category_name")`.
+
+Legacy projects with global game-config `[say]` still work as a fallback, but new projects should keep this section on the game widget.
+
 ### Examples
 
 ```toml
@@ -58,6 +84,12 @@ chunk_build_budget_far = 2
 
 [camera]
 type = "firstp"
+
+[say]
+default = "#E5E501"
+warning = "#FF6666"
+background_enabled = true
+background_color = "#00000080"
 ```
 
 ```toml

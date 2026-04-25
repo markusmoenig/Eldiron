@@ -20,6 +20,8 @@
 
 - Added Organic Tool documentation covering the new brush-based workflow, dock layout, toolbar controls, and 3D brush preview behavior.
 - Added configuration docs for the new renderer style and stylized post-processing settings, including their runtime `world.post.*` / `region.post.*` override fields.
+- Clarified the `say(...)` command documentation to show both the default one-argument form and the optional category-color form.
+- Moved new `say(...)` presentation documentation from global game config to game widget `[say]` settings.
 
 ## Bug Fixes
 
@@ -38,6 +40,12 @@
 ### Server
 
 - Fixed grid-based player movement so the character `speed` attribute now actually affects direct tile stepping, instead of being hardcoded to `1.0`.
+- Fixed Eldrin compilation of `say("Text")` so the optional category parameter is truly optional, matching the runtime handler and documentation.
+
+### Client
+
+- Fixed 2D game widgets so `say(...)` speech bubbles render above characters and items like they already do in 3D views.
+- Game widgets now prefer their own `[say]` section for speech bubble duration, text colors, and background styling, with legacy global `[say]` config kept as a fallback.
 
 ---
 

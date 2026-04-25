@@ -314,6 +314,71 @@ mod tests {
     }
 
     #[test]
+    fn say_accepts_default_and_category_forms() {
+        let mut script = VM::default();
+        let module = script
+            .parse_str(
+                r#"
+                fn say_default(event, value) {
+                    say("Hello there");
+                }
+
+                fn say_warning(event, value) {
+                    say("Watch out!", "warning");
+                }
+                "#,
+            )
+            .unwrap();
+        script.compile(&module).unwrap();
+
+        let default_index = script
+            .context
+            .program
+            .user_functions_name_map
+            .get("say_default")
+            .copied()
+            .unwrap();
+        let warning_index = script
+            .context
+            .program
+            .user_functions_name_map
+            .get("say_warning")
+            .copied()
+            .unwrap();
+
+        let mut exec = Execution::new(script.context.globals.len());
+        let args = [VMValue::zero(), VMValue::zero()];
+
+        exec.reset(script.context.globals.len());
+        let _ = exec.execute_function(&args, default_index, &script.context.program);
+        assert_eq!(
+            exec.outputs
+                .get("say_text")
+                .and_then(|v| v.as_string())
+                .unwrap(),
+            "Hello there"
+        );
+        assert!(!exec.outputs.contains_key("say_category"));
+
+        exec.reset(script.context.globals.len());
+        let _ = exec.execute_function(&args, warning_index, &script.context.program);
+        assert_eq!(
+            exec.outputs
+                .get("say_text")
+                .and_then(|v| v.as_string())
+                .unwrap(),
+            "Watch out!"
+        );
+        assert_eq!(
+            exec.outputs
+                .get("say_category")
+                .and_then(|v| v.as_string())
+                .unwrap(),
+            "warning"
+        );
+    }
+
+    #[test]
     fn print_multiple_args() {
         let mut script = VM::default();
         let result =

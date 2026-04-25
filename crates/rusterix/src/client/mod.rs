@@ -123,7 +123,7 @@ pub struct Client {
 
     pub draw2d: Draw2D,
 
-    pub messages_to_draw: FxHashMap<u32, (Vec2<f32>, String, usize, Pixel, TheTime)>,
+    pub messages_to_draw: FxHashMap<u32, (Vec2<f32>, String, usize, String, TheTime)>,
 
     // Name of player entity templates
     player_entities: Vec<String>,
@@ -236,55 +236,136 @@ impl Client {
         self.messages_to_draw.clear();
     }
 
-    fn get_say_color(&self, category: &str) -> Pixel {
-        if let Some(say) = self.config.get("say").and_then(toml::Value::as_table) {
-            if let Some(hex) = say.get(category).and_then(toml::Value::as_str) {
-                return Self::hex_to_rgba_u8(hex);
-            }
-            if let Some(hex) = say.get("default").and_then(toml::Value::as_str) {
-                return Self::hex_to_rgba_u8(hex);
-            }
-            if let Some(hex) = say.get("").and_then(toml::Value::as_str) {
-                return Self::hex_to_rgba_u8(hex);
-            }
+    fn say_table_from_widget(widget: &GameWidget) -> Option<toml::value::Table> {
+        widget
+            .toml_str
+            .parse::<toml::Table>()
+            .ok()
+            .and_then(|table| table.get("say").and_then(toml::Value::as_table).cloned())
+    }
+
+    fn say_color_from_table(say: &toml::value::Table, category: &str) -> Option<Pixel> {
+        if let Some(hex) = say.get(category).and_then(toml::Value::as_str) {
+            return Some(Self::hex_to_rgba_u8(hex));
         }
-        self.messages_font_color
+        if let Some(hex) = say.get("default").and_then(toml::Value::as_str) {
+            return Some(Self::hex_to_rgba_u8(hex));
+        }
+        if let Some(hex) = say.get("").and_then(toml::Value::as_str) {
+            return Some(Self::hex_to_rgba_u8(hex));
+        }
+        None
+    }
+
+    fn get_say_color_from_config(config: &toml::Table, category: &str, fallback: Pixel) -> Pixel {
+        if let Some(say) = config.get("say").and_then(toml::Value::as_table)
+            && let Some(color) = Self::say_color_from_table(say, category)
+        {
+            return color;
+        }
+        fallback
+    }
+
+    fn get_widget_say_color(
+        widget_say: Option<&toml::value::Table>,
+        config: &toml::Table,
+        category: &str,
+        fallback: Pixel,
+    ) -> Pixel {
+        if let Some(say) = widget_say
+            && let Some(color) = Self::say_color_from_table(say, category)
+        {
+            return color;
+        }
+        Self::get_say_color_from_config(config, category, fallback)
+    }
+
+    fn get_say_color(&self, category: &str) -> Pixel {
+        Self::get_say_color_from_config(&self.config, category, self.messages_font_color)
+    }
+
+    fn say_duration_minutes_from_table(say: &toml::value::Table) -> Option<f32> {
+        say.get("duration")
+            .and_then(|v| {
+                v.as_float()
+                    .map(|f| f as f32)
+                    .or_else(|| v.as_integer().map(|i| i as f32))
+            })
+            .map(|v| v.max(0.0))
+    }
+
+    fn get_widget_say_background_enabled(
+        widget_say: Option<&toml::value::Table>,
+        config: &toml::Table,
+    ) -> bool {
+        if let Some(say) = widget_say
+            && let Some(enabled) = say.get("background_enabled").and_then(toml::Value::as_bool)
+        {
+            return enabled;
+        }
+        config
+            .get("say")
+            .and_then(toml::Value::as_table)
+            .and_then(|say| say.get("background_enabled"))
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(true)
+    }
+
+    fn say_background_color_from_table(say: &toml::value::Table) -> Option<Pixel> {
+        if let Some(hex) = say.get("background_color").and_then(toml::Value::as_str) {
+            return Some(Self::hex_to_rgba_u8(hex));
+        }
+        if let Some(hex) = say.get("background").and_then(toml::Value::as_str) {
+            return Some(Self::hex_to_rgba_u8(hex));
+        }
+        None
+    }
+
+    fn get_widget_say_background_color(
+        widget_say: Option<&toml::value::Table>,
+        config: &toml::Table,
+    ) -> Pixel {
+        if let Some(say) = widget_say
+            && let Some(color) = Self::say_background_color_from_table(say)
+        {
+            return color;
+        }
+        if let Some(say) = config.get("say").and_then(toml::Value::as_table)
+            && let Some(color) = Self::say_background_color_from_table(say)
+        {
+            return color;
+        }
+        [0, 0, 0, 128]
+    }
+
+    fn get_say_background_enabled(&self) -> bool {
+        Self::get_widget_say_background_enabled(None, &self.config)
+    }
+
+    fn get_say_background_color(&self) -> Pixel {
+        Self::get_widget_say_background_color(None, &self.config)
     }
 
     fn get_say_duration_ticks(&self) -> i64 {
         let ticks_per_minute = self
             .get_config_i32_default("game", "ticks_per_minute", 4)
             .max(1);
-        let duration_minutes = self
-            .config
-            .get("say")
-            .and_then(toml::Value::as_table)
-            .and_then(|say| say.get("duration"))
-            .and_then(|v| {
-                v.as_float()
-                    .map(|f| f as f32)
-                    .or_else(|| v.as_integer().map(|i| i as f32))
+        let widget_duration = self
+            .game_widgets
+            .values()
+            .find_map(Self::say_table_from_widget)
+            .and_then(|say| Self::say_duration_minutes_from_table(&say));
+        let duration_minutes = widget_duration
+            .or_else(|| {
+                self.config
+                    .get("say")
+                    .and_then(toml::Value::as_table)
+                    .and_then(Self::say_duration_minutes_from_table)
             })
             .unwrap_or(1.0)
             .max(0.0);
         let ticks = (duration_minutes * ticks_per_minute as f32).round() as i64;
         ticks.max(1)
-    }
-
-    fn get_say_background_enabled(&self) -> bool {
-        self.get_config_bool_default("say", "background_enabled", true)
-    }
-
-    fn get_say_background_color(&self) -> Pixel {
-        if let Some(say) = self.config.get("say").and_then(toml::Value::as_table) {
-            if let Some(hex) = say.get("background_color").and_then(toml::Value::as_str) {
-                return Self::hex_to_rgba_u8(hex);
-            }
-            if let Some(hex) = say.get("background").and_then(toml::Value::as_str) {
-                return Self::hex_to_rgba_u8(hex);
-            }
-        }
-        [0, 0, 0, 128]
     }
 
     fn choice_expired(&self, choice: &Choice) -> bool {
@@ -623,7 +704,6 @@ impl Client {
         // Add new messages
         let duration_ticks = self.get_say_duration_ticks();
         for (sender_entity_id, sender_item_id, message, category) in messages {
-            let color = self.get_say_color(&category);
             if let Some(sender_item_id) = sender_item_id {
                 for item in &map.items {
                     if item.id == sender_item_id {
@@ -643,7 +723,7 @@ impl Client {
                                     item.get_pos_xz(),
                                     message.clone(),
                                     text_size.0,
-                                    color,
+                                    category.clone(),
                                     expire_time,
                                 ),
                             );
@@ -669,7 +749,7 @@ impl Client {
                                     entity.get_pos_xz(),
                                     message.clone(),
                                     text_size.0,
-                                    color,
+                                    category.clone(),
                                     expire_time,
                                 ),
                             );
@@ -921,7 +1001,8 @@ impl Client {
         if let Some(font) = &self.messages_font {
             let say_bg_enabled = self.get_say_background_enabled();
             let say_bg_color = self.get_say_background_color();
-            for (grid_pos, message, text_size, color, _) in self.messages_to_draw.values() {
+            for (grid_pos, message, text_size, category, _) in self.messages_to_draw.values() {
+                let color = self.get_say_color(category);
                 let position = map_grid_to_local(screen_size, *grid_pos, map);
 
                 let tuple = (
@@ -948,7 +1029,7 @@ impl Client {
                     font,
                     self.messages_font_size,
                     message,
-                    color,
+                    &color,
                     draw2d::TheHorizontalAlign::Center,
                     draw2d::TheVerticalAlign::Center,
                     &(0, 0, width as isize, height as isize),
@@ -1068,7 +1149,8 @@ impl Client {
             let say_bg_enabled = self.get_say_background_enabled();
             let say_bg_color = self.get_say_background_color();
 
-            for (grid_pos, message, text_size, color, _) in self.messages_to_draw.values() {
+            for (grid_pos, message, text_size, category, _) in self.messages_to_draw.values() {
+                let color = self.get_say_color(category);
                 let world = Vec4::new(grid_pos.x, 1.8, grid_pos.y, 1.0);
                 let clip = vp * world;
                 if clip.w <= 0.0 {
@@ -1107,7 +1189,7 @@ impl Client {
                     font,
                     self.messages_font_size,
                     message,
-                    color,
+                    &color,
                     draw2d::TheHorizontalAlign::Center,
                     draw2d::TheVerticalAlign::Center,
                     &(0, 0, width as isize, height as isize),
@@ -1332,8 +1414,8 @@ impl Client {
         }
 
         self.target.fill([0, 0, 0, 255]);
-        let say_bg_enabled = self.get_say_background_enabled();
-        let say_bg_color = self.get_say_background_color();
+        let say_config = self.config.clone();
+        let say_fallback_color = self.messages_font_color;
         // First process the game widgets
         for widget in self.game_widgets.values_mut() {
             widget.firstp_eye_level = self.firstp_eye_level;
@@ -1346,8 +1428,66 @@ impl Client {
                 scene_handler,
             );
 
-            if !Self::is_2d_camera(&widget.camera) {
-                if let Some(font) = &self.messages_font {
+            if let Some(font) = &self.messages_font {
+                let widget_say = Self::say_table_from_widget(widget);
+                let say_bg_enabled =
+                    Self::get_widget_say_background_enabled(widget_say.as_ref(), &say_config);
+                let say_bg_color =
+                    Self::get_widget_say_background_color(widget_say.as_ref(), &say_config);
+                if Self::is_2d_camera(&widget.camera) {
+                    let width = widget.buffer.dim().width as usize;
+                    let height = widget.buffer.dim().height as usize;
+                    let pixels = widget.buffer.pixels_mut();
+                    let overlay_scale = widget.upscale.max(1.0);
+                    let tile_size = (widget.grid_size * overlay_scale).round() as isize;
+
+                    for (grid_pos, message, text_size, category, _) in
+                        self.messages_to_draw.values()
+                    {
+                        let color = Self::get_widget_say_color(
+                            widget_say.as_ref(),
+                            &say_config,
+                            category,
+                            say_fallback_color,
+                        );
+                        let sx =
+                            ((grid_pos.x - widget.top_left.x) * widget.grid_size * overlay_scale)
+                                .round() as isize;
+                        let sy =
+                            ((grid_pos.y - widget.top_left.y) * widget.grid_size * overlay_scale)
+                                .round() as isize;
+
+                        let tuple = (
+                            sx - *text_size as isize / 2 - 5,
+                            sy - self.messages_font_size as isize - tile_size,
+                            *text_size as isize + 10,
+                            22,
+                        );
+
+                        if say_bg_enabled && say_bg_color[3] > 0 {
+                            self.draw2d.blend_rect_safe(
+                                pixels,
+                                &tuple,
+                                width,
+                                &say_bg_color,
+                                &(0, 0, width as isize, height as isize),
+                            );
+                        }
+
+                        self.draw2d.text_rect_blend_safe(
+                            pixels,
+                            &tuple,
+                            width,
+                            font,
+                            self.messages_font_size,
+                            message,
+                            &color,
+                            draw2d::TheHorizontalAlign::Center,
+                            draw2d::TheVerticalAlign::Center,
+                            &(0, 0, width as isize, height as isize),
+                        );
+                    }
+                } else {
                     let width = widget.buffer.dim().width as usize;
                     let height = widget.buffer.dim().height as usize;
                     let pixels = widget.buffer.pixels_mut();
@@ -1358,7 +1498,15 @@ impl Client {
                         .projection_matrix(width as f32, height as f32);
                     let vp = proj * view;
 
-                    for (grid_pos, message, text_size, color, _) in self.messages_to_draw.values() {
+                    for (grid_pos, message, text_size, category, _) in
+                        self.messages_to_draw.values()
+                    {
+                        let color = Self::get_widget_say_color(
+                            widget_say.as_ref(),
+                            &say_config,
+                            category,
+                            say_fallback_color,
+                        );
                         let world = Vec4::new(grid_pos.x, 1.8, grid_pos.y, 1.0);
                         let clip = vp * world;
                         if clip.w <= 0.0 {
@@ -1397,7 +1545,7 @@ impl Client {
                             font,
                             self.messages_font_size,
                             message,
-                            color,
+                            &color,
                             draw2d::TheHorizontalAlign::Center,
                             draw2d::TheVerticalAlign::Center,
                             &(0, 0, width as isize, height as isize),
@@ -1795,8 +1943,8 @@ impl Client {
             self.overlay = TheRGBABuffer::new(TheDim::sized(w, h));
         }
         self.overlay.fill([0, 0, 0, 0]);
-        let say_bg_enabled = self.get_say_background_enabled();
-        let say_bg_color = self.get_say_background_color();
+        let say_config = self.config.clone();
+        let say_fallback_color = self.messages_font_color;
 
         if let Some(leader) = Self::resolve_party_entity(map, Some("leader")) {
             self.intent = leader.get_attr_string("intent").unwrap_or_default();
@@ -1854,8 +2002,19 @@ impl Client {
                 let view = game.camera_d3.view_matrix();
                 let proj = game.camera_d3.projection_matrix(gw as f32, gh as f32);
                 let vp = proj * view;
+                let widget_say = Self::say_table_from_widget(game);
+                let say_bg_enabled =
+                    Self::get_widget_say_background_enabled(widget_say.as_ref(), &say_config);
+                let say_bg_color =
+                    Self::get_widget_say_background_color(widget_say.as_ref(), &say_config);
 
-                for (grid_pos, message, text_size, color, _) in self.messages_to_draw.values() {
+                for (grid_pos, message, text_size, category, _) in self.messages_to_draw.values() {
+                    let color = Self::get_widget_say_color(
+                        widget_say.as_ref(),
+                        &say_config,
+                        category,
+                        say_fallback_color,
+                    );
                     let world = Vec4::new(grid_pos.x, 1.8, grid_pos.y, 1.0);
                     let clip = vp * world;
                     if clip.w <= 0.0 {
@@ -1896,7 +2055,7 @@ impl Client {
                         font,
                         self.messages_font_size,
                         message,
-                        color,
+                        &color,
                         draw2d::TheHorizontalAlign::Center,
                         draw2d::TheVerticalAlign::Center,
                         &(0, 0, overlay_w as isize, overlay_h as isize),

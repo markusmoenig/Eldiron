@@ -787,6 +787,25 @@ impl Visitor for CompileVisitor {
                             loc,
                         ));
                     }
+                } else if name == "say" {
+                    if args.len() == 1 || args.len() == 2 {
+                        for arg in args {
+                            _ = arg.accept(self, ctx)?;
+                        }
+                        ctx.emit(NodeOp::HostCall {
+                            name: "say".into(),
+                            argc: args.len() as u8,
+                        });
+                    } else {
+                        return Err(RuntimeError::new(
+                            format!(
+                                "Wrong amount of arguments for '{}', expected '1 or 2' got '{}'",
+                                name,
+                                args.len(),
+                            ),
+                            loc,
+                        ));
+                    }
                 } else if name == "patrol" {
                     if args.len() <= 2 {
                         for arg in args {

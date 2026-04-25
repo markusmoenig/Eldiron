@@ -120,27 +120,6 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
         ],
     },
     SettingNavSection {
-        table: "say",
-        entries: &[
-            SettingNavEntry {
-                key: "duration",
-                status: "Lifetime of say bubbles in in-game minutes.",
-            },
-            SettingNavEntry {
-                key: "default",
-                status: "Fallback say text color as #RRGGBB or #RRGGBBAA.",
-            },
-            SettingNavEntry {
-                key: "background_enabled",
-                status: "Enable or disable the say bubble background rectangle. Values: true, false.",
-            },
-            SettingNavEntry {
-                key: "background_color",
-                status: "Say bubble background color as #RRGGBBAA.",
-            },
-        ],
-    },
-    SettingNavSection {
         table: "viewport",
         entries: &[
             SettingNavEntry {
