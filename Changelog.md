@@ -7,6 +7,8 @@
 - Added the new brush-based **Organic Tool** workflow for painting surface detail directly onto map surfaces, replacing the older graph-driven organic authoring direction.
 - Added a dedicated Organic dock with a live brush preview, visual brush-shape presets, and compact controls for `Base`, `Border`, `Noise`, `Brush Size`, `Border Size`, `Noise Amount`, and `Opacity`.
 - Added Organic toolbar controls for `Free / Locked`, `Clear`, and `Active / Deactive`, plus a 3D brush-footprint preview for organic painting in place of the generic hover marker.
+- Added renderer style and post-processing controls for a less shiny retro RPG look, including `style = "clean" | "retro" | "grimy"` and post controls for `grit`, `posterize`, `palette_bias`, `shadow_lift`, and `edge_soften`.
+- Applied the stylized post-processing controls to Raster 2D as well as Raster 3D, so 2D and 3D views can share the same authored color treatment.
 
 ### Server
 
@@ -17,6 +19,7 @@
 ### Documentation
 
 - Added Organic Tool documentation covering the new brush-based workflow, dock layout, toolbar controls, and 3D brush preview behavior.
+- Added configuration docs for the new renderer style and stylized post-processing settings, including their runtime `world.post.*` / `region.post.*` override fields.
 
 ## Bug Fixes
 
@@ -24,6 +27,13 @@
 
 - Fixed Organic tool undo / redo and related dock-state restore behavior so brush painting no longer bounces the UI back into the tile picker workflow during restore.
 - Improved Organic brush editing so presets are shape-only, thumbnails reuse the current brush colors, and noise is exposed as an actual adjustable paint contribution instead of only a preview accent.
+- Fixed project render settings sync so loading a project and editing project settings now apply the same renderer/post/daylight defaults instead of changing the visible sun-shadow state after the first settings edit.
+
+### Renderer
+
+- Softened Raster 3D sun-shadow sampling and increased default shadow biasing in the shader to reduce hard shadow acne seams.
+- Fixed two-sided 3D lighting so sun shadows and direct lights use light-facing normals instead of camera-facing normals, preventing surfaces from changing lit state when the iso camera moves.
+- Added exact compile-time layout checks for the Raster 3D uniform block to guard against backend-sensitive WGSL/Rust alignment mismatches.
 
 ### Server
 

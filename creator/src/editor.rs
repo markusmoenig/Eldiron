@@ -728,6 +728,10 @@ impl Editor {
 
         {
             let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.assets.config = self.project.config.clone();
+            rusterix
+                .scene_handler
+                .sync_base_render_settings(&self.project.config);
             rusterix.client.set_server_time(self.project.time);
             if rusterix.server.state == rusterix::ServerState::Running
                 && let Some(map) = self.project.get_map(&self.server_ctx)

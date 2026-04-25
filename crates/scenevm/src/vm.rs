@@ -392,6 +392,8 @@ pub struct Raster2DUniforms {
     pub misc0: [f32; 4],                  // x=fb_w, y=fb_h, z=anim_counter, w=unused
     pub post_params: [f32; 4],            // x=enabled, y=tone mapper, z=exposure, w=gamma
     pub post_color_adjust: [f32; 4],      // x=saturation, y=luminance, z/w unused
+    pub post_style0: [f32; 4],            // x=grit, y=posterize, z=palette_bias, w=shadow_lift
+    pub post_style1: [f32; 4],            // x=edge_soften, yzw=reserved
     pub ambient_color_strength: [f32; 4], // rgb + strength
     pub sun_color_intensity: [f32; 4],    // rgb + intensity
     pub sun_dir_enabled: [f32; 4],        // xyz + enabled
@@ -402,8 +404,15 @@ pub struct Raster2DUniforms {
     pub palette: [[f32; 4]; 256],
 }
 
-const RASTER2D_UNIFORM_BYTES: usize = (10 * 16) + (256 * 16);
+const RASTER2D_UNIFORM_BYTES: usize = (12 * 16) + (256 * 16);
 const _: [(); RASTER2D_UNIFORM_BYTES] = [(); std::mem::size_of::<Raster2DUniforms>()];
+const _: [(); 0] = [(); std::mem::offset_of!(Raster2DUniforms, misc0)];
+const _: [(); 16] = [(); std::mem::offset_of!(Raster2DUniforms, post_params)];
+const _: [(); 32] = [(); std::mem::offset_of!(Raster2DUniforms, post_color_adjust)];
+const _: [(); 48] = [(); std::mem::offset_of!(Raster2DUniforms, post_style0)];
+const _: [(); 64] = [(); std::mem::offset_of!(Raster2DUniforms, post_style1)];
+const _: [(); 80] = [(); std::mem::offset_of!(Raster2DUniforms, ambient_color_strength)];
+const _: [(); 192] = [(); std::mem::offset_of!(Raster2DUniforms, palette)];
 
 pub const SCENEVM_2D_WGSL: &str = r#"
 struct Globals {
@@ -439,6 +448,8 @@ struct U2D {
   misc0: vec4<f32>,
   post_params: vec4<f32>,
   post_color_adjust: vec4<f32>,
+  post_style0: vec4<f32>,
+  post_style1: vec4<f32>,
   ambient_color_strength: vec4<f32>,
   sun_color_intensity: vec4<f32>,
   sun_dir_enabled: vec4<f32>,
@@ -592,7 +603,11 @@ fn sd_sample_avatar(avatar_index: u32, uv: vec2<f32>) -> vec4<f32> {
   return sd_unpack_rgba8(sd_data_word(idx));
 }
 
-fn apply_post(color: vec3<f32>) -> vec3<f32> {
+fn hash12(p: vec2<f32>) -> f32 {
+  return fract(sin(dot(p, vec2<f32>(12.9898, 78.233))) * 43758.5453123);
+}
+
+fn apply_post(color: vec3<f32>, frag_pos: vec4<f32>) -> vec3<f32> {
   var c = max(color, vec3<f32>(0.0));
   let enabled = UBO.post_params.x > 0.5;
   let tone = u32(max(UBO.post_params.y, 0.0));
@@ -600,6 +615,11 @@ fn apply_post(color: vec3<f32>) -> vec3<f32> {
   let gamma = max(UBO.post_params.w, 0.001);
   let saturation = max(UBO.post_color_adjust.x, 0.0);
   let luminance = max(UBO.post_color_adjust.y, 0.0);
+  let grit = clamp(UBO.post_style0.x, 0.0, 1.0);
+  let posterize = clamp(UBO.post_style0.y, 0.0, 1.0);
+  let palette_bias = clamp(UBO.post_style0.z, 0.0, 1.0);
+  let shadow_lift = clamp(UBO.post_style0.w, 0.0, 1.0);
+  let edge_soften = clamp(UBO.post_style1.x, 0.0, 1.0);
   if (enabled) {
     c = max(c * exposure, vec3<f32>(0.0));
     if (tone == 1u) {
@@ -614,7 +634,16 @@ fn apply_post(color: vec3<f32>) -> vec3<f32> {
     }
     c *= luminance;
     let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
-    c = vec3<f32>(luma) + (c - vec3<f32>(luma)) * saturation;
+    c = mix(c, c + vec3<f32>(pow(max(1.0 - luma, 0.0), 2.0)) * 0.12, shadow_lift);
+    let earth = vec3<f32>(luma) * vec3<f32>(1.07, 0.98, 0.82);
+    c = mix(c, mix(c, earth, 0.45), palette_bias);
+    let levels = mix(32.0, 7.0, posterize);
+    c = mix(c, floor(c * levels + vec3<f32>(0.5)) / levels, posterize);
+    let grain = hash12(floor(frag_pos.xy)) * 2.0 - 1.0;
+    c = c + vec3<f32>(grain) * grit * 0.035;
+    c = mix(c, vec3<f32>(dot(c, vec3<f32>(0.2126, 0.7152, 0.0722))), edge_soften * 0.10);
+    let sat_luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+    c = vec3<f32>(sat_luma) + (c - vec3<f32>(sat_luma)) * saturation;
   }
   c = pow(c, vec3<f32>(1.0 / gamma));
   return c;
@@ -784,7 +813,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
       discard;
     }
     let col = vec4<f32>(srgb_to_linear(col_srgb.rgb), col_srgb.a);
-    return vec4<f32>(apply_post(apply_scene_lighting(col.rgb, world)), col.a);
+    return vec4<f32>(apply_post(apply_scene_lighting(col.rgb, world), in.pos), col.a);
   }
 
   let phase_start = select(0u, u32(max(in.blend_factor, 0.0)), in.blend_factor > 1.0);
@@ -814,7 +843,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
   if (a <= 0.0) {
     discard;
   }
-  return vec4<f32>(apply_post(rgb), a);
+  return vec4<f32>(apply_post(rgb, in.pos), a);
 }
 "#;
 
@@ -973,6 +1002,8 @@ pub struct Raster3DUniforms {
     pub _pad_post_pre: [u32; 2],
     pub post_params: [f32; 4], // x=enabled, y=tone_mapper, z=exposure, w=gamma
     pub post_color_adjust: [f32; 4], // x=saturation, y=luminance, z=reserved, w=reserved
+    pub post_style0: [f32; 4], // x=grit, y=posterize, z=palette_bias, w=shadow_lift
+    pub post_style1: [f32; 4], // x=edge_soften, yzw=reserved
     pub avatar_highlight_params: [f32; 4], // x=lift, y=fill, z=rim, w=enabled
     pub _pad_tail: [u32; 4],
     pub palette: [[f32; 4]; 256],
@@ -980,12 +1011,20 @@ pub struct Raster3DUniforms {
     pub organic_params: [u32; 4],
 }
 
-// WGSL `U` block uses std140-like alignment rules and currently includes a 256-color palette.
-// Keep Rust-side uniform at least that size and 16-byte aligned in total size.
-const RASTER3D_UNIFORM_WGSL_MIN_BYTES: usize = 5664;
+// WGSL uniform buffers use strict alignment. Keep this layout exact because
+// some backends are less forgiving about scalar/vector packing mismatches.
+const RASTER3D_UNIFORM_WGSL_BYTES: usize = 5696;
 const _: [(); 0] = [(); std::mem::size_of::<Raster3DUniforms>() % 16];
-const _: [(); std::mem::size_of::<Raster3DUniforms>() - RASTER3D_UNIFORM_WGSL_MIN_BYTES] =
-    [(); std::mem::size_of::<Raster3DUniforms>() - RASTER3D_UNIFORM_WGSL_MIN_BYTES];
+const _: [(); RASTER3D_UNIFORM_WGSL_BYTES] = [(); std::mem::size_of::<Raster3DUniforms>()];
+const _: [(); 384] = [(); std::mem::offset_of!(Raster3DUniforms, point_light_count)];
+const _: [(); 400] = [(); std::mem::offset_of!(Raster3DUniforms, _pad_lights)];
+const _: [(); 416] = [(); std::mem::offset_of!(Raster3DUniforms, fb_size)];
+const _: [(); 464] = [(); std::mem::offset_of!(Raster3DUniforms, post_params)];
+const _: [(); 496] = [(); std::mem::offset_of!(Raster3DUniforms, post_style0)];
+const _: [(); 528] = [(); std::mem::offset_of!(Raster3DUniforms, avatar_highlight_params)];
+const _: [(); 560] = [(); std::mem::offset_of!(Raster3DUniforms, palette)];
+const _: [(); 4656] = [(); std::mem::offset_of!(Raster3DUniforms, palette_tile_indices)];
+const _: [(); 5680] = [(); std::mem::offset_of!(Raster3DUniforms, organic_params)];
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -1048,8 +1087,8 @@ struct U {
     render_params: vec4<f32>,
     point_light_pos_intensity: array<vec4<f32>, 4>,
     point_light_color_range: array<vec4<f32>, 4>,
-    point_light_count: u32,
-    _pad_lights: vec3<u32>,
+    point_light_count_pad: vec4<u32>,
+    _pad_lights: vec4<u32>,
     fb_size: vec2<f32>,
     cam_vfov_deg: f32,
     cam_ortho_half_h: f32,
@@ -1058,10 +1097,13 @@ struct U {
     cam_kind: u32,
     anim_counter: u32,
     _pad0: vec2<u32>,
+    _pad_post_pre: vec2<u32>,
     post_params: vec4<f32>,
     post_color_adjust: vec4<f32>,
+    post_style0: vec4<f32>,
+    post_style1: vec4<f32>,
     avatar_highlight_params: vec4<f32>,
-    _pad1: vec2<u32>,
+    _pad_tail: vec4<u32>,
     palette: array<vec4<f32>, 256>,
     palette_tile_indices: array<vec4<u32>, 64>,
     organic_params: vec4<u32>,
@@ -1353,6 +1395,10 @@ fn fresnel_schlick_roughness(cos_theta: f32, F0: vec3<f32>, roughness: f32) -> v
     return F0 + (max(vec3<f32>(1.0 - roughness), F0) - F0) * one_minus_cos5;
 }
 
+fn hash13(p: vec3<f32>) -> f32 {
+    return fract(sin(dot(p, vec3<f32>(127.1, 311.7, 74.7))) * 43758.5453123);
+}
+
 fn bayer4_threshold(x: u32, y: u32) -> f32 {
     let xi = x & 3u;
     let yi = y & 3u;
@@ -1380,7 +1426,8 @@ fn sample_shadow(world_pos: vec3<f32>, NdotL: f32) -> f32 {
     let far_z = max(UBO.shadow_light_extents.w, near_z + 0.0001);
     let nx = lx / half_w;
     let ny = ly / half_h;
-    let depth = clamp((lz - near_z) / (far_z - near_z), 0.0, 1.0);
+    let raw_depth = (lz - near_z) / (far_z - near_z);
+    let depth = clamp(raw_depth, 0.0, 1.0);
     // Render target space is Y-down for texture sampling; flip Y from NDC.
     let uv = vec2<f32>(nx * 0.5 + 0.5, 1.0 - (ny * 0.5 + 0.5));
     // Keep a border margin so PCF taps never sample outside the shadow map.
@@ -1389,34 +1436,49 @@ fn sample_shadow(world_pos: vec3<f32>, NdotL: f32) -> f32 {
     let margin = texel * 2.0;
     let max_uv = vec2<f32>(1.0, 1.0) - margin;
     let clamped_uv = clamp(uv, margin, max_uv);
-    let valid_depth = depth < 0.9999;
+    let valid_depth = raw_depth > 0.0001 && raw_depth < 0.9999;
     let valid_uv = uv.x > margin.x && uv.x < max_uv.x && uv.y > margin.y && uv.y < max_uv.y;
     let sample_valid = valid_depth && valid_uv;
-    // Slope- and depth-scaled bias; first-person needs stronger bias to suppress distant acne.
-    let slope_bias = select(0.004, 0.010, UBO.cam_kind == 2u) * (1.0 - NdotL);
-    let depth_bias = depth * 0.0015;
-    let bias = max(max(UBO.shadow_params.w, 0.0003), slope_bias + depth_bias);
+    // Slope- and depth-scaled bias; deliberately soft to avoid hard acne seams in iso.
+    let slope_bias = select(0.007, 0.012, UBO.cam_kind == 2u) * (1.0 - NdotL);
+    let depth_bias = depth * 0.0020;
+    let bias = max(max(UBO.shadow_params.w, 0.0010), slope_bias + depth_bias);
     let ref_depth = depth - bias;
-    // 3x3 PCF to reduce shadow shimmer/aliasing and single-pixel black speckles.
+    // Wider PCF keeps sun shadows readable but less PBR-crisp.
     var occ = 0.0;
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.0, -1.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0, -1.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.0, -1.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.0,  0.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.0,  0.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.0,  1.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0,  1.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.0,  1.0) * texel, ref_depth);
-    let shadow = occ * (1.0 / 9.0);
-    return select(1.0, shadow, sample_valid);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv, ref_depth) * 2.0;
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.5,  0.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.5,  0.0) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0, -1.5) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0,  1.5) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.5, -1.5) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.5, -1.5) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.5,  1.5) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.5,  1.5) * texel, ref_depth);
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-2.75,  0.0) * texel, ref_depth) * 0.5;
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 2.75,  0.0) * texel, ref_depth) * 0.5;
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0, -2.75) * texel, ref_depth) * 0.5;
+    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0,  2.75) * texel, ref_depth) * 0.5;
+    let shadow = occ * (1.0 / 12.0);
+    let edge_dist = min(min(uv.x - margin.x, max_uv.x - uv.x), min(uv.y - margin.y, max_uv.y - uv.y));
+    let edge_fade = smoothstep(0.0, max(texel.x, texel.y) * 8.0, edge_dist);
+    return select(1.0, mix(1.0, shadow, edge_fade), sample_valid);
 }
 
-fn apply_post(color_linear: vec3<f32>) -> vec3<f32> {
+fn hash12(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(12.9898, 78.233))) * 43758.5453123);
+}
+
+fn apply_post(color_linear: vec3<f32>, frag_pos: vec4<f32>) -> vec3<f32> {
     let post_enabled = UBO.post_params.x > 0.5;
     let tone_mapper = u32(max(UBO.post_params.y, 0.0));
     let exposure = max(UBO.post_params.z, 0.0);
     let gamma = max(UBO.post_params.w, 0.001);
+    let grit = clamp(UBO.post_style0.x, 0.0, 1.0);
+    let posterize = clamp(UBO.post_style0.y, 0.0, 1.0);
+    let palette_bias = clamp(UBO.post_style0.z, 0.0, 1.0);
+    let shadow_lift = clamp(UBO.post_style0.w, 0.0, 1.0);
+    let edge_soften = clamp(UBO.post_style1.x, 0.0, 1.0);
     var c = max(color_linear, vec3<f32>(0.0));
 
     if (post_enabled) {
@@ -1437,7 +1499,16 @@ fn apply_post(color_linear: vec3<f32>) -> vec3<f32> {
         c = c * luminance;
         let saturation = max(UBO.post_color_adjust.x, 0.0);
         let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
-        c = mix(vec3<f32>(luma), c, saturation);
+        c = mix(c, c + vec3<f32>(pow(max(1.0 - luma, 0.0), 2.0)) * 0.12, shadow_lift);
+        let earth = vec3<f32>(luma) * vec3<f32>(1.07, 0.98, 0.82);
+        c = mix(c, mix(c, earth, 0.45), palette_bias);
+        let levels = mix(32.0, 7.0, posterize);
+        c = mix(c, floor(c * levels + vec3<f32>(0.5)) / levels, posterize);
+        let grain = hash12(floor(frag_pos.xy)) * 2.0 - 1.0;
+        c = c + vec3<f32>(grain) * grit * 0.035;
+        c = mix(c, vec3<f32>(dot(c, vec3<f32>(0.2126, 0.7152, 0.0722))), edge_soften * 0.10);
+        let sat_luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+        c = mix(vec3<f32>(sat_luma), c, saturation);
     }
 
     c = max(c, vec3<f32>(0.0));
@@ -1538,9 +1609,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let dpdy_uv = dpdy(in.uv);
     let sun_enabled = select(0.0, 1.0, UBO.sun_dir_enabled.w > 0.5);
     let L = normalize(-UBO.sun_dir_enabled.xyz);
-    let V_shadow = normalize(UBO.cam_pos.xyz - in.world_pos);
     let N_shadow = normalize(in.normal);
-    let Nf_shadow = select(-N_shadow, N_shadow, dot(N_shadow, V_shadow) >= 0.0);
+    let Nf_shadow = select(-N_shadow, N_shadow, dot(N_shadow, L) >= 0.0);
     let NdotL_shadow = max(dot(Nf_shadow, L), 0.0);
     let shadow_receiver = in.world_pos + Nf_shadow * select(0.01, 0.03, UBO.cam_kind == 2u);
     let shadow = sample_shadow(shadow_receiver, NdotL_shadow);
@@ -1566,7 +1636,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         if (alpha <= 0.015) {
             discard;
         }
-        return vec4<f32>(apply_post(color * 1.1), alpha);
+        return vec4<f32>(apply_post(color * 1.1, in.pos), alpha);
     }
     let m0 = select(
         unpack_material_nibbles(m0_raw),
@@ -1655,7 +1725,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     if (mat.w > 0.95) {
         let emissive_boost = select(2.0, 3.2, is_particle);
         let emissive_color = select(color_linear, color_linear * max(in.normal, vec3<f32>(0.0)), is_particle);
-        return vec4<f32>(apply_post(emissive_color * emissive_boost), out_alpha);
+        return vec4<f32>(apply_post(emissive_color * emissive_boost, in.pos), out_alpha);
     }
     let ambient = UBO.ambient_color_strength.xyz * UBO.ambient_color_strength.w;
     var N = normalize(in.normal);
@@ -1681,16 +1751,34 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let bump_apply = (!is_avatar) && bump_strength > 0.001 && abs(det) > 1e-6;
     let bump_mix = select(0.0, bump_strength, bump_apply);
     N = normalize(mix(N, N_ws, bump_mix));
-    // Two-sided lighting: orient normal toward the viewer to avoid inverted-winding dark faces.
-    let Nf = select(-N, N, dot(N, V) >= 0.0);
+    // Two-sided lighting must be light-facing, not camera-facing, otherwise iso camera motion
+    // changes whether a surface is considered lit by the sun.
+    let Nf_sun = select(-N, N, dot(N, L) >= 0.0);
+    let Nf_view = select(-N, N, dot(N, V) >= 0.0);
     let lighting_model = UBO._pad0.y;
-    let use_lambert = lighting_model == 0u;
+    let use_retro = lighting_model == 3u;
+    let use_grimy = lighting_model == 4u;
+    let style_active = use_retro || use_grimy;
+    let use_lambert = lighting_model == 0u || style_active;
     let use_pbr = lighting_model == 2u;
-    let roughness = clamp(mat.x, 0.04, 1.0);
-    let metallic = clamp(mat.y, 0.0, 1.0);
-    let albedo = color_linear;
+    var roughness = clamp(mat.x, 0.04, 1.0);
+    var metallic = clamp(mat.y, 0.0, 1.0);
+    var albedo = color_linear;
+    if (style_active && !is_avatar) {
+        let style_amount = select(0.58, 0.88, use_grimy);
+        let target_roughness = select(0.76, 0.92, use_grimy);
+        let target_metallic = select(0.35, 0.12, use_grimy);
+        let large_grain = hash13(floor(in.world_pos * select(1.65, 2.15, use_grimy)));
+        let fine_grain = hash13(floor(in.world_pos * select(5.0, 7.0, use_grimy) + vec3<f32>(19.0, 7.0, 31.0)));
+        let grime = mix(large_grain, fine_grain, 0.35);
+        let grime_value = 0.88 + grime * 0.20;
+        let earth_tint = mix(vec3<f32>(1.0), vec3<f32>(0.98, 0.94, 0.84) * grime_value, style_amount);
+        albedo = albedo * earth_tint;
+        roughness = mix(roughness, max(roughness, target_roughness), style_amount);
+        metallic = metallic * mix(1.0, target_metallic, style_amount);
+    }
     let F0 = mix(vec3<f32>(0.04), albedo, metallic);
-    let NdotL = max(dot(Nf, L), 0.0);
+    let NdotL = max(dot(Nf_sun, L), 0.0);
     let shadow_strength = clamp(UBO.shadow_params.y, 0.0, 1.0);
     let shadow_term = mix(1.0, shadow, shadow_strength);
     let sun_radiance = UBO.sun_color_intensity.xyz * UBO.sun_color_intensity.w * sun_enabled * shadow_term;
@@ -1700,8 +1788,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             sun = sun_radiance * NdotL;
         } else {
             let H = normalize(V + L);
-            let NdotV = max(dot(Nf, V), 0.0);
-            let NdotH = max(dot(Nf, H), 0.0);
+            let NdotV = max(dot(Nf_view, V), 0.0);
+            let NdotH = max(dot(Nf_sun, H), 0.0);
             let VdotH = max(dot(V, H), 0.0);
             let NDF = distribution_ggx(NdotH, roughness);
             let G = geometry_schlick_ggx(NdotV, roughness) * geometry_schlick_ggx(NdotL, roughness);
@@ -1714,7 +1802,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         }
     }
     var point = vec3<f32>(0.0);
-    let point_count = min(UBO.point_light_count, 4u);
+    let point_count = min(UBO.point_light_count_pad.x, 4u);
     for (var li: u32 = 0u; li < point_count; li = li + 1u) {
         let lp = UBO.point_light_pos_intensity[li].xyz;
         let l_intensity = UBO.point_light_pos_intensity[li].w;
@@ -1722,7 +1810,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let Lp_vec = lp - in.world_pos;
         let l_dist = length(Lp_vec);
         let l_dir = select(vec3<f32>(0.0, 1.0, 0.0), normalize(Lp_vec), l_dist > 1e-5);
-        let l_ndotl = max(dot(Nf, l_dir), 0.0);
+        let Nf_point = select(-N, N, dot(N, l_dir) >= 0.0);
+        let l_ndotl = max(dot(Nf_point, l_dir), 0.0);
         let l_range_factor = smoothstep(l_range, 0.0, l_dist);
         let l_atten = (l_intensity * l_range_factor) / max(l_dist * l_dist, 1e-4);
         let radiance = UBO.point_light_color_range[li].xyz * l_atten;
@@ -1731,8 +1820,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
                 point += radiance * l_ndotl;
             } else {
                 let H = normalize(V + l_dir);
-                let NdotV = max(dot(Nf, V), 0.0);
-                let NdotH = max(dot(Nf, H), 0.0);
+                let NdotV = max(dot(Nf_view, V), 0.0);
+                let NdotH = max(dot(Nf_point, H), 0.0);
                 let VdotH = max(dot(V, H), 0.0);
                 let NDF = distribution_ggx(NdotH, roughness);
                 let G = geometry_schlick_ggx(NdotV, roughness) * geometry_schlick_ggx(l_ndotl, roughness);
@@ -1745,7 +1834,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             }
         }
     }
-    let n_dot_v = max(dot(Nf, V), 0.0);
+    let n_dot_v = max(dot(Nf_view, V), 0.0);
     var lit_color = vec3<f32>(0.0);
     if (use_lambert) {
         lit_color = max(albedo * (ambient + sun + point), vec3<f32>(0.0));
@@ -1757,7 +1846,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let diffuse_ambient = ambient * albedo * kD_ambient;
 
         // Cheap environment estimate using sky/fog colors and reflected view direction.
-        let refl = reflect(-V, Nf);
+        let refl = reflect(-V, Nf_view);
         let sky_mix = clamp(refl.y * 0.5 + 0.5, 0.0, 1.0);
         let env_color = mix(UBO.fog_color_density.xyz, UBO.sky_color.xyz, sky_mix);
         let env_spec_strength = max(0.04, (1.0 - roughness) * (1.0 - roughness));
@@ -1767,6 +1856,17 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     } else {
         // Cook-Torrance direct lighting + diffuse ambient only.
         lit_color = max(ambient * albedo + sun + point, vec3<f32>(0.0));
+    }
+
+    if (style_active && !is_avatar) {
+        let levels = select(7.0, 5.0, use_grimy);
+        let luma = max(dot(lit_color, vec3<f32>(0.2126, 0.7152, 0.0722)), 0.001);
+        let min_luma = select(0.032, 0.044, use_grimy);
+        let quantized = max(floor(luma * levels + 0.5) / levels, min_luma);
+        let quantized_color = lit_color * (quantized / luma);
+        let floor_color = albedo * min_luma;
+        let floor_weight = 1.0 - smoothstep(min_luma, min_luma * 3.0, luma);
+        lit_color = mix(quantized_color, max(quantized_color, floor_color), floor_weight);
     }
 
     if (is_avatar && UBO.avatar_highlight_params.w > 0.5) {
@@ -1783,13 +1883,13 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
     let fog_density = max(UBO.fog_color_density.w, 0.0);
     if (fog_density <= 0.0) {
-        return vec4<f32>(apply_post(lit_color), out_alpha);
+        return vec4<f32>(apply_post(lit_color, in.pos), out_alpha);
     }
     let fog_dist = distance(in.world_pos, UBO.cam_pos.xyz);
     let fog_amount = fog_density * fog_dist * fog_dist;
     let fog_factor = clamp(exp(-fog_amount), 0.0, 1.0);
     let fogged = mix(UBO.fog_color_density.xyz, lit_color, fog_factor);
-    return vec4<f32>(apply_post(fogged), out_alpha);
+    return vec4<f32>(apply_post(fogged, in.pos), out_alpha);
 }
 "#;
 
@@ -1828,6 +1928,8 @@ pub struct VM {
     pub palette_remap_2d_mode: PaletteRemap2DMode,
     pub raster3d_msaa_samples: u32,
     pub raster3d_avatar_highlight_params: Vec4<f32>,
+    pub raster3d_post_style0: Vec4<f32>,
+    pub raster3d_post_style1: Vec4<f32>,
     // --- Programmable compute shader sources
     pub source2d: String,
     pub viewport_rect2d: Option<[f32; 4]>, // Optional viewport rect for 2D shader (x, y, w, h)
@@ -1980,6 +2082,14 @@ impl VM {
     /// x=lift, y=fill, z=rim, w=enabled (0/1).
     pub fn set_raster3d_avatar_highlight_params(&mut self, params: Vec4<f32>) {
         self.raster3d_avatar_highlight_params = params;
+    }
+
+    /// Configure Raster3D stylized post controls.
+    /// style0: x=grit, y=posterize, z=palette_bias, w=shadow_lift.
+    /// style1: x=edge_soften, yzw=reserved.
+    pub fn set_raster3d_post_style_params(&mut self, style0: Vec4<f32>, style1: Vec4<f32>) {
+        self.raster3d_post_style0 = style0;
+        self.raster3d_post_style1 = style1;
     }
 
     fn ensure_prev_dummy(&mut self, device: &wgpu::Device) -> wgpu::TextureView {
@@ -3142,6 +3252,8 @@ impl VM {
             palette_remap_2d_mode: PaletteRemap2DMode::Disabled,
             raster3d_msaa_samples: 4,
             raster3d_avatar_highlight_params: Vec4::new(1.12, 0.20, 0.18, 1.0),
+            raster3d_post_style0: Vec4::new(0.0, 0.0, 0.0, 0.0),
+            raster3d_post_style1: Vec4::new(0.0, 0.0, 0.0, 0.0),
             source2d,
             viewport_rect2d: None,
             source3d,
@@ -5710,6 +5822,8 @@ impl VM {
                 self.gp9.w.max(0.001),
             ],
             post_color_adjust: [self.gp8.z.max(0.0), self.gp8.w.max(0.0), 0.0, 0.0],
+            post_style0: self.raster3d_post_style0.into_array(),
+            post_style1: self.raster3d_post_style1.into_array(),
             ambient_color_strength: self.gp3.into_array(),
             sun_color_intensity: self.gp1.into_array(),
             sun_dir_enabled: self.gp2.into_array(),
@@ -7230,6 +7344,8 @@ impl VM {
                 self.gp9.w.max(0.001),
             ],
             post_color_adjust: [self.gp8.z.max(0.0), self.gp8.w.max(0.0), 1.0, 0.0],
+            post_style0: self.raster3d_post_style0.into_array(),
+            post_style1: self.raster3d_post_style1.into_array(),
             avatar_highlight_params: self.raster3d_avatar_highlight_params.into_array(),
             _pad_tail: [0, 0, 0, 0],
             palette: self.palette,

@@ -147,6 +147,7 @@ pub struct SceneHandler {
     pending_particle_steps_2d: usize,
     pending_particle_steps_3d: usize,
     last_dungeon_render_signature: Option<u64>,
+    dungeon_render_apply_immediate: bool,
 }
 
 impl Default for SceneHandler {
@@ -264,6 +265,7 @@ impl SceneHandler {
         self.base_settings = base.clone();
         self.settings = base;
         self.last_dungeon_render_signature = None;
+        self.dungeon_render_apply_immediate = true;
     }
 
     pub fn apply_runtime_render_state_settings(&mut self) {
@@ -438,11 +440,15 @@ impl SceneHandler {
         } else {
             None
         };
-        let transition = render_group
+        let mut transition = render_group
             .as_ref()
             .and_then(|render| render.get_float("transition_seconds"))
             .unwrap_or(1.0)
             .max(0.0);
+        if self.dungeon_render_apply_immediate {
+            transition = 0.0;
+            self.dungeon_render_apply_immediate = false;
+        }
 
         for name in RenderSettings::runtime_override_names() {
             let mut target = render_group
@@ -2331,6 +2337,7 @@ impl SceneHandler {
             pending_particle_steps_2d: 0,
             pending_particle_steps_3d: 0,
             last_dungeon_render_signature: None,
+            dungeon_render_apply_immediate: true,
         }
     }
 

@@ -364,6 +364,10 @@ fade_mode = "ordered_dither"
 # Lighting model: "lambert", "cook_torrance", or "pbr".
 lighting_model = "cook_torrance"
 
+# Renderer style: "clean" keeps normal lighting, "retro" softens shine,
+# "grimy" adds stronger worn surface variation.
+style = "clean"
+
 # Avatar readability boost toggle for Raster 3D avatars.
 avatar_highlight_enabled = true
 
@@ -408,6 +412,7 @@ All `[render]` options apply **only to the 3D renderer** (they do not affect the
 - **`shadow_bias`** — Depth bias used to reduce shadow acne/peter-panning.
 - **`fade_mode`** — Visibility fade style for hidden/fading geometry (`ordered_dither` or `uniform`).
 - **`lighting_model`** — Surface lighting model (`lambert`, `cook_torrance`, `pbr`).
+- **`style`** — Renderer style preset (`clean`, `retro`, `grimy`). `retro` and `grimy` reduce shiny PBR response and add coarse organic surface variation.
 - **`avatar_highlight_enabled`** — Enables avatar readability boost in Raster 3D.
 - **`avatar_highlight_lift`** — Multiplier for avatar lit color (`1.0` = unchanged).
 - **`avatar_highlight_fill`** — Extra ambient/albedo fill added to avatars.
@@ -422,6 +427,7 @@ All `[render]` options apply **only to the 3D renderer** (they do not affect the
 ## Post Configuration
 
 Post configuration options are located in the `[post]` section.
+Post-processing applies to both Raster 2D and Raster 3D render paths, so the same authored color treatment can be shared between 2D and 3D views.
 
 ```toml
 [post]
@@ -442,6 +448,21 @@ luminance = 1.0
 
 # Output gamma.
 gamma = 2.2
+
+# Stylized grain/noise amount (0 = off, 1 = strong).
+grit = 0.0
+
+# Stylized tonal banding amount (0 = off, 1 = strong).
+posterize = 0.0
+
+# Bias colors toward earthy retro tones (0 = off, 1 = strong).
+palette_bias = 0.0
+
+# Lift near-black areas after tone mapping (0 = off, 1 = strong).
+shadow_lift = 0.0
+
+# Soften harsh post contrast (0 = off, 1 = strong).
+edge_soften = 0.0
 ```
 
 ### **Option Descriptions**
@@ -452,6 +473,11 @@ gamma = 2.2
 - **`saturation`** — Color saturation multiplier; `0` is grayscale, `1` keeps original saturation.
 - **`luminance`** — Overall post brightness multiplier.
 - **`gamma`** — Final output gamma value.
+- **`grit`** — Adds subtle screen-space grain/noise for a dirtier retro image.
+- **`posterize`** — Adds controlled tonal banding without changing geometry lighting.
+- **`palette_bias`** — Pushes the final image toward warmer, earthier RPG colors.
+- **`shadow_lift`** — Lifts near-black areas after tone mapping to avoid black crush.
+- **`edge_soften`** — Softens harsh post contrast. This is not a true blur pass.
 
 ---
 
@@ -532,6 +558,7 @@ Most scalar values from `[render]` are available at runtime, including:
 - `shadow_bias`
 - `fade_mode`
 - `lighting_model`
+- `style`
 - `avatar_highlight_enabled`
 - `avatar_highlight_lift`
 - `avatar_highlight_fill`
@@ -560,6 +587,7 @@ let world.post.enabled = true;
 let world.post.tone_mapper = "aces";
 let world.post.exposure = 0.9;
 let world.post.saturation = 0.7;
+let world.post.grit = 0.25;
 ```
 
 Supported runtime post fields:
@@ -570,6 +598,11 @@ Supported runtime post fields:
 - `post.gamma`
 - `post.saturation`
 - `post.luminance`
+- `post.grit`
+- `post.posterize`
+- `post.palette_bias`
+- `post.shadow_lift`
+- `post.edge_soften`
 
 ---
 

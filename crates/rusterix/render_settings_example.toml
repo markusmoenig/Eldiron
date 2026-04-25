@@ -6,6 +6,8 @@ backend_2d = "compute"
 backend_3d = "raster"
 # Quality preset: "low", "medium", "high", "ultra", "custom".
 quality = "custom"
+# Renderer style preset: "clean" keeps normal lighting, "retro" softens shine, "grimy" adds stronger worn surface variation.
+style = "clean"
 
 [viewport]
 # 2D viewport background color used in the game widget and editor 2D preview.
@@ -44,6 +46,8 @@ shadow_bias = 0.0015
 fade_mode = "ordered_dither"
 # Lighting model: "lambert", "cook_torrance", or "pbr".
 lighting_model = "cook_torrance"
+# Renderer style: "clean" keeps normal lighting, "retro" softens shine, "grimy" adds stronger worn surface variation.
+style = "clean"
 # Avatar readability boost toggle (Raster 3D avatars/billboards).
 avatar_highlight_enabled = true
 # Avatar readability lift multiplier (1.0 = unchanged).
@@ -74,6 +78,16 @@ saturation = 1.0
 luminance = 1.0
 # Output gamma.
 gamma = 2.2
+# Stylized grain/noise amount (0 = off, 1 = strong).
+grit = 0.0
+# Stylized tonal banding amount (0 = off, 1 = strong).
+posterize = 0.0
+# Bias colors toward earthy retro tones (0 = off, 1 = strong).
+palette_bias = 0.0
+# Lift near-black areas after tone mapping (0 = off, 1 = strong).
+shadow_lift = 0.0
+# Soften harsh post contrast (0 = off, 1 = strong).
+edge_soften = 0.0
 
 [simulation]
 # Enable procedural daylight simulation.

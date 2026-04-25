@@ -253,6 +253,10 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
                 status: "3D lighting model. Values: \"lambert\", \"cook_torrance\", \"pbr\".",
             },
             SettingNavEntry {
+                key: "style",
+                status: "Renderer style preset. Values: \"clean\", \"retro\", \"grimy\".",
+            },
+            SettingNavEntry {
                 key: "avatar_highlight_enabled",
                 status: "Enable avatar readability boost in Raster 3D. Values: true, false.",
             },
@@ -312,6 +316,26 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
             SettingNavEntry {
                 key: "gamma",
                 status: "Final output gamma value.",
+            },
+            SettingNavEntry {
+                key: "grit",
+                status: "Stylized grain/noise amount. Typical range: 0..1.",
+            },
+            SettingNavEntry {
+                key: "posterize",
+                status: "Stylized tonal banding amount. Typical range: 0..1.",
+            },
+            SettingNavEntry {
+                key: "palette_bias",
+                status: "Bias colors toward earthy retro tones. Typical range: 0..1.",
+            },
+            SettingNavEntry {
+                key: "shadow_lift",
+                status: "Lift near-black areas after tone mapping. Typical range: 0..1.",
+            },
+            SettingNavEntry {
+                key: "edge_soften",
+                status: "Soften harsh post contrast. Typical range: 0..1.",
             },
         ],
     },
@@ -714,8 +738,12 @@ impl Dock for DataDock {
                         }
                     } else if server_ctx.pc.is_project_settings() {
                         if let Some(code) = value.to_string() {
-                            _ = RUSTERIX.write().unwrap().scene_handler.settings.read(&code);
                             project.config = code;
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            rusterix.assets.config = project.config.clone();
+                            rusterix
+                                .scene_handler
+                                .sync_base_render_settings(&project.config);
                             redraw = true;
                         }
                     } else if server_ctx.pc.is_game_rules() {
@@ -1787,8 +1815,12 @@ impl DataDock {
             if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
-                _ = RUSTERIX.write().unwrap().scene_handler.settings.read(&text);
                 project.config = text;
+                let mut rusterix = RUSTERIX.write().unwrap();
+                rusterix.assets.config = project.config.clone();
+                rusterix
+                    .scene_handler
+                    .sync_base_render_settings(&project.config);
             }
         } else if server_ctx.pc.is_game_rules() {
             if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {

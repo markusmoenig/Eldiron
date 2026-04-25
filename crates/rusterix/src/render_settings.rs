@@ -52,6 +52,23 @@ impl LightingModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenderStyle {
+    Clean,
+    Retro,
+    Grimy,
+}
+
+impl RenderStyle {
+    fn lighting_code(self, lighting_model: LightingModel) -> u32 {
+        match self {
+            RenderStyle::Clean => lighting_model.as_code(),
+            RenderStyle::Retro => 3,
+            RenderStyle::Grimy => 4,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostToneMapper {
     None,
     Reinhard,
@@ -182,6 +199,8 @@ pub struct RenderSettings {
     pub fade_mode: FadeMode,
     /// Lighting model used by raster path.
     pub lighting_model: LightingModel,
+    /// Renderer style preset used by raster path.
+    pub render_style: RenderStyle,
     /// Avatar readability boost toggle for Raster 3D.
     pub avatar_highlight_enabled: bool,
     /// Avatar readability lift multiplier.
@@ -206,6 +225,16 @@ pub struct RenderSettings {
     pub post_saturation: f32,
     /// Post luminance/brightness multiplier.
     pub post_luminance: f32,
+    /// Stylized post grain/noise amount.
+    pub post_grit: f32,
+    /// Stylized post tonal quantization amount.
+    pub post_posterize: f32,
+    /// Stylized post earthy palette bias amount.
+    pub post_palette_bias: f32,
+    /// Stylized post dark-area lift amount.
+    pub post_shadow_lift: f32,
+    /// Stylized post contrast/edge harshness softening amount.
+    pub post_edge_soften: f32,
 
     /// Target frame time in milliseconds for interpolation (default 30 FPS)
     pub frame_time_ms: f32,
@@ -307,6 +336,7 @@ enum SettingKey {
     ShadowBias,
     FadeMode,
     LightingModel,
+    RenderStyle,
     AvatarHighlightEnabled,
     AvatarHighlightLift,
     AvatarHighlightFill,
@@ -319,6 +349,11 @@ enum SettingKey {
     PostGamma,
     PostSaturation,
     PostLuminance,
+    PostGrit,
+    PostPosterize,
+    PostPaletteBias,
+    PostShadowLift,
+    PostEdgeSoften,
     FrameTimeMs,
 }
 
@@ -352,6 +387,7 @@ enum SettingValue {
     Bool(bool),
     FadeMode(FadeMode),
     LightingModel(LightingModel),
+    RenderStyle(RenderStyle),
     ToneMapper(PostToneMapper),
 }
 
@@ -391,6 +427,7 @@ impl Default for RenderSettings {
             raster_shadow_bias: 0.0015,
             fade_mode: FadeMode::OrderedDither,
             lighting_model: LightingModel::CookTorrance,
+            render_style: RenderStyle::Clean,
             avatar_highlight_enabled: true,
             avatar_highlight_lift: 1.12,
             avatar_highlight_fill: 0.20,
@@ -403,6 +440,11 @@ impl Default for RenderSettings {
             post_gamma: 2.2,
             post_saturation: 1.0,
             post_luminance: 1.0,
+            post_grit: 0.0,
+            post_posterize: 0.0,
+            post_palette_bias: 0.0,
+            post_shadow_lift: 0.0,
+            post_edge_soften: 0.0,
             frame_time_ms: 1000.0 / 30.0,
             transitions: FxHashMap::default(),
             simulation: DaylightSimulation::default(),
@@ -455,6 +497,9 @@ impl RenderSettings {
             }
             if let Some(v) = renderer.get("backend_3d").and_then(toml::Value::as_str) {
                 self.backend_3d = parse_backend(v);
+            }
+            if let Some(v) = renderer.get("style").and_then(toml::Value::as_str) {
+                self.render_style = parse_render_style(v);
             }
             if let Some(v) = renderer.get("quality").and_then(toml::Value::as_str) {
                 self.quality = parse_quality(v);
@@ -576,6 +621,21 @@ impl RenderSettings {
             }
             if let Some(v) = post.get("luminance").and_then(toml::Value::as_float) {
                 self.post_luminance = v as f32;
+            }
+            if let Some(v) = post.get("grit").and_then(toml::Value::as_float) {
+                self.post_grit = v as f32;
+            }
+            if let Some(v) = post.get("posterize").and_then(toml::Value::as_float) {
+                self.post_posterize = v as f32;
+            }
+            if let Some(v) = post.get("palette_bias").and_then(toml::Value::as_float) {
+                self.post_palette_bias = v as f32;
+            }
+            if let Some(v) = post.get("shadow_lift").and_then(toml::Value::as_float) {
+                self.post_shadow_lift = v as f32;
+            }
+            if let Some(v) = post.get("edge_soften").and_then(toml::Value::as_float) {
+                self.post_edge_soften = v as f32;
             }
         }
 
@@ -851,7 +911,7 @@ impl RenderSettings {
         // Keep post-processing controls in sync with 3D so 2D/3D color response matches.
         vm.execute(Atom::SetGP8(Vec4::new(
             self.fade_mode.as_code() as f32,
-            self.lighting_model.as_code() as f32,
+            self.render_style.lighting_code(self.lighting_model) as f32,
             self.post_saturation.max(0.0),
             self.post_luminance.max(0.0),
         )));
@@ -861,6 +921,15 @@ impl RenderSettings {
             self.post_exposure.max(0.0),
             self.post_gamma.max(0.001),
         )));
+        vm.vm.set_raster3d_post_style_params(
+            Vec4::new(
+                self.post_grit.clamp(0.0, 1.0),
+                self.post_posterize.clamp(0.0, 1.0),
+                self.post_palette_bias.clamp(0.0, 1.0),
+                self.post_shadow_lift.clamp(0.0, 1.0),
+            ),
+            Vec4::new(self.post_edge_soften.clamp(0.0, 1.0), 0.0, 0.0, 0.0),
+        );
     }
 
     /// Apply these render settings to a SceneVM instance
@@ -941,11 +1010,11 @@ impl RenderSettings {
         )));
 
         // gp8.x: fade mode (0 = ordered_dither, 1 = uniform)
-        // gp8.y: lighting model (0 = lambert, 1 = cook_torrance, 2 = pbr)
+        // gp8.y: lighting/style model (0 = lambert, 1 = cook_torrance, 2 = pbr, 3 = retro, 4 = grimy)
         // gp8.z: post saturation, gp8.w: post luminance
         vm.execute(Atom::SetGP8(Vec4::new(
             self.fade_mode.as_code() as f32,
-            self.lighting_model.as_code() as f32,
+            self.render_style.lighting_code(self.lighting_model) as f32,
             self.post_saturation.max(0.0),
             self.post_luminance.max(0.0),
         )));
@@ -968,6 +1037,15 @@ impl RenderSettings {
                 0.0
             },
         ));
+        vm.vm.set_raster3d_post_style_params(
+            Vec4::new(
+                self.post_grit.clamp(0.0, 1.0),
+                self.post_posterize.clamp(0.0, 1.0),
+                self.post_palette_bias.clamp(0.0, 1.0),
+                self.post_shadow_lift.clamp(0.0, 1.0),
+            ),
+            Vec4::new(self.post_edge_soften.clamp(0.0, 1.0), 0.0, 0.0, 0.0),
+        );
     }
 
     fn update_transitions(&mut self) {
@@ -1077,6 +1155,7 @@ impl RenderSettings {
             SettingKey::ShadowBias => SettingValue::Float(self.raster_shadow_bias),
             SettingKey::FadeMode => SettingValue::FadeMode(self.fade_mode),
             SettingKey::LightingModel => SettingValue::LightingModel(self.lighting_model),
+            SettingKey::RenderStyle => SettingValue::RenderStyle(self.render_style),
             SettingKey::AvatarHighlightEnabled => SettingValue::Bool(self.avatar_highlight_enabled),
             SettingKey::AvatarHighlightLift => SettingValue::Float(self.avatar_highlight_lift),
             SettingKey::AvatarHighlightFill => SettingValue::Float(self.avatar_highlight_fill),
@@ -1091,6 +1170,11 @@ impl RenderSettings {
             SettingKey::PostGamma => SettingValue::Float(self.post_gamma),
             SettingKey::PostSaturation => SettingValue::Float(self.post_saturation),
             SettingKey::PostLuminance => SettingValue::Float(self.post_luminance),
+            SettingKey::PostGrit => SettingValue::Float(self.post_grit),
+            SettingKey::PostPosterize => SettingValue::Float(self.post_posterize),
+            SettingKey::PostPaletteBias => SettingValue::Float(self.post_palette_bias),
+            SettingKey::PostShadowLift => SettingValue::Float(self.post_shadow_lift),
+            SettingKey::PostEdgeSoften => SettingValue::Float(self.post_edge_soften),
             SettingKey::FrameTimeMs => SettingValue::Float(self.frame_time_ms),
         }
     }
@@ -1136,6 +1220,7 @@ impl RenderSettings {
             (SettingKey::ShadowBias, SettingValue::Float(v)) => self.raster_shadow_bias = v,
             (SettingKey::FadeMode, SettingValue::FadeMode(v)) => self.fade_mode = v,
             (SettingKey::LightingModel, SettingValue::LightingModel(v)) => self.lighting_model = v,
+            (SettingKey::RenderStyle, SettingValue::RenderStyle(v)) => self.render_style = v,
             (SettingKey::AvatarHighlightEnabled, SettingValue::Bool(v)) => {
                 self.avatar_highlight_enabled = v
             }
@@ -1160,6 +1245,19 @@ impl RenderSettings {
             (SettingKey::PostGamma, SettingValue::Float(v)) => self.post_gamma = v,
             (SettingKey::PostSaturation, SettingValue::Float(v)) => self.post_saturation = v,
             (SettingKey::PostLuminance, SettingValue::Float(v)) => self.post_luminance = v,
+            (SettingKey::PostGrit, SettingValue::Float(v)) => self.post_grit = v.clamp(0.0, 1.0),
+            (SettingKey::PostPosterize, SettingValue::Float(v)) => {
+                self.post_posterize = v.clamp(0.0, 1.0)
+            }
+            (SettingKey::PostPaletteBias, SettingValue::Float(v)) => {
+                self.post_palette_bias = v.clamp(0.0, 1.0)
+            }
+            (SettingKey::PostShadowLift, SettingValue::Float(v)) => {
+                self.post_shadow_lift = v.clamp(0.0, 1.0)
+            }
+            (SettingKey::PostEdgeSoften, SettingValue::Float(v)) => {
+                self.post_edge_soften = v.clamp(0.0, 1.0)
+            }
             (SettingKey::FrameTimeMs, SettingValue::Float(v)) => self.frame_time_ms = v,
             _ => {}
         }
@@ -1231,6 +1329,11 @@ impl RenderSettings {
             | SettingKey::PostGamma
             | SettingKey::PostSaturation
             | SettingKey::PostLuminance
+            | SettingKey::PostGrit
+            | SettingKey::PostPosterize
+            | SettingKey::PostPaletteBias
+            | SettingKey::PostShadowLift
+            | SettingKey::PostEdgeSoften
             | SettingKey::FrameTimeMs => {
                 let Some(v) = Self::value_to_f32(&value) else {
                     return Err(format!("Expected numeric value for {:?}", key).into());
@@ -1244,6 +1347,10 @@ impl RenderSettings {
             SettingKey::LightingModel => match value {
                 Value::Str(s) => Ok(SettingValue::LightingModel(parse_lighting_model(&s))),
                 _ => Err("Expected string for lighting_model".into()),
+            },
+            SettingKey::RenderStyle => match value {
+                Value::Str(s) => Ok(SettingValue::RenderStyle(parse_render_style(&s))),
+                _ => Err("Expected string for style".into()),
             },
             SettingKey::PostToneMapper => match value {
                 Value::Str(s) => Ok(SettingValue::ToneMapper(parse_tone_mapper(&s))),
@@ -1293,6 +1400,7 @@ impl RenderSettings {
             "shadow_bias" => Some(SettingKey::ShadowBias),
             "fade_mode" => Some(SettingKey::FadeMode),
             "lighting_model" => Some(SettingKey::LightingModel),
+            "style" | "render_style" => Some(SettingKey::RenderStyle),
             "avatar_highlight_enabled" => Some(SettingKey::AvatarHighlightEnabled),
             "avatar_highlight_lift" => Some(SettingKey::AvatarHighlightLift),
             "avatar_highlight_fill" => Some(SettingKey::AvatarHighlightFill),
@@ -1305,6 +1413,11 @@ impl RenderSettings {
             "gamma" | "post_gamma" => Some(SettingKey::PostGamma),
             "saturation" | "post_saturation" => Some(SettingKey::PostSaturation),
             "luminance" | "post_luminance" => Some(SettingKey::PostLuminance),
+            "grit" | "post_grit" => Some(SettingKey::PostGrit),
+            "posterize" | "post_posterize" => Some(SettingKey::PostPosterize),
+            "palette_bias" | "post_palette_bias" => Some(SettingKey::PostPaletteBias),
+            "shadow_lift" | "post_shadow_lift" => Some(SettingKey::PostShadowLift),
+            "edge_soften" | "post_edge_soften" => Some(SettingKey::PostEdgeSoften),
             "ms_per_frame" => Some(SettingKey::FrameTimeMs),
             _ => None,
         }
@@ -1341,6 +1454,7 @@ impl RenderSettings {
             "shadow_bias",
             "fade_mode",
             "lighting_model",
+            "style",
             "avatar_highlight_enabled",
             "avatar_highlight_lift",
             "avatar_highlight_fill",
@@ -1359,6 +1473,11 @@ impl RenderSettings {
             "gamma",
             "saturation",
             "luminance",
+            "grit",
+            "posterize",
+            "palette_bias",
+            "shadow_lift",
+            "edge_soften",
         ]
     }
 
@@ -1400,12 +1519,22 @@ impl RenderSettings {
                 LightingModel::CookTorrance => "cook_torrance".into(),
                 LightingModel::Pbr => "pbr".into(),
             })),
+            "style" | "render_style" => Some(Value::Str(match self.render_style {
+                RenderStyle::Clean => "clean".into(),
+                RenderStyle::Retro => "retro".into(),
+                RenderStyle::Grimy => "grimy".into(),
+            })),
             "avatar_highlight_enabled" => Some(Value::Bool(self.avatar_highlight_enabled)),
             "avatar_highlight_lift" => Some(Value::Float(self.avatar_highlight_lift)),
             "avatar_highlight_fill" => Some(Value::Float(self.avatar_highlight_fill)),
             "avatar_highlight_rim" => Some(Value::Float(self.avatar_highlight_rim)),
             "avatar_shading_enabled" => Some(Value::Bool(self.avatar_shading_enabled)),
             "avatar_skin_shading_enabled" => Some(Value::Bool(self.avatar_skin_shading_enabled)),
+            "post_grit" => Some(Value::Float(self.post_grit)),
+            "post_posterize" => Some(Value::Float(self.post_posterize)),
+            "post_palette_bias" => Some(Value::Float(self.post_palette_bias)),
+            "post_shadow_lift" => Some(Value::Float(self.post_shadow_lift)),
+            "post_edge_soften" => Some(Value::Float(self.post_edge_soften)),
             "ms_per_frame" => Some(Value::Float(self.frame_time_ms)),
             _ => None,
         }
@@ -1423,6 +1552,11 @@ impl RenderSettings {
             "gamma" => Some(Value::Float(self.post_gamma)),
             "saturation" => Some(Value::Float(self.post_saturation)),
             "luminance" => Some(Value::Float(self.post_luminance)),
+            "grit" => Some(Value::Float(self.post_grit)),
+            "posterize" => Some(Value::Float(self.post_posterize)),
+            "palette_bias" => Some(Value::Float(self.post_palette_bias)),
+            "shadow_lift" => Some(Value::Float(self.post_shadow_lift)),
+            "edge_soften" => Some(Value::Float(self.post_edge_soften)),
             _ => None,
         }
     }
@@ -1528,6 +1662,11 @@ impl RenderSettings {
             .get_str("lighting_model")
             .map(parse_lighting_model)
             .unwrap_or(self.lighting_model);
+        self.render_style = render
+            .get_str("style")
+            .or_else(|| render.get_str("render_style"))
+            .map(parse_render_style)
+            .unwrap_or(self.render_style);
         self.avatar_highlight_enabled =
             render.get_bool_default("avatar_highlight_enabled", self.avatar_highlight_enabled);
         self.avatar_highlight_lift =
@@ -1565,6 +1704,21 @@ impl RenderSettings {
         self.post_gamma = post.get_float_default("gamma", self.post_gamma);
         self.post_saturation = post.get_float_default("saturation", self.post_saturation);
         self.post_luminance = post.get_float_default("luminance", self.post_luminance);
+        self.post_grit = post
+            .get_float_default("grit", self.post_grit)
+            .clamp(0.0, 1.0);
+        self.post_posterize = post
+            .get_float_default("posterize", self.post_posterize)
+            .clamp(0.0, 1.0);
+        self.post_palette_bias = post
+            .get_float_default("palette_bias", self.post_palette_bias)
+            .clamp(0.0, 1.0);
+        self.post_shadow_lift = post
+            .get_float_default("shadow_lift", self.post_shadow_lift)
+            .clamp(0.0, 1.0);
+        self.post_edge_soften = post
+            .get_float_default("edge_soften", self.post_edge_soften)
+            .clamp(0.0, 1.0);
         Ok(())
     }
 
@@ -1735,6 +1889,14 @@ fn parse_lighting_model(v: &str) -> LightingModel {
         "cook_torrance" => LightingModel::CookTorrance,
         "pbr" => LightingModel::Pbr,
         _ => LightingModel::CookTorrance,
+    }
+}
+
+fn parse_render_style(v: &str) -> RenderStyle {
+    match v.to_ascii_lowercase().as_str() {
+        "retro" => RenderStyle::Retro,
+        "grimy" | "gritty" | "dirty" => RenderStyle::Grimy,
+        _ => RenderStyle::Clean,
     }
 }
 
