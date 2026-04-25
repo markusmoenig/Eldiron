@@ -22,6 +22,98 @@ fn distance_point_to_segment_2d(point: Vec2<f32>, seg_start: Vec2<f32>, seg_end:
     (point - projection).magnitude()
 }
 
+fn road_noise_hash(value: f32) -> f32 {
+    (value.sin() * 43_758.547).fract().abs()
+}
+
+fn road_noise1(value: f32, seed: f32) -> f32 {
+    let x = value.floor();
+    let t = value - x;
+    let a = road_noise_hash(x * 12.9898 + seed * 78.233);
+    let b = road_noise_hash((x + 1.0) * 12.9898 + seed * 78.233);
+    let u = t * t * (3.0 - 2.0 * t);
+    a + (b - a) * u
+}
+
+fn road_noise2(point: Vec2<f32>, seed: f32) -> f32 {
+    let ix = point.x.floor();
+    let iy = point.y.floor();
+    let tx = point.x - ix;
+    let ty = point.y - iy;
+    let h = |x: f32, y: f32| road_noise_hash(x * 12.9898 + y * 78.233 + seed * 37.719);
+    let a = h(ix, iy);
+    let b = h(ix + 1.0, iy);
+    let c = h(ix, iy + 1.0);
+    let d = h(ix + 1.0, iy + 1.0);
+    let ux = tx * tx * (3.0 - 2.0 * tx);
+    let uy = ty * ty * (3.0 - 2.0 * ty);
+    let x0 = a + (b - a) * ux;
+    let x1 = c + (d - c) * ux;
+    x0 + (x1 - x0) * uy
+}
+
+fn organic_road_weight_2d(
+    point: Vec2<f32>,
+    start: Vec2<f32>,
+    end: Vec2<f32>,
+    width: f32,
+    falloff: f32,
+    line_id: u32,
+    organic: f32,
+) -> f32 {
+    if width <= 0.0 {
+        return 0.0;
+    }
+    let ab = end - start;
+    let len_sq = ab.magnitude_squared();
+    let (t, mut closest, normal) = if len_sq < 1e-8 {
+        (0.0, start, Vec2::new(0.0, 1.0))
+    } else {
+        let t = ((point - start).dot(ab) / len_sq).clamp(0.0, 1.0);
+        let dir = ab.normalized();
+        (t, start + ab * t, Vec2::new(-dir.y, dir.x))
+    };
+
+    let organic = organic.clamp(0.0, 1.0);
+    let seed = line_id as f32 * 0.173 + 11.0;
+    if organic > 0.0 {
+        let taper = (t * (1.0 - t) * 4.0).clamp(0.0, 1.0);
+        let center_wobble = (road_noise1(t * 11.0, seed) * 2.0 - 1.0) * width * 0.18 * organic;
+        closest += normal * center_wobble * taper;
+    }
+
+    let side = if (point - closest).dot(normal) >= 0.0 {
+        1.0
+    } else {
+        -1.0
+    };
+    let side_seed = seed + if side > 0.0 { 19.0 } else { 53.0 };
+    let width_variation = (road_noise1(t * 8.0 + 13.7, seed) * 2.0 - 1.0) * width * 0.24 * organic;
+    let side_edge = (road_noise1(t * 18.0 + 3.1, side_seed) * 2.0 - 1.0) * width * 0.30 * organic;
+    let local_edge =
+        (road_noise2(point * 2.2, side_seed + 7.0) * 2.0 - 1.0) * width * 0.12 * organic;
+    let effective_width = (width + width_variation).max(width * 0.35);
+    let side_width = (effective_width + side_edge + local_edge).max(width * 0.28);
+    let dist = (point - closest).magnitude();
+
+    let mut weight = if dist <= effective_width {
+        1.0
+    } else if falloff > 0.0 && dist <= side_width + falloff {
+        let x = ((dist - side_width) / falloff).clamp(0.0, 1.0);
+        let smooth = x * x * (3.0 - 2.0 * x);
+        1.0 - smooth
+    } else {
+        0.0
+    };
+
+    if organic > 0.0 && weight > 0.0 {
+        let breakup = road_noise2(point * 3.4, seed + 41.0);
+        weight *= 1.0 - organic * 0.26 * (1.0 - breakup);
+    }
+
+    weight.clamp(0.0, 1.0)
+}
+
 fn distance_to_sector_edge_2d(point: Vec2<f32>, sector: &crate::Sector, map: &Map) -> f32 {
     let mut min_dist = f32::INFINITY;
 
@@ -273,8 +365,16 @@ impl ChunkBuilder for D2ChunkBuilder {
             });
 
             // Collect road tile definitions from linedefs (same source as D3 terrain generation).
-            let mut road_tile_linedefs: Vec<(Vec2<f32>, Vec2<f32>, f32, f32, Uuid, bool)> =
-                Vec::new();
+            let mut road_tile_linedefs: Vec<(
+                Vec2<f32>,
+                Vec2<f32>,
+                f32,
+                f32,
+                Uuid,
+                bool,
+                u32,
+                f32,
+            )> = Vec::new();
             for linedef in &map.linedefs {
                 let Some(Value::Source(PixelSource::TileId(tile_id))) =
                     linedef.properties.get("terrain_source")
@@ -300,7 +400,13 @@ impl ChunkBuilder for D2ChunkBuilder {
                     .get_float_default("terrain_tile_falloff", 1.0)
                     .max(0.0);
                 let smooth = linedef.properties.get_bool_default("terrain_smooth", false);
-                road_tile_linedefs.push((start, end, width, falloff, *tile_id, smooth));
+                let organic = linedef
+                    .properties
+                    .get_float_default("terrain_road_organic", 0.0)
+                    .clamp(0.0, 1.0);
+                road_tile_linedefs.push((
+                    start, end, width, falloff, *tile_id, smooth, linedef.id, organic,
+                ));
             }
 
             // Collect ridge tile definitions from sectors.
@@ -425,14 +531,17 @@ impl ChunkBuilder for D2ChunkBuilder {
                             has_manual_tile_override || has_manual_blend_override;
 
                         let road_tile_id = tile_id;
-                        let has_road_tile = road_tile_linedefs
-                            .iter()
-                            .any(|(_, _, width, _, tid, _)| *tid == road_tile_id && *width > 0.0)
-                            && !has_manual_override;
+                        let has_road_tile =
+                            road_tile_linedefs
+                                .iter()
+                                .any(|(_, _, width, _, tid, _, _, _)| {
+                                    *tid == road_tile_id && *width > 0.0
+                                })
+                                && !has_manual_override;
                         let has_smooth_road =
                             road_tile_linedefs
                                 .iter()
-                                .any(|(_, _, width, _, tid, smooth)| {
+                                .any(|(_, _, width, _, tid, smooth, _, _)| {
                                     *tid == road_tile_id && *smooth && *width > 0.0
                                 })
                                 && !has_manual_override;
@@ -528,20 +637,23 @@ impl ChunkBuilder for D2ChunkBuilder {
                                 let weight = match blend_kind {
                                     Some(BlendKind::Road) => {
                                         let mut w = 0.0f32;
-                                        for &(a, b, width, falloff, tid, line_smooth) in
-                                            &road_tile_linedefs
+                                        for &(
+                                            a,
+                                            b,
+                                            width,
+                                            falloff,
+                                            tid,
+                                            line_smooth,
+                                            line_id,
+                                            organic,
+                                        ) in &road_tile_linedefs
                                         {
                                             if !line_smooth || tid != road_tile_id || width <= 0.0 {
                                                 continue;
                                             }
-                                            let dist = distance_point_to_segment_2d(p, a, b);
-                                            let this_w = if dist <= width {
-                                                1.0
-                                            } else if falloff > 0.0 && dist <= width + falloff {
-                                                1.0 - ((dist - width) / falloff)
-                                            } else {
-                                                0.0
-                                            };
+                                            let this_w = organic_road_weight_2d(
+                                                p, a, b, width, falloff, line_id, organic,
+                                            );
                                             if this_w > w {
                                                 w = this_w;
                                             }

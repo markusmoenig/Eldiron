@@ -53,6 +53,7 @@ In Region map context, **Edit Linedef** includes a **terrain** section for roads
 - `terrain_falloff_distance`: additional blend distance beyond the width.
 - `terrain_falloff_steepness`: falloff curve sharpness.
 - `terrain_tile_falloff`: texture fade distance for smoothed roads (default `1.0`).
+- `terrain_road_organic`: organic road mask amount (`0.0` = straight/uniform, `1.0` = stronger center wobble, width variation, noisy edges, and breakup).
 
 The target road height is interpolated from the start/end vertex `z` values.
 

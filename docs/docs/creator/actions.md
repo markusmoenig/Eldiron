@@ -508,7 +508,7 @@ This writes to vertex properties `terrain_control`, `smoothness`, `terrain_sourc
 
 Single/multi-linedef editor:
 - `[action]`: `name`
-- `[terrain]`: `smooth`, `width`, `falloff_distance`, `falloff_steepness`, `tile_id`, `tile_falloff`
+- `[terrain]`: `smooth`, `width`, `falloff_distance`, `falloff_steepness`, `tile_id`, `tile_falloff`, `road_organic`
 
 Parameter meaning:
 - `[action].name`: linedef name.
@@ -518,6 +518,7 @@ Parameter meaning:
 - `[terrain].falloff_steepness`: falloff curve sharpness (higher = harder edge).
 - `[terrain].tile_id`: optional road tile for this corridor.
 - `[terrain].tile_falloff`: texture blend distance from road tile into surrounding terrain.
+- `[terrain].road_organic`: organic road mask amount. Higher values add deterministic center wobble, width variation, noisy edges, and patchy breakup while keeping the linedef itself straight.
 
 ### Edit Sector
 

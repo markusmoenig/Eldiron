@@ -82,6 +82,14 @@ impl EditLinedef {
                 0.0..=16.0,
                 false,
             ));
+            nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                "actionTerrainRoadOrganic".into(),
+                "".into(),
+                "".into(),
+                0.0,
+                0.0..=1.0,
+                false,
+            ));
             nodeui.add_item(TheNodeUIItem::CloseTree);
         }
 
@@ -160,6 +168,12 @@ impl Action for EditLinedef {
                         .properties
                         .get_float_default("terrain_tile_falloff", 1.0),
                 );
+                self.nodeui.set_f32_value(
+                    "actionTerrainRoadOrganic",
+                    linedef
+                        .properties
+                        .get_float_default("terrain_road_organic", 0.0),
+                );
                 let terrain_tile_id = if let Some(Value::Source(PixelSource::TileId(id))) =
                     linedef.properties.get("terrain_source")
                 {
@@ -212,6 +226,10 @@ impl Action for EditLinedef {
                 .nodeui
                 .get_f32_value("actionTerrainTileFalloff")
                 .unwrap_or(1.0);
+            let terrain_road_organic = self
+                .nodeui
+                .get_f32_value("actionTerrainRoadOrganic")
+                .unwrap_or(0.0);
             let tile_id_text = self
                 .nodeui
                 .get_text_value("actionTileId")
@@ -235,6 +253,8 @@ impl Action for EditLinedef {
                 .set_f32_value("actionTerrainFalloffSteepness", terrain_falloff_steepness);
             self.nodeui
                 .set_f32_value("actionTerrainTileFalloff", terrain_tile_falloff);
+            self.nodeui
+                .set_f32_value("actionTerrainRoadOrganic", terrain_road_organic);
             self.nodeui.set_text_value("actionTileId", tile_id_text);
             if let Some(item) = self.nodeui.get_item_mut("actionTerrainTile")
                 && let TheNodeUIItem::Icons(_, _, _, items) = item
@@ -301,6 +321,10 @@ impl Action for EditLinedef {
             .nodeui
             .get_f32_value("actionTerrainTileFalloff")
             .unwrap_or(1.0);
+        let terrain_road_organic = self
+            .nodeui
+            .get_f32_value("actionTerrainRoadOrganic")
+            .unwrap_or(0.0);
         let terrain_tile_id = self.nodeui.get_tile_id("actionTerrainTile", 0);
         let tile_id_text = self
             .nodeui
@@ -366,6 +390,19 @@ impl Action for EditLinedef {
                     linedef.properties.set(
                         "terrain_tile_falloff",
                         Value::Float(terrain_tile_falloff.max(0.0)),
+                    );
+                    changed = true;
+                }
+                if (linedef
+                    .properties
+                    .get_float_default("terrain_road_organic", 0.0)
+                    - terrain_road_organic)
+                    .abs()
+                    > 0.0001
+                {
+                    linedef.properties.set(
+                        "terrain_road_organic",
+                        Value::Float(terrain_road_organic.clamp(0.0, 1.0)),
                     );
                     changed = true;
                 }

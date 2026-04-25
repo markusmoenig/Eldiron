@@ -442,11 +442,11 @@ impl TerrainGenerator {
     }
 
     /// Collect terrain-linedef tile overrides for road texturing.
-    /// Returns: Vec<(start_pos, end_pos, width, falloff, smooth, tile_id)>
+    /// Returns: Vec<(start_pos, end_pos, width, falloff, smooth, tile_id, linedef_id, organic)>
     fn collect_terrain_tile_linedefs(
         &self,
         map: &Map,
-    ) -> Vec<(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid)> {
+    ) -> Vec<(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid, u32, f32)> {
         let mut out = Vec::new();
 
         for linedef in &map.linedefs {
@@ -475,7 +475,13 @@ impl TerrainGenerator {
                 .get_float_default("terrain_tile_falloff", 1.0)
                 .max(0.0);
             let smooth = linedef.properties.get_bool_default("terrain_smooth", false);
-            out.push((start_pos, end_pos, width, falloff, smooth, *tile_id));
+            let organic = linedef
+                .properties
+                .get_float_default("terrain_road_organic", 0.0)
+                .clamp(0.0, 1.0);
+            out.push((
+                start_pos, end_pos, width, falloff, smooth, *tile_id, linedef.id, organic,
+            ));
         }
 
         out
@@ -1073,7 +1079,7 @@ impl TerrainGenerator {
         assets: &Assets,
         default_tile_id: Uuid,
         tile_overrides: Option<&FxHashMap<(i32, i32), PixelSource>>,
-        terrain_tile_linedefs: &[(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid)],
+        terrain_tile_linedefs: &[(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid, u32, f32)],
         ridge_tile_sectors: &[(u32, f32, f32, Uuid)],
         vertex_tile_controls: &[(Vec2<f32>, f32, f32, Uuid)],
     ) -> Vec<(Uuid, Vec<Vec3<f32>>, Vec<u32>, Vec<[f32; 2]>)> {
@@ -1230,16 +1236,24 @@ impl TerrainGenerator {
     /// If multiple roads overlap, the nearest linedef wins.
     fn road_tile_for_point(
         point: Vec2<f32>,
-        terrain_tile_linedefs: &[(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid)],
+        terrain_tile_linedefs: &[(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid, u32, f32)],
     ) -> Option<Uuid> {
         let mut best: Option<(f32, Uuid)> = None;
-        for &(start, end, width, falloff, smooth, tile_id) in terrain_tile_linedefs {
+        for &(start, end, width, falloff, smooth, tile_id, line_id, organic) in
+            terrain_tile_linedefs
+        {
             if width <= 0.0 {
                 continue;
             }
-            let effective_width = if smooth { width + falloff } else { width };
-            let dist = Self::distance_point_to_segment(point, start, end);
-            if dist <= effective_width {
+            let weight = if smooth {
+                Self::organic_road_weight(point, start, end, width, falloff, line_id, organic)
+            } else if Self::distance_point_to_segment(point, start, end) <= width {
+                1.0
+            } else {
+                0.0
+            };
+            if weight > 0.0 {
+                let dist = Self::distance_point_to_segment(point, start, end);
                 match best {
                     Some((best_dist, _)) if dist >= best_dist => {}
                     _ => best = Some((dist, tile_id)),
@@ -1255,7 +1269,7 @@ impl TerrainGenerator {
         p0: Vec2<f32>,
         p1: Vec2<f32>,
         p2: Vec2<f32>,
-        terrain_tile_linedefs: &[(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid)],
+        terrain_tile_linedefs: &[(Vec2<f32>, Vec2<f32>, f32, f32, bool, Uuid, u32, f32)],
     ) -> Option<Uuid> {
         let center = (p0 + p1 + p2) / 3.0;
         let mut counts: FxHashMap<Uuid, i32> = FxHashMap::default();
@@ -1363,6 +1377,102 @@ impl TerrainGenerator {
             .into_iter()
             .max_by_key(|(_, count)| *count)
             .map(|(tile_id, _)| tile_id)
+    }
+
+    fn road_noise_hash(value: f32) -> f32 {
+        (value.sin() * 43_758.547).fract().abs()
+    }
+
+    fn road_noise1(value: f32, seed: f32) -> f32 {
+        let x = value.floor();
+        let t = value - x;
+        let a = Self::road_noise_hash(x * 12.9898 + seed * 78.233);
+        let b = Self::road_noise_hash((x + 1.0) * 12.9898 + seed * 78.233);
+        let u = t * t * (3.0 - 2.0 * t);
+        a + (b - a) * u
+    }
+
+    fn road_noise2(point: Vec2<f32>, seed: f32) -> f32 {
+        let ix = point.x.floor();
+        let iy = point.y.floor();
+        let tx = point.x - ix;
+        let ty = point.y - iy;
+        let h = |x: f32, y: f32| Self::road_noise_hash(x * 12.9898 + y * 78.233 + seed * 37.719);
+        let a = h(ix, iy);
+        let b = h(ix + 1.0, iy);
+        let c = h(ix, iy + 1.0);
+        let d = h(ix + 1.0, iy + 1.0);
+        let ux = tx * tx * (3.0 - 2.0 * tx);
+        let uy = ty * ty * (3.0 - 2.0 * ty);
+        let x0 = a + (b - a) * ux;
+        let x1 = c + (d - c) * ux;
+        x0 + (x1 - x0) * uy
+    }
+
+    fn organic_road_weight(
+        point: Vec2<f32>,
+        start: Vec2<f32>,
+        end: Vec2<f32>,
+        width: f32,
+        falloff: f32,
+        line_id: u32,
+        organic: f32,
+    ) -> f32 {
+        if width <= 0.0 {
+            return 0.0;
+        }
+
+        let ab = end - start;
+        let len_sq = ab.magnitude_squared();
+        let (t, mut closest, normal) = if len_sq < 1e-8 {
+            (0.0, start, Vec2::new(0.0, 1.0))
+        } else {
+            let t = ((point - start).dot(ab) / len_sq).clamp(0.0, 1.0);
+            let dir = ab.normalized();
+            (t, start + ab * t, Vec2::new(-dir.y, dir.x))
+        };
+
+        let organic = organic.clamp(0.0, 1.0);
+        let seed = line_id as f32 * 0.173 + 11.0;
+        if organic > 0.0 {
+            let taper = (t * (1.0 - t) * 4.0).clamp(0.0, 1.0);
+            let center_wobble =
+                (Self::road_noise1(t * 11.0, seed) * 2.0 - 1.0) * width * 0.18 * organic;
+            closest += normal * center_wobble * taper;
+        }
+
+        let side = if (point - closest).dot(normal) >= 0.0 {
+            1.0
+        } else {
+            -1.0
+        };
+        let side_seed = seed + if side > 0.0 { 19.0 } else { 53.0 };
+        let width_variation =
+            (Self::road_noise1(t * 8.0 + 13.7, seed) * 2.0 - 1.0) * width * 0.24 * organic;
+        let side_edge =
+            (Self::road_noise1(t * 18.0 + 3.1, side_seed) * 2.0 - 1.0) * width * 0.30 * organic;
+        let local_edge =
+            (Self::road_noise2(point * 2.2, side_seed + 7.0) * 2.0 - 1.0) * width * 0.12 * organic;
+        let effective_width = (width + width_variation).max(width * 0.35);
+        let side_width = (effective_width + side_edge + local_edge).max(width * 0.28);
+        let dist = (point - closest).magnitude();
+
+        let mut weight = if dist <= effective_width {
+            1.0
+        } else if falloff > 0.0 && dist <= side_width + falloff {
+            let x = ((dist - side_width) / falloff).clamp(0.0, 1.0);
+            let smooth = x * x * (3.0 - 2.0 * x);
+            1.0 - smooth
+        } else {
+            0.0
+        };
+
+        if organic > 0.0 && weight > 0.0 {
+            let breakup = Self::road_noise2(point * 3.4, seed + 41.0);
+            weight *= 1.0 - organic * 0.26 * (1.0 - breakup);
+        }
+
+        weight.clamp(0.0, 1.0)
     }
 
     /// Calculate distance from a point to a line segment
