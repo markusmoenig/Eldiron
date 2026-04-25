@@ -1,8 +1,8 @@
+use crate::SampleMode;
 use crate::{
     Assets, Batch2D, Batch3D, Chunk, LightType, MapMini, Pixel, PixelSource, PrimitiveMode, Ray,
     RenderMode, Scene, pixel_to_vec4, vec4_to_pixel,
 };
-use crate::SampleMode;
 use rayon::prelude::*;
 use rusteria::Execution;
 use vek::{Mat3, Mat4, Vec2, Vec3, Vec4};
@@ -32,13 +32,7 @@ fn linear_to_srgb_fast(x: f32) -> f32 {
     1.055 * sqrt_x - 0.055 * sqrt_x * sqrt_x
 }
 
-fn apply_organic_detail(
-    texel: &mut Pixel,
-    batch: &Batch3D,
-    u: f32,
-    v: f32,
-    assets: &Assets,
-) {
+fn apply_organic_detail(texel: &mut Pixel, batch: &Batch3D, u: f32, v: f32, assets: &Assets) {
     let Some(detail) = &batch.organic_detail else {
         return;
     };

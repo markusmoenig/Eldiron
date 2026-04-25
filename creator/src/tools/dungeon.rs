@@ -211,7 +211,8 @@ impl Tool for DungeonTool {
                         1.0,
                     );
                     server_ctx.hover_cursor = Some(cell_pos);
-                    let hovered_cell = Vec2::new(cell_pos.x.floor() as i32, cell_pos.y.floor() as i32);
+                    let hovered_cell =
+                        Vec2::new(cell_pos.x.floor() as i32, cell_pos.y.floor() as i32);
                     self.update_status_text(ctx, map, server_ctx, hovered_cell);
                     RUSTERIX.write().unwrap().set_dirty();
                 }

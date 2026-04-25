@@ -119,20 +119,25 @@ impl DungeonDock {
                 "dungeon_stair_tile_mode",
                 server_ctx.curr_dungeon_stair_tile_mode,
             );
-            server_ctx.curr_dungeon_render_toml = if let Some(render_toml) =
-                map.properties.get_str("dungeon_render_toml")
-            {
-                render_toml.to_string()
-            } else if map.properties.get("dungeon_render_transition_seconds").is_some()
-                || map.properties.get("dungeon_render_sun_enabled").is_some()
-                || map.properties.get("dungeon_render_shadow_enabled").is_some()
-                || map.properties.get("dungeon_render_fog_density").is_some()
-                || map.properties.get("dungeon_render_fog_color").is_some()
-            {
-                Self::legacy_render_toml(map, server_ctx)
-            } else {
-                server_ctx.curr_dungeon_render_toml.clone()
-            };
+            server_ctx.curr_dungeon_render_toml =
+                if let Some(render_toml) = map.properties.get_str("dungeon_render_toml") {
+                    render_toml.to_string()
+                } else if map
+                    .properties
+                    .get("dungeon_render_transition_seconds")
+                    .is_some()
+                    || map.properties.get("dungeon_render_sun_enabled").is_some()
+                    || map
+                        .properties
+                        .get("dungeon_render_shadow_enabled")
+                        .is_some()
+                    || map.properties.get("dungeon_render_fog_density").is_some()
+                    || map.properties.get("dungeon_render_fog_color").is_some()
+                {
+                    Self::legacy_render_toml(map, server_ctx)
+                } else {
+                    server_ctx.curr_dungeon_render_toml.clone()
+                };
         }
     }
 
@@ -327,7 +332,9 @@ impl DungeonDock {
     }
 
     fn settings_toml(server_ctx: &ServerContext) -> String {
-        let mut text = nodeui_to_toml(&Self::settings_nodeui(server_ctx)).trim_end().to_string();
+        let mut text = nodeui_to_toml(&Self::settings_nodeui(server_ctx))
+            .trim_end()
+            .to_string();
         let render = if server_ctx.curr_dungeon_render_toml.trim().is_empty() {
             Self::default_render_toml()
         } else {

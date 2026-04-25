@@ -5,7 +5,7 @@ use ToolEvent::*;
 use rusterix::PixelSource;
 use rusterix::Surface;
 use scenevm::GeoId;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 const PROP_RADIUS: &str = "organic_brush_radius";
 const PROP_FLOW: &str = "organic_brush_flow";
@@ -29,9 +29,10 @@ const PROP_PALETTE_2: &str = "organic_brush_palette_2";
 const PROP_PALETTE_3: &str = "organic_brush_palette_3";
 const PROP_BORDER_SIZE: &str = "organic_brush_border_size";
 const PROP_OPACITY: &str = "organic_brush_opacity";
+const PROP_PAINT_MODE: &str = "organic_brush_paint_mode";
 pub(crate) const PROP_RENDER_ACTIVE: &str = "organic_render_active";
 pub(crate) const PROP_LOCK_MODE: &str = "organic_paint_lock_mode";
-const ORGANIC_DETAIL_TEXTURE_SIZE: u32 = 128;
+const ORGANIC_DETAIL_TEXTURE_SIZE: u32 = 48;
 
 #[derive(Clone, Copy)]
 struct OrganicTextureRect {
@@ -45,6 +46,12 @@ struct OrganicTextureRect {
 enum OrganicBrushShape {
     Blob,
     Streak,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OrganicPaintMode {
+    Full,
+    NoiseOnly,
 }
 
 #[derive(Clone)]
@@ -66,6 +73,7 @@ struct OrganicBrushEval {
     line_width: f32,
     line_softness: f32,
     shape: OrganicBrushShape,
+    paint_mode: OrganicPaintMode,
     border_size: f32,
     palette_indices: Vec<u16>,
 }
@@ -317,14 +325,14 @@ impl OrganicTool {
             return false;
         }
 
-        let step = (brush.radius * 0.45)
-            .max(brush.cell_size * 0.75)
-            .max(0.05);
+        let step = (brush.radius * 0.45).max(brush.cell_size * 0.75).max(0.05);
         let start = last_stroke_hit_pos.unwrap_or(hit_pos);
         let delta = hit_pos - start;
         let dist = delta.magnitude();
 
         if brush.uses_line_shape() && dist > 0.0001 {
+            let mut dirty_surface_regions = HashMap::new();
+            let mut dirty_terrain_regions = HashMap::new();
             Self::mark_dirty_chunks(dirty_chunks, hit_pos, brush.radius.max(brush.depth));
             Self::mark_dirty_chunks(dirty_chunks, start, brush.radius.max(brush.depth));
             let changed = Self::apply_line_segment(
@@ -335,13 +343,19 @@ impl OrganicTool {
                 &brush,
                 erase,
                 dirty_terrain_tiles,
+                &mut dirty_surface_regions,
+                &mut dirty_terrain_regions,
             );
+            Self::sync_dirty_surface_regions(map, dirty_surface_regions);
+            Self::sync_dirty_terrain_regions(map, dirty_terrain_regions);
             *last_stroke_hit_pos = Some(hit_pos);
             return changed;
         }
 
         let steps = (dist / step).ceil().max(1.0) as usize;
         let mut changed = false;
+        let mut dirty_surface_regions = HashMap::new();
+        let mut dirty_terrain_regions = HashMap::new();
         for i in 0..=steps {
             let t = if steps == 0 {
                 1.0
@@ -350,9 +364,19 @@ impl OrganicTool {
             };
             let sample = start + delta * t;
             Self::mark_dirty_chunks(dirty_chunks, sample, brush.radius.max(brush.depth));
-            changed |=
-                Self::apply_stroke_at(map, server_ctx, sample, &brush, erase, dirty_terrain_tiles);
+            changed |= Self::apply_stroke_at(
+                map,
+                server_ctx,
+                sample,
+                &brush,
+                erase,
+                dirty_terrain_tiles,
+                &mut dirty_surface_regions,
+                &mut dirty_terrain_regions,
+            );
         }
+        Self::sync_dirty_surface_regions(map, dirty_surface_regions);
+        Self::sync_dirty_terrain_regions(map, dirty_terrain_regions);
 
         *last_stroke_hit_pos = Some(hit_pos);
         changed
@@ -366,19 +390,22 @@ impl OrganicTool {
         brush: &OrganicBrushEval,
         erase: bool,
         dirty_terrain_tiles: &mut HashSet<(i32, i32)>,
+        dirty_surface_regions: &mut HashMap<Uuid, (Vec2<f32>, Vec2<f32>)>,
+        dirty_terrain_regions: &mut HashMap<(i32, i32), (Vec2<f32>, Vec2<f32>)>,
     ) -> bool {
-        let Some(surface) = Self::paint_target_surface(map, server_ctx)
-        else {
-            if !Self::locked_mode(map) && matches!(server_ctx.geo_hit, Some(GeoId::Terrain(_, _))) {
-                return Self::apply_terrain_line_segment(
-                    map,
-                    start_pos,
-                    end_pos,
-                    brush,
-                    erase,
-                    dirty_terrain_tiles,
-                );
-            }
+        if !Self::locked_mode(map) && matches!(server_ctx.geo_hit, Some(GeoId::Terrain(_, _))) {
+            return Self::apply_terrain_line_segment(
+                map,
+                start_pos,
+                end_pos,
+                brush,
+                erase,
+                dirty_terrain_tiles,
+                dirty_terrain_regions,
+            );
+        }
+
+        let Some(surface) = Self::paint_target_surface(map, server_ctx, end_pos) else {
             return false;
         };
 
@@ -418,11 +445,20 @@ impl OrganicTool {
         if changed {
             map.changed += 1;
             let radius = brush.radius.max(brush.line_width).max(brush.depth);
-            let dirty_min = Vec2::new(start_local.x.min(end_local.x), start_local.y.min(end_local.y))
-                - Vec2::broadcast(radius);
-            let dirty_max = Vec2::new(start_local.x.max(end_local.x), start_local.y.max(end_local.y))
-                + Vec2::broadcast(radius);
-            Self::sync_surface_detail_region_to_vm(map, surface.id, dirty_min, dirty_max);
+            let dirty_min = Vec2::new(
+                start_local.x.min(end_local.x),
+                start_local.y.min(end_local.y),
+            ) - Vec2::broadcast(radius);
+            let dirty_max = Vec2::new(
+                start_local.x.max(end_local.x),
+                start_local.y.max(end_local.y),
+            ) + Vec2::broadcast(radius);
+            Self::mark_dirty_surface_region(
+                dirty_surface_regions,
+                surface.id,
+                dirty_min,
+                dirty_max,
+            );
         }
         changed
     }
@@ -434,12 +470,21 @@ impl OrganicTool {
         brush: &OrganicBrushEval,
         erase: bool,
         dirty_terrain_tiles: &mut HashSet<(i32, i32)>,
+        dirty_surface_regions: &mut HashMap<Uuid, (Vec2<f32>, Vec2<f32>)>,
+        dirty_terrain_regions: &mut HashMap<(i32, i32), (Vec2<f32>, Vec2<f32>)>,
     ) -> bool {
-        let Some(surface) = Self::paint_target_surface(map, server_ctx)
-        else {
-            if !Self::locked_mode(map) && matches!(server_ctx.geo_hit, Some(GeoId::Terrain(_, _))) {
-                return Self::apply_terrain_stroke_at(map, hit_pos, brush, erase, dirty_terrain_tiles);
-            }
+        if !Self::locked_mode(map) && matches!(server_ctx.geo_hit, Some(GeoId::Terrain(_, _))) {
+            return Self::apply_terrain_stroke_at(
+                map,
+                hit_pos,
+                brush,
+                erase,
+                dirty_terrain_tiles,
+                dirty_terrain_regions,
+            );
+        }
+
+        let Some(surface) = Self::paint_target_surface(map, server_ctx, hit_pos) else {
             return false;
         };
 
@@ -478,15 +523,85 @@ impl OrganicTool {
             let radius = brush.radius.max(brush.depth);
             let dirty_min = local - Vec2::broadcast(radius);
             let dirty_max = local + Vec2::broadcast(radius);
-            Self::sync_surface_detail_region_to_vm(map, surface.id, dirty_min, dirty_max);
+            Self::mark_dirty_surface_region(
+                dirty_surface_regions,
+                surface.id,
+                dirty_min,
+                dirty_max,
+            );
         }
         changed
+    }
+
+    fn mark_dirty_surface_region(
+        dirty_surface_regions: &mut HashMap<Uuid, (Vec2<f32>, Vec2<f32>)>,
+        surface_id: Uuid,
+        dirty_min: Vec2<f32>,
+        dirty_max: Vec2<f32>,
+    ) {
+        dirty_surface_regions
+            .entry(surface_id)
+            .and_modify(|(min, max)| {
+                min.x = min.x.min(dirty_min.x);
+                min.y = min.y.min(dirty_min.y);
+                max.x = max.x.max(dirty_max.x);
+                max.y = max.y.max(dirty_max.y);
+            })
+            .or_insert((dirty_min, dirty_max));
+    }
+
+    fn sync_dirty_surface_regions(
+        map: &Map,
+        dirty_surface_regions: HashMap<Uuid, (Vec2<f32>, Vec2<f32>)>,
+    ) {
+        for (surface_id, (dirty_min, dirty_max)) in dirty_surface_regions {
+            Self::sync_surface_detail_region_to_vm(map, surface_id, dirty_min, dirty_max);
+        }
+    }
+
+    fn mark_dirty_terrain_region(
+        dirty_terrain_regions: &mut HashMap<(i32, i32), (Vec2<f32>, Vec2<f32>)>,
+        tile: (i32, i32),
+        dirty_min: Vec2<f32>,
+        dirty_max: Vec2<f32>,
+    ) {
+        dirty_terrain_regions
+            .entry(tile)
+            .and_modify(|(min, max)| {
+                min.x = min.x.min(dirty_min.x);
+                min.y = min.y.min(dirty_min.y);
+                max.x = max.x.max(dirty_max.x);
+                max.y = max.y.max(dirty_max.y);
+            })
+            .or_insert((dirty_min, dirty_max));
+    }
+
+    fn sync_dirty_terrain_regions(
+        map: &Map,
+        dirty_terrain_regions: HashMap<(i32, i32), (Vec2<f32>, Vec2<f32>)>,
+    ) {
+        for ((tile_x, tile_z), (dirty_min, dirty_max)) in dirty_terrain_regions {
+            Self::sync_terrain_detail_region_to_vm(map, tile_x, tile_z, dirty_min, dirty_max);
+        }
     }
 
     pub(crate) fn sync_surface_detail_to_vm(map: &Map, surface_id: Uuid) {
         let Some(surface) = map.surfaces.get(&surface_id) else {
             return;
         };
+        if let Some((local_min, local_max)) = surface.organic_local_bounds(map) {
+            let local_size = Vec2::new(
+                (local_max.x - local_min.x).max(0.001),
+                (local_max.y - local_min.y).max(0.001),
+            );
+            RUSTERIX.write().unwrap().scene_handler.vm.execute(
+                scenevm::Atom::SetOrganicSurfaceBounds {
+                    surface_id,
+                    local_min: local_min.into_array(),
+                    local_size: local_size.into_array(),
+                },
+            );
+        }
         let rgba = surface.organic_detail_texture_rgba(map, ORGANIC_DETAIL_TEXTURE_SIZE);
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix
@@ -510,7 +625,15 @@ impl OrganicTool {
             (texture_max.x - texture_min.x).max(0.001),
             (texture_max.y - texture_min.y).max(0.001),
         );
-        let to_px = |v: f32, min: f32, size: f32| ((v - min) / size) * ORGANIC_DETAIL_TEXTURE_SIZE as f32;
+        if local_max.x <= texture_min.x
+            || local_min.x >= texture_max.x
+            || local_max.y <= texture_min.y
+            || local_min.y >= texture_max.y
+        {
+            return None;
+        }
+        let to_px =
+            |v: f32, min: f32, size: f32| ((v - min) / size) * ORGANIC_DETAIL_TEXTURE_SIZE as f32;
         let x0 = to_px(local_min.x, texture_min.x, texture_size.x)
             .floor()
             .clamp(0.0, ORGANIC_DETAIL_TEXTURE_SIZE as f32);
@@ -551,6 +674,17 @@ impl OrganicTool {
             Self::sync_surface_detail_to_vm(map, surface_id);
             return;
         };
+        let local_size = Vec2::new(
+            (texture_max.x - texture_min.x).max(0.001),
+            (texture_max.y - texture_min.y).max(0.001),
+        );
+        RUSTERIX.write().unwrap().scene_handler.vm.execute(
+            scenevm::Atom::SetOrganicSurfaceBounds {
+                surface_id,
+                local_min: texture_min.into_array(),
+                local_size: local_size.into_array(),
+            },
+        );
         let Some(rect) = Self::local_bounds_to_texture_rect(
             dirty_local_min,
             dirty_local_max,
@@ -706,7 +840,10 @@ impl OrganicTool {
         let page_size = layer.page_size.max(1) as f32;
         let page_span = page_size * layer.cell_size.max(0.01);
         for page in layer.pages.values() {
-            let min = Vec2::new(page.page_x as f32 * page_span, page.page_y as f32 * page_span);
+            let min = Vec2::new(
+                page.page_x as f32 * page_span,
+                page.page_y as f32 * page_span,
+            );
             let max = min + Vec2::broadcast(page_span);
             let min_tile_x = min.x.floor() as i32;
             let max_tile_x = (max.x - 0.0001).floor() as i32;
@@ -731,19 +868,100 @@ impl OrganicTool {
         Self::sync_render_active_to_vm(map);
     }
 
-    fn paint_target_surface<'a>(map: &Map, server_ctx: &'a ServerContext) -> Option<&'a Surface> {
-        if Self::locked_mode(map) {
+    fn surface_hit_score(
+        map: &Map,
+        surface: &Surface,
+        hit_pos: Vec3<f32>,
+        required_sector: Option<u32>,
+    ) -> Option<f32> {
+        if required_sector.is_some_and(|sector_id| surface.sector_id != sector_id) {
+            return None;
+        }
+
+        let loop_uv = match surface.sector_loop_uv(map) {
+            Some(loop_uv) if !loop_uv.is_empty() => loop_uv,
+            _ => return None,
+        };
+        let uv = surface.world_to_uv(hit_pos);
+        let mut min = loop_uv[0];
+        let mut max = loop_uv[0];
+        for p in loop_uv.iter().skip(1) {
+            min.x = min.x.min(p.x);
+            min.y = min.y.min(p.y);
+            max.x = max.x.max(p.x);
+            max.y = max.y.max(p.y);
+        }
+
+        let eps = 0.02;
+        if uv.x < min.x - eps || uv.x > max.x + eps || uv.y < min.y - eps || uv.y > max.y + eps {
+            return None;
+        }
+
+        let n = surface.plane.normal;
+        let n_len = n.magnitude();
+        if n_len <= 1e-6 {
+            return None;
+        }
+        Some(((hit_pos - surface.plane.origin).dot(n / n_len)).abs())
+    }
+
+    fn surface_at_hit(
+        map: &Map,
+        hit_pos: Vec3<f32>,
+        required_sector: Option<u32>,
+    ) -> Option<Surface> {
+        let mut best_surface: Option<(Surface, f32)> = None;
+        for surface in map.surfaces.values() {
+            let Some(score) = Self::surface_hit_score(map, surface, hit_pos, required_sector)
+            else {
+                continue;
+            };
+            if best_surface
+                .as_ref()
+                .map(|(_, best_score)| score < *best_score)
+                .unwrap_or(true)
+            {
+                best_surface = Some((surface.clone(), score));
+            }
+        }
+        best_surface.map(|(surface, _)| surface)
+    }
+
+    fn paint_target_surface(
+        map: &Map,
+        server_ctx: &ServerContext,
+        hit_pos: Vec3<f32>,
+    ) -> Option<Surface> {
+        let locked = Self::locked_mode(map);
+        let geo_sector = match server_ctx.geo_hit {
+            Some(GeoId::Sector(sector_id)) => Some(sector_id),
+            _ => None,
+        };
+
+        if locked {
             if let Some(surface) = server_ctx.active_detail_surface.as_ref() {
+                return Some(surface.clone());
+            }
+        }
+
+        if let Some(surface) = Self::surface_at_hit(map, hit_pos, geo_sector) {
+            if !locked || map.selected_sectors.contains(&surface.sector_id) {
                 return Some(surface);
             }
-            return server_ctx.hover_surface.as_ref().filter(|surface| {
-                map.selected_sectors.contains(&surface.sector_id)
-            });
         }
-        server_ctx
-            .active_detail_surface
-            .as_ref()
-            .or(server_ctx.hover_surface.as_ref())
+
+        if geo_sector.is_some() {
+            return None;
+        }
+
+        server_ctx.hover_surface.as_ref().and_then(|surface| {
+            let allowed = !locked || map.selected_sectors.contains(&surface.sector_id);
+            if allowed && Self::surface_hit_score(map, surface, hit_pos, None).is_some() {
+                Some(surface.clone())
+            } else {
+                None
+            }
+        })
     }
 
     fn mark_dirty_terrain_tiles(
@@ -768,6 +986,7 @@ impl OrganicTool {
         brush: &OrganicBrushEval,
         erase: bool,
         dirty_terrain_tiles: &mut HashSet<(i32, i32)>,
+        dirty_terrain_regions: &mut HashMap<(i32, i32), (Vec2<f32>, Vec2<f32>)>,
     ) -> bool {
         let source = Some(PixelSource::PaletteIndex(
             brush.palette_indices.first().copied().unwrap_or(4),
@@ -779,11 +998,20 @@ impl OrganicTool {
         };
         if changed {
             map.changed += 1;
-            Self::mark_dirty_terrain_tiles(dirty_terrain_tiles, hit_pos, brush.radius.max(brush.depth));
+            Self::mark_dirty_terrain_tiles(
+                dirty_terrain_tiles,
+                hit_pos,
+                brush.radius.max(brush.depth),
+            );
             let dirty_min = local - Vec2::broadcast(brush.radius.max(brush.depth));
             let dirty_max = local + Vec2::broadcast(brush.radius.max(brush.depth));
             for &(tile_x, tile_z) in dirty_terrain_tiles.iter() {
-                Self::sync_terrain_detail_region_to_vm(map, tile_x, tile_z, dirty_min, dirty_max);
+                Self::mark_dirty_terrain_region(
+                    dirty_terrain_regions,
+                    (tile_x, tile_z),
+                    dirty_min,
+                    dirty_max,
+                );
             }
         }
         changed
@@ -796,6 +1024,7 @@ impl OrganicTool {
         brush: &OrganicBrushEval,
         erase: bool,
         dirty_terrain_tiles: &mut HashSet<(i32, i32)>,
+        dirty_terrain_regions: &mut HashMap<(i32, i32), (Vec2<f32>, Vec2<f32>)>,
     ) -> bool {
         let source = Some(PixelSource::PaletteIndex(
             brush.palette_indices.first().copied().unwrap_or(4),
@@ -804,19 +1033,45 @@ impl OrganicTool {
         let end_local = Vec2::new(end_pos.x, end_pos.z);
         let changed = {
             let layer = &mut map.terrain_organic_layer;
-            Self::apply_brush_line(layer, start_local, end_local, 0.0, brush, source, true, erase)
+            Self::apply_brush_line(
+                layer,
+                start_local,
+                end_local,
+                0.0,
+                brush,
+                source,
+                true,
+                erase,
+            )
         };
         if changed {
             map.changed += 1;
-            Self::mark_dirty_terrain_tiles(dirty_terrain_tiles, start_pos, brush.radius.max(brush.depth));
-            Self::mark_dirty_terrain_tiles(dirty_terrain_tiles, end_pos, brush.radius.max(brush.depth));
+            Self::mark_dirty_terrain_tiles(
+                dirty_terrain_tiles,
+                start_pos,
+                brush.radius.max(brush.depth),
+            );
+            Self::mark_dirty_terrain_tiles(
+                dirty_terrain_tiles,
+                end_pos,
+                brush.radius.max(brush.depth),
+            );
             let radius = brush.radius.max(brush.line_width).max(brush.depth);
-            let dirty_min = Vec2::new(start_local.x.min(end_local.x), start_local.y.min(end_local.y))
-                - Vec2::broadcast(radius);
-            let dirty_max = Vec2::new(start_local.x.max(end_local.x), start_local.y.max(end_local.y))
-                + Vec2::broadcast(radius);
+            let dirty_min = Vec2::new(
+                start_local.x.min(end_local.x),
+                start_local.y.min(end_local.y),
+            ) - Vec2::broadcast(radius);
+            let dirty_max = Vec2::new(
+                start_local.x.max(end_local.x),
+                start_local.y.max(end_local.y),
+            ) + Vec2::broadcast(radius);
             for &(tile_x, tile_z) in dirty_terrain_tiles.iter() {
-                Self::sync_terrain_detail_region_to_vm(map, tile_x, tile_z, dirty_min, dirty_max);
+                Self::mark_dirty_terrain_region(
+                    dirty_terrain_regions,
+                    (tile_x, tile_z),
+                    dirty_min,
+                    dirty_max,
+                );
             }
         }
         changed
@@ -824,9 +1079,15 @@ impl OrganicTool {
 
     fn evaluate_brush(map: &Map) -> OrganicBrushEval {
         let mut palette_indices = vec![
-            map.properties.get_int_default(PROP_PALETTE_1, 4).clamp(0, 255) as u16,
-            map.properties.get_int_default(PROP_PALETTE_2, 8).clamp(0, 255) as u16,
-            map.properties.get_int_default(PROP_PALETTE_3, 10).clamp(0, 255) as u16,
+            map.properties
+                .get_int_default(PROP_PALETTE_1, 4)
+                .clamp(0, 255) as u16,
+            map.properties
+                .get_int_default(PROP_PALETTE_2, 8)
+                .clamp(0, 255) as u16,
+            map.properties
+                .get_int_default(PROP_PALETTE_3, 10)
+                .clamp(0, 255) as u16,
         ];
         palette_indices.retain(|index| *index <= 255);
 
@@ -839,10 +1100,19 @@ impl OrganicTool {
                     map.properties.get_float_default(PROP_FLOW, 0.7),
                 )
                 .clamp(0.05, 1.0),
-            jitter: map.properties.get_float_default(PROP_JITTER, 0.15).clamp(0.0, 1.0),
+            jitter: map
+                .properties
+                .get_float_default(PROP_JITTER, 0.15)
+                .clamp(0.0, 1.0),
             depth: map.properties.get_float_default(PROP_DEPTH, 0.18).max(0.01),
-            cell_size: map.properties.get_float_default(PROP_CELL_SIZE, 0.05).max(0.01),
-            softness: map.properties.get_float_default(PROP_SOFTNESS, 0.4).clamp(0.0, 1.0),
+            cell_size: map
+                .properties
+                .get_float_default(PROP_CELL_SIZE, 0.05)
+                .max(0.01),
+            softness: map
+                .properties
+                .get_float_default(PROP_SOFTNESS, 0.4)
+                .clamp(0.0, 1.0),
             scatter_count: map
                 .properties
                 .get_int_default(PROP_SCATTER_COUNT, 1)
@@ -881,6 +1151,11 @@ impl OrganicTool {
                 OrganicBrushShape::Streak
             } else {
                 OrganicBrushShape::Blob
+            },
+            paint_mode: if map.properties.get_int_default(PROP_PAINT_MODE, 0) == 1 {
+                OrganicPaintMode::NoiseOnly
+            } else {
+                OrganicPaintMode::Full
             },
             border_size: map
                 .properties
@@ -929,8 +1204,12 @@ impl OrganicTool {
             let offset = Self::scatter_offset(index, scatter_count, brush, base_radius);
             let dab_center = center + offset;
             let noise = Self::organic_noise(dab_center, brush);
-            let source =
-                Self::resolve_brush_source(brush, host_source.clone(), Some(index as i32), dab_center);
+            let source = Self::resolve_brush_source(
+                brush,
+                host_source.clone(),
+                Some(index as i32),
+                dab_center,
+            );
             let dab_flow = if scatter_count > 1 {
                 if shallow_spread {
                     (brush.flow / (scatter_count as f32).sqrt()).clamp(0.08, 1.0)
@@ -962,49 +1241,62 @@ impl OrganicTool {
                 )
             } else {
                 let mut changed = false;
-                if let Some(border_source) = Self::fixed_brush_source(brush, host_source.clone(), 1) {
-                    if brush.border_size > 0.01 {
-                        changed |= layer.paint_sphere(
-                            dab_center,
-                            dab_radius,
-                            anchor_offset,
-                            dab_depth,
-                            brush.softness,
-                            brush.height_falloff,
-                            dab_flow,
-                            brush.channel,
-                            Some(border_source),
-                            grow_positive,
-                        );
+                if brush.paint_mode == OrganicPaintMode::Full {
+                    if let Some(border_source) =
+                        Self::fixed_brush_source(brush, host_source.clone(), 1)
+                    {
+                        if brush.border_size > 0.01 {
+                            changed |= layer.paint_sphere(
+                                dab_center,
+                                dab_radius,
+                                anchor_offset,
+                                dab_depth,
+                                brush.softness,
+                                brush.height_falloff,
+                                dab_flow,
+                                brush.channel,
+                                Some(border_source),
+                                grow_positive,
+                            );
+                        }
                     }
+                    changed |= layer.paint_sphere(
+                        dab_center,
+                        inner_radius,
+                        anchor_offset,
+                        dab_depth,
+                        brush.softness,
+                        brush.height_falloff,
+                        dab_flow,
+                        brush.channel,
+                        source,
+                        grow_positive,
+                    );
                 }
-                changed |= layer.paint_sphere(
-                    dab_center,
-                    inner_radius,
-                    anchor_offset,
-                    dab_depth,
-                    brush.softness,
-                    brush.height_falloff,
-                    dab_flow,
-                    brush.channel,
-                    source,
-                    grow_positive,
-                );
-                if let Some(noise_source) =
-                    Self::fixed_brush_source(brush, host_source.clone(), 2)
+                if let Some(noise_source) = Self::fixed_brush_source(brush, host_source.clone(), 2)
                     && brush.noise_strength > 0.01
                 {
-                    let noise_count = ((brush.noise_strength * 4.0).ceil() as usize).clamp(1, 4);
+                    let noise_only = brush.paint_mode == OrganicPaintMode::NoiseOnly;
+                    let noise_count = if noise_only {
+                        ((brush.noise_strength * 18.0).ceil() as usize).clamp(3, 18)
+                    } else {
+                        ((brush.noise_strength * 4.0).ceil() as usize).clamp(1, 4)
+                    };
                     for noise_index in 0..noise_count {
-                        let noise_offset = Self::noise_offset(
-                            dab_center,
-                            noise_index,
-                            brush,
-                            inner_radius,
-                        );
+                        let noise_offset =
+                            Self::noise_offset(dab_center, noise_index, brush, inner_radius);
                         let noise_radius = (inner_radius
-                            * (0.12 + brush.noise_strength * 0.18))
-                            .max(layer.cell_size * 0.24);
+                            * if noise_only {
+                                0.08 + brush.noise_strength * 0.10
+                            } else {
+                                0.12 + brush.noise_strength * 0.18
+                            })
+                        .max(layer.cell_size * 0.24);
+                        let noise_flow = if noise_only {
+                            dab_flow
+                        } else {
+                            (dab_flow * brush.noise_strength).clamp(0.03, 1.0)
+                        };
                         changed |= layer.paint_sphere(
                             dab_center + noise_offset,
                             noise_radius,
@@ -1012,7 +1304,7 @@ impl OrganicTool {
                             dab_depth * 0.8,
                             brush.softness,
                             brush.height_falloff,
-                            (dab_flow * brush.noise_strength).clamp(0.03, 1.0),
+                            noise_flow,
                             brush.channel,
                             Some(noise_source.clone()),
                             grow_positive,
@@ -1056,8 +1348,8 @@ impl OrganicTool {
         let source = Self::resolve_brush_source(brush, host_source, Some(0), midpoint);
         let depth = brush.depth.max(layer.cell_size * 0.26) * (1.0 + noise * 0.28);
         let radius = (width * (1.0 + noise * 0.14)).max(layer.cell_size * 0.55);
-        let inner_radius = (radius * (1.0 - brush.border_size).clamp(0.18, 1.0))
-            .max(layer.cell_size * 0.4);
+        let inner_radius =
+            (radius * (1.0 - brush.border_size).clamp(0.18, 1.0)).max(layer.cell_size * 0.4);
 
         if erase {
             layer.erase_capsule(
@@ -1072,60 +1364,74 @@ impl OrganicTool {
             )
         } else {
             let mut changed = false;
-            if let Some(border_source) = Self::fixed_brush_source(brush, None, 1) {
-                if brush.border_size > 0.01 {
-                    changed |= layer.paint_capsule(
-                        line_start,
-                        line_end,
-                        radius,
-                        anchor_offset,
-                        depth,
-                        brush.line_softness,
-                        brush.height_falloff,
-                        brush.flow.clamp(0.08, 1.0),
-                        brush.channel,
-                        Some(border_source),
-                        grow_positive,
-                    );
+            if brush.paint_mode == OrganicPaintMode::Full {
+                if let Some(border_source) = Self::fixed_brush_source(brush, None, 1) {
+                    if brush.border_size > 0.01 {
+                        changed |= layer.paint_capsule(
+                            line_start,
+                            line_end,
+                            radius,
+                            anchor_offset,
+                            depth,
+                            brush.line_softness,
+                            brush.height_falloff,
+                            brush.flow.clamp(0.08, 1.0),
+                            brush.channel,
+                            Some(border_source),
+                            grow_positive,
+                        );
+                    }
                 }
+                changed |= layer.paint_capsule(
+                    line_start,
+                    line_end,
+                    inner_radius,
+                    anchor_offset,
+                    depth,
+                    brush.line_softness,
+                    brush.height_falloff,
+                    brush.flow.clamp(0.08, 1.0),
+                    brush.channel,
+                    source,
+                    grow_positive,
+                );
             }
-            changed |= layer.paint_capsule(
-                line_start,
-                line_end,
-                inner_radius,
-                anchor_offset,
-                depth,
-                brush.line_softness,
-                brush.height_falloff,
-                brush.flow.clamp(0.08, 1.0),
-                brush.channel,
-                source,
-                grow_positive,
-            );
             if let Some(noise_source) = Self::fixed_brush_source(brush, None, 2)
                 && brush.noise_strength > 0.01
             {
-                let noise_count = ((brush.noise_strength * 5.0).ceil() as usize).clamp(1, 5);
+                let noise_only = brush.paint_mode == OrganicPaintMode::NoiseOnly;
+                let noise_count = if noise_only {
+                    ((brush.noise_strength * 22.0).ceil() as usize).clamp(4, 22)
+                } else {
+                    ((brush.noise_strength * 5.0).ceil() as usize).clamp(1, 5)
+                };
                 for noise_index in 0..noise_count {
                     let t = (noise_index as f32 + 0.5) / noise_count as f32;
                     let along = line_start + (line_end - line_start) * t;
                     let lateral = Vec2::new(-(line_end - line_start).y, (line_end - line_start).x)
                         .normalized()
-                        * ((Self::scalar_hash(
-                            t * 19.0 + brush.noise_seed as f32 * 0.73,
-                        ) * 2.0
+                        * ((Self::scalar_hash(t * 19.0 + brush.noise_seed as f32 * 0.73) * 2.0
                             - 1.0)
                             * inner_radius
                             * 0.45);
                     changed |= layer.paint_sphere(
                         along + lateral,
-                        (inner_radius * (0.10 + brush.noise_strength * 0.18))
-                            .max(layer.cell_size * 0.22),
+                        (inner_radius
+                            * if noise_only {
+                                0.07 + brush.noise_strength * 0.10
+                            } else {
+                                0.10 + brush.noise_strength * 0.18
+                            })
+                        .max(layer.cell_size * 0.22),
                         anchor_offset,
                         depth * 0.75,
                         brush.line_softness,
                         brush.height_falloff,
-                        (brush.flow * brush.noise_strength).clamp(0.03, 1.0),
+                        if noise_only {
+                            brush.flow.clamp(0.05, 1.0)
+                        } else {
+                            (brush.flow * brush.noise_strength).clamp(0.03, 1.0)
+                        },
                         brush.channel,
                         Some(noise_source.clone()),
                         grow_positive,
@@ -1185,8 +1491,8 @@ impl OrganicTool {
         radius: f32,
     ) -> Vec2<f32> {
         let seed = brush.noise_seed as f32 * 0.31 + index as f32 * 1.73;
-        let angle = Self::scalar_hash(center.x * 3.17 + center.y * 5.91 + seed)
-            * std::f32::consts::TAU;
+        let angle =
+            Self::scalar_hash(center.x * 3.17 + center.y * 5.91 + seed) * std::f32::consts::TAU;
         let dist = radius
             * (0.12 + Self::scalar_hash(center.x * 7.11 - center.y * 2.47 + seed * 2.0) * 0.48);
         Vec2::new(angle.cos(), angle.sin()) * dist
@@ -1207,11 +1513,7 @@ impl OrganicTool {
         Vec2::new(angle.cos(), angle.sin()) * (ring * amount)
     }
 
-    fn mark_dirty_chunks(
-        dirty_chunks: &mut HashSet<(i32, i32)>,
-        hit_pos: Vec3<f32>,
-        radius: f32,
-    ) {
+    fn mark_dirty_chunks(dirty_chunks: &mut HashSet<(i32, i32)>, hit_pos: Vec3<f32>, radius: f32) {
         let chunk_size = 32;
         let reach = radius.max(1.0) + 1.0;
         let min_x = ((hit_pos.x - reach).floor() as i32).div_euclid(chunk_size) * chunk_size;

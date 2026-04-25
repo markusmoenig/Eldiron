@@ -1,5 +1,5 @@
-use crate::client::{apply_2d_visibility_mask, draw2d};
 use crate::client::draw2d::Draw2D;
+use crate::client::{apply_2d_visibility_mask, draw2d};
 use crate::prelude::*;
 use crate::{Assets, Map, MapMini, Pixel, PlayerCamera, Rect, SceneHandler, WHITE};
 use crate::{ValueGroups, ValueTomlLoader};
@@ -991,9 +991,10 @@ impl GameWidget {
                 .render_frame(self.buffer.pixels_mut(), width as u32, height as u32);
         }
 
-        let bg = scene_handler.settings.background_color_2d.map(|v| {
-            (v.clamp(0.0, 1.0) * 255.0).round() as u8
-        });
+        let bg = scene_handler
+            .settings
+            .background_color_2d
+            .map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8);
         apply_2d_visibility_mask(
             self.buffer.pixels_mut(),
             full_width,

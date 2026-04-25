@@ -71,7 +71,7 @@ pub struct Vert3DPod {
     pub organic_atlas_size: [f32; 2],
 }
 
-const ORGANIC_DETAIL_TEXTURE_SIZE: u32 = 128;
+const ORGANIC_DETAIL_TEXTURE_SIZE: u32 = 48;
 
 #[derive(Debug, Clone, Default)]
 struct OrganicSurfaceTextureData {
@@ -2783,12 +2783,16 @@ impl VM {
         };
         self.organic_surface_slots.insert(surface_id, meta);
         self.organic_detail_dirty = true;
+        self.accel_dirty = true;
         meta
     }
 
     fn ensure_organic_detail_texture(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         let slot_count = self.organic_surface_slots.len().max(1) as u32;
-        let max_dim = device.limits().max_texture_dimension_2d.max(ORGANIC_DETAIL_TEXTURE_SIZE);
+        let max_dim = device
+            .limits()
+            .max_texture_dimension_2d
+            .max(ORGANIC_DETAIL_TEXTURE_SIZE);
         let max_slots_per_row = (max_dim / ORGANIC_DETAIL_TEXTURE_SIZE).max(1);
         let mut slots_per_row = ((slot_count as f32).sqrt().ceil() as u32).max(1);
         slots_per_row = slots_per_row.min(max_slots_per_row);
@@ -2839,6 +2843,7 @@ impl VM {
         g.organic_detail_extent = (width, height);
         g.organic_slots_per_row = slots_per_row;
         self.organic_detail_dirty = true;
+        self.accel_dirty = true;
 
         self.upload_organic_surface_textures(queue);
     }
@@ -2856,10 +2861,8 @@ impl VM {
         let slots_per_row = g.organic_slots_per_row.max(1);
 
         if self.organic_detail_dirty {
-            let blank = vec![
-                0u8;
-                (ORGANIC_DETAIL_TEXTURE_SIZE * ORGANIC_DETAIL_TEXTURE_SIZE * 4) as usize
-            ];
+            let blank =
+                vec![0u8; (ORGANIC_DETAIL_TEXTURE_SIZE * ORGANIC_DETAIL_TEXTURE_SIZE * 4) as usize];
 
             for (surface_id, meta) in &self.organic_surface_slots {
                 let data = self
@@ -2906,8 +2909,7 @@ impl VM {
                 for row in 0..dirty.height as usize {
                     let src_x = dirty.x as usize;
                     let src_y = dirty.y as usize + row;
-                    let src_offset =
-                        (src_y * ORGANIC_DETAIL_TEXTURE_SIZE as usize + src_x) * 4;
+                    let src_offset = (src_y * ORGANIC_DETAIL_TEXTURE_SIZE as usize + src_x) * 4;
                     let dst_offset = row * dirty.width as usize * 4;
                     let len = dirty.width as usize * 4;
                     rect_rgba[dst_offset..dst_offset + len]
@@ -3643,6 +3645,30 @@ impl VM {
                     .insert(surface_id, OrganicSurfaceTextureData { rgba });
                 self.organic_detail_dirty = true;
             }
+            Atom::SetOrganicSurfaceBounds {
+                surface_id,
+                local_min,
+                local_size,
+            } => {
+                let mut updated = 0usize;
+                for chunk in self.chunks_map.values_mut() {
+                    for poly_list in chunk.polys3d_map.values_mut() {
+                        for poly in poly_list {
+                            if let Some(detail) = poly.organic_detail.as_mut()
+                                && detail.surface_id == surface_id
+                            {
+                                detail.local_min = local_min;
+                                detail.local_size =
+                                    [local_size[0].max(0.001), local_size[1].max(0.001)];
+                                updated += 1;
+                            }
+                        }
+                    }
+                }
+                if updated > 0 {
+                    self.accel_dirty = true;
+                }
+            }
             Atom::SetOrganicSurfaceDetailRect {
                 surface_id,
                 size,
@@ -3663,7 +3689,8 @@ impl VM {
                     return;
                 }
                 let meta = self.ensure_organic_surface_slot(surface_id);
-                let full_len = (ORGANIC_DETAIL_TEXTURE_SIZE * ORGANIC_DETAIL_TEXTURE_SIZE * 4) as usize;
+                let full_len =
+                    (ORGANIC_DETAIL_TEXTURE_SIZE * ORGANIC_DETAIL_TEXTURE_SIZE * 4) as usize;
                 let data = self
                     .organic_surface_pixels
                     .entry(surface_id)
@@ -3673,8 +3700,7 @@ impl VM {
                 for row in 0..height as usize {
                     let dst_x = x as usize;
                     let dst_y = y as usize + row;
-                    let dst_offset =
-                        (dst_y * ORGANIC_DETAIL_TEXTURE_SIZE as usize + dst_x) * 4;
+                    let dst_offset = (dst_y * ORGANIC_DETAIL_TEXTURE_SIZE as usize + dst_x) * 4;
                     let src_offset = row * width as usize * 4;
                     let len = width as usize * 4;
                     data.rgba[dst_offset..dst_offset + len]
@@ -6292,17 +6318,21 @@ impl VM {
                         let has_valid_blend = poly.tile_id2.is_some()
                             && poly.blend_weights.len() == poly.vertices.len();
                         let organic_meta = poly.organic_detail.as_ref().and_then(|detail| {
-                            self.organic_surface_slots.get(&detail.surface_id).and_then(|slot| {
-                                self.organic_slot_rect(slot.slot).map(|(atlas_min, atlas_size)| {
-                                    (
-                                        1.0f32,
-                                        atlas_min,
-                                        [detail.local_min[0], detail.local_min[1]],
-                                        [detail.local_size[0], detail.local_size[1]],
-                                        atlas_size,
+                            self.organic_surface_slots
+                                .get(&detail.surface_id)
+                                .and_then(|slot| {
+                                    self.organic_slot_rect(slot.slot).map(
+                                        |(atlas_min, atlas_size)| {
+                                            (
+                                                1.0f32,
+                                                atlas_min,
+                                                [detail.local_min[0], detail.local_min[1]],
+                                                [detail.local_size[0], detail.local_size[1]],
+                                                atlas_size,
+                                            )
+                                        },
                                     )
                                 })
-                            })
                         });
 
                         for (i, p) in poly_pos.iter().enumerate() {
@@ -6313,20 +6343,21 @@ impl VM {
                             } else {
                                 0.0
                             };
-                            let (organic_enabled, organic_atlas_min, organic_local_min, organic_local_size, organic_atlas_size) =
-                                organic_meta.unwrap_or((
-                                    0.0,
-                                    [0.0, 0.0],
-                                    [0.0, 0.0],
-                                    [0.0, 0.0],
-                                    [0.0, 0.0],
-                                ));
+                            let (
+                                organic_enabled,
+                                organic_atlas_min,
+                                organic_local_min,
+                                organic_local_size,
+                                organic_atlas_size,
+                            ) = organic_meta.unwrap_or((
+                                0.0,
+                                [0.0, 0.0],
+                                [0.0, 0.0],
+                                [0.0, 0.0],
+                                [0.0, 0.0],
+                            ));
 
-                            let organic_uv = poly
-                                .organic_uvs
-                                .get(i)
-                                .copied()
-                                .unwrap_or([0.0, 0.0]);
+                            let organic_uv = poly.organic_uvs.get(i).copied().unwrap_or([0.0, 0.0]);
                             v3.push(Vert3DPod {
                                 pos: [p[0], p[1], p[2]],
                                 organic_enabled,
@@ -6742,17 +6773,21 @@ impl VM {
                         let has_valid_blend = poly.tile_id2.is_some()
                             && poly.blend_weights.len() == poly.vertices.len();
                         let organic_meta = poly.organic_detail.as_ref().and_then(|detail| {
-                            self.organic_surface_slots.get(&detail.surface_id).and_then(|slot| {
-                                self.organic_slot_rect(slot.slot).map(|(atlas_min, atlas_size)| {
-                                    (
-                                        1.0f32,
-                                        atlas_min,
-                                        [detail.local_min[0], detail.local_min[1]],
-                                        [detail.local_size[0], detail.local_size[1]],
-                                        atlas_size,
+                            self.organic_surface_slots
+                                .get(&detail.surface_id)
+                                .and_then(|slot| {
+                                    self.organic_slot_rect(slot.slot).map(
+                                        |(atlas_min, atlas_size)| {
+                                            (
+                                                1.0f32,
+                                                atlas_min,
+                                                [detail.local_min[0], detail.local_min[1]],
+                                                [detail.local_size[0], detail.local_size[1]],
+                                                atlas_size,
+                                            )
+                                        },
                                     )
                                 })
-                            })
                         });
 
                         for (i, p) in poly_pos.iter().enumerate() {
@@ -6763,19 +6798,20 @@ impl VM {
                             } else {
                                 0.0
                             };
-                            let (organic_enabled, organic_atlas_min, organic_local_min, organic_local_size, organic_atlas_size) =
-                                organic_meta.unwrap_or((
-                                    0.0,
-                                    [0.0, 0.0],
-                                    [0.0, 0.0],
-                                    [0.0, 0.0],
-                                    [0.0, 0.0],
-                                ));
-                            let organic_uv = poly
-                                .organic_uvs
-                                .get(i)
-                                .copied()
-                                .unwrap_or([0.0, 0.0]);
+                            let (
+                                organic_enabled,
+                                organic_atlas_min,
+                                organic_local_min,
+                                organic_local_size,
+                                organic_atlas_size,
+                            ) = organic_meta.unwrap_or((
+                                0.0,
+                                [0.0, 0.0],
+                                [0.0, 0.0],
+                                [0.0, 0.0],
+                                [0.0, 0.0],
+                            ));
+                            let organic_uv = poly.organic_uvs.get(i).copied().unwrap_or([0.0, 0.0]);
                             v3.push(Vert3DPod {
                                 pos: [p[0], p[1], p[2]],
                                 organic_enabled,
@@ -7773,7 +7809,8 @@ impl VM {
                                 (Some(a), Some(b), Some(c)) => (a, b, c),
                                 _ => continue,
                             };
-                            if let Some((t, _, _)) = ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
+                            if let Some((t, _, _)) =
+                                ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
                                 && t > 1e-5
                                 && t < best_t
                             {

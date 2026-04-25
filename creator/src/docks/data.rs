@@ -25,110 +25,347 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
     SettingNavSection {
         table: "game",
         entries: &[
-            SettingNavEntry { key: "target_fps", status: "Target render refresh rate in frames per second. Higher values look smoother but cost more CPU/GPU." },
-            SettingNavEntry { key: "game_tick_ms", status: "Length of one gameplay tick in milliseconds. Default workflow: 250 = 4 ticks per second." },
-            SettingNavEntry { key: "ticks_per_minute", status: "How many gameplay ticks equal one in-game minute." },
-            SettingNavEntry { key: "movement_units_per_sec", status: "Base movement speed in world units per second." },
-            SettingNavEntry { key: "turn_speed_deg_per_sec", status: "First-person turn speed in degrees per second." },
-            SettingNavEntry { key: "firstp_eye_level", status: "First-person camera eye height above the entity base Y." },
-            SettingNavEntry { key: "entity_block_mode", status: "Character collision mode. Values: \"always\", \"never\"." },
-            SettingNavEntry { key: "collision_mode", status: "Movement/collision backend. Values: \"tile\", \"mesh\"." },
-            SettingNavEntry { key: "auto_create_player", status: "If true, Eldiron spawns a player automatically when one is defined." },
-            SettingNavEntry { key: "start_region", status: "Region name loaded at startup." },
-            SettingNavEntry { key: "start_screen", status: "Screen name shown at startup. Empty means no startup screen." },
-            SettingNavEntry { key: "click_intents_2d", status: "Enable persistent click-targeted intents in 2D while keeping WASD movement." },
-            SettingNavEntry { key: "auto_walk_2d", status: "In walk mode, clicking terrain in 2D/2d_grid path-walks the player there." },
-            SettingNavEntry { key: "base_currency_name", status: "Display name of the primary in-game currency, for example \"Gold\"." },
-            SettingNavEntry { key: "base_currency_symbol", status: "Short symbol shown with currency amounts, for example \"G\"." },
-            SettingNavEntry { key: "locale", status: "Active locale id, for example \"en\" or \"de\". Use \"auto\" for system locale." },
-            SettingNavEntry { key: "gear_slots", status: "Array of supported equipment slot names." },
-            SettingNavEntry { key: "weapon_slots", status: "Array of supported weapon slot names." },
-            SettingNavEntry { key: "health", status: "Attribute name used as health / death threshold, for example \"HP\"." },
-            SettingNavEntry { key: "level", status: "Attribute name used as the current progression level." },
-            SettingNavEntry { key: "experience", status: "Attribute name used for accumulated experience, for example \"EXP\"." },
-            SettingNavEntry { key: "avatar_shading", status: "Enable generated runtime marker-ramp shading for avatars. Values: true, false." },
-            SettingNavEntry { key: "avatar_skin_auto_shading", status: "Enable generated marker-ramp shading for skin markers. Values: true, false." },
+            SettingNavEntry {
+                key: "target_fps",
+                status: "Target render refresh rate in frames per second. Higher values look smoother but cost more CPU/GPU.",
+            },
+            SettingNavEntry {
+                key: "game_tick_ms",
+                status: "Length of one gameplay tick in milliseconds. Default workflow: 250 = 4 ticks per second.",
+            },
+            SettingNavEntry {
+                key: "ticks_per_minute",
+                status: "How many gameplay ticks equal one in-game minute.",
+            },
+            SettingNavEntry {
+                key: "movement_units_per_sec",
+                status: "Base movement speed in world units per second.",
+            },
+            SettingNavEntry {
+                key: "turn_speed_deg_per_sec",
+                status: "First-person turn speed in degrees per second.",
+            },
+            SettingNavEntry {
+                key: "firstp_eye_level",
+                status: "First-person camera eye height above the entity base Y.",
+            },
+            SettingNavEntry {
+                key: "entity_block_mode",
+                status: "Character collision mode. Values: \"always\", \"never\".",
+            },
+            SettingNavEntry {
+                key: "collision_mode",
+                status: "Movement/collision backend. Values: \"tile\", \"mesh\".",
+            },
+            SettingNavEntry {
+                key: "auto_create_player",
+                status: "If true, Eldiron spawns a player automatically when one is defined.",
+            },
+            SettingNavEntry {
+                key: "start_region",
+                status: "Region name loaded at startup.",
+            },
+            SettingNavEntry {
+                key: "start_screen",
+                status: "Screen name shown at startup. Empty means no startup screen.",
+            },
+            SettingNavEntry {
+                key: "click_intents_2d",
+                status: "Enable persistent click-targeted intents in 2D while keeping WASD movement.",
+            },
+            SettingNavEntry {
+                key: "auto_walk_2d",
+                status: "In walk mode, clicking terrain in 2D/2d_grid path-walks the player there.",
+            },
+            SettingNavEntry {
+                key: "base_currency_name",
+                status: "Display name of the primary in-game currency, for example \"Gold\".",
+            },
+            SettingNavEntry {
+                key: "base_currency_symbol",
+                status: "Short symbol shown with currency amounts, for example \"G\".",
+            },
+            SettingNavEntry {
+                key: "locale",
+                status: "Active locale id, for example \"en\" or \"de\". Use \"auto\" for system locale.",
+            },
+            SettingNavEntry {
+                key: "gear_slots",
+                status: "Array of supported equipment slot names.",
+            },
+            SettingNavEntry {
+                key: "weapon_slots",
+                status: "Array of supported weapon slot names.",
+            },
+            SettingNavEntry {
+                key: "health",
+                status: "Attribute name used as health / death threshold, for example \"HP\".",
+            },
+            SettingNavEntry {
+                key: "level",
+                status: "Attribute name used as the current progression level.",
+            },
+            SettingNavEntry {
+                key: "experience",
+                status: "Attribute name used for accumulated experience, for example \"EXP\".",
+            },
+            SettingNavEntry {
+                key: "avatar_shading",
+                status: "Enable generated runtime marker-ramp shading for avatars. Values: true, false.",
+            },
+            SettingNavEntry {
+                key: "avatar_skin_auto_shading",
+                status: "Enable generated marker-ramp shading for skin markers. Values: true, false.",
+            },
         ],
     },
     SettingNavSection {
         table: "say",
         entries: &[
-            SettingNavEntry { key: "duration", status: "Lifetime of say bubbles in in-game minutes." },
-            SettingNavEntry { key: "default", status: "Fallback say text color as #RRGGBB or #RRGGBBAA." },
-            SettingNavEntry { key: "background_enabled", status: "Enable or disable the say bubble background rectangle. Values: true, false." },
-            SettingNavEntry { key: "background_color", status: "Say bubble background color as #RRGGBBAA." },
+            SettingNavEntry {
+                key: "duration",
+                status: "Lifetime of say bubbles in in-game minutes.",
+            },
+            SettingNavEntry {
+                key: "default",
+                status: "Fallback say text color as #RRGGBB or #RRGGBBAA.",
+            },
+            SettingNavEntry {
+                key: "background_enabled",
+                status: "Enable or disable the say bubble background rectangle. Values: true, false.",
+            },
+            SettingNavEntry {
+                key: "background_color",
+                status: "Say bubble background color as #RRGGBBAA.",
+            },
         ],
     },
     SettingNavSection {
         table: "viewport",
         entries: &[
-            SettingNavEntry { key: "width", status: "Internal viewport width in pixels." },
-            SettingNavEntry { key: "height", status: "Internal viewport height in pixels." },
-            SettingNavEntry { key: "window_scale", status: "Startup window scale multiplier. Example: 2.0 opens a 2x larger window." },
-            SettingNavEntry { key: "grid_size", status: "Pixel size of one grid tile." },
-            SettingNavEntry { key: "upscale", status: "Viewport fit mode. Values: \"aspect\", \"none\"." },
-            SettingNavEntry { key: "background_color_2d", status: "2D viewport background color as #RRGGBB or #RRGGBBAA." },
-            SettingNavEntry { key: "visibility_range_2d", status: "2D visible range around the player in tiles. 0 or less disables the limit." },
-            SettingNavEntry { key: "visibility_alpha_2d", status: "LOS blend toward the background color. Range: 0..1." },
-            SettingNavEntry { key: "screen_background", status: "Background color used for screens and screen widgets." },
-            SettingNavEntry { key: "cursor_id", status: "Default mouse cursor tile id." },
-            SettingNavEntry { key: "target_rect_color", status: "Optional target highlight rectangle color in 2D. Leave empty to disable." },
+            SettingNavEntry {
+                key: "width",
+                status: "Internal viewport width in pixels.",
+            },
+            SettingNavEntry {
+                key: "height",
+                status: "Internal viewport height in pixels.",
+            },
+            SettingNavEntry {
+                key: "window_scale",
+                status: "Startup window scale multiplier. Example: 2.0 opens a 2x larger window.",
+            },
+            SettingNavEntry {
+                key: "grid_size",
+                status: "Pixel size of one grid tile.",
+            },
+            SettingNavEntry {
+                key: "upscale",
+                status: "Viewport fit mode. Values: \"aspect\", \"none\".",
+            },
+            SettingNavEntry {
+                key: "background_color_2d",
+                status: "2D viewport background color as #RRGGBB or #RRGGBBAA.",
+            },
+            SettingNavEntry {
+                key: "visibility_range_2d",
+                status: "2D visible range around the player in tiles. 0 or less disables the limit.",
+            },
+            SettingNavEntry {
+                key: "visibility_alpha_2d",
+                status: "LOS blend toward the background color. Range: 0..1.",
+            },
+            SettingNavEntry {
+                key: "screen_background",
+                status: "Background color used for screens and screen widgets.",
+            },
+            SettingNavEntry {
+                key: "cursor_id",
+                status: "Default mouse cursor tile id.",
+            },
+            SettingNavEntry {
+                key: "target_rect_color",
+                status: "Optional target highlight rectangle color in 2D. Leave empty to disable.",
+            },
         ],
     },
     SettingNavSection {
         table: "render",
         entries: &[
-            SettingNavEntry { key: "sky_color", status: "Static sky color used when simulation is disabled." },
-            SettingNavEntry { key: "sun_color", status: "Static sun color used when simulation is disabled." },
-            SettingNavEntry { key: "sun_intensity", status: "Sun brightness multiplier." },
-            SettingNavEntry { key: "sun_direction", status: "Static sun direction vector [x, y, z]." },
-            SettingNavEntry { key: "sun_enabled", status: "Enable or disable directional sun lighting. Values: true, false." },
-            SettingNavEntry { key: "ambient_color", status: "Ambient light RGB color." },
-            SettingNavEntry { key: "ambient_strength", status: "Ambient light strength. Typical range: 0..1." },
-            SettingNavEntry { key: "fog_color", status: "Fog RGB tint." },
-            SettingNavEntry { key: "fog_density", status: "Fog density. 0 disables fog." },
-            SettingNavEntry { key: "shadow_enabled", status: "Enable or disable sun shadow-map rendering. Values: true, false." },
-            SettingNavEntry { key: "shadow_strength", status: "Shadow contribution amount. Typical range: 0..1." },
-            SettingNavEntry { key: "shadow_resolution", status: "Shadow-map resolution in pixels." },
-            SettingNavEntry { key: "shadow_bias", status: "Shadow depth bias used to reduce acne / peter-panning." },
-            SettingNavEntry { key: "fade_mode", status: "Visibility fade style. Values: \"ordered_dither\", \"uniform\"." },
-            SettingNavEntry { key: "lighting_model", status: "3D lighting model. Values: \"lambert\", \"cook_torrance\", \"pbr\"." },
-            SettingNavEntry { key: "avatar_highlight_enabled", status: "Enable avatar readability boost in Raster 3D. Values: true, false." },
-            SettingNavEntry { key: "avatar_highlight_lift", status: "Avatar lit-color lift multiplier. 1.0 leaves lighting unchanged." },
-            SettingNavEntry { key: "avatar_highlight_fill", status: "Extra ambient fill added to avatars." },
-            SettingNavEntry { key: "avatar_highlight_rim", status: "Rim-light contribution for avatar silhouettes." },
-            SettingNavEntry { key: "bump_strength", status: "Normal-map / bump detail strength. Typical range: 0..1." },
-            SettingNavEntry { key: "msaa_samples", status: "Raster 3D MSAA sample count. Common values: 0, 4." },
-            SettingNavEntry { key: "firstp_blur_near", status: "Distance where first-person texture blur starts." },
-            SettingNavEntry { key: "firstp_blur_far", status: "Distance where first-person texture blur is fully applied." },
+            SettingNavEntry {
+                key: "sky_color",
+                status: "Static sky color used when simulation is disabled.",
+            },
+            SettingNavEntry {
+                key: "sun_color",
+                status: "Static sun color used when simulation is disabled.",
+            },
+            SettingNavEntry {
+                key: "sun_intensity",
+                status: "Sun brightness multiplier.",
+            },
+            SettingNavEntry {
+                key: "sun_direction",
+                status: "Static sun direction vector [x, y, z].",
+            },
+            SettingNavEntry {
+                key: "sun_enabled",
+                status: "Enable or disable directional sun lighting. Values: true, false.",
+            },
+            SettingNavEntry {
+                key: "ambient_color",
+                status: "Ambient light RGB color.",
+            },
+            SettingNavEntry {
+                key: "ambient_strength",
+                status: "Ambient light strength. Typical range: 0..1.",
+            },
+            SettingNavEntry {
+                key: "fog_color",
+                status: "Fog RGB tint.",
+            },
+            SettingNavEntry {
+                key: "fog_density",
+                status: "Fog density. 0 disables fog.",
+            },
+            SettingNavEntry {
+                key: "shadow_enabled",
+                status: "Enable or disable sun shadow-map rendering. Values: true, false.",
+            },
+            SettingNavEntry {
+                key: "shadow_strength",
+                status: "Shadow contribution amount. Typical range: 0..1.",
+            },
+            SettingNavEntry {
+                key: "shadow_resolution",
+                status: "Shadow-map resolution in pixels.",
+            },
+            SettingNavEntry {
+                key: "shadow_bias",
+                status: "Shadow depth bias used to reduce acne / peter-panning.",
+            },
+            SettingNavEntry {
+                key: "fade_mode",
+                status: "Visibility fade style. Values: \"ordered_dither\", \"uniform\".",
+            },
+            SettingNavEntry {
+                key: "lighting_model",
+                status: "3D lighting model. Values: \"lambert\", \"cook_torrance\", \"pbr\".",
+            },
+            SettingNavEntry {
+                key: "avatar_highlight_enabled",
+                status: "Enable avatar readability boost in Raster 3D. Values: true, false.",
+            },
+            SettingNavEntry {
+                key: "avatar_highlight_lift",
+                status: "Avatar lit-color lift multiplier. 1.0 leaves lighting unchanged.",
+            },
+            SettingNavEntry {
+                key: "avatar_highlight_fill",
+                status: "Extra ambient fill added to avatars.",
+            },
+            SettingNavEntry {
+                key: "avatar_highlight_rim",
+                status: "Rim-light contribution for avatar silhouettes.",
+            },
+            SettingNavEntry {
+                key: "bump_strength",
+                status: "Normal-map / bump detail strength. Typical range: 0..1.",
+            },
+            SettingNavEntry {
+                key: "msaa_samples",
+                status: "Raster 3D MSAA sample count. Common values: 0, 4.",
+            },
+            SettingNavEntry {
+                key: "firstp_blur_near",
+                status: "Distance where first-person texture blur starts.",
+            },
+            SettingNavEntry {
+                key: "firstp_blur_far",
+                status: "Distance where first-person texture blur is fully applied.",
+            },
         ],
     },
     SettingNavSection {
         table: "post",
         entries: &[
-            SettingNavEntry { key: "enabled", status: "Enable or disable the final post-processing pass. Values: true, false." },
-            SettingNavEntry { key: "tone_mapper", status: "Tone mapper. Values: \"none\", \"reinhard\", \"aces\"." },
-            SettingNavEntry { key: "exposure", status: "Exposure multiplier before tone mapping." },
-            SettingNavEntry { key: "saturation", status: "Post saturation multiplier. 0 = grayscale, 1 = unchanged." },
-            SettingNavEntry { key: "luminance", status: "Overall post brightness multiplier." },
-            SettingNavEntry { key: "gamma", status: "Final output gamma value." },
+            SettingNavEntry {
+                key: "enabled",
+                status: "Enable or disable the final post-processing pass. Values: true, false.",
+            },
+            SettingNavEntry {
+                key: "tone_mapper",
+                status: "Tone mapper. Values: \"none\", \"reinhard\", \"aces\".",
+            },
+            SettingNavEntry {
+                key: "exposure",
+                status: "Exposure multiplier before tone mapping.",
+            },
+            SettingNavEntry {
+                key: "saturation",
+                status: "Post saturation multiplier. 0 = grayscale, 1 = unchanged.",
+            },
+            SettingNavEntry {
+                key: "luminance",
+                status: "Overall post brightness multiplier.",
+            },
+            SettingNavEntry {
+                key: "gamma",
+                status: "Final output gamma value.",
+            },
         ],
     },
     SettingNavSection {
         table: "simulation",
         entries: &[
-            SettingNavEntry { key: "enabled", status: "Enable procedural daylight simulation. Values: true, false." },
-            SettingNavEntry { key: "night_sky_color", status: "Sky color used at night." },
-            SettingNavEntry { key: "morning_sky_color", status: "Sky color used during sunrise transition." },
-            SettingNavEntry { key: "midday_sky_color", status: "Sky color used around noon." },
-            SettingNavEntry { key: "evening_sky_color", status: "Sky color used during sunset." },
-            SettingNavEntry { key: "night_sun_color", status: "Sun or moon color used at night." },
-            SettingNavEntry { key: "morning_sun_color", status: "Sun color used during sunrise." },
-            SettingNavEntry { key: "midday_sun_color", status: "Sun color used at midday." },
-            SettingNavEntry { key: "evening_sun_color", status: "Sun color used during sunset." },
-            SettingNavEntry { key: "sunrise_time", status: "Sunrise start time in 24-hour decimal format, for example 6.5 = 06:30." },
-            SettingNavEntry { key: "sunset_time", status: "Sunset start time in 24-hour decimal format, for example 18.5 = 18:30." },
-            SettingNavEntry { key: "color_transition_duration_hours", status: "Blend duration of sunrise/sunset transitions in in-game hours." },
+            SettingNavEntry {
+                key: "enabled",
+                status: "Enable procedural daylight simulation. Values: true, false.",
+            },
+            SettingNavEntry {
+                key: "night_sky_color",
+                status: "Sky color used at night.",
+            },
+            SettingNavEntry {
+                key: "morning_sky_color",
+                status: "Sky color used during sunrise transition.",
+            },
+            SettingNavEntry {
+                key: "midday_sky_color",
+                status: "Sky color used around noon.",
+            },
+            SettingNavEntry {
+                key: "evening_sky_color",
+                status: "Sky color used during sunset.",
+            },
+            SettingNavEntry {
+                key: "night_sun_color",
+                status: "Sun or moon color used at night.",
+            },
+            SettingNavEntry {
+                key: "morning_sun_color",
+                status: "Sun color used during sunrise.",
+            },
+            SettingNavEntry {
+                key: "midday_sun_color",
+                status: "Sun color used at midday.",
+            },
+            SettingNavEntry {
+                key: "evening_sun_color",
+                status: "Sun color used during sunset.",
+            },
+            SettingNavEntry {
+                key: "sunrise_time",
+                status: "Sunrise start time in 24-hour decimal format, for example 6.5 = 06:30.",
+            },
+            SettingNavEntry {
+                key: "sunset_time",
+                status: "Sunset start time in 24-hour decimal format, for example 18.5 = 18:30.",
+            },
+            SettingNavEntry {
+                key: "color_transition_duration_hours",
+                status: "Blend duration of sunrise/sunset transitions in in-game hours.",
+            },
         ],
     },
 ];
@@ -709,12 +946,7 @@ impl Dock for DataDock {
 }
 
 impl DataDock {
-    fn sync_settings_navigation(
-        &mut self,
-        ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        active: bool,
-    ) {
+    fn sync_settings_navigation(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, active: bool) {
         let Some(tree) = ui.get_tree_layout(SETTINGS_NAV_LAYOUT_ID) else {
             return;
         };
@@ -754,7 +986,6 @@ impl DataDock {
 
             root.add_child(node);
         }
-
     }
 
     fn goto_settings_entry(&self, ui: &mut TheUI, section: &str, key: &str) {

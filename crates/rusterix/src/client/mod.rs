@@ -6,14 +6,14 @@ pub mod parser;
 pub mod resolver;
 pub mod widget;
 
-use scenevm::GeoId;
 use instant::{Duration, Instant};
+use scenevm::GeoId;
 use std::str::FromStr;
 
 use crate::prelude::*;
 use crate::{
-    BrushPreview, Command, D2ConceptBuilder, D2PreviewBuilder, EntityAction, MapMini,
-    PlayerCamera, Rect, SceneHandler, Surface, Value,
+    BrushPreview, Command, D2ConceptBuilder, D2PreviewBuilder, EntityAction, MapMini, PlayerCamera,
+    Rect, SceneHandler, Surface, Value,
     client::action::ClientAction,
     client::widget::{
         Widget, avatar::AvatarWidget, deco::DecoWidget, game::GameWidget, messages::MessagesWidget,
@@ -85,14 +85,12 @@ pub(crate) fn apply_2d_visibility_mask(
                     pixels[idx] = ((pixels[idx] as f32 * (1.0 - visibility_alpha_2d))
                         + (fill[0] as f32 * visibility_alpha_2d))
                         .round() as u8;
-                    pixels[idx + 1] =
-                        ((pixels[idx + 1] as f32 * (1.0 - visibility_alpha_2d))
-                            + (fill[1] as f32 * visibility_alpha_2d))
-                            .round() as u8;
-                    pixels[idx + 2] =
-                        ((pixels[idx + 2] as f32 * (1.0 - visibility_alpha_2d))
-                            + (fill[2] as f32 * visibility_alpha_2d))
-                            .round() as u8;
+                    pixels[idx + 1] = ((pixels[idx + 1] as f32 * (1.0 - visibility_alpha_2d))
+                        + (fill[1] as f32 * visibility_alpha_2d))
+                        .round() as u8;
+                    pixels[idx + 2] = ((pixels[idx + 2] as f32 * (1.0 - visibility_alpha_2d))
+                        + (fill[2] as f32 * visibility_alpha_2d))
+                        .round() as u8;
                 }
             }
         }
@@ -901,9 +899,10 @@ impl Client {
             .vm
             .render_frame(pixels, width as u32, height as u32);
 
-        let bg = scene_handler.settings.background_color_2d.map(|v| {
-            (v.clamp(0.0, 1.0) * 255.0).round() as u8
-        });
+        let bg = scene_handler
+            .settings
+            .background_color_2d
+            .map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8);
         apply_2d_visibility_mask(
             pixels,
             width,
@@ -1325,7 +1324,10 @@ impl Client {
             self.current_sector = leader
                 .get_attr_string("sector")
                 .filter(|s| !s.is_empty())
-                .or_else(|| map.find_sector_at(leader.get_pos_xz()).map(|s| s.name.clone()))
+                .or_else(|| {
+                    map.find_sector_at(leader.get_pos_xz())
+                        .map(|s| s.name.clone())
+                })
                 .unwrap_or_default();
         }
 
@@ -1698,8 +1700,7 @@ impl Client {
         buffer: &mut TheRGBABuffer,
         background_color: [u8; 4],
         widgets: I,
-    )
-    where
+    ) where
         I: IntoIterator<Item = &'a GameWidget>,
     {
         let bw = buffer.dim().width.max(0) as usize;
@@ -1802,7 +1803,10 @@ impl Client {
             self.current_sector = leader
                 .get_attr_string("sector")
                 .filter(|s| !s.is_empty())
-                .or_else(|| map.find_sector_at(leader.get_pos_xz()).map(|s| s.name.clone()))
+                .or_else(|| {
+                    map.find_sector_at(leader.get_pos_xz())
+                        .map(|s| s.name.clone())
+                })
                 .unwrap_or_default();
         }
 
@@ -2187,8 +2191,7 @@ impl Client {
 
     fn has_drag_drop_targets(&self) -> bool {
         self.button_widgets.values().any(|widget| {
-            widget.drag_drop
-                && (widget.inventory_index.is_some() || widget.equipped_slot.is_some())
+            widget.drag_drop && (widget.inventory_index.is_some() || widget.equipped_slot.is_some())
         })
     }
 
@@ -2215,13 +2218,10 @@ impl Client {
 
         members.sort_by_key(|entity| {
             (
-                entity.attributes.get_int("party_index").unwrap_or_else(|| {
-                    if entity.is_player() {
-                        0
-                    } else {
-                        i32::MAX / 2
-                    }
-                }),
+                entity
+                    .attributes
+                    .get_int("party_index")
+                    .unwrap_or_else(|| if entity.is_player() { 0 } else { i32::MAX / 2 }),
                 entity.id,
             )
         });
@@ -2300,12 +2300,7 @@ impl Client {
 
     fn active_intent_cursor_ids(
         &self,
-    ) -> Option<(
-        Option<Uuid>,
-        Option<Uuid>,
-        Option<Uuid>,
-        Option<Uuid>,
-    )> {
+    ) -> Option<(Option<Uuid>, Option<Uuid>, Option<Uuid>, Option<Uuid>)> {
         self.activated_widgets.iter().rev().find_map(|button_id| {
             self.button_widgets.get(button_id).and_then(|widget| {
                 widget
@@ -2325,8 +2320,12 @@ impl Client {
     }
 
     fn apply_active_intent_cursor(&mut self, entity_target: bool, item_target: bool) {
-        let Some((entity_cursor_id, entity_clicked_cursor_id, item_cursor_id, item_clicked_cursor_id)) =
-            self.active_intent_cursor_ids()
+        let Some((
+            entity_cursor_id,
+            entity_clicked_cursor_id,
+            item_cursor_id,
+            item_clicked_cursor_id,
+        )) = self.active_intent_cursor_ids()
         else {
             return;
         };
@@ -2515,19 +2514,22 @@ impl Client {
 
                     if let Some(entity) = map.entities.iter().find(|entity| {
                         Self::quantize_2d_tile_pos(entity.get_pos_xz()) == tile_pos
-                            && entity.attributes.get_str_default("mode", "active".into())
-                                != "dead"
+                            && entity.attributes.get_str_default("mode", "active".into()) != "dead"
                     }) {
                         self.hovered_entity_id = Some(entity.id);
                         pending_cursor_target = Some((true, false));
-                    } else if let Some(item) = map.items.iter().find(|item| {
-                        Self::quantize_2d_tile_pos(item.get_pos_xz()) == tile_pos
-                    }) {
+                    } else if let Some(item) = map
+                        .items
+                        .iter()
+                        .find(|item| Self::quantize_2d_tile_pos(item.get_pos_xz()) == tile_pos)
+                    {
                         self.hovered_item_id = Some(item.id);
                         pending_cursor_target = Some((false, true));
-                    } else if let Some(entity) = map.entities.iter().find(|entity| {
-                        Self::quantize_2d_tile_pos(entity.get_pos_xz()) == tile_pos
-                    }) {
+                    } else if let Some(entity) = map
+                        .entities
+                        .iter()
+                        .find(|entity| Self::quantize_2d_tile_pos(entity.get_pos_xz()) == tile_pos)
+                    {
                         self.hovered_entity_id = Some(entity.id);
                         pending_cursor_target = Some((true, false));
                     }
@@ -2644,9 +2646,7 @@ impl Client {
                 self.activated_widgets.push(*id);
 
                 if widget.drag_drop {
-                    if let Some(entity) =
-                        Self::resolve_party_entity(map, widget.party.as_deref())
-                    {
+                    if let Some(entity) = Self::resolve_party_entity(map, widget.party.as_deref()) {
                         if let Some(inventory_index) = &widget.inventory_index
                             && let Some(item) = entity
                                 .inventory
@@ -2792,10 +2792,9 @@ impl Client {
                         // When drag-drop targets exist, prefer starting an item drag before
                         // the broader entity click path consumes the cell.
                         if self.has_drag_drop_targets()
-                            && let Some(item) =
-                                map.items.iter().find(|item| {
-                                    tile_pos == Self::quantize_2d_tile_pos(item.get_pos_xz())
-                                })
+                            && let Some(item) = map.items.iter().find(|item| {
+                                tile_pos == Self::quantize_2d_tile_pos(item.get_pos_xz())
+                            })
                         {
                             self.dragging_item_id = Some(item.id);
                             self.dragging_item_owner_entity_id = None;
@@ -2972,7 +2971,8 @@ impl Client {
                     if let Some(c) = v.chars().next() {
                         if let Some(choice) = choice_map.get(&c) {
                             let choice = if self.choice_expired(choice) {
-                                let (from, to, expires_at_tick, max_distance) = choice.session_meta();
+                                let (from, to, expires_at_tick, max_distance) =
+                                    choice.session_meta();
                                 Choice::Cancel(from, to, expires_at_tick, max_distance)
                             } else {
                                 choice.clone()
@@ -3362,8 +3362,7 @@ impl Client {
                                     camera_target = Some(v.to_string());
                                 }
 
-                                if let Some(value) = ui.get("party").and_then(toml::Value::as_str)
-                                {
+                                if let Some(value) = ui.get("party").and_then(toml::Value::as_str) {
                                     let binding = value.trim();
                                     if !binding.is_empty() {
                                         party = Some(binding.to_string());
@@ -3521,7 +3520,6 @@ impl Client {
                 }
             }
         }
-
     }
 
     /// Returns true if the game camera is 2D

@@ -366,7 +366,7 @@ impl Default for RenderSettings {
             background_color_2d: [0.0, 0.0, 0.0, 1.0],
             visibility_range_2d: 0.0,
             visibility_alpha_2d: 0.82,
-            sun_color: [1.0, 0.980, 0.804],   // #FFFACD
+            sun_color: [1.0, 0.980, 0.804], // #FFFACD
             sun_intensity: 1.0,
             sun_direction: [-0.5, -1.0, -0.3],
             sun_enabled: true,
@@ -1077,9 +1077,7 @@ impl RenderSettings {
             SettingKey::ShadowBias => SettingValue::Float(self.raster_shadow_bias),
             SettingKey::FadeMode => SettingValue::FadeMode(self.fade_mode),
             SettingKey::LightingModel => SettingValue::LightingModel(self.lighting_model),
-            SettingKey::AvatarHighlightEnabled => {
-                SettingValue::Bool(self.avatar_highlight_enabled)
-            }
+            SettingKey::AvatarHighlightEnabled => SettingValue::Bool(self.avatar_highlight_enabled),
             SettingKey::AvatarHighlightLift => SettingValue::Float(self.avatar_highlight_lift),
             SettingKey::AvatarHighlightFill => SettingValue::Float(self.avatar_highlight_fill),
             SettingKey::AvatarHighlightRim => SettingValue::Float(self.avatar_highlight_rim),
@@ -1540,8 +1538,10 @@ impl RenderSettings {
             render.get_float_default("avatar_highlight_rim", self.avatar_highlight_rim);
         self.avatar_shading_enabled =
             render.get_bool_default("avatar_shading_enabled", self.avatar_shading_enabled);
-        self.avatar_skin_shading_enabled = render
-            .get_bool_default("avatar_skin_shading_enabled", self.avatar_skin_shading_enabled);
+        self.avatar_skin_shading_enabled = render.get_bool_default(
+            "avatar_skin_shading_enabled",
+            self.avatar_skin_shading_enabled,
+        );
         self.frame_time_ms = render.get_float_default("ms_per_frame", self.frame_time_ms);
         if let Some(fps) = render.get_float("fps") {
             if fps > 0.0 {

@@ -953,14 +953,16 @@ impl AvatarRuntimeBuilder {
             .map(|entry| (key.clone(), entry.0, entry.1.clone()))
             .or_else(|| {
                 fallback_key.as_ref().and_then(|last| {
-                    cache.frames
+                    cache
+                        .frames
                         .get(last)
                         .map(|entry| (last.clone(), entry.0, entry.1.clone()))
                 })
             })
             .or_else(|| {
                 let zero_key = (anim_name.to_string(), persp_dir, 0);
-                cache.frames
+                cache
+                    .frames
                     .get(&zero_key)
                     .map(|entry| (zero_key, entry.0, entry.1.clone()))
             })

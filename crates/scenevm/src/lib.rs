@@ -53,8 +53,7 @@ pub mod prelude {
         camera3d::{Camera3D, CameraKind},
         chunk::Chunk,
         core::{
-            Atom, GeoId, LayerBlendMode, LineStrip2D, PaletteRemap2DMode, RenderMode,
-            VMDebugStats,
+            Atom, GeoId, LayerBlendMode, LineStrip2D, PaletteRemap2DMode, RenderMode, VMDebugStats,
         },
         dynamic::{AlphaMode, DynamicKind, DynamicMeshVertex, DynamicObject, RepeatMode},
         intodata::IntoDataInput,

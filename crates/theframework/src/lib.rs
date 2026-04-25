@@ -9,9 +9,9 @@ pub mod thergbabuffer;
 pub mod thetime;
 pub mod thetrait;
 #[cfg(any(feature = "winit_app", feature = "winit_app_softbuffer"))]
-mod thewinitbackend;
-#[cfg(any(feature = "winit_app", feature = "winit_app_softbuffer"))]
 pub mod thewinitapp;
+#[cfg(any(feature = "winit_app", feature = "winit_app_softbuffer"))]
+mod thewinitbackend;
 
 #[cfg(feature = "ui")]
 pub mod theui;

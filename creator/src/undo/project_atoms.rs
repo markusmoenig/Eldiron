@@ -1,5 +1,5 @@
-use crate::prelude::*;
 use crate::editor::{DOCKMANAGER, SCENEMANAGER, TOOLLIST};
+use crate::prelude::*;
 use crate::tools::organic::OrganicTool;
 use shared::project::PaletteMaterial;
 use theframework::prelude::*;
@@ -79,13 +79,10 @@ impl ProjectUndoAtom {
             OrganicTool::sync_render_active_to_vm(map);
         }
         if !preserved_dock.is_empty() && DOCKMANAGER.read().unwrap().dock != preserved_dock {
-            DOCKMANAGER.write().unwrap().set_dock(
-                preserved_dock,
-                ui,
-                ctx,
-                project,
-                server_ctx,
-            );
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock(preserved_dock, ui, ctx, project, server_ctx);
         }
         TOOLLIST
             .write()

@@ -90,8 +90,7 @@ impl Dock for CodeDock {
                     );
                     self.switch_to_entity(EntityKey::Region(region_id), ctx);
                 }
-            } else
-            if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
+            } else if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
                 if let Some(region) = project.get_region(&region_id)
                     && let Some(character_instance) = region.characters.get(&instance_id)
                 {
@@ -181,8 +180,8 @@ impl Dock for CodeDock {
                                 region.source_debug = code;
                                 redraw = true;
                             }
-                        } else
-                        if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id()
+                        } else if let Some(instance_id) =
+                            server_ctx.pc.get_region_character_instance_id()
                         {
                             if let Some(code) = value.to_string()
                                 && let Some(region) = project.get_region_mut(&id)

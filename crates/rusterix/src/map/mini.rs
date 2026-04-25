@@ -330,12 +330,9 @@ impl MapMini {
 
         for linedef in self.linedefs.iter().chain(self.dynamic_linedefs.iter()) {
             let coll_radius = radius + linedef.wall_width / 2.0;
-            if let Some((dist, _normal)) = self.check_point_against_segment(
-                position,
-                linedef.start,
-                linedef.end,
-                coll_radius,
-            ) {
+            if let Some((dist, _normal)) =
+                self.check_point_against_segment(position, linedef.start, linedef.end, coll_radius)
+            {
                 let penetration = coll_radius - dist;
                 if penetration > 0.0 {
                     return false;

@@ -64,8 +64,7 @@ impl Dock for VisualCodeDock {
                     self.module.redraw(ui, ctx);
                     self.switch_to_entity(EntityKey::Region(id), ctx);
                 }
-            } else
-            if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
+            } else if let Some(instance_id) = server_ctx.pc.get_region_character_instance_id() {
                 if let Some(region) = project.get_region(&id) {
                     if let Some(character_instance) = region.characters.get(&instance_id) {
                         self.module = character_instance.module.clone();

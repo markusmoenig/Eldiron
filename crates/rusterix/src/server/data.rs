@@ -79,7 +79,9 @@ fn parse_entity_sequences_from_toml(map: &Table) -> IndexMap<String, EntitySeque
         let Some(sequence_table) = value.as_table() else {
             continue;
         };
-        let Some(step_values) = sequence_table.get("steps").and_then(|value| value.as_array())
+        let Some(step_values) = sequence_table
+            .get("steps")
+            .and_then(|value| value.as_array())
         else {
             continue;
         };

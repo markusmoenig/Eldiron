@@ -86,8 +86,7 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
     item.set_text(fl!("visual_script"));
     node.add_widget(Box::new(item));
 
-    let mut item =
-        TheTreeItem::new(TheId::named_with_reference("Region Code Item", region.id));
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Region Code Item", region.id));
     item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
     item.set_text(fl!("eldrin_scripting"));
     node.add_widget(Box::new(item));
@@ -778,10 +777,13 @@ pub fn set_project_context(
                     TheValue::Text(format!("Region Visual Scripting: {}", region.name)),
                 );
             }
-            DOCKMANAGER
-                .write()
-                .unwrap()
-                .set_dock("Visual Code".into(), ui, ctx, project, server_ctx);
+            DOCKMANAGER.write().unwrap().set_dock(
+                "Visual Code".into(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
         ProjectContext::RegionCode(id) => {
             if let Some(region) = project.get_region(&id) {
@@ -1078,10 +1080,13 @@ pub fn set_project_context(
                 ctx,
                 TheValue::Text("World Visual Scripting".into()),
             );
-            DOCKMANAGER
-                .write()
-                .unwrap()
-                .set_dock("Visual Code".into(), ui, ctx, project, server_ctx);
+            DOCKMANAGER.write().unwrap().set_dock(
+                "Visual Code".into(),
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
         }
         ProjectContext::WorldCode => {
             ui.set_widget_value(

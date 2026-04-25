@@ -130,16 +130,17 @@ fn remap_texture_floyd_steinberg(tex: &mut rusterix::Texture, palette: &ThePalet
     for y in 0..height {
         for x in 0..width {
             let col = tex.get_pixel(x as u32, y as u32);
-            work[y * width + x] = [
-                col[0] as f32,
-                col[1] as f32,
-                col[2] as f32,
-                col[3] as f32,
-            ];
+            work[y * width + x] = [col[0] as f32, col[1] as f32, col[2] as f32, col[3] as f32];
         }
     }
 
-    let diffuse = |work: &mut [[f32; 4]], x: usize, y: usize, dx: isize, dy: isize, err: [f32; 3], factor: f32| {
+    let diffuse = |work: &mut [[f32; 4]],
+                   x: usize,
+                   y: usize,
+                   dx: isize,
+                   dy: isize,
+                   err: [f32; 3],
+                   factor: f32| {
         let nx = x as isize + dx;
         let ny = y as isize + dy;
         if nx < 0 || ny < 0 || nx >= width as isize || ny >= height as isize {
@@ -168,7 +169,11 @@ fn remap_texture_floyd_steinberg(tex: &mut rusterix::Texture, palette: &ThePalet
             ];
 
             if let Some(mapped) = nearest_palette_color_u8(palette, source) {
-                tex.set_pixel(x as u32, y as u32, [mapped[0], mapped[1], mapped[2], source[3]]);
+                tex.set_pixel(
+                    x as u32,
+                    y as u32,
+                    [mapped[0], mapped[1], mapped[2], source[3]],
+                );
                 let err = [
                     source[0] as f32 - mapped[0] as f32,
                     source[1] as f32 - mapped[1] as f32,
@@ -306,7 +311,8 @@ impl Action for RemapTile {
         server_ctx: &mut ServerContext,
     ) {
         let remap_all = self.nodeui.get_bool_value(REMAP_ALL_ID).unwrap_or(false);
-        let remap_mode = RemapMode::from_index(self.nodeui.get_i32_value(REMAP_MODE_ID).unwrap_or(0));
+        let remap_mode =
+            RemapMode::from_index(self.nodeui.get_i32_value(REMAP_MODE_ID).unwrap_or(0));
         let range_text = self
             .nodeui
             .get_text_value(REMAP_RANGE_ID)

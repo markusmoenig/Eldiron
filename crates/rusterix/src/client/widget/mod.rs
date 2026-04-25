@@ -112,9 +112,9 @@ impl Widget {
         let item_to_draw = if let Some(inventory_index) = &self.inventory_index {
             entity.and_then(|entity| {
                 entity
-                .inventory
-                .get(*inventory_index)
-                .and_then(|item| item.as_ref())
+                    .inventory
+                    .get(*inventory_index)
+                    .and_then(|item| item.as_ref())
             })
         } else if let Some(slot) = &self.equipped_slot {
             entity.and_then(|entity| entity.get_equipped_item(slot))

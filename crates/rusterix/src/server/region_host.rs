@@ -1,14 +1,13 @@
 use crate::server::message::{AudioCommand, RegionMessage};
 use crate::server::region::{
-    add_debug_value, apply_damage_direct, apply_damage_rules, apply_spell_default_attrs,
-    grant_experience, is_spell_on_cooldown, progression_stat_value, set_spell_cooldown,
-    RegionInstance,
+    RegionInstance, add_debug_value, apply_damage_direct, apply_damage_rules,
+    apply_spell_default_attrs, grant_experience, is_spell_on_cooldown, progression_stat_value,
+    set_spell_cooldown,
 };
 use crate::server::regionctx::ChoiceSession;
 use crate::vm::*;
 use crate::{
-    Choice, EntityAction, Item, Map, MultipleChoice, PlayerCamera, RegionCtx, Value,
-    ValueContainer,
+    Choice, EntityAction, Item, Map, MultipleChoice, PlayerCamera, RegionCtx, Value, ValueContainer,
 };
 use rand::Rng;
 use scenevm::{GeoId, PaletteRemap2DMode};
@@ -390,9 +389,10 @@ impl<'a> RegionHost<'a> {
                 };
                 let _ = match root {
                     "world" => sender.send(RegionMessage::SetWorldPaletteRemap2DBlend(blend)),
-                    "region" => {
-                        sender.send(RegionMessage::SetPaletteRemap2DBlend(self.ctx.region_id, blend))
-                    }
+                    "region" => sender.send(RegionMessage::SetPaletteRemap2DBlend(
+                        self.ctx.region_id,
+                        blend,
+                    )),
                     _ => Ok(()),
                 };
             }
@@ -1072,7 +1072,9 @@ impl<'a> HostHandler for RegionHost<'a> {
                 return self.debug_return(VMValue::zero());
             }
             "set_context_var" => {
-                if let (Some(path), Some(value)) = (args.first().and_then(|v| v.as_string()), args.get(1)) {
+                if let (Some(path), Some(value)) =
+                    (args.first().and_then(|v| v.as_string()), args.get(1))
+                {
                     let existing = self.get_context_value(path);
                     self.set_context_value(path, value.to_value_with_hint(existing.as_ref()));
                 }
@@ -1964,10 +1966,8 @@ impl<'a> HostHandler for RegionHost<'a> {
                     let region_id = self.ctx.region_id;
                     let now_ticks = self.ctx.ticks;
                     let ticks_per_minute = self.ctx.ticks_per_minute;
-                    let Some((entity_id, matching_item_ids, expires_at_tick, max_distance)) = self
-                        .ctx
-                        .get_current_entity_mut()
-                        .map(|entity| {
+                    let Some((entity_id, matching_item_ids, expires_at_tick, max_distance)) =
+                        self.ctx.get_current_entity_mut().map(|entity| {
                             let matching_item_ids: Vec<u32> = entity
                                 .iter_inventory()
                                 .filter_map(|(_, item)| {
@@ -1986,17 +1986,14 @@ impl<'a> HostHandler for RegionHost<'a> {
                                 })
                                 .collect();
 
-                            let timeout_minutes =
-                                entity.attributes.get_float_default("timeout", 10.0).max(0.0);
+                            let timeout_minutes = entity
+                                .attributes
+                                .get_float_default("timeout", 10.0)
+                                .max(0.0);
                             let expires_at_tick =
                                 now_ticks + (ticks_per_minute as f32 * timeout_minutes) as i64;
                             let max_distance = 2.0;
-                            (
-                                entity.id,
-                                matching_item_ids,
-                                expires_at_tick,
-                                max_distance,
-                            )
+                            (entity.id, matching_item_ids, expires_at_tick, max_distance)
                         })
                     else {
                         return None;
@@ -2224,11 +2221,15 @@ impl<'a> HostHandler for RegionHost<'a> {
                     if let Some(coord) = coord {
                         if let Some(entity) = self.ctx.get_current_entity_mut() {
                             let position = entity.get_pos_xz();
-                            let start_center = crate::server::region::RegionInstance::snapped_grid_center(position);
-                            let target_center = crate::server::region::RegionInstance::snapped_grid_center(coord);
-                            let grid_aligned =
-                                (position - start_center).magnitude_squared() <= 0.001
-                                    && (coord - target_center).magnitude_squared() <= 0.001;
+                            let start_center =
+                                crate::server::region::RegionInstance::snapped_grid_center(
+                                    position,
+                                );
+                            let target_center =
+                                crate::server::region::RegionInstance::snapped_grid_center(coord);
+                            let grid_aligned = (position - start_center).magnitude_squared()
+                                <= 0.001
+                                && (coord - target_center).magnitude_squared() <= 0.001;
                             if grid_aligned {
                                 entity.action = EntityAction::GotoGrid(coord, speed);
                             } else {
@@ -2250,12 +2251,11 @@ impl<'a> HostHandler for RegionHost<'a> {
                 {
                     let sequence_name = name.trim();
                     if entity.sequences.contains_key(sequence_name) {
-                        entity.active_sequence =
-                            Some(crate::server::entity::EntitySequenceState {
-                                name: sequence_name.to_string(),
-                                step_index: 0,
-                                wait_until_tick: None,
-                            });
+                        entity.active_sequence = Some(crate::server::entity::EntitySequenceState {
+                            name: sequence_name.to_string(),
+                            step_index: 0,
+                            wait_until_tick: None,
+                        });
                         entity.paused_sequence = None;
                         entity.action = EntityAction::Off;
                     } else if self.ctx.debug_mode {
@@ -2342,7 +2342,8 @@ impl<'a> HostHandler for RegionHost<'a> {
                     };
                     entity.set_attribute("target", Value::UInt(target_id));
                     entity.set_attribute("attack_target", Value::UInt(target_id));
-                    entity.action = EntityAction::FollowAttack(target_id, speed.x, next_attack_tick);
+                    entity.action =
+                        EntityAction::FollowAttack(target_id, speed.x, next_attack_tick);
                 }
             }
             "debug" => {

@@ -4,11 +4,11 @@ use std::{
     str::FromStr,
 };
 
+use crate::server::message::RuntimeRenderState;
 use crate::{
     Assets, AvatarDirection, AvatarShadingOptions, BillboardAnimation, BillboardMetadata, D3Camera,
-    Item, Map, ParticleEmitter, PixelSource, RenderSettings, Texture, Tile, Value,
-    ValueTomlLoader, avatar_builder::AvatarRuntimeBuilder,
-    chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
+    Item, Map, ParticleEmitter, PixelSource, RenderSettings, Texture, Tile, Value, ValueTomlLoader,
+    avatar_builder::AvatarRuntimeBuilder, chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
 };
 use buildergraph::{BuilderDocument, BuilderOutputTarget, BuilderPrimitive};
 use indexmap::IndexMap;
@@ -16,7 +16,6 @@ use rust_embed::EmbeddedFile;
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, Chunk, DynamicMeshVertex, DynamicObject, GeoId, Light, SceneVM};
 use theframework::prelude::*;
-use crate::server::message::RuntimeRenderState;
 
 /// Tracks per-billboard animation state so we can interpolate on visibility changes.
 #[derive(Default)]
@@ -268,8 +267,12 @@ impl SceneHandler {
     }
 
     pub fn apply_runtime_render_state_settings(&mut self) {
-        let _ = self.settings.apply_render_values(&self.runtime_render_state.render);
-        let _ = self.settings.apply_post_values(&self.runtime_render_state.post);
+        let _ = self
+            .settings
+            .apply_render_values(&self.runtime_render_state.render);
+        let _ = self
+            .settings
+            .apply_post_values(&self.runtime_render_state.post);
     }
 
     pub fn apply_runtime_render_state_2d(&mut self) {
@@ -380,9 +383,15 @@ impl SceneHandler {
             return render_toml.to_string();
         }
 
-        if map.properties.get("dungeon_render_transition_seconds").is_some()
+        if map
+            .properties
+            .get("dungeon_render_transition_seconds")
+            .is_some()
             || map.properties.get("dungeon_render_sun_enabled").is_some()
-            || map.properties.get("dungeon_render_shadow_enabled").is_some()
+            || map
+                .properties
+                .get("dungeon_render_shadow_enabled")
+                .is_some()
             || map.properties.get("dungeon_render_fog_density").is_some()
             || map.properties.get("dungeon_render_fog_color").is_some()
         {

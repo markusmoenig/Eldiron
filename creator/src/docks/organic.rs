@@ -16,6 +16,7 @@ const ORGANIC_BRUSH_SIZE: &str = "organicBrushSize";
 const ORGANIC_BORDER_SIZE: &str = "organicBrushBorderSize";
 const ORGANIC_NOISE_AMOUNT: &str = "organicBrushNoiseAmount";
 const ORGANIC_OPACITY: &str = "organicBrushOpacity";
+const ORGANIC_PAINT_MODE: &str = "organicBrushPaintMode";
 
 const ORGANIC_PRESET_VIEW_MOSS: &str = "organicBrushPresetMoss";
 const ORGANIC_PRESET_VIEW_MUD: &str = "organicBrushPresetMud";
@@ -46,6 +47,7 @@ const PROP_PALETTE_2: &str = "organic_brush_palette_2";
 const PROP_PALETTE_3: &str = "organic_brush_palette_3";
 const PROP_BORDER_SIZE: &str = "organic_brush_border_size";
 const PROP_OPACITY: &str = "organic_brush_opacity";
+const PROP_PAINT_MODE: &str = "organic_brush_paint_mode";
 const PROP_RENDER_ACTIVE: &str = "organic_render_active";
 const PROP_LOCK_MODE: &str = "organic_paint_lock_mode";
 
@@ -113,7 +115,6 @@ impl OrganicPreset {
             _ => None,
         }
     }
-
 }
 
 #[derive(Clone, Copy)]
@@ -124,6 +125,7 @@ struct BrushPreviewStyle {
     border_size: f32,
     noise_amount: f32,
     opacity: f32,
+    paint_mode: i32,
 }
 
 pub struct OrganicDock;
@@ -182,7 +184,10 @@ impl Dock for OrganicDock {
             rgba_view.set_zoom(1.0);
             rgba_view.set_show_transparency(true);
             rgba_view.set_background([22, 22, 24, 255]);
-            rgba_view.set_buffer(TheRGBABuffer::new(TheDim::sized(PREVIEW_SIZE, PREVIEW_SIZE)));
+            rgba_view.set_buffer(TheRGBABuffer::new(TheDim::sized(
+                PREVIEW_SIZE,
+                PREVIEW_SIZE,
+            )));
         }
         preview_canvas.set_layout(preview_layout);
         main_split.add_canvas(preview_canvas);
@@ -303,6 +308,7 @@ impl Dock for OrganicDock {
                     ORGANIC_NOISE_AMOUNT => {
                         Self::set_float_property(map, PROP_NOISE_STRENGTH, value, 0.0, 1.0)
                     }
+                    ORGANIC_PAINT_MODE => Self::set_int_property(map, PROP_PAINT_MODE, value, 0, 1),
                     ORGANIC_OPACITY => {
                         let changed = Self::set_float_property(map, PROP_OPACITY, value, 0.05, 1.0);
                         if let Some(opacity) = value.to_f32() {
@@ -350,7 +356,10 @@ impl OrganicDock {
         let palette = PALETTE.read().unwrap().clone();
         let style = Self::brush_style_from_map(map, &palette);
         let render_active = map.properties.get_bool_default(PROP_RENDER_ACTIVE, true);
-        let lock_mode = map.properties.get_int_default(PROP_LOCK_MODE, 0).clamp(0, 1);
+        let lock_mode = map
+            .properties
+            .get_int_default(PROP_LOCK_MODE, 0)
+            .clamp(0, 1);
 
         OrganicTool::sync_render_active_to_vm(map);
 
@@ -367,7 +376,8 @@ impl OrganicDock {
         }
 
         if let Some(layout) = ui.get_rgba_layout(ORGANIC_PREVIEW_LAYOUT) {
-            let buffer = Self::render_preview_buffer(preset, style, PREVIEW_SIZE, PREVIEW_SIZE, true);
+            let buffer =
+                Self::render_preview_buffer(preset, style, PREVIEW_SIZE, PREVIEW_SIZE, true);
             layout.set_buffer(buffer);
             layout.set_zoom(1.0);
         }
@@ -430,6 +440,15 @@ impl OrganicDock {
         ));
         nodeui.add_item(TheNodeUIItem::CloseTree);
         nodeui.add_item(TheNodeUIItem::OpenTree("settings".into()));
+        nodeui.add_item(TheNodeUIItem::Selector(
+            ORGANIC_PAINT_MODE.into(),
+            "Paint Mode".into(),
+            "Choose whether the brush paints the full mask or only noise breakup.".into(),
+            vec!["Full".into(), "Noise Only".into()],
+            map.properties
+                .get_int_default(PROP_PAINT_MODE, 0)
+                .clamp(0, 1),
+        ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
             ORGANIC_BRUSH_SIZE.into(),
             "Brush Size".into(),
@@ -459,8 +478,10 @@ impl OrganicDock {
             ORGANIC_OPACITY.into(),
             "Opacity".into(),
             "How strong the painted detail is applied.".into(),
-            map.properties
-                .get_float_default(PROP_OPACITY, map.properties.get_float_default(PROP_FLOW, 0.7)),
+            map.properties.get_float_default(
+                PROP_OPACITY,
+                map.properties.get_float_default(PROP_FLOW, 0.7),
+            ),
             0.05..=1.0,
             false,
         ));
@@ -507,8 +528,15 @@ impl OrganicDock {
                 .clamp(0.0, 1.0),
             opacity: map
                 .properties
-                .get_float_default(PROP_OPACITY, map.properties.get_float_default(PROP_FLOW, 0.7))
+                .get_float_default(
+                    PROP_OPACITY,
+                    map.properties.get_float_default(PROP_FLOW, 0.7),
+                )
                 .clamp(0.05, 1.0),
+            paint_mode: map
+                .properties
+                .get_int_default(PROP_PAINT_MODE, 0)
+                .clamp(0, 1),
         }
     }
 
@@ -520,6 +548,7 @@ impl OrganicDock {
             border_size: Self::default_border_size(preset),
             noise_amount: current.noise_amount,
             opacity: Self::default_opacity(preset),
+            paint_mode: current.paint_mode,
         }
     }
 
@@ -597,21 +626,26 @@ impl OrganicDock {
                     (x as f32 + 0.5) / width as f32 * 2.0 - 1.0,
                     (y as f32 + 0.5) / height as f32 * 2.0 - 1.0,
                 );
-                let (fill, border, noise) = Self::sample_preset_shape(preset, uv, style.border_size);
+                let (fill, border, noise) =
+                    Self::sample_preset_shape(preset, uv, style.border_size);
                 let mut pixel = bg;
                 let opacity = style.opacity.clamp(0.05, 1.0);
 
-                if fill > 0.0 {
+                let noise_only = style.paint_mode == 1;
+                if fill > 0.0 && !noise_only {
                     pixel = Self::blend_rgba(pixel, style.base, fill * opacity);
                 }
-                if border > 0.0 {
+                if border > 0.0 && !noise_only {
                     pixel = Self::blend_rgba(pixel, style.border, border * opacity);
                 }
                 if noise > 0.0 {
                     pixel = Self::blend_rgba(
                         pixel,
                         style.noise,
-                        noise * style.noise_amount * opacity * 0.9,
+                        noise
+                            * style.noise_amount.max(if noise_only { 0.35 } else { 0.0 })
+                            * opacity
+                            * 0.9,
                     );
                 }
 
@@ -650,18 +684,15 @@ impl OrganicDock {
                 Self::sample_blob(warped, 0.76, border_size * 0.85, 9.0, 18.0)
             }
             OrganicPreset::Grime => {
-                let fill = Self::segment_mask(
-                    uv,
-                    Vec2::new(-0.72, 0.54),
-                    Vec2::new(0.68, -0.48),
-                    0.18,
-                );
-                let border = (fill - Self::segment_mask(
-                    uv,
-                    Vec2::new(-0.72, 0.54),
-                    Vec2::new(0.68, -0.48),
-                    (0.18 - border_size * 0.4).max(0.02),
-                ))
+                let fill =
+                    Self::segment_mask(uv, Vec2::new(-0.72, 0.54), Vec2::new(0.68, -0.48), 0.18);
+                let border = (fill
+                    - Self::segment_mask(
+                        uv,
+                        Vec2::new(-0.72, 0.54),
+                        Vec2::new(0.68, -0.48),
+                        (0.18 - border_size * 0.4).max(0.02),
+                    ))
                 .clamp(0.0, 1.0);
                 let noise = Self::speckle_mask(uv * 1.4, 9.0, 0.74) * fill;
                 (fill.clamp(0.0, 1.0), border, noise * 0.9)
@@ -678,7 +709,10 @@ impl OrganicDock {
         noise_scale: f32,
         noise_seed: f32,
     ) -> (f32, f32, f32) {
-        let wobble = (Self::hash2(Vec2::new(uv.x * noise_scale, uv.y * noise_scale), noise_seed) - 0.5)
+        let wobble = (Self::hash2(
+            Vec2::new(uv.x * noise_scale, uv.y * noise_scale),
+            noise_seed,
+        ) - 0.5)
             * 0.18;
         let dist = uv.magnitude() + wobble;
         let outer = radius;
@@ -733,14 +767,22 @@ impl OrganicDock {
                 (width - border_size * 0.35).max(0.015),
             ));
         }
-        let leaf_1 = Self::sample_blob(uv - Vec2::new(0.28, -0.18), 0.18, border_size * 0.6, 8.0, 41.0);
-        let leaf_2 =
-            Self::sample_blob(uv - Vec2::new(-0.22, -0.28), 0.16, border_size * 0.6, 8.0, 53.0);
+        let leaf_1 = Self::sample_blob(
+            uv - Vec2::new(0.28, -0.18),
+            0.18,
+            border_size * 0.6,
+            8.0,
+            41.0,
+        );
+        let leaf_2 = Self::sample_blob(
+            uv - Vec2::new(-0.22, -0.28),
+            0.16,
+            border_size * 0.6,
+            8.0,
+            53.0,
+        );
         let fill = outer.max(leaf_1.0).max(leaf_2.0);
-        let border = (outer - inner)
-            .max(leaf_1.1)
-            .max(leaf_2.1)
-            .clamp(0.0, 1.0);
+        let border = (outer - inner).max(leaf_1.1).max(leaf_2.1).clamp(0.0, 1.0);
         let noise = Self::speckle_mask(uv * 1.8, 10.0, 0.78) * fill.max(border * 0.45);
         (fill, border, noise)
     }
@@ -895,8 +937,10 @@ impl OrganicDock {
             }
         }
 
-        map.properties
-            .set(PROP_BORDER_SIZE, Value::Float(Self::default_border_size(preset)));
+        map.properties.set(
+            PROP_BORDER_SIZE,
+            Value::Float(Self::default_border_size(preset)),
+        );
         map.properties
             .set(PROP_OPACITY, Value::Float(Self::default_opacity(preset)));
     }

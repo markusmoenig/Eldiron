@@ -143,6 +143,11 @@ pub enum Atom {
         size: u32,
         rgba: Vec<u8>,
     },
+    SetOrganicSurfaceBounds {
+        surface_id: Uuid,
+        local_min: [f32; 2],
+        local_size: [f32; 2],
+    },
     SetOrganicSurfaceDetailRect {
         surface_id: Uuid,
         size: u32,

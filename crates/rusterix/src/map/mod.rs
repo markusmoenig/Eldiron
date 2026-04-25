@@ -315,9 +315,7 @@ impl Map {
                                         .iter()
                                         .all(|sid| unnamed_blocking_layer_sectors.contains(sid))
                             });
-                        if is_internal_unnamed_blocking_seam
-                            || is_reversed_unnamed_blocking_seam
-                        {
+                        if is_internal_unnamed_blocking_seam || is_reversed_unnamed_blocking_seam {
                             continue;
                         }
                         if let Some(start) = self.find_vertex(linedef.start_vertex) {

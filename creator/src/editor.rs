@@ -299,14 +299,11 @@ impl Editor {
                     opacity,
                 });
         }
-
     }
 
     fn log_segment_has_warning_or_error(segment: &str) -> bool {
         let segment = segment.to_ascii_lowercase();
-        segment.contains("[error]")
-            || segment.contains("[warning]")
-            || segment.contains("[warn]")
+        segment.contains("[error]") || segment.contains("[warning]") || segment.contains("[warn]")
     }
 
     fn starter_manifest_url() -> String {
@@ -1047,7 +1044,11 @@ impl Editor {
                     "Data" => Some(self.help_url_for_data_context()),
                     "Code" => Some("docs/creator/docks/eldrin_script_editor".into()),
                     "Visual Code" => Some("docs/creator/docks/visual_script_editor".into()),
-                    _ => TOOLLIST.read().unwrap().game_tools.get(TOOLLIST.read().unwrap().curr_game_tool)
+                    _ => TOOLLIST
+                        .read()
+                        .unwrap()
+                        .game_tools
+                        .get(TOOLLIST.read().unwrap().curr_game_tool)
                         .and_then(|tool| tool.help_url()),
                 };
             }
@@ -2538,7 +2539,9 @@ impl TheTrait for Editor {
                                         member_index: (*index).max(0) as u16,
                                     })
                                 }
-                                [TheValue::Text(kind), TheValue::Id(id)] if kind == "procedural" => {
+                                [TheValue::Text(kind), TheValue::Id(id)]
+                                    if kind == "procedural" =>
+                                {
                                     Some(rusterix::TileSource::Procedural(*id))
                                 }
                                 _ => None,

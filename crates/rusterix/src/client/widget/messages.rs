@@ -233,18 +233,18 @@ impl MessagesWidget {
                     color,
                 ));
             }
-                self.messages.push((
-                    Uuid::new_v4(),
-                    self.resolve_msg("0) {system.exit_menu}", map, assets, time),
-                    Rect::default(),
-                    Some(Choice::Cancel(
-                        choices.from,
-                        choices.to,
-                        choices.expires_at_tick,
-                        choices.max_distance,
-                    )),
-                    color,
-                ));
+            self.messages.push((
+                Uuid::new_v4(),
+                self.resolve_msg("0) {system.exit_menu}", map, assets, time),
+                Rect::default(),
+                Some(Choice::Cancel(
+                    choices.from,
+                    choices.to,
+                    choices.expires_at_tick,
+                    choices.max_distance,
+                )),
+                color,
+            ));
         }
 
         // Purge the messages which are scrolled out of scope
@@ -295,8 +295,13 @@ impl MessagesWidget {
             let draw2d = &self.draw2d;
 
             for (id, message, rect, _choice, color) in self.messages.iter_mut().rev() {
-                let lines =
-                    Self::wrap_message_lines(draw2d, font, self.font_size, message, self.rect.width);
+                let lines = Self::wrap_message_lines(
+                    draw2d,
+                    font,
+                    self.font_size,
+                    message,
+                    self.rect.width,
+                );
                 let line_height = self.font_size + self.spacing;
                 let block_gap = self.message_spacing;
                 let block_height = if lines.is_empty() {
@@ -513,7 +518,11 @@ impl MessagesWidget {
                     .get("game")
                     .and_then(toml::Value::as_table)
                     .and_then(|game| game.get("ticks_per_minute"))
-                    .and_then(|value| value.as_integer().or_else(|| value.as_float().map(|v| v as i64)))
+                    .and_then(|value| {
+                        value
+                            .as_integer()
+                            .or_else(|| value.as_float().map(|v| v as i64))
+                    })
             })
             .unwrap_or(4)
             .max(1) as u32;

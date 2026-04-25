@@ -8,8 +8,8 @@ use crate::{
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use instant::{Duration, Instant};
 use pathfinding::prelude::astar;
-use rand::*;
 use rand::seq::SliceRandom;
+use rand::*;
 
 use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
@@ -202,8 +202,8 @@ use EntityAction::*;
 
 use super::data::{apply_entity_data, apply_item_data};
 use super::{AudioCommand, RegionMessage};
-use RegionMessage::*;
 use crate::server::regionctx::ScriptScope;
+use RegionMessage::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CollisionMode {
@@ -337,7 +337,10 @@ impl RegionInstance {
     }
 
     fn is_grid_camera(player_camera: &PlayerCamera) -> bool {
-        matches!(player_camera, PlayerCamera::D2Grid | PlayerCamera::D3FirstPGrid)
+        matches!(
+            player_camera,
+            PlayerCamera::D2Grid | PlayerCamera::D3FirstPGrid
+        )
     }
 
     fn should_keep_player_intent(ctx: &RegionCtx, entity: &Entity) -> bool {
@@ -387,7 +390,11 @@ impl RegionInstance {
         )
     }
 
-    fn entity_click_distance(ctx: &RegionCtx, entity_id: u32, target_entity_id: u32) -> Option<f32> {
+    fn entity_click_distance(
+        ctx: &RegionCtx,
+        entity_id: u32,
+        target_entity_id: u32,
+    ) -> Option<f32> {
         let actor_pos = ctx
             .map
             .entities
@@ -409,28 +416,24 @@ impl RegionInstance {
         item_id: u32,
         owner_entity_id: Option<u32>,
     ) -> Option<f32> {
-        let actor = ctx
-            .map
-            .entities
-            .iter()
-            .find(|e| e.id == entity_id)?;
+        let actor = ctx.map.entities.iter().find(|e| e.id == entity_id)?;
         let actor_pos = actor.get_pos_xz();
         let actor_radius = actor.attributes.get_float_default("radius", 0.5).max(0.0);
 
         if let Some(item) = ctx.map.items.iter().find(|i| i.id == item_id) {
             let item_radius = item.attributes.get_float_default("radius", 0.5).max(0.0);
-            return Some((actor_pos.distance(item.get_pos_xz()) - actor_radius - item_radius).max(0.0));
+            return Some(
+                (actor_pos.distance(item.get_pos_xz()) - actor_radius - item_radius).max(0.0),
+            );
         }
 
         if let Some(owner_id) = owner_entity_id
-            && let Some(owner) = ctx
-                .map
-                .entities
-                .iter()
-                .find(|e| e.id == owner_id)
+            && let Some(owner) = ctx.map.entities.iter().find(|e| e.id == owner_id)
         {
             let owner_radius = owner.attributes.get_float_default("radius", 0.5).max(0.0);
-            return Some((actor_pos.distance(owner.get_pos_xz()) - actor_radius - owner_radius).max(0.0));
+            return Some(
+                (actor_pos.distance(owner.get_pos_xz()) - actor_radius - owner_radius).max(0.0),
+            );
         }
 
         Some(0.0)
@@ -446,7 +449,11 @@ impl RegionInstance {
         map.sectors
             .iter()
             .filter(|sector| sector.name.trim().eq_ignore_ascii_case(&needle_lower))
-            .filter_map(|sector| sector.center(map).map(|center| (center, from.distance_squared(center))))
+            .filter_map(|sector| {
+                sector
+                    .center(map)
+                    .map(|center| (center, from.distance_squared(center)))
+            })
             .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|entry| entry.0)
     }
@@ -456,7 +463,11 @@ impl RegionInstance {
         actor_id: u32,
         name: &str,
     ) -> Option<(u32, f32)> {
-        let actor = ctx.map.entities.iter().find(|entity| entity.id == actor_id)?;
+        let actor = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == actor_id)?;
         let actor_pos = actor.get_pos_xz();
         let needle = name.trim();
         if needle.is_empty() {
@@ -470,15 +481,18 @@ impl RegionInstance {
             .filter_map(|entity| {
                 let entity_name = entity.attributes.get_str("name").unwrap_or_default();
                 let class_name = entity.attributes.get_str("class_name").unwrap_or_default();
-                if !entity_name.eq_ignore_ascii_case(needle) && !class_name.eq_ignore_ascii_case(needle)
+                if !entity_name.eq_ignore_ascii_case(needle)
+                    && !class_name.eq_ignore_ascii_case(needle)
                 {
                     return None;
                 }
-                let distance =
-                    Self::entity_click_distance(ctx, actor_id, entity.id).unwrap_or_else(|| {
-                        (actor_pos - entity.get_pos_xz()).magnitude()
-                    });
-                Some((entity.id, distance, actor_pos.distance_squared(entity.get_pos_xz())))
+                let distance = Self::entity_click_distance(ctx, actor_id, entity.id)
+                    .unwrap_or_else(|| (actor_pos - entity.get_pos_xz()).magnitude());
+                Some((
+                    entity.id,
+                    distance,
+                    actor_pos.distance_squared(entity.get_pos_xz()),
+                ))
             })
             .min_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal))
             .map(|entry| (entry.0, entry.1))
@@ -489,7 +503,11 @@ impl RegionInstance {
         actor_id: u32,
         name: &str,
     ) -> Option<(u32, Option<u32>, f32)> {
-        let actor = ctx.map.entities.iter().find(|entity| entity.id == actor_id)?;
+        let actor = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == actor_id)?;
         let actor_pos = actor.get_pos_xz();
         let needle = name.trim();
         if needle.is_empty() {
@@ -502,15 +520,19 @@ impl RegionInstance {
             .filter_map(|item| {
                 let item_name = item.attributes.get_str("name").unwrap_or_default();
                 let class_name = item.attributes.get_str("class_name").unwrap_or_default();
-                if !item_name.eq_ignore_ascii_case(needle) && !class_name.eq_ignore_ascii_case(needle)
+                if !item_name.eq_ignore_ascii_case(needle)
+                    && !class_name.eq_ignore_ascii_case(needle)
                 {
                     return None;
                 }
-                let distance =
-                    Self::item_click_distance(ctx, actor_id, item.id, None).unwrap_or_else(|| {
-                        (actor_pos - item.get_pos_xz()).magnitude()
-                    });
-                Some((item.id, None, distance, actor_pos.distance_squared(item.get_pos_xz())))
+                let distance = Self::item_click_distance(ctx, actor_id, item.id, None)
+                    .unwrap_or_else(|| (actor_pos - item.get_pos_xz()).magnitude());
+                Some((
+                    item.id,
+                    None,
+                    distance,
+                    actor_pos.distance_squared(item.get_pos_xz()),
+                ))
             })
             .min_by(|a, b| a.3.partial_cmp(&b.3).unwrap_or(std::cmp::Ordering::Equal))
             .map(|entry| (entry.0, entry.1, entry.2))
@@ -556,11 +578,7 @@ impl RegionInstance {
         {
             let _ = self.to_sender.send(UserAction(
                 entity_id,
-                EntityAction::EntityClicked(
-                    target_entity_id,
-                    distance,
-                    Some(intent.to_string()),
-                ),
+                EntityAction::EntityClicked(target_entity_id, distance, Some(intent.to_string())),
             ));
             return true;
         }
@@ -600,9 +618,11 @@ impl RegionInstance {
             let step = &sequence.steps[state.step_index];
             match step.action.as_str() {
                 "goto" => {
-                    let Some(target) =
-                        Self::resolve_named_sector_center(&ctx.map, &step.target, entity.get_pos_xz())
-                    else {
+                    let Some(target) = Self::resolve_named_sector_center(
+                        &ctx.map,
+                        &step.target,
+                        entity.get_pos_xz(),
+                    ) else {
                         entity.active_sequence = None;
                         return;
                     };
@@ -630,7 +650,8 @@ impl RegionInstance {
                 }
                 "ensure_active" => {
                     let desired = step.value.unwrap_or(true);
-                    let Some(item_id) = Self::resolve_named_item_id(ctx, entity.id, &step.target) else {
+                    let Some(item_id) = Self::resolve_named_item_id(ctx, entity.id, &step.target)
+                    else {
                         entity.active_sequence = None;
                         return;
                     };
@@ -735,7 +756,12 @@ impl RegionInstance {
         }
     }
 
-    fn close_in_step_distance(ctx: &RegionCtx, entity: &Entity, speed: f32, units_per_sec: f32) -> f32 {
+    fn close_in_step_distance(
+        ctx: &RegionCtx,
+        entity: &Entity,
+        speed: f32,
+        units_per_sec: f32,
+    ) -> f32 {
         let base = units_per_sec * speed * Self::autonomous_action_dt(ctx, entity);
         if matches!(
             ctx.simulation_mode,
@@ -968,10 +994,7 @@ impl RegionInstance {
     }
 
     fn set_grid_desired_action(entity: &mut Entity, action: &EntityAction) {
-        entity.set_attribute(
-            "__grid_desired_action",
-            Value::Str(action.to_string()),
-        );
+        entity.set_attribute("__grid_desired_action", Value::Str(action.to_string()));
     }
 
     fn clear_grid_blocked_action(entity: &mut Entity) {
@@ -987,10 +1010,7 @@ impl RegionInstance {
     }
 
     fn set_blocked_grid_action(entity: &mut Entity, action: &EntityAction) {
-        entity.set_attribute(
-            "__grid_blocked_action",
-            Value::Str(action.to_string()),
-        );
+        entity.set_attribute("__grid_blocked_action", Value::Str(action.to_string()));
     }
 
     fn activate_grid_desired_action(&self, entity: &mut Entity) {
@@ -1031,7 +1051,12 @@ impl RegionInstance {
                 if Self::is_first_person_camera(player_camera) {
                     let facing = Self::snapped_cardinal_direction(entity.orientation);
                     let target = entity.get_pos_xz() + facing;
-                    self.queue_step_to_with_speed(entity, target, facing, Self::grid_hold_speed(entity));
+                    self.queue_step_to_with_speed(
+                        entity,
+                        target,
+                        facing,
+                        Self::grid_hold_speed(entity),
+                    );
                 } else {
                     entity.face_north();
                     let target = entity.get_pos_xz() + Vec2::new(0.0, -1.0);
@@ -1048,7 +1073,12 @@ impl RegionInstance {
                 if Self::is_first_person_camera(player_camera) {
                     let facing = Self::snapped_cardinal_direction(entity.orientation);
                     let target = entity.get_pos_xz() - facing;
-                    self.queue_step_to_with_speed(entity, target, facing, Self::grid_hold_speed(entity));
+                    self.queue_step_to_with_speed(
+                        entity,
+                        target,
+                        facing,
+                        Self::grid_hold_speed(entity),
+                    );
                 } else {
                     entity.face_south();
                     let target = entity.get_pos_xz() + Vec2::new(0.0, 1.0);
@@ -1096,7 +1126,12 @@ impl RegionInstance {
                     let facing = Self::snapped_cardinal_direction(entity.orientation);
                     let step = Vec2::new(facing.y, -facing.x);
                     let target = entity.get_pos_xz() + step;
-                    self.queue_step_to_with_speed(entity, target, facing, Self::grid_hold_speed(entity));
+                    self.queue_step_to_with_speed(
+                        entity,
+                        target,
+                        facing,
+                        Self::grid_hold_speed(entity),
+                    );
                     true
                 } else {
                     entity.action = EntityAction::Off;
@@ -1108,7 +1143,12 @@ impl RegionInstance {
                     let facing = Self::snapped_cardinal_direction(entity.orientation);
                     let step = Vec2::new(-facing.y, facing.x);
                     let target = entity.get_pos_xz() + step;
-                    self.queue_step_to_with_speed(entity, target, facing, Self::grid_hold_speed(entity));
+                    self.queue_step_to_with_speed(
+                        entity,
+                        target,
+                        facing,
+                        Self::grid_hold_speed(entity),
+                    );
                     true
                 } else {
                     entity.action = EntityAction::Off;
@@ -1180,25 +1220,17 @@ impl RegionInstance {
             .iter()
             .map(|d| *pos + *d)
             .filter(|p| {
-                p.x >= min_bound.x
-                    && p.x <= max_bound.x
-                    && p.y >= min_bound.y
-                    && p.y <= max_bound.y
+                p.x >= min_bound.x && p.x <= max_bound.x && p.y >= min_bound.y && p.y <= max_bound.y
             })
             .filter(|p| !blocked.contains(p))
             .map(|p| (p, 1))
             .collect::<Vec<_>>()
         };
         let heuristic = |a: &Vec2<i32>| (to_tile - *a).map(|x| x.abs()).sum();
-        let next_tile = astar(&from_tile, successors, heuristic, |p| *p == to_tile).and_then(
-            |(path, _)| {
-                if path.len() >= 2 {
-                    Some(path[1])
-                } else {
-                    None
-                }
-            },
-        );
+        let next_tile =
+            astar(&from_tile, successors, heuristic, |p| *p == to_tile).and_then(|(path, _)| {
+                if path.len() >= 2 { Some(path[1]) } else { None }
+            });
 
         let Some(next_tile) = next_tile else {
             return None;
@@ -1213,7 +1245,6 @@ impl RegionInstance {
         let facing = Self::snapped_cardinal_direction(step);
         Some((next, facing, target_pos))
     }
-
 
     fn rotate_towards_cardinal(entity: &mut Entity, target: Vec2<f32>, step_deg: f32) -> bool {
         let current = if entity.orientation.magnitude_squared() <= 1e-6 {
@@ -1259,7 +1290,12 @@ impl RegionInstance {
         entity_block_mode: i32,
     ) -> MovementResult {
         with_regionctx(self.id, |ctx| {
-            self.move_entity_by_vector_with_result_in_ctx(ctx, entity, move_vector, entity_block_mode)
+            self.move_entity_by_vector_with_result_in_ctx(
+                ctx,
+                entity,
+                move_vector,
+                entity_block_mode,
+            )
         })
         .unwrap()
     }
@@ -1420,7 +1456,8 @@ impl RegionInstance {
                                 vek::Vec3::new(position.x, entity.position.y, position.y);
                             let move_vec_3d = vek::Vec3::new(move_vec.x, 0.0, move_vec.y);
                             let (collision_pos, blocked) =
-                                ctx.collision_world.move_distance(start_pos, move_vec_3d, radius);
+                                ctx.collision_world
+                                    .move_distance(start_pos, move_vec_3d, radius);
                             entity.set_pos_xz(vek::Vec2::new(collision_pos.x, collision_pos.z));
                             blocked
                         }
@@ -1440,15 +1477,17 @@ impl RegionInstance {
         let final_pos = entity.get_pos_xz();
         let mut base_y = None;
         if self.collision_mode == CollisionMode::Mesh && ctx.collision_world.has_collision_data() {
-            base_y = ctx
-                .collision_world
-                .get_floor_height_reachable(final_pos, entity.position.y, 1.0);
+            base_y =
+                ctx.collision_world
+                    .get_floor_height_reachable(final_pos, entity.position.y, 1.0);
         }
         if base_y.is_none() {
             let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
-            base_y = Some(crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
-                &ctx.map, final_pos, &config,
-            ));
+            base_y = Some(
+                crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                    &ctx.map, final_pos, &config,
+                ),
+            );
         }
 
         if let Some(y) = base_y {
@@ -1644,8 +1683,7 @@ impl RegionInstance {
                 Ok(program) => ctx.world_program = Some(Arc::new(program)),
                 Err(error) => ctx.startup_errors.push(format!(
                     "[error] {}: Compiling World Script: {}",
-                    self.name,
-                    error
+                    self.name, error
                 )),
             }
         }
@@ -1657,8 +1695,7 @@ impl RegionInstance {
                 Ok(program) => ctx.region_program = Some(Arc::new(program)),
                 Err(error) => ctx.startup_errors.push(format!(
                     "[error] {}: Compiling Region Script: {}",
-                    self.name,
-                    error
+                    self.name, error
                 )),
             }
         }
@@ -1961,8 +1998,12 @@ impl RegionInstance {
             for cy in min_chunk.y..=max_chunk.y {
                 for cx in min_chunk.x..=max_chunk.x {
                     let chunk_origin = vek::Vec2::new(cx, cy);
-                    let chunk_collision =
-                        chunk_builder.build_collision(&ctx.map, &ctx.assets, chunk_origin, chunk_size);
+                    let chunk_collision = chunk_builder.build_collision(
+                        &ctx.map,
+                        &ctx.assets,
+                        chunk_origin,
+                        chunk_size,
+                    );
 
                     ctx.collision_world
                         .update_chunk(chunk_origin, chunk_collision);
@@ -1977,8 +2018,8 @@ impl RegionInstance {
         ctx.simulation_mode = crate::server::regionctx::SimulationMode::from_config_value(
             &get_config_string_default(&ctx, "game", "simulation_mode", "realtime"),
         );
-        ctx.turn_timeout_ms = get_config_i32_default(&ctx, "game", "turn_timeout_ms", 600)
-            .max(0) as u32;
+        ctx.turn_timeout_ms =
+            get_config_i32_default(&ctx, "game", "turn_timeout_ms", 600).max(0) as u32;
 
         let target_fps = get_config_i32_default(&ctx, "game", "target_fps", 30).max(1) as f32;
         ctx.delta_time = 1.0 / target_fps;
@@ -2299,12 +2340,18 @@ impl RegionInstance {
             for (from_id, to_id) in expired_sessions {
                 clear_choice_session(ctx, from_id, to_id);
                 if ctx.entity_classes.contains_key(&from_id) {
-                    ctx.to_execute_entity
-                        .push((from_id, "goodbye".into(), VMValue::broadcast(to_id as f32)));
+                    ctx.to_execute_entity.push((
+                        from_id,
+                        "goodbye".into(),
+                        VMValue::broadcast(to_id as f32),
+                    ));
                 }
             }
 
-            let tick_args = [VMValue::from_string("tick"), VMValue::from_i32(ctx.ticks as i32)];
+            let tick_args = [
+                VMValue::from_string("tick"),
+                VMValue::from_i32(ctx.ticks as i32),
+            ];
             if let Some(program) = ctx.world_program.clone() {
                 ctx.current_script_scope = ScriptScope::World;
                 run_server_fn(&mut self.exec, &tick_args, &program, ctx);
@@ -2416,7 +2463,9 @@ impl RegionInstance {
                                         Some(Value::Int64(target_id)) if *target_id >= 0 => {
                                             Some(*target_id as u32)
                                         }
-                                        Some(Value::Str(target_id)) => target_id.trim().parse::<u32>().ok(),
+                                        Some(Value::Str(target_id)) => {
+                                            target_id.trim().parse::<u32>().ok()
+                                        }
                                         _ => None,
                                     })
                                     .unwrap_or(0);
@@ -2583,8 +2632,11 @@ impl RegionInstance {
                 UserAction(entity_id, action) => {
                     if Self::action_requests_simulation_step(&action) {
                         with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                            if let Some(entity) =
-                                ctx.map.entities.iter().find(|entity| entity.id == entity_id)
+                            if let Some(entity) = ctx
+                                .map
+                                .entities
+                                .iter()
+                                .find(|entity| entity.id == entity_id)
                                 && entity.is_player()
                                 && self.should_accept_step_request(ctx, &action)
                                 && !(Self::is_movement_input_action(&action)
@@ -2598,369 +2650,393 @@ impl RegionInstance {
                         });
                     }
                     match action {
-                    Intent(intent) => {
-                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                            if let Some(entity) = ctx
-                                .map
-                                .entities
-                                .iter_mut()
-                                .find(|entity| entity.id == entity_id)
-                            {
-                                entity.set_attribute("intent", Value::Str(intent));
-                            }
-                        });
-                    }
-                    action if Self::is_movement_input_action(&action) && action != EntityAction::Off => {
-                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                            if let Some(entity) = ctx
-                                .map
-                                .entities
-                                .iter_mut()
-                                .find(|entity| entity.id == entity_id)
-                            {
-                                entity.set_attribute("__grid_goto_target", Value::Str(String::new()));
-                                let is_grid_player = matches!(
-                                    entity.attributes.get("player_camera"),
-                                    Some(Value::PlayerCamera(camera))
-                                        if Self::is_grid_camera(camera)
-                                );
-                                if is_grid_player {
-                                    Self::update_grid_input_state(entity, &action);
-                                    if matches!(
-                                        entity.action,
-                                        EntityAction::StepTo(_, _, _, _, _)
-                                            | EntityAction::RotateTo(_)
-                                    ) {
-                                        return;
-                                    }
-                                    if action == Self::blocked_grid_action(entity) {
-                                        return;
-                                    }
+                        Intent(intent) => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                if let Some(entity) = ctx
+                                    .map
+                                    .entities
+                                    .iter_mut()
+                                    .find(|entity| entity.id == entity_id)
+                                {
+                                    entity.set_attribute("intent", Value::Str(intent));
                                 }
-                                entity.action = action;
-                            }
-                        });
-                    }
-                    EntityClicked(clicked_entity_id, distance, explicit_intent) => {
-                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                            if ctx.entity_classes.get(&entity_id).is_none() {
-                                return;
-                            }
-                            let distance = Self::entity_click_distance(ctx, entity_id, clicked_entity_id)
-                                .unwrap_or(distance);
+                            });
+                        }
+                        action
+                            if Self::is_movement_input_action(&action)
+                                && action != EntityAction::Off =>
+                        {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                if let Some(entity) = ctx
+                                    .map
+                                    .entities
+                                    .iter_mut()
+                                    .find(|entity| entity.id == entity_id)
+                                {
+                                    entity.set_attribute(
+                                        "__grid_goto_target",
+                                        Value::Str(String::new()),
+                                    );
+                                    let is_grid_player = matches!(
+                                        entity.attributes.get("player_camera"),
+                                        Some(Value::PlayerCamera(camera))
+                                            if Self::is_grid_camera(camera)
+                                    );
+                                    if is_grid_player {
+                                        Self::update_grid_input_state(entity, &action);
+                                        if matches!(
+                                            entity.action,
+                                            EntityAction::StepTo(_, _, _, _, _)
+                                                | EntityAction::RotateTo(_)
+                                        ) {
+                                            return;
+                                        }
+                                        if action == Self::blocked_grid_action(entity) {
+                                            return;
+                                        }
+                                    }
+                                    entity.action = action;
+                                }
+                            });
+                        }
+                        EntityClicked(clicked_entity_id, distance, explicit_intent) => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                if ctx.entity_classes.get(&entity_id).is_none() {
+                                    return;
+                                }
+                                let distance =
+                                    Self::entity_click_distance(ctx, entity_id, clicked_entity_id)
+                                        .unwrap_or(distance);
 
-                            let intent_raw = if let Some(int) = explicit_intent {
-                                int
-                            } else {
-                                ctx.map
+                                let intent_raw = if let Some(int) = explicit_intent {
+                                    int
+                                } else {
+                                    ctx.map
+                                        .entities
+                                        .iter()
+                                        .find(|e| e.id == entity_id)
+                                        .map(|e| e.attributes.get_str_default("intent", "".into()))
+                                        .unwrap_or_default()
+                                };
+                                let intent = intent_raw.trim().to_string();
+                                let intent_lower = intent.to_ascii_lowercase();
+                                let mut handled_shortcut = false;
+                                let keep_intent = ctx
+                                    .map
                                     .entities
                                     .iter()
                                     .find(|e| e.id == entity_id)
-                                    .map(|e| e.attributes.get_str_default("intent", "".into()))
-                                    .unwrap_or_default()
-                            };
-                            let intent = intent_raw.trim().to_string();
-                            let intent_lower = intent.to_ascii_lowercase();
-                            let mut handled_shortcut = false;
-                            let keep_intent = ctx
-                                .map
-                                .entities
-                                .iter()
-                                .find(|e| e.id == entity_id)
-                                .map(|entity| Self::should_keep_player_intent(ctx, entity))
-                                .unwrap_or(false);
-                            let subject = ctx.map.entities.iter().find(|e| e.id == entity_id);
-                            let target_entity =
-                                ctx.map.entities.iter().find(|e| e.id == clicked_entity_id);
-                            let rules = intent_rule_config(ctx, entity_id, &intent_lower);
+                                    .map(|entity| Self::should_keep_player_intent(ctx, entity))
+                                    .unwrap_or(false);
+                                let subject = ctx.map.entities.iter().find(|e| e.id == entity_id);
+                                let target_entity =
+                                    ctx.map.entities.iter().find(|e| e.id == clicked_entity_id);
+                                let rules = intent_rule_config(ctx, entity_id, &intent_lower);
 
-                            if !intent.is_empty()
-                                && let Some(max_distance) =
-                                    entity_intent_distance_limit(ctx, entity_id, &intent_lower)
-                                && distance > max_distance
-                            {
-                                send_message(
-                                    ctx,
-                                    entity_id,
-                                    "{system.too_far_away}".into(),
-                                    "warning",
-                                );
-                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
-                                    && !keep_intent
+                                if !intent.is_empty()
+                                    && let Some(max_distance) =
+                                        entity_intent_distance_limit(ctx, entity_id, &intent_lower)
+                                    && distance > max_distance
                                 {
-                                    entity.set_attribute("intent", Value::Str(String::new()));
-                                }
-                                return;
-                            }
-
-                            if !intent.is_empty()
-                                && let Some(allowed) = rules.allowed.as_deref()
-                                && !evaluate_intent_allowed(
-                                    ctx,
-                                    allowed,
-                                    distance,
-                                    subject,
-                                    target_entity,
-                                    None,
-                                )
-                            {
-                                send_message(
-                                    ctx,
-                                    entity_id,
-                                    rules
-                                        .deny_message
-                                        .clone()
-                                        .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
-                                    "warning",
-                                );
-                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
-                                    && !keep_intent
-                                {
-                                    entity.set_attribute("intent", Value::Str(String::new()));
-                                }
-                                return;
-                            }
-
-                            if let Some(spell_template) = intent.strip_prefix("spell:") {
-                                let spell_template = spell_template.trim();
-                                if !spell_template.is_empty() {
-                                    let spell_id = cast_spell_for_entity(
+                                    send_message(
                                         ctx,
                                         entity_id,
-                                        spell_template,
-                                        clicked_entity_id,
-                                        100.0,
+                                        "{system.too_far_away}".into(),
+                                        "warning",
                                     );
-                                    handled_shortcut = spell_id >= 0;
+                                    if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                        && !keep_intent
+                                    {
+                                        entity.set_attribute("intent", Value::Str(String::new()));
+                                    }
+                                    return;
                                 }
-                            }
 
-                            // Optional character-level shortcuts for common intents.
-                            if !handled_shortcut
-                                && intent_lower == "look"
-                                && let Some(target) =
-                                    ctx.map.entities.iter().find(|e| e.id == clicked_entity_id)
-                            {
-                                if let Some(msg) = target.attributes.get_str("on_look") {
-                                    let msg = msg.trim();
-                                    if !msg.is_empty() {
-                                        send_message(ctx, entity_id, msg.to_string(), "system");
+                                if !intent.is_empty()
+                                    && let Some(allowed) = rules.allowed.as_deref()
+                                    && !evaluate_intent_allowed(
+                                        ctx,
+                                        allowed,
+                                        distance,
+                                        subject,
+                                        target_entity,
+                                        None,
+                                    )
+                                {
+                                    send_message(
+                                        ctx,
+                                        entity_id,
+                                        rules
+                                            .deny_message
+                                            .clone()
+                                            .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
+                                        "warning",
+                                    );
+                                    if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                        && !keep_intent
+                                    {
+                                        entity.set_attribute("intent", Value::Str(String::new()));
+                                    }
+                                    return;
+                                }
+
+                                if let Some(spell_template) = intent.strip_prefix("spell:") {
+                                    let spell_template = spell_template.trim();
+                                    if !spell_template.is_empty() {
+                                        let spell_id = cast_spell_for_entity(
+                                            ctx,
+                                            entity_id,
+                                            spell_template,
+                                            clicked_entity_id,
+                                            100.0,
+                                        );
+                                        handled_shortcut = spell_id >= 0;
+                                    }
+                                }
+
+                                // Optional character-level shortcuts for common intents.
+                                if !handled_shortcut
+                                    && intent_lower == "look"
+                                    && let Some(target) =
+                                        ctx.map.entities.iter().find(|e| e.id == clicked_entity_id)
+                                {
+                                    if let Some(msg) = target.attributes.get_str("on_look") {
+                                        let msg = msg.trim();
+                                        if !msg.is_empty() {
+                                            send_message(ctx, entity_id, msg.to_string(), "system");
+                                            handled_shortcut = true;
+                                        }
+                                    }
+                                    if !handled_shortcut
+                                        && let Some(msg) = entity_look_description(ctx, target)
+                                    {
+                                        send_message(ctx, entity_id, msg, "system");
                                         handled_shortcut = true;
                                     }
                                 }
-                                if !handled_shortcut
-                                    && let Some(msg) = entity_look_description(ctx, target)
-                                {
-                                    send_message(ctx, entity_id, msg, "system");
-                                    handled_shortcut = true;
-                                }
-                            }
 
-                            if !handled_shortcut {
-                                // Send default script-driven intent events.
-                                ctx.to_execute_entity.push((
-                                    entity_id,
-                                    "intent".to_string(),
-                                    VMValue::new_with_string(
-                                        clicked_entity_id as f32,
-                                        distance as f32,
-                                        0.0,
-                                        &intent,
-                                    ),
-                                ));
-
-                                if ctx.entity_classes.get(&clicked_entity_id).is_some() {
+                                if !handled_shortcut {
+                                    // Send default script-driven intent events.
                                     ctx.to_execute_entity.push((
-                                        clicked_entity_id,
+                                        entity_id,
                                         "intent".to_string(),
                                         VMValue::new_with_string(
-                                            entity_id as f32,
+                                            clicked_entity_id as f32,
                                             distance as f32,
                                             0.0,
                                             &intent,
                                         ),
                                     ));
+
+                                    if ctx.entity_classes.get(&clicked_entity_id).is_some() {
+                                        ctx.to_execute_entity.push((
+                                            clicked_entity_id,
+                                            "intent".to_string(),
+                                            VMValue::new_with_string(
+                                                entity_id as f32,
+                                                distance as f32,
+                                                0.0,
+                                                &intent,
+                                            ),
+                                        ));
+                                    }
                                 }
-                            }
 
-                            queue_intent_cooldown(
-                                ctx,
-                                entity_id,
-                                &intent_lower,
-                                rules.cooldown_minutes,
-                            );
+                                queue_intent_cooldown(
+                                    ctx,
+                                    entity_id,
+                                    &intent_lower,
+                                    rules.cooldown_minutes,
+                                );
 
-                            if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
-                                && !keep_intent
-                            {
-                                entity.set_attribute("intent", Value::Str(String::new()));
-                            }
-                        });
-                    }
-                    ItemClicked(clicked_item_id, distance, explicit_intent, owner_entity_id) => {
-                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                            if ctx.entity_classes.get(&entity_id).is_none() {
-                                return;
-                            }
+                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                    && !keep_intent
+                                {
+                                    entity.set_attribute("intent", Value::Str(String::new()));
+                                }
+                            });
+                        }
+                        ItemClicked(
+                            clicked_item_id,
+                            distance,
+                            explicit_intent,
+                            owner_entity_id,
+                        ) => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                if ctx.entity_classes.get(&entity_id).is_none() {
+                                    return;
+                                }
 
-                            let item_owner_id = owner_entity_id.unwrap_or(entity_id);
-                            let distance =
-                                Self::item_click_distance(ctx, entity_id, clicked_item_id, owner_entity_id)
-                                    .unwrap_or(distance);
+                                let item_owner_id = owner_entity_id.unwrap_or(entity_id);
+                                let distance = Self::item_click_distance(
+                                    ctx,
+                                    entity_id,
+                                    clicked_item_id,
+                                    owner_entity_id,
+                                )
+                                .unwrap_or(distance);
 
-                            let intent_raw = if let Some(int) = explicit_intent {
-                                int
-                            } else {
-                                ctx.map
+                                let intent_raw = if let Some(int) = explicit_intent {
+                                    int
+                                } else {
+                                    ctx.map
+                                        .entities
+                                        .iter()
+                                        .find(|e| e.id == entity_id)
+                                        .map(|e| e.attributes.get_str_default("intent", "".into()))
+                                        .unwrap_or_default()
+                                };
+                                let intent = intent_raw.trim().to_string();
+                                let intent_lower = intent.to_ascii_lowercase();
+                                let mut handled_shortcut = false;
+                                let keep_intent = ctx
+                                    .map
                                     .entities
                                     .iter()
                                     .find(|e| e.id == entity_id)
-                                    .map(|e| e.attributes.get_str_default("intent", "".into()))
-                                    .unwrap_or_default()
-                            };
-                            let intent = intent_raw.trim().to_string();
-                            let intent_lower = intent.to_ascii_lowercase();
-                            let mut handled_shortcut = false;
-                            let keep_intent = ctx
-                                .map
-                                .entities
-                                .iter()
-                                .find(|e| e.id == entity_id)
-                                .map(|entity| Self::should_keep_player_intent(ctx, entity))
-                                .unwrap_or(false);
-                            let subject = ctx.map.entities.iter().find(|e| e.id == entity_id);
-                            let target_item = ctx
-                                .map
-                                .items
-                                .iter()
-                                .find(|i| i.id == clicked_item_id)
-                                .or_else(|| {
-                                    ctx.map
-                                        .entities
-                                        .iter()
-                                        .find(|e| e.id == item_owner_id)
-                                        .and_then(|e| e.get_item(clicked_item_id))
-                                })
-                                .or_else(|| {
-                                    ctx.map
-                                        .entities
-                                        .iter()
-                                        .find(|e| e.id == item_owner_id)
-                                        .and_then(|e| {
-                                            e.equipped
-                                                .values()
-                                                .find(|item| item.id == clicked_item_id)
-                                        })
-                                });
-                            let authored_use_message = if intent_lower == "use" {
-                                target_item.and_then(|item| item_use_message(ctx, item))
-                            } else {
-                                None
-                            };
-                            let rules = intent_rule_config(ctx, entity_id, &intent_lower);
+                                    .map(|entity| Self::should_keep_player_intent(ctx, entity))
+                                    .unwrap_or(false);
+                                let subject = ctx.map.entities.iter().find(|e| e.id == entity_id);
+                                let target_item = ctx
+                                    .map
+                                    .items
+                                    .iter()
+                                    .find(|i| i.id == clicked_item_id)
+                                    .or_else(|| {
+                                        ctx.map
+                                            .entities
+                                            .iter()
+                                            .find(|e| e.id == item_owner_id)
+                                            .and_then(|e| e.get_item(clicked_item_id))
+                                    })
+                                    .or_else(|| {
+                                        ctx.map
+                                            .entities
+                                            .iter()
+                                            .find(|e| e.id == item_owner_id)
+                                            .and_then(|e| {
+                                                e.equipped
+                                                    .values()
+                                                    .find(|item| item.id == clicked_item_id)
+                                            })
+                                    });
+                                let authored_use_message = if intent_lower == "use" {
+                                    target_item.and_then(|item| item_use_message(ctx, item))
+                                } else {
+                                    None
+                                };
+                                let rules = intent_rule_config(ctx, entity_id, &intent_lower);
 
-                            if !intent.is_empty()
-                                && let Some(max_distance) =
-                                    entity_intent_distance_limit(ctx, entity_id, &intent_lower)
-                                && distance > max_distance
-                            {
-                                send_message(
-                                    ctx,
-                                    entity_id,
-                                    "{system.too_far_away}".into(),
-                                    "warning",
-                                );
-                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
-                                    && !keep_intent
+                                if !intent.is_empty()
+                                    && let Some(max_distance) =
+                                        entity_intent_distance_limit(ctx, entity_id, &intent_lower)
+                                    && distance > max_distance
                                 {
-                                    entity.set_attribute("intent", Value::Str(String::new()));
+                                    send_message(
+                                        ctx,
+                                        entity_id,
+                                        "{system.too_far_away}".into(),
+                                        "warning",
+                                    );
+                                    if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                        && !keep_intent
+                                    {
+                                        entity.set_attribute("intent", Value::Str(String::new()));
+                                    }
+                                    return;
                                 }
-                                return;
-                            }
 
-                            if !intent.is_empty()
-                                && let Some(allowed) = rules.allowed.as_deref()
-                                && !evaluate_intent_allowed(
-                                    ctx,
-                                    allowed,
-                                    distance,
-                                    subject,
-                                    None,
-                                    target_item,
-                                )
-                            {
-                                send_message(
-                                    ctx,
-                                    entity_id,
-                                    rules
-                                        .deny_message
-                                        .clone()
-                                        .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
-                                    "warning",
-                                );
-                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
-                                    && !keep_intent
+                                if !intent.is_empty()
+                                    && let Some(allowed) = rules.allowed.as_deref()
+                                    && !evaluate_intent_allowed(
+                                        ctx,
+                                        allowed,
+                                        distance,
+                                        subject,
+                                        None,
+                                        target_item,
+                                    )
                                 {
-                                    entity.set_attribute("intent", Value::Str(String::new()));
+                                    send_message(
+                                        ctx,
+                                        entity_id,
+                                        rules
+                                            .deny_message
+                                            .clone()
+                                            .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
+                                        "warning",
+                                    );
+                                    if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                        && !keep_intent
+                                    {
+                                        entity.set_attribute("intent", Value::Str(String::new()));
+                                    }
+                                    return;
                                 }
-                                return;
-                            }
 
-                            // Optional item-level shortcuts for common intents.
-                            let item_attrs = ctx
-                                .map
-                                .items
-                                .iter()
-                                .find(|i| i.id == clicked_item_id)
-                                .map(|i| &i.attributes)
-                                .or_else(|| {
-                                    ctx.map
-                                        .entities
-                                        .iter()
-                                        .find(|e| e.id == entity_id)
-                                        .and_then(|e| e.get_item(clicked_item_id))
-                                        .map(|i| &i.attributes)
-                                })
-                                .or_else(|| {
-                                    ctx.map
-                                        .entities
-                                        .iter()
-                                        .find(|e| e.id == entity_id)
-                                        .and_then(|e| {
-                                            e.equipped
-                                                .values()
-                                                .find(|item| item.id == clicked_item_id)
-                                        })
-                                        .map(|i| &i.attributes)
-                                });
-                            if intent_lower == "drop" {
-                                if let Some(attrs) = item_attrs {
-                                    if let Some(action) = attrs.get_str("on_drop") {
-                                        let action = action.trim();
-                                        if action.is_empty() || action.eq_ignore_ascii_case("drop")
-                                        {
-                                            handled_shortcut = drop_item_for_entity(
-                                                ctx,
-                                                entity_id,
-                                                clicked_item_id,
-                                            );
-                                        } else if action
-                                            .eq_ignore_ascii_case("you cannot drop that")
-                                        {
-                                            send_message(
-                                                ctx,
-                                                entity_id,
-                                                action.to_string(),
-                                                "system",
-                                            );
-                                            handled_shortcut = true;
+                                // Optional item-level shortcuts for common intents.
+                                let item_attrs = ctx
+                                    .map
+                                    .items
+                                    .iter()
+                                    .find(|i| i.id == clicked_item_id)
+                                    .map(|i| &i.attributes)
+                                    .or_else(|| {
+                                        ctx.map
+                                            .entities
+                                            .iter()
+                                            .find(|e| e.id == entity_id)
+                                            .and_then(|e| e.get_item(clicked_item_id))
+                                            .map(|i| &i.attributes)
+                                    })
+                                    .or_else(|| {
+                                        ctx.map
+                                            .entities
+                                            .iter()
+                                            .find(|e| e.id == entity_id)
+                                            .and_then(|e| {
+                                                e.equipped
+                                                    .values()
+                                                    .find(|item| item.id == clicked_item_id)
+                                            })
+                                            .map(|i| &i.attributes)
+                                    });
+                                if intent_lower == "drop" {
+                                    if let Some(attrs) = item_attrs {
+                                        if let Some(action) = attrs.get_str("on_drop") {
+                                            let action = action.trim();
+                                            if action.is_empty()
+                                                || action.eq_ignore_ascii_case("drop")
+                                            {
+                                                handled_shortcut = drop_item_for_entity(
+                                                    ctx,
+                                                    entity_id,
+                                                    clicked_item_id,
+                                                );
+                                            } else if action
+                                                .eq_ignore_ascii_case("you cannot drop that")
+                                            {
+                                                send_message(
+                                                    ctx,
+                                                    entity_id,
+                                                    action.to_string(),
+                                                    "system",
+                                                );
+                                                handled_shortcut = true;
+                                            } else {
+                                                send_message(
+                                                    ctx,
+                                                    entity_id,
+                                                    action.to_string(),
+                                                    "system",
+                                                );
+                                                handled_shortcut = drop_item_for_entity(
+                                                    ctx,
+                                                    entity_id,
+                                                    clicked_item_id,
+                                                );
+                                            }
                                         } else {
-                                            send_message(
-                                                ctx,
-                                                entity_id,
-                                                action.to_string(),
-                                                "system",
-                                            );
                                             handled_shortcut = drop_item_for_entity(
                                                 ctx,
                                                 entity_id,
@@ -2971,384 +3047,401 @@ impl RegionInstance {
                                         handled_shortcut =
                                             drop_item_for_entity(ctx, entity_id, clicked_item_id);
                                     }
-                                } else {
-                                    handled_shortcut =
-                                        drop_item_for_entity(ctx, entity_id, clicked_item_id);
-                                }
-                            } else if let Some(attrs) = item_attrs {
-                                if intent_lower == "look" {
-                                    if let Some(msg) = attrs.get_str("on_look") {
-                                        let msg = msg.trim();
-                                        if !msg.is_empty() {
-                                            send_message(ctx, entity_id, msg.to_string(), "system");
-                                            handled_shortcut = true;
-                                        }
-                                    }
-                                    if !handled_shortcut
-                                        && let Some(item) = ctx
-                                            .map
-                                            .items
-                                            .iter()
-                                            .find(|i| i.id == clicked_item_id)
-                                            .or_else(|| {
-                                                ctx.map
-                                                    .entities
-                                                    .iter()
-                                                    .find(|e| e.id == entity_id)
-                                                    .and_then(|e| e.get_item(clicked_item_id))
-                                            })
-                                            .or_else(|| {
-                                                ctx.map
-                                                    .entities
-                                                    .iter()
-                                                    .find(|e| e.id == entity_id)
-                                                    .and_then(|e| {
-                                                        e.equipped
-                                                            .values()
-                                                            .find(|item| item.id == clicked_item_id)
-                                                    })
-                                            })
-                                        && let Some(msg) = item_look_description(ctx, item)
-                                    {
-                                        send_message(ctx, entity_id, msg, "system");
-                                        handled_shortcut = true;
-                                    }
-                                } else if intent_lower == "use" {
-                                    if let Some(msg) = attrs.get_str("on_use") {
-                                        let msg = msg.trim();
-                                        if !msg.is_empty() {
-                                            send_message(ctx, entity_id, msg.to_string(), "system");
-                                            handled_shortcut = true;
-                                        }
-                                    }
-                                } else if intent_lower == "pickup" || intent_lower == "take" {
-                                    if let Some(action) = attrs
-                                        .get_str("on_pickup")
-                                        .or_else(|| attrs.get_str("on_take"))
-                                    {
-                                        let action = action.trim();
-                                        if !action.is_empty() {
-                                            if action.eq_ignore_ascii_case("pickup")
-                                                || action.eq_ignore_ascii_case("take")
-                                            {
-                                                take_item_for_entity(
-                                                    ctx,
-                                                    entity_id,
-                                                    clicked_item_id,
-                                                );
-                                            } else {
+                                } else if let Some(attrs) = item_attrs {
+                                    if intent_lower == "look" {
+                                        if let Some(msg) = attrs.get_str("on_look") {
+                                            let msg = msg.trim();
+                                            if !msg.is_empty() {
                                                 send_message(
                                                     ctx,
                                                     entity_id,
-                                                    action.to_string(),
+                                                    msg.to_string(),
                                                     "system",
                                                 );
+                                                handled_shortcut = true;
                                             }
+                                        }
+                                        if !handled_shortcut
+                                            && let Some(item) = ctx
+                                                .map
+                                                .items
+                                                .iter()
+                                                .find(|i| i.id == clicked_item_id)
+                                                .or_else(|| {
+                                                    ctx.map
+                                                        .entities
+                                                        .iter()
+                                                        .find(|e| e.id == entity_id)
+                                                        .and_then(|e| e.get_item(clicked_item_id))
+                                                })
+                                                .or_else(|| {
+                                                    ctx.map
+                                                        .entities
+                                                        .iter()
+                                                        .find(|e| e.id == entity_id)
+                                                        .and_then(|e| {
+                                                            e.equipped.values().find(|item| {
+                                                                item.id == clicked_item_id
+                                                            })
+                                                        })
+                                                })
+                                            && let Some(msg) = item_look_description(ctx, item)
+                                        {
+                                            send_message(ctx, entity_id, msg, "system");
                                             handled_shortcut = true;
+                                        }
+                                    } else if intent_lower == "use" {
+                                        if let Some(msg) = attrs.get_str("on_use") {
+                                            let msg = msg.trim();
+                                            if !msg.is_empty() {
+                                                send_message(
+                                                    ctx,
+                                                    entity_id,
+                                                    msg.to_string(),
+                                                    "system",
+                                                );
+                                                handled_shortcut = true;
+                                            }
+                                        }
+                                    } else if intent_lower == "pickup" || intent_lower == "take" {
+                                        if let Some(action) = attrs
+                                            .get_str("on_pickup")
+                                            .or_else(|| attrs.get_str("on_take"))
+                                        {
+                                            let action = action.trim();
+                                            if !action.is_empty() {
+                                                if action.eq_ignore_ascii_case("pickup")
+                                                    || action.eq_ignore_ascii_case("take")
+                                                {
+                                                    take_item_for_entity(
+                                                        ctx,
+                                                        entity_id,
+                                                        clicked_item_id,
+                                                    );
+                                                } else {
+                                                    send_message(
+                                                        ctx,
+                                                        entity_id,
+                                                        action.to_string(),
+                                                        "system",
+                                                    );
+                                                }
+                                                handled_shortcut = true;
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            if !handled_shortcut
-                                && intent_lower == "use"
-                                && let Some(msg) = authored_use_message
-                            {
-                                send_message(ctx, entity_id, msg, "system");
-                            }
+                                if !handled_shortcut
+                                    && intent_lower == "use"
+                                    && let Some(msg) = authored_use_message
+                                {
+                                    send_message(ctx, entity_id, msg, "system");
+                                }
 
-                            if !handled_shortcut {
-                                // Send default script-driven intent events.
-                                ctx.to_execute_entity.push((
-                                    entity_id,
-                                    "intent".to_string(),
-                                    VMValue::new_with_string(
-                                        clicked_item_id as f32,
-                                        distance as f32,
-                                        0.0,
-                                        &intent,
-                                    ),
-                                ));
-
-                                if ctx.item_classes.get(&clicked_item_id).is_some() {
-                                    ctx.to_execute_item.push((
-                                        clicked_item_id,
+                                if !handled_shortcut {
+                                    // Send default script-driven intent events.
+                                    ctx.to_execute_entity.push((
+                                        entity_id,
                                         "intent".to_string(),
                                         VMValue::new_with_string(
-                                            entity_id as f32,
+                                            clicked_item_id as f32,
                                             distance as f32,
                                             0.0,
                                             &intent,
                                         ),
                                     ));
-                                }
-                            }
 
-                            queue_intent_cooldown(
-                                ctx,
-                                entity_id,
-                                &intent_lower,
-                                rules.cooldown_minutes,
-                            );
-
-                            if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
-                                && !keep_intent
-                            {
-                                entity.set_attribute("intent", Value::Str(String::new()));
-                            }
-                        });
-                    }
-                    TerrainClicked(position) => {
-                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                            if !get_config_bool_default(ctx, "game", "auto_walk_2d", false) {
-                                return;
-                            }
-
-                            let Some(snapshot) = ctx
-                                .map
-                                .entities
-                                .iter()
-                                .find(|entity| entity.id == entity_id)
-                                .cloned()
-                            else {
-                                return;
-                            };
-                            if !snapshot.is_player() {
-                                return;
-                            }
-
-                            if !matches!(
-                                snapshot.attributes.get("player_camera"),
-                                Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid))
-                            ) {
-                                return;
-                            }
-
-                            let intent = snapshot.attributes.get_str_default("intent", "".into());
-                            if !intent.trim().is_empty() {
-                                return;
-                            }
-                            if matches!(
-                                snapshot.attributes.get("player_camera"),
-                                Some(Value::PlayerCamera(PlayerCamera::D2Grid))
-                            ) {
-                                let step = self.compute_grid_goto_step_in_ctx(
-                                    ctx,
-                                    snapshot.get_pos_xz(),
-                                    position,
-                                );
-                                let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) else {
-                                    return;
-                                };
-                                if let Some((next, facing, target)) = step {
-                                    let start = entity.get_pos_xz();
-                                    let step_dir = next - start;
-                                    entity.set_orientation(facing);
-                                    entity.action =
-                                        EntityAction::StepTo(next, 1.0, facing, start, step_dir);
-                                    entity.set_attribute(
-                                        "__grid_goto_target",
-                                        Value::Str(format!("{},{}", target.x, target.y)),
-                                    );
-                                } else {
-                                    entity.set_attribute(
-                                        "__grid_goto_target",
-                                        Value::Str(String::new()),
-                                    );
-                                    entity.action = EntityAction::Off;
-                                }
-                            } else {
-                                let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) else {
-                                    return;
-                                };
-                                entity.action = Goto(position, 1.0);
-                            }
-                        });
-                    }
-                    SetPlayerCamera(player_camera) => {
-                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                            if let Some(entity) = ctx
-                                .map
-                                .entities
-                                .iter_mut()
-                                .find(|entity| entity.id == entity_id)
-                            {
-                                entity.set_attribute(
-                                    "player_camera",
-                                    Value::PlayerCamera(player_camera),
-                                );
-                            }
-                        });
-                    }
-                    MoveItem {
-                        item_id,
-                        owner_entity_id,
-                        target_entity_id,
-                        to_inventory_index,
-                        to_equipped_slot,
-                    } => {
-                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                            _ = move_item_for_entity(
-                                ctx,
-                                owner_entity_id.unwrap_or(entity_id),
-                                target_entity_id.unwrap_or(entity_id),
-                                item_id,
-                                to_inventory_index,
-                                to_equipped_slot,
-                            );
-                        });
-                    }
-                    DropItemAt {
-                        item_id,
-                        owner_entity_id,
-                        position,
-                    } => {
-                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                            _ = drop_item_for_entity_at(
-                                ctx,
-                                owner_entity_id.unwrap_or(entity_id),
-                                item_id,
-                                Some(position),
-                            );
-                        });
-                    }
-                    Choice(choice) => match &choice {
-                        Choice::ItemToSell(
-                            item_id,
-                            seller_id,
-                            buyer_id,
-                            expires_at_tick,
-                            max_distance,
-                        ) => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                                clear_choice_session(ctx, *seller_id, *buyer_id);
-                                if !choice_session_is_valid(
-                                    ctx,
-                                    *seller_id,
-                                    *buyer_id,
-                                    *expires_at_tick,
-                                    *max_distance,
-                                ) {
-                                    if let Some(_class_name) = ctx.entity_classes.get(seller_id) {
-                                        ctx.to_execute_entity.push((
-                                            *seller_id,
-                                            "goodbye".into(),
-                                            VMValue::broadcast(*buyer_id as f32),
+                                    if ctx.item_classes.get(&clicked_item_id).is_some() {
+                                        ctx.to_execute_item.push((
+                                            clicked_item_id,
+                                            "intent".to_string(),
+                                            VMValue::new_with_string(
+                                                entity_id as f32,
+                                                distance as f32,
+                                                0.0,
+                                                &intent,
+                                            ),
                                         ));
                                     }
+                                }
+
+                                queue_intent_cooldown(
+                                    ctx,
+                                    entity_id,
+                                    &intent_lower,
+                                    rules.cooldown_minutes,
+                                );
+
+                                if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                    && !keep_intent
+                                {
+                                    entity.set_attribute("intent", Value::Str(String::new()));
+                                }
+                            });
+                        }
+                        TerrainClicked(position) => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                if !get_config_bool_default(ctx, "game", "auto_walk_2d", false) {
                                     return;
                                 }
 
-                                let mut msg_to_buyer: Option<String> = None;
-                                let mut msg_role = "system";
+                                let Some(snapshot) = ctx
+                                    .map
+                                    .entities
+                                    .iter()
+                                    .find(|entity| entity.id == entity_id)
+                                    .cloned()
+                                else {
+                                    return;
+                                };
+                                if !snapshot.is_player() {
+                                    return;
+                                }
 
-                                // Get the price of the item.
-                                let mut price = 0;
-                                let mut can_afford = false;
-                                if let Some(entity) = get_entity_mut(&mut ctx.map, *seller_id) {
-                                    if let Some(item) = entity.get_item(*item_id) {
-                                        if let Some(w) = item.get_attribute("worth") {
-                                            if let Some(worth) = w.to_i32() {
-                                                price = worth as i64;
+                                if !matches!(
+                                    snapshot.attributes.get("player_camera"),
+                                    Some(Value::PlayerCamera(
+                                        PlayerCamera::D2 | PlayerCamera::D2Grid
+                                    ))
+                                ) {
+                                    return;
+                                }
+
+                                let intent =
+                                    snapshot.attributes.get_str_default("intent", "".into());
+                                if !intent.trim().is_empty() {
+                                    return;
+                                }
+                                if matches!(
+                                    snapshot.attributes.get("player_camera"),
+                                    Some(Value::PlayerCamera(PlayerCamera::D2Grid))
+                                ) {
+                                    let step = self.compute_grid_goto_step_in_ctx(
+                                        ctx,
+                                        snapshot.get_pos_xz(),
+                                        position,
+                                    );
+                                    let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                    else {
+                                        return;
+                                    };
+                                    if let Some((next, facing, target)) = step {
+                                        let start = entity.get_pos_xz();
+                                        let step_dir = next - start;
+                                        entity.set_orientation(facing);
+                                        entity.action = EntityAction::StepTo(
+                                            next, 1.0, facing, start, step_dir,
+                                        );
+                                        entity.set_attribute(
+                                            "__grid_goto_target",
+                                            Value::Str(format!("{},{}", target.x, target.y)),
+                                        );
+                                    } else {
+                                        entity.set_attribute(
+                                            "__grid_goto_target",
+                                            Value::Str(String::new()),
+                                        );
+                                        entity.action = EntityAction::Off;
+                                    }
+                                } else {
+                                    let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                    else {
+                                        return;
+                                    };
+                                    entity.action = Goto(position, 1.0);
+                                }
+                            });
+                        }
+                        SetPlayerCamera(player_camera) => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                if let Some(entity) = ctx
+                                    .map
+                                    .entities
+                                    .iter_mut()
+                                    .find(|entity| entity.id == entity_id)
+                                {
+                                    entity.set_attribute(
+                                        "player_camera",
+                                        Value::PlayerCamera(player_camera),
+                                    );
+                                }
+                            });
+                        }
+                        MoveItem {
+                            item_id,
+                            owner_entity_id,
+                            target_entity_id,
+                            to_inventory_index,
+                            to_equipped_slot,
+                        } => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                _ = move_item_for_entity(
+                                    ctx,
+                                    owner_entity_id.unwrap_or(entity_id),
+                                    target_entity_id.unwrap_or(entity_id),
+                                    item_id,
+                                    to_inventory_index,
+                                    to_equipped_slot,
+                                );
+                            });
+                        }
+                        DropItemAt {
+                            item_id,
+                            owner_entity_id,
+                            position,
+                        } => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                _ = drop_item_for_entity_at(
+                                    ctx,
+                                    owner_entity_id.unwrap_or(entity_id),
+                                    item_id,
+                                    Some(position),
+                                );
+                            });
+                        }
+                        Choice(choice) => match &choice {
+                            Choice::ItemToSell(
+                                item_id,
+                                seller_id,
+                                buyer_id,
+                                expires_at_tick,
+                                max_distance,
+                            ) => {
+                                with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                    clear_choice_session(ctx, *seller_id, *buyer_id);
+                                    if !choice_session_is_valid(
+                                        ctx,
+                                        *seller_id,
+                                        *buyer_id,
+                                        *expires_at_tick,
+                                        *max_distance,
+                                    ) {
+                                        if let Some(_class_name) = ctx.entity_classes.get(seller_id)
+                                        {
+                                            ctx.to_execute_entity.push((
+                                                *seller_id,
+                                                "goodbye".into(),
+                                                VMValue::broadcast(*buyer_id as f32),
+                                            ));
+                                        }
+                                        return;
+                                    }
+
+                                    let mut msg_to_buyer: Option<String> = None;
+                                    let mut msg_role = "system";
+
+                                    // Get the price of the item.
+                                    let mut price = 0;
+                                    let mut can_afford = false;
+                                    if let Some(entity) = get_entity_mut(&mut ctx.map, *seller_id) {
+                                        if let Some(item) = entity.get_item(*item_id) {
+                                            if let Some(w) = item.get_attribute("worth") {
+                                                if let Some(worth) = w.to_i32() {
+                                                    price = worth as i64;
+                                                }
                                             }
                                         }
                                     }
-                                }
 
-                                // Check if the buyer can afford
-                                if let Some(entity) = get_entity_mut(&mut ctx.map, *buyer_id) {
-                                    can_afford = entity.wallet.can_afford(price, &ctx.currencies);
-                                }
-
-                                if can_afford {
-                                    let mut item_to_sell: Option<Item> = None;
-                                    if let Some(entity) = get_entity_mut(&mut ctx.map, *seller_id) {
-                                        if let Some(item) = entity.remove_item(*item_id) {
-                                            item_to_sell = Some(item);
-                                            _ = entity.add_base_currency(price, &ctx.currencies);
-                                        }
+                                    // Check if the buyer can afford
+                                    if let Some(entity) = get_entity_mut(&mut ctx.map, *buyer_id) {
+                                        can_afford =
+                                            entity.wallet.can_afford(price, &ctx.currencies);
                                     }
-                                    if let Some(item) = item_to_sell {
+
+                                    if can_afford {
+                                        let mut item_to_sell: Option<Item> = None;
                                         if let Some(entity) =
-                                            get_entity_mut(&mut ctx.map, *buyer_id)
+                                            get_entity_mut(&mut ctx.map, *seller_id)
                                         {
-                                            msg_to_buyer = Some(format!(
-                                                "{{system.you_bought}} {{I:{}.name, article=indef, case=lower}}",
-                                                item.id
-                                            ));
-                                            _ = entity.add_item(item);
-                                            _ = entity.spend_currency(price, &ctx.currencies);
+                                            if let Some(item) = entity.remove_item(*item_id) {
+                                                item_to_sell = Some(item);
+                                                _ = entity
+                                                    .add_base_currency(price, &ctx.currencies);
+                                            }
                                         }
+                                        if let Some(item) = item_to_sell {
+                                            if let Some(entity) =
+                                                get_entity_mut(&mut ctx.map, *buyer_id)
+                                            {
+                                                msg_to_buyer = Some(format!(
+                                                    "{{system.you_bought}} {{I:{}.name, article=indef, case=lower}}",
+                                                    item.id
+                                                ));
+                                                _ = entity.add_item(item);
+                                                _ = entity.spend_currency(price, &ctx.currencies);
+                                            }
+                                        }
+                                    } else {
+                                        msg_to_buyer = Some("{system.cant_afford}".into());
+                                        msg_role = "warning";
                                     }
-                                } else {
-                                    msg_to_buyer = Some("{system.cant_afford}".into());
-                                    msg_role = "warning";
-                                }
 
-                                if let Some(msg_to_buyer) = msg_to_buyer {
-                                    send_message(ctx, *buyer_id, msg_to_buyer, msg_role);
-                                }
-                            });
-                        }
-                        Choice::Cancel(from_id, to_id, _, _) => {
-                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                                clear_choice_session(ctx, *from_id, *to_id);
-                                if let Some(_class_name) = ctx.entity_classes.get(from_id) {
-                                    // let cmd = format!("{}.event('goodbye', {})", class_name, to_id);
-                                    ctx.to_execute_entity.push((
-                                        *from_id,
-                                        "goodbye".into(),
-                                        VMValue::broadcast(*to_id as f32),
-                                    ));
-                                }
-                            });
-                        }
-                    },
-                    _ => {
-                        with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                            if let Some(entity) = ctx
-                                .map
-                                .entities
-                                .iter_mut()
-                                .find(|entity| entity.id == entity_id)
-                            {
-                                let is_grid_player = matches!(
-                                    entity.attributes.get("player_camera"),
-                                    Some(Value::PlayerCamera(camera))
-                                        if Self::is_grid_camera(camera)
-                                );
-                                if is_grid_player && Self::is_movement_input_action(&action) {
-                                    Self::update_grid_input_state(entity, &action);
-                                }
-                                if is_grid_player
-                                    && matches!(
-                                        entity.action,
-                                        EntityAction::StepTo(_, _, _, _, _)
-                                            | EntityAction::RotateTo(_)
-                                    )
-                                    && Self::is_movement_input_action(&action)
-                                {
-                                    return;
-                                }
-                                if is_grid_player
-                                    && Self::is_movement_input_action(&action)
-                                    && action == Self::blocked_grid_action(entity)
-                                {
-                                    return;
-                                }
-                                if is_grid_player
-                                    && Self::is_movement_input_action(&action)
-                                    && action == EntityAction::Off
-                                {
-                                    entity.action = EntityAction::Off;
-                                    return;
-                                }
-                                entity.action = action;
+                                    if let Some(msg_to_buyer) = msg_to_buyer {
+                                        send_message(ctx, *buyer_id, msg_to_buyer, msg_role);
+                                    }
+                                });
                             }
-                        });
+                            Choice::Cancel(from_id, to_id, _, _) => {
+                                with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                    clear_choice_session(ctx, *from_id, *to_id);
+                                    if let Some(_class_name) = ctx.entity_classes.get(from_id) {
+                                        // let cmd = format!("{}.event('goodbye', {})", class_name, to_id);
+                                        ctx.to_execute_entity.push((
+                                            *from_id,
+                                            "goodbye".into(),
+                                            VMValue::broadcast(*to_id as f32),
+                                        ));
+                                    }
+                                });
+                            }
+                        },
+                        _ => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                if let Some(entity) = ctx
+                                    .map
+                                    .entities
+                                    .iter_mut()
+                                    .find(|entity| entity.id == entity_id)
+                                {
+                                    let is_grid_player = matches!(
+                                        entity.attributes.get("player_camera"),
+                                        Some(Value::PlayerCamera(camera))
+                                            if Self::is_grid_camera(camera)
+                                    );
+                                    if is_grid_player && Self::is_movement_input_action(&action) {
+                                        Self::update_grid_input_state(entity, &action);
+                                    }
+                                    if is_grid_player
+                                        && matches!(
+                                            entity.action,
+                                            EntityAction::StepTo(_, _, _, _, _)
+                                                | EntityAction::RotateTo(_)
+                                        )
+                                        && Self::is_movement_input_action(&action)
+                                    {
+                                        return;
+                                    }
+                                    if is_grid_player
+                                        && Self::is_movement_input_action(&action)
+                                        && action == Self::blocked_grid_action(entity)
+                                    {
+                                        return;
+                                    }
+                                    if is_grid_player
+                                        && Self::is_movement_input_action(&action)
+                                        && action == EntityAction::Off
+                                    {
+                                        entity.action = EntityAction::Off;
+                                        return;
+                                    }
+                                    entity.action = action;
+                                }
+                            });
+                        }
                     }
                 }
-                },
                 CreateEntity(_id, entity) => self.create_entity_instance(entity),
                 ShowStartupSectorDescription(entity_id) => {
                     with_regionctx(self.id, |ctx: &mut RegionCtx| {
@@ -3635,8 +3728,9 @@ impl RegionInstance {
                                         let target = entity.get_pos_xz() + step;
                                         self.queue_step_to(entity, target, facing);
                                     } else {
-                                        let right = Vec2::new(-entity.orientation.y, entity.orientation.x)
-                                            .normalized();
+                                        let right =
+                                            Vec2::new(-entity.orientation.y, entity.orientation.x)
+                                                .normalized();
                                         self.move_entity_by_vector(
                                             entity,
                                             -right * (self.movement_units_per_sec * redraw_dt),
@@ -3668,8 +3762,9 @@ impl RegionInstance {
                                         let target = entity.get_pos_xz() + step;
                                         self.queue_step_to(entity, target, facing);
                                     } else {
-                                        let right = Vec2::new(-entity.orientation.y, entity.orientation.x)
-                                            .normalized();
+                                        let right =
+                                            Vec2::new(-entity.orientation.y, entity.orientation.x)
+                                                .normalized();
                                         self.move_entity_by_vector(
                                             entity,
                                             right * (self.movement_units_per_sec * redraw_dt),
@@ -3803,8 +3898,12 @@ impl RegionInstance {
                     let mut coord: Option<vek::Vec2<f32>> = None;
 
                     with_regionctx(self.id, |ctx| {
-                        let speed: f32 =
-                            Self::close_in_step_distance(ctx, entity, *speed, self.movement_units_per_sec);
+                        let speed: f32 = Self::close_in_step_distance(
+                            ctx,
+                            entity,
+                            *speed,
+                            self.movement_units_per_sec,
+                        );
 
                         if let Some(entity) =
                             ctx.map.entities.iter().find(|entity| entity.id == *target)
@@ -3879,8 +3978,7 @@ impl RegionInstance {
                                     radius,
                                     1.0,
                                 );
-                                let arrived =
-                                    self.close_in_arrived(ctx, p, coord, *target_radius);
+                                let arrived = self.close_in_arrived(ctx, p, coord, *target_radius);
                                 (p, entity.position.y, arrived)
                             };
 
@@ -3969,18 +4067,19 @@ impl RegionInstance {
                                     .attributes
                                     .get_float_default("avatar_attack_time", 0.35)
                                     .max(0.05);
-                                entity.set_attribute(
-                                    "avatar_attack_left",
-                                    Value::Float(attack_time),
-                                );
+                                entity
+                                    .set_attribute("avatar_attack_left", Value::Float(attack_time));
 
                                 let next_tick =
                                     ctx.ticks + Self::follow_attack_cooldown_ticks(ctx, entity);
                                 entity.action =
                                     EntityAction::FollowAttack(target_id, *speed, next_tick);
                             } else {
-                                entity.action =
-                                    EntityAction::FollowAttack(target_id, *speed, *next_attack_tick);
+                                entity.action = EntityAction::FollowAttack(
+                                    target_id,
+                                    *speed,
+                                    *next_attack_tick,
+                                );
                             }
                             return;
                         }
@@ -3998,9 +4097,13 @@ impl RegionInstance {
                                 .max(0.0);
                             budget += speed_per_turn;
                             if budget + 1e-6 < 1.0 {
-                                entity.set_attribute("__follow_attack_budget", Value::Float(budget));
-                                entity.action =
-                                    EntityAction::FollowAttack(target_id, *speed, *next_attack_tick);
+                                entity
+                                    .set_attribute("__follow_attack_budget", Value::Float(budget));
+                                entity.action = EntityAction::FollowAttack(
+                                    target_id,
+                                    *speed,
+                                    *next_attack_tick,
+                                );
                                 return;
                             }
                             budget = (budget - 1.0).max(0.0);
@@ -4033,11 +4136,17 @@ impl RegionInstance {
                                     let to_target = target_pos - position;
                                     let dist = to_target.magnitude();
                                     if dist <= f32::EPSILON {
-                                        (Vec3::new(position.x, entity.position.y, position.y), false)
+                                        (
+                                            Vec3::new(position.x, entity.position.y, position.y),
+                                            false,
+                                        )
                                     } else {
                                         let step = to_target.normalized() * step_speed.min(dist);
-                                        let start_3d =
-                                            vek::Vec3::new(position.x, entity.position.y, position.y);
+                                        let start_3d = vek::Vec3::new(
+                                            position.x,
+                                            entity.position.y,
+                                            position.y,
+                                        );
                                         let step_3d = vek::Vec3::new(step.x, 0.0, step.y);
                                         ctx.collision_world.move_distance(start_3d, step_3d, radius)
                                     }
@@ -4056,7 +4165,8 @@ impl RegionInstance {
                         }
                         entity.set_pos_xz(new_position);
                         entity.position.y = new_y;
-                        entity.action = EntityAction::FollowAttack(target_id, *speed, *next_attack_tick);
+                        entity.action =
+                            EntityAction::FollowAttack(target_id, *speed, *next_attack_tick);
 
                         ctx.check_player_for_section_change(entity);
                     });
@@ -4133,8 +4243,7 @@ impl RegionInstance {
                         let min_movement_sq = min_movement * min_movement;
 
                         // Prevent facing jitter when repeatedly colliding/sliding near blockers.
-                        if move_delta.magnitude_squared() > min_movement_sq
-                            && progress.abs() > 1e-6
+                        if move_delta.magnitude_squared() > min_movement_sq && progress.abs() > 1e-6
                         {
                             entity.set_orientation(move_delta.normalized());
                         }
@@ -4250,7 +4359,8 @@ impl RegionInstance {
                             let start = entity.get_pos_xz();
                             let step_dir = next - start;
                             entity.set_orientation(facing);
-                            entity.action = EntityAction::StepTo(next, *speed, facing, start, step_dir);
+                            entity.action =
+                                EntityAction::StepTo(next, *speed, facing, start, step_dir);
                             entity.set_attribute(
                                 "__grid_goto_target",
                                 Value::Str(format!("{},{}", target.x, target.y)),
@@ -4282,7 +4392,8 @@ impl RegionInstance {
                                     if dist <= 0.05 {
                                         (position, entity.position.y, true, false, false)
                                     } else {
-                                        let step = to_target.normalized() * remaining_speed.min(dist);
+                                        let step =
+                                            to_target.normalized() * remaining_speed.min(dist);
                                         let probe = self.probe_dynamic_collisions_in_ctx(
                                             ctx,
                                             entity,
@@ -4332,16 +4443,15 @@ impl RegionInstance {
                                                         );
                                                         let step_3d =
                                                             vek::Vec3::new(step.x, 0.0, step.y);
-                                                        let (end_3d, _) = ctx
-                                                            .collision_world
-                                                            .move_distance(
+                                                        let (end_3d, _) =
+                                                            ctx.collision_world.move_distance(
                                                                 start_3d, step_3d, radius,
                                                             );
                                                         let end_2d =
                                                             vek::Vec2::new(end_3d.x, end_3d.z);
-                                                        let arrived =
-                                                            (curr_coord - end_2d).magnitude()
-                                                                <= 0.05;
+                                                        let arrived = (curr_coord - end_2d)
+                                                            .magnitude()
+                                                            <= 0.05;
                                                         (end_3d, arrived)
                                                     }
                                                 });
@@ -4354,13 +4464,15 @@ impl RegionInstance {
                                     if dist <= 0.05 {
                                         (position, entity.position.y, true, false, false)
                                     } else {
-                                        let step = to_target.normalized() * remaining_speed.min(dist);
-                                        let move_result = self.move_entity_by_vector_with_result_in_ctx(
-                                            ctx,
-                                            entity,
-                                            step,
-                                            self.entity_block_mode,
-                                        );
+                                        let step =
+                                            to_target.normalized() * remaining_speed.min(dist);
+                                        let move_result = self
+                                            .move_entity_by_vector_with_result_in_ctx(
+                                                ctx,
+                                                entity,
+                                                step,
+                                                self.entity_block_mode,
+                                            );
                                         let p = entity.get_pos_xz();
                                         let y = entity.position.y;
                                         let arrived = (curr_coord - p).magnitude() <= 0.05;
@@ -4375,8 +4487,8 @@ impl RegionInstance {
                                 };
 
                             let move_delta = new_position - position;
-                            let progress =
-                                (curr_coord - position).magnitude() - (curr_coord - new_position).magnitude();
+                            let progress = (curr_coord - position).magnitude()
+                                - (curr_coord - new_position).magnitude();
                             let axis = if curr_step_dir.magnitude_squared() > 1e-6 {
                                 curr_step_dir.normalized()
                             } else {
@@ -4465,7 +4577,8 @@ impl RegionInstance {
                                     crate::server::regionctx::SimulationMode::Realtime
                                 ) {
                                     self.queue_grid_action_from_desired(entity, &player_camera);
-                                } else if self.queue_grid_action_from_desired(entity, &player_camera)
+                                } else if self
+                                    .queue_grid_action_from_desired(entity, &player_camera)
                                 {
                                     self.queue_simulation_step();
                                     continue_grid_chain = false;
@@ -4516,10 +4629,8 @@ impl RegionInstance {
                                 .magnitude_squared()
                                 <= 0.001
                             {
-                                entity.set_attribute(
-                                    "__grid_goto_target",
-                                    Value::Str(String::new()),
-                                );
+                                entity
+                                    .set_attribute("__grid_goto_target", Value::Str(String::new()));
                                 entity.set_attribute("__grid_goto_speed", Value::Float(1.0));
                                 entity.action = EntityAction::Off;
                             } else {
@@ -4552,16 +4663,14 @@ impl RegionInstance {
                         let mut found = false;
 
                         with_regionctx(self.id, |ctx| {
-                            let radius =
-                                entity.attributes.get_float_default("radius", 0.5) - 0.01;
+                            let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
 
                             // Prefer discrete nearby tile centers first. In narrow 2D spaces
                             // (for example behind counters) arbitrary points on a distance-radius
                             // circle are almost always invalid, even though left/right tile moves
                             // are perfectly fine.
                             let curr_tile = curr_pos.map(|c| c.floor() as i32);
-                            let curr_center =
-                                curr_tile.map(|i| i as f32) + Vec2::broadcast(0.5);
+                            let curr_center = curr_tile.map(|i| i as f32) + Vec2::broadcast(0.5);
                             let max_steps = (*distance).ceil().max(1.0) as i32;
                             let mut center_candidates = Vec::new();
 
@@ -4578,8 +4687,7 @@ impl RegionInstance {
                                         continue;
                                     }
                                     let tile = curr_tile + Vec2::new(x, y);
-                                    let center =
-                                        tile.map(|i| i as f32) + Vec2::broadcast(0.5);
+                                    let center = tile.map(|i| i as f32) + Vec2::broadcast(0.5);
                                     if ctx.mapmini.is_walkable_position(center, radius) {
                                         center_candidates.push(center);
                                     }
@@ -4609,8 +4717,8 @@ impl RegionInstance {
                                 let max_sleep_guard = (*max_sleep).max(1);
                                 let sleep_minutes =
                                     rng.random_range(min_sleep..=max_sleep_guard) as u32;
-                                let wake_tick =
-                                    ctx.ticks + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
+                                let wake_tick = ctx.ticks
+                                    + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
                                 entity.action = SleepAndSwitch(
                                     wake_tick,
                                     Box::new(RandomWalk(
@@ -4621,8 +4729,7 @@ impl RegionInstance {
                         });
 
                         if found {
-                            entity.action =
-                                RandomWalk(*distance, *speed, *max_sleep, 1, next_pos);
+                            entity.action = RandomWalk(*distance, *speed, *max_sleep, 1, next_pos);
                             entity.face_at(next_pos);
                         }
                     } else if *state == 1 {
@@ -4644,7 +4751,8 @@ impl RegionInstance {
                                 let step_speed = self.movement_units_per_sec
                                     * Self::autonomous_action_dt(ctx, entity);
                                 let terrain_cfg =
-                                    crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                                    crate::chunkbuilder::terrain_generator::TerrainConfig::default(
+                                    );
                                 let terrain_y =
                                     crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
                                         &ctx.map,
@@ -4841,8 +4949,8 @@ impl RegionInstance {
                                     let max_sleep_guard = max_sleep.max(1);
                                     let sleep_minutes =
                                         rng.random_range(min_sleep..=max_sleep_guard) as u32;
-                                    let wake_tick =
-                                        ctx.ticks + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
+                                    let wake_tick = ctx.ticks
+                                        + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
                                     entity.action = SleepAndSwitch(
                                         wake_tick,
                                         Box::new(RandomWalk(
@@ -5118,8 +5226,8 @@ impl RegionInstance {
                                     let max_sleep_guard = max_sleep.max(1);
                                     let sleep_minutes =
                                         rng.random_range(min_sleep..=max_sleep_guard) as u32;
-                                    let wake_tick =
-                                        ctx.ticks + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
+                                    let wake_tick = ctx.ticks
+                                        + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
                                     entity.action = SleepAndSwitch(
                                         wake_tick,
                                         Box::new(RandomWalkInSector(
@@ -5135,8 +5243,8 @@ impl RegionInstance {
                                     let max_sleep_guard = max_sleep.max(1);
                                     let sleep_minutes =
                                         rng.random_range(min_sleep..=max_sleep_guard) as u32;
-                                    let wake_tick =
-                                        ctx.ticks + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
+                                    let wake_tick = ctx.ticks
+                                        + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
                                     entity.action = SleepAndSwitch(
                                         wake_tick,
                                         Box::new(RandomWalkInSector(
@@ -5259,8 +5367,7 @@ impl RegionInstance {
                             entity.set_pos_xz(new_position);
                             entity.position.y = new_y;
                             if arrived {
-                                let wait_ticks =
-                                    Self::scheduled_delay_ticks(ctx, *route_wait);
+                                let wait_ticks = Self::scheduled_delay_ticks(ctx, *route_wait);
                                 wait_until = ctx.ticks + wait_ticks;
                                 if len > 1 {
                                     let pingpong = route_mode.eq_ignore_ascii_case("pingpong");
@@ -8527,7 +8634,11 @@ fn current_attack_kind_for_entity(
     entity_id: u32,
     source_item_id: Option<u32>,
 ) -> String {
-    let attacker = ctx.map.entities.iter().find(|entity| entity.id == entity_id);
+    let attacker = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id);
 
     if let Some(kind) = source_item_id
         .and_then(|item_id| attacker.and_then(|entity| entity.get_item(item_id)))
@@ -9547,13 +9658,13 @@ fn move_item_for_entity(
         return false;
     };
 
-    let source = if let Some(source_entity_index) = source_entity_index
-        && let Some(slot) = ctx.map.entities[source_entity_index].get_item_slot(item_id)
-    {
-        Source::Inventory(slot)
-    } else if let Some(source_entity_index) = source_entity_index
-        && let Some(slot) =
-            ctx.map.entities[source_entity_index]
+    let source =
+        if let Some(source_entity_index) = source_entity_index
+            && let Some(slot) = ctx.map.entities[source_entity_index].get_item_slot(item_id)
+        {
+            Source::Inventory(slot)
+        } else if let Some(source_entity_index) = source_entity_index
+            && let Some(slot) = ctx.map.entities[source_entity_index]
                 .equipped
                 .iter()
                 .find_map(|(slot, item)| {
@@ -9563,18 +9674,15 @@ fn move_item_for_entity(
                         None
                     }
                 })
-    {
-        Source::Equipped(slot)
-    } else if let Some(index) = ctx
-        .map
-        .items
-        .iter()
-        .position(|item| item.id == item_id && !item.attributes.get_bool_default("static", false))
-    {
-        Source::World(index)
-    } else {
-        return false;
-    };
+        {
+            Source::Equipped(slot)
+        } else if let Some(index) = ctx.map.items.iter().position(|item| {
+            item.id == item_id && !item.attributes.get_bool_default("static", false)
+        }) {
+            Source::World(index)
+        } else {
+            return false;
+        };
     let from_world = matches!(source, Source::World(_));
 
     let moving_item_slot = match (&source, source_entity_index) {
@@ -9664,12 +9772,17 @@ fn move_item_for_entity(
             return false;
         };
 
-        let (source_entity, maybe_target_entity) =
-            entity_pair_mut(&mut ctx.map.entities, source_entity_index.unwrap_or(target_entity_index), target_entity_index);
+        let (source_entity, maybe_target_entity) = entity_pair_mut(
+            &mut ctx.map.entities,
+            source_entity_index.unwrap_or(target_entity_index),
+            target_entity_index,
+        );
         let target_entity = maybe_target_entity.unwrap_or(source_entity);
         let displaced = target_entity.remove_item_from_slot(target_index);
         target_entity.inventory[target_index] = Some(moving.clone());
-        target_entity.inventory_additions.insert(target_index, moving);
+        target_entity
+            .inventory_additions
+            .insert(target_index, moving);
         target_entity.inventory_removals.remove(&target_index);
         target_entity.dirty_flags |= 0b1000;
 
@@ -9684,7 +9797,9 @@ fn move_item_for_entity(
                     source_entity.dirty_flags |= 0b1000;
                 }
                 Source::Equipped(source_slot) => {
-                    source_entity.equipped.insert(source_slot.clone(), displaced);
+                    source_entity
+                        .equipped
+                        .insert(source_slot.clone(), displaced);
                     source_entity.dirty_flags |= 0b10000;
                 }
                 Source::World(_) => {
@@ -9736,8 +9851,11 @@ fn move_item_for_entity(
             return false;
         };
 
-        let (source_entity, maybe_target_entity) =
-            entity_pair_mut(&mut ctx.map.entities, source_entity_index.unwrap_or(target_entity_index), target_entity_index);
+        let (source_entity, maybe_target_entity) = entity_pair_mut(
+            &mut ctx.map.entities,
+            source_entity_index.unwrap_or(target_entity_index),
+            target_entity_index,
+        );
         let target_entity = maybe_target_entity.unwrap_or(source_entity);
         let displaced = target_entity.unequip_item(&target_slot).ok();
         target_entity.equipped.insert(target_slot, moving);
@@ -9754,7 +9872,9 @@ fn move_item_for_entity(
                     source_entity.dirty_flags |= 0b1000;
                 }
                 Source::Equipped(source_slot) => {
-                    source_entity.equipped.insert(source_slot.clone(), displaced);
+                    source_entity
+                        .equipped
+                        .insert(source_slot.clone(), displaced);
                     source_entity.dirty_flags |= 0b10000;
                 }
                 Source::World(_) => {

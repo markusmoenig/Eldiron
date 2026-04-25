@@ -597,9 +597,8 @@ impl Sidebar {
                         let dim = *render_view.dim();
 
                         // Color selected
-                        let palette_minimap_active =
-                            server_ctx.palette_tool_active
-                                && DOCKMANAGER.read().unwrap().dock == "Palette";
+                        let palette_minimap_active = server_ctx.palette_tool_active
+                            && DOCKMANAGER.read().unwrap().dock == "Palette";
                         if palette_minimap_active {
                             let buffer = render_view.render_buffer_mut();
                             if let Some(col) = buffer.get_pixel(coord.x, coord.y) {
@@ -685,8 +684,7 @@ impl Sidebar {
                                     .get_region(&server_ctx.curr_region)
                                     .map(|region| region.editing_look_at_3d.y)
                                     .unwrap_or(0.0);
-                                update_look_at_3d =
-                                    Some(Vec3::new(grid_x, current_y, grid_y));
+                                update_look_at_3d = Some(Vec3::new(grid_x, current_y, grid_y));
                             } else if server_ctx.get_map_context() == MapContext::Region
                                 && server_ctx.editing_surface.is_none()
                             {
@@ -694,8 +692,7 @@ impl Sidebar {
                                     .get_region(&server_ctx.curr_region)
                                     .map(|region| region.editing_position_3d.y)
                                     .unwrap_or(0.0);
-                                update_pos_3d =
-                                    Some(Vec3::new(grid_x, current_y, grid_y));
+                                update_pos_3d = Some(Vec3::new(grid_x, current_y, grid_y));
                             }
                             handled_minimap_input = true;
                         }
@@ -3181,13 +3178,7 @@ impl Sidebar {
                     );
                     redraw = true;
                 } else if id.name == "World Code" {
-                    set_project_context(
-                        ctx,
-                        ui,
-                        project,
-                        server_ctx,
-                        ProjectContext::WorldCode,
-                    );
+                    set_project_context(ctx, ui, project, server_ctx, ProjectContext::WorldCode);
                     redraw = true;
                 } else if id.name == "Game Rules" {
                     set_project_context(ctx, ui, project, server_ctx, ProjectContext::GameRules);

@@ -1,5 +1,5 @@
-pub use crate::prelude::*;
 use crate::editor::RUSTERIX;
+pub use crate::prelude::*;
 use rusterix::{PixelSource, ValueContainer};
 
 #[derive(Clone, Debug)]

@@ -90,9 +90,11 @@ fn sector_is_dungeon_generated(sector: &crate::Sector) -> bool {
 }
 
 fn linedef_has_dungeon_host(map: &Map, linedef: &crate::Linedef) -> bool {
-    if map.sectors.iter().any(|sector| {
-        sector_is_dungeon_generated(sector) && sector.linedefs.contains(&linedef.id)
-    }) {
+    if map
+        .sectors
+        .iter()
+        .any(|sector| sector_is_dungeon_generated(sector) && sector.linedefs.contains(&linedef.id))
+    {
         return true;
     }
 
@@ -199,7 +201,9 @@ fn surface_organic_detail(
     surface: &crate::Surface,
     map: &Map,
 ) -> Option<scenevm::OrganicSurfaceDetail> {
-    let (local_min, local_max) = surface.organic_local_bounds(map)?;
+    let (local_min, local_max) = surface
+        .tile_local_bounds(map)
+        .or_else(|| surface.organic_local_bounds(map))?;
     Some(scenevm::OrganicSurfaceDetail {
         surface_id: surface.id,
         anchor_uv: surface.tile_local_anchor_uv(map).into_array(),
@@ -241,6 +245,11 @@ fn add_surface_poly_3d(
     visible: bool,
 ) {
     if let Some(detail) = surface_organic_detail(surface, map) {
+        let organic_uvs = if organic_uvs.len() == vertices.len() {
+            organic_uvs
+        } else {
+            build_surface_local_uvs_from_world_vertices(&vertices, surface, map)
+        };
         vmchunk.add_surface_poly_3d(
             id,
             tile_id,
@@ -273,6 +282,11 @@ fn add_surface_poly_3d_blended(
     visible: bool,
 ) {
     if let Some(detail) = surface_organic_detail(surface, map) {
+        let organic_uvs = if organic_uvs.len() == vertices.len() {
+            organic_uvs
+        } else {
+            build_surface_local_uvs_from_world_vertices(&vertices, surface, map)
+        };
         vmchunk.add_surface_poly_3d_blended(
             id,
             tile_id,
@@ -358,7 +372,27 @@ fn build_surface_local_uvs(
 ) -> Vec<[f32; 2]> {
     verts_uv
         .iter()
-        .map(|uv| surface.uv_to_tile_local(Vec2::new(uv[0], uv[1]), map).into_array())
+        .map(|uv| {
+            surface
+                .uv_to_tile_local(Vec2::new(uv[0], uv[1]), map)
+                .into_array()
+        })
+        .collect()
+}
+
+fn build_surface_local_uvs_from_world_vertices(
+    vertices: &[[f32; 4]],
+    surface: &crate::Surface,
+    map: &Map,
+) -> Vec<[f32; 2]> {
+    vertices
+        .iter()
+        .map(|vertex| {
+            let world = Vec3::new(vertex[0], vertex[1], vertex[2]);
+            surface
+                .uv_to_tile_local(surface.world_to_uv(world), map)
+                .into_array()
+        })
         .collect()
 }
 
@@ -639,7 +673,10 @@ fn extract_wall_barriers_with_openings(
             if path.len() < 2 {
                 return None;
             }
-            let min_t = path.iter().map(|p| p.dot(tangent)).fold(f32::INFINITY, f32::min);
+            let min_t = path
+                .iter()
+                .map(|p| p.dot(tangent))
+                .fold(f32::INFINITY, f32::min);
             let max_t = path
                 .iter()
                 .map(|p| p.dot(tangent))
@@ -2976,7 +3013,8 @@ fn add_terrain_collision(
     let generator = TerrainGenerator::new(config);
     let terrain_chunk = Chunk::new(chunk_origin.map(|v| v * chunk_size), chunk_size);
 
-    let Some(meshes) = generator.generate(map, &terrain_chunk, assets, default_tile_id, tile_overrides)
+    let Some(meshes) =
+        generator.generate(map, &terrain_chunk, assets, default_tile_id, tile_overrides)
     else {
         return;
     };
@@ -6658,16 +6696,8 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                             let width = (hi - lo).abs();
                             if width > 1e-4 {
                                 // Don't snap - side panels use overhung positions, end cap must match
-                                let b0 = world_from_along_sample(
-                                    u_actual,
-                                    lo,
-                                    best_base_y,
-                                );
-                                let b1 = world_from_along_sample(
-                                    u_actual,
-                                    hi,
-                                    best_base_y,
-                                );
+                                let b0 = world_from_along_sample(u_actual, lo, best_base_y);
+                                let b1 = world_from_along_sample(u_actual, hi, best_base_y);
                                 let apex_xz =
                                     Vec2::new((b0[0] + b1[0]) * 0.5, (b0[2] + b1[2]) * 0.5);
                                 let tri_vertices = vec![
@@ -6705,16 +6735,8 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                             let width = (hi - lo).abs();
                             if width > 1e-4 {
                                 // Don't snap - side panels use overhung positions, end cap must match
-                                let b0 = world_from_along_sample(
-                                    u_actual,
-                                    lo,
-                                    best_base_y,
-                                );
-                                let b1 = world_from_along_sample(
-                                    u_actual,
-                                    hi,
-                                    best_base_y,
-                                );
+                                let b0 = world_from_along_sample(u_actual, lo, best_base_y);
+                                let b1 = world_from_along_sample(u_actual, hi, best_base_y);
                                 let apex_xz =
                                     Vec2::new((b0[0] + b1[0]) * 0.5, (b0[2] + b1[2]) * 0.5);
                                 let tri_vertices = vec![
@@ -6751,16 +6773,8 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
                         if width > 1e-4 {
                             {
                                 // Don't snap - side panels use overhung positions, end cap must match
-                                let b0 = world_from_along_sample(
-                                    p.u0,
-                                    p.s0.0,
-                                    best_base_y,
-                                );
-                                let b1 = world_from_along_sample(
-                                    p.u1,
-                                    p.s1.0,
-                                    best_base_y,
-                                );
+                                let b0 = world_from_along_sample(p.u0, p.s0.0, best_base_y);
+                                let b1 = world_from_along_sample(p.u1, p.s1.0, best_base_y);
                                 let apex0_xz =
                                     Vec2::new((b0[0] + b1[0]) * 0.5, (b0[2] + b1[2]) * 0.5);
                                 let tri0 = vec![
@@ -6788,16 +6802,8 @@ fn generate_sector_roofs(map: &Map, assets: &Assets, chunk: &Chunk, vmchunk: &mu
 
                             {
                                 // Don't snap - side panels use overhung positions, end cap must match
-                                let b0 = world_from_along_sample(
-                                    p.u0,
-                                    p.s0.1,
-                                    best_base_y,
-                                );
-                                let b1 = world_from_along_sample(
-                                    p.u1,
-                                    p.s1.1,
-                                    best_base_y,
-                                );
+                                let b0 = world_from_along_sample(p.u0, p.s0.1, best_base_y);
+                                let b1 = world_from_along_sample(p.u1, p.s1.1, best_base_y);
                                 let apex1_xz =
                                     Vec2::new((b0[0] + b1[0]) * 0.5, (b0[2] + b1[2]) * 0.5);
                                 let tri1 = vec![

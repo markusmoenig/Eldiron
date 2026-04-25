@@ -21,8 +21,8 @@ pub mod map;
 pub mod material_profile;
 pub mod particleharness;
 pub mod rasterizer;
-pub mod rect;
 pub mod ray;
+pub mod rect;
 #[cfg(feature = "graphics")]
 pub mod render_settings;
 pub mod rendermode;
@@ -138,6 +138,7 @@ pub use crate::{
     chunkbuilder::{ChunkBuilder, d2chunkbuilder::D2ChunkBuilder, d3chunkbuilder::D3ChunkBuilder},
     collision_world::CollisionWorld,
     edge::Edges,
+    hitinfo::HitInfo,
     intodata::IntoDataInput,
     map::{
         Map, MapCamera, MapToolType,
@@ -156,8 +157,7 @@ pub use crate::{
             OrganicBatchDetail, OrganicBushCluster, OrganicChannelBinding, OrganicColumn,
             OrganicDetailCell, OrganicDetailPage, OrganicGrowthShape, OrganicSpan,
             OrganicVineStroke, OrganicVolumeLayer, default_organic_bush_clusters,
-            default_organic_layers, default_organic_vine_strokes,
-            terrain_organic_detail_id,
+            default_organic_layers, default_organic_vine_strokes, terrain_organic_detail_id,
         },
         particle::{Particle, ParticleEmitter},
         pixelsource::NoiseTarget,
@@ -171,6 +171,7 @@ pub use crate::{
     },
     material_profile::MaterialProfile,
     rasterizer::{BrushPreview, Rasterizer},
+    ray::Ray,
     rect::Rect,
     rendermode::RenderMode,
     scene::Scene,
@@ -191,8 +192,6 @@ pub use crate::{
     },
     shader::{Shader, grid::GridShader, vgradient::VGrayGradientShader},
     texture::{RepeatMode, SampleMode, Texture},
-    hitinfo::HitInfo,
-    ray::Ray,
     value::{HeightControlPoint, Value, ValueContainer},
     value_toml::{ValueGroups, ValueTomlLoader},
     vertexblend::VertexBlendPreset,
@@ -233,9 +232,8 @@ pub mod prelude {
         OrganicChannelBinding, OrganicColumn, OrganicDetailCell, OrganicDetailPage,
         OrganicGrowthShape, OrganicSpan, OrganicVineStroke, OrganicVolumeLayer, Particle,
         ParticleEmitter, PixelSource, Sector, SoftRig, SoftRigAnimator, Tile, TileGroup,
-        TileGroupMemberRef, TileRole, TileSource, Vertex,
-        default_organic_bush_clusters, default_organic_layers, default_organic_vine_strokes,
-        terrain_organic_detail_id,
+        TileGroupMemberRef, TileRole, TileSource, Vertex, default_organic_bush_clusters,
+        default_organic_layers, default_organic_vine_strokes, terrain_organic_detail_id,
     };
     pub use crate::{GridShader, Shader, VGrayGradientShader};
     pub use crate::{

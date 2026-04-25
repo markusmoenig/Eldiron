@@ -592,14 +592,12 @@ impl Tool for RectTool {
 impl RectTool {
     fn encode_tile_source(source: TileSource) -> TheValue {
         match source {
-            TileSource::SingleTile(id) => TheValue::List(vec![
-                TheValue::Text("single".to_string()),
-                TheValue::Id(id),
-            ]),
-            TileSource::TileGroup(id) => TheValue::List(vec![
-                TheValue::Text("group".to_string()),
-                TheValue::Id(id),
-            ]),
+            TileSource::SingleTile(id) => {
+                TheValue::List(vec![TheValue::Text("single".to_string()), TheValue::Id(id)])
+            }
+            TileSource::TileGroup(id) => {
+                TheValue::List(vec![TheValue::Text("group".to_string()), TheValue::Id(id)])
+            }
             TileSource::TileGroupMember {
                 group_id,
                 member_index,
@@ -709,7 +707,10 @@ impl RectTool {
             .and_then(Self::tile_source_from_pixel_source)
     }
 
-    fn sample_source_at_current_target(map: &Map, server_ctx: &ServerContext) -> Option<TileSource> {
+    fn sample_source_at_current_target(
+        map: &Map,
+        server_ctx: &ServerContext,
+    ) -> Option<TileSource> {
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
             if map.properties.get_bool_default("terrain_enabled", false) {
                 return server_ctx

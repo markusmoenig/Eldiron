@@ -239,22 +239,20 @@ impl OrganicVolumeLayer {
     fn page_mut(&mut self, page_x: i32, page_y: i32) -> &mut OrganicDetailPage {
         let key = Self::page_key(page_x, page_y);
         let page_size = self.page_size.max(1);
-        self.pages
-            .entry(key)
-            .or_insert_with(|| {
-                let len = (page_size * page_size) as usize;
-                OrganicDetailPage {
-                    page_x,
-                    page_y,
-                    cells: vec![
-                        OrganicDetailCell {
-                            palette_index: 0,
-                            coverage: 0,
-                        };
-                        len
-                    ],
-                }
-            })
+        self.pages.entry(key).or_insert_with(|| {
+            let len = (page_size * page_size) as usize;
+            OrganicDetailPage {
+                page_x,
+                page_y,
+                cells: vec![
+                    OrganicDetailCell {
+                        palette_index: 0,
+                        coverage: 0,
+                    };
+                    len
+                ],
+            }
+        })
     }
 
     fn cleanup_page_if_empty(&mut self, page_x: i32, page_y: i32) {
@@ -290,7 +288,7 @@ impl OrganicVolumeLayer {
                 cell.palette_index = 0;
             }
         } else {
-            cell.coverage = cell.coverage.max(amount);
+            cell.coverage = cell.coverage.saturating_add(amount);
             if amount > 0 {
                 cell.palette_index = palette_index;
             }
@@ -447,7 +445,13 @@ impl OrganicVolumeLayer {
         source: Option<PixelSource>,
         grow_positive: bool,
     ) -> bool {
-        let _ = (anchor_offset, max_height, height_falloff, channel, grow_positive);
+        let _ = (
+            anchor_offset,
+            max_height,
+            height_falloff,
+            channel,
+            grow_positive,
+        );
         if density <= 0.001 {
             return false;
         }
@@ -471,14 +475,28 @@ impl OrganicVolumeLayer {
         source: Option<PixelSource>,
         grow_positive: bool,
     ) -> bool {
-        let _ = (anchor_offset, max_height, height_falloff, channel, grow_positive);
+        let _ = (
+            anchor_offset,
+            max_height,
+            height_falloff,
+            channel,
+            grow_positive,
+        );
         if density <= 0.001 {
             return false;
         }
         let Some(palette_index) = Self::palette_index_from_source(source) else {
             return false;
         };
-        self.apply_capsule(start, end, radius, edge_softness, density, palette_index, false)
+        self.apply_capsule(
+            start,
+            end,
+            radius,
+            edge_softness,
+            density,
+            palette_index,
+            false,
+        )
     }
 
     pub fn erase_sphere(
@@ -537,8 +555,10 @@ impl OrganicVolumeLayer {
                 let local_y = (slot as i32).div_euclid(page_size);
                 let cell_x = page.page_x * page_size + local_x;
                 let cell_y = page.page_y * page_size + local_y;
-                let cell_min =
-                    Vec2::new(cell_x as f32 * self.cell_size, cell_y as f32 * self.cell_size);
+                let cell_min = Vec2::new(
+                    cell_x as f32 * self.cell_size,
+                    cell_y as f32 * self.cell_size,
+                );
                 let cell_max = cell_min + Vec2::broadcast(self.cell_size);
                 min.x = min.x.min(cell_min.x);
                 min.y = min.y.min(cell_min.y);

@@ -100,13 +100,17 @@ impl DuplicateTile {
             project.add_tile_node_group(cloned_node_group);
         }
 
-        let pos =
-            Self::append_board_position(project, Vec2::new(group.width as i32, group.height as i32));
+        let pos = Self::append_board_position(
+            project,
+            Vec2::new(group.width as i32, group.height as i32),
+        );
         project.ensure_tile_board_space(pos + Vec2::new(group.width as i32, group.height as i32));
         project.set_tile_board_position(TileSource::TileGroup(new_group_id), pos);
 
         server_ctx.curr_tile_source = Some(TileSource::TileGroup(new_group_id));
-        server_ctx.tile_node_group_id = project.is_tile_node_group(&new_group_id).then_some(new_group_id);
+        server_ctx.tile_node_group_id = project
+            .is_tile_node_group(&new_group_id)
+            .then_some(new_group_id);
         server_ctx.curr_tile_id = project
             .tile_groups
             .get(&new_group_id)

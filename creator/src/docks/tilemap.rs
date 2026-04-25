@@ -424,8 +424,9 @@ impl Dock for TilemapDock {
 
                                     if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id)
                                     {
-                                        let extracted =
-                                            tilemap.buffer.extract_sequence(&tile_for_runtime.sequence);
+                                        let extracted = tilemap
+                                            .buffer
+                                            .extract_sequence(&tile_for_runtime.sequence);
                                         let mut texture_array: Vec<rusterix::Texture> = vec![];
                                         for b in &extracted {
                                             let mut texture = rusterix::Texture::new(
@@ -438,15 +439,15 @@ impl Dock for TilemapDock {
                                         }
                                         let mut tile = rusterix::Tile {
                                             id,
-            role: tile_for_runtime.role,
-            textures: texture_array.clone(),
-            module: None,
-            blocking: tile_for_runtime.blocking,
-            scale: tile_for_runtime.scale,
-            alias: tile_for_runtime.name.clone(),
-            particle_emitter: None,
-            light_emitter: None,
-        };
+                                            role: tile_for_runtime.role,
+                                            textures: texture_array.clone(),
+                                            module: None,
+                                            blocking: tile_for_runtime.blocking,
+                                            scale: tile_for_runtime.scale,
+                                            alias: tile_for_runtime.name.clone(),
+                                            particle_emitter: None,
+                                            light_emitter: None,
+                                        };
                                         tile.set_default_materials();
                                         project.tiles.insert(id, tile);
                                     }

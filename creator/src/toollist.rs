@@ -1940,19 +1940,19 @@ impl ToolList {
                                 |radius: f32, tile_id: Uuid, geo_base: u32, z_bias: f32| {
                                     for i in 0..segments {
                                         let a0 = i as f32 / segments as f32 * std::f32::consts::TAU;
-                                        let a1 =
-                                            (i + 1) as f32 / segments as f32 * std::f32::consts::TAU;
+                                        let a1 = (i + 1) as f32 / segments as f32
+                                            * std::f32::consts::TAU;
                                         let p0_local = center_local
                                             + Vec2::new(a0.cos() * radius, a0.sin() * radius);
                                         let p1_local = center_local
                                             + Vec2::new(a1.cos() * radius, a1.sin() * radius);
-                                        let p0 = surface.uv_to_world(
-                                            surface.tile_local_to_uv(p0_local, map),
-                                        ) + view_nudge
+                                        let p0 = surface
+                                            .uv_to_world(surface.tile_local_to_uv(p0_local, map))
+                                            + view_nudge
                                             + cam_forward * z_bias;
-                                        let p1 = surface.uv_to_world(
-                                            surface.tile_local_to_uv(p1_local, map),
-                                        ) + view_nudge
+                                        let p1 = surface
+                                            .uv_to_world(surface.tile_local_to_uv(p1_local, map))
+                                            + view_nudge
                                             + cam_forward * z_bias;
                                         rusterix.scene_handler.overlay_3d.add_line_3d(
                                             GeoId::Triangle(geo_base + i as u32),
@@ -1971,20 +1971,18 @@ impl ToolList {
                             for i in 0..segments {
                                 let a0 = i as f32 / segments as f32 * std::f32::consts::TAU;
                                 let a1 = (i + 1) as f32 / segments as f32 * std::f32::consts::TAU;
-                                let p0 = pos
-                                    + Vec3::new(
+                                let p0 =
+                                    pos + Vec3::new(
                                         a0.cos() * organic_brush_radius,
                                         0.0,
                                         a0.sin() * organic_brush_radius,
-                                    )
-                                    + view_nudge;
-                                let p1 = pos
-                                    + Vec3::new(
+                                    ) + view_nudge;
+                                let p1 =
+                                    pos + Vec3::new(
                                         a1.cos() * organic_brush_radius,
                                         0.0,
                                         a1.sin() * organic_brush_radius,
-                                    )
-                                    + view_nudge;
+                                    ) + view_nudge;
                                 rusterix.scene_handler.overlay_3d.add_line_3d(
                                     GeoId::Triangle(8200 + i as u32),
                                     outer_tile,
@@ -2291,8 +2289,7 @@ impl ToolList {
                                     line_is_selected = map.selected_linedefs.contains(&ld_id)
                                         || server_ctx.hover.1 == Some(ld_id);
                                 } else if server_ctx.curr_map_tool_type == MapToolType::Sector {
-                                    line_is_selected =
-                                        sector_is_selected || sector_is_hovered;
+                                    line_is_selected = sector_is_selected || sector_is_hovered;
                                 };
 
                                 // Build unordered edge key from linedef vertices, fallback if not found
@@ -2464,7 +2461,9 @@ impl ToolList {
         server_ctx: &mut ServerContext,
     ) -> Option<(GeoId, Vec3<f32>)> {
         if !self.should_refresh_3d_hover_pick() {
-            return server_ctx.geo_hit.map(|geo_id| (geo_id, server_ctx.geo_hit_pos));
+            return server_ctx
+                .geo_hit
+                .map(|geo_id| (geo_id, server_ctx.geo_hit_pos));
         }
 
         let dim = *render_view.dim();

@@ -524,8 +524,7 @@ impl Action for EditSector {
             .nodeui
             .get_text_value("actionSectorTerrainRidgeWaterTileId")
             .unwrap_or_default();
-        let ridge_water_source =
-            parse_tile_id_pixelsource(&ridge_water_tile_text).or_else(|| {
+        let ridge_water_source = parse_tile_id_pixelsource(&ridge_water_tile_text).or_else(|| {
             (ridge_water_tile_id != Uuid::nil()).then_some(PixelSource::TileId(ridge_water_tile_id))
         });
         let iso_hide_on_enter = self

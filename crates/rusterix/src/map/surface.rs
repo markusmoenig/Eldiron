@@ -1,6 +1,4 @@
-use crate::{
-    Map, OrganicVolumeLayer, Sector, default_organic_layers,
-};
+use crate::{Map, OrganicVolumeLayer, Sector, default_organic_layers};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

@@ -1574,9 +1574,9 @@ impl TilesDock {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let before = project.clone();
-        let deleted_reserved_slot =
-            self.board_position_for_tab(project, self.active_tab, source)
-                .map(|pos| (self.active_tab, pos));
+        let deleted_reserved_slot = self
+            .board_position_for_tab(project, self.active_tab, source)
+            .map(|pos| (self.active_tab, pos));
         match source {
             TileSource::SingleTile(tile_id) => {
                 if let Some(pos) = project.tile_board_tiles.get(&tile_id).copied() {
@@ -1883,8 +1883,12 @@ impl TilesDock {
                     } else {
                         ctx.draw
                             .rect(buffer.pixels_mut(), &rect, stride, &[62, 62, 62, 255]);
-                        ctx.draw
-                            .rect_outline(buffer.pixels_mut(), &rect, stride, &[74, 74, 74, 255]);
+                        ctx.draw.rect_outline(
+                            buffer.pixels_mut(),
+                            &rect,
+                            stride,
+                            &[74, 74, 74, 255],
+                        );
                     }
                 }
             }
@@ -2683,8 +2687,10 @@ impl TilesDock {
         {
             TileTabKind::Collection(collection_id) => {
                 if let Some(collection) = project.tile_collections.get_mut(&collection_id)
-                    && let Some(index) =
-                        collection.tile_board_empty_slots.iter().position(|p| *p == pos)
+                    && let Some(index) = collection
+                        .tile_board_empty_slots
+                        .iter()
+                        .position(|p| *p == pos)
                 {
                     collection.tile_board_empty_slots.swap_remove(index);
                 }
@@ -3072,12 +3078,7 @@ impl TilesDock {
         self.sync_sidebar(ctx, project);
     }
 
-    fn select_reserved_slot(
-        &mut self,
-        tab: usize,
-        pos: Vec2<i32>,
-        server_ctx: &mut ServerContext,
-    ) {
+    fn select_reserved_slot(&mut self, tab: usize, pos: Vec2<i32>, server_ctx: &mut ServerContext) {
         self.clear_selection(server_ctx);
         self.selected_reserved_slot = Some((tab, pos));
     }
