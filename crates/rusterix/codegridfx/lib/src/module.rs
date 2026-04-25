@@ -5,7 +5,7 @@ use theframework::prelude::*;
 const BLOCKS: [&str; 3] = ["Event", "Var = ..", "If .. == .."];
 const VALUES: [&str; 1] = ["Value"];
 const OPERATORS: [&str; 4] = ["Arithmetic", "Assignment", "Comparison", "Else"];
-const FUNCTIONS: [&str; 43] = [
+const FUNCTIONS: [&str; 44] = [
     "action",
     "add_item",
     "attack",
@@ -32,6 +32,7 @@ const FUNCTIONS: [&str; 43] = [
     "say",
     "notify_in",
     "offer_inventory",
+    "multiple_choice",
     "patrol",
     "play_audio",
     "random",

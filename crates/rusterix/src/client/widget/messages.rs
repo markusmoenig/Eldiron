@@ -194,10 +194,9 @@ impl MessagesWidget {
             }
 
             for (index, choice) in choices.choices.iter().enumerate() {
+                let mut rendered_choice = choice.clone();
                 let mut item_name: String = "".into();
                 let mut item_price = 0;
-
-                choice_map.insert((b'1' + index as u8) as char, choice.clone());
 
                 match choice {
                     Choice::ItemToSell(item_id, seller_id, _, _, _) => {
@@ -218,18 +217,54 @@ impl MessagesWidget {
                             }
                         }
                     }
+                    Choice::ScriptChoice(
+                        label,
+                        choice_attr,
+                        from_id,
+                        to_id,
+                        choice_index,
+                        expires_at_tick,
+                        max_distance,
+                    ) => {
+                        item_name = self.resolver.resolve_with_context(
+                            self.parser.parse(label),
+                            map,
+                            assets,
+                            MessageContext {
+                                sender_entity: Some(*from_id),
+                                receiver_entity: Some(*to_id),
+                                world_time: Some(*time),
+                                ..Default::default()
+                            },
+                        );
+                        rendered_choice = Choice::ScriptChoice(
+                            item_name.clone(),
+                            choice_attr.clone(),
+                            *from_id,
+                            *to_id,
+                            *choice_index,
+                            *expires_at_tick,
+                            *max_distance,
+                        );
+                    }
                     _ => {}
                 }
 
-                let label = format!("{}) {}", index + 1, item_name);
-                let price = format!("{}G", item_price);
-                let text = format!("{}{}{}", label, Self::CHOICE_COLUMN_SEPARATOR, price);
+                choice_map.insert((b'1' + index as u8) as char, rendered_choice.clone());
+
+                let text = if matches!(choice, Choice::ItemToSell(_, _, _, _, _)) {
+                    let label = format!("{}) {}", index + 1, item_name);
+                    let price = format!("{}G", item_price);
+                    format!("{}{}{}", label, Self::CHOICE_COLUMN_SEPARATOR, price)
+                } else {
+                    format!("{}) {}", index + 1, item_name)
+                };
 
                 self.messages.push((
                     Uuid::new_v4(),
                     text,
                     Rect::default(),
-                    Some(choice.clone()),
+                    Some(rendered_choice),
                     color,
                 ));
             }

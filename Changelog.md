@@ -41,6 +41,7 @@
 
 - Fixed grid-based player movement so the character `speed` attribute now actually affects direct tile stepping, instead of being hardcoded to `1.0`.
 - Fixed Eldrin compilation of `say("Text")` so the optional category parameter is truly optional, matching the runtime handler and documentation.
+- Added `multiple_choice(entity, prompt, choice_attribute)` for script-defined choice menus using labels authored as character attributes. Selecting an option sends both `{choice_attribute}` and `{choice_attribute}:{index}` back to the offering character.
 
 ### Client
 

@@ -806,6 +806,25 @@ impl Visitor for CompileVisitor {
                             loc,
                         ));
                     }
+                } else if name == "multiple_choice" {
+                    if args.len() == 3 {
+                        for arg in args {
+                            _ = arg.accept(self, ctx)?;
+                        }
+                        ctx.emit(NodeOp::HostCall {
+                            name: "multiple_choice".into(),
+                            argc: args.len() as u8,
+                        });
+                    } else {
+                        return Err(RuntimeError::new(
+                            format!(
+                                "Wrong amount of arguments for '{}', expected '3' got '{}'",
+                                name,
+                                args.len(),
+                            ),
+                            loc,
+                        ));
+                    }
                 } else if name == "patrol" {
                     if args.len() <= 2 {
                         for arg in args {

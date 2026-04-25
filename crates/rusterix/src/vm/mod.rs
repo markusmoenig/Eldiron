@@ -379,6 +379,48 @@ mod tests {
     }
 
     #[test]
+    fn multiple_choice_reads_options_from_attribute() {
+        let mut script = VM::default();
+        let module = script
+            .parse_str(
+                r#"
+                fn ask(event, value) {
+                    multiple_choice(1, "Open the door?", "door_choices");
+                }
+                "#,
+            )
+            .unwrap();
+        script.compile(&module).unwrap();
+
+        let func_index = script
+            .context
+            .program
+            .user_functions_name_map
+            .get("ask")
+            .copied()
+            .unwrap();
+
+        let mut exec = Execution::new(script.context.globals.len());
+        let args = [VMValue::zero(), VMValue::zero()];
+        let _ = exec.execute_function(&args, func_index, &script.context.program);
+
+        assert_eq!(
+            exec.outputs
+                .get("multiple_choice_prompt")
+                .and_then(|v| v.as_string())
+                .unwrap(),
+            "Open the door?"
+        );
+        assert_eq!(
+            exec.outputs
+                .get("multiple_choice_attr")
+                .and_then(|v| v.as_string())
+                .unwrap(),
+            "door_choices"
+        );
+    }
+
+    #[test]
     fn print_multiple_args() {
         let mut script = VM::default();
         let result =

@@ -3396,6 +3396,54 @@ impl RegionInstance {
                                     }
                                 });
                             }
+                            Choice::ScriptChoice(
+                                label,
+                                choice_attr,
+                                from_id,
+                                to_id,
+                                index,
+                                expires_at_tick,
+                                max_distance,
+                            ) => {
+                                with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                    clear_choice_session(ctx, *from_id, *to_id);
+                                    if !choice_session_is_valid(
+                                        ctx,
+                                        *from_id,
+                                        *to_id,
+                                        *expires_at_tick,
+                                        *max_distance,
+                                    ) {
+                                        if let Some(_class_name) = ctx.entity_classes.get(from_id) {
+                                            ctx.to_execute_entity.push((
+                                                *from_id,
+                                                "goodbye".into(),
+                                                VMValue::broadcast(*to_id as f32),
+                                            ));
+                                        }
+                                        return;
+                                    }
+
+                                    if let Some(_class_name) = ctx.entity_classes.get(from_id) {
+                                        let value = VMValue::new_with_string(
+                                            *to_id as f32,
+                                            *index as f32,
+                                            0.0,
+                                            label.clone(),
+                                        );
+                                        ctx.to_execute_entity.push((
+                                            *from_id,
+                                            choice_attr.clone(),
+                                            value.clone(),
+                                        ));
+                                        ctx.to_execute_entity.push((
+                                            *from_id,
+                                            format!("{choice_attr}:{index}"),
+                                            value,
+                                        ));
+                                    }
+                                });
+                            }
                         },
                         _ => {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {

@@ -2031,6 +2031,89 @@ impl<'a> HostHandler for RegionHost<'a> {
                     }
                 }
             }
+            "multiple_choice" => {
+                if let (Some(to), Some(prompt), Some(choice_attr)) = (
+                    args.first().map(|v| v.x as u32),
+                    args.get(1).and_then(|v| v.as_string()),
+                    args.get(2).and_then(|v| v.as_string()),
+                ) {
+                    let region_id = self.ctx.region_id;
+                    let now_ticks = self.ctx.ticks;
+                    let ticks_per_minute = self.ctx.ticks_per_minute;
+                    let Some((entity_id, choice_specs, expires_at_tick, max_distance)) =
+                        self.ctx.get_current_entity_mut().map(|entity| {
+                            let choice_specs = match entity.attributes.get(choice_attr) {
+                                Some(Value::StrArray(values)) => values.clone(),
+                                Some(Value::Str(value)) => value
+                                    .lines()
+                                    .flat_map(|line| line.split(','))
+                                    .map(str::trim)
+                                    .filter(|line| !line.is_empty())
+                                    .map(str::to_string)
+                                    .collect(),
+                                _ => Vec::new(),
+                            };
+                            let timeout_minutes = entity
+                                .attributes
+                                .get_float_default("timeout", 10.0)
+                                .max(0.0);
+                            let expires_at_tick =
+                                now_ticks + (ticks_per_minute as f32 * timeout_minutes) as i64;
+                            (entity.id, choice_specs, expires_at_tick, 2.0)
+                        })
+                    else {
+                        return None;
+                    };
+
+                    if let Some(sender) = self.ctx.from_sender.get() {
+                        let mut choices = MultipleChoice::new(
+                            region_id,
+                            entity_id,
+                            to,
+                            expires_at_tick,
+                            max_distance,
+                        );
+                        for (index, raw) in choice_specs.iter().enumerate() {
+                            let label = raw.trim();
+                            if label.is_empty() {
+                                continue;
+                            }
+                            choices.add(Choice::ScriptChoice(
+                                label.to_string(),
+                                choice_attr.to_string(),
+                                entity_id,
+                                to,
+                                index as u32,
+                                expires_at_tick,
+                                max_distance,
+                            ));
+                        }
+
+                        if !choices.choices.is_empty() {
+                            if !prompt.is_empty() {
+                                let _ = sender.send(RegionMessage::Message(
+                                    region_id,
+                                    Some(entity_id),
+                                    None,
+                                    to,
+                                    prompt.to_string(),
+                                    "multiple_choice".into(),
+                                ));
+                            }
+                            self.ctx
+                                .active_choice_sessions
+                                .retain(|session| !(session.from == entity_id && session.to == to));
+                            self.ctx.active_choice_sessions.push(ChoiceSession {
+                                from: entity_id,
+                                to,
+                                expires_at_tick,
+                                max_distance,
+                            });
+                            let _ = sender.send(RegionMessage::MultipleChoice(choices));
+                        }
+                    }
+                }
+            }
             "gain_xp" => {
                 let gained = args.first().map(|v| v.x.max(0.0)).unwrap_or(0.0);
                 if gained > 0.0 {

@@ -665,6 +665,20 @@ impl Execution {
                             self.outputs.insert("say_category".to_string(), cat.clone());
                         }
                     }
+                    "multiple_choice" => {
+                        if let Some(to) = args.first() {
+                            self.outputs
+                                .insert("multiple_choice_to".to_string(), to.clone());
+                        }
+                        if let Some(prompt) = args.get(1) {
+                            self.outputs
+                                .insert("multiple_choice_prompt".to_string(), prompt.clone());
+                        }
+                        if let Some(attr) = args.get(2) {
+                            self.outputs
+                                .insert("multiple_choice_attr".to_string(), attr.clone());
+                        }
+                    }
                     "id" => {
                         self.stack.push(VMValue::zero());
                     }

@@ -285,16 +285,21 @@ pub enum Choice {
     Cancel(u32, u32, i64, f32),
     /// An item to sell. item_id, seller_id, buyer_id, expires_at_tick, max_distance
     ItemToSell(u32, u32, u32, i64, f32),
+    /// A script-defined choice. label, choice_attr, from, to, index, expires_at_tick, max_distance
+    ScriptChoice(String, String, u32, u32, u32, i64, f32),
 }
 
 impl Choice {
     pub fn session_meta(&self) -> (u32, u32, i64, f32) {
-        match *self {
+        match self {
             Choice::Cancel(from, to, expires_at_tick, max_distance) => {
-                (from, to, expires_at_tick, max_distance)
+                (*from, *to, *expires_at_tick, *max_distance)
             }
             Choice::ItemToSell(_, seller_id, buyer_id, expires_at_tick, max_distance) => {
-                (seller_id, buyer_id, expires_at_tick, max_distance)
+                (*seller_id, *buyer_id, *expires_at_tick, *max_distance)
+            }
+            Choice::ScriptChoice(_, _, from, to, _, expires_at_tick, max_distance) => {
+                (*from, *to, *expires_at_tick, *max_distance)
             }
         }
     }

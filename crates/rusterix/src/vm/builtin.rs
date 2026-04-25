@@ -437,6 +437,14 @@ impl Default for Builtins {
             },
         );
         b.insert(
+            "multiple_choice",
+            3,
+            NodeOp::HostCall {
+                name: "multiple_choice".into(),
+                argc: 3,
+            },
+        );
+        b.insert(
             "drop",
             1,
             NodeOp::HostCall {

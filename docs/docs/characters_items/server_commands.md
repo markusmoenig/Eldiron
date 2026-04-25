@@ -511,6 +511,41 @@ The sale session stays valid only while the buyer remains close enough and withi
 
 ---
 
+## `multiple_choice`
+
+*This command can only be used with characters.*
+
+Offers script-defined choices to a target entity using the same Messages widget choice UI as `offer_inventory()`.
+
+```eldrin
+multiple_choice(entity, "Open the door?", "door_choices")
+```
+
+The third argument is the name of a character attribute containing the options.
+
+```toml
+[attributes]
+door_choices = ["Yes", "No", "Maybe"]
+```
+
+Choice labels use the normal message localization and substitution system, so they can also be authored as localization keys:
+
+```toml
+[attributes]
+door_choices = ["{dialog.yes}", "{dialog.no}", "{dialog.maybe}"]
+```
+
+- `entity`: Target entity that should receive the choice menu.
+- `prompt`: Message shown before the choices. Use `""` to skip the prompt.
+- `choice_attribute`: Attribute on the offering character containing one or more choice labels.
+- Selecting an option sends `{choice_attribute}` and `{choice_attribute}:{index}` back to the offering character, for example `door_choices` and `door_choices:0` for the first option.
+- The event value contains the target entity id in `value.x`, the zero-based option index in `value.y`, and the selected label in `value.text`.
+- `0` / cancel behaves like `offer_inventory()` and sends `goodbye` to the offering character.
+
+The choice session uses the offering character's [timeout](attributes#timeout) attribute and the same distance validity behavior as `offer_inventory()`.
+
+---
+
 ## `patrol`
 
 *This command can only be used with characters.*
