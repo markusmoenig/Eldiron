@@ -12,8 +12,8 @@ jobs:
     strategy:
       matrix:
         config:
-          - { working-directory: "creator", bin-name: "eldiron-creator" }
-          - { working-directory: "clients/client", bin-name: "eldiron-client" }
+          - { working-directory: "creator", bin-name: "eldiron-creator", features: "log,self-update" }
+          - { working-directory: "clients/client", bin-name: "eldiron-client", features: "log" }
 
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +26,7 @@ jobs:
 
       - name: Build (release)
         working-directory: ${{ matrix.config.working-directory }}
-        run: cargo build --verbose --release --features log
+        run: cargo build --verbose --release --features ${{ matrix.config.features }}
 
       # --- Package artefacts -------------------------------------------------
       - name: Package artefacts
@@ -51,8 +51,8 @@ jobs:
     strategy:
       matrix:
         config:
-          - { working-directory: "creator", bin-name: "eldiron-creator" }
-          - { working-directory: "clients/client", bin-name: "eldiron-client" }
+          - { working-directory: "creator", bin-name: "eldiron-creator", features: "log,self-update" }
+          - { working-directory: "clients/client", bin-name: "eldiron-client", features: "log" }
 
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +76,7 @@ jobs:
       # --- Build Eldiron -----------------------------------------------------
       - name: Build (release)
         working-directory: ${{ matrix.config.working-directory }}
-        run: cargo build --verbose --release --features log
+        run: cargo build --verbose --release --features ${{ matrix.config.features }}
 
       # --- Package artefacts -------------------------------------------------
       - name: Package artefacts

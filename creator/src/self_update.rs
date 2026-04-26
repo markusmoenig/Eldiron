@@ -1,16 +1,17 @@
-#![cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+#![cfg(all(
+    feature = "self-update",
+    any(target_os = "windows", target_os = "linux", target_os = "macos")
+))]
 
 use std::vec;
 
-use self_update::{
-    Status, cargo_crate_version,
-    errors::Error,
-    update::{Release, ReleaseUpdate},
-    version::bump_is_greater,
-};
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+use self_update::{Status, update::ReleaseUpdate};
+use self_update::{cargo_crate_version, errors::Error, update::Release, version::bump_is_greater};
 
 pub enum SelfUpdateEvent {
     AlreadyUpToDate,
+    UpdateAvailable(Release),
     UpdateCompleted(Release),
     UpdateConfirm(Release),
     UpdateError(String),
@@ -18,6 +19,7 @@ pub enum SelfUpdateEvent {
 }
 
 pub struct SelfUpdater {
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     bin_name: String,
     current_version: String,
     latest_release: Option<Release>,
@@ -28,8 +30,16 @@ pub struct SelfUpdater {
 }
 
 impl SelfUpdater {
+    pub fn github_creator() -> Self {
+        Self::new("markusmoenig", "Eldiron", "eldiron-creator")
+    }
+
     pub fn new(repo_owner: &str, repo_name: &str, bin_name: &str) -> Self {
+        #[cfg(target_os = "macos")]
+        let _ = bin_name;
+
         Self {
+            #[cfg(any(target_os = "windows", target_os = "linux"))]
             bin_name: bin_name.to_string(),
             current_version: cargo_crate_version!().to_string(),
             latest_release: None,
@@ -68,7 +78,7 @@ impl SelfUpdater {
                 .release_list
                 .iter()
                 .reduce(|acc, release| {
-                    if bump_is_greater(&acc.version, &release.version).unwrap() {
+                    if bump_is_greater(&release.version, &acc.version).unwrap_or_default() {
                         return release;
                     }
 
@@ -91,7 +101,7 @@ impl SelfUpdater {
     pub fn has_newer_release(&self) -> bool {
         self.latest_release()
             .map(|latest_release| {
-                bump_is_greater(&self.current_version, &latest_release.version).unwrap_or_default()
+                bump_is_greater(&latest_release.version, &self.current_version).unwrap_or_default()
             })
             .unwrap_or_default()
     }
@@ -108,6 +118,7 @@ impl SelfUpdater {
         &self.release_list
     }
 
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     pub fn update(&mut self, release: &Release) -> Result<Status, Error> {
         if self.is_locked() {
             return Err(Error::Update(
@@ -130,6 +141,7 @@ impl SelfUpdater {
         result
     }
 
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     pub fn update_latest(&mut self) -> Result<Status, Error> {
         if let Some(release) = self.latest_release() {
             return self.update(&release.clone());
@@ -138,14 +150,30 @@ impl SelfUpdater {
         Err(Error::Release("Latest release not found.".to_string()))
     }
 
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     fn build_update(&self, version_tag: &str) -> Result<Box<dyn ReleaseUpdate>, Error> {
         self_update::backends::github::Update::configure()
             .repo_owner(&self.repo_owner)
             .repo_name(&self.repo_name)
             .bin_name(&self.bin_name)
+            .target(Self::release_target())
+            .identifier(&self.bin_name)
             .current_version(&self.current_version)
             .no_confirm(true)
             .target_version_tag(version_tag)
             .build()
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    fn release_target() -> &'static str {
+        #[cfg(target_os = "windows")]
+        {
+            "x86_64-pc-windows-msvc"
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            "x86_64-unknown-linux-gnu"
+        }
     }
 }

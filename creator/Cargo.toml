@@ -47,7 +47,10 @@ i18n-embed = { version = "0.16.0", features = [
     "desktop-requester",
 ] }
 i18n-embed-fl = { version = "0.10.0" }
-self_update = { version = "0.39.0", optional = true, features = [
+self_update = { version = "0.44.0", optional = true, default-features = false, features = [
+    "ureq",
+    "rustls",
+    "compression-flate2",
     "archive-zip",
 ] }
 

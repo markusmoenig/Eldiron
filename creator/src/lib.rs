@@ -16,7 +16,10 @@ pub mod i18n;
 pub mod mapeditor;
 pub mod minimap;
 pub mod misc;
-#[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+#[cfg(all(
+    feature = "self-update",
+    any(target_os = "windows", target_os = "linux", target_os = "macos")
+))]
 pub mod self_update;
 pub mod sidebar;
 pub mod textplay;

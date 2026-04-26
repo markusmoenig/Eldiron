@@ -1,6 +1,9 @@
 use crate::Embedded;
 use crate::prelude::*;
-#[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+#[cfg(all(
+    feature = "self-update",
+    any(target_os = "windows", target_os = "linux", target_os = "macos")
+))]
 use crate::self_update::{SelfUpdateEvent, SelfUpdater};
 use codegridfx::Module;
 use rusterix::render_settings::RendererBackend;
@@ -8,6 +11,11 @@ use rusterix::server::message::AudioCommand;
 use rusterix::{
     PlayerCamera, Rusterix, SceneManager, SceneManagerResult, Texture, Value, ValueContainer,
 };
+#[cfg(all(
+    feature = "self-update",
+    any(target_os = "windows", target_os = "linux", target_os = "macos")
+))]
+use self_update::update::Release;
 use shared::rusterix_utils::*;
 use std::collections::HashMap;
 use std::fs;
@@ -15,13 +23,19 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::mpsc::Receiver;
-#[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+#[cfg(all(
+    feature = "self-update",
+    any(target_os = "windows", target_os = "linux", target_os = "macos")
+))]
 use std::sync::{
     Arc, Mutex,
     mpsc::{Sender, channel},
 };
 
-#[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+#[cfg(all(
+    feature = "self-update",
+    any(target_os = "windows", target_os = "linux", target_os = "macos")
+))]
 use std::thread;
 
 pub static PREVIEW_ICON: LazyLock<RwLock<(TheRGBATile, i32)>> =
@@ -113,11 +127,20 @@ pub struct Editor {
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
 
-    #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+    #[cfg(all(
+        feature = "self-update",
+        any(target_os = "windows", target_os = "linux", target_os = "macos")
+    ))]
     self_update_rx: Receiver<SelfUpdateEvent>,
-    #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+    #[cfg(all(
+        feature = "self-update",
+        any(target_os = "windows", target_os = "linux", target_os = "macos")
+    ))]
     self_update_tx: Sender<SelfUpdateEvent>,
-    #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+    #[cfg(all(
+        feature = "self-update",
+        any(target_os = "windows", target_os = "linux", target_os = "macos")
+    ))]
     self_updater: Arc<Mutex<SelfUpdater>>,
 
     update_counter: usize,
@@ -145,6 +168,38 @@ impl Editor {
     const STARTER_PREVIEW_ID: &'static str = "Starter Project Preview";
     const STARTER_CREATE_ID: &'static str = "Starter Project Create";
     const STARTER_CANCEL_ID: &'static str = "Starter Project Cancel";
+
+    #[cfg(all(
+        feature = "self-update",
+        any(target_os = "windows", target_os = "linux", target_os = "macos")
+    ))]
+    fn set_update_button_text(ui: &mut TheUI, ctx: &mut TheContext, text: Option<String>) {
+        if let Some(widget) = ui.get_widget("Update") {
+            if let Some(text) = text {
+                widget.set_value(TheValue::Text(text));
+                widget.set_disabled(false);
+                widget.limiter_mut().set_max_width(180);
+            } else {
+                widget.set_value(TheValue::Text(String::new()));
+                widget.set_disabled(true);
+                widget.limiter_mut().set_max_width(0);
+            }
+
+            ctx.ui.relayout = true;
+        }
+    }
+
+    #[cfg(all(
+        feature = "self-update",
+        any(target_os = "windows", target_os = "linux", target_os = "macos")
+    ))]
+    fn set_update_button(ui: &mut TheUI, ctx: &mut TheContext, release: Option<&Release>) {
+        Self::set_update_button_text(
+            ui,
+            ctx,
+            release.map(|release| format!("Update to v{}", release.version)),
+        );
+    }
 
     fn sector_is_dungeon_generated(sector: &rusterix::Sector) -> bool {
         sector
@@ -1093,21 +1148,17 @@ impl TheTrait for Editor {
             }
         }
 
-        #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+        #[cfg(all(
+            feature = "self-update",
+            any(target_os = "windows", target_os = "linux", target_os = "macos")
+        ))]
         let (self_update_tx, self_update_rx) = channel();
 
         #[cfg(all(
-            not(target_arch = "wasm32"),
             feature = "self-update",
-            not(target_os = "macos")
+            any(target_os = "windows", target_os = "linux", target_os = "macos")
         ))]
-        let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "eldiron-creator");
-        #[cfg(all(
-            not(target_arch = "wasm32"),
-            feature = "self-update",
-            target_os = "macos"
-        ))]
-        let self_updater = SelfUpdater::new("markusmoenig", "Eldiron", "Eldiron-Creator.app");
+        let self_updater = SelfUpdater::github_creator();
 
         let initial_session = ProjectSession {
             project: project.clone(),
@@ -1132,11 +1183,20 @@ impl TheTrait for Editor {
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
 
-            #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+            #[cfg(all(
+                feature = "self-update",
+                any(target_os = "windows", target_os = "linux", target_os = "macos")
+            ))]
             self_update_rx,
-            #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+            #[cfg(all(
+                feature = "self-update",
+                any(target_os = "windows", target_os = "linux", target_os = "macos")
+            ))]
             self_update_tx,
-            #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+            #[cfg(all(
+                feature = "self-update",
+                any(target_os = "windows", target_os = "linux", target_os = "macos")
+            ))]
             self_updater: Arc::new(Mutex::new(self_updater)),
 
             update_counter: 0,
@@ -1158,7 +1218,10 @@ impl TheTrait for Editor {
     }
 
     fn init(&mut self, _ctx: &mut TheContext) {
-        #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+        #[cfg(all(
+            feature = "self-update",
+            any(target_os = "windows", target_os = "linux", target_os = "macos")
+        ))]
         {
             let updater = Arc::clone(&self.self_updater);
             let tx = self.self_update_tx.clone();
@@ -1169,6 +1232,11 @@ impl TheTrait for Editor {
                 if let Err(err) = updater.fetch_release_list() {
                     tx.send(SelfUpdateEvent::UpdateError(err.to_string()))
                         .unwrap();
+                } else if updater.has_newer_release() {
+                    tx.send(SelfUpdateEvent::UpdateAvailable(
+                        updater.latest_release().cloned().unwrap(),
+                    ))
+                    .unwrap();
                 };
             });
         }
@@ -1460,11 +1528,16 @@ impl TheTrait for Editor {
         // patreon_button.set_fixed_size(vec2i(36, 36));
         help_button.set_icon_offset(Vec2::new(-2, -2));
 
-        #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
-        let mut update_button = {
-            let mut button = TheMenubarButton::new(TheId::named("Update"));
+        #[cfg(all(
+            feature = "self-update",
+            any(target_os = "windows", target_os = "linux", target_os = "macos")
+        ))]
+        let update_button = {
+            let mut button = TheTraybarButton::new(TheId::named("Update"));
             button.set_status_text(&fl!("status_update_button"));
-            button.set_icon_name("arrows-clockwise".to_string());
+            button.set_text(String::new());
+            button.set_disabled(true);
+            button.limiter_mut().set_max_width(0);
             button
         };
 
@@ -1488,15 +1561,21 @@ impl TheTrait for Editor {
         hlayout.add_widget(Box::new(time_slider));
         //hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
 
-        #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+        #[cfg(all(
+            feature = "self-update",
+            any(target_os = "windows", target_os = "linux", target_os = "macos")
+        ))]
         {
             hlayout.add_widget(Box::new(update_button));
-            hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
             hlayout.add_widget(Box::new(patreon_button));
+            hlayout.add_widget(Box::new(help_button));
             hlayout.set_reverse_index(Some(3));
         }
 
-        #[cfg(not(all(not(target_arch = "wasm32"), feature = "self-update")))]
+        #[cfg(not(all(
+            feature = "self-update",
+            any(target_os = "windows", target_os = "linux", target_os = "macos")
+        )))]
         {
             hlayout.add_widget(Box::new(patreon_button));
             hlayout.add_widget(Box::new(help_button));
@@ -2771,7 +2850,10 @@ impl TheTrait for Editor {
                     } else if name == "Close Project Tab" && role == TheDialogButtonRole::Accept {
                         self.close_active_session(ui, ctx, &mut update_server_icons, &mut redraw);
                     } else if name == "Update Eldiron" && role == TheDialogButtonRole::Accept {
-                        #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+                        #[cfg(all(
+                            feature = "self-update",
+                            any(target_os = "windows", target_os = "linux")
+                        ))]
                         {
                             let updater = self.self_updater.lock().unwrap();
 
@@ -3316,7 +3398,10 @@ impl TheTrait for Editor {
                         ctx.ui.clear_hover();
                         redraw = true;
                     } else if id.name == "Update" {
-                        #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+                        #[cfg(all(
+                            feature = "self-update",
+                            any(target_os = "windows", target_os = "linux")
+                        ))]
                         {
                             let updater = self.self_updater.lock().unwrap();
 
@@ -3359,6 +3444,14 @@ impl TheTrait for Editor {
                                 });
                             }
 
+                            ctx.ui
+                                .set_widget_state("Update".to_string(), TheWidgetState::None);
+                            ctx.ui.clear_hover();
+                            redraw = true;
+                        }
+                        #[cfg(all(feature = "self-update", target_os = "macos"))]
+                        {
+                            _ = open::that("https://github.com/markusmoenig/Eldiron/releases");
                             ctx.ui
                                 .set_widget_state("Update".to_string(), TheWidgetState::None);
                             ctx.ui.clear_hover();
@@ -3722,10 +3815,15 @@ impl TheTrait for Editor {
             }
         }
 
-        #[cfg(all(not(target_arch = "wasm32"), feature = "self-update"))]
+        #[cfg(all(
+            feature = "self-update",
+            any(target_os = "windows", target_os = "linux", target_os = "macos")
+        ))]
         while let Ok(event) = self.self_update_rx.try_recv() {
             match event {
                 SelfUpdateEvent::AlreadyUpToDate => {
+                    Self::set_update_button(ui, ctx, None);
+
                     let text = str!("Eldiron is already up-to-date.");
                     let uuid = Uuid::new_v4();
 
@@ -3752,7 +3850,12 @@ impl TheTrait for Editor {
                         ctx,
                     );
                 }
+                SelfUpdateEvent::UpdateAvailable(release) => {
+                    Self::set_update_button(ui, ctx, Some(&release));
+                }
                 SelfUpdateEvent::UpdateCompleted(release) => {
+                    Self::set_update_button(ui, ctx, None);
+
                     if let Some(statusbar) = ui.get_widget("Statusbar") {
                         statusbar.as_statusbar().unwrap().set_text(format!(
                             "Updated to version {}. Please restart the application to enjoy the new features.",
@@ -3761,6 +3864,8 @@ impl TheTrait for Editor {
                     }
                 }
                 SelfUpdateEvent::UpdateConfirm(release) => {
+                    Self::set_update_button(ui, ctx, Some(&release));
+
                     let text = &format!("Update to version {}?", release.version);
                     let uuid = Uuid::new_v4();
 
@@ -3788,6 +3893,8 @@ impl TheTrait for Editor {
                     );
                 }
                 SelfUpdateEvent::UpdateError(err) => {
+                    Self::set_update_button(ui, ctx, None);
+
                     if let Some(statusbar) = ui.get_widget("Statusbar") {
                         statusbar
                             .as_statusbar()
@@ -3796,6 +3903,8 @@ impl TheTrait for Editor {
                     }
                 }
                 SelfUpdateEvent::UpdateStart(release) => {
+                    Self::set_update_button(ui, ctx, None);
+
                     if let Some(statusbar) = ui.get_widget("Statusbar") {
                         statusbar
                             .as_statusbar()
