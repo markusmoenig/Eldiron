@@ -679,6 +679,14 @@ impl Execution {
                                 .insert("multiple_choice_attr".to_string(), attr.clone());
                         }
                     }
+                    "dialog" => {
+                        if let Some(to) = args.first() {
+                            self.outputs.insert("dialog_to".to_string(), to.clone());
+                        }
+                        if let Some(node) = args.get(1) {
+                            self.outputs.insert("dialog_node".to_string(), node.clone());
+                        }
+                    }
                     "id" => {
                         self.stack.push(VMValue::zero());
                     }

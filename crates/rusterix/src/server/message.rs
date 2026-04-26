@@ -287,6 +287,8 @@ pub enum Choice {
     ItemToSell(u32, u32, u32, i64, f32),
     /// A script-defined choice. label, choice_attr, from, to, index, expires_at_tick, max_distance
     ScriptChoice(String, String, u32, u32, u32, i64, f32),
+    /// A TOML-authored dialog choice.
+    DialogChoice(DialogChoice),
 }
 
 impl Choice {
@@ -301,8 +303,28 @@ impl Choice {
             Choice::ScriptChoice(_, _, from, to, _, expires_at_tick, max_distance) => {
                 (*from, *to, *expires_at_tick, *max_distance)
             }
+            Choice::DialogChoice(choice) => (
+                choice.from,
+                choice.to,
+                choice.expires_at_tick,
+                choice.max_distance,
+            ),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct DialogChoice {
+    pub label: String,
+    pub dialog: String,
+    pub from: u32,
+    pub to: u32,
+    pub index: u32,
+    pub next: Option<String>,
+    pub event: Option<String>,
+    pub end: bool,
+    pub expires_at_tick: i64,
+    pub max_distance: f32,
 }
 
 /// Multiple choices for the player

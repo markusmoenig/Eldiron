@@ -1,9 +1,10 @@
+use crate::server::message::DialogChoice;
 use crate::server::py_fn::*;
 use crate::server::region_host::{run_client_fn, run_server_fn, run_server_named_fn};
 use crate::vm::*;
 use crate::{
-    Assets, Choice, Currency, Entity, EntityAction, Item, Map, PixelSource, PlayerCamera,
-    RegionCtx, Value, ValueContainer,
+    Assets, Choice, Currency, Entity, EntityAction, Item, Map, MultipleChoice, PixelSource,
+    PlayerCamera, RegionCtx, Value, ValueContainer,
 };
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use instant::{Duration, Instant};
@@ -202,7 +203,7 @@ use EntityAction::*;
 
 use super::data::{apply_entity_data, apply_item_data};
 use super::{AudioCommand, RegionMessage};
-use crate::server::regionctx::ScriptScope;
+use crate::server::regionctx::{ChoiceSession, ScriptScope};
 use RegionMessage::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -3441,6 +3442,57 @@ impl RegionInstance {
                                             format!("{choice_attr}:{index}"),
                                             value,
                                         ));
+                                    }
+                                });
+                            }
+                            Choice::DialogChoice(dialog_choice) => {
+                                with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                    clear_choice_session(ctx, dialog_choice.from, dialog_choice.to);
+                                    if !choice_session_is_valid(
+                                        ctx,
+                                        dialog_choice.from,
+                                        dialog_choice.to,
+                                        dialog_choice.expires_at_tick,
+                                        dialog_choice.max_distance,
+                                    ) {
+                                        if ctx.entity_classes.contains_key(&dialog_choice.from) {
+                                            ctx.to_execute_entity.push((
+                                                dialog_choice.from,
+                                                "goodbye".into(),
+                                                VMValue::broadcast(dialog_choice.to as f32),
+                                            ));
+                                        }
+                                        return;
+                                    }
+
+                                    if ctx.entity_classes.contains_key(&dialog_choice.from) {
+                                        let value = VMValue::new_with_string(
+                                            dialog_choice.to as f32,
+                                            dialog_choice.index as f32,
+                                            0.0,
+                                            dialog_choice.label.clone(),
+                                        );
+                                        if let Some(event) = &dialog_choice.event
+                                            && !event.trim().is_empty()
+                                        {
+                                            ctx.to_execute_entity.push((
+                                                dialog_choice.from,
+                                                event.trim().to_string(),
+                                                value.clone(),
+                                            ));
+                                        }
+                                    }
+
+                                    if !dialog_choice.end
+                                        && let Some(next) = &dialog_choice.next
+                                        && !next.trim().is_empty()
+                                    {
+                                        open_dialog_node(
+                                            ctx,
+                                            dialog_choice.from,
+                                            dialog_choice.to,
+                                            next,
+                                        );
                                     }
                                 });
                             }
@@ -7590,6 +7642,202 @@ fn choice_session_is_valid(
 fn clear_choice_session(ctx: &mut RegionCtx, from_id: u32, to_id: u32) {
     ctx.active_choice_sessions
         .retain(|session| !(session.from == from_id && session.to == to_id));
+}
+
+fn dialog_condition_met(ctx: &RegionCtx, from_id: u32, to_id: u32, condition: &str) -> bool {
+    let condition = condition.trim();
+    if condition.is_empty() {
+        return true;
+    }
+
+    fn value_truthy(value: &Value) -> bool {
+        match value {
+            Value::Bool(value) => *value,
+            Value::Int(value) => *value != 0,
+            Value::UInt(value) => *value != 0,
+            Value::Int64(value) => *value != 0,
+            Value::Float(value) => *value != 0.0,
+            Value::Str(value) => !value.trim().is_empty() && value != "false" && value != "0",
+            Value::StrArray(value) => !value.is_empty(),
+            _ => false,
+        }
+    }
+
+    let (scope, key) = condition
+        .split_once('.')
+        .map(|(scope, key)| (Some(scope.trim()), key.trim()))
+        .unwrap_or((None, condition));
+
+    let resolve_entity = |id| {
+        ctx.map
+            .entities
+            .iter()
+            .find(|entity| entity.id == id)
+            .and_then(|entity| entity.attributes.get(key))
+            .is_some_and(value_truthy)
+    };
+
+    match scope {
+        Some("self") => resolve_entity(from_id),
+        Some("target") | Some("player") => resolve_entity(to_id),
+        Some("region") | Some("world") => ctx.region_state.get(key).is_some_and(value_truthy),
+        _ => {
+            resolve_entity(from_id)
+                || resolve_entity(to_id)
+                || ctx.region_state.get(key).is_some_and(value_truthy)
+        }
+    }
+}
+
+fn dialog_choice_visible(
+    ctx: &RegionCtx,
+    from_id: u32,
+    to_id: u32,
+    choice: &toml::value::Table,
+) -> bool {
+    if let Some(condition) = choice.get("if").and_then(toml::Value::as_str)
+        && !dialog_condition_met(ctx, from_id, to_id, condition)
+    {
+        return false;
+    }
+    if let Some(condition) = choice.get("unless").and_then(toml::Value::as_str)
+        && dialog_condition_met(ctx, from_id, to_id, condition)
+    {
+        return false;
+    }
+    true
+}
+
+fn dialog_node_table<'a>(
+    dialog: &'a toml::value::Table,
+    node_name: &str,
+) -> Option<&'a toml::value::Table> {
+    dialog
+        .get("nodes")
+        .and_then(toml::Value::as_table)
+        .and_then(|nodes| nodes.get(node_name))
+        .and_then(toml::Value::as_table)
+        .or_else(|| dialog.get(node_name).and_then(toml::Value::as_table))
+}
+
+pub fn open_dialog_node(ctx: &mut RegionCtx, from_id: u32, to_id: u32, node_name: &str) -> bool {
+    let Some(class_name) = ctx.entity_classes.get(&from_id).cloned() else {
+        return false;
+    };
+    let Some(class_data) = ctx.entity_class_data.get(&class_name) else {
+        return false;
+    };
+    let Ok(data) = class_data.parse::<toml::Table>() else {
+        return false;
+    };
+    let Some(dialog) = data.get("dialog").and_then(toml::Value::as_table) else {
+        return false;
+    };
+
+    let node_name = if node_name.trim().is_empty() {
+        dialog
+            .get("start")
+            .and_then(toml::Value::as_str)
+            .unwrap_or("start")
+    } else {
+        node_name.trim()
+    };
+    let Some(node) = dialog_node_table(dialog, node_name) else {
+        return false;
+    };
+
+    let timeout_minutes = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == from_id)
+        .map(|entity| {
+            entity
+                .attributes
+                .get_float_default("timeout", 10.0)
+                .max(0.0)
+        })
+        .unwrap_or(10.0);
+    let expires_at_tick = ctx.ticks + (ctx.ticks_per_minute as f32 * timeout_minutes) as i64;
+    let max_distance = entity_intent_distance_limit(ctx, from_id, "talk").unwrap_or(2.0);
+
+    let text = node
+        .get("text")
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default()
+        .trim();
+    if !text.is_empty()
+        && let Some(sender) = ctx.from_sender.get()
+    {
+        let _ = sender.send(RegionMessage::Message(
+            ctx.region_id,
+            Some(from_id),
+            None,
+            to_id,
+            text.to_string(),
+            "dialog".into(),
+        ));
+    }
+
+    let mut choices =
+        MultipleChoice::new(ctx.region_id, from_id, to_id, expires_at_tick, max_distance);
+
+    if let Some(choice_values) = node.get("choices").and_then(toml::Value::as_array) {
+        for choice_value in choice_values {
+            let Some(choice) = choice_value.as_table() else {
+                continue;
+            };
+            if !dialog_choice_visible(ctx, from_id, to_id, choice) {
+                continue;
+            }
+            let label = choice
+                .get("label")
+                .and_then(toml::Value::as_str)
+                .unwrap_or("{dialog.continue}")
+                .trim();
+            if label.is_empty() {
+                continue;
+            }
+            choices.add(Choice::DialogChoice(DialogChoice {
+                label: label.to_string(),
+                dialog: node_name.to_string(),
+                from: from_id,
+                to: to_id,
+                index: choices.choices.len() as u32,
+                next: choice
+                    .get("next")
+                    .and_then(toml::Value::as_str)
+                    .map(str::to_string),
+                event: choice
+                    .get("event")
+                    .and_then(toml::Value::as_str)
+                    .map(str::to_string),
+                end: choice
+                    .get("end")
+                    .and_then(toml::Value::as_bool)
+                    .unwrap_or(false),
+                expires_at_tick,
+                max_distance,
+            }));
+        }
+    }
+
+    if !choices.choices.is_empty()
+        && let Some(sender) = ctx.from_sender.get().cloned()
+    {
+        clear_choice_session(ctx, from_id, to_id);
+        ctx.active_choice_sessions.push(ChoiceSession {
+            from: from_id,
+            to: to_id,
+            expires_at_tick,
+            max_distance,
+        });
+        let _ = sender.send(RegionMessage::MultipleChoice(choices));
+    } else {
+        clear_choice_session(ctx, from_id, to_id);
+    }
+
+    true
 }
 
 fn queue_intent_cooldown(

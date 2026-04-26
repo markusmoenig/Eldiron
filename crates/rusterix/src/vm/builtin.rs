@@ -445,6 +445,14 @@ impl Default for Builtins {
             },
         );
         b.insert(
+            "dialog",
+            2,
+            NodeOp::HostCall {
+                name: "dialog".into(),
+                argc: 2,
+            },
+        );
+        b.insert(
             "drop",
             1,
             NodeOp::HostCall {

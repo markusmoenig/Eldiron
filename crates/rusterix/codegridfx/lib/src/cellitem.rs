@@ -1388,6 +1388,66 @@ impl CellItem {
                 self.form = CellItemForm::LeftRounded;
                 grid.insert(pos, self)
             }
+            Cell::MultipleChoice => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("0".into()),
+                        self.id,
+                        true,
+                        "Entity ID",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("\"\"".into()),
+                        self.id,
+                        true,
+                        "Prompt",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 3, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("\"choices\"".into()),
+                        self.id,
+                        true,
+                        "Choice Attribute",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::Dialog => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("0".into()),
+                        self.id,
+                        true,
+                        "Entity ID",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("\"greeting\"".into()),
+                        self.id,
+                        true,
+                        "Node",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
             Cell::Patrol => {
                 grid.insert(
                     (pos.0 + 1, pos.1),

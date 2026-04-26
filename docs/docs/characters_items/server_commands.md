@@ -206,6 +206,52 @@ debug(arg1, arg2, ...)
 
 ---
 
+## `dialog`
+
+*This command can only be used with characters.*
+
+Opens a TOML-authored dialog node for a target entity. Dialogs use the same Messages widget and choice session pipeline as `multiple_choice()` and `offer_inventory()`.
+
+```eldrin
+dialog(entity, "greeting")
+```
+
+Dialog content is authored in the character attributes TOML:
+
+```toml
+[dialog]
+start = "greeting"
+
+[dialog.nodes.greeting]
+text = "{dialog.guard.greeting}"
+choices = [
+  { label = "{dialog.guard.work}", next = "work", unless = "target.rat_quest_done" },
+  { label = "{dialog.guard.thanks}", next = "thanks", if = "target.rat_quest_done" },
+  { label = "{dialog.goodbye}", end = true },
+]
+
+[dialog.nodes.work]
+text = "{dialog.guard.work_text}"
+choices = [
+  { label = "{dialog.accept}", event = "accept_rat_quest", end = true },
+  { label = "{dialog.back}", next = "greeting" },
+]
+```
+
+- `entity`: Target entity that should receive the dialog.
+- `node`: Dialog node to open. Use the configured `start` node by passing `""`.
+- `text`: Message text shown before the node choices. It uses the normal [message localization and substitution system](../localization).
+- `choices`: Inline TOML array of choice tables.
+- `label`: Choice text. It also supports localization keys.
+- `next`: Opens another dialog node automatically after selection.
+- `event`: Sends an event to the offering character after selection.
+- `end`: Ends the dialog after selection.
+- `if` / `unless`: Optional boolean conditions. Supported prefixes are `self.`, `target.` / `player.`, and `region.` / `world.`.
+
+The selected choice event value contains the target entity id in `value.x`, the zero-based option index in `value.y`, and the selected label in `value.text`.
+
+---
+
 ## `drop`
 
 *This command can only be used with characters.*
@@ -528,7 +574,7 @@ The third argument is the name of a character attribute containing the options.
 door_choices = ["Yes", "No", "Maybe"]
 ```
 
-Choice labels use the normal message localization and substitution system, so they can also be authored as localization keys:
+Choice labels use the normal [message localization and substitution system](../localization), so they can also be authored as localization keys:
 
 ```toml
 [attributes]

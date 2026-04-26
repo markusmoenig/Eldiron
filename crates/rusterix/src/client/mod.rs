@@ -157,7 +157,7 @@ pub struct Client {
     deco_widgets: FxHashMap<Uuid, DecoWidget>,
     screen_widget: Option<ScreenWidget>,
 
-    messages_widget: Option<MessagesWidget>,
+    messages_widgets: Vec<MessagesWidget>,
 
     // Button widgets which are active (clicked)
     activated_widgets: Vec<u32>,
@@ -494,7 +494,7 @@ impl Client {
             deco_widgets: FxHashMap::default(),
             screen_widget: None,
 
-            messages_widget: None,
+            messages_widgets: Vec::new(),
 
             activated_widgets: vec![],
             permanently_activated_widgets: vec![],
@@ -1598,7 +1598,7 @@ impl Client {
         }
 
         // Draw the messages on top
-        if let Some(widget) = &mut self.messages_widget {
+        for widget in &mut self.messages_widgets {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
                     let prefix = &pattern[..pattern.len() - 1];
@@ -1614,8 +1614,8 @@ impl Client {
                     assets,
                     map,
                     &self.server_time,
-                    messages,
-                    choices,
+                    messages.clone(),
+                    choices.clone(),
                 );
                 if map.is_some() {
                     self.choice_map = map;
@@ -1625,8 +1625,13 @@ impl Client {
                 self.target
                     .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
             } else {
-                let map =
-                    widget.process_messages(assets, map, &self.server_time, messages, choices);
+                let map = widget.process_messages(
+                    assets,
+                    map,
+                    &self.server_time,
+                    messages.clone(),
+                    choices.clone(),
+                );
                 if map.is_some() {
                     self.choice_map = map;
                 }
@@ -2070,7 +2075,7 @@ impl Client {
                 .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
         }
 
-        if let Some(widget) = &mut self.messages_widget {
+        for widget in &mut self.messages_widgets {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
                     let prefix = &pattern[..pattern.len() - 1];
@@ -2086,8 +2091,8 @@ impl Client {
                     assets,
                     map,
                     &self.server_time,
-                    messages,
-                    choices,
+                    messages.clone(),
+                    choices.clone(),
                 );
                 if map.is_some() {
                     self.choice_map = map;
@@ -2097,8 +2102,13 @@ impl Client {
                 self.overlay
                     .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
             } else {
-                let map =
-                    widget.process_messages(assets, map, &self.server_time, messages, choices);
+                let map = widget.process_messages(
+                    assets,
+                    map,
+                    &self.server_time,
+                    messages.clone(),
+                    choices.clone(),
+                );
                 if map.is_some() {
                     self.choice_map = map;
                 }
@@ -2921,7 +2931,7 @@ impl Client {
 
         // Test against clicks on interactive messages (multiple choice)
         if action.is_none() {
-            for widget in self.messages_widget.iter_mut() {
+            for widget in self.messages_widgets.iter_mut() {
                 if let Some(action) = widget.touch_down(p) {
                     return Some(action);
                 }
@@ -3095,7 +3105,7 @@ impl Client {
         // Reset cursor after click release. Hover logic applies intent cursors contextually.
         self.curr_cursor = self.default_cursor;
 
-        for widget in self.messages_widget.iter_mut() {
+        for widget in self.messages_widgets.iter_mut() {
             widget.touch_up();
         }
         action
@@ -3324,7 +3334,7 @@ impl Client {
         self.avatar_widgets.clear();
         self.text_widgets.clear();
         self.deco_widgets.clear();
-        self.messages_widget = None;
+        self.messages_widgets.clear();
 
         self.screen_widget = Some(ScreenWidget {
             buffer: TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y)),
@@ -3635,7 +3645,7 @@ impl Client {
                                 ..Default::default()
                             };
                             widget.init(assets);
-                            self.messages_widget = Some(widget);
+                            self.messages_widgets.push(widget);
                         } else if role == "avatar" {
                             let mut avatar_widget = AvatarWidget {
                                 name: widget.name.clone(),

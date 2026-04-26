@@ -42,11 +42,14 @@
 - Fixed grid-based player movement so the character `speed` attribute now actually affects direct tile stepping, instead of being hardcoded to `1.0`.
 - Fixed Eldrin compilation of `say("Text")` so the optional category parameter is truly optional, matching the runtime handler and documentation.
 - Added `multiple_choice(entity, prompt, choice_attribute)` for script-defined choice menus using labels authored as character attributes. Selecting an option sends both `{choice_attribute}` and `{choice_attribute}:{index}` back to the offering character.
+- Added `dialog(entity, node)` for TOML-authored nested dialogs with automatic node transitions, choice events, and simple `if` / `unless` conditions.
 
 ### Client
 
 - Fixed 2D game widgets so `say(...)` speech bubbles render above characters and items like they already do in 3D views.
 - Game widgets now prefer their own `[say]` section for speech bubble duration, text colors, and background styling, with legacy global `[say]` config kept as a fallback.
+- Messages widgets can now use `handles = [...]` to split regular messages, dialogs, script multiple-choice menus, and inventory offers across different widget placements.
+- Messages widgets can optionally draw sender portraits from `portrait_tile_id` with `portrait = true`, `portrait_size`, and `portrait_gap`.
 
 ---
 

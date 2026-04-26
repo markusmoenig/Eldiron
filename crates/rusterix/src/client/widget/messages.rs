@@ -1,5 +1,5 @@
 use crate::{
-    Assets, Choice, EntityAction, Map, MsgParser, Pixel, Rect,
+    Assets, Choice, Entity, EntityAction, Map, MsgParser, Pixel, Rect, Tile,
     client::{
         draw2d,
         resolver::{MessageContext, MsgResolver},
@@ -15,7 +15,7 @@ pub struct MessagesWidget {
     pub buffer: TheRGBABuffer,
     pub font: Option<fontdue::Font>,
     pub font_size: f32,
-    pub messages: Vec<(Uuid, String, Rect, Option<Choice>, Pixel)>,
+    pub messages: Vec<(Uuid, String, Rect, Option<Choice>, Pixel, Option<u32>)>,
     pub draw2d: Draw2D,
     pub spacing: f32,
     pub message_spacing: f32,
@@ -26,6 +26,13 @@ pub struct MessagesWidget {
     pub clicked: Uuid,
     pub parser: MsgParser,
     pub resolver: MsgResolver,
+    pub handle_messages: bool,
+    pub handle_dialogs: bool,
+    pub handle_multiple_choice: bool,
+    pub handle_offer_inventory: bool,
+    pub portrait: bool,
+    pub portrait_size: f32,
+    pub portrait_gap: f32,
 }
 
 impl Default for MessagesWidget {
@@ -56,6 +63,31 @@ impl MessagesWidget {
             clicked: Uuid::nil(),
             parser: MsgParser::new(),
             resolver: MsgResolver::default(),
+            handle_messages: true,
+            handle_dialogs: true,
+            handle_multiple_choice: true,
+            handle_offer_inventory: true,
+            portrait: false,
+            portrait_size: 64.0,
+            portrait_gap: 12.0,
+        }
+    }
+
+    fn accepts_message_category(&self, category: &str) -> bool {
+        match category.trim().to_ascii_lowercase().as_str() {
+            "dialog" => self.handle_dialogs,
+            "multiple_choice" => self.handle_multiple_choice,
+            "text_only" => false,
+            _ => self.handle_messages,
+        }
+    }
+
+    fn accepts_choice(&self, choice: &Choice) -> bool {
+        match choice {
+            Choice::ItemToSell(_, _, _, _, _) => self.handle_offer_inventory,
+            Choice::ScriptChoice(_, _, _, _, _, _, _) => self.handle_multiple_choice,
+            Choice::DialogChoice(_) => self.handle_dialogs,
+            Choice::Cancel(_, _, _, _) => true,
         }
     }
 
@@ -116,6 +148,48 @@ impl MessagesWidget {
                         self.default_color = self.hex_to_rgba_u8(v);
                     }
                 }
+                if let Some(value) = ui.get("portrait").and_then(toml::Value::as_bool) {
+                    self.portrait = value;
+                }
+                if let Some(value) = ui.get("portrait_size") {
+                    if let Some(v) = value.as_float() {
+                        self.portrait_size = (v as f32).max(1.0);
+                    } else if let Some(v) = value.as_integer() {
+                        self.portrait_size = (v as f32).max(1.0);
+                    }
+                }
+                if let Some(value) = ui.get("portrait_gap") {
+                    if let Some(v) = value.as_float() {
+                        self.portrait_gap = (v as f32).max(0.0);
+                    } else if let Some(v) = value.as_integer() {
+                        self.portrait_gap = (v as f32).max(0.0);
+                    }
+                }
+                if let Some(handles) = ui.get("handles").and_then(toml::Value::as_array) {
+                    self.handle_messages = false;
+                    self.handle_dialogs = false;
+                    self.handle_multiple_choice = false;
+                    self.handle_offer_inventory = false;
+                    for handle in handles.iter().filter_map(toml::Value::as_str) {
+                        match handle.trim().to_ascii_lowercase().as_str() {
+                            "message" | "messages" => self.handle_messages = true,
+                            "dialog" | "dialogs" => self.handle_dialogs = true,
+                            "multiple_choice" | "multiple_choices" => {
+                                self.handle_multiple_choice = true
+                            }
+                            "offer_inventory" | "inventory" | "inventory_offers" => {
+                                self.handle_offer_inventory = true
+                            }
+                            "all" => {
+                                self.handle_messages = true;
+                                self.handle_dialogs = true;
+                                self.handle_multiple_choice = true;
+                                self.handle_offer_inventory = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
             }
             self.table = table;
         }
@@ -123,6 +197,32 @@ impl MessagesWidget {
         if let Some(font) = assets.fonts.get(&font_name) {
             self.font = Some(font.clone());
         }
+    }
+
+    fn portrait_tile_for_entity(entity: &Entity, assets: &Assets) -> Option<Tile> {
+        if let Some(source) = entity.attributes.get_source("portrait_tile_id") {
+            return source.tile_from_tile_list(assets);
+        }
+        if let Some(id) = entity.attributes.get_id("portrait_tile_id") {
+            return assets.tiles.get(&id).cloned();
+        }
+        entity
+            .attributes
+            .get_str("portrait_tile_id")
+            .and_then(|value| Uuid::parse_str(value.trim()).ok())
+            .and_then(|id| assets.tiles.get(&id).cloned())
+    }
+
+    fn portrait_tile_for_sender(
+        sender_entity: Option<u32>,
+        map: &Map,
+        assets: &Assets,
+    ) -> Option<Tile> {
+        let entity = map
+            .entities
+            .iter()
+            .find(|entity| Some(entity.id) == sender_entity)?;
+        Self::portrait_tile_for_entity(entity, assets)
     }
 
     /// Process the incoming messages
@@ -138,7 +238,7 @@ impl MessagesWidget {
 
         // Append new messages
         for (sender_entity, sender_item, receiver_id, msg, category) in &messages {
-            if category.trim().eq_ignore_ascii_case("text_only") {
+            if !self.accepts_message_category(category) {
                 continue;
             }
             let mut color = self.default_color;
@@ -167,12 +267,23 @@ impl MessagesWidget {
                 Rect::default(),
                 None,
                 color,
+                *sender_entity,
             ));
         }
 
         let mut choice_map = FxHashMap::default();
 
         for choices in choices {
+            let accepted_choices: Vec<_> = choices
+                .choices
+                .iter()
+                .filter(|choice| self.accepts_choice(choice))
+                .cloned()
+                .collect();
+            if accepted_choices.is_empty() {
+                continue;
+            }
+
             // Insert the cancel choice.
             choice_map.insert(
                 '0',
@@ -193,7 +304,7 @@ impl MessagesWidget {
                 }
             }
 
-            for (index, choice) in choices.choices.iter().enumerate() {
+            for (index, choice) in accepted_choices.iter().enumerate() {
                 let mut rendered_choice = choice.clone();
                 let mut item_name: String = "".into();
                 let mut item_price = 0;
@@ -247,6 +358,22 @@ impl MessagesWidget {
                             *max_distance,
                         );
                     }
+                    Choice::DialogChoice(dialog_choice) => {
+                        item_name = self.resolver.resolve_with_context(
+                            self.parser.parse(&dialog_choice.label),
+                            map,
+                            assets,
+                            MessageContext {
+                                sender_entity: Some(dialog_choice.from),
+                                receiver_entity: Some(dialog_choice.to),
+                                world_time: Some(*time),
+                                ..Default::default()
+                            },
+                        );
+                        let mut next_choice = dialog_choice.clone();
+                        next_choice.label = item_name.clone();
+                        rendered_choice = Choice::DialogChoice(next_choice);
+                    }
                     _ => {}
                 }
 
@@ -266,6 +393,7 @@ impl MessagesWidget {
                     Rect::default(),
                     Some(rendered_choice),
                     color,
+                    Some(choices.from),
                 ));
             }
             self.messages.push((
@@ -279,6 +407,7 @@ impl MessagesWidget {
                     choices.max_distance,
                 )),
                 color,
+                Some(choices.from),
             ));
         }
 
@@ -329,21 +458,33 @@ impl MessagesWidget {
             };
             let draw2d = &self.draw2d;
 
-            for (id, message, rect, _choice, color) in self.messages.iter_mut().rev() {
-                let lines = Self::wrap_message_lines(
-                    draw2d,
-                    font,
-                    self.font_size,
-                    message,
-                    self.rect.width,
-                );
+            for (id, message, rect, _choice, color, sender_entity) in self.messages.iter_mut().rev()
+            {
+                let portrait_tile = if self.portrait {
+                    Self::portrait_tile_for_sender(*sender_entity, map, assets)
+                } else {
+                    None
+                };
+                let portrait_width = if portrait_tile.is_some() {
+                    self.portrait_size + self.portrait_gap
+                } else {
+                    0.0
+                };
+                let text_width = (self.rect.width - portrait_width).max(self.font_size);
+                let lines =
+                    Self::wrap_message_lines(draw2d, font, self.font_size, message, text_width);
                 let line_height = self.font_size + self.spacing;
                 let block_gap = self.message_spacing;
-                let block_height = if lines.is_empty() {
+                let text_height = if lines.is_empty() {
                     self.font_size
                 } else {
                     self.font_size + (lines.len().saturating_sub(1) as f32 * line_height)
                 };
+                let block_height = text_height.max(if portrait_tile.is_some() {
+                    self.portrait_size
+                } else {
+                    0.0
+                });
 
                 let color = if *id == self.clicked {
                     darken(*color, 100)
@@ -358,6 +499,25 @@ impl MessagesWidget {
 
                     *rect = Rect::new(self.rect.x, y, self.rect.width, block_height);
 
+                    if let Some(tile) = &portrait_tile {
+                        if let Some(texture) = tile.textures.first() {
+                            let portrait_x = self.rect.x;
+                            let portrait_y = y;
+                            self.draw2d.blend_scale_chunk(
+                                buffer.pixels_mut(),
+                                &(
+                                    portrait_x.max(0.0) as usize,
+                                    portrait_y.max(0.0) as usize,
+                                    self.portrait_size as usize,
+                                    self.portrait_size as usize,
+                                ),
+                                stride,
+                                &texture.data,
+                                &(texture.width as usize, texture.height as usize),
+                            );
+                        }
+                    }
+
                     for (index, line) in lines.iter().enumerate() {
                         let line_y = y + index as f32 * line_height;
                         if line_y > self.rect.y + self.rect.height {
@@ -365,9 +525,9 @@ impl MessagesWidget {
                         }
 
                         let tuple = (
-                            self.rect.x as isize,
+                            (self.rect.x + portrait_width) as isize,
                             line_y.floor() as isize,
-                            self.rect.width as isize,
+                            text_width as isize,
                             self.font_size as isize,
                         );
 
@@ -422,12 +582,31 @@ impl MessagesWidget {
 
                     *rect = Rect::new(self.rect.x, block_top, self.rect.width, block_height);
 
+                    if let Some(tile) = &portrait_tile {
+                        if let Some(texture) = tile.textures.first() {
+                            let portrait_x = self.rect.x;
+                            let portrait_y = block_top;
+                            self.draw2d.blend_scale_chunk(
+                                buffer.pixels_mut(),
+                                &(
+                                    portrait_x.max(0.0) as usize,
+                                    portrait_y.max(0.0) as usize,
+                                    self.portrait_size as usize,
+                                    self.portrait_size as usize,
+                                ),
+                                stride,
+                                &texture.data,
+                                &(texture.width as usize, texture.height as usize),
+                            );
+                        }
+                    }
+
                     for (index, line) in lines.iter().enumerate() {
                         let line_y = block_top + index as f32 * line_height;
                         let tuple = (
-                            self.rect.x as isize,
+                            (self.rect.x + portrait_width) as isize,
                             line_y.floor() as isize,
-                            self.rect.width as isize,
+                            text_width as isize,
                             self.font_size as isize,
                         );
 
@@ -509,7 +688,7 @@ impl MessagesWidget {
     }
 
     pub fn touch_down(&mut self, coord: Vec2<i32>) -> Option<EntityAction> {
-        for (id, _, rect, choice, _) in &self.messages {
+        for (id, _, rect, choice, _, _) in &self.messages {
             if rect.contains(Vec2::new(coord.x as f32, coord.y as f32)) {
                 if let Some(choice) = choice {
                     self.clicked = id.clone();
@@ -527,7 +706,7 @@ impl MessagesWidget {
     pub fn has_active_choices(&self) -> bool {
         self.messages
             .iter()
-            .any(|(_, _, _, choice, _)| choice.is_some())
+            .any(|(_, _, _, choice, _, _)| choice.is_some())
     }
 
     /// Resolves a message
@@ -563,7 +742,7 @@ impl MessagesWidget {
             .max(1) as u32;
         let now_ticks = time.to_ticks(ticks_per_minute);
 
-        for (_, _, _, choice, _) in &mut self.messages {
+        for (_, _, _, choice, _, _) in &mut self.messages {
             let Some(active_choice) = choice.as_ref() else {
                 continue;
             };

@@ -421,6 +421,41 @@ mod tests {
     }
 
     #[test]
+    fn dialog_opens_named_node() {
+        let mut script = VM::default();
+        let module = script
+            .parse_str(
+                r#"
+                fn talk(event, value) {
+                    dialog(1, "greeting");
+                }
+                "#,
+            )
+            .unwrap();
+        script.compile(&module).unwrap();
+
+        let func_index = script
+            .context
+            .program
+            .user_functions_name_map
+            .get("talk")
+            .copied()
+            .unwrap();
+
+        let mut exec = Execution::new(script.context.globals.len());
+        let args = [VMValue::zero(), VMValue::zero()];
+        let _ = exec.execute_function(&args, func_index, &script.context.program);
+
+        assert_eq!(
+            exec.outputs
+                .get("dialog_node")
+                .and_then(|v| v.as_string())
+                .unwrap(),
+            "greeting"
+        );
+    }
+
+    #[test]
     fn print_multiple_args() {
         let mut script = VM::default();
         let result =

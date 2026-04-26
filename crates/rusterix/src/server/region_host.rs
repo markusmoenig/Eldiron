@@ -1,8 +1,8 @@
 use crate::server::message::{AudioCommand, RegionMessage};
 use crate::server::region::{
     RegionInstance, add_debug_value, apply_damage_direct, apply_damage_rules,
-    apply_spell_default_attrs, grant_experience, is_spell_on_cooldown, progression_stat_value,
-    set_spell_cooldown,
+    apply_spell_default_attrs, grant_experience, is_spell_on_cooldown, open_dialog_node,
+    progression_stat_value, set_spell_cooldown,
 };
 use crate::server::regionctx::ChoiceSession;
 use crate::vm::*;
@@ -2112,6 +2112,15 @@ impl<'a> HostHandler for RegionHost<'a> {
                             let _ = sender.send(RegionMessage::MultipleChoice(choices));
                         }
                     }
+                }
+            }
+            "dialog" => {
+                if let (Some(to), Some(node)) = (
+                    args.first().map(|v| v.x as u32),
+                    args.get(1).and_then(|v| v.as_string()),
+                ) {
+                    let from = self.ctx.curr_entity_id;
+                    open_dialog_node(self.ctx, from, to, node);
                 }
             }
             "gain_xp" => {

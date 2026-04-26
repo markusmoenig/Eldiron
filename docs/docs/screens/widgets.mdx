@@ -373,10 +373,41 @@ warning = "#ff8888"
 default = "#ffffff"
 ```
 
+Use `handles` to decide which message/choice streams a Messages widget displays. This lets you place one Messages widget as a log and another as a dialog overlay on top of the game view.
+
+```toml
+[ui]
+role = "messages"
+handles = ["dialogs"]
+top_down = true
+```
+
+Supported handles are:
+
+- `messages`: Regular `message(...)` output.
+- `dialogs`: TOML-authored `dialog(...)` text and choices.
+- `multiple_choice`: Script-authored `multiple_choice(...)` prompts and choices.
+- `offer_inventory`: Vendor inventory offers from `offer_inventory(...)`.
+
+If `handles` is omitted, the widget displays all streams.
+
+Messages widgets can optionally draw the sender character's existing `portrait_tile_id` on the left and wrap text to the right. This works for regular messages, dialogs, script multiple-choice menus, and inventory offers.
+
+```toml
+[ui]
+role = "messages"
+handles = ["dialogs"]
+portrait = true
+portrait_size = 64
+portrait_gap = 12
+```
+
 ### Layout Notes
 
 - `spacing`: vertical spacing between wrapped lines inside one message block
 - `message_spacing`: vertical spacing between separate message blocks
+- `portrait_size`: square portrait size in pixels when `portrait = true`
+- `portrait_gap`: horizontal spacing between the portrait and text
 
 This is useful when long wrapped messages would otherwise run visually into the next message.
 
