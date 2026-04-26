@@ -576,7 +576,9 @@ impl MessagesWidget {
                     y += block_height + block_gap;
                 } else {
                     let block_top = y - (lines.len().saturating_sub(1) as f32 * line_height);
-                    if block_top + self.font_size < self.rect.y {
+                    // A single wrapped message can be taller than the widget. Keep drawing it
+                    // while its bottom is visible so the latest/lower lines stay pinned.
+                    if y + self.font_size < self.rect.y {
                         break;
                     }
 

@@ -15,6 +15,8 @@
 - Added the `ensure_active` NPC sequence step so scripted routes can enforce stateful interactions such as opening a door only if needed and closing it again afterward.
 - Added `hold_speed` for grid-based held movement, so characters can use a fast first-tile `speed` while keeping sustained held movement smooth and continuous.
 - Added configurable `[game]` simulation pacing with `simulation_mode = "realtime" | "turn_based" | "hybrid"` and `turn_timeout_ms`, so projects can choose between continuous simulation, fully player-driven turns, or Ultima-style idle turn stepping.
+- Added `multiple_choice(entity, prompt, choice_attribute)` for script-defined choice menus using labels authored as character attributes. Selecting an option sends both `{choice_attribute}` and `{choice_attribute}:{index}` back to the offering character.
+- Added the new `dialog(entity, node)` system for TOML-authored nested dialogs, including node transitions, continue-style choices, choice events, simple `if` / `unless` conditions, localization/substitution support, and visual scripting support.
 
 ### Documentation
 
@@ -22,6 +24,7 @@
 - Added configuration docs for the new renderer style and stylized post-processing settings, including their runtime `world.post.*` / `region.post.*` override fields.
 - Clarified the `say(...)` command documentation to show both the default one-argument form and the optional category-color form.
 - Moved new `say(...)` presentation documentation from global game config to game widget `[say]` settings.
+- Added documentation for script-defined multiple-choice menus and TOML-authored nested dialogs, including localization-key usage and message-widget filtering.
 
 ## Bug Fixes
 
@@ -41,8 +44,6 @@
 
 - Fixed grid-based player movement so the character `speed` attribute now actually affects direct tile stepping, instead of being hardcoded to `1.0`.
 - Fixed Eldrin compilation of `say("Text")` so the optional category parameter is truly optional, matching the runtime handler and documentation.
-- Added `multiple_choice(entity, prompt, choice_attribute)` for script-defined choice menus using labels authored as character attributes. Selecting an option sends both `{choice_attribute}` and `{choice_attribute}:{index}` back to the offering character.
-- Added `dialog(entity, node)` for TOML-authored nested dialogs with automatic node transitions, choice events, and simple `if` / `unless` conditions.
 
 ### Client
 
@@ -50,6 +51,7 @@
 - Game widgets now prefer their own `[say]` section for speech bubble duration, text colors, and background styling, with legacy global `[say]` config kept as a fallback.
 - Messages widgets can now use `handles = [...]` to split regular messages, dialogs, script multiple-choice menus, and inventory offers across different widget placements.
 - Messages widgets can optionally draw sender portraits from `portrait_tile_id` with `portrait = true`, `portrait_size`, and `portrait_gap`.
+- Fixed bottom-up Messages widget rendering for very long wrapped messages so the newest/lower lines remain visible instead of the message being culled when its first lines overflow above the widget.
 
 ---
 
