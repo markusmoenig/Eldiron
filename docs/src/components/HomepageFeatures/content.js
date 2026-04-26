@@ -18,7 +18,7 @@ export const homepageContent = {
     ],
     screenshot: {
       label: "New turn based simulation",
-      version: "Eldiron v0.9.7",
+      version: "Eldiron v0.9.8",
       image: "/img/screenshots/Eldiron_v0.9.7_TB.png",
       alt: "Eldiron turn-based simulation screenshot",
     },

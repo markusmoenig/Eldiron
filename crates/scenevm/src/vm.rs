@@ -73,6 +73,147 @@ pub struct Vert3DPod {
 
 const ORGANIC_DETAIL_TEXTURE_SIZE: u32 = 48;
 
+#[derive(Default)]
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+struct Raster3DDebugTiming {
+    frames: u32,
+    init_ms: f64,
+    prepare_ms: f64,
+    geometry_ms: f64,
+    visibility_ms: f64,
+    upload_ms: f64,
+    encode_ms: f64,
+    submit_ms: f64,
+    total_ms: f64,
+    verts: u64,
+    indices: u64,
+    visible_indices: u64,
+    opaque_indices: u64,
+    transparent_indices: u64,
+    particle_indices: u64,
+    geometry_rebuilds: u32,
+    shadow_frames: u32,
+    msaa_frames: u32,
+    shadow_res_sum: u64,
+    last_log: Option<std::time::Instant>,
+}
+
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+static RASTER3D_DEBUG_TIMING: std::sync::OnceLock<std::sync::Mutex<Raster3DDebugTiming>> =
+    std::sync::OnceLock::new();
+
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+#[allow(clippy::too_many_arguments)]
+fn record_raster3d_debug_timing(
+    size: (u32, u32),
+    init_ms: f64,
+    prepare_ms: f64,
+    geometry_ms: f64,
+    visibility_ms: f64,
+    upload_ms: f64,
+    encode_ms: f64,
+    submit_ms: f64,
+    total_ms: f64,
+    verts: usize,
+    indices: usize,
+    visible_indices: usize,
+    opaque_indices: usize,
+    transparent_indices: usize,
+    particle_indices: usize,
+    geometry_rebuilt: bool,
+    shadow_enabled: bool,
+    shadow_res: u32,
+    msaa_samples: u32,
+    post_enabled: bool,
+    bump_strength: f32,
+    shadow_distance: f32,
+    shadow_strength: f32,
+) {
+    if !crate::render_debug_enabled() {
+        return;
+    }
+
+    let mut timing = RASTER3D_DEBUG_TIMING
+        .get_or_init(|| std::sync::Mutex::new(Raster3DDebugTiming::default()))
+        .lock()
+        .unwrap();
+
+    timing.frames = timing.frames.saturating_add(1);
+    timing.init_ms += init_ms;
+    timing.prepare_ms += prepare_ms;
+    timing.geometry_ms += geometry_ms;
+    timing.visibility_ms += visibility_ms;
+    timing.upload_ms += upload_ms;
+    timing.encode_ms += encode_ms;
+    timing.submit_ms += submit_ms;
+    timing.total_ms += total_ms;
+    timing.verts = timing.verts.saturating_add(verts as u64);
+    timing.indices = timing.indices.saturating_add(indices as u64);
+    timing.visible_indices = timing
+        .visible_indices
+        .saturating_add(visible_indices as u64);
+    timing.opaque_indices = timing.opaque_indices.saturating_add(opaque_indices as u64);
+    timing.transparent_indices = timing
+        .transparent_indices
+        .saturating_add(transparent_indices as u64);
+    timing.particle_indices = timing
+        .particle_indices
+        .saturating_add(particle_indices as u64);
+    if geometry_rebuilt {
+        timing.geometry_rebuilds = timing.geometry_rebuilds.saturating_add(1);
+    }
+    if shadow_enabled {
+        timing.shadow_frames = timing.shadow_frames.saturating_add(1);
+    }
+    if msaa_samples > 1 {
+        timing.msaa_frames = timing.msaa_frames.saturating_add(1);
+    }
+    timing.shadow_res_sum = timing.shadow_res_sum.saturating_add(shadow_res as u64);
+
+    let now = std::time::Instant::now();
+    let should_log = timing
+        .last_log
+        .map(|last| now.duration_since(last) >= std::time::Duration::from_secs(2))
+        .unwrap_or(true);
+    if should_log {
+        let n = timing.frames.max(1) as f64;
+        crate::render_debug_log(&format!(
+            "[RenderDebug][Raster3D] size={}x{} frames={} avg_ms init={:.2} prepare={:.2} geometry={:.2} visibility={:.2} upload={:.2} encode={:.2} submit={:.2} total={:.2} avg_counts verts={:.0} indices={:.0} visible={:.0} opaque={:.0} transparent={:.0} particles={:.0} geometry_rebuilds={} shadow_frames={} avg_shadow_res={:.0} msaa_frames={} last_settings shadow={} shadow_distance={:.2} shadow_strength={:.2} bump={:.2} msaa={} post={}",
+            size.0,
+            size.1,
+            timing.frames,
+            timing.init_ms / n,
+            timing.prepare_ms / n,
+            timing.geometry_ms / n,
+            timing.visibility_ms / n,
+            timing.upload_ms / n,
+            timing.encode_ms / n,
+            timing.submit_ms / n,
+            timing.total_ms / n,
+            timing.verts as f64 / n,
+            timing.indices as f64 / n,
+            timing.visible_indices as f64 / n,
+            timing.opaque_indices as f64 / n,
+            timing.transparent_indices as f64 / n,
+            timing.particle_indices as f64 / n,
+            timing.geometry_rebuilds,
+            timing.shadow_frames,
+            timing.shadow_res_sum as f64 / n,
+            timing.msaa_frames,
+            shadow_enabled,
+            shadow_distance,
+            shadow_strength,
+            bump_strength,
+            msaa_samples,
+            post_enabled
+        ));
+        *timing = Raster3DDebugTiming {
+            last_log: Some(now),
+            ..Raster3DDebugTiming::default()
+        };
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 struct OrganicSurfaceTextureData {
     rgba: Vec<u8>,
@@ -231,6 +372,8 @@ pub struct VMGpu {
     pub i2d_ssbo: Option<wgpu::Buffer>,
     pub v3d_ssbo: Option<wgpu::Buffer>,
     pub i3d_ssbo: Option<wgpu::Buffer>,
+    pub v3d_ssbo_capacity: u64,
+    pub i3d_ssbo_capacity: u64,
     pub i3d_raster: Option<wgpu::Buffer>,
     pub i3d_raster_count: u32,
     pub i3d_raster_capacity: u64,
@@ -1957,11 +2100,27 @@ pub struct VM {
     cached_v3: Vec<Vert3DPod>,
     cached_i3: Vec<u32>,
     cached_tri_visibility: Vec<u32>, // Per-triangle visibility bitmask (1 bit per triangle)
-    visibility_dirty: bool,          // True when only visibility changed (no BVH rebuild needed)
-    geometry3d_dirty: bool,          // True when 3D vertex attributes changed (e.g. opacity)
+    cached_tri_geo_ids: Vec<GeoId>,
+    cached_static_v3: Vec<Vert3DPod>,
+    cached_static_i3: Vec<u32>,
+    cached_static_tri_visibility: Vec<bool>,
+    cached_static_tri_geo_ids: Vec<GeoId>,
+    cached_static_raster_visible_indices: Vec<u32>,
+    cached_static_raster_opaque_indices: Vec<u32>,
+    cached_static_raster_transparent_indices: Vec<u32>,
+    cached_static_raster_particle_indices: Vec<u32>,
+    cached_static_raster_camera_key: [f32; 6],
+    cached_static_raster_indices_valid: bool,
+    visibility_dirty: bool, // True when only visibility changed (no BVH rebuild needed)
+    geometry3d_dirty: bool, // True when 3D vertex attributes changed (e.g. opacity)
     geometry2d_dirty: bool,
     cached_v2: Vec<Vert2DPod>,
     cached_i2: Vec<u32>,
+    cached_static_v2: Vec<Vert2DPod>,
+    cached_static_i2: Vec<u32>,
+    cached_static_tile_bins: Vec<TileBinPod>,
+    cached_static_tile_tris: Vec<u32>,
+    cached_static_fb_size_2d: (u32, u32),
     cached_tile_bins: Vec<TileBinPod>,
     cached_tile_tris: Vec<u32>,
     cached_fb_size_2d: (u32, u32),
@@ -3058,6 +3217,20 @@ impl VM {
     pub fn mark_all_geometry_dirty(&mut self) {
         self.geometry2d_dirty = true;
         self.accel_dirty = true;
+        self.cached_static_v3.clear();
+        self.cached_static_i3.clear();
+        self.cached_static_tri_visibility.clear();
+        self.cached_static_tri_geo_ids.clear();
+        self.cached_static_raster_visible_indices.clear();
+        self.cached_static_raster_opaque_indices.clear();
+        self.cached_static_raster_transparent_indices.clear();
+        self.cached_static_raster_particle_indices.clear();
+        self.cached_static_raster_indices_valid = false;
+        self.cached_static_v2.clear();
+        self.cached_static_i2.clear();
+        self.cached_static_tile_bins.clear();
+        self.cached_static_tile_tris.clear();
+        self.cached_static_fb_size_2d = (0, 0);
     }
 
     fn vm_flags(&self) -> u32 {
@@ -3273,11 +3446,27 @@ impl VM {
             cached_v3: Vec::new(),
             cached_i3: Vec::new(),
             cached_tri_visibility: Vec::new(),
+            cached_tri_geo_ids: Vec::new(),
+            cached_static_v3: Vec::new(),
+            cached_static_i3: Vec::new(),
+            cached_static_tri_visibility: Vec::new(),
+            cached_static_tri_geo_ids: Vec::new(),
+            cached_static_raster_visible_indices: Vec::new(),
+            cached_static_raster_opaque_indices: Vec::new(),
+            cached_static_raster_transparent_indices: Vec::new(),
+            cached_static_raster_particle_indices: Vec::new(),
+            cached_static_raster_camera_key: [0.0; 6],
+            cached_static_raster_indices_valid: false,
             visibility_dirty: false,
             geometry3d_dirty: false,
             geometry2d_dirty: true,
             cached_v2: Vec::new(),
             cached_i2: Vec::new(),
+            cached_static_v2: Vec::new(),
+            cached_static_i2: Vec::new(),
+            cached_static_tile_bins: Vec::new(),
+            cached_static_tile_tris: Vec::new(),
+            cached_static_fb_size_2d: (0, 0),
             cached_tile_bins: Vec::new(),
             cached_tile_tris: Vec::new(),
             cached_fb_size_2d: (0, 0),
@@ -4017,6 +4206,8 @@ impl VM {
             i2d_ssbo: None,
             v3d_ssbo: None,
             i3d_ssbo: None,
+            v3d_ssbo_capacity: 0,
+            i3d_ssbo_capacity: 0,
             i3d_raster: None,
             i3d_raster_count: 0,
             i3d_raster_capacity: 0,
@@ -5510,9 +5701,26 @@ impl VM {
         Ok(())
     }
 
-    fn rebuild_raster_visible_indices(
+    fn raster_camera_key(camera: &Camera3D) -> [f32; 6] {
+        [
+            camera.pos.x,
+            camera.pos.y,
+            camera.pos.z,
+            camera.forward.x,
+            camera.forward.y,
+            camera.forward.z,
+        ]
+    }
+
+    fn raster_camera_key_matches(a: [f32; 6], b: [f32; 6]) -> bool {
+        a.iter().zip(b.iter()).all(|(a, b)| (*a - *b).abs() <= 1e-4)
+    }
+
+    fn split_raster_visible_indices_range(
         &self,
         camera: &Camera3D,
+        tri_start: usize,
+        tri_end: usize,
     ) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>) {
         if self.cached_i3.is_empty() || self.cached_tri_visibility.is_empty() {
             return (Vec::new(), Vec::new(), Vec::new(), Vec::new());
@@ -5533,11 +5741,14 @@ impl VM {
         };
 
         let tri_capacity = self.cached_i3.len() / 3;
-        let mut all_visible: Vec<u32> = Vec::with_capacity(self.cached_i3.len());
-        let mut opaque: Vec<u32> = Vec::with_capacity(self.cached_i3.len());
+        let tri_start = tri_start.min(tri_capacity);
+        let tri_end = tri_end.min(tri_capacity).max(tri_start);
+        let index_capacity = (tri_end - tri_start) * 3;
+        let mut all_visible: Vec<u32> = Vec::with_capacity(index_capacity);
+        let mut opaque: Vec<u32> = Vec::with_capacity(index_capacity);
         let mut transparent_tris: Vec<(f32, [u32; 3])> = Vec::new();
         let mut particle_tris: Vec<(f32, [u32; 3])> = Vec::new();
-        for tri in 0..tri_capacity {
+        for tri in tri_start..tri_end {
             let word = tri / 32;
             let bit = tri % 32;
             let visible = self
@@ -5608,6 +5819,53 @@ impl VM {
         (all_visible, opaque, transparent, particles)
     }
 
+    fn rebuild_raster_visible_indices(
+        &mut self,
+        camera: &Camera3D,
+    ) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>) {
+        let tri_capacity = self.cached_i3.len() / 3;
+        if tri_capacity == 0 {
+            return (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        }
+
+        let static_tri_count = (self.cached_static_i3.len() / 3).min(tri_capacity);
+        let camera_key = Self::raster_camera_key(camera);
+        let static_cache_valid = self.cached_static_raster_indices_valid
+            && Self::raster_camera_key_matches(self.cached_static_raster_camera_key, camera_key);
+        if !static_cache_valid {
+            let (visible, opaque, transparent, particles) =
+                self.split_raster_visible_indices_range(camera, 0, static_tri_count);
+            self.cached_static_raster_visible_indices = visible;
+            self.cached_static_raster_opaque_indices = opaque;
+            self.cached_static_raster_transparent_indices = transparent;
+            self.cached_static_raster_particle_indices = particles;
+            self.cached_static_raster_camera_key = camera_key;
+            self.cached_static_raster_indices_valid = true;
+        }
+
+        if static_tri_count >= tri_capacity {
+            return (
+                self.cached_static_raster_visible_indices.clone(),
+                self.cached_static_raster_opaque_indices.clone(),
+                self.cached_static_raster_transparent_indices.clone(),
+                self.cached_static_raster_particle_indices.clone(),
+            );
+        }
+
+        let (dynamic_visible, dynamic_opaque, dynamic_transparent, dynamic_particles) =
+            self.split_raster_visible_indices_range(camera, static_tri_count, tri_capacity);
+
+        let mut visible = self.cached_static_raster_visible_indices.clone();
+        visible.extend_from_slice(&dynamic_visible);
+        let mut opaque = self.cached_static_raster_opaque_indices.clone();
+        opaque.extend_from_slice(&dynamic_opaque);
+        let mut transparent = self.cached_static_raster_transparent_indices.clone();
+        transparent.extend_from_slice(&dynamic_transparent);
+        let mut particles = self.cached_static_raster_particle_indices.clone();
+        particles.extend_from_slice(&dynamic_particles);
+        (visible, opaque, transparent, particles)
+    }
+
     /// Dispatches 2D compute pipeline into a storage-capable surface.
     pub fn raster_draw_2d_into(
         &mut self,
@@ -5637,8 +5895,22 @@ impl VM {
             || self.cached_fb_size_2d != fb_dims
             || has_dynamic_billboards
         {
-            let (mut verts_flat, mut indices_flat, tile_bins, tile_tris) =
-                self.build_2d_batches(fb_w, fb_h);
+            let rebuild_static_2d = self.geometry2d_dirty
+                || self.cached_static_v2.is_empty()
+                || self.cached_static_i2.is_empty()
+                || self.cached_static_fb_size_2d != fb_dims;
+            if rebuild_static_2d {
+                let (verts_flat, indices_flat, tile_bins, tile_tris) =
+                    self.build_2d_batches(fb_w, fb_h);
+                self.cached_static_v2 = verts_flat;
+                self.cached_static_i2 = indices_flat;
+                self.cached_static_tile_bins = tile_bins;
+                self.cached_static_tile_tris = tile_tris;
+                self.cached_static_fb_size_2d = fb_dims;
+            }
+
+            let mut verts_flat = self.cached_static_v2.clone();
+            let mut indices_flat = self.cached_static_i2.clone();
 
             let m = self.transform2d;
             let mut avatar_meta_indices: FxHashMap<GeoId, u32> = FxHashMap::default();
@@ -5756,8 +6028,8 @@ impl VM {
 
             self.cached_v2 = verts_flat;
             self.cached_i2 = indices_flat;
-            self.cached_tile_bins = tile_bins;
-            self.cached_tile_tris = tile_tris;
+            self.cached_tile_bins = self.cached_static_tile_bins.clone();
+            self.cached_tile_tris = self.cached_static_tile_tris.clone();
             self.cached_fb_size_2d = fb_dims;
             self.geometry2d_dirty = false;
             geometry_changed = true;
@@ -5982,14 +6254,6 @@ impl VM {
                 let sw = w.max(0.0).min((fb_w as f32) - sx as f32) as u32;
                 let sh = h.max(0.0).min((fb_h as f32) - sy as f32) as u32;
                 pass.set_scissor_rect(sx, sy, sw.max(1), sh.max(1));
-                pass.set_viewport(
-                    sx as f32,
-                    sy as f32,
-                    sw.max(1) as f32,
-                    sh.max(1) as f32,
-                    0.0,
-                    1.0,
-                );
             }
 
             pass.set_pipeline(g.raster2d_pipeline.as_ref().unwrap());
@@ -6798,10 +7062,18 @@ impl VM {
         fb_w: u32,
         fb_h: u32,
     ) -> crate::SceneVMResult<()> {
+        let debug_total_start = std::time::Instant::now();
+        let mut debug_geometry_ms = 0.0;
+        let mut debug_visibility_ms = 0.0;
+
+        let debug_init_start = std::time::Instant::now();
         if self.gpu.is_none() {
             self.init_gpu(device)?;
         }
         self.init_raster3d(device)?;
+        let debug_init_ms = debug_init_start.elapsed().as_secs_f64() * 1000.0;
+
+        let debug_prepare_start = std::time::Instant::now();
         self.upload_tile_metadata_to_gpu(device);
         self.upload_scene_data_ssbo(device, queue);
         self.ensure_organic_detail_texture(device, queue);
@@ -6814,146 +7086,191 @@ impl VM {
 
         // Ensure tile indices are current before we resolve dynamic billboard tile ids.
         self.build_atlas();
+        let debug_prepare_ms = debug_prepare_start.elapsed().as_secs_f64() * 1000.0;
 
         let m = self.transform3d;
         let mut geometry_changed = false;
         let has_dynamic_objects =
             !self.dynamic_objects.is_empty() || !self.dynamic_avatar_objects.is_empty();
         let need_dynamic_refresh = has_dynamic_objects || self.raster_had_dynamics_last_frame;
+        let mut static_geometry_rebuilt = false;
         if self.accel_dirty
             || self.geometry3d_dirty
             || self.cached_v3.is_empty()
             || need_dynamic_refresh
         {
-            let mut v3: Vec<Vert3DPod> = Vec::new();
-            let mut i3: Vec<u32> = Vec::new();
-            let mut tri_visibility: Vec<bool> = Vec::new();
+            let debug_geometry_start = std::time::Instant::now();
+            let rebuild_static_geometry = self.accel_dirty
+                || self.geometry3d_dirty
+                || self.cached_static_v3.is_empty()
+                || self.cached_static_i3.is_empty();
+            let mut v3: Vec<Vert3DPod>;
+            let mut i3: Vec<u32>;
+            let mut tri_visibility: Vec<bool>;
+            let mut tri_geo_ids: Vec<GeoId>;
 
-            for ch in self.chunks_map.values() {
-                for poly_list in ch.polys3d_map.values() {
-                    for poly in poly_list {
-                        let tile_index = match self.shared_atlas.tile_index(&poly.tile_id) {
-                            Some(idx) => idx,
-                            None => continue,
-                        };
+            if rebuild_static_geometry {
+                static_geometry_rebuilt = true;
+                v3 = Vec::new();
+                i3 = Vec::new();
+                tri_visibility = Vec::new();
+                tri_geo_ids = Vec::new();
 
-                        let vcount = poly.vertices.len();
-                        let mut poly_pos: Vec<[f32; 3]> = Vec::with_capacity(vcount);
-                        let mut poly_nrm: Vec<[f32; 3]> = vec![[0.0, 0.0, 0.0]; vcount];
-
-                        for v in &poly.vertices {
-                            let p = m * Vec4::new(v[0], v[1], v[2], v[3]);
-                            let w = if p.w != 0.0 { p.w } else { 1.0 };
-                            poly_pos.push([p.x / w, p.y / w, p.z / w]);
-                        }
-
-                        for &(a, b, c) in &poly.indices {
-                            let pa = poly_pos[a];
-                            let pb = poly_pos[b];
-                            let pc = poly_pos[c];
-                            let e1 = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
-                            let e2 = [pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]];
-                            let nx = e1[1] * e2[2] - e1[2] * e2[1];
-                            let ny = e1[2] * e2[0] - e1[0] * e2[2];
-                            let nz = e1[0] * e2[1] - e1[1] * e2[0];
-                            poly_nrm[a][0] += nx;
-                            poly_nrm[a][1] += ny;
-                            poly_nrm[a][2] += nz;
-                            poly_nrm[b][0] += nx;
-                            poly_nrm[b][1] += ny;
-                            poly_nrm[b][2] += nz;
-                            poly_nrm[c][0] += nx;
-                            poly_nrm[c][1] += ny;
-                            poly_nrm[c][2] += nz;
-                        }
-                        for n in &mut poly_nrm {
-                            let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
-                            if len > 1e-12 {
-                                n[0] /= len;
-                                n[1] /= len;
-                                n[2] /= len;
-                            }
-                        }
-
-                        let base = v3.len() as u32;
-                        let mut tile_index2 = if let Some(tid2) = poly.tile_id2 {
-                            self.shared_atlas.tile_index(&tid2).unwrap_or(tile_index)
-                        } else {
-                            tile_index
-                        };
-                        if poly_uses_clamped_uv(poly) {
-                            tile_index2 |= TILE_INDEX_CLAMP_UV_FLAG_RUST;
-                        }
-                        let has_valid_blend = poly.tile_id2.is_some()
-                            && poly.blend_weights.len() == poly.vertices.len();
-                        let organic_meta = poly.organic_detail.as_ref().and_then(|detail| {
-                            self.organic_surface_slots
-                                .get(&detail.surface_id)
-                                .and_then(|slot| {
-                                    self.organic_slot_rect(slot.slot).map(
-                                        |(atlas_min, atlas_size)| {
-                                            (
-                                                1.0f32,
-                                                atlas_min,
-                                                [detail.local_min[0], detail.local_min[1]],
-                                                [detail.local_size[0], detail.local_size[1]],
-                                                atlas_size,
-                                            )
-                                        },
-                                    )
-                                })
-                        });
-
-                        for (i, p) in poly_pos.iter().enumerate() {
-                            let uv0 = poly.uvs[i];
-                            let n = poly_nrm[i];
-                            let blend_factor = if has_valid_blend {
-                                poly.blend_weights[i].clamp(0.0, 1.0)
-                            } else {
-                                0.0
+                for ch in self.chunks_map.values() {
+                    for poly_list in ch.polys3d_map.values() {
+                        for poly in poly_list {
+                            let tile_index = match self.shared_atlas.tile_index(&poly.tile_id) {
+                                Some(idx) => idx,
+                                None => continue,
                             };
-                            let (
-                                organic_enabled,
-                                organic_atlas_min,
-                                organic_local_min,
-                                organic_local_size,
-                                organic_atlas_size,
-                            ) = organic_meta.unwrap_or((
-                                0.0,
-                                [0.0, 0.0],
-                                [0.0, 0.0],
-                                [0.0, 0.0],
-                                [0.0, 0.0],
-                            ));
-                            let organic_uv = poly.organic_uvs.get(i).copied().unwrap_or([0.0, 0.0]);
-                            v3.push(Vert3DPod {
-                                pos: [p[0], p[1], p[2]],
-                                organic_enabled,
-                                uv: [uv0[0], uv0[1]],
-                                organic_atlas_min,
-                                tile_index,
-                                tile_index2,
-                                blend_factor,
-                                opacity: poly.opacity,
-                                normal: [n[0], n[1], n[2]],
-                                organic_uv,
-                                organic_local_min,
-                                organic_local_size,
-                                organic_atlas_size,
-                            });
-                        }
 
-                        for &(a, b, c) in &poly.indices {
-                            i3.extend_from_slice(&[
-                                base + a as u32,
-                                base + b as u32,
-                                base + c as u32,
-                            ]);
-                            tri_visibility.push(poly.visible);
+                            let vcount = poly.vertices.len();
+                            let mut poly_pos: Vec<[f32; 3]> = Vec::with_capacity(vcount);
+                            let mut poly_nrm: Vec<[f32; 3]> = vec![[0.0, 0.0, 0.0]; vcount];
+
+                            for v in &poly.vertices {
+                                let p = m * Vec4::new(v[0], v[1], v[2], v[3]);
+                                let w = if p.w != 0.0 { p.w } else { 1.0 };
+                                poly_pos.push([p.x / w, p.y / w, p.z / w]);
+                            }
+
+                            for &(a, b, c) in &poly.indices {
+                                let pa = poly_pos[a];
+                                let pb = poly_pos[b];
+                                let pc = poly_pos[c];
+                                let e1 = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
+                                let e2 = [pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]];
+                                let nx = e1[1] * e2[2] - e1[2] * e2[1];
+                                let ny = e1[2] * e2[0] - e1[0] * e2[2];
+                                let nz = e1[0] * e2[1] - e1[1] * e2[0];
+                                poly_nrm[a][0] += nx;
+                                poly_nrm[a][1] += ny;
+                                poly_nrm[a][2] += nz;
+                                poly_nrm[b][0] += nx;
+                                poly_nrm[b][1] += ny;
+                                poly_nrm[b][2] += nz;
+                                poly_nrm[c][0] += nx;
+                                poly_nrm[c][1] += ny;
+                                poly_nrm[c][2] += nz;
+                            }
+                            for n in &mut poly_nrm {
+                                let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+                                if len > 1e-12 {
+                                    n[0] /= len;
+                                    n[1] /= len;
+                                    n[2] /= len;
+                                }
+                            }
+
+                            let base = v3.len() as u32;
+                            let mut tile_index2 = if let Some(tid2) = poly.tile_id2 {
+                                self.shared_atlas.tile_index(&tid2).unwrap_or(tile_index)
+                            } else {
+                                tile_index
+                            };
+                            if poly_uses_clamped_uv(poly) {
+                                tile_index2 |= TILE_INDEX_CLAMP_UV_FLAG_RUST;
+                            }
+                            let has_valid_blend = poly.tile_id2.is_some()
+                                && poly.blend_weights.len() == poly.vertices.len();
+                            let organic_meta = poly.organic_detail.as_ref().and_then(|detail| {
+                                self.organic_surface_slots.get(&detail.surface_id).and_then(
+                                    |slot| {
+                                        self.organic_slot_rect(slot.slot).map(
+                                            |(atlas_min, atlas_size)| {
+                                                (
+                                                    1.0f32,
+                                                    atlas_min,
+                                                    [detail.local_min[0], detail.local_min[1]],
+                                                    [detail.local_size[0], detail.local_size[1]],
+                                                    atlas_size,
+                                                )
+                                            },
+                                        )
+                                    },
+                                )
+                            });
+
+                            for (i, p) in poly_pos.iter().enumerate() {
+                                let uv0 = poly.uvs[i];
+                                let n = poly_nrm[i];
+                                let blend_factor = if has_valid_blend {
+                                    poly.blend_weights[i].clamp(0.0, 1.0)
+                                } else {
+                                    0.0
+                                };
+                                let (
+                                    organic_enabled,
+                                    organic_atlas_min,
+                                    organic_local_min,
+                                    organic_local_size,
+                                    organic_atlas_size,
+                                ) = organic_meta.unwrap_or((
+                                    0.0,
+                                    [0.0, 0.0],
+                                    [0.0, 0.0],
+                                    [0.0, 0.0],
+                                    [0.0, 0.0],
+                                ));
+                                let organic_uv =
+                                    poly.organic_uvs.get(i).copied().unwrap_or([0.0, 0.0]);
+                                v3.push(Vert3DPod {
+                                    pos: [p[0], p[1], p[2]],
+                                    organic_enabled,
+                                    uv: [uv0[0], uv0[1]],
+                                    organic_atlas_min,
+                                    tile_index,
+                                    tile_index2,
+                                    blend_factor,
+                                    opacity: poly.opacity,
+                                    normal: [n[0], n[1], n[2]],
+                                    organic_uv,
+                                    organic_local_min,
+                                    organic_local_size,
+                                    organic_atlas_size,
+                                });
+                            }
+
+                            for &(a, b, c) in &poly.indices {
+                                i3.extend_from_slice(&[
+                                    base + a as u32,
+                                    base + b as u32,
+                                    base + c as u32,
+                                ]);
+                                tri_visibility.push(poly.visible);
+                                tri_geo_ids.push(poly.id);
+                            }
                         }
                     }
                 }
+
+                self.cached_static_v3 = v3;
+                self.cached_static_i3 = i3;
+                self.cached_static_tri_visibility = tri_visibility;
+                self.cached_static_tri_geo_ids = tri_geo_ids;
+                self.cached_static_raster_indices_valid = false;
             }
+
+            let static_vertex_count = self.cached_static_v3.len();
+            let static_index_count = self.cached_static_i3.len();
+            let static_tri_count = self.cached_static_tri_geo_ids.len();
+            if rebuild_static_geometry
+                || self.cached_v3.len() < static_vertex_count
+                || self.cached_i3.len() < static_index_count
+                || self.cached_tri_geo_ids.len() < static_tri_count
+            {
+                v3 = self.cached_static_v3.clone();
+                i3 = self.cached_static_i3.clone();
+                tri_geo_ids = self.cached_static_tri_geo_ids.clone();
+            } else {
+                v3 = std::mem::take(&mut self.cached_v3);
+                v3.truncate(static_vertex_count);
+                i3 = std::mem::take(&mut self.cached_i3);
+                i3.truncate(static_index_count);
+                tri_geo_ids = std::mem::take(&mut self.cached_tri_geo_ids);
+                tri_geo_ids.truncate(static_tri_count);
+            }
+            tri_visibility = self.cached_static_tri_visibility.clone();
 
             // Dynamic billboards (tile + avatar) as camera-facing quads in world space.
             let mut avatar_meta_indices: FxHashMap<GeoId, u32> = FxHashMap::default();
@@ -7067,6 +7384,8 @@ impl VM {
                 i3.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
                 tri_visibility.push(true);
                 tri_visibility.push(true);
+                tri_geo_ids.push(obj.id);
+                tri_geo_ids.push(obj.id);
             }
 
             for obj in &self.dynamic_objects {
@@ -7110,6 +7429,7 @@ impl VM {
                 for tri in obj.mesh_indices.chunks_exact(3) {
                     i3.extend_from_slice(&[base + tri[0], base + tri[1], base + tri[2]]);
                     tri_visibility.push(true);
+                    tri_geo_ids.push(obj.id);
                 }
             }
 
@@ -7133,10 +7453,12 @@ impl VM {
             if i3.is_empty() {
                 i3.extend_from_slice(&[0u32; 4]);
                 tri_visibility.push(false);
+                tri_geo_ids.push(GeoId::Unknown(0));
             }
 
             self.cached_v3 = v3;
             self.cached_i3 = i3;
+            self.cached_tri_geo_ids = tri_geo_ids;
 
             let tri_count = tri_visibility.len();
             let word_count = (tri_count + 31) / 32;
@@ -7149,14 +7471,19 @@ impl VM {
                 }
             }
             self.cached_tri_visibility = visibility_bits;
+            if static_geometry_rebuilt {
+                self.cached_static_raster_indices_valid = false;
+            }
 
             geometry_changed = true;
             self.visibility_dirty = false;
             self.geometry3d_dirty = false;
             self.raster_had_dynamics_last_frame = has_dynamic_objects;
+            debug_geometry_ms = debug_geometry_start.elapsed().as_secs_f64() * 1000.0;
         }
 
         if self.visibility_dirty && !geometry_changed {
+            let debug_visibility_start = std::time::Instant::now();
             let mut tri_visibility: Vec<bool> = Vec::new();
             for ch in self.chunks_map.values() {
                 for poly_list in ch.polys3d_map.values() {
@@ -7181,7 +7508,9 @@ impl VM {
                 }
             }
             self.cached_tri_visibility = visibility_bits;
+            self.cached_static_raster_indices_valid = false;
             self.visibility_dirty = false;
+            debug_visibility_ms = debug_visibility_start.elapsed().as_secs_f64() * 1000.0;
         }
 
         if self.accel_dirty {
@@ -7198,8 +7527,15 @@ impl VM {
             .shared_atlas
             .texture_views()
             .expect("atlas GPU resources missing");
+        let debug_visibility_start = std::time::Instant::now();
         let (visible_indices, opaque_indices, transparent_indices, particle_indices) =
             self.rebuild_raster_visible_indices(&c);
+        debug_visibility_ms += debug_visibility_start.elapsed().as_secs_f64() * 1000.0;
+
+        let debug_visible_count = visible_indices.len();
+        let debug_opaque_count = opaque_indices.len();
+        let debug_transparent_count = transparent_indices.len();
+        let debug_particle_count = particle_indices.len();
 
         let mut shadow_center = Vec3::zero();
         let mut shadow_half_w = 32.0f32;
@@ -7356,7 +7692,9 @@ impl VM {
         let shadow_res = self.gp7.z.round().clamp(256.0, 4096.0) as u32;
         let raster_samples = self.raster3d_effective_samples();
         let use_msaa = raster_samples > 1;
+        let shadow_enabled = !self.cached_i3.is_empty() && self.gp2.w > 0.5 && self.gp7.x > 0.5;
 
+        let debug_upload_start = std::time::Instant::now();
         {
             let g = self.gpu.as_mut().unwrap();
             g.ensure_raster3d_targets(device, fb_w, fb_h, shadow_res, raster_samples);
@@ -7365,8 +7703,14 @@ impl VM {
                 0,
                 bytemuck::bytes_of(&u),
             );
-            let need_geom_upload = geometry_changed || g.v3d_ssbo.is_none() || g.i3d_ssbo.is_none();
-            if need_geom_upload {
+            let vertex_bytes = (self.cached_v3.len() * std::mem::size_of::<Vert3DPod>()) as u64;
+            let index_bytes = (self.cached_i3.len() * std::mem::size_of::<u32>()) as u64;
+            let need_full_geom_upload = static_geometry_rebuilt
+                || g.v3d_ssbo.is_none()
+                || g.i3d_ssbo.is_none()
+                || vertex_bytes > g.v3d_ssbo_capacity
+                || index_bytes > g.i3d_ssbo_capacity;
+            if need_full_geom_upload {
                 g.v3d_ssbo = Some(
                     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some("vm-3d-verts-raster"),
@@ -7376,6 +7720,7 @@ impl VM {
                             | wgpu::BufferUsages::COPY_DST,
                     }),
                 );
+                g.v3d_ssbo_capacity = vertex_bytes;
                 g.i3d_ssbo = Some(
                     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some("vm-3d-indices-raster-all"),
@@ -7385,6 +7730,26 @@ impl VM {
                             | wgpu::BufferUsages::COPY_DST,
                     }),
                 );
+                g.i3d_ssbo_capacity = index_bytes;
+            } else if geometry_changed {
+                let static_vertex_count = self.cached_static_v3.len().min(self.cached_v3.len());
+                let static_index_count = self.cached_static_i3.len().min(self.cached_i3.len());
+                if static_vertex_count < self.cached_v3.len() {
+                    let offset = (static_vertex_count * std::mem::size_of::<Vert3DPod>()) as u64;
+                    queue.write_buffer(
+                        g.v3d_ssbo.as_ref().unwrap(),
+                        offset,
+                        bytemuck::cast_slice(&self.cached_v3[static_vertex_count..]),
+                    );
+                }
+                if static_index_count < self.cached_i3.len() {
+                    let offset = (static_index_count * std::mem::size_of::<u32>()) as u64;
+                    queue.write_buffer(
+                        g.i3d_ssbo.as_ref().unwrap(),
+                        offset,
+                        bytemuck::cast_slice(&self.cached_i3[static_index_count..]),
+                    );
+                }
             }
 
             let visible_upload = if visible_indices.is_empty() {
@@ -7550,7 +7915,9 @@ impl VM {
                 ],
             }));
         }
+        let debug_upload_ms = debug_upload_start.elapsed().as_secs_f64() * 1000.0;
 
+        let debug_encode_start = std::time::Instant::now();
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("vm-3d-raster-enc"),
         });
@@ -7625,7 +7992,7 @@ impl VM {
         };
         {
             let g = self.gpu.as_ref().unwrap();
-            if g.i3d_raster_count > 0 && self.gp2.w > 0.5 && self.gp7.x > 0.5 {
+            if g.i3d_raster_count > 0 && shadow_enabled {
                 let mut shadow_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("vm-3d-raster-shadow-pass"),
                     color_attachments: &[],
@@ -7730,10 +8097,38 @@ impl VM {
                 pass.draw_indexed(0..g.i3d_raster_particles_count, 0, 0..1);
             }
         }
+        let debug_encode_ms = debug_encode_start.elapsed().as_secs_f64() * 1000.0;
+        let debug_submit_start = std::time::Instant::now();
         queue.submit(Some(encoder.finish()));
+        let debug_submit_ms = debug_submit_start.elapsed().as_secs_f64() * 1000.0;
         if self.ping_pong_enabled {
             self.ping_pong_front = next_front;
         }
+        record_raster3d_debug_timing(
+            (fb_w, fb_h),
+            debug_init_ms,
+            debug_prepare_ms,
+            debug_geometry_ms,
+            debug_visibility_ms,
+            debug_upload_ms,
+            debug_encode_ms,
+            debug_submit_ms,
+            debug_total_start.elapsed().as_secs_f64() * 1000.0,
+            self.cached_v3.len(),
+            self.cached_i3.len(),
+            debug_visible_count,
+            debug_opaque_count,
+            debug_transparent_count,
+            debug_particle_count,
+            geometry_changed,
+            shadow_enabled,
+            shadow_res,
+            raster_samples,
+            self.gp9.x > 0.5,
+            self.gp5.z,
+            self.gp7.x,
+            self.gp7.y,
+        );
         Ok(())
     }
 
@@ -7892,59 +8287,99 @@ impl VM {
 
         let m = self.transform3d;
 
-        let chunks: Vec<&Chunk> = self.chunks_map.values().collect();
-        if let Some((t, geo, pos)) = chunks
-            .par_iter()
-            .filter_map(|chunk| {
-                let mut best_t = f32::INFINITY;
-                let mut best_geo: Option<GeoId> = None;
-                let mut best_pos = Vec3::new(0.0, 0.0, 0.0);
+        let cached_static_tri_count = self.cached_static_i3.len() / 3;
+        if cached_static_tri_count > 0
+            && self.cached_static_tri_geo_ids.len() >= cached_static_tri_count
+        {
+            if let Some((t, geo, pos)) = self
+                .cached_static_i3
+                .par_chunks_exact(3)
+                .enumerate()
+                .filter_map(|(tri_idx, tri)| {
+                    if !include_hidden
+                        && !self
+                            .cached_static_tri_visibility
+                            .get(tri_idx)
+                            .copied()
+                            .unwrap_or(false)
+                    {
+                        return None;
+                    }
+                    let a = self.cached_static_v3.get(tri[0] as usize)?;
+                    let b = self.cached_static_v3.get(tri[1] as usize)?;
+                    let c = self.cached_static_v3.get(tri[2] as usize)?;
+                    let a = a.pos;
+                    let b = b.pos;
+                    let c = c.pos;
+                    let (t, _, _) = ray_triangle_intersect(ray_origin, ray_dir, a, b, c)?;
+                    if t <= 1e-5 {
+                        return None;
+                    }
+                    let geo = self.cached_static_tri_geo_ids.get(tri_idx).copied()?;
+                    Some((t, geo, ray_origin + ray_dir * t))
+                })
+                .reduce_with(|a, b| if a.0 <= b.0 { a } else { b })
+            {
+                best_t = t;
+                best_geo = Some(geo);
+                best_pos = pos;
+            }
+        } else {
+            let chunks: Vec<&Chunk> = self.chunks_map.values().collect();
+            if let Some((t, geo, pos)) = chunks
+                .par_iter()
+                .filter_map(|chunk| {
+                    let mut best_t = f32::INFINITY;
+                    let mut best_geo: Option<GeoId> = None;
+                    let mut best_pos = Vec3::new(0.0, 0.0, 0.0);
 
-                for poly_list in chunk.polys3d_map.values() {
-                    for poly in poly_list {
-                        if poly.indices.is_empty() || poly.vertices.is_empty() {
-                            continue;
-                        }
+                    for poly_list in chunk.polys3d_map.values() {
+                        for poly in poly_list {
+                            if poly.indices.is_empty() || poly.vertices.is_empty() {
+                                continue;
+                            }
 
-                        if !poly.visible && !include_hidden {
-                            continue;
-                        }
+                            if !poly.visible && !include_hidden {
+                                continue;
+                            }
 
-                        let mut poly_pos: Vec<[f32; 3]> = Vec::with_capacity(poly.vertices.len());
-                        for v in &poly.vertices {
-                            let p = m * Vec4::new(v[0], v[1], v[2], v[3]);
-                            let w = if p.w != 0.0 { p.w } else { 1.0 };
-                            poly_pos.push([p.x / w, p.y / w, p.z / w]);
-                        }
+                            let mut poly_pos: Vec<[f32; 3]> =
+                                Vec::with_capacity(poly.vertices.len());
+                            for v in &poly.vertices {
+                                let p = m * Vec4::new(v[0], v[1], v[2], v[3]);
+                                let w = if p.w != 0.0 { p.w } else { 1.0 };
+                                poly_pos.push([p.x / w, p.y / w, p.z / w]);
+                            }
 
-                        for &(ia, ib, ic) in &poly.indices {
-                            let a = poly_pos.get(ia).copied();
-                            let b = poly_pos.get(ib).copied();
-                            let c = poly_pos.get(ic).copied();
-                            let (a, b, c) = match (a, b, c) {
-                                (Some(a), Some(b), Some(c)) => (a, b, c),
-                                _ => continue,
-                            };
-                            if let Some((t, _, _)) =
-                                ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
-                                && t > 1e-5
-                                && t < best_t
-                            {
-                                best_t = t;
-                                best_geo = Some(poly.id);
-                                best_pos = ray_origin + ray_dir * t;
+                            for &(ia, ib, ic) in &poly.indices {
+                                let a = poly_pos.get(ia).copied();
+                                let b = poly_pos.get(ib).copied();
+                                let c = poly_pos.get(ic).copied();
+                                let (a, b, c) = match (a, b, c) {
+                                    (Some(a), Some(b), Some(c)) => (a, b, c),
+                                    _ => continue,
+                                };
+                                if let Some((t, _, _)) =
+                                    ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
+                                    && t > 1e-5
+                                    && t < best_t
+                                {
+                                    best_t = t;
+                                    best_geo = Some(poly.id);
+                                    best_pos = ray_origin + ray_dir * t;
+                                }
                             }
                         }
                     }
-                }
 
-                best_geo.map(|geo| (best_t, geo, best_pos))
-            })
-            .reduce_with(|a, b| if a.0 <= b.0 { a } else { b })
-        {
-            best_t = t;
-            best_geo = Some(geo);
-            best_pos = pos;
+                    best_geo.map(|geo| (best_t, geo, best_pos))
+                })
+                .reduce_with(|a, b| if a.0 <= b.0 { a } else { b })
+            {
+                best_t = t;
+                best_geo = Some(geo);
+                best_pos = pos;
+            }
         }
 
         if include_billboards {

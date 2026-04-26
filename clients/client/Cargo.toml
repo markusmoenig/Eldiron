@@ -18,7 +18,7 @@ path = "src/main.rs"
 theframework = { workspace = true, features = ["winit_app"] }
 rusterix.workspace = true
 
-shared = { path = "../../crates/shared", version = "0.9.7", package = "eldiron-shared" }
+shared = { path = "../../crates/shared", version = "0.9.8", package = "eldiron-shared" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 vectorize = "0.2.0"

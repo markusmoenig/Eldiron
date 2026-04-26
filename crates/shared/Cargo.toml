@@ -12,9 +12,9 @@ readme = "README.md"
 
 [dependencies]
 theframework.workspace = true
-rusterix = { path = "../rusterix", version = "0.9.7", default-features = false }
+rusterix = { path = "../rusterix", version = "0.9.8", default-features = false }
 codegridfx.workspace = true
-scenevm = { path = "../scenevm", version = "0.9.7", default-features = false }
+scenevm = { path = "../scenevm", version = "0.9.8", default-features = false }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -28,8 +28,8 @@ indexmap = { version = "2", features = ["serde"], default-features = true }
 noiselib = "0.2.3"
 regex = "1"
 num_cpus = "1.16.0"
-tilegraph = { path = "../tilegraph", version = "0.9.7" }
-buildergraph = { path = "../buildergraph", version = "0.9.7" }
+tilegraph = { path = "../tilegraph", version = "0.9.8" }
+buildergraph = { path = "../buildergraph", version = "0.9.8" }
 
 vek = { version = "0.17", default-features = false, features = ["rgba"] }
 earcutr = "0.5"

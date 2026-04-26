@@ -523,6 +523,231 @@ struct GlobalGpu {
 #[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
 static GLOBAL_GPU: OnceLock<GlobalGpu> = OnceLock::new();
 
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+pub(crate) fn render_debug_enabled() -> bool {
+    std::env::var("ELDIRON_RENDER_DEBUG")
+        .map(|v| v != "0")
+        .unwrap_or(false)
+}
+
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+fn selected_wgpu_backends() -> wgpu::Backends {
+    let value = std::env::var("ELDIRON_WGPU_BACKEND")
+        .or_else(|_| std::env::var("WGPU_BACKEND"))
+        .unwrap_or_default();
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("all") {
+        return wgpu::Backends::all();
+    }
+
+    let mut backends = wgpu::Backends::empty();
+    for part in trimmed.split([',', ';', ' ']) {
+        match part.trim().to_ascii_lowercase().as_str() {
+            "dx12" | "d3d12" | "directx12" => backends |= wgpu::Backends::DX12,
+            "vulkan" | "vk" => backends |= wgpu::Backends::VULKAN,
+            "gl" | "opengl" | "gles" => backends |= wgpu::Backends::GL,
+            "metal" => backends |= wgpu::Backends::METAL,
+            _ => {}
+        }
+    }
+
+    if backends.is_empty() {
+        wgpu::Backends::all()
+    } else {
+        backends
+    }
+}
+
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+pub(crate) fn render_debug_log(message: &str) {
+    use std::io::Write;
+
+    eprintln!("{message}");
+
+    let mut paths = Vec::new();
+    paths.push(std::path::PathBuf::from("eldiron-render-debug.log"));
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        paths.push(parent.join("eldiron-render-debug.log"));
+    }
+    paths.push(std::env::temp_dir().join("eldiron-render-debug.log"));
+
+    let mut seen = std::collections::HashSet::new();
+    for path in paths {
+        let key = path.canonicalize().unwrap_or_else(|_| path.clone());
+        if !seen.insert(key) {
+            continue;
+        }
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            let _ = writeln!(file, "{message}");
+        }
+    }
+}
+
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+fn log_adapter_info(prefix: &str, adapter: &wgpu::Adapter) {
+    if !render_debug_enabled() {
+        return;
+    }
+    let info = adapter.get_info();
+    render_debug_log(&format!(
+        "[RenderDebug][SceneVM] {} adapter name='{}' backend={:?} device_type={:?} vendor={} device={}",
+        prefix, info.name, info.backend, info.device_type, info.vendor, info.device
+    ));
+}
+
+#[derive(Default)]
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+struct RenderDebugTiming {
+    frames: u32,
+    draw_ms: f64,
+    acquire_ms: f64,
+    overlay_ms: f64,
+    pipeline_ms: f64,
+    submit_ms: f64,
+    total_ms: f64,
+    last_log: Option<std::time::Instant>,
+}
+
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+static RENDER_DEBUG_TIMING: OnceLock<std::sync::Mutex<RenderDebugTiming>> = OnceLock::new();
+
+#[derive(Default)]
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+struct SceneVmDrawDebugTiming {
+    frames: u32,
+    base_ms: f64,
+    overlays_ms: f64,
+    composite_ms: f64,
+    rgba_overlay_ms: f64,
+    submit_ms: f64,
+    total_ms: f64,
+    overlays: u32,
+    composited_layers: u32,
+    last_log: Option<std::time::Instant>,
+}
+
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+static SCENEVM_DRAW_DEBUG_TIMING: OnceLock<std::sync::Mutex<SceneVmDrawDebugTiming>> =
+    OnceLock::new();
+
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+fn record_scenevm_draw_timing(
+    size: (u32, u32),
+    base_ms: f64,
+    overlays_ms: f64,
+    composite_ms: f64,
+    rgba_overlay_ms: f64,
+    submit_ms: f64,
+    total_ms: f64,
+    overlays: u32,
+    composited_layers: u32,
+) {
+    if !render_debug_enabled() {
+        return;
+    }
+
+    let mut timing = SCENEVM_DRAW_DEBUG_TIMING
+        .get_or_init(|| std::sync::Mutex::new(SceneVmDrawDebugTiming::default()))
+        .lock()
+        .unwrap();
+
+    timing.frames = timing.frames.saturating_add(1);
+    timing.base_ms += base_ms;
+    timing.overlays_ms += overlays_ms;
+    timing.composite_ms += composite_ms;
+    timing.rgba_overlay_ms += rgba_overlay_ms;
+    timing.submit_ms += submit_ms;
+    timing.total_ms += total_ms;
+    timing.overlays = timing.overlays.saturating_add(overlays);
+    timing.composited_layers = timing.composited_layers.saturating_add(composited_layers);
+
+    let now = std::time::Instant::now();
+    let should_log = timing
+        .last_log
+        .map(|last| now.duration_since(last) >= std::time::Duration::from_secs(2))
+        .unwrap_or(true);
+    if should_log {
+        let n = timing.frames.max(1) as f64;
+        render_debug_log(&format!(
+            "[RenderDebug][SceneVMDraw] size={}x{} frames={} avg_ms base={:.2} overlays={:.2} composite={:.2} rgba_overlay={:.2} submit={:.2} total={:.2} avg_overlays={:.1} avg_layers={:.1}",
+            size.0,
+            size.1,
+            timing.frames,
+            timing.base_ms / n,
+            timing.overlays_ms / n,
+            timing.composite_ms / n,
+            timing.rgba_overlay_ms / n,
+            timing.submit_ms / n,
+            timing.total_ms / n,
+            timing.overlays as f64 / n,
+            timing.composited_layers as f64 / n
+        ));
+        *timing = SceneVmDrawDebugTiming {
+            last_log: Some(now),
+            ..SceneVmDrawDebugTiming::default()
+        };
+    }
+}
+
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+fn record_render_to_window_timing(
+    size: (u32, u32),
+    draw_ms: f64,
+    acquire_ms: f64,
+    overlay_ms: f64,
+    pipeline_ms: f64,
+    submit_ms: f64,
+    total_ms: f64,
+) {
+    if !render_debug_enabled() {
+        return;
+    }
+
+    let mut timing = RENDER_DEBUG_TIMING
+        .get_or_init(|| std::sync::Mutex::new(RenderDebugTiming::default()))
+        .lock()
+        .unwrap();
+
+    timing.frames = timing.frames.saturating_add(1);
+    timing.draw_ms += draw_ms;
+    timing.acquire_ms += acquire_ms;
+    timing.overlay_ms += overlay_ms;
+    timing.pipeline_ms += pipeline_ms;
+    timing.submit_ms += submit_ms;
+    timing.total_ms += total_ms;
+
+    let now = std::time::Instant::now();
+    let should_log = timing
+        .last_log
+        .map(|last| now.duration_since(last) >= std::time::Duration::from_secs(2))
+        .unwrap_or(true);
+    if should_log {
+        let n = timing.frames.max(1) as f64;
+        render_debug_log(&format!(
+            "[RenderDebug][SceneVM] render_to_window size={}x{} frames={} avg_ms draw={:.2} acquire={:.2} overlay_upload={:.2} pipeline={:.2} submit_present={:.2} total={:.2}",
+            size.0,
+            size.1,
+            timing.frames,
+            timing.draw_ms / n,
+            timing.acquire_ms / n,
+            timing.overlay_ms / n,
+            timing.pipeline_ms / n,
+            timing.submit_ms / n,
+            timing.total_ms / n
+        ));
+        *timing = RenderDebugTiming {
+            last_log: Some(now),
+            ..RenderDebugTiming::default()
+        };
+    }
+}
+
 #[cfg(all(feature = "gpu", target_arch = "wasm32"))]
 thread_local! {
     static GLOBAL_GPU_WASM: RefCell<Option<GlobalGpu>> = RefCell::new(None);
@@ -894,14 +1119,20 @@ impl SceneVM {
         rgba_overlay_pipeline: &mut Option<RgbaOverlayCompositingPipeline>,
         composite_rgba_overlay_in_scene: bool,
     ) {
+        let debug_total_start = std::time::Instant::now();
+        let mut debug_composited_layers = 0u32;
+
         // The surface texture is always created with Rgba8Unorm in `Texture::ensure_gpu_with`
         let target_format = wgpu::TextureFormat::Rgba8Unorm;
+        let debug_base_start = std::time::Instant::now();
         if let Err(e) = base_vm.draw_into(device, queue, surface, w, h) {
             if log_errors {
                 println!("[SceneVM] Error drawing base VM: {:?}", e);
             }
         }
+        let debug_base_ms = debug_base_start.elapsed().as_secs_f64() * 1000.0;
 
+        let debug_overlays_start = std::time::Instant::now();
         for vm in overlays.iter_mut() {
             if let Err(e) = vm.draw_into(device, queue, surface, w, h) {
                 if log_errors {
@@ -909,7 +1140,9 @@ impl SceneVM {
                 }
             }
         }
+        let debug_overlays_ms = debug_overlays_start.elapsed().as_secs_f64() * 1000.0;
 
+        let debug_composite_start = std::time::Instant::now();
         // Ensure surface has GPU resources
         surface.ensure_gpu_with(device);
 
@@ -1004,10 +1237,13 @@ impl SceneVM {
                         rpass.set_bind_group(0, &bind_group, &[]);
                         rpass.draw(0..3, 0..1);
                     }
+                    debug_composited_layers = debug_composited_layers.saturating_add(1);
                 }
             }
         }
+        let debug_composite_ms = debug_composite_start.elapsed().as_secs_f64() * 1000.0;
 
+        let debug_rgba_start = std::time::Instant::now();
         if composite_rgba_overlay_in_scene && let Some(overlay) = rgba_overlay.as_mut() {
             overlay.texture.ensure_gpu_with(device);
             overlay.texture.upload_to_gpu_with(device, queue);
@@ -1065,8 +1301,22 @@ impl SceneVM {
                 }
             }
         }
+        let debug_rgba_overlay_ms = debug_rgba_start.elapsed().as_secs_f64() * 1000.0;
 
+        let debug_submit_start = std::time::Instant::now();
         queue.submit(Some(encoder.finish()));
+        let debug_submit_ms = debug_submit_start.elapsed().as_secs_f64() * 1000.0;
+        record_scenevm_draw_timing(
+            (w, h),
+            debug_base_ms,
+            debug_overlays_ms,
+            debug_composite_ms,
+            debug_rgba_overlay_ms,
+            debug_submit_ms,
+            debug_total_start.elapsed().as_secs_f64() * 1000.0,
+            overlays.len() as u32,
+            debug_composited_layers,
+        );
     }
 
     pub fn set_rgba_overlay(&mut self, width: u32, height: u32, rgba: Vec<u8>, rect: [f32; 4]) {
@@ -1342,7 +1592,7 @@ impl SceneVM {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-                backends: { wgpu::Backends::all() },
+                backends: selected_wgpu_backends(),
                 ..Default::default()
             });
             let adapter =
@@ -1352,6 +1602,7 @@ impl SceneVM {
                     compatible_surface: None,
                 }))
                 .expect("No compatible GPU adapter found");
+            log_adapter_info("headless", &adapter);
 
             let (device, queue) =
                 pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
@@ -1400,7 +1651,7 @@ impl SceneVM {
         let height = initial_size.height.max(1);
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: { wgpu::Backends::all() },
+            backends: selected_wgpu_backends(),
             ..Default::default()
         });
         let surface = unsafe {
@@ -1416,6 +1667,7 @@ impl SceneVM {
             compatible_surface: Some(&surface),
         }))
         .expect("No compatible GPU adapter found");
+        log_adapter_info("window", &adapter);
 
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("scenevm-device"),
@@ -1443,6 +1695,12 @@ impl SceneVM {
             .get(0)
             .copied()
             .unwrap_or(wgpu::CompositeAlphaMode::Auto);
+        if render_debug_enabled() {
+            render_debug_log(&format!(
+                "[RenderDebug][SceneVM] window surface physical_size={}x{} format={:?} present_mode={:?} alpha_mode={:?}",
+                width, height, surface_format, present_mode, alpha_mode
+            ));
+        }
 
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
@@ -1500,7 +1758,7 @@ impl SceneVM {
         let height = height.max(1);
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: { wgpu::Backends::all() },
+            backends: selected_wgpu_backends(),
             ..Default::default()
         });
 
@@ -1515,6 +1773,7 @@ impl SceneVM {
             compatible_surface: Some(&surface),
         }))
         .expect("No compatible GPU adapter found");
+        log_adapter_info("metal-layer", &adapter);
 
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("scenevm-device"),
@@ -1542,6 +1801,12 @@ impl SceneVM {
             .get(0)
             .copied()
             .unwrap_or(wgpu::CompositeAlphaMode::Auto);
+        if render_debug_enabled() {
+            render_debug_log(&format!(
+                "[RenderDebug][SceneVM] metal-layer surface physical_size={}x{} format={:?} present_mode={:?} alpha_mode={:?}",
+                width, height, surface_format, present_mode, alpha_mode
+            ));
+        }
 
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
@@ -1630,7 +1895,7 @@ impl SceneVM {
             }
             let (w, h) = self.size;
             let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-                backends: { wgpu::Backends::all() },
+                backends: selected_wgpu_backends(),
                 ..Default::default()
             });
             let adapter =
@@ -1710,6 +1975,14 @@ impl SceneVM {
     /// Render directly into the configured window surface (native only, no CPU readback).
     #[cfg(not(target_arch = "wasm32"))]
     pub fn render_to_window(&mut self) -> SceneVMResult<RenderResult> {
+        let debug_enabled = render_debug_enabled();
+        let debug_total_start = debug_enabled.then(std::time::Instant::now);
+        let mut debug_draw_ms = 0.0;
+        let mut debug_acquire_ms = 0.0;
+        let mut debug_overlay_ms = 0.0;
+        let mut debug_pipeline_ms = 0.0;
+        let mut debug_submit_ms = 0.0;
+
         let (gpu_slot, base_vm, overlays) = (&mut self.gpu, &mut self.vm, &mut self.overlay_vms);
         let Some(gpu) = gpu_slot.as_mut() else {
             return Err(SceneVMError::InvalidOperation(
@@ -1734,6 +2007,7 @@ impl SceneVM {
         }
 
         let (w, h) = self.size;
+        let debug_draw_start = debug_enabled.then(std::time::Instant::now);
         SceneVM::draw_all_vms(
             base_vm,
             overlays,
@@ -1748,6 +2022,11 @@ impl SceneVM {
             &mut self.rgba_overlay_pipeline,
             false,
         );
+        if let Some(start) = debug_draw_start {
+            debug_draw_ms = start.elapsed().as_secs_f64() * 1000.0;
+        }
+
+        let debug_acquire_start = debug_enabled.then(std::time::Instant::now);
         let frame = match ws.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(wgpu::SurfaceError::Lost) | Err(wgpu::SurfaceError::Outdated) => {
@@ -1768,6 +2047,9 @@ impl SceneVM {
                 ));
             }
         };
+        if let Some(start) = debug_acquire_start {
+            debug_acquire_ms = start.elapsed().as_secs_f64() * 1000.0;
+        }
 
         let frame_view = frame
             .texture
@@ -1779,6 +2061,7 @@ impl SceneVM {
             .expect("Surface GPU not allocated")
             .view
             .clone();
+        let debug_overlay_start = debug_enabled.then(std::time::Instant::now);
         let (overlay_view, overlay_rect_px): (wgpu::TextureView, [f32; 4]) =
             if let Some(overlay) = self.rgba_overlay.as_mut() {
                 overlay.texture.ensure_gpu_with(&gpu.device);
@@ -1791,6 +2074,9 @@ impl SceneVM {
             } else {
                 (src_view.clone(), [0.0, 0.0, 0.0, 0.0])
             };
+        if let Some(start) = debug_overlay_start {
+            debug_overlay_ms = start.elapsed().as_secs_f64() * 1000.0;
+        }
         let fw = ws.config.width.max(1) as f32;
         let fh = ws.config.height.max(1) as f32;
         let overlay_rect = [
@@ -1800,6 +2086,7 @@ impl SceneVM {
             overlay_rect_px[3] / fh,
         ];
 
+        let debug_pipeline_start = debug_enabled.then(std::time::Instant::now);
         if ws
             .present_pipeline
             .as_ref()
@@ -1822,6 +2109,9 @@ impl SceneVM {
                 &overlay_view,
                 overlay_rect,
             );
+        }
+        if let Some(start) = debug_pipeline_start {
+            debug_pipeline_ms = start.elapsed().as_secs_f64() * 1000.0;
         }
 
         let present = ws
@@ -1854,8 +2144,24 @@ impl SceneVM {
             pass.set_bind_group(0, &present.bind_group, &[]);
             pass.draw(0..3, 0..1);
         }
+        let debug_submit_start = debug_enabled.then(std::time::Instant::now);
         gpu.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
+        if let Some(start) = debug_submit_start {
+            debug_submit_ms = start.elapsed().as_secs_f64() * 1000.0;
+        }
+
+        if let Some(start) = debug_total_start {
+            record_render_to_window_timing(
+                self.size,
+                debug_draw_ms,
+                debug_acquire_ms,
+                debug_overlay_ms,
+                debug_pipeline_ms,
+                debug_submit_ms,
+                start.elapsed().as_secs_f64() * 1000.0,
+            );
+        }
 
         Ok(RenderResult::Presented)
     }

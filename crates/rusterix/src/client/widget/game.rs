@@ -8,6 +8,42 @@ use vek::Vec2;
 
 use super::game_backend::{GameWidgetBackend, GraphicalGameWidgetBackend, TextGameWidgetBackend};
 
+fn render_debug_enabled() -> bool {
+    std::env::var("ELDIRON_RENDER_DEBUG")
+        .map(|v| v != "0")
+        .unwrap_or(false)
+}
+
+fn render_debug_log(message: &str) {
+    use std::io::Write;
+
+    eprintln!("{message}");
+
+    let mut paths = Vec::new();
+    paths.push(std::path::PathBuf::from("eldiron-render-debug.log"));
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        paths.push(parent.join("eldiron-render-debug.log"));
+    }
+    paths.push(std::env::temp_dir().join("eldiron-render-debug.log"));
+
+    let mut seen = std::collections::HashSet::new();
+    for path in paths {
+        let key = path.canonicalize().unwrap_or_else(|_| path.clone());
+        if !seen.insert(key) {
+            continue;
+        }
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            let _ = writeln!(file, "{message}");
+        }
+    }
+}
+
 pub struct GameWidget {
     pub name: String,
     pub scenemanager: SceneManager,
@@ -637,10 +673,32 @@ impl GameWidget {
         assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) {
+        let debug_enabled = render_debug_enabled();
+        let debug_total_start = debug_enabled.then(std::time::Instant::now);
+        let mut debug_build_ms = 0.0;
+        let mut debug_stream_ms = 0.0;
+        let mut debug_tick_ms = 0.0;
+        let mut debug_receive_ms = 0.0;
+        let mut debug_visibility_ms = 0.0;
+        let mut debug_prepare_mode_ms = 0.0;
+        let mut debug_processed_chunks = 0usize;
+        let mut debug_received_chunks = 0usize;
+        let mut debug_received_clears = 0usize;
+        let debug_dirty_before = self.scenemanager.dirty_count();
+        let debug_loaded_before = self.loaded_chunks.len();
+
         if map.name != self.build_region_name {
+            let start = debug_enabled.then(std::time::Instant::now);
             self.graphical_build(map, assets, scene_handler);
+            if let Some(start) = start {
+                debug_build_ms = start.elapsed().as_secs_f64() * 1000.0;
+            }
         }
+        let start = debug_enabled.then(std::time::Instant::now);
         self.update_streaming_chunks(map, scene_handler);
+        if let Some(start) = start {
+            debug_stream_ms = start.elapsed().as_secs_f64() * 1000.0;
+        }
         // Process more chunks per frame while nearby chunks are still missing.
         let desired_load = self.desired_stream_chunks(map, self.stream_load_radius_chunks.max(1));
         let missing_nearby = desired_load
@@ -653,14 +711,20 @@ impl GameWidget {
             self.chunk_build_budget_far.max(1) as usize
         };
         if self.scenemanager.is_busy() {
-            self.scenemanager.tick_batch(budget);
+            let start = debug_enabled.then(std::time::Instant::now);
+            debug_processed_chunks = self.scenemanager.tick_batch(budget);
+            if let Some(start) = start {
+                debug_tick_ms = start.elapsed().as_secs_f64() * 1000.0;
+            }
         }
 
         // Apply scene manager chunks
         let mut geometry_changed = false;
+        let start = debug_enabled.then(std::time::Instant::now);
         while let Some(result) = self.scenemanager.receive() {
             match result {
                 SceneManagerResult::Chunk(chunk, _togo, _total, billboards) => {
+                    debug_received_chunks += 1;
                     geometry_changed = true;
                     self.loaded_chunks.insert((chunk.origin.x, chunk.origin.y));
                     scene_handler.vm.execute(scenevm::Atom::RemoveChunkAt {
@@ -678,6 +742,7 @@ impl GameWidget {
                     }
                 }
                 SceneManagerResult::Clear => {
+                    debug_received_clears += 1;
                     geometry_changed = true;
                     self.loaded_chunks.clear();
                     scene_handler.vm.execute(scenevm::Atom::ClearGeometry);
@@ -687,6 +752,9 @@ impl GameWidget {
                 _ => {}
             }
         }
+        if let Some(start) = start {
+            debug_receive_ms = start.elapsed().as_secs_f64() * 1000.0;
+        }
 
         // Geometry streaming/reset can happen before dynamics are visible on first game frames.
         // Force a fresh dynamics pass whenever static scene content changed.
@@ -694,7 +762,11 @@ impl GameWidget {
             scene_handler.mark_dynamics_dirty();
             self.force_dynamics_rebuild = true;
         }
+        let start = debug_enabled.then(std::time::Instant::now);
         self.apply_iso_sector_visibility(map, scene_handler, geometry_changed);
+        if let Some(start) = start {
+            debug_visibility_ms = start.elapsed().as_secs_f64() * 1000.0;
+        }
 
         if scene_handler.vm.vm_layer_count() > 1 {
             scene_handler.vm.set_layer_enabled(1, false);
@@ -704,9 +776,47 @@ impl GameWidget {
         }
 
         if Self::is_2d_camera(&self.camera) {
+            let start = debug_enabled.then(std::time::Instant::now);
             self.prepare_d2(time, animation_frame, scene_handler);
+            if let Some(start) = start {
+                debug_prepare_mode_ms = start.elapsed().as_secs_f64() * 1000.0;
+            }
         } else {
+            let start = debug_enabled.then(std::time::Instant::now);
             self.prepare_d3(map, time, animation_frame, scene_handler);
+            if let Some(start) = start {
+                debug_prepare_mode_ms = start.elapsed().as_secs_f64() * 1000.0;
+            }
+        }
+
+        if let Some(start) = debug_total_start {
+            let total_ms = start.elapsed().as_secs_f64() * 1000.0;
+            if total_ms < 5.0
+                && debug_processed_chunks == 0
+                && debug_received_chunks == 0
+                && debug_received_clears == 0
+            {
+                return;
+            }
+            render_debug_log(&format!(
+                "[RenderDebug][GameWidget] prepare_frame total={:.2}ms build={:.2} stream={:.2} tick_batch={:.2} receive_upload={:.2} visibility={:.2} prepare_mode={:.2} budget={} processed={} received_chunks={} clears={} dirty {}->{} loaded {}->{} geometry_changed={}",
+                total_ms,
+                debug_build_ms,
+                debug_stream_ms,
+                debug_tick_ms,
+                debug_receive_ms,
+                debug_visibility_ms,
+                debug_prepare_mode_ms,
+                budget,
+                debug_processed_chunks,
+                debug_received_chunks,
+                debug_received_clears,
+                debug_dirty_before,
+                self.scenemanager.dirty_count(),
+                debug_loaded_before,
+                self.loaded_chunks.len(),
+                geometry_changed
+            ));
         }
     }
 

@@ -14,6 +14,7 @@ jobs:
         config:
           - { working-directory: "creator", bin-name: "eldiron-creator", features: "log,self-update" }
           - { working-directory: "clients/client", bin-name: "eldiron-client", features: "log" }
+          - { working-directory: "clients/client-wgpu", bin-name: "eldiron-client-wgpu", features: "" }
 
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +27,12 @@ jobs:
 
       - name: Build (release)
         working-directory: ${{ matrix.config.working-directory }}
-        run: cargo build --verbose --release --features ${{ matrix.config.features }}
+        run: |
+          if [ -n "${{ matrix.config.features }}" ]; then
+            cargo build --verbose --release --features "${{ matrix.config.features }}"
+          else
+            cargo build --verbose --release
+          fi
 
       # --- Package artefacts -------------------------------------------------
       - name: Package artefacts
@@ -53,6 +59,7 @@ jobs:
         config:
           - { working-directory: "creator", bin-name: "eldiron-creator", features: "log,self-update" }
           - { working-directory: "clients/client", bin-name: "eldiron-client", features: "log" }
+          - { working-directory: "clients/client-wgpu", bin-name: "eldiron-client-wgpu", features: "" }
 
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +83,12 @@ jobs:
       # --- Build Eldiron -----------------------------------------------------
       - name: Build (release)
         working-directory: ${{ matrix.config.working-directory }}
-        run: cargo build --verbose --release --features ${{ matrix.config.features }}
+        run: |
+          if [ -n "${{ matrix.config.features }}" ]; then
+            cargo build --verbose --release --features "${{ matrix.config.features }}"
+          else
+            cargo build --verbose --release
+          fi
 
       # --- Package artefacts -------------------------------------------------
       - name: Package artefacts
@@ -192,6 +204,27 @@ jobs:
           files: |
             eldiron-client-*.gz
 
+  # ─────────────────────── Linux release GPU client ──────────────────────────────
+  linux_release_client_wgpu:
+    runs-on: ubuntu-latest
+    needs: linux_build
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-eldiron-client-wgpu
+
+      - name: GitHub release (Linux)
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            eldiron-client-wgpu-*.gz
+
   # ────────────────────────── Windows release creator ─────────────────────────────
   windows_release_creator:
     runs-on: windows-latest
@@ -253,6 +286,30 @@ jobs:
         with:
           files: |
             eldiron-client-*.zip
+
+  # ────────────────────── Windows release GPU client ─────────────────────────────
+  windows_release_client_wgpu:
+    runs-on: windows-latest
+    needs: windows_build
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-eldiron-client-wgpu
+
+      - name: GitHub release (Windows)
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            eldiron-client-wgpu-*.zip
 
   # ──────────────────────────────── WASM release ──────────────────────────────────
   wasm_release:

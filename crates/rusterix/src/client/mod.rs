@@ -1912,8 +1912,11 @@ impl Client {
             return false;
         };
 
-        let width = size.0.max(1) as i32;
-        let height = size.1.max(1) as i32;
+        // The direct SceneVM path renders only the game widget into the GPU scene.
+        // Keep the widget's logical buffer size identical to the classic client path;
+        // presentation scaling/offset is applied later by the wgpu client.
+        let width = widget.rect.width.round().max(1.0) as i32;
+        let height = widget.rect.height.round().max(1.0) as i32;
         let current_dim = widget.buffer.dim();
         if current_dim.width != width || current_dim.height != height {
             widget.buffer = TheRGBABuffer::new(TheDim::sized(width, height));

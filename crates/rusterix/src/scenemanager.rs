@@ -357,6 +357,10 @@ impl SceneManager {
         !self.dirty.is_empty()
     }
 
+    pub fn dirty_count(&self) -> usize {
+        self.dirty.len()
+    }
+
     /// Get the number of chunks remaining to process
     pub fn remaining_chunks(&self) -> usize {
         self.dirty.len()

@@ -2,11 +2,49 @@ use crate::misc::UpdateTracker;
 use instant::Duration;
 use rusterix::server::message::AudioCommand;
 use rusterix::{EntityAction, MultipleChoice, Rusterix, Value, server::Message};
+use scenevm::prelude::Mat3;
 use scenevm::{Atom, SceneVM, SceneVMApp, SceneVMRenderCtx};
 use shared::{project::Project, rusterix_utils::*};
-use std::path::PathBuf;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::time::{Duration as StdDuration, Instant};
 use toml::Table;
 use vek::Vec2;
+
+fn render_debug_enabled() -> bool {
+    std::env::var("ELDIRON_RENDER_DEBUG")
+        .map(|v| v != "0")
+        .unwrap_or(false)
+}
+
+fn render_debug_log(message: &str) {
+    eprintln!("{message}");
+
+    let mut paths = Vec::new();
+    paths.push(PathBuf::from("eldiron-render-debug.log"));
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        paths.push(parent.join("eldiron-render-debug.log"));
+    }
+    paths.push(std::env::temp_dir().join("eldiron-render-debug.log"));
+
+    let mut seen = std::collections::HashSet::new();
+    for path in paths {
+        let key = path.canonicalize().unwrap_or_else(|_| path.clone());
+        if !seen.insert(key) {
+            continue;
+        }
+        append_render_debug_line(&path, message);
+    }
+}
+
+fn append_render_debug_line(path: &Path, message: &str) {
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{message}");
+    }
+}
 
 pub struct EldironPlayerApp {
     pub name: String,
@@ -23,6 +61,15 @@ pub struct EldironPlayerApp {
     pub ui_overlay_size: (u32, u32),
     pub ui_overlay_display_rect: [f32; 4],
     pub window_scale: f32,
+    pub render_debug: bool,
+    render_debug_frames: u32,
+    render_debug_last_log: Instant,
+    render_debug_update_ms: f64,
+    render_debug_update_accum_ms: f64,
+    render_debug_prepare_accum_ms: f64,
+    render_debug_overlay_accum_ms: f64,
+    render_debug_present_accum_ms: f64,
+    render_debug_total_accum_ms: f64,
 }
 
 impl Default for EldironPlayerApp {
@@ -33,6 +80,15 @@ impl Default for EldironPlayerApp {
 
 impl EldironPlayerApp {
     pub fn new(data_path: Option<PathBuf>) -> Self {
+        let render_debug = render_debug_enabled();
+        if render_debug {
+            render_debug_log(&format!(
+                "[RenderDebug][client-wgpu] enabled cwd={:?} exe={:?} temp={:?}",
+                std::env::current_dir().ok(),
+                std::env::current_exe().ok(),
+                std::env::temp_dir()
+            ));
+        }
         Self {
             name: "Eldiron Adventure (SceneVM)".into(),
             project: Project::default(),
@@ -48,15 +104,35 @@ impl EldironPlayerApp {
             ui_overlay_size: (0, 0),
             ui_overlay_display_rect: [0.0, 0.0, 0.0, 0.0],
             window_scale: 1.0,
+            render_debug,
+            render_debug_frames: 0,
+            render_debug_last_log: Instant::now(),
+            render_debug_update_ms: 0.0,
+            render_debug_update_accum_ms: 0.0,
+            render_debug_prepare_accum_ms: 0.0,
+            render_debug_overlay_accum_ms: 0.0,
+            render_debug_present_accum_ms: 0.0,
+            render_debug_total_accum_ms: 0.0,
         }
     }
 
     pub fn from_args(args: Vec<String>) -> Self {
-        if args.len() > 1 {
-            let path = PathBuf::from(&args[1]);
-            return Self::new(Some(path));
+        let mut data_path = None;
+        let mut render_debug = false;
+        for arg in args.into_iter().skip(1) {
+            match arg.as_str() {
+                "--render-debug" => render_debug = true,
+                _ if data_path.is_none() => data_path = Some(PathBuf::from(arg)),
+                _ => {}
+            }
         }
-        Self::default()
+        if render_debug {
+            // Keep SceneVM's lower-level diagnostics enabled as well.
+            unsafe {
+                std::env::set_var("ELDIRON_RENDER_DEBUG", "1");
+            }
+        }
+        Self::new(data_path)
     }
 
     fn resolve_data_path(&self) -> Option<PathBuf> {
@@ -234,11 +310,15 @@ impl SceneVMApp for EldironPlayerApp {
     }
 
     fn update(&mut self, _vm: &mut SceneVM) {
+        let debug_start = self.render_debug.then(Instant::now);
         if !self.initialized {
             self.initialize();
         }
         if self.initialized {
             self.update_game_state();
+        }
+        if let Some(start) = debug_start {
+            self.render_debug_update_ms = start.elapsed().as_secs_f64() * 1000.0;
         }
     }
 
@@ -250,6 +330,11 @@ impl SceneVMApp for EldironPlayerApp {
         if !self.initialized {
             return;
         }
+        let debug_total_start = self.render_debug.then(Instant::now);
+        let mut debug_prepare_ms = 0.0;
+        let mut debug_overlay_ms = 0.0;
+        let mut debug_present_ms = 0.0;
+
         // Use the runner-provided SceneVM (which owns the window surface) for this frame.
         std::mem::swap(_vm, &mut self.rusterix.scene_handler.vm);
 
@@ -269,10 +354,14 @@ impl SceneVMApp for EldironPlayerApp {
             .iter()
             .position(|r| r.map.name == current_map)
         {
+            let debug_prepare_start = self.render_debug.then(Instant::now);
             let prepared = {
                 let map = &self.project.regions[region_index].map;
                 self.rusterix.prepare_game_scene_for_present(map, size)
             };
+            if let Some(start) = debug_prepare_start {
+                debug_prepare_ms = start.elapsed().as_secs_f64() * 1000.0;
+            }
 
             if prepared {
                 let viewport_size = (
@@ -284,6 +373,31 @@ impl SceneVMApp for EldironPlayerApp {
                 let game_rect = self.rusterix.game_widget_rect().unwrap_or_else(|| {
                     rusterix::Rect::new(0.0, 0.0, viewport_size.0 as f32, viewport_size.1 as f32)
                 });
+                let surface_scale = scale * self.window_scale;
+                let presentation_transform = Mat3::<f32>::translation_2d(Vec2::new(
+                    (offset_x + game_rect.x * scale) * self.window_scale,
+                    (offset_y + game_rect.y * scale) * self.window_scale,
+                )) * Mat3::<f32>::new(
+                    surface_scale,
+                    0.0,
+                    0.0,
+                    0.0,
+                    surface_scale,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                );
+
+                self.rusterix.scene_handler.vm.set_active_vm(0);
+                let logical_transform = self.rusterix.scene_handler.vm.active_vm().transform2d;
+                self.rusterix
+                    .scene_handler
+                    .vm
+                    .execute(Atom::SetTransform2D(
+                        presentation_transform * logical_transform,
+                    ));
+
                 let mapped_game_rect = [
                     (offset_x + game_rect.x * scale) * self.window_scale,
                     (offset_y + game_rect.y * scale) * self.window_scale,
@@ -291,7 +405,6 @@ impl SceneVMApp for EldironPlayerApp {
                     (game_rect.height * scale * self.window_scale).max(1.0),
                 ];
 
-                self.rusterix.scene_handler.vm.set_active_vm(0);
                 self.rusterix
                     .scene_handler
                     .vm
@@ -300,6 +413,7 @@ impl SceneVMApp for EldironPlayerApp {
                 let messages = std::mem::take(&mut self.pending_messages);
                 let choices = std::mem::take(&mut self.pending_choices);
                 let overlay_size = viewport_size;
+                let debug_overlay_start = self.render_debug.then(Instant::now);
                 {
                     let map = &self.project.regions[region_index].map;
                     let overlay = self.rusterix.draw_ui_overlay_only(
@@ -328,8 +442,15 @@ impl SceneVMApp for EldironPlayerApp {
                 );
                 self.ui_overlay_size = overlay_size;
                 self.ui_overlay_display_rect = display_rect;
+                if let Some(start) = debug_overlay_start {
+                    debug_overlay_ms = start.elapsed().as_secs_f64() * 1000.0;
+                }
 
+                let debug_present_start = self.render_debug.then(Instant::now);
                 let _ = ctx.present(&mut self.rusterix.scene_handler.vm);
+                if let Some(start) = debug_present_start {
+                    debug_present_ms = start.elapsed().as_secs_f64() * 1000.0;
+                }
             } else {
                 self.rusterix.scene_handler.vm.clear_rgba_overlay();
             }
@@ -338,6 +459,36 @@ impl SceneVMApp for EldironPlayerApp {
         }
 
         std::mem::swap(_vm, &mut self.rusterix.scene_handler.vm);
+
+        if let Some(start) = debug_total_start {
+            self.render_debug_frames = self.render_debug_frames.saturating_add(1);
+            self.render_debug_update_accum_ms += self.render_debug_update_ms;
+            self.render_debug_prepare_accum_ms += debug_prepare_ms;
+            self.render_debug_overlay_accum_ms += debug_overlay_ms;
+            self.render_debug_present_accum_ms += debug_present_ms;
+            self.render_debug_total_accum_ms += start.elapsed().as_secs_f64() * 1000.0;
+
+            let elapsed = self.render_debug_last_log.elapsed();
+            if elapsed >= StdDuration::from_secs(2) {
+                let n = self.render_debug_frames.max(1) as f64;
+                render_debug_log(&format!(
+                    "[RenderDebug][client-wgpu] frames={} avg_ms update={:.2} prepare={:.2} overlay={:.2} present={:.2} render_total={:.2}",
+                    self.render_debug_frames,
+                    self.render_debug_update_accum_ms / n,
+                    self.render_debug_prepare_accum_ms / n,
+                    self.render_debug_overlay_accum_ms / n,
+                    self.render_debug_present_accum_ms / n,
+                    self.render_debug_total_accum_ms / n
+                ));
+                self.render_debug_frames = 0;
+                self.render_debug_update_accum_ms = 0.0;
+                self.render_debug_prepare_accum_ms = 0.0;
+                self.render_debug_overlay_accum_ms = 0.0;
+                self.render_debug_present_accum_ms = 0.0;
+                self.render_debug_total_accum_ms = 0.0;
+                self.render_debug_last_log = Instant::now();
+            }
+        }
     }
 
     fn mouse_down(&mut self, _vm: &mut SceneVM, x: f32, y: f32) {

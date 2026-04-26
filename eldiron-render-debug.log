@@ -1,0 +1,41 @@
+[RenderDebug][client-wgpu-main] startup version=0.9.7 args=["target/release/eldiron-client-wgpu", "--render-debug", "starters/projects/Village3D.eldiron"] cwd=Some("/Users/markusmoenig/Eldiron") exe=Some("/Users/markusmoenig/Eldiron/target/release/eldiron-client-wgpu") temp="/var/folders/j4/s8z_d4qx1s551th_pz8vpy9w0000gn/T/"
+[RenderDebug][client-wgpu] enabled cwd=Some("/Users/markusmoenig/Eldiron") exe=Some("/Users/markusmoenig/Eldiron/target/release/eldiron-client-wgpu") temp="/var/folders/j4/s8z_d4qx1s551th_pz8vpy9w0000gn/T/"
+[RenderDebug][SceneVM] headless adapter name='Apple M3' backend=Metal device_type=IntegratedGpu vendor=0 device=0
+[RenderDebug][SceneVM] window adapter name='Apple M3' backend=Metal device_type=IntegratedGpu vendor=0 device=0
+[RenderDebug][SceneVM] window surface physical_size=1920x1080 format=Bgra8Unorm present_mode=Fifo alpha_mode=Opaque
+[RenderDebug][GameWidget] prepare_frame total=875.21ms build=0.00 stream=0.00 tick_batch=874.99 receive_upload=0.01 visibility=0.07 prepare_mode=0.14 budget=10 processed=10 received_chunks=10 clears=1 dirty 8->0 loaded 0->10 geometry_changed=true
+[RenderDebug][Raster3D] size=1920x1080 frames=1 avg_ms init=5.16 prepare=2.51 geometry=24.18 visibility=2.97 upload=7.80 encode=0.02 submit=0.55 total=97.83 avg_counts verts=621823 indices=641682 visible=641682 opaque=628332 transparent=13350 particles=0 geometry_rebuilds=1 shadow_frames=1 avg_shadow_res=1024 msaa_frames=1 last_settings shadow=true shadow_distance=1.00 shadow_strength=0.80 bump=1.00 msaa=4 post=true
+[RenderDebug][SceneVMDraw] size=1920x1080 frames=1 avg_ms base=98.87 overlays=0.00 composite=0.52 rgba_overlay=0.00 submit=0.18 total=99.57 avg_overlays=0.0 avg_layers=1.0
+[RenderDebug][SceneVM] render_to_window size=1920x1080 frames=1 avg_ms draw=99.70 acquire=2.38 overlay_upload=1.48 pipeline=0.43 submit_present=0.18 total=104.19
+[RenderDebug][client-wgpu] frames=21 avg_ms update=0.21 prepare=43.43 overlay=5.56 present=10.34 render_total=59.43
+[RenderDebug][Raster3D] size=1920x1080 frames=60 avg_ms init=0.00 prepare=0.17 geometry=0.42 visibility=0.56 upload=0.82 encode=0.01 submit=0.10 total=4.02 avg_counts verts=621987 indices=641928 visible=641928 opaque=628332 transparent=13548 particles=48 geometry_rebuilds=60 shadow_frames=60 avg_shadow_res=1024 msaa_frames=60 last_settings shadow=true shadow_distance=1.00 shadow_strength=0.80 bump=1.00 msaa=4 post=true
+[RenderDebug][SceneVMDraw] size=1920x1080 frames=60 avg_ms base=4.03 overlays=0.00 composite=0.02 rgba_overlay=0.00 submit=0.03 total=4.08 avg_overlays=0.0 avg_layers=1.0
+[RenderDebug][SceneVM] render_to_window size=1920x1080 frames=60 avg_ms draw=4.08 acquire=0.03 overlay_upload=0.93 pipeline=0.01 submit_present=0.05 total=5.11
+[RenderDebug][client-wgpu] frames=61 avg_ms update=0.16 prepare=1.32 overlay=4.80 present=4.84 render_total=10.97
+[RenderDebug][Raster3D] size=1920x1080 frames=60 avg_ms init=0.00 prepare=0.15 geometry=0.42 visibility=0.61 upload=0.70 encode=0.01 submit=0.09 total=3.86 avg_counts verts=621987 indices=641928 visible=641928 opaque=628332 transparent=13548 particles=48 geometry_rebuilds=60 shadow_frames=60 avg_shadow_res=1024 msaa_frames=60 last_settings shadow=true shadow_distance=1.00 shadow_strength=0.80 bump=1.00 msaa=4 post=true
+[RenderDebug][SceneVMDraw] size=1920x1080 frames=60 avg_ms base=3.87 overlays=0.00 composite=0.02 rgba_overlay=0.00 submit=0.03 total=3.92 avg_overlays=0.0 avg_layers=1.0
+[RenderDebug][SceneVM] render_to_window size=1920x1080 frames=60 avg_ms draw=3.92 acquire=0.02 overlay_upload=0.93 pipeline=0.01 submit_present=0.05 total=4.94
+[RenderDebug][client-wgpu] frames=60 avg_ms update=0.20 prepare=1.31 overlay=4.81 present=5.88 render_total=12.00
+[RenderDebug][client-wgpu-main] startup version=0.9.7 args=["target/release/eldiron-client-wgpu", "--render-debug", "starters/projects/Hideout2D.eldiron"] cwd=Some("/Users/markusmoenig/Eldiron") exe=Some("/Users/markusmoenig/Eldiron/target/release/eldiron-client-wgpu") temp="/var/folders/j4/s8z_d4qx1s551th_pz8vpy9w0000gn/T/"
+[RenderDebug][client-wgpu] enabled cwd=Some("/Users/markusmoenig/Eldiron") exe=Some("/Users/markusmoenig/Eldiron/target/release/eldiron-client-wgpu") temp="/var/folders/j4/s8z_d4qx1s551th_pz8vpy9w0000gn/T/"
+[RenderDebug][SceneVM] headless adapter name='Apple M3' backend=Metal device_type=IntegratedGpu vendor=0 device=0
+[RenderDebug][SceneVM] window adapter name='Apple M3' backend=Metal device_type=IntegratedGpu vendor=0 device=0
+[RenderDebug][SceneVM] window surface physical_size=1920x1080 format=Bgra8Unorm present_mode=Fifo alpha_mode=Opaque
+[RenderDebug][GameWidget] prepare_frame total=86.81ms build=0.00 stream=0.00 tick_batch=86.72 receive_upload=0.00 visibility=0.08 prepare_mode=0.00 budget=10 processed=4 received_chunks=4 clears=1 dirty 4->0 loaded 0->4 geometry_changed=true
+[RenderDebug][SceneVMDraw] size=1920x1080 frames=1 avg_ms base=8.71 overlays=0.00 composite=0.42 rgba_overlay=0.00 submit=0.20 total=9.34 avg_overlays=0.0 avg_layers=1.0
+[RenderDebug][SceneVM] render_to_window size=1920x1080 frames=1 avg_ms draw=9.57 acquire=1.66 overlay_upload=0.88 pipeline=0.34 submit_present=0.18 total=12.63
+[RenderDebug][client-wgpu] frames=51 avg_ms update=0.06 prepare=7.08 overlay=7.71 present=2.41 render_total=17.25
+[RenderDebug][SceneVMDraw] size=1920x1080 frames=60 avg_ms base=1.17 overlays=0.00 composite=0.01 rgba_overlay=0.00 submit=0.03 total=1.21 avg_overlays=0.0 avg_layers=1.0
+[RenderDebug][SceneVM] render_to_window size=1920x1080 frames=60 avg_ms draw=1.22 acquire=0.03 overlay_upload=0.89 pipeline=0.01 submit_present=0.06 total=2.20
+[RenderDebug][client-wgpu] frames=61 avg_ms update=0.06 prepare=5.34 overlay=7.58 present=2.15 render_total=15.07
+[RenderDebug][SceneVMDraw] size=1920x1080 frames=61 avg_ms base=1.14 overlays=0.00 composite=0.01 rgba_overlay=0.00 submit=0.03 total=1.18 avg_overlays=0.0 avg_layers=1.0
+[RenderDebug][SceneVM] render_to_window size=1920x1080 frames=61 avg_ms draw=1.19 acquire=0.02 overlay_upload=0.89 pipeline=0.01 submit_present=0.04 total=2.14
+[RenderDebug][client-wgpu] frames=61 avg_ms update=3.46 prepare=7.43 overlay=7.40 present=2.17 render_total=17.00
+[RenderDebug][SceneVMDraw] size=1920x1080 frames=60 avg_ms base=1.15 overlays=0.00 composite=0.01 rgba_overlay=0.00 submit=0.02 total=1.19 avg_overlays=0.0 avg_layers=1.0
+[RenderDebug][SceneVM] render_to_window size=1920x1080 frames=60 avg_ms draw=1.20 acquire=0.02 overlay_upload=0.90 pipeline=0.01 submit_present=0.05 total=2.17
+[RenderDebug][client-wgpu] frames=60 avg_ms update=7.84 prepare=10.52 overlay=7.16 present=2.16 render_total=19.85
+[RenderDebug][SceneVMDraw] size=1920x1080 frames=61 avg_ms base=1.15 overlays=0.00 composite=0.01 rgba_overlay=0.00 submit=0.03 total=1.19 avg_overlays=0.0 avg_layers=1.0
+[RenderDebug][SceneVM] render_to_window size=1920x1080 frames=61 avg_ms draw=1.20 acquire=0.02 overlay_upload=0.90 pipeline=0.01 submit_present=0.05 total=2.17
+[RenderDebug][client-wgpu] frames=60 avg_ms update=7.49 prepare=10.82 overlay=7.64 present=2.19 render_total=20.66
+[RenderDebug][SceneVMDraw] size=1920x1080 frames=60 avg_ms base=1.18 overlays=0.00 composite=0.01 rgba_overlay=0.00 submit=0.03 total=1.22 avg_overlays=0.0 avg_layers=1.0
+[RenderDebug][SceneVM] render_to_window size=1920x1080 frames=60 avg_ms draw=1.22 acquire=0.02 overlay_upload=0.90 pipeline=0.01 submit_present=0.05 total=2.19
