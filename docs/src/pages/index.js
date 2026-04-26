@@ -79,7 +79,7 @@ export default function Home() {
             Adventurer:
           </div>
           <div style={{ marginBottom: "1rem" }}>
-            Thomas Osborne, Kendric Tonn
+            Charleston Marks, Elias, Thomas Osborne, Kendric Tonn
           </div>
 
           <div

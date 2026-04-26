@@ -17,10 +17,10 @@ export const homepageContent = {
       },
     ],
     screenshot: {
-      label: "Current main version",
-      version: "Eldiron v0.9.3",
-      image: "/img/screenshots/Eldiron_v0.93.png",
-      alt: "Eldiron main version screenshot",
+      label: "New turn based simulation",
+      version: "Eldiron v0.9.7",
+      image: "/img/screenshots/Eldiron_v0.9.7_TB.png",
+      alt: "Eldiron turn-based simulation screenshot",
     },
   },
   sections: [
@@ -32,6 +32,14 @@ export const homepageContent = {
         "Follow the latest Eldiron releases, workflow improvements, and documentation updates as the project moves toward v1.",
       type: "news",
       items: [
+        {
+          date: "Apr 26, 2026",
+          title: "Eldiron v0.9.7",
+          description:
+            "Turn-based and hybrid simulation modes, NPC sequences, multiple-choice menus, nested dialogs, organic painting, and new renderer/post-processing controls.",
+          href: "/blog/2026/04/26/eldiron-v0.9.7",
+          linkLabel: "Read more",
+        },
         {
           date: "Apr 19, 2026",
           title: "Eldiron v0.9.3",
@@ -46,14 +54,6 @@ export const homepageContent = {
           description:
             "Dungeon Tool, Tile Picker rewrite, expanded Tile Graph workflows, Builder Graph, and broader authoring improvements.",
           href: "/blog/2026/04/06/eldiron-v0.9.2",
-          linkLabel: "Read more",
-        },
-        {
-          date: "Mar 15, 2026",
-          title: "Eldiron v0.9.1",
-          description:
-            "Global rules, localization, audio FX, much better realtime visual scripting debugging, and workflow improvements.",
-          href: "/blog/2026/03/15/eldiron-v0.9.1",
           linkLabel: "Read more",
         },
       ],
@@ -106,6 +106,15 @@ export const homepageContent = {
         "From fast dungeon blockouts to procedural tiles and narrative authoring, these tools shape the way worlds come together in Eldiron.",
       type: "tools",
       items: [
+        {
+          title: "Simulation Modes",
+          description:
+            "Choose realtime play, fully turn-based stepping, or a hybrid mode that advances on player action and then continues after an idle timeout. This lets the same project support active RPG movement, deliberate tile-by-tile tactics, or Ultima-style pacing.",
+          image: "/img/screenshots/Eldiron_v0.9.7_TB.png",
+          alt: "Turn-based simulation mode settings in Eldiron",
+          href: "/docs/configuration/game",
+          linkLabel: "Open docs",
+        },
         {
           title: "Dungeon Tool",
           description:

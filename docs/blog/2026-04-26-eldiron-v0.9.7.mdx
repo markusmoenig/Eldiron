@@ -1,0 +1,94 @@
+---
+title: Eldiron v0.9.7 Released
+authors: [markusm]
+tags: [releases]
+---
+
+<!-- truncate -->
+
+![Eldiron v0.9.7](/img/screenshots/Eldiron_v0.9.7_TB.png)
+
+Eldiron v0.9.7 is a gameplay and presentation release. The main focus is giving projects more control over pacing, better tools for authored NPC behavior, stronger dialog and choice workflows, and a less generic-looking renderer for retro RPG worlds.
+
+The biggest additions since v0.9.3 are the new simulation modes, NPC sequences, script-defined multiple choice menus, TOML-authored nested dialogs, and the new render / post-processing controls for a more grounded and stylized look.
+
+## Turn-Based, Hybrid, And Realtime Simulation
+
+Eldiron now supports three gameplay simulation modes:
+
+- `realtime` keeps the previous continuous simulation behavior.
+- `turn_based` advances gameplay only when the player commits an action.
+- `hybrid` advances on player action, but also steps forward automatically after a short idle timeout.
+
+Rendering and UI stay realtime in all modes. The new setting gates gameplay progression, not screen refresh, which means projects can keep smooth camera and interface feedback while choosing a more deliberate RPG pacing model underneath.
+
+This is especially useful for classic tile-based RPGs where movement, NPC reactions, combat, and timed behavior should feel controlled instead of continuously drifting forward. Hybrid mode is meant for worlds that should feel alive without forcing full action-RPG timing.
+
+## NPC Sequences
+
+NPCs also gained a first pass of sequence-based background behavior.
+
+Sequences let characters run structured routes and interactions, such as walking to a location, using an object, waiting, and making sure something is in the expected active state. This is useful for guards, townsfolk, doors, patrols, and small authored routines that should not require custom state-machine scripts for every step.
+
+The related script commands, such as `run_sequence(...)`, `pause_sequence()`, `resume_sequence()`, and `cancel_sequence()`, make it possible to combine background behavior with normal event-driven NPC logic.
+
+## Multiple Choice Menus
+
+v0.9.7 adds `multiple_choice(entity, prompt, choice_attribute)` for script-defined choice menus.
+
+The choices are read from a character attribute array, which keeps the script simple and avoids requiring visual scripts to support a dynamic number of function parameters. When the player selects an option, Eldiron sends both a general event and an indexed event back to the offering character, for example:
+
+```eldrin
+multiple_choice(entity, "Open the door?", "door_choices")
+```
+
+Selecting the first option sends both `door_choices` and `door_choices:0`, so authors can either handle all choices in one place or create separate event routines for each option.
+
+Choice labels use the normal localization and substitution pipeline, so the same system works for plain text, localized strings, and dynamic messages.
+
+## Nested Dialogs
+
+The new `dialog(entity, node)` command adds a more structured way to author conversations.
+
+Dialogs are written in TOML on the character and organized into named nodes. Each node can show text, present choices, move to another node, end the conversation, or emit an event back into the character script. Choices also support simple `if` and `unless` conditions, so dialog trees can react to local NPC state without turning every conversation into a large script full of nested `if` statements.
+
+This is meant for the kind of RPG dialog where an NPC has a small tree of topics, follow-up lines, continue prompts, and optional state-dependent branches.
+
+The dialog system is also available from visual scripting, and the Messages widget can filter dialogs, regular messages, multiple choice menus, and inventory offers independently. That makes it possible to route different interaction types into different screen layouts.
+
+## Renderer And Post-Processing
+
+The renderer also gained new styling controls.
+
+Eldiron can now use renderer styles such as `clean`, `retro`, and `grimy`, plus post-processing controls for grit, posterization, palette bias, shadow lift, and edge softening. The goal is to move away from a default shiny PBR look and give projects tools to create dirtier, moodier, more old-school RPG visuals.
+
+The stylized post-processing path works in both Raster 3D and Raster 2D, so a project can keep a consistent authored color treatment across presentation modes.
+
+There was also shadow and lighting work in this release, including softer sun-shadow sampling and fixes for two-sided lighting so surfaces no longer change lit state just because the isometric camera moves.
+
+## Organic Surface Painting
+
+Another large workflow change is the new brush-based Organic Tool direction.
+
+The old graph-driven organics workflow has been replaced with direct surface-detail painting. Instead of placing clean rectangular overlays or generating separate geometry, the tool now focuses on painting organic surface detail with brush masks, colors, borders, noise, opacity, and preview thumbnails.
+
+This is a better foundation for adding grime, moss, mud, worn paths, and other irregular surface variation without forcing every organic detail into mesh generation.
+
+## More In v0.9.7
+
+There is a lot of supporting work in this release:
+
+- `say("Text")` now works with the documented one-argument form and renders speech bubbles in 2D as well as 3D.
+- `say` settings moved into game widget configuration, where they fit better than global game settings.
+- Messages widgets can now be filtered by handled message type.
+- Messages widgets can optionally draw sender portraits.
+- Very long wrapped messages now keep their newest lower lines visible when the widget overflows.
+- The `Hideout2D` starter now includes examples for both `multiple_choice(...)` and `dialog(...)`.
+- Linedef road blending on terrain is less rigid and more organic.
+
+Overall, v0.9.7 is about making Eldiron feel more like a real retro RPG creator: controlled simulation pacing, stronger NPC behavior, better conversation tools, and a renderer that can move away from clean generic PBR toward a more authored RPG atmosphere.
+
+---
+
+Take care,  
+Markus
