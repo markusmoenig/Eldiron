@@ -391,12 +391,9 @@ impl SceneVMApp for EldironPlayerApp {
 
                 self.rusterix.scene_handler.vm.set_active_vm(0);
                 let logical_transform = self.rusterix.scene_handler.vm.active_vm().transform2d;
-                self.rusterix
-                    .scene_handler
-                    .vm
-                    .execute(Atom::SetTransform2D(
-                        presentation_transform * logical_transform,
-                    ));
+                self.rusterix.scene_handler.vm.execute(Atom::SetTransform2D(
+                    presentation_transform * logical_transform,
+                ));
 
                 let mapped_game_rect = [
                     (offset_x + game_rect.x * scale) * self.window_scale,

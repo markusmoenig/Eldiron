@@ -8,6 +8,7 @@ use crate::{
     dynamic::{DynamicKind, DynamicObject},
 };
 use bytemuck::{Pod, Zeroable};
+#[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::hash::Hasher;
@@ -212,6 +213,35 @@ fn record_raster3d_debug_timing(
             ..Raster3DDebugTiming::default()
         };
     }
+}
+
+#[cfg(all(feature = "gpu", target_arch = "wasm32"))]
+#[allow(clippy::too_many_arguments)]
+fn record_raster3d_debug_timing(
+    _size: (u32, u32),
+    _init_ms: f64,
+    _prepare_ms: f64,
+    _geometry_ms: f64,
+    _visibility_ms: f64,
+    _upload_ms: f64,
+    _encode_ms: f64,
+    _submit_ms: f64,
+    _total_ms: f64,
+    _verts: usize,
+    _indices: usize,
+    _visible_indices: usize,
+    _opaque_indices: usize,
+    _transparent_indices: usize,
+    _particle_indices: usize,
+    _geometry_rebuilt: bool,
+    _shadow_enabled: bool,
+    _shadow_res: u32,
+    _msaa_samples: u32,
+    _post_enabled: bool,
+    _bump_strength: f32,
+    _shadow_distance: f32,
+    _shadow_strength: f32,
+) {
 }
 
 #[derive(Debug, Clone, Default)]
@@ -8291,48 +8321,142 @@ impl VM {
         if cached_static_tri_count > 0
             && self.cached_static_tri_geo_ids.len() >= cached_static_tri_count
         {
-            if let Some((t, geo, pos)) = self
-                .cached_static_i3
-                .par_chunks_exact(3)
-                .enumerate()
-                .filter_map(|(tri_idx, tri)| {
+            let cached_static_i3 = &self.cached_static_i3;
+            let cached_static_v3 = &self.cached_static_v3;
+            let cached_static_tri_geo_ids = &self.cached_static_tri_geo_ids;
+            let cached_static_tri_visibility = &self.cached_static_tri_visibility;
+
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                if let Some((t, geo, pos)) = cached_static_i3
+                    .par_chunks_exact(3)
+                    .enumerate()
+                    .filter_map(|(tri_idx, tri)| {
+                        if !include_hidden
+                            && !cached_static_tri_visibility
+                                .get(tri_idx)
+                                .copied()
+                                .unwrap_or(false)
+                        {
+                            return None;
+                        }
+                        let a = cached_static_v3.get(tri[0] as usize)?;
+                        let b = cached_static_v3.get(tri[1] as usize)?;
+                        let c = cached_static_v3.get(tri[2] as usize)?;
+                        let a = a.pos;
+                        let b = b.pos;
+                        let c = c.pos;
+                        let (t, _, _) = ray_triangle_intersect(ray_origin, ray_dir, a, b, c)?;
+                        if t <= 1e-5 {
+                            return None;
+                        }
+                        let geo = cached_static_tri_geo_ids.get(tri_idx).copied()?;
+                        Some((t, geo, ray_origin + ray_dir * t))
+                    })
+                    .reduce_with(|a, b| if a.0 <= b.0 { a } else { b })
+                {
+                    best_t = t;
+                    best_geo = Some(geo);
+                    best_pos = pos;
+                }
+            }
+
+            #[cfg(target_arch = "wasm32")]
+            {
+                for (tri_idx, tri) in cached_static_i3.chunks_exact(3).enumerate() {
                     if !include_hidden
-                        && !self
-                            .cached_static_tri_visibility
+                        && !cached_static_tri_visibility
                             .get(tri_idx)
                             .copied()
                             .unwrap_or(false)
                     {
-                        return None;
+                        continue;
                     }
-                    let a = self.cached_static_v3.get(tri[0] as usize)?;
-                    let b = self.cached_static_v3.get(tri[1] as usize)?;
-                    let c = self.cached_static_v3.get(tri[2] as usize)?;
-                    let a = a.pos;
-                    let b = b.pos;
-                    let c = c.pos;
-                    let (t, _, _) = ray_triangle_intersect(ray_origin, ray_dir, a, b, c)?;
-                    if t <= 1e-5 {
-                        return None;
+                    let a = cached_static_v3.get(tri[0] as usize);
+                    let b = cached_static_v3.get(tri[1] as usize);
+                    let c = cached_static_v3.get(tri[2] as usize);
+                    let (a, b, c) = match (a, b, c) {
+                        (Some(a), Some(b), Some(c)) => (a.pos, b.pos, c.pos),
+                        _ => continue,
+                    };
+                    let Some((t, _, _)) = ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
+                    else {
+                        continue;
+                    };
+                    if t <= 1e-5 || t >= best_t {
+                        continue;
                     }
-                    let geo = self.cached_static_tri_geo_ids.get(tri_idx).copied()?;
-                    Some((t, geo, ray_origin + ray_dir * t))
-                })
-                .reduce_with(|a, b| if a.0 <= b.0 { a } else { b })
-            {
-                best_t = t;
-                best_geo = Some(geo);
-                best_pos = pos;
+                    let Some(geo) = cached_static_tri_geo_ids.get(tri_idx).copied() else {
+                        continue;
+                    };
+                    best_t = t;
+                    best_geo = Some(geo);
+                    best_pos = ray_origin + ray_dir * t;
+                }
             }
         } else {
-            let chunks: Vec<&Chunk> = self.chunks_map.values().collect();
-            if let Some((t, geo, pos)) = chunks
-                .par_iter()
-                .filter_map(|chunk| {
-                    let mut best_t = f32::INFINITY;
-                    let mut best_geo: Option<GeoId> = None;
-                    let mut best_pos = Vec3::new(0.0, 0.0, 0.0);
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let chunks: Vec<&Chunk> = self.chunks_map.values().collect();
+                if let Some((t, geo, pos)) = chunks
+                    .par_iter()
+                    .filter_map(|chunk| {
+                        let mut best_t = f32::INFINITY;
+                        let mut best_geo: Option<GeoId> = None;
+                        let mut best_pos = Vec3::new(0.0, 0.0, 0.0);
 
+                        for poly_list in chunk.polys3d_map.values() {
+                            for poly in poly_list {
+                                if poly.indices.is_empty() || poly.vertices.is_empty() {
+                                    continue;
+                                }
+
+                                if !poly.visible && !include_hidden {
+                                    continue;
+                                }
+
+                                let mut poly_pos: Vec<[f32; 3]> =
+                                    Vec::with_capacity(poly.vertices.len());
+                                for v in &poly.vertices {
+                                    let p = m * Vec4::new(v[0], v[1], v[2], v[3]);
+                                    let w = if p.w != 0.0 { p.w } else { 1.0 };
+                                    poly_pos.push([p.x / w, p.y / w, p.z / w]);
+                                }
+
+                                for &(ia, ib, ic) in &poly.indices {
+                                    let a = poly_pos.get(ia).copied();
+                                    let b = poly_pos.get(ib).copied();
+                                    let c = poly_pos.get(ic).copied();
+                                    let (a, b, c) = match (a, b, c) {
+                                        (Some(a), Some(b), Some(c)) => (a, b, c),
+                                        _ => continue,
+                                    };
+                                    if let Some((t, _, _)) =
+                                        ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
+                                        && t > 1e-5
+                                        && t < best_t
+                                    {
+                                        best_t = t;
+                                        best_geo = Some(poly.id);
+                                        best_pos = ray_origin + ray_dir * t;
+                                    }
+                                }
+                            }
+                        }
+
+                        best_geo.map(|geo| (best_t, geo, best_pos))
+                    })
+                    .reduce_with(|a, b| if a.0 <= b.0 { a } else { b })
+                {
+                    best_t = t;
+                    best_geo = Some(geo);
+                    best_pos = pos;
+                }
+            }
+
+            #[cfg(target_arch = "wasm32")]
+            {
+                for chunk in self.chunks_map.values() {
                     for poly_list in chunk.polys3d_map.values() {
                         for poly in poly_list {
                             if poly.indices.is_empty() || poly.vertices.is_empty() {
@@ -8371,14 +8495,7 @@ impl VM {
                             }
                         }
                     }
-
-                    best_geo.map(|geo| (best_t, geo, best_pos))
-                })
-                .reduce_with(|a, b| if a.0 <= b.0 { a } else { b })
-            {
-                best_t = t;
-                best_geo = Some(geo);
-                best_pos = pos;
+                }
             }
         }
 

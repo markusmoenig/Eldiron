@@ -695,6 +695,21 @@ fn record_scenevm_draw_timing(
     }
 }
 
+#[cfg(all(feature = "gpu", target_arch = "wasm32"))]
+#[allow(clippy::too_many_arguments)]
+fn record_scenevm_draw_timing(
+    _size: (u32, u32),
+    _base_ms: f64,
+    _overlays_ms: f64,
+    _composite_ms: f64,
+    _rgba_overlay_ms: f64,
+    _submit_ms: f64,
+    _total_ms: f64,
+    _overlays: u32,
+    _composited_layers: u32,
+) {
+}
+
 #[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
 fn record_render_to_window_timing(
     size: (u32, u32),
