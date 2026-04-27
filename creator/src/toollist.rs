@@ -35,6 +35,7 @@ pub struct ToolList {
 struct GeometryOwnerReplacementPlan {
     owners: FxHashSet<GeoId>,
     chunk_origins: FxHashSet<(i32, i32)>,
+    include_terrain: bool,
 }
 
 impl Default for ToolList {
@@ -144,7 +145,11 @@ impl ToolList {
             return;
         };
 
-        Self::add_bbox_dirty_chunks(sector.bounding_box(map), chunks);
+        let mut bbox = sector.bounding_box(map);
+        if Self::sector_affects_terrain(sector) {
+            bbox.expand(Vec2::broadcast(8.0));
+        }
+        Self::add_bbox_dirty_chunks(bbox, chunks);
     }
 
     fn add_linedef_dirty_chunks(map: &Map, linedef_id: u32, chunks: &mut FxHashSet<(i32, i32)>) {
@@ -152,17 +157,106 @@ impl ToolList {
             return;
         };
 
-        let width = linedef
-            .properties
-            .get_float_default("terrain_width", 2.0)
-            .max(0.0);
-        let falloff = linedef
-            .properties
-            .get_float_default("terrain_tile_falloff", 1.0)
-            .max(0.0);
         let mut bbox = linedef.bounding_box(map);
-        bbox.expand(Vec2::broadcast((width + falloff + 8.0) * 2.0));
+        if Self::linedef_affects_terrain(linedef) {
+            let width = linedef
+                .properties
+                .get_float_default("terrain_width", 2.0)
+                .max(0.0);
+            let falloff = linedef
+                .properties
+                .get_float_default("terrain_tile_falloff", 1.0)
+                .max(0.0);
+            bbox.expand(Vec2::broadcast((width + falloff + 8.0) * 2.0));
+        } else {
+            bbox.expand(Vec2::broadcast(1.0));
+        }
         Self::add_bbox_dirty_chunks(bbox, chunks);
+    }
+
+    fn vertex_affects_terrain(vertex: &rusterix::Vertex) -> bool {
+        vertex.properties.get_bool_default("terrain_control", false)
+            || vertex.properties.contains("terrain_source")
+    }
+
+    fn linedef_affects_terrain(linedef: &rusterix::Linedef) -> bool {
+        linedef.properties.contains("terrain_source")
+            || linedef.properties.get_bool_default("terrain_smooth", false)
+    }
+
+    fn sector_affects_terrain(sector: &rusterix::Sector) -> bool {
+        sector.properties.get_int_default("terrain_mode", 0) != 0
+            || sector.properties.contains("terrain_source")
+    }
+
+    fn selected_edit_affects_terrain(map: &Map, server_ctx: &ServerContext) -> bool {
+        match server_ctx.curr_map_tool_type {
+            MapToolType::Vertex => {
+                let topology = rusterix::MapTopology::build(map);
+                map.selected_vertices
+                    .iter()
+                    .filter_map(|id| map.find_vertex(*id))
+                    .any(Self::vertex_affects_terrain)
+                    || topology
+                        .sectors_for_vertices(map.selected_vertices.iter().copied())
+                        .into_iter()
+                        .filter_map(|id| map.find_sector(id))
+                        .any(Self::sector_affects_terrain)
+            }
+            MapToolType::Linedef => {
+                let topology = rusterix::MapTopology::build(map);
+                map.selected_linedefs
+                    .iter()
+                    .filter_map(|id| map.find_linedef(*id))
+                    .any(Self::linedef_affects_terrain)
+                    || topology
+                        .sectors_for_linedefs(map.selected_linedefs.iter().copied())
+                        .into_iter()
+                        .filter_map(|id| map.find_sector(id))
+                        .any(Self::sector_affects_terrain)
+            }
+            MapToolType::Sector => map
+                .selected_sectors
+                .iter()
+                .filter_map(|id| map.find_sector(*id))
+                .any(Self::sector_affects_terrain),
+            _ => false,
+        }
+    }
+
+    fn changed_elements_affect_terrain(
+        old_map: &Map,
+        new_map: &Map,
+        vertices: &FxHashSet<u32>,
+        linedefs: &FxHashSet<u32>,
+        sectors: &FxHashSet<u32>,
+    ) -> bool {
+        vertices.iter().any(|id| {
+            old_map
+                .find_vertex(*id)
+                .is_some_and(Self::vertex_affects_terrain)
+                || new_map
+                    .find_vertex(*id)
+                    .is_some_and(Self::vertex_affects_terrain)
+        }) || linedefs.iter().any(|id| {
+            old_map
+                .find_linedef(*id)
+                .is_some_and(Self::linedef_affects_terrain)
+                || new_map
+                    .find_linedef(*id)
+                    .is_some_and(Self::linedef_affects_terrain)
+        }) || sectors.iter().any(|id| {
+            old_map
+                .find_sector(*id)
+                .is_some_and(Self::sector_affects_terrain)
+                || new_map
+                    .find_sector(*id)
+                    .is_some_and(Self::sector_affects_terrain)
+        })
+    }
+
+    fn strip_terrain_owners(owners: &mut FxHashSet<GeoId>) {
+        owners.retain(|owner| !matches!(owner, GeoId::Terrain(_, _)));
     }
 
     fn add_owner_dirty_chunks(map: &Map, owner: GeoId, chunks: &mut FxHashSet<(i32, i32)>) {
@@ -205,6 +299,7 @@ impl ToolList {
         map: &Map,
         chunk_origins: &FxHashSet<(i32, i32)>,
         owners: &mut FxHashSet<GeoId>,
+        include_terrain: bool,
     ) {
         let chunk_size = SCENEMANAGER.write().unwrap().chunk_size();
         let scene = TopologyScene::build(map);
@@ -213,22 +308,29 @@ impl ToolList {
                 Vec2::new(origin.0 as f32, origin.1 as f32),
                 Vec2::broadcast(chunk_size as f32),
             );
-            owners.extend(scene.owners_for_chunk(map, &bbox));
+            let mut chunk_owners = scene.owners_for_chunk(map, &bbox);
+            if !include_terrain {
+                Self::strip_terrain_owners(&mut chunk_owners);
+            }
+            owners.extend(chunk_owners);
         }
     }
 
     fn expand_index_owners_for_chunks(
         chunk_origins: &FxHashSet<(i32, i32)>,
         owners: &mut FxHashSet<GeoId>,
+        include_terrain: bool,
     ) {
         let rusterix = RUSTERIX.read().unwrap();
         for origin in chunk_origins {
-            owners.extend(
-                rusterix
-                    .scene_handler
-                    .build_index
-                    .owners_for_chunk(Vec2::new(origin.0, origin.1)),
-            );
+            let mut chunk_owners = rusterix
+                .scene_handler
+                .build_index
+                .owners_for_chunk(Vec2::new(origin.0, origin.1));
+            if !include_terrain {
+                Self::strip_terrain_owners(&mut chunk_owners);
+            }
+            owners.extend(chunk_owners);
         }
     }
 
@@ -343,6 +445,16 @@ impl ToolList {
         owners.extend(new_topology.owners_for_linedefs(new_map, affected_linedefs.iter().copied()));
         owners.extend(old_topology.owners_for_sectors(old_map, affected_sectors.iter().copied()));
         owners.extend(new_topology.owners_for_sectors(new_map, affected_sectors.iter().copied()));
+        let include_terrain = Self::changed_elements_affect_terrain(
+            old_map,
+            new_map,
+            &affected_vertices,
+            &affected_linedefs,
+            &affected_sectors,
+        );
+        if !include_terrain {
+            Self::strip_terrain_owners(&mut owners);
+        }
         {
             let rusterix = RUSTERIX.read().unwrap();
             chunk_origins.extend(
@@ -368,16 +480,30 @@ impl ToolList {
             Self::add_owner_dirty_chunks(old_map, owner, &mut chunk_origins);
             Self::add_owner_dirty_chunks(new_map, owner, &mut chunk_origins);
         }
-        Self::expand_topology_owners_for_chunks(old_map, &chunk_origins, &mut owners);
-        Self::expand_topology_owners_for_chunks(new_map, &chunk_origins, &mut owners);
-        Self::expand_index_owners_for_chunks(&chunk_origins, &mut owners);
+        Self::expand_topology_owners_for_chunks(
+            old_map,
+            &chunk_origins,
+            &mut owners,
+            include_terrain,
+        );
+        Self::expand_topology_owners_for_chunks(
+            new_map,
+            &chunk_origins,
+            &mut owners,
+            include_terrain,
+        );
+        Self::expand_index_owners_for_chunks(&chunk_origins, &mut owners, include_terrain);
+        if !include_terrain {
+            Self::strip_terrain_owners(&mut owners);
+        }
 
-        if chunk_origins.is_empty() || owners.is_empty() {
+        if chunk_origins.is_empty() || (!include_terrain && owners.is_empty()) {
             None
         } else {
             Some(GeometryOwnerReplacementPlan {
                 owners,
                 chunk_origins,
+                include_terrain,
             })
         }
     }
@@ -388,6 +514,9 @@ impl ToolList {
         }
 
         let mut build_map = new_map.clone();
+        if !plan.include_terrain {
+            build_map.properties.remove("terrain_enabled");
+        }
         build_map.changed = build_map.changed.wrapping_add(1);
         build_map.update_surfaces();
 
@@ -415,6 +544,21 @@ impl ToolList {
         true
     }
 
+    fn apply_geometry_scene_update(new_map: &Map, plan: GeometryOwnerReplacementPlan) -> bool {
+        if plan.include_terrain {
+            if plan.chunk_origins.is_empty() {
+                return false;
+            }
+            crate::utils::editor_scene_replace_incremental_map_update(
+                new_map.clone(),
+                plan.chunk_origins.into_iter().collect(),
+            );
+            return true;
+        }
+
+        Self::apply_geometry_owner_replacement(new_map, plan)
+    }
+
     pub(crate) fn try_incremental_map_edit(
         old_map: &Map,
         new_map: &Map,
@@ -435,7 +579,7 @@ impl ToolList {
         }
 
         if let Some(plan) = Self::changed_geometry_replacement_plan(old_map, new_map) {
-            return Self::apply_geometry_owner_replacement(new_map, plan);
+            return Self::apply_geometry_scene_update(new_map, plan);
         }
 
         false
@@ -453,6 +597,10 @@ impl ToolList {
         }
 
         let topology = rusterix::MapTopology::build(map);
+        let include_terrain = Self::selected_edit_affects_terrain(map, server_ctx);
+        if include_terrain {
+            return false;
+        }
         let mut owners = match server_ctx.curr_map_tool_type {
             MapToolType::Vertex => topology.owners_for_vertices(map, map.selected_vertices.clone()),
             MapToolType::Linedef => {
@@ -463,6 +611,9 @@ impl ToolList {
             }
             _ => FxHashSet::default(),
         };
+        if !include_terrain {
+            Self::strip_terrain_owners(&mut owners);
+        }
         if owners.is_empty() {
             return false;
         }
@@ -477,8 +628,11 @@ impl ToolList {
         for owner in owners.iter().copied() {
             Self::add_owner_dirty_chunks(map, owner, &mut chunk_origins);
         }
-        Self::expand_topology_owners_for_chunks(map, &chunk_origins, &mut owners);
-        Self::expand_index_owners_for_chunks(&chunk_origins, &mut owners);
+        Self::expand_topology_owners_for_chunks(map, &chunk_origins, &mut owners, include_terrain);
+        Self::expand_index_owners_for_chunks(&chunk_origins, &mut owners, include_terrain);
+        if !include_terrain {
+            Self::strip_terrain_owners(&mut owners);
+        }
 
         if chunk_origins.is_empty() {
             return false;
@@ -489,6 +643,7 @@ impl ToolList {
             GeometryOwnerReplacementPlan {
                 owners,
                 chunk_origins,
+                include_terrain,
             },
         )
     }
@@ -948,7 +1103,7 @@ impl ToolList {
                         && let ProjectUndoAtom::MapEdit(_, _, new_map) = &undo_atom
                     {
                         used_incremental_terrain_update =
-                            Self::apply_geometry_owner_replacement(new_map, plan);
+                            Self::apply_geometry_scene_update(new_map, plan);
                     }
                     if organic_incremental_update {
                         used_incremental_terrain_update = true;
