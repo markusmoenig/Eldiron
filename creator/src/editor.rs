@@ -1002,7 +1002,8 @@ impl Editor {
 
     fn firstp_editor_camera_moving(&self) -> bool {
         self.server_ctx.editor_view_mode == EditorViewMode::FirstP
-            && EDITCAMERA.read().unwrap().move_action.is_some()
+            && (self.server_ctx.editor_fly_nav_active
+                || EDITCAMERA.read().unwrap().move_action.is_some())
     }
 
     fn redraw_interval_ms(&self) -> u64 {
@@ -2200,7 +2201,8 @@ impl TheTrait for Editor {
                                     rusterix,
                                 );
                                 if self.server_ctx.editor_view_mode == EditorViewMode::FirstP
-                                    && EDITCAMERA.read().unwrap().move_action.is_some()
+                                    && (self.server_ctx.editor_fly_nav_active
+                                        || EDITCAMERA.read().unwrap().move_action.is_some())
                                 {
                                     ctx.ui.redraw_all = true;
                                 }

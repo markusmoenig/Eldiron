@@ -667,6 +667,12 @@ pub struct ServerContext {
     /// Game input mode
     pub game_input_mode: bool,
 
+    /// First-person editor fly navigation mode. When enabled, PolyView mouse
+    /// movement controls look direction and WASD controls movement.
+    pub editor_fly_nav_active: bool,
+    /// Tracks Space key state so OS key repeat does not rapidly toggle fly mode.
+    pub editor_fly_nav_space_down: bool,
+
     /// Text gameplay mode inside the Creator Game Tool
     pub text_game_mode: bool,
 
@@ -825,6 +831,8 @@ impl ServerContext {
             rect_blend_preset: VertexBlendPreset::Solid,
 
             game_input_mode: false,
+            editor_fly_nav_active: false,
+            editor_fly_nav_space_down: false,
             text_game_mode: false,
             help_mode: false,
 

@@ -8,6 +8,8 @@ pub enum CustomMoveAction {
     Backward,
     Left,
     Right,
+    StrafeLeft,
+    StrafeRight,
     Up,
     Down,
 }
@@ -19,6 +21,7 @@ pub struct EditCamera {
 
     pub move_action: Option<CustomMoveAction>,
     last_mouse: Option<Vec2<i32>>,
+    fly_pointer: Option<(Vec2<i32>, Vec2<i32>)>,
     last_action_time_ms: Option<u128>,
 }
 
@@ -32,6 +35,7 @@ impl EditCamera {
 
             move_action: None,
             last_mouse: None,
+            fly_pointer: None,
             last_action_time_ms: None,
         }
     }
@@ -153,31 +157,30 @@ impl EditCamera {
         };
         self.last_action_time_ms = Some(now_ms);
 
-        let speed = 18.0 * dt;
-        let yaw_step = 420.0 * dt;
+        let speed = 5.5 * dt;
+        let yaw_step = 120.0 * dt;
         if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+            if server_ctx.editor_fly_nav_active {
+                self.update_fly_pointer_look(region, dt);
+            }
             match &self.move_action {
                 Some(CustomMoveAction::Forward) => {
-                    let (mut np, mut nl) = self.move_camera(
+                    let (np, nl) = self.move_camera(
                         region.editing_position_3d,
                         region.editing_look_at_3d,
                         Vec3::new(0.0, 0.0, 1.0),
                         speed,
                     );
-                    np.y = region.editing_position_3d.y;
-                    nl.y = region.editing_look_at_3d.y;
                     region.editing_position_3d = np;
                     region.editing_look_at_3d = nl;
                 }
                 Some(CustomMoveAction::Backward) => {
-                    let (mut np, mut nl) = self.move_camera(
+                    let (np, nl) = self.move_camera(
                         region.editing_position_3d,
                         region.editing_look_at_3d,
                         Vec3::new(0.0, 0.0, -1.0),
                         speed,
                     );
-                    np.y = region.editing_position_3d.y;
-                    nl.y = region.editing_look_at_3d.y;
                     region.editing_position_3d = np;
                     region.editing_look_at_3d = nl;
                 }
@@ -195,6 +198,26 @@ impl EditCamera {
                         region.editing_look_at_3d,
                         -yaw_step,
                     );
+                    region.editing_look_at_3d = nl;
+                }
+                Some(CustomMoveAction::StrafeLeft) => {
+                    let (np, nl) = self.move_camera(
+                        region.editing_position_3d,
+                        region.editing_look_at_3d,
+                        Vec3::new(-1.0, 0.0, 0.0),
+                        speed,
+                    );
+                    region.editing_position_3d = np;
+                    region.editing_look_at_3d = nl;
+                }
+                Some(CustomMoveAction::StrafeRight) => {
+                    let (np, nl) = self.move_camera(
+                        region.editing_position_3d,
+                        region.editing_look_at_3d,
+                        Vec3::new(1.0, 0.0, 0.0),
+                        speed,
+                    );
+                    region.editing_position_3d = np;
                     region.editing_look_at_3d = nl;
                 }
                 Some(CustomMoveAction::Up) => {
@@ -226,43 +249,78 @@ impl EditCamera {
         }
     }
 
-    pub fn mouse_dragged(
-        &mut self,
-        region: &mut Region,
-        server_ctx: &mut ServerContext,
-        coord: &Vec2<i32>,
-    ) {
-        if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-            let sens_yaw = 0.15; // deg per pixel horizontally
-            let sens_pitch = 0.15; // deg per pixel vertically
-            let max_pitch = 85.0; // don’t let camera flip
+    pub fn reset_mouse_tracking(&mut self) {
+        self.last_mouse = None;
+        self.fly_pointer = None;
+    }
 
-            let curr = *coord;
+    pub fn set_fly_pointer(&mut self, coord: &Vec2<i32>, view_size: Vec2<i32>) {
+        self.fly_pointer = Some((*coord, view_size));
+    }
 
-            if let Some(prev) = self.last_mouse {
-                let dx = (curr.x - prev.x) as f32;
-                let dy = (curr.y - prev.y) as f32;
+    pub fn mouse_dragged_firstp(&mut self, region: &mut Region, coord: &Vec2<i32>) {
+        let sens_yaw = 0.05; // deg per pixel horizontally
+        let sens_pitch = 0.05; // deg per pixel vertically
+        let max_pitch = 85.0; // do not let the camera flip
 
-                // Yaw   (left / right)
-                if dx.abs() > 0.0 {
-                    region.editing_look_at_3d = self.rotate_camera_y(
-                        region.editing_position_3d,
-                        region.editing_look_at_3d,
-                        -dx * sens_yaw, // screen → world: left = +yaw
-                    );
-                }
-                // Pitch (up / down)
-                if dy.abs() > 0.0 {
-                    let look = self.rotate_camera_pitch(
-                        region.editing_position_3d,
-                        region.editing_look_at_3d,
-                        -dy * sens_pitch, // screen up = pitch up
-                    );
-                    region.editing_look_at_3d =
-                        self.clamp_pitch(region.editing_position_3d, look, max_pitch);
-                }
+        let curr = *coord;
+
+        if let Some(prev) = self.last_mouse {
+            let dx = (curr.x - prev.x) as f32;
+            let dy = (curr.y - prev.y) as f32;
+
+            if dx.abs() > 0.0 {
+                region.editing_look_at_3d = self.rotate_camera_y(
+                    region.editing_position_3d,
+                    region.editing_look_at_3d,
+                    -dx * sens_yaw,
+                );
             }
-            self.last_mouse = Some(curr);
+            if dy.abs() > 0.0 {
+                let look = self.rotate_camera_pitch(
+                    region.editing_position_3d,
+                    region.editing_look_at_3d,
+                    -dy * sens_pitch,
+                );
+                region.editing_look_at_3d =
+                    self.clamp_pitch(region.editing_position_3d, look, max_pitch);
+            }
+        }
+        self.last_mouse = Some(curr);
+    }
+
+    fn update_fly_pointer_look(&mut self, region: &mut Region, dt: f32) {
+        let Some((coord, view_size)) = self.fly_pointer else {
+            return;
+        };
+        let half_w = (view_size.x.max(1) as f32) * 0.5;
+        let half_h = (view_size.y.max(1) as f32) * 0.5;
+        let x = ((coord.x as f32 - half_w) / half_w).clamp(-1.0, 1.0);
+        let y = ((coord.y as f32 - half_h) / half_h).clamp(-1.0, 1.0);
+
+        fn response(value: f32) -> f32 {
+            let dead_zone = 0.12;
+            let abs = value.abs();
+            if abs <= dead_zone {
+                0.0
+            } else {
+                value.signum() * ((abs - dead_zone) / (1.0 - dead_zone)).powf(1.35)
+            }
+        }
+
+        let yaw = response(x) * 80.0 * dt;
+        let pitch = response(y) * 55.0 * dt;
+        if yaw != 0.0 {
+            region.editing_look_at_3d =
+                self.rotate_camera_y(region.editing_position_3d, region.editing_look_at_3d, -yaw);
+        }
+        if pitch != 0.0 {
+            let look = self.rotate_camera_pitch(
+                region.editing_position_3d,
+                region.editing_look_at_3d,
+                -pitch,
+            );
+            region.editing_look_at_3d = self.clamp_pitch(region.editing_position_3d, look, 85.0);
         }
     }
 

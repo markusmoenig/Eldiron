@@ -986,6 +986,53 @@ impl ToolList {
             let should_forward_to_tool = match event {
                 // Keep tool switching and shortcuts handled by ToolList itself.
                 TheEvent::StateChanged(_, _) | TheEvent::KeyDown(_) => false,
+                TheEvent::KeyCodeDown(TheValue::KeyCode(code))
+                    if ctx
+                        .ui
+                        .focus
+                        .as_ref()
+                        .is_some_and(|id| id.name == "PolyView")
+                        && server_ctx.editor_view_mode == EditorViewMode::FirstP
+                        && !server_ctx.game_input_mode
+                        && *code == TheKeyCode::Space =>
+                {
+                    false
+                }
+                TheEvent::KeyCodeDown(TheValue::KeyCode(code))
+                    if ctx
+                        .ui
+                        .focus
+                        .as_ref()
+                        .is_some_and(|id| id.name == "PolyView")
+                        && server_ctx.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.editor_fly_nav_active
+                        && *code == TheKeyCode::Escape =>
+                {
+                    false
+                }
+                TheEvent::KeyCodeUp(TheValue::KeyCode(code)) if *code == TheKeyCode::Space => false,
+                TheEvent::KeyUp(TheValue::Char(c))
+                    if ctx
+                        .ui
+                        .focus
+                        .as_ref()
+                        .is_some_and(|id| id.name == "PolyView")
+                        && server_ctx.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.editor_fly_nav_active
+                        && matches!(c.to_ascii_lowercase(), 'w' | 'a' | 's' | 'd') =>
+                {
+                    false
+                }
+                TheEvent::RenderViewClicked(id, _)
+                | TheEvent::RenderViewDragged(id, _)
+                | TheEvent::RenderViewUp(id, _)
+                | TheEvent::RenderViewHoverChanged(id, _)
+                    if id.name == "PolyView"
+                        && server_ctx.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.editor_fly_nav_active =>
+                {
+                    false
+                }
                 TheEvent::Custom(id, _) if id.name == "Set Tool" => false,
                 _ => true,
             };
@@ -1062,6 +1109,14 @@ impl ToolList {
                     server_ctx.editor_view_mode = EditorViewMode::from_index(*index as i32);
                     let new_mode = server_ctx.editor_view_mode;
                     let new = new_mode.is_3d();
+
+                    if new_mode != EditorViewMode::FirstP {
+                        server_ctx.editor_fly_nav_active = false;
+                        server_ctx.editor_fly_nav_space_down = false;
+                        let mut edit_camera = crate::editor::EDITCAMERA.write().unwrap();
+                        edit_camera.move_action = None;
+                        edit_camera.reset_mouse_tracking();
+                    }
 
                     if let Some(region) = project.get_region_ctx_mut(server_ctx) {
                         region.map.camera = match new_mode {
@@ -1188,6 +1243,25 @@ impl ToolList {
             TheEvent::KeyDown(TheValue::Char(c)) => {
                 if let Some(id) = &ctx.ui.focus {
                     if id.name == "PolyView" {
+                        if server_ctx.editor_view_mode == EditorViewMode::FirstP
+                            && server_ctx.editor_fly_nav_active
+                            && !server_ctx.game_input_mode
+                        {
+                            let action = match c.to_ascii_lowercase() {
+                                'w' => Some(crate::editcamera::CustomMoveAction::Forward),
+                                's' => Some(crate::editcamera::CustomMoveAction::Backward),
+                                'a' => Some(crate::editcamera::CustomMoveAction::StrafeLeft),
+                                'd' => Some(crate::editcamera::CustomMoveAction::StrafeRight),
+                                _ => None,
+                            };
+                            if let Some(action) = action {
+                                crate::editor::EDITCAMERA.write().unwrap().move_action =
+                                    Some(action);
+                                ctx.ui.redraw_all = true;
+                                return true;
+                            }
+                        }
+
                         if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                             if *c == ',' {
                                 map.grid_size -= 2.0;
@@ -1434,6 +1508,35 @@ impl ToolList {
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
                 if let Some(id) = &ctx.ui.focus {
                     if id.name == "PolyView" {
+                        if server_ctx.editor_view_mode == EditorViewMode::FirstP
+                            && !server_ctx.game_input_mode
+                            && *code == TheKeyCode::Space
+                        {
+                            if server_ctx.editor_fly_nav_space_down {
+                                return true;
+                            }
+                            server_ctx.editor_fly_nav_space_down = true;
+                            server_ctx.editor_fly_nav_active = !server_ctx.editor_fly_nav_active;
+                            crate::editor::EDITCAMERA
+                                .write()
+                                .unwrap()
+                                .reset_mouse_tracking();
+                            if !server_ctx.editor_fly_nav_active {
+                                crate::editor::EDITCAMERA.write().unwrap().move_action = None;
+                            }
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                if server_ctx.editor_fly_nav_active {
+                                    "FirstP fly navigation on. Pointer from center turns/looks, WASD moves, Space exits."
+                                        .to_string()
+                                } else {
+                                    "FirstP fly navigation off.".to_string()
+                                },
+                            ));
+                            ctx.ui.redraw_all = true;
+                            return true;
+                        }
+
                         let invert_2d_pan = server_ctx.editor_view_mode == EditorViewMode::D2
                             && !cfg!(target_os = "macos");
                         if server_ctx.editor_view_mode == EditorViewMode::D2
@@ -1470,6 +1573,17 @@ impl ToolList {
                         }
                         if *code == TheKeyCode::Escape {
                             if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
+                                if server_ctx.editor_fly_nav_active {
+                                    server_ctx.editor_fly_nav_active = false;
+                                    server_ctx.editor_fly_nav_space_down = false;
+                                    crate::editor::EDITCAMERA.write().unwrap().move_action = None;
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "FirstP fly navigation off.".to_string(),
+                                    ));
+                                    ctx.ui.redraw_all = true;
+                                    return true;
+                                }
                                 if server_ctx.paste_clipboard.is_some() {
                                     server_ctx.paste_clipboard = None;
                                     return true;
@@ -1511,8 +1625,31 @@ impl ToolList {
                     }
                 }
             }
+            TheEvent::KeyUp(TheValue::Char(c)) => {
+                if let Some(id) = &ctx.ui.focus
+                    && id.name == "PolyView"
+                    && server_ctx.editor_view_mode == EditorViewMode::FirstP
+                    && server_ctx.editor_fly_nav_active
+                    && matches!(c.to_ascii_lowercase(), 'w' | 'a' | 's' | 'd')
+                {
+                    crate::editor::EDITCAMERA.write().unwrap().move_action = None;
+                    ctx.ui.redraw_all = true;
+                    return true;
+                }
+            }
+            TheEvent::KeyCodeUp(TheValue::KeyCode(code)) => {
+                if *code == TheKeyCode::Space {
+                    server_ctx.editor_fly_nav_space_down = false;
+                }
+            }
             TheEvent::RenderViewClicked(id, coord) => {
                 if id.name == "PolyView" {
+                    if server_ctx.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.editor_fly_nav_active
+                    {
+                        return true;
+                    }
+
                     if !server_ctx.game_mode && !server_ctx.game_input_mode {
                         if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                             if coord.y > 20 {
@@ -1631,6 +1768,23 @@ impl ToolList {
             }
             TheEvent::RenderViewDragged(id, coord) => {
                 if id.name == "PolyView" {
+                    if server_ctx.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.editor_fly_nav_active
+                    {
+                        if let Some(view_size) = ui.get_render_view("PolyView").map(|view| {
+                            let dim = *view.dim();
+                            Vec2::new(dim.width, dim.height)
+                        }) {
+                            crate::editor::EDITCAMERA
+                                .write()
+                                .unwrap()
+                                .set_fly_pointer(coord, view_size);
+                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            ctx.ui.redraw_all = true;
+                        }
+                        return true;
+                    }
+
                     if server_ctx.editor_view_mode == EditorViewMode::D2 {
                         // Map dragging handled by tools.
                     }
@@ -1685,6 +1839,12 @@ impl ToolList {
             }
             TheEvent::RenderViewUp(id, coord) => {
                 if id.name == "PolyView" {
+                    if server_ctx.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.editor_fly_nav_active
+                    {
+                        return true;
+                    }
+
                     if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                         let undo_atom = self.get_current_tool().map_event(
                             MapEvent::MapUp(*coord),
@@ -1751,6 +1911,23 @@ impl ToolList {
             }
             TheEvent::RenderViewHoverChanged(id, coord) => {
                 if id.name == "PolyView" {
+                    if server_ctx.editor_view_mode == EditorViewMode::FirstP
+                        && server_ctx.editor_fly_nav_active
+                    {
+                        if let Some(view_size) = ui.get_render_view("PolyView").map(|view| {
+                            let dim = *view.dim();
+                            Vec2::new(dim.width, dim.height)
+                        }) {
+                            crate::editor::EDITCAMERA
+                                .write()
+                                .unwrap()
+                                .set_fly_pointer(coord, view_size);
+                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            ctx.ui.redraw_all = true;
+                        }
+                        return true;
+                    }
+
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
                         if let Some(render_view) = ui.get_render_view("PolyView") {
                             if let Some(rc) =

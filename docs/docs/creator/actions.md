@@ -42,6 +42,18 @@ Use the isometric editor camera for layout and readability checks.
 
 Jump into a first-person preview of the region. This also clears any active surface-edit overlay so the scene renders cleanly.
 
+In first-person view, press `Space` while the geometry editor has focus to toggle **Fly Navigation**. The status bar shows whether fly navigation is active.
+
+Fly navigation controls:
+
+- move the pointer away from the center of the view to turn and look up/down
+- `W` / `S` move forward and backward along the current look direction
+- `A` / `D` strafe left and right
+- `Space` toggles fly navigation off again
+- `Escape` also exits fly navigation
+
+This mode is useful for touchpads as well as mice because it does not require holding a mouse button. While fly navigation is active, normal geometry-editing tool input is suspended so `WASD` can be used for movement instead of tool shortcuts.
+
 ### Editing Slice
 
 Offsets the slice plane when in 2D editing without an active surface, letting you peek through layered geometry.
