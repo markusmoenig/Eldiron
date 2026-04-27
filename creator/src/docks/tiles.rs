@@ -1,4 +1,4 @@
-use crate::editor::{ACTIONLIST, RUSTERIX, TOOLLIST, UNDOMANAGER};
+use crate::editor::{ACTIONLIST, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::{PixelSource, TileRole, TileSource, VertexBlendPreset};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -460,7 +460,6 @@ impl Dock for TilesDock {
                             }
                             if changed {
                                 map.update_surfaces();
-                                RUSTERIX.write().unwrap().set_dirty();
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
                                     server_ctx.pc,
                                     Box::new(prev),
@@ -469,12 +468,10 @@ impl Dock for TilesDock {
                                 needs_scene_redraw = true;
                             }
                         }
-                        if needs_scene_redraw {
-                            crate::utils::scenemanager_render_map(project, server_ctx);
-                            TOOLLIST
-                                .write()
-                                .unwrap()
-                                .update_geometry_overlay_3d(project, server_ctx);
+                        if needs_scene_redraw && let Some(undo_atom) = &undo_atom {
+                            crate::utils::editor_scene_apply_map_edit_atom(
+                                project, server_ctx, undo_atom,
+                            );
                         }
                         if let Some(undo_atom) = undo_atom {
                             UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
@@ -504,7 +501,6 @@ impl Dock for TilesDock {
                             }
                             if changed {
                                 map.update_surfaces();
-                                RUSTERIX.write().unwrap().set_dirty();
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
                                     server_ctx.pc,
                                     Box::new(prev),
@@ -513,12 +509,10 @@ impl Dock for TilesDock {
                                 needs_scene_redraw = true;
                             }
                         }
-                        if needs_scene_redraw {
-                            crate::utils::scenemanager_render_map(project, server_ctx);
-                            TOOLLIST
-                                .write()
-                                .unwrap()
-                                .update_geometry_overlay_3d(project, server_ctx);
+                        if needs_scene_redraw && let Some(undo_atom) = &undo_atom {
+                            crate::utils::editor_scene_apply_map_edit_atom(
+                                project, server_ctx, undo_atom,
+                            );
                         }
                         if let Some(undo_atom) = undo_atom {
                             UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
@@ -701,7 +695,6 @@ impl Dock for TilesDock {
 
                                 if changed {
                                     map.update_surfaces();
-                                    RUSTERIX.write().unwrap().set_dirty();
                                     undo_atom = Some(ProjectUndoAtom::MapEdit(
                                         server_ctx.pc,
                                         Box::new(prev),
@@ -712,12 +705,10 @@ impl Dock for TilesDock {
                             }
                         }
 
-                        if needs_scene_redraw {
-                            crate::utils::scenemanager_render_map(project, server_ctx);
-                            TOOLLIST
-                                .write()
-                                .unwrap()
-                                .update_geometry_overlay_3d(project, server_ctx);
+                        if needs_scene_redraw && let Some(undo_atom) = &undo_atom {
+                            crate::utils::editor_scene_apply_map_edit_atom(
+                                project, server_ctx, undo_atom,
+                            );
                         }
 
                         if let Some(undo_atom) = undo_atom {
@@ -791,7 +782,6 @@ impl Dock for TilesDock {
 
                             if changed {
                                 map.update_surfaces();
-                                RUSTERIX.write().unwrap().set_dirty();
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
                                     server_ctx.pc,
                                     Box::new(prev),
@@ -802,12 +792,10 @@ impl Dock for TilesDock {
                         }
                     }
 
-                    if needs_scene_redraw {
-                        crate::utils::scenemanager_render_map(project, server_ctx);
-                        TOOLLIST
-                            .write()
-                            .unwrap()
-                            .update_geometry_overlay_3d(project, server_ctx);
+                    if needs_scene_redraw && let Some(undo_atom) = &undo_atom {
+                        crate::utils::editor_scene_apply_map_edit_atom(
+                            project, server_ctx, undo_atom,
+                        );
                     }
 
                     if let Some(undo_atom) = undo_atom {

@@ -82,12 +82,11 @@ impl Action for FilterEditingGeo {
             .get_bool_value("actionDungeonNoCeiling")
             .unwrap_or(false);
 
-        crate::utils::scenemanager_render_map(project, server_ctx);
+        crate::utils::editor_scene_full_rebuild(project, server_ctx);
         crate::editor::TOOLLIST
             .write()
             .unwrap()
             .update_geometry_overlay_3d(project, server_ctx);
-        crate::editor::RUSTERIX.write().unwrap().set_dirty();
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Client Properties"),
             TheValue::Empty,

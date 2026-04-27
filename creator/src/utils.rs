@@ -1,4 +1,4 @@
-use crate::editor::{CONFIGEDITOR, PALETTE, SCENEMANAGER};
+use crate::editor::{CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER};
 use crate::prelude::*;
 use codegridfx::{Module, ModuleType};
 use rusteria::{RenderBuffer, Rusteria};
@@ -729,4 +729,58 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
             }
         }
     }
+}
+
+pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &ServerContext) {
+    scenemanager_render_map(project, server_ctx);
+    RUSTERIX.write().unwrap().set_dirty();
+}
+
+pub fn editor_scene_apply_map_edit(
+    project: &Project,
+    server_ctx: &ServerContext,
+    old_map: &Map,
+    new_map: &Map,
+) -> bool {
+    if crate::toollist::ToolList::try_incremental_map_edit(old_map, new_map, server_ctx) {
+        true
+    } else {
+        editor_scene_full_rebuild(project, server_ctx);
+        false
+    }
+}
+
+pub fn editor_scene_apply_map_edit_atom(
+    project: &Project,
+    server_ctx: &ServerContext,
+    undo_atom: &crate::undo::project_atoms::ProjectUndoAtom,
+) -> bool {
+    if let crate::undo::project_atoms::ProjectUndoAtom::MapEdit(_, old_map, new_map) = undo_atom {
+        editor_scene_apply_map_edit(project, server_ctx, old_map, new_map)
+    } else {
+        editor_scene_full_rebuild(project, server_ctx);
+        false
+    }
+}
+
+pub fn editor_scene_incremental_map_update(map: Map, dirty_chunks: Vec<(i32, i32)>) {
+    let mut scenemanager = SCENEMANAGER.write().unwrap();
+    scenemanager.update_map(map);
+    if !dirty_chunks.is_empty() {
+        scenemanager.add_dirty(dirty_chunks);
+    }
+    RUSTERIX.write().unwrap().set_overlay_dirty();
+}
+
+pub fn editor_scene_replace_incremental_map_update(map: Map, dirty_chunks: Vec<(i32, i32)>) {
+    let mut scenemanager = SCENEMANAGER.write().unwrap();
+    scenemanager.update_map(map);
+    if !dirty_chunks.is_empty() {
+        scenemanager.replace_dirty(dirty_chunks);
+    }
+    RUSTERIX.write().unwrap().set_overlay_dirty();
+}
+
+pub fn editor_scene_overlay_only() {
+    RUSTERIX.write().unwrap().set_overlay_dirty();
 }

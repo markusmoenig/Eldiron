@@ -3774,8 +3774,12 @@ impl VM {
                 self.mark_2d_dirty();
             }
             Atom::RemoveChunkAt { origin } => {
-                if let Some((id, _)) = self.chunks_map.iter().find(|(_, ch)| ch.origin == origin) {
-                    let id = *id;
+                let ids = self
+                    .chunks_map
+                    .iter()
+                    .filter_map(|(id, ch)| (ch.origin == origin).then_some(*id))
+                    .collect::<Vec<_>>();
+                for id in ids {
                     let was_current = self.current_chunk == Some(id);
                     self.chunks_map.remove(&id);
                     if was_current {

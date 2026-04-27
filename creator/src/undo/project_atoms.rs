@@ -1,5 +1,6 @@
 use crate::editor::{DOCKMANAGER, SCENEMANAGER, TOOLLIST};
 use crate::prelude::*;
+use crate::toollist::ToolList;
 use crate::tools::organic::OrganicTool;
 use shared::project::PaletteMaterial;
 use theframework::prelude::*;
@@ -64,6 +65,7 @@ impl ProjectUndoAtom {
         server_ctx: &mut ServerContext,
         pc: ProjectContext,
         restored_map: &Map,
+        previous_map: Option<&Map>,
     ) {
         let preserved_dock = DOCKMANAGER.read().unwrap().dock.clone();
         set_project_context(ctx, ui, project, server_ctx, pc);
@@ -72,11 +74,17 @@ impl ProjectUndoAtom {
             map.clear_temp();
             if pc.is_region() {
                 map.update_surfaces();
-                SCENEMANAGER.write().unwrap().update_map(map.clone());
+                let used_incremental = previous_map
+                    .map(|previous_map| {
+                        ToolList::try_incremental_map_edit(previous_map, map, server_ctx)
+                    })
+                    .unwrap_or(false);
+                if !used_incremental {
+                    SCENEMANAGER.write().unwrap().update_map(map.clone());
+                }
                 update_region(ctx);
             }
-            OrganicTool::sync_all_detail_to_vm(map);
-            OrganicTool::sync_render_active_to_vm(map);
+            OrganicTool::sync_map_edit_detail_to_vm(map, previous_map);
         }
         if !preserved_dock.is_empty() && DOCKMANAGER.read().unwrap().dock != preserved_dock {
             DOCKMANAGER
@@ -172,8 +180,8 @@ impl ProjectUndoAtom {
         server_ctx: &mut ServerContext,
     ) {
         match self {
-            MapEdit(pc, old, _new) => {
-                Self::apply_map_edit_state(project, ui, ctx, server_ctx, *pc, old);
+            MapEdit(pc, old, new) => {
+                Self::apply_map_edit_state(project, ui, ctx, server_ctx, *pc, old, Some(new));
             }
             TilePickerEdit(old, _new) => {
                 *project = (*old.clone()).clone();
@@ -779,8 +787,8 @@ impl ProjectUndoAtom {
         server_ctx: &mut ServerContext,
     ) {
         match self {
-            MapEdit(pc, _old, new) => {
-                Self::apply_map_edit_state(project, ui, ctx, server_ctx, *pc, new);
+            MapEdit(pc, old, new) => {
+                Self::apply_map_edit_state(project, ui, ctx, server_ctx, *pc, new, Some(old));
             }
             TilePickerEdit(_old, new) => {
                 *project = (*new.clone()).clone();

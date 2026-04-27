@@ -29,6 +29,7 @@ pub mod rendermode;
 #[cfg(feature = "graphics")]
 pub mod rusterix;
 pub mod scene;
+pub mod scene_build_index;
 #[cfg(feature = "graphics")]
 pub mod scene_handler;
 pub mod scenebuilder;
@@ -135,7 +136,12 @@ pub use crate::{
     batch::{CullMode, GeometrySource, PrimitiveMode, batch2d::Batch2D, batch3d::Batch3D},
     camera::{D3Camera, d3firstp::D3FirstPCamera, d3iso::D3IsoCamera, d3orbit::D3OrbitCamera},
     chunk::{BillboardMetadata, Chunk},
-    chunkbuilder::{ChunkBuilder, d2chunkbuilder::D2ChunkBuilder, d3chunkbuilder::D3ChunkBuilder},
+    chunkbuilder::{
+        ChunkBuilder,
+        d2chunkbuilder::D2ChunkBuilder,
+        d3chunkbuilder::D3ChunkBuilder,
+        topology_builder::{TopologyBuilder, TopologyScene},
+    },
     collision_world::CollisionWorld,
     edge::Edges,
     hitinfo::HitInfo,
@@ -167,6 +173,7 @@ pub use crate::{
         surface::{BillboardAnimation, LoopOp, ProfileLoop, Surface},
         tile::{Tile, TileRole},
         tilesource::{TileGroup, TileGroupMemberRef, TileSource},
+        topology::MapTopology,
         vertex::Vertex,
     },
     material_profile::MaterialProfile,
@@ -175,6 +182,7 @@ pub use crate::{
     rect::Rect,
     rendermode::RenderMode,
     scene::Scene,
+    scene_build_index::SceneBuildIndex,
     scenebuilder::{d2builder::D2Builder, d2material::D2MaterialBuilder},
     scenemanager::*,
     // script::mapscript::MapScript,

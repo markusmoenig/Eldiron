@@ -3,6 +3,7 @@ pub mod d2chunkbuilder;
 pub mod d3chunkbuilder;
 pub mod surface_mesh_builder;
 pub mod terrain_generator;
+pub mod topology_builder;
 
 use crate::collision_world::ChunkCollision;
 use crate::{Assets, Chunk, Map};

@@ -1,4 +1,4 @@
-use crate::editor::{DOCKMANAGER, RUSTERIX, SCENEMANAGER};
+use crate::editor::{DOCKMANAGER, RUSTERIX};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
@@ -6,6 +6,7 @@ use rusterix::PixelSource;
 use rusterix::Surface;
 use scenevm::GeoId;
 use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
 
 const PROP_RADIUS: &str = "organic_brush_radius";
 const PROP_FLOW: &str = "organic_brush_flow";
@@ -33,6 +34,8 @@ const PROP_PAINT_MODE: &str = "organic_brush_paint_mode";
 pub(crate) const PROP_RENDER_ACTIVE: &str = "organic_render_active";
 pub(crate) const PROP_LOCK_MODE: &str = "organic_paint_lock_mode";
 const ORGANIC_DETAIL_TEXTURE_SIZE: u32 = 48;
+const LIVE_DETAIL_SYNC_INTERVAL: Duration = Duration::from_millis(75);
+const CACHED_SURFACE_MAX_DISTANCE: f32 = 0.08;
 
 #[derive(Clone, Copy)]
 struct OrganicTextureRect {
@@ -93,7 +96,11 @@ pub struct OrganicTool {
     stroke_work_map: Option<Map>,
     dirty_chunks: HashSet<(i32, i32)>,
     dirty_terrain_tiles: HashSet<(i32, i32)>,
+    pending_surface_regions: HashMap<Uuid, (Vec2<f32>, Vec2<f32>)>,
+    pending_terrain_regions: HashMap<(i32, i32), (Vec2<f32>, Vec2<f32>)>,
+    cached_stroke_surface_id: Option<Uuid>,
     last_stroke_hit_pos: Option<Vec3<f32>>,
+    last_live_detail_sync_at: Option<Instant>,
 }
 
 impl Tool for OrganicTool {
@@ -110,7 +117,11 @@ impl Tool for OrganicTool {
             stroke_work_map: None,
             dirty_chunks: HashSet::default(),
             dirty_terrain_tiles: HashSet::default(),
+            pending_surface_regions: HashMap::new(),
+            pending_terrain_regions: HashMap::new(),
+            cached_stroke_surface_id: None,
             last_stroke_hit_pos: None,
+            last_live_detail_sync_at: None,
         }
     }
 
@@ -211,6 +222,7 @@ impl Tool for OrganicTool {
             MapClicked(_) | MapDragged(_) => {
                 let erase = ui.shift;
                 self.begin_stroke_if_needed(map);
+                let mut stroke_changed = false;
                 if let Some(work_map) = self.stroke_work_map.as_mut() {
                     let changed = Self::apply_stroke(
                         work_map,
@@ -218,12 +230,24 @@ impl Tool for OrganicTool {
                         erase,
                         &mut self.dirty_chunks,
                         &mut self.dirty_terrain_tiles,
+                        &mut self.pending_surface_regions,
+                        &mut self.pending_terrain_regions,
+                        &mut self.cached_stroke_surface_id,
                         &mut self.last_stroke_hit_pos,
                     );
                     if changed {
                         self.stroke_changed = true;
-                        *map = work_map.clone();
                     }
+                    stroke_changed = changed;
+                }
+                if stroke_changed && let Some(work_map) = self.stroke_work_map.as_ref() {
+                    Self::sync_pending_detail_regions(
+                        work_map,
+                        &mut self.pending_surface_regions,
+                        &mut self.pending_terrain_regions,
+                        &mut self.last_live_detail_sync_at,
+                        false,
+                    );
                 }
             }
             MapUp(_) => {
@@ -259,7 +283,11 @@ impl OrganicTool {
         self.stroke_work_map = Some(map.clone());
         self.dirty_chunks.clear();
         self.dirty_terrain_tiles.clear();
+        self.pending_surface_regions.clear();
+        self.pending_terrain_regions.clear();
+        self.cached_stroke_surface_id = None;
         self.last_stroke_hit_pos = None;
+        self.last_live_detail_sync_at = None;
     }
 
     fn finish_stroke(
@@ -278,8 +306,23 @@ impl OrganicTool {
         self.stroke_changed = false;
 
         if changed && let (Some(prev), Some(work)) = (prev, work) {
-            SCENEMANAGER.write().unwrap().update_map(work.clone());
+            Self::sync_pending_detail_regions(
+                &work,
+                &mut self.pending_surface_regions,
+                &mut self.pending_terrain_regions,
+                &mut self.last_live_detail_sync_at,
+                true,
+            );
+            let dirty_chunks = self.dirty_chunks.iter().copied().collect::<Vec<_>>();
+            crate::utils::editor_scene_incremental_map_update(work.clone(), dirty_chunks);
             *map = work.clone();
+            self.dirty_chunks.clear();
+            self.dirty_terrain_tiles.clear();
+            self.pending_surface_regions.clear();
+            self.pending_terrain_regions.clear();
+            self.cached_stroke_surface_id = None;
+            self.last_stroke_hit_pos = None;
+            self.last_live_detail_sync_at = None;
             return Some(ProjectUndoAtom::MapEdit(
                 server_ctx.pc,
                 Box::new(prev),
@@ -307,7 +350,11 @@ impl OrganicTool {
         self.stroke_work_map = None;
         self.dirty_chunks.clear();
         self.dirty_terrain_tiles.clear();
+        self.pending_surface_regions.clear();
+        self.pending_terrain_regions.clear();
+        self.cached_stroke_surface_id = None;
         self.last_stroke_hit_pos = None;
+        self.last_live_detail_sync_at = None;
     }
 
     fn apply_stroke(
@@ -316,6 +363,9 @@ impl OrganicTool {
         erase: bool,
         dirty_chunks: &mut HashSet<(i32, i32)>,
         dirty_terrain_tiles: &mut HashSet<(i32, i32)>,
+        dirty_surface_regions: &mut HashMap<Uuid, (Vec2<f32>, Vec2<f32>)>,
+        dirty_terrain_regions: &mut HashMap<(i32, i32), (Vec2<f32>, Vec2<f32>)>,
+        cached_surface_id: &mut Option<Uuid>,
         last_stroke_hit_pos: &mut Option<Vec3<f32>>,
     ) -> bool {
         let brush = Self::evaluate_brush(map);
@@ -331,8 +381,6 @@ impl OrganicTool {
         let dist = delta.magnitude();
 
         if brush.uses_line_shape() && dist > 0.0001 {
-            let mut dirty_surface_regions = HashMap::new();
-            let mut dirty_terrain_regions = HashMap::new();
             Self::mark_dirty_chunks(dirty_chunks, hit_pos, brush.radius.max(brush.depth));
             Self::mark_dirty_chunks(dirty_chunks, start, brush.radius.max(brush.depth));
             let changed = Self::apply_line_segment(
@@ -343,19 +391,16 @@ impl OrganicTool {
                 &brush,
                 erase,
                 dirty_terrain_tiles,
-                &mut dirty_surface_regions,
-                &mut dirty_terrain_regions,
+                dirty_surface_regions,
+                dirty_terrain_regions,
+                cached_surface_id,
             );
-            Self::sync_dirty_surface_regions(map, dirty_surface_regions);
-            Self::sync_dirty_terrain_regions(map, dirty_terrain_regions);
             *last_stroke_hit_pos = Some(hit_pos);
             return changed;
         }
 
         let steps = (dist / step).ceil().max(1.0) as usize;
         let mut changed = false;
-        let mut dirty_surface_regions = HashMap::new();
-        let mut dirty_terrain_regions = HashMap::new();
         for i in 0..=steps {
             let t = if steps == 0 {
                 1.0
@@ -371,12 +416,11 @@ impl OrganicTool {
                 &brush,
                 erase,
                 dirty_terrain_tiles,
-                &mut dirty_surface_regions,
-                &mut dirty_terrain_regions,
+                dirty_surface_regions,
+                dirty_terrain_regions,
+                cached_surface_id,
             );
         }
-        Self::sync_dirty_surface_regions(map, dirty_surface_regions);
-        Self::sync_dirty_terrain_regions(map, dirty_terrain_regions);
 
         *last_stroke_hit_pos = Some(hit_pos);
         changed
@@ -392,6 +436,7 @@ impl OrganicTool {
         dirty_terrain_tiles: &mut HashSet<(i32, i32)>,
         dirty_surface_regions: &mut HashMap<Uuid, (Vec2<f32>, Vec2<f32>)>,
         dirty_terrain_regions: &mut HashMap<(i32, i32), (Vec2<f32>, Vec2<f32>)>,
+        cached_surface_id: &mut Option<Uuid>,
     ) -> bool {
         if !Self::locked_mode(map) && matches!(server_ctx.geo_hit, Some(GeoId::Terrain(_, _))) {
             return Self::apply_terrain_line_segment(
@@ -405,7 +450,8 @@ impl OrganicTool {
             );
         }
 
-        let Some(surface) = Self::paint_target_surface(map, server_ctx, end_pos) else {
+        let Some(surface) = Self::paint_target_surface(map, server_ctx, end_pos, cached_surface_id)
+        else {
             return false;
         };
 
@@ -472,6 +518,7 @@ impl OrganicTool {
         dirty_terrain_tiles: &mut HashSet<(i32, i32)>,
         dirty_surface_regions: &mut HashMap<Uuid, (Vec2<f32>, Vec2<f32>)>,
         dirty_terrain_regions: &mut HashMap<(i32, i32), (Vec2<f32>, Vec2<f32>)>,
+        cached_surface_id: &mut Option<Uuid>,
     ) -> bool {
         if !Self::locked_mode(map) && matches!(server_ctx.geo_hit, Some(GeoId::Terrain(_, _))) {
             return Self::apply_terrain_stroke_at(
@@ -484,7 +531,8 @@ impl OrganicTool {
             );
         }
 
-        let Some(surface) = Self::paint_target_surface(map, server_ctx, hit_pos) else {
+        let Some(surface) = Self::paint_target_surface(map, server_ctx, hit_pos, cached_surface_id)
+        else {
             return false;
         };
 
@@ -585,6 +633,33 @@ impl OrganicTool {
         }
     }
 
+    fn sync_pending_detail_regions(
+        map: &Map,
+        pending_surface_regions: &mut HashMap<Uuid, (Vec2<f32>, Vec2<f32>)>,
+        pending_terrain_regions: &mut HashMap<(i32, i32), (Vec2<f32>, Vec2<f32>)>,
+        last_sync_at: &mut Option<Instant>,
+        force: bool,
+    ) {
+        if pending_surface_regions.is_empty() && pending_terrain_regions.is_empty() {
+            return;
+        }
+
+        let now = Instant::now();
+        if !force
+            && last_sync_at
+                .map(|last| now.duration_since(last) < LIVE_DETAIL_SYNC_INTERVAL)
+                .unwrap_or(false)
+        {
+            return;
+        }
+
+        let surface_regions = std::mem::take(pending_surface_regions);
+        let terrain_regions = std::mem::take(pending_terrain_regions);
+        Self::sync_dirty_surface_regions(map, surface_regions);
+        Self::sync_dirty_terrain_regions(map, terrain_regions);
+        *last_sync_at = Some(now);
+    }
+
     pub(crate) fn sync_surface_detail_to_vm(map: &Map, surface_id: Uuid) {
         let Some(surface) = map.surfaces.get(&surface_id) else {
             return;
@@ -612,7 +687,7 @@ impl OrganicTool {
                 size: ORGANIC_DETAIL_TEXTURE_SIZE,
                 rgba,
             });
-        rusterix.set_dirty();
+        rusterix.set_overlay_dirty();
     }
 
     fn local_bounds_to_texture_rect(
@@ -714,7 +789,7 @@ impl OrganicTool {
                 height: rect.height,
                 rgba,
             });
-        rusterix.set_dirty();
+        rusterix.set_overlay_dirty();
     }
 
     fn terrain_tile_texture_rgba(map: &Map, tile_x: i32, tile_z: i32) -> Vec<u8> {
@@ -748,7 +823,7 @@ impl OrganicTool {
                 size: ORGANIC_DETAIL_TEXTURE_SIZE,
                 rgba,
             });
-        rusterix.set_dirty();
+        rusterix.set_overlay_dirty();
     }
 
     fn terrain_tile_texture_rect_rgba(
@@ -819,7 +894,7 @@ impl OrganicTool {
                 height: rect.height,
                 rgba,
             });
-        rusterix.set_dirty();
+        rusterix.set_overlay_dirty();
     }
 
     pub(crate) fn sync_render_active_to_vm(map: &Map) {
@@ -830,7 +905,7 @@ impl OrganicTool {
             .execute(scenevm::Atom::SetOrganicVisible {
                 visible: Self::render_active(map),
             });
-        rusterix.set_dirty();
+        rusterix.set_overlay_dirty();
     }
 
     pub(crate) fn terrain_tiles_for_sync(
@@ -858,11 +933,15 @@ impl OrganicTool {
         tiles
     }
 
-    pub(crate) fn sync_all_detail_to_vm(map: &Map) {
+    pub(crate) fn sync_map_edit_detail_to_vm(map: &Map, previous_map: Option<&Map>) {
         for surface_id in map.surfaces.keys().copied() {
             Self::sync_surface_detail_to_vm(map, surface_id);
         }
-        for (tile_x, tile_z) in Self::terrain_tiles_for_sync(&map.terrain_organic_layer) {
+        let mut terrain_tiles = previous_map
+            .map(|previous| Self::terrain_tiles_for_sync(&previous.terrain_organic_layer))
+            .unwrap_or_default();
+        terrain_tiles.extend(Self::terrain_tiles_for_sync(&map.terrain_organic_layer));
+        for (tile_x, tile_z) in terrain_tiles {
             Self::sync_terrain_detail_to_vm(map, tile_x, tile_z);
         }
         Self::sync_render_active_to_vm(map);
@@ -931,6 +1010,7 @@ impl OrganicTool {
         map: &Map,
         server_ctx: &ServerContext,
         hit_pos: Vec3<f32>,
+        cached_surface_id: &mut Option<Uuid>,
     ) -> Option<Surface> {
         let locked = Self::locked_mode(map);
         let geo_sector = match server_ctx.geo_hit {
@@ -938,14 +1018,32 @@ impl OrganicTool {
             _ => None,
         };
 
+        if let Some(surface_id) = *cached_surface_id
+            && let Some(surface) = map.surfaces.get(&surface_id)
+        {
+            let allowed = !locked || map.selected_sectors.contains(&surface.sector_id);
+            let same_sector = geo_sector
+                .map(|sector_id| sector_id == surface.sector_id)
+                .unwrap_or(true);
+            if allowed
+                && same_sector
+                && let Some(score) = Self::surface_hit_score(map, surface, hit_pos, geo_sector)
+                && score <= CACHED_SURFACE_MAX_DISTANCE
+            {
+                return Some(surface.clone());
+            }
+        }
+
         if locked {
             if let Some(surface) = server_ctx.active_detail_surface.as_ref() {
+                *cached_surface_id = Some(surface.id);
                 return Some(surface.clone());
             }
         }
 
         if let Some(surface) = Self::surface_at_hit(map, hit_pos, geo_sector) {
             if !locked || map.selected_sectors.contains(&surface.sector_id) {
+                *cached_surface_id = Some(surface.id);
                 return Some(surface);
             }
         }
@@ -957,6 +1055,7 @@ impl OrganicTool {
         server_ctx.hover_surface.as_ref().and_then(|surface| {
             let allowed = !locked || map.selected_sectors.contains(&surface.sector_id);
             if allowed && Self::surface_hit_score(map, surface, hit_pos, None).is_some() {
+                *cached_surface_id = Some(surface.id);
                 Some(surface.clone())
             } else {
                 None

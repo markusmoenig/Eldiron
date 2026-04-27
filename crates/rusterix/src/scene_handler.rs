@@ -9,6 +9,7 @@ use crate::{
     Assets, AvatarDirection, AvatarShadingOptions, BillboardAnimation, BillboardMetadata, D3Camera,
     Item, Map, ParticleEmitter, PixelSource, RenderSettings, Texture, Tile, Value, ValueTomlLoader,
     avatar_builder::AvatarRuntimeBuilder, chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
+    scene_build_index::SceneBuildIndex,
 };
 use buildergraph::{BuilderDocument, BuilderOutputTarget, BuilderPrimitive};
 use indexmap::IndexMap;
@@ -93,12 +94,15 @@ impl DoorAnimState {
 
 pub struct SceneHandler {
     pub vm: SceneVM,
+    pub build_index: SceneBuildIndex,
 
     pub overlay_2d_id: Uuid,
     pub overlay_2d: Chunk,
 
     pub overlay_3d_id: Uuid,
     pub overlay_3d: Chunk,
+    pub tool_overlay_3d_id: Uuid,
+    pub tool_overlay_3d: Chunk,
 
     pub character_off: Uuid,
     pub character_on: Uuid,
@@ -2291,12 +2295,15 @@ impl SceneHandler {
 
         Self {
             vm,
+            build_index: SceneBuildIndex::default(),
 
             overlay_2d_id: Uuid::new_v4(),
             overlay_2d: Chunk::default(),
 
             overlay_3d_id: Uuid::new_v4(),
             overlay_3d: Chunk::default(),
+            tool_overlay_3d_id: Uuid::new_v4(),
+            tool_overlay_3d: Chunk::default(),
 
             character_off: Uuid::new_v4(),
             character_on: Uuid::new_v4(),
@@ -2947,6 +2954,20 @@ impl SceneHandler {
             self.vm
                 .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Raster3D));
         }
+        if self.vm.vm_layer_count() == 3 {
+            // Fast-changing 3D tool preview layer.
+            let idx = self.vm.add_vm_layer();
+            self.vm.set_active_vm(idx);
+
+            self.vm.execute(scenevm::Atom::SetBackground(Vec4::zero()));
+            if let Some(bytes) = crate::Embedded::get("shader/3d_overlay_shader.wgsl") {
+                if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
+                    self.vm.execute(Atom::SetSource3D(source.into()));
+                }
+            }
+            self.vm
+                .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Raster3D));
+        }
         self.vm.set_active_vm(0);
 
         self.overlay_2d = Chunk::default();
@@ -2954,6 +2975,9 @@ impl SceneHandler {
 
         self.overlay_3d = Chunk::default();
         self.overlay_3d.priority = 0;
+
+        self.tool_overlay_3d = Chunk::default();
+        self.tool_overlay_3d.priority = 1;
     }
 
     pub fn set_overlay(&mut self) {
@@ -2967,7 +2991,35 @@ impl SceneHandler {
             id: self.overlay_3d_id,
             chunk: self.overlay_3d.clone(),
         });
+        self.vm.set_active_vm(3);
+        self.vm.execute(Atom::AddChunk {
+            id: self.tool_overlay_3d_id,
+            chunk: self.tool_overlay_3d.clone(),
+        });
         self.vm.set_active_vm(0);
+    }
+
+    pub fn replace_owner_geometry(&mut self, owners: &FxHashSet<GeoId>, generated: Vec<Chunk>) {
+        let old_origins = self.build_index.chunks_for_owners(owners.iter().copied());
+        let replacement_chunks = self
+            .build_index
+            .build_owner_replacement_chunks(owners, generated);
+
+        self.vm.set_active_vm(0);
+        for origin in old_origins {
+            self.vm.execute(Atom::RemoveChunkAt {
+                origin: Vec2::new(origin.0, origin.1),
+            });
+            self.build_index.remove_chunk_origin(origin);
+        }
+        for chunk in replacement_chunks {
+            self.build_index.index_chunk(&chunk);
+            self.vm.execute(Atom::AddChunk {
+                id: Uuid::new_v4(),
+                chunk,
+            });
+        }
+        self.mark_dynamics_dirty();
     }
 
     pub fn add_overlay_2d_line(

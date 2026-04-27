@@ -804,8 +804,8 @@ impl Client {
                 .collect();
             scene_handler.vm.set_layer_enabled(0, false);
             scene_handler.vm.set_layer_enabled(1, true);
-            if scene_handler.vm.vm_layer_count() > 2 {
-                scene_handler.vm.set_layer_enabled(2, false);
+            for layer in 2..scene_handler.vm.vm_layer_count() {
+                scene_handler.vm.set_layer_enabled(layer, false);
             }
             scene_handler.vm.set_active_vm(1);
             scene_handler
@@ -923,8 +923,8 @@ impl Client {
         if scene_handler.vm.vm_layer_count() > 1 {
             scene_handler.vm.set_layer_enabled(1, overlay_layer_enabled);
         }
-        if scene_handler.vm.vm_layer_count() > 2 {
-            scene_handler.vm.set_layer_enabled(2, false);
+        for layer in 2..scene_handler.vm.vm_layer_count() {
+            scene_handler.vm.set_layer_enabled(layer, false);
         }
 
         scene_handler
@@ -950,8 +950,8 @@ impl Client {
 
         // Set the transform for the overlay if active
         if scene_handler.vm.vm_layer_count() > 1 && overlay_layer_enabled {
-            if scene_handler.vm.vm_layer_count() > 2 {
-                scene_handler.vm.set_layer_enabled(2, false);
+            for layer in 2..scene_handler.vm.vm_layer_count() {
+                scene_handler.vm.set_layer_enabled(layer, false);
             }
             scene_handler.vm.set_active_vm(1);
             scene_handler
@@ -1075,9 +1075,8 @@ impl Client {
         });
 
         // In 3D mode, enable overlay layers.
-        if scene_handler.vm.vm_layer_count() > 2 {
-            scene_handler.vm.set_layer_enabled(1, true);
-            scene_handler.vm.set_layer_enabled(2, true);
+        for layer in 1..scene_handler.vm.vm_layer_count() {
+            scene_handler.vm.set_layer_enabled(layer, true);
         }
 
         if scene_handler.vm.vm_layer_count() > 1 {
@@ -1111,26 +1110,28 @@ impl Client {
                 .vm
                 .execute(scenevm::Atom::SetGP2(Vec4::zero()));
 
-            scene_handler.vm.set_active_vm(2);
-            scene_handler.apply_runtime_render_state_settings();
-            scene_handler.settings.apply_3d(&mut scene_handler.vm);
-            scene_handler.apply_runtime_render_state_3d();
-            scene_handler.vm.execute(scenevm::Atom::SetCamera3D {
-                camera: self.camera_d3.as_scenevm_camera(),
-            });
-            scene_handler.vm.execute(scenevm::Atom::SetRenderMode(
-                scene_handler.settings.scenevm_mode_3d(),
-            ));
-            // Keep editor overlay lines readable and color-accurate regardless of world lighting.
-            scene_handler
-                .vm
-                .execute(scenevm::Atom::SetGP2(Vec4::new(0.0, 0.0, 0.0, 0.0))); // sun off
-            scene_handler
-                .vm
-                .execute(scenevm::Atom::SetGP3(Vec4::new(1.0, 1.0, 1.0, 1.0))); // full ambient
-            scene_handler
-                .vm
-                .execute(scenevm::Atom::SetGP4(Vec4::new(0.0, 0.0, 0.0, 0.0))); // fog off
+            for layer in 2..scene_handler.vm.vm_layer_count() {
+                scene_handler.vm.set_active_vm(layer);
+                scene_handler.apply_runtime_render_state_settings();
+                scene_handler.settings.apply_3d(&mut scene_handler.vm);
+                scene_handler.apply_runtime_render_state_3d();
+                scene_handler.vm.execute(scenevm::Atom::SetCamera3D {
+                    camera: self.camera_d3.as_scenevm_camera(),
+                });
+                scene_handler.vm.execute(scenevm::Atom::SetRenderMode(
+                    scene_handler.settings.scenevm_mode_3d(),
+                ));
+                // Keep editor overlay lines readable and color-accurate regardless of world lighting.
+                scene_handler
+                    .vm
+                    .execute(scenevm::Atom::SetGP2(Vec4::new(0.0, 0.0, 0.0, 0.0))); // sun off
+                scene_handler
+                    .vm
+                    .execute(scenevm::Atom::SetGP3(Vec4::new(1.0, 1.0, 1.0, 1.0))); // full ambient
+                scene_handler
+                    .vm
+                    .execute(scenevm::Atom::SetGP4(Vec4::new(0.0, 0.0, 0.0, 0.0))); // fog off
+            }
             scene_handler.vm.set_active_vm(0);
         }
 

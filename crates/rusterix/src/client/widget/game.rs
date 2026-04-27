@@ -472,6 +472,7 @@ impl GameWidget {
             scene_handler.vm.execute(scenevm::Atom::RemoveChunkAt {
                 origin: Vec2::new(coord.0, coord.1),
             });
+            scene_handler.build_index.remove_chunk_origin(coord);
             self.loaded_chunks.remove(&coord);
         }
 
@@ -727,10 +728,14 @@ impl GameWidget {
                     debug_received_chunks += 1;
                     geometry_changed = true;
                     self.loaded_chunks.insert((chunk.origin.x, chunk.origin.y));
+                    scene_handler
+                        .build_index
+                        .remove_chunk_origin((chunk.origin.x, chunk.origin.y));
                     scene_handler.vm.execute(scenevm::Atom::RemoveChunkAt {
                         origin: chunk.origin,
                     });
 
+                    scene_handler.build_index.index_chunk(&chunk);
                     scene_handler.vm.execute(scenevm::Atom::AddChunk {
                         id: Uuid::new_v4(),
                         chunk: chunk,
@@ -745,6 +750,7 @@ impl GameWidget {
                     debug_received_clears += 1;
                     geometry_changed = true;
                     self.loaded_chunks.clear();
+                    scene_handler.build_index.clear();
                     scene_handler.vm.execute(scenevm::Atom::ClearGeometry);
                     scene_handler.billboards.clear();
                     scene_handler.billboard_anim_states.clear();

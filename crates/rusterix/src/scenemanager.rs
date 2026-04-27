@@ -1,6 +1,6 @@
 use crate::{
-    Assets, BBox, Chunk, ChunkBuilder, D2ChunkBuilder, D3ChunkBuilder, Map, PixelSource, Texture,
-    Tile, Value, ValueContainer,
+    Assets, BBox, Chunk, ChunkBuilder, D2ChunkBuilder, Map, PixelSource, Texture, Tile,
+    TopologyBuilder, Value, ValueContainer,
 };
 use scenevm::Chunk as VMChunk;
 use theframework::prelude::*;
@@ -136,7 +136,7 @@ impl SceneManager {
             focus_chunk: None,
 
             chunk_builder_d2: Some(Box::new(D2ChunkBuilder::new())),
-            chunk_builder_d3: Some(Box::new(D3ChunkBuilder::new())),
+            chunk_builder_d3: Some(Box::new(TopologyBuilder::new())),
             apply_preview_filters: false,
 
             results: Vec::new(),
@@ -271,6 +271,14 @@ impl SceneManager {
 
     pub fn replace_dirty(&mut self, dirty: Vec<(i32, i32)>) {
         self.send(SceneManagerCmd::ReplaceDirty(dirty));
+    }
+
+    pub fn chunk_size(&self) -> i32 {
+        self.chunk_size
+    }
+
+    pub fn chunk_coords_for_bbox(&self, bbox: &BBox) -> FxHashSet<(i32, i32)> {
+        Self::generate_chunk_coords(bbox, self.chunk_size)
     }
 
     pub fn startup(&mut self) {

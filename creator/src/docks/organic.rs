@@ -1,4 +1,4 @@
-use crate::editor::{PALETTE, SCENEMANAGER, UNDOMANAGER};
+use crate::editor::{PALETTE, UNDOMANAGER};
 use crate::prelude::*;
 use crate::tools::organic::OrganicTool;
 
@@ -951,19 +951,25 @@ impl OrganicDock {
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
     ) {
-        let Some(map) = project.get_map_mut(server_ctx) else {
-            return;
+        let map_edit = {
+            let Some(map) = project.get_map_mut(server_ctx) else {
+                return;
+            };
+            let prev = map.clone();
+            let next = !map.properties.get_bool_default(PROP_RENDER_ACTIVE, true);
+            map.properties.set(PROP_RENDER_ACTIVE, Value::Bool(next));
+            map.changed += 1;
+            OrganicTool::sync_render_active_to_vm(map);
+            Some((prev, map.clone()))
         };
-        let prev = map.clone();
-        let next = !map.properties.get_bool_default(PROP_RENDER_ACTIVE, true);
-        map.properties.set(PROP_RENDER_ACTIVE, Value::Bool(next));
-        map.changed += 1;
-        OrganicTool::sync_render_active_to_vm(map);
-        SCENEMANAGER.write().unwrap().update_map(map.clone());
-        UNDOMANAGER.write().unwrap().add_undo(
-            ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone())),
-            ctx,
-        );
+
+        if let Some((prev, next)) = map_edit {
+            crate::utils::editor_scene_apply_map_edit(project, server_ctx, &prev, &next);
+            UNDOMANAGER.write().unwrap().add_undo(
+                ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(next)),
+                ctx,
+            );
+        }
     }
 
     fn clear_organic(
@@ -972,24 +978,30 @@ impl OrganicDock {
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
     ) {
-        let Some(map) = project.get_map_mut(server_ctx) else {
-            return;
+        let map_edit = {
+            let Some(map) = project.get_map_mut(server_ctx) else {
+                return;
+            };
+            let prev = map.clone();
+            let changed = if map.properties.get_int_default(PROP_LOCK_MODE, 0) == 0 {
+                Self::clear_all_organic(map)
+            } else {
+                Self::clear_locked_organic(map, server_ctx)
+            };
+            if !changed {
+                return;
+            }
+            map.changed += 1;
+            Some((prev, map.clone()))
         };
-        let prev = map.clone();
-        let changed = if map.properties.get_int_default(PROP_LOCK_MODE, 0) == 0 {
-            Self::clear_all_organic(map)
-        } else {
-            Self::clear_locked_organic(map, server_ctx)
-        };
-        if !changed {
-            return;
+
+        if let Some((prev, next)) = map_edit {
+            crate::utils::editor_scene_apply_map_edit(project, server_ctx, &prev, &next);
+            UNDOMANAGER.write().unwrap().add_undo(
+                ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(next)),
+                ctx,
+            );
         }
-        map.changed += 1;
-        SCENEMANAGER.write().unwrap().update_map(map.clone());
-        UNDOMANAGER.write().unwrap().add_undo(
-            ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone())),
-            ctx,
-        );
     }
 
     fn clear_all_organic(map: &mut Map) -> bool {

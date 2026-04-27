@@ -1,4 +1,4 @@
-use crate::editor::{RUSTERIX, TOOLLIST, UNDOMANAGER};
+use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
 use rusterix::Surface;
 use scenevm::GeoId;
@@ -333,12 +333,7 @@ impl Dock for BuilderDock {
                     if !applied_to_item_slot {
                         self.activate_asset(asset_id, ui, ctx, project, server_ctx);
                     }
-                    RUSTERIX.write().unwrap().set_dirty();
-                    crate::utils::scenemanager_render_map(project, server_ctx);
-                    TOOLLIST
-                        .write()
-                        .unwrap()
-                        .update_geometry_overlay_3d(project, server_ctx);
+                    crate::utils::editor_scene_full_rebuild(project, server_ctx);
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Builder Selection Changed"),
                         TheValue::Id(asset_id),
@@ -361,12 +356,7 @@ impl Dock for BuilderDock {
                 if !cleared_item_slot {
                     self.clear_selected_hosts(project, server_ctx);
                 }
-                RUSTERIX.write().unwrap().set_dirty();
-                crate::utils::scenemanager_render_map(project, server_ctx);
-                TOOLLIST
-                    .write()
-                    .unwrap()
-                    .update_geometry_overlay_3d(project, server_ctx);
+                crate::utils::editor_scene_full_rebuild(project, server_ctx);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Builder Selection Changed"),
                     TheValue::Empty,

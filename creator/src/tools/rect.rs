@@ -4,7 +4,10 @@ use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
 use rusterix::prelude::*;
+use std::time::{Duration, Instant};
 use vek::Vec2;
+
+const LIVE_PAINT_SYNC_INTERVAL: Duration = Duration::from_millis(75);
 
 pub struct RectTool {
     id: TheId,
@@ -22,6 +25,8 @@ pub struct RectTool {
     last_2d_cell: Option<Vec2<i32>>,
     line_start_2d_cell: Option<Vec2<i32>>,
     line_axis_horizontal: Option<bool>,
+    last_live_scene_sync_at: Option<Instant>,
+    stroke_dirty_chunks: FxHashSet<(i32, i32)>,
 }
 
 impl Tool for RectTool {
@@ -45,6 +50,8 @@ impl Tool for RectTool {
             last_2d_cell: None,
             line_start_2d_cell: None,
             line_axis_horizontal: None,
+            last_live_scene_sync_at: None,
+            stroke_dirty_chunks: FxHashSet::default(),
         }
     }
 
@@ -358,6 +365,13 @@ impl Tool for RectTool {
                             };
                             if changed {
                                 self.stroke_changed = true;
+                                Self::sync_live_stroke_throttled(
+                                    work_map,
+                                    server_ctx,
+                                    &mut self.last_live_scene_sync_at,
+                                    &mut self.stroke_dirty_chunks,
+                                    false,
+                                );
                             }
                             self.processed.insert(k);
                             self.last_2d_cell = Some(k);
@@ -372,6 +386,13 @@ impl Tool for RectTool {
                         && !self.processed.contains(&key)
                     {
                         self.stroke_changed = true;
+                        Self::sync_live_stroke_throttled(
+                            work_map,
+                            server_ctx,
+                            &mut self.last_live_scene_sync_at,
+                            &mut self.stroke_dirty_chunks,
+                            false,
+                        );
                         self.processed.insert(key);
                     }
                 }
@@ -446,6 +467,13 @@ impl Tool for RectTool {
                                 };
                                 if changed {
                                     self.stroke_changed = true;
+                                    Self::sync_live_stroke_throttled(
+                                        work_map,
+                                        server_ctx,
+                                        &mut self.last_live_scene_sync_at,
+                                        &mut self.stroke_dirty_chunks,
+                                        false,
+                                    );
                                 }
                                 self.processed.insert(cell);
                             }
@@ -461,6 +489,13 @@ impl Tool for RectTool {
                         && !self.processed.contains(&key)
                     {
                         self.stroke_changed = true;
+                        Self::sync_live_stroke_throttled(
+                            work_map,
+                            server_ctx,
+                            &mut self.last_live_scene_sync_at,
+                            &mut self.stroke_dirty_chunks,
+                            false,
+                        );
                         self.processed.insert(key);
                     }
                 }
@@ -471,6 +506,7 @@ impl Tool for RectTool {
                         && let (Some(prev), Some(new_map)) =
                             (self.stroke_prev_map.take(), self.stroke_work_map.take())
                     {
+                        Self::sync_live_stroke(&new_map, server_ctx);
                         *map = new_map;
                         undo_atom = Some(ProjectUndoAtom::MapEdit(
                             server_ctx.pc,
@@ -761,6 +797,131 @@ impl RectTool {
             self.stroke_prev_map = Some(map.clone());
             self.stroke_work_map = Some(map.clone());
             self.processed.clear();
+            self.last_live_scene_sync_at = None;
+            self.stroke_dirty_chunks.clear();
+        }
+    }
+
+    fn add_bbox_dirty_chunks(bbox: rusterix::BBox, chunks: &mut Vec<(i32, i32)>) {
+        if !bbox.min.x.is_finite()
+            || !bbox.min.y.is_finite()
+            || !bbox.max.x.is_finite()
+            || !bbox.max.y.is_finite()
+        {
+            return;
+        }
+
+        let chunk_size = 32;
+        let min_cx = (bbox.min.x / chunk_size as f32).floor() as i32;
+        let min_cy = (bbox.min.y / chunk_size as f32).floor() as i32;
+        let max_cx = (bbox.max.x / chunk_size as f32).ceil() as i32;
+        let max_cy = (bbox.max.y / chunk_size as f32).ceil() as i32;
+        for cy in min_cy..max_cy.max(min_cy + 1) {
+            for cx in min_cx..max_cx.max(min_cx + 1) {
+                chunks.push((cx * chunk_size, cy * chunk_size));
+            }
+        }
+    }
+
+    fn add_surface_tile_dirty_chunks(
+        work_map: &Map,
+        sector_id: u32,
+        tile: (i32, i32),
+        chunks: &mut Vec<(i32, i32)>,
+    ) -> bool {
+        let mut added = false;
+        for surface in work_map
+            .surfaces
+            .values()
+            .filter(|surface| surface.sector_id == sector_id)
+        {
+            let points = surface.tile_outline_world_local(tile, work_map);
+            if points.is_empty() {
+                continue;
+            }
+
+            let first = Vec2::new(points[0].x, points[0].z);
+            let mut bbox = rusterix::BBox::new(first, first);
+            for p in points.iter().skip(1) {
+                let p = Vec2::new(p.x, p.z);
+                bbox.min.x = bbox.min.x.min(p.x);
+                bbox.min.y = bbox.min.y.min(p.y);
+                bbox.max.x = bbox.max.x.max(p.x);
+                bbox.max.y = bbox.max.y.max(p.y);
+            }
+            bbox.expand(Vec2::broadcast(0.05));
+            Self::add_bbox_dirty_chunks(bbox, chunks);
+            added = true;
+        }
+        added
+    }
+
+    fn live_stroke_dirty_chunks(work_map: &Map, server_ctx: &ServerContext) -> Vec<(i32, i32)> {
+        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+            return Vec::new();
+        }
+
+        let mut dirty_chunks = Vec::new();
+        if let Some((x, z)) = server_ctx.rect_terrain_id {
+            let chunk_size = 32;
+            dirty_chunks.push((
+                x.div_euclid(chunk_size) * chunk_size,
+                z.div_euclid(chunk_size) * chunk_size,
+            ));
+        } else if let Some(sector_id) = server_ctx.rect_sector_id_3d
+            && let Some(sector) = work_map.find_sector(sector_id)
+        {
+            {
+                let rusterix = crate::editor::RUSTERIX.read().unwrap();
+                dirty_chunks.extend(
+                    rusterix
+                        .scene_handler
+                        .build_index
+                        .chunks_for_owner(scenevm::GeoId::Sector(sector_id)),
+                );
+            }
+            if !Self::add_surface_tile_dirty_chunks(
+                work_map,
+                sector_id,
+                server_ctx.rect_tile_id_3d,
+                &mut dirty_chunks,
+            ) {
+                Self::add_bbox_dirty_chunks(sector.bounding_box(work_map), &mut dirty_chunks);
+            }
+        }
+
+        dirty_chunks
+    }
+
+    fn sync_live_stroke(work_map: &Map, server_ctx: &ServerContext) {
+        let dirty_chunks = Self::live_stroke_dirty_chunks(work_map, server_ctx);
+        if !dirty_chunks.is_empty() {
+            crate::utils::editor_scene_incremental_map_update(work_map.clone(), dirty_chunks);
+        }
+    }
+
+    fn sync_live_stroke_throttled(
+        work_map: &Map,
+        server_ctx: &ServerContext,
+        last_live_scene_sync_at: &mut Option<Instant>,
+        stroke_dirty_chunks: &mut FxHashSet<(i32, i32)>,
+        force: bool,
+    ) {
+        stroke_dirty_chunks.extend(Self::live_stroke_dirty_chunks(work_map, server_ctx));
+        let now = Instant::now();
+        if force
+            || last_live_scene_sync_at
+                .map(|last| now.duration_since(last) >= LIVE_PAINT_SYNC_INTERVAL)
+                .unwrap_or(true)
+        {
+            let dirty_chunks = stroke_dirty_chunks.iter().copied().collect::<Vec<_>>();
+            if !dirty_chunks.is_empty() {
+                crate::utils::editor_scene_replace_incremental_map_update(
+                    work_map.clone(),
+                    dirty_chunks,
+                );
+            }
+            *last_live_scene_sync_at = Some(now);
         }
     }
 
@@ -773,6 +934,8 @@ impl RectTool {
         self.line_start_2d_cell = None;
         self.line_axis_horizontal = None;
         self.processed.clear();
+        self.last_live_scene_sync_at = None;
+        self.stroke_dirty_chunks.clear();
     }
 
     fn cells_between(a: Vec2<i32>, b: Vec2<i32>) -> Vec<Vec2<i32>> {

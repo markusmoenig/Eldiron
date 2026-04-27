@@ -915,8 +915,7 @@ impl Dock for DungeonDock {
                                 server_ctx.curr_dungeon_create_ceiling,
                             );
                             map.changed += 1;
-                            crate::utils::scenemanager_render_map(_project, server_ctx);
-                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            crate::utils::editor_scene_full_rebuild(_project, server_ctx);
                             redraw = true;
                         }
                     }

@@ -1808,11 +1808,16 @@ impl TheTrait for Editor {
 
                     rusterix
                         .scene_handler
+                        .build_index
+                        .remove_chunk_origin((chunk.origin.x, chunk.origin.y));
+                    rusterix
+                        .scene_handler
                         .vm
                         .execute(scenevm::Atom::RemoveChunkAt {
                             origin: chunk.origin,
                         });
 
+                    rusterix.scene_handler.build_index.index_chunk(&chunk);
                     rusterix.scene_handler.vm.execute(scenevm::Atom::AddChunk {
                         id: Uuid::new_v4(),
                         chunk: chunk,
@@ -1839,6 +1844,7 @@ impl TheTrait for Editor {
                         .execute(scenevm::Atom::ClearGeometry);
 
                     rusterix.scene_handler.billboards.clear();
+                    rusterix.scene_handler.build_index.clear();
                 }
                 SceneManagerResult::Quit => {
                     println!("Scene manager has shutdown.");
@@ -1887,17 +1893,8 @@ impl TheTrait for Editor {
             }
 
             if only_3d_polyview_hover {
-                let now = std::time::Instant::now();
-                const HOVER_REDRAW_INTERVAL: std::time::Duration =
-                    std::time::Duration::from_millis(100);
-                let should_redraw_hover = self
-                    .last_3d_hover_redraw_at
-                    .map(|last| now.saturating_duration_since(last) >= HOVER_REDRAW_INTERVAL)
-                    .unwrap_or(true);
-                if should_redraw_hover {
-                    self.last_3d_hover_redraw_at = Some(now);
-                    redraw_update = true;
-                }
+                self.last_3d_hover_redraw_at = Some(std::time::Instant::now());
+                redraw_update = true;
             } else {
                 redraw_update = true;
             }
@@ -2806,7 +2803,7 @@ impl TheTrait for Editor {
                                 && self.server_ctx.profile_view.is_some()
                             {
                             } else {
-                                crate::utils::scenemanager_render_map(
+                                crate::utils::editor_scene_full_rebuild(
                                     &self.project,
                                     &self.server_ctx,
                                 );

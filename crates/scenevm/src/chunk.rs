@@ -24,6 +24,14 @@ pub struct Chunk {
 }
 
 impl Chunk {
+    pub fn owner_geo_ids(&self) -> impl Iterator<Item = GeoId> + '_ {
+        self.polys_map
+            .keys()
+            .chain(self.lines2d_px.keys())
+            .chain(self.polys3d_map.keys())
+            .copied()
+    }
+
     fn insert_poly2d_allow_terrain_dupes(&mut self, poly: Poly2D) {
         if self.polys_map.contains_key(&poly.id)
             && let GeoId::Terrain(tx, tz) = poly.id

@@ -1218,8 +1218,7 @@ impl Sidebar {
                                 server_ctx.curr_dungeon_create_ceiling,
                             );
                             map.changed += 1;
-                            crate::utils::scenemanager_render_map(project, server_ctx);
-                            RUSTERIX.write().unwrap().set_dirty();
+                            crate::utils::editor_scene_full_rebuild(project, server_ctx);
                         }
                     }
                 } else if id.name == "Dungeon Ceilings" {
@@ -1233,8 +1232,7 @@ impl Sidebar {
                                 server_ctx.curr_dungeon_create_ceiling,
                             );
                             map.changed += 1;
-                            crate::utils::scenemanager_render_map(project, server_ctx);
-                            RUSTERIX.write().unwrap().set_dirty();
+                            crate::utils::editor_scene_full_rebuild(project, server_ctx);
                         }
                     }
                 } else if id.name == "Action Params TOML" {
@@ -1274,8 +1272,7 @@ impl Sidebar {
                                         server_ctx.curr_dungeon_create_ceiling,
                                     );
                                     map.changed += 1;
-                                    crate::utils::scenemanager_render_map(project, server_ctx);
-                                    RUSTERIX.write().unwrap().set_dirty();
+                                    crate::utils::editor_scene_full_rebuild(project, server_ctx);
                                 }
                             }
                         }
@@ -2056,7 +2053,7 @@ impl Sidebar {
                     }
                 }
                 if needs_scene_redraw {
-                    crate::utils::scenemanager_render_map(project, server_ctx);
+                    crate::utils::editor_scene_full_rebuild(project, server_ctx);
                     TOOLLIST
                         .write()
                         .unwrap()
@@ -2177,7 +2174,7 @@ impl Sidebar {
                             action.apply_project(project, ui, ctx, server_ctx);
 
                             if needs_scene_redraw {
-                                crate::utils::scenemanager_render_map(project, server_ctx);
+                                crate::utils::editor_scene_full_rebuild(project, server_ctx);
                                 TOOLLIST
                                     .write()
                                     .unwrap()
