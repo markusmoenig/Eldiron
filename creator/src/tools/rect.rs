@@ -506,6 +506,25 @@ impl Tool for RectTool {
         server_ctx: &mut ServerContext,
         assets: &Assets,
     ) {
+        if server_ctx.editor_view_mode == EditorViewMode::D2
+            && let Some((top_left, bottom_right)) = map.curr_rectangle
+        {
+            let screen_size = Vec2::new(buffer.dim().width as f32, buffer.dim().height as f32);
+            let a = ServerContext::map_grid_to_local(screen_size, top_left, map);
+            let b = ServerContext::map_grid_to_local(screen_size, bottom_right, map);
+            let min_x = a.x.min(b.x).round() as i32;
+            let min_y = a.y.min(b.y).round() as i32;
+            let max_x = a.x.max(b.x).round() as i32;
+            let max_y = a.y.max(b.y).round() as i32;
+            let rect = TheDim::new(
+                min_x,
+                min_y,
+                (max_x - min_x).max(1) + 1,
+                (max_y - min_y).max(1) + 1,
+            );
+            buffer.draw_rect_outline(&rect, &[255, 255, 255, 255]);
+        }
+
         let id = if !map.selected_linedefs.is_empty() {
             Some(map.selected_linedefs[0])
         } else {

@@ -220,6 +220,8 @@ impl MapEditor {
                                 } else {
                                     CustomMoveAction::Forward
                                 });
+                                ctx.ui.redraw_all = true;
+                                redraw = true;
                             }
                         }
                         TheKeyCode::Down => {
@@ -229,18 +231,24 @@ impl MapEditor {
                                 } else {
                                     CustomMoveAction::Backward
                                 });
+                                ctx.ui.redraw_all = true;
+                                redraw = true;
                             }
                         }
                         TheKeyCode::Left => {
                             if server_ctx.editor_view_mode == EditorViewMode::FirstP {
                                 EDITCAMERA.write().unwrap().move_action =
                                     Some(CustomMoveAction::Left);
+                                ctx.ui.redraw_all = true;
+                                redraw = true;
                             }
                         }
                         TheKeyCode::Right => {
                             if server_ctx.editor_view_mode == EditorViewMode::FirstP {
                                 EDITCAMERA.write().unwrap().move_action =
                                     Some(CustomMoveAction::Right);
+                                ctx.ui.redraw_all = true;
+                                redraw = true;
                             }
                         }
                         _ => {}
@@ -250,6 +258,8 @@ impl MapEditor {
             TheEvent::KeyCodeUp(TheValue::KeyCode(_)) => {
                 if server_ctx.editor_view_mode == EditorViewMode::FirstP {
                     EDITCAMERA.write().unwrap().move_action = None;
+                    ctx.ui.redraw_all = true;
+                    redraw = true;
                 }
             }
 

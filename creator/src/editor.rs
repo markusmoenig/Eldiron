@@ -126,6 +126,7 @@ pub struct Editor {
 
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
+    last_3d_hover_redraw_at: Option<std::time::Instant>,
 
     #[cfg(all(
         feature = "self-update",
@@ -999,9 +1000,14 @@ impl Editor {
             || RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running
     }
 
+    fn firstp_editor_camera_moving(&self) -> bool {
+        self.server_ctx.editor_view_mode == EditorViewMode::FirstP
+            && EDITCAMERA.read().unwrap().move_action.is_some()
+    }
+
     fn redraw_interval_ms(&self) -> u64 {
         let config = CONFIGEDITOR.read().unwrap();
-        if self.is_realtime_mode() {
+        if self.is_realtime_mode() || self.firstp_editor_camera_moving() {
             (1000 / config.target_fps.clamp(1, 60)) as u64
         } else {
             config.game_tick_ms.max(1) as u64
@@ -1182,6 +1188,7 @@ impl TheTrait for Editor {
 
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
+            last_3d_hover_redraw_at: None,
 
             #[cfg(all(
                 feature = "self-update",
@@ -1852,7 +1859,48 @@ impl TheTrait for Editor {
             }
         }
         if !pending_events.is_empty() {
-            redraw_update = true;
+            let only_3d_polyview_hover = self.server_ctx.editor_view_mode != EditorViewMode::D2
+                && pending_events.iter().all(|event| {
+                    matches!(
+                        event,
+                        TheEvent::RenderViewHoverChanged(id, _)
+                            | TheEvent::RenderViewLostHover(id) if id.name == "PolyView"
+                    )
+                });
+            let only_3d_geometry_drag = self.server_ctx.editor_view_mode != EditorViewMode::D2
+                && matches!(
+                    self.server_ctx.curr_map_tool_type,
+                    MapToolType::Vertex | MapToolType::Linedef | MapToolType::Sector
+                )
+                && self.server_ctx.geometry_edit_mode != GeometryEditMode::Detail
+                && pending_events.iter().all(|event| {
+                    matches!(
+                        event,
+                        TheEvent::RenderViewDragged(id, _) if id.name == "PolyView"
+                    )
+                });
+            if only_3d_polyview_hover || only_3d_geometry_drag {
+                if let Some(last_event) = pending_events.pop() {
+                    pending_events.clear();
+                    pending_events.push(last_event);
+                }
+            }
+
+            if only_3d_polyview_hover {
+                let now = std::time::Instant::now();
+                const HOVER_REDRAW_INTERVAL: std::time::Duration =
+                    std::time::Duration::from_millis(100);
+                let should_redraw_hover = self
+                    .last_3d_hover_redraw_at
+                    .map(|last| now.saturating_duration_since(last) >= HOVER_REDRAW_INTERVAL)
+                    .unwrap_or(true);
+                if should_redraw_hover {
+                    self.last_3d_hover_redraw_at = Some(now);
+                    redraw_update = true;
+                }
+            } else {
+                redraw_update = true;
+            }
         }
 
         if let Some(receiver) = &mut self.starter_loader_rx

@@ -1,3 +1,22 @@
+# Eldiron v0.9.9
+
+## Bug Fixes
+
+### Creator
+
+- Improved 3D editor responsiveness while moving the mouse over dense geometry by coalescing redundant hover / drag events and throttling expensive 3D overlay refreshes.
+- Improved 3D geometry editing responsiveness by processing only the latest queued drag event for vertex, linedef, and sector editing instead of replaying every intermediate mouse event.
+- Improved 3D Rect Tool tile painting performance by avoiding full geometry overlay rebuilds during paint drags.
+- Improved 3D Rect Tool tile-paint commits so tile-only strokes dirty only the affected scene chunks instead of forcing a full scene-manager rebuild.
+- Fixed the 3D Rect Tool paint preview so the preview rectangle follows drag painting again while still using throttled overlay updates.
+- Fixed Rect Tool and Organic Tool previews so they remain visible when editing geometry is hidden, without forcing the rest of the editing geometry overlay back on.
+
+### Client
+
+- Improved wgpu client UI sharpness by switching the RGBA overlay sampler to nearest filtering.
+
+---
+
 # Eldiron v0.9.8
 
 ## New Features
