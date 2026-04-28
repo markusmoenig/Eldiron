@@ -2,6 +2,8 @@ use crate::editor::DOCKMANAGER;
 use crate::prelude::*;
 use rusterix::TileRole;
 
+const PROCEDURAL_KIND_VALUES: [&str; 5] = ["none", "floor", "wall", "entrance", "exit"];
+
 pub struct EditTileMeta {
     id: TheId,
     nodeui: TheNodeUI,
@@ -39,6 +41,35 @@ impl Action for EditTileMeta {
             false,
         );
         nodeui.add_item(item);
+
+        nodeui.add_item(TheNodeUIItem::OpenTree("procedural".into()));
+        nodeui.add_item(TheNodeUIItem::Text(
+            "actionTileProceduralStyle".into(),
+            fl!("action_tile_procedural_style"),
+            "".into(),
+            "".into(),
+            None,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::Selector(
+            "actionTileProceduralKind".into(),
+            fl!("action_tile_procedural_kind"),
+            "".into(),
+            PROCEDURAL_KIND_VALUES
+                .iter()
+                .map(|kind| kind.to_string())
+                .collect(),
+            0,
+        ));
+        nodeui.add_item(TheNodeUIItem::IntEditSlider(
+            "actionTileProceduralWeight".into(),
+            fl!("action_tile_procedural_weight"),
+            "".into(),
+            1,
+            1..=100,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
 
         let item = TheNodeUIItem::Markdown("desc".into(), "".into());
         nodeui.add_item(item);
@@ -78,6 +109,18 @@ impl Action for EditTileMeta {
                     .set_i32_value("actionTileBlocking", if tile.blocking { 1 } else { 0 });
                 self.nodeui
                     .set_text_value("actionTileAlias", tile.alias.clone());
+                self.nodeui
+                    .set_text_value("actionTileProceduralStyle", tile.procedural.style.clone());
+                let kind_index = PROCEDURAL_KIND_VALUES
+                    .iter()
+                    .position(|kind| *kind == tile.procedural.kind.trim())
+                    .unwrap_or(0) as i32;
+                self.nodeui
+                    .set_i32_value("actionTileProceduralKind", kind_index);
+                self.nodeui.set_i32_value(
+                    "actionTileProceduralWeight",
+                    tile.procedural.weight.max(1) as i32,
+                );
             }
         }
     }
@@ -95,6 +138,24 @@ impl Action for EditTileMeta {
             .nodeui
             .get_text_value("actionTileAlias")
             .unwrap_or(String::new());
+        let proc_style = self
+            .nodeui
+            .get_text_value("actionTileProceduralStyle")
+            .unwrap_or_default();
+        let proc_kind_index = self
+            .nodeui
+            .get_i32_value("actionTileProceduralKind")
+            .unwrap_or(0)
+            .max(0) as usize;
+        let proc_kind = PROCEDURAL_KIND_VALUES
+            .get(proc_kind_index)
+            .copied()
+            .unwrap_or("none");
+        let proc_weight = self
+            .nodeui
+            .get_i32_value("actionTileProceduralWeight")
+            .unwrap_or(1)
+            .max(1) as u32;
 
         if let Some(tile_id) = server_ctx.curr_tile_id {
             if let Some(tile) = project.get_tile_mut(&tile_id) {
@@ -104,6 +165,13 @@ impl Action for EditTileMeta {
                 tile.role = role;
                 tile.blocking = blocking;
                 tile.alias = name.clone();
+                tile.procedural.style = proc_style.trim().to_string();
+                tile.procedural.kind = if proc_kind == "none" {
+                    String::new()
+                } else {
+                    proc_kind.to_string()
+                };
+                tile.procedural.weight = proc_weight;
             }
         }
 

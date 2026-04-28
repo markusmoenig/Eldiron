@@ -170,6 +170,22 @@ impl Editor {
     const STARTER_CREATE_ID: &'static str = "Starter Project Create";
     const STARTER_CANCEL_ID: &'static str = "Starter Project Cancel";
 
+    fn activate_edit_tile_meta_action(&mut self) {
+        if self.server_ctx.curr_tile_id.is_none() {
+            return;
+        }
+
+        if let Some(action) = ACTIONLIST
+            .read()
+            .unwrap()
+            .actions
+            .iter()
+            .find(|action| action.id().name == fl!("action_edit_tile"))
+        {
+            self.server_ctx.curr_action_id = Some(action.id().uuid);
+        }
+    }
+
     #[cfg(all(
         feature = "self-update",
         any(target_os = "windows", target_os = "linux", target_os = "macos")
@@ -2007,11 +2023,18 @@ impl TheTrait for Editor {
                         }
                         self.last_processed_log_len = log_text.len();
                     }
+                    let active_game_map = rusterix.client.current_map.clone();
                     let mut refresh_visual_debug = false;
                     for r in &mut self.project.regions {
                         rusterix.server.apply_entities_items(&mut r.map);
 
-                        if r.id == self.server_ctx.curr_region {
+                        let is_active_region = if self.server_ctx.game_mode {
+                            r.map.name == active_game_map
+                        } else {
+                            r.id == self.server_ctx.curr_region
+                        };
+
+                        if is_active_region {
                             refresh_visual_debug = true;
                             if let Some(time) = rusterix.server.get_time(&r.map.id) {
                                 rusterix.client.set_server_time(time);
@@ -2705,6 +2728,7 @@ impl TheTrait for Editor {
                                         TheValue::Id(tile_id),
                                     ));
                                 }
+                                self.activate_edit_tile_meta_action();
                                 ctx.ui.send(TheEvent::Custom(
                                     TheId::named("Update Tilepicker"),
                                     TheValue::Empty,

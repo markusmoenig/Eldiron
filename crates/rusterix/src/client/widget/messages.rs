@@ -451,6 +451,12 @@ impl MessagesWidget {
         // Draw bottom up
         if let Some(font) = &self.font {
             let stride = buffer.stride();
+            let clip_rect = (
+                self.rect.x.max(0.0) as isize,
+                self.rect.y.max(0.0) as isize,
+                self.rect.width.min(width as f32).max(0.0) as isize,
+                self.rect.height.min(height as f32).max(0.0) as isize,
+            );
             let mut y = if self.top_down {
                 self.rect.y
             } else {
@@ -543,7 +549,7 @@ impl MessagesWidget {
                                 &color,
                                 draw2d::TheHorizontalAlign::Left,
                                 draw2d::TheVerticalAlign::Center,
-                                &(0, 0, width as isize, height as isize),
+                                &clip_rect,
                             );
                             self.draw2d.text_rect_blend_safe_clip(
                                 buffer.pixels_mut(),
@@ -555,7 +561,7 @@ impl MessagesWidget {
                                 &color,
                                 draw2d::TheHorizontalAlign::Right,
                                 draw2d::TheVerticalAlign::Center,
-                                &(0, 0, width as isize, height as isize),
+                                &clip_rect,
                             );
                         } else {
                             self.draw2d.text_rect_blend_safe_clip(
@@ -568,17 +574,19 @@ impl MessagesWidget {
                                 &color,
                                 draw2d::TheHorizontalAlign::Left,
                                 draw2d::TheVerticalAlign::Center,
-                                &(0, 0, width as isize, height as isize),
+                                &clip_rect,
                             );
                         }
                     }
 
                     y += block_height + block_gap;
                 } else {
-                    let block_top = y - (lines.len().saturating_sub(1) as f32 * line_height);
+                    let block_bottom = y + self.font_size;
+                    let block_top = block_bottom - block_height;
+                    let text_top = block_bottom - text_height;
                     // A single wrapped message can be taller than the widget. Keep drawing it
                     // while its bottom is visible so the latest/lower lines stay pinned.
-                    if y + self.font_size < self.rect.y {
+                    if block_bottom < self.rect.y {
                         break;
                     }
 
@@ -604,7 +612,12 @@ impl MessagesWidget {
                     }
 
                     for (index, line) in lines.iter().enumerate() {
-                        let line_y = block_top + index as f32 * line_height;
+                        let line_y = text_top + index as f32 * line_height;
+                        if line_y + self.font_size < self.rect.y
+                            || line_y > self.rect.y + self.rect.height
+                        {
+                            continue;
+                        }
                         let tuple = (
                             (self.rect.x + portrait_width) as isize,
                             line_y.floor() as isize,
@@ -624,7 +637,7 @@ impl MessagesWidget {
                                 &color,
                                 draw2d::TheHorizontalAlign::Left,
                                 draw2d::TheVerticalAlign::Center,
-                                &(0, 0, width as isize, height as isize),
+                                &clip_rect,
                             );
                             self.draw2d.text_rect_blend_safe_clip(
                                 buffer.pixels_mut(),
@@ -636,7 +649,7 @@ impl MessagesWidget {
                                 &color,
                                 draw2d::TheHorizontalAlign::Right,
                                 draw2d::TheVerticalAlign::Center,
-                                &(0, 0, width as isize, height as isize),
+                                &clip_rect,
                             );
                         } else {
                             self.draw2d.text_rect_blend_safe_clip(
@@ -649,12 +662,12 @@ impl MessagesWidget {
                                 &color,
                                 draw2d::TheHorizontalAlign::Left,
                                 draw2d::TheVerticalAlign::Center,
-                                &(0, 0, width as isize, height as isize),
+                                &clip_rect,
                             );
                         }
                     }
 
-                    y = block_top - (self.font_size + block_gap);
+                    y = block_top - block_gap - self.font_size;
                 }
             }
         }

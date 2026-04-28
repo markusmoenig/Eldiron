@@ -326,6 +326,49 @@ Notes:
 - default depth is `3.0`
 - the original cutout handle remains the control shape for rebuilding
 
+### Build Procedural
+
+Build procedural map geometry from the current region's `[procedural]` configuration.
+
+For a full workflow guide, see [Procedural Map Generation](/docs/building_maps/procedural_generation).
+
+The first generator is `connected_rooms`, intended for deterministic 2D room-and-corridor dungeon layouts. Region settings can use:
+
+```toml
+[procedural]
+enabled = true
+generator = "connected_rooms"
+mode = "2d" # "2d" tile map generation now; "3d" is reserved for Dungeon Tool-backed generation
+seed = 12345
+style = "stone"
+door_placement = "both" # "entrances", "exits", or "both"
+door_randomness = 1.0 # 0.0 = no doors, 1.0 = every eligible door
+width = 32
+height = 32
+room_count = 6
+room_min_size = 6
+room_max_size = 10
+
+[procedural.items.door]
+names = ["Door"]
+weights = [1]
+
+[procedural.characters.orc]
+names = ["Orc"]
+weights = [1]
+percentage = 45
+```
+
+Tiles used by the generator are selected through **Edit Tile Meta** using `[procedural].style`, `[procedural].kind`, and `[procedural].weight`. `connected_rooms` currently uses `floor`, `wall`, `entrance`, and `exit` tile kinds. The center tile of the first room is named `entrance`; the center tile of the last room is named `exit`. If no dedicated entrance or exit tile exists for the selected style, floor tiles are used for those markers.
+
+Room doors are generated as floor tiles plus item instances selected from `[procedural.items.door]`, so the door item's own tile and behavior define how it appears and works. Set `door_placement = "entrances"` to only place doors on incoming room sides, `door_placement = "exits"` to only place doors on outgoing room sides, or `door_placement = "both"` to place doors at both sides of each room connection. `door_randomness` is the per-door placement probability after `door_placement` filtering. If no door is placed, the connector remains passable floor.
+
+Characters can be generated with `[procedural.characters.<kind>]`. `percentage` is the per-room spawn chance from 0 to 100; `chance` can also be used as a 0.0 to 1.0 value. Character spawns are placed in generated room centers and skip the entrance and exit rooms.
+
+Running **Build Procedural** clears earlier generated procedural sectors, items, and characters before rebuilding, so the same region can be regenerated after changing assets or the seed.
+
+The same settings are also documented in [Region Settings: Procedural](/docs/building_maps/region_settings/#procedural).
+
 ### Build Room
 
 Build a room volume from a selected vertical wall sector.
@@ -604,9 +647,22 @@ Copy the selected tile’s UUID to both the internal and system clipboard.
 
 ### Edit Tile Meta
 
-Set tile *role*, *blocking* flag (2D collisions), and *alias* for the currently selected tile in the tile picker.
+Set tile *role*, *blocking* flag (2D collisions), *alias*, and optional procedural generator hints for the currently selected tile in the tile picker.
 
 The alias can then be used anywhere a `tile_id`-style tile source is accepted, alongside UUIDs and palette indices.
+
+Procedural tile metadata is stored as:
+
+```toml
+[procedural]
+style = "stone"
+kind = "floor"
+weight = 1
+```
+
+Supported `kind` values are `floor`, `wall`, `entrance`, and `exit`. Use `none` in the editor selector for non-procedural tiles. Gameplay objects such as doors, traps, and potions should be generated as item instances from the region `[procedural.items.*]` settings, not as tile kinds.
+
+Procedural tile metadata is consumed by **Build Procedural**. See [Procedural Map Generation](/docs/building_maps/procedural_generation) for the full workflow and [Region Settings: Procedural](/docs/building_maps/region_settings/#procedural) for the matching region-side settings.
 
 ### Set Tile Material
 

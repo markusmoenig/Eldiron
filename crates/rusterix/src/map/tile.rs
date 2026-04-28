@@ -88,6 +88,29 @@ pub struct TileLightEmitter {
     pub lift: f32,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct TileProceduralMeta {
+    /// Optional procedural generation style selector, e.g. "stone" or "crypt".
+    #[serde(default)]
+    pub style: String,
+    /// Optional procedural generation kind, e.g. "floor", "wall", or "door".
+    #[serde(default)]
+    pub kind: String,
+    /// Weighted random selection weight for procedural generation.
+    #[serde(default = "default_proc_weight")]
+    pub weight: u32,
+}
+
+impl Default for TileProceduralMeta {
+    fn default() -> Self {
+        Self {
+            style: String::new(),
+            kind: String::new(),
+            weight: default_proc_weight(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
 pub struct Tile {
     pub id: Uuid,
@@ -103,6 +126,9 @@ pub struct Tile {
     /// Human-readable alias used for filtering and source lookup.
     #[serde(default, alias = "tags")]
     pub alias: String,
+    /// Optional procedural generation hints used by region generators.
+    #[serde(default)]
+    pub procedural: TileProceduralMeta,
     /// Optional particle emitter definition derived from a tilegraph output.
     #[serde(default)]
     pub particle_emitter: Option<ParticleEmitter>,
@@ -122,6 +148,7 @@ impl Tile {
             blocking: false,
             scale: 1.0,
             alias: String::new(),
+            procedural: TileProceduralMeta::default(),
             particle_emitter: None,
             light_emitter: None,
         }
@@ -136,6 +163,7 @@ impl Tile {
             blocking: false,
             scale: 1.0,
             alias: String::new(),
+            procedural: TileProceduralMeta::default(),
             particle_emitter: None,
             light_emitter: None,
             ..Default::default()
@@ -151,6 +179,7 @@ impl Tile {
             blocking: false,
             scale: 1.0,
             alias: String::new(),
+            procedural: TileProceduralMeta::default(),
             particle_emitter: None,
             light_emitter: None,
             ..Default::default()
@@ -203,6 +232,7 @@ impl Tile {
             blocking: self.blocking,
             scale: self.scale,
             alias: self.alias.clone(),
+            procedural: self.procedural.clone(),
             particle_emitter: self.particle_emitter.clone(),
             light_emitter: self.light_emitter.clone(),
         }
@@ -243,4 +273,8 @@ impl Tile {
             texture.generate_normals(true);
         }
     }
+}
+
+const fn default_proc_weight() -> u32 {
+    1
 }

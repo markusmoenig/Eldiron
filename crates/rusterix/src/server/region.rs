@@ -2108,6 +2108,7 @@ impl RegionInstance {
                     if let Some(program) = ctx.entity_programs.get(&class_name).cloned() {
                         let args = [VMValue::from_string("startup"), VMValue::zero()];
                         run_server_fn(&mut self.exec, &args, &program, ctx);
+                        flush_pending_entity_transfers(ctx);
                     }
                 });
 
@@ -2155,6 +2156,7 @@ impl RegionInstance {
                                 VMValue::from_string(sector_name),
                             ];
                             run_server_fn(&mut self.exec, &args, &program, ctx);
+                            flush_pending_entity_transfers(ctx);
                         }
                     }
                 });
@@ -2476,6 +2478,7 @@ impl RegionInstance {
                             };
                             let args = [VMValue::from_string(notification), payload];
                             run_server_fn(&mut self.exec, &args, &program, ctx);
+                            flush_pending_entity_transfers(ctx);
                         }
                     }
                 });
@@ -2587,6 +2590,7 @@ impl RegionInstance {
                                 let args =
                                     [VMValue::from_string(event), VMValue::from_value(&value)];
                                 run_server_fn(&mut self.exec, &args, &program, ctx);
+                                flush_pending_entity_transfers(ctx);
                             }
                         }
                     });
@@ -5585,6 +5589,19 @@ impl RegionInstance {
             ctx.to_execute_entity.clear();
         });
         for todo in to_execute_entity {
+            let entity_is_dead = if todo.1 == "death" {
+                false
+            } else {
+                let mut dead = false;
+                with_regionctx(self.id, |ctx| {
+                    dead = is_entity_dead_ctx(ctx, todo.0);
+                });
+                dead
+            };
+            if entity_is_dead {
+                continue;
+            }
+
             if todo.1 == "__grant_xp" {
                 with_regionctx(self.id, |ctx| {
                     let _ = grant_experience(ctx, todo.0, todo.2.x.max(0.0).round() as i32);
@@ -5702,6 +5719,7 @@ impl RegionInstance {
                                 );
                             }
                         }
+                        flush_pending_entity_transfers(ctx);
                     }
                 }
                 ctx.current_damage_kind = None;
@@ -5939,6 +5957,7 @@ impl RegionInstance {
                 if let Some(program) = ctx.entity_programs.get(&class_name).cloned() {
                     let args = [VMValue::from_string("startup"), VMValue::zero()];
                     run_server_fn(&mut self.exec, &args, &program, ctx);
+                    flush_pending_entity_transfers(ctx);
                 }
 
                 if let Some(sector) = ctx.map.find_sector_at(entity.get_pos_xz()) {
@@ -5959,6 +5978,7 @@ impl RegionInstance {
                             VMValue::from_string(sector_name),
                         ];
                         run_server_fn(&mut self.exec, &args, &program, ctx);
+                        flush_pending_entity_transfers(ctx);
                     }
                 }
             });
@@ -6479,8 +6499,11 @@ fn get_item_at(ctx: &RegionCtx, position: Vec2<f32>) -> Option<u32> {
 /// Received an entity from another region
 pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name: String) {
     entity.action = EntityAction::Off;
-
-    let mut entities = ctx.map.entities.clone();
+    let entity_id = entity.id;
+    if entity.is_player() {
+        entity.set_attribute("mode", Value::Str("active".into()));
+        entity.set_attribute("visible", Value::Bool(true));
+    }
 
     let mut new_pos: Option<vek::Vec2<f32>> = None;
     for sector in &ctx.map.sectors {
@@ -6493,15 +6516,38 @@ pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name:
         entity.set_pos_xz(new_pos);
         entity.position.y =
             map_spawn_height(&ctx.map, entity.get_pos_xz(), Some(entity.position.y));
-        ctx.check_player_for_section_change(&mut entity);
     }
 
     if let Some(class_name) = entity.get_attr_string("class_name") {
-        ctx.entity_classes.insert(entity.id, class_name.clone());
+        ctx.entity_classes.insert(entity_id, class_name.clone());
     }
 
-    entities.push(entity);
-    ctx.map.entities = entities;
+    ctx.map.entities.retain(|existing| existing.id != entity_id);
+    ctx.map.entities.push(entity);
+    ctx.check_player_for_section_change_id(entity_id);
+}
+
+fn flush_pending_entity_transfers(ctx: &mut RegionCtx) {
+    if ctx.pending_entity_transfers.is_empty() {
+        return;
+    }
+
+    let pending = std::mem::take(&mut ctx.pending_entity_transfers);
+    for (entity_id, dest_region_name, dest_sector_name) in pending {
+        if let Some(pos) = ctx.map.entities.iter().position(|e| e.id == entity_id) {
+            let removed = ctx.map.entities.remove(pos);
+            ctx.entity_classes.remove(&removed.id);
+
+            if let Some(sender) = ctx.from_sender.get() {
+                let _ = sender.send(RegionMessage::TransferEntity(
+                    ctx.region_id,
+                    removed,
+                    dest_region_name,
+                    dest_sector_name,
+                ));
+            }
+        }
+    }
 }
 
 /// Add a debug value at the current debug position
@@ -7246,6 +7292,26 @@ fn spell_target_filter_allows(
     }
 }
 
+fn close_visible_damage_allowed(ctx: &RegionCtx, from_id: u32, target_id: u32) -> bool {
+    let Some(attacker) = ctx.map.entities.iter().find(|e| e.id == from_id) else {
+        return false;
+    };
+    let Some(target) = ctx.map.entities.iter().find(|e| e.id == target_id) else {
+        return false;
+    };
+
+    let attacker_pos = attacker.get_pos_xz();
+    let target_pos = target.get_pos_xz();
+    if attacker_pos.distance(target_pos) > 2.1 {
+        return false;
+    }
+
+    let attacker_tile = attacker_pos.floor().as_::<i32>();
+    let target_tile = target_pos.floor().as_::<i32>();
+    ctx.mapmini.is_tile_visible(attacker_tile, target_tile)
+        && ctx.mapmini.is_visible(attacker_pos, target_pos)
+}
+
 pub(crate) fn apply_damage_direct(
     ctx: &mut RegionCtx,
     target_id: u32,
@@ -7314,6 +7380,7 @@ pub(crate) fn apply_damage_direct(
         && attacker_sector != "<none>"
         && target_sector_before != "<none>"
         && attacker_sector != target_sector_before
+        && !close_visible_damage_allowed(ctx, from_id, target_id)
     {
         return false;
     }
@@ -7339,14 +7406,11 @@ pub(crate) fn apply_damage_direct(
 
     if kill {
         ctx.to_execute_entity.retain(|(id, event, payload)| {
-            if *id != target_id {
-                return true;
-            }
-            if event == "take_damage" {
-                return false;
+            if *id == target_id {
+                return event == "death";
             }
             // Drop any already-queued direct damage payloads still targeting the dead entity.
-            if event == "__apply_damage" {
+            if event == "__apply_damage" && payload.x.max(0.0) as u32 == target_id {
                 return false;
             }
             // Guard against stale queued broadcasts encoding the dead entity as a target.
@@ -7355,6 +7419,8 @@ pub(crate) fn apply_damage_direct(
             }
             true
         });
+        ctx.notifications_entities
+            .retain(|(id, _, _)| *id != target_id);
 
         for entity in &mut ctx.map.entities {
             let target_matches = entity
@@ -7430,15 +7496,26 @@ pub(crate) fn apply_damage_direct(
     );
 
     if kill {
-        let xp = progression_kill_xp(ctx, from_id, target_id);
-        ctx.to_execute_entity
-            .push((from_id, "kill".into(), VMValue::broadcast(target_id as f32)));
-        if xp > 0 {
+        let attacker_can_receive_kill = from_id != 0
+            && ctx
+                .map
+                .entities
+                .iter()
+                .any(|entity| entity.id == from_id && entity.get_mode() != "dead");
+        if attacker_can_receive_kill {
+            let xp = progression_kill_xp(ctx, from_id, target_id);
             ctx.to_execute_entity.push((
                 from_id,
-                "__grant_xp".into(),
-                VMValue::broadcast(xp as f32),
+                "kill".into(),
+                VMValue::broadcast(target_id as f32),
             ));
+            if xp > 0 {
+                ctx.to_execute_entity.push((
+                    from_id,
+                    "__grant_xp".into(),
+                    VMValue::broadcast(xp as f32),
+                ));
+            }
         }
     }
 
@@ -11442,8 +11519,11 @@ fn get_attr_internal(ctx: &mut RegionCtx, key: &str) -> Option<Value> {
 /// Received an entity from another region
 pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name: String) {
     entity.action = EntityAction::Off;
-
-    let mut entities = ctx.map.entities.clone();
+    let entity_id = entity.id;
+    if entity.is_player() {
+        entity.set_attribute("mode", Value::Str("active".into()));
+        entity.set_attribute("visible", Value::Bool(true));
+    }
 
     let mut new_pos: Option<vek::Vec2<f32>> = None;
     for sector in &ctx.map.sectors {
@@ -11454,15 +11534,17 @@ pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name:
 
     if let Some(new_pos) = new_pos {
         entity.set_pos_xz(new_pos);
-        check_player_for_section_change(ctx, &mut entity);
+        entity.position.y =
+            map_spawn_height(&ctx.map, entity.get_pos_xz(), Some(entity.position.y));
     }
 
     if let Some(class_name) = entity.get_attr_string("class_name") {
-        ctx.entity_classes.insert(entity.id, class_name.clone());
+        ctx.entity_classes.insert(entity_id, class_name.clone());
     }
 
-    entities.push(entity);
-    ctx.map.entities = entities;
+    ctx.map.entities.retain(|existing| existing.id != entity_id);
+    ctx.map.entities.push(entity);
+    ctx.check_player_for_section_change_id(entity_id);
 }
 
 fn id(vm: &VirtualMachine) -> u32 {

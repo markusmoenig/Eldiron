@@ -84,6 +84,7 @@ pub struct RegionCtx {
 
     pub to_execute_entity: Vec<(u32, String, VMValue)>,
     pub to_execute_item: Vec<(u32, String, VMValue)>,
+    pub pending_entity_transfers: Vec<(u32, String, String)>,
 
     pub entity_programs: FxHashMap<String, Arc<Program>>,
     pub item_programs: FxHashMap<String, Arc<Program>>,

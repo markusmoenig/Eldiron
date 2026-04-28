@@ -2221,23 +2221,15 @@ impl<'a> HostHandler for RegionHost<'a> {
                             );
                         }
                     } else {
-                        // Remove the entity from this region and send it to another region.
-                        let entity_id = self.ctx.curr_entity_id;
-                        if let Some(pos) =
-                            self.ctx.map.entities.iter().position(|e| e.id == entity_id)
-                        {
-                            let removed = self.ctx.map.entities.remove(pos);
-                            self.ctx.entity_classes.remove(&removed.id);
-
-                            if let Some(sender) = self.ctx.from_sender.get() {
-                                let _ = sender.send(RegionMessage::TransferEntity(
-                                    self.ctx.region_id,
-                                    removed,
-                                    region_name.to_string(),
-                                    dest.to_string(),
-                                ));
-                            }
-                        }
+                        // Defer cross-region transfers until the current script event has
+                        // finished. Scripts often restore HP/mode or send messages after
+                        // teleport(); removing the entity immediately makes those writes
+                        // order-dependent and can strand players in dead state.
+                        self.ctx.pending_entity_transfers.push((
+                            self.ctx.curr_entity_id,
+                            region_name.to_string(),
+                            dest.to_string(),
+                        ));
                     }
                 }
             }

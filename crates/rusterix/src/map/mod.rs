@@ -1265,6 +1265,7 @@ impl Map {
         self.sectors
             .iter()
             .find(|s| s.is_inside(self, position) && s.layer.is_none())
+            .or_else(|| self.sectors.iter().find(|s| s.is_inside(self, position)))
     }
 
     /// Debug: Print all vertices with their current animated positions

@@ -526,6 +526,7 @@ pub fn clear_nodeui_icon_tile_id(nodeui: &mut TheNodeUI, item_name: &str, index:
 
 pub mod add_arch;
 pub mod apply_tile;
+pub mod build_procedural;
 pub mod build_room;
 pub mod build_shaft;
 pub mod build_stairs;

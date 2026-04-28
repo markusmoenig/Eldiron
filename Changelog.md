@@ -7,6 +7,9 @@
 - Added the first topology-backed live 3D editing path, allowing vertex, linedef, and sector edits to update affected scene geometry directly instead of forcing full scene-manager rebuilds during normal drag editing.
 - Added FirstP fly navigation for the Creator: `Space` toggles fly mode, pointer position controls looking/turning, `WASD` moves through the level, and `Escape` exits back to normal editing.
 - Added live Rect Tool painting previews in 2D/3D so tile strokes appear while dragging instead of only after mouse release.
+- Added the first 2D procedural dungeon builder via the new **Build Procedural** action and `[procedural]` region settings, starting with the `connected_rooms` generator.
+- Added procedural tile metadata in **Edit Tile Meta**, allowing tiles to be tagged by style, kind, and weight for generated maps.
+- Added procedural generation support for entrance/exit marker tiles, weighted item spawns such as doors, and weighted character spawns such as dungeon monsters.
 
 ## Optimizations
 
@@ -19,6 +22,10 @@
 ### Client
 
 - Improved wgpu client UI sharpness by switching the RGBA overlay sampler to nearest filtering.
+
+## Documentation
+
+- Added documentation for the new 2D procedural dungeon workflow, including **Build Procedural**, `[procedural]` region settings, procedural tile metadata, door/item generation, character generation, and regeneration behavior.
 
 ## Bug Fixes
 

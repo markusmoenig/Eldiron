@@ -534,6 +534,31 @@ impl Server {
                             }
                         }
 
+                        // Messages emitted during the same script event before the deferred
+                        // transfer is processed are initially bucketed under the source region.
+                        // Move player-addressed messages with the entity so UI widgets in the
+                        // destination region still receive them.
+                        if from_region_id != dest_id {
+                            let mut moved_messages = Vec::new();
+                            if let Some(messages) = self.messages.get_mut(&from_region_id) {
+                                let mut kept = Vec::with_capacity(messages.len());
+                                for message in messages.drain(..) {
+                                    if message.2 == entity.id {
+                                        moved_messages.push(message);
+                                    } else {
+                                        kept.push(message);
+                                    }
+                                }
+                                *messages = kept;
+                            }
+                            if !moved_messages.is_empty() {
+                                self.messages
+                                    .entry(dest_id)
+                                    .or_default()
+                                    .extend(moved_messages);
+                            }
+                        }
+
                         if let Ok(pipe) = REGIONPIPE.read() {
                             if let Some(sender) = pipe.get(&dest_id) {
                                 match sender.send(RegionMessage::TransferEntity(

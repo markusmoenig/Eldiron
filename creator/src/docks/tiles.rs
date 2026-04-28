@@ -1085,6 +1085,22 @@ impl TilesDock {
         (self.particle_preview_time * PREVIEW_FPS).floor() / PREVIEW_FPS
     }
 
+    fn activate_edit_tile_meta_action(server_ctx: &mut ServerContext) {
+        if server_ctx.curr_tile_id.is_none() {
+            return;
+        }
+
+        if let Some(action) = ACTIONLIST
+            .read()
+            .unwrap()
+            .actions
+            .iter()
+            .find(|action| action.id().name == fl!("action_edit_tile"))
+        {
+            server_ctx.curr_action_id = Some(action.id().uuid);
+        }
+    }
+
     fn ensure_treasury_loaded(&mut self) {
         if self.treasury_loaded {
             return;
@@ -3058,6 +3074,7 @@ impl TilesDock {
                 self.curr_tile = None;
             }
         }
+        Self::activate_edit_tile_meta_action(server_ctx);
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Action List"),
             TheValue::Empty,

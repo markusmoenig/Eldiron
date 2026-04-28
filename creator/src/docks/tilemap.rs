@@ -445,6 +445,7 @@ impl Dock for TilemapDock {
                                             blocking: tile_for_runtime.blocking,
                                             scale: tile_for_runtime.scale,
                                             alias: tile_for_runtime.name.clone(),
+                                            procedural: Default::default(),
                                             particle_emitter: None,
                                             light_emitter: None,
                                         };
@@ -652,6 +653,7 @@ impl TilemapDock {
             blocking: rgba_tile.blocking,
             scale: rgba_tile.scale,
             alias: rgba_tile.name.clone(),
+            procedural: Default::default(),
             particle_emitter: None,
             light_emitter: None,
         });

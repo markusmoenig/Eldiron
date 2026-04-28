@@ -18,6 +18,7 @@ impl ActionList {
             Box::new(crate::tools::iso_camera::IsoCamera::new()),
             Box::new(crate::tools::orbit_camera::OrbitCamera::new()),
             Box::new(crate::tools::add_arch::AddArch::new()),
+            Box::new(crate::tools::build_procedural::BuildProcedural::new()),
             Box::new(crate::tools::build_room::BuildRoom::new()),
             Box::new(crate::tools::build_stairs::BuildStairs::new()),
             Box::new(crate::tools::build_shaft::BuildShaft::new()),
