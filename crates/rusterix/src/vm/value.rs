@@ -209,6 +209,28 @@ impl VMValue {
         }
     }
 
+    fn is_type_hint_str(s: &str) -> bool {
+        matches!(
+            s.trim().to_ascii_lowercase().as_str(),
+            "bool"
+                | "int"
+                | "uint"
+                | "i64"
+                | "int64"
+                | "float"
+                | "f32"
+                | "vec2"
+                | "vec3"
+                | "vec4"
+                | "str"
+                | "string"
+        )
+    }
+
+    fn non_hint_string(s: Option<String>) -> Option<String> {
+        s.filter(|value| !Self::is_type_hint_str(value))
+    }
+
     fn from_type_tagged_str(s: &str) -> Option<Value> {
         let (tag, rest) = s.split_once(':')?;
         let tag = tag.trim().to_ascii_lowercase();
@@ -327,7 +349,10 @@ impl Add for VMValue {
     fn add(self, rhs: VMValue) -> Self::Output {
         let (ax, ay, az) = (self.x, self.y, self.z);
         let (bx, by, bz) = (rhs.x, rhs.y, rhs.z);
-        match (self.string, rhs.string) {
+        match (
+            VMValue::non_hint_string(self.string),
+            VMValue::non_hint_string(rhs.string),
+        ) {
             (Some(a), Some(b)) => VMValue::from_string(format!("{a}{b}")),
             (Some(a), None) => {
                 let b_str = VMValue::to_string_lossy_components(bx, by, bz);

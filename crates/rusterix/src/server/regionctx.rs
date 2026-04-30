@@ -81,9 +81,11 @@ pub struct RegionCtx {
     pub entity_state_data: FxHashMap<u32, ValueContainer>,
     pub item_state_data: FxHashMap<u32, ValueContainer>,
     pub region_state: ValueContainer,
+    pub procedural_spawn_guard: u8,
 
     pub to_execute_entity: Vec<(u32, String, VMValue)>,
     pub to_execute_item: Vec<(u32, String, VMValue)>,
+    pub to_execute_world: Vec<(String, VMValue)>,
     pub pending_entity_transfers: Vec<(u32, String, String)>,
 
     pub entity_programs: FxHashMap<String, Arc<Program>>,
@@ -148,6 +150,66 @@ impl RegionCtx {
 
     pub fn set_region_value(&mut self, key: &str, value: Value) {
         self.region_state.set(key, value);
+    }
+
+    pub fn resolve_sector_spawn_position(
+        &self,
+        sector_name: &str,
+        radius: f32,
+    ) -> Option<Vec2<f32>> {
+        let mut marker_centers = Vec::new();
+        for sector in &self.map.sectors {
+            let Some(center) = sector.center(&self.map) else {
+                continue;
+            };
+            let kind = sector.properties.get_str("procedural_kind").unwrap_or("");
+            if sector.name == sector_name || kind == sector_name {
+                marker_centers.push(center);
+                continue;
+            }
+        }
+
+        for center in &marker_centers {
+            if self.mapmini.is_walkable_position(*center, radius) {
+                return Some(*center);
+            }
+        }
+
+        let marker = marker_centers.first().copied();
+        if let Some(marker) = marker {
+            let search_steps = [
+                Vec2::zero(),
+                Vec2::new(1.0, 0.0),
+                Vec2::new(-1.0, 0.0),
+                Vec2::new(0.0, 1.0),
+                Vec2::new(0.0, -1.0),
+                Vec2::new(1.0, 1.0),
+                Vec2::new(1.0, -1.0),
+                Vec2::new(-1.0, 1.0),
+                Vec2::new(-1.0, -1.0),
+                Vec2::new(2.0, 0.0),
+                Vec2::new(-2.0, 0.0),
+                Vec2::new(0.0, 2.0),
+                Vec2::new(0.0, -2.0),
+            ];
+            for offset in search_steps {
+                let candidate = marker + offset;
+                let candidate_sector = self.map.find_sector_at(candidate);
+                let is_floorish = candidate_sector
+                    .map(|sector| {
+                        matches!(
+                            sector.properties.get_str("procedural_kind").unwrap_or(""),
+                            "floor" | "corridor" | "entrance" | "exit"
+                        )
+                    })
+                    .unwrap_or(false);
+                if is_floorish && self.mapmini.is_walkable_position(candidate, radius) {
+                    return Some(candidate);
+                }
+            }
+        }
+
+        None
     }
 
     fn nearest_sector_id_for_pos(&self, pos: Vec2<f32>, max_distance: f32) -> Option<u32> {

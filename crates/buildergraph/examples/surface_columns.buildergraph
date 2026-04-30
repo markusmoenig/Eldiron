@@ -1,0 +1,30 @@
+name = "Surface Columns";
+host = sector;
+
+detail column {
+    center = vec2(host.width * 0.35, host.depth * 0.50);
+    height = host.depth * 0.60;
+    radius = 0.28;
+    offset = -0.12;
+    base = 0.0;
+    cap = 0.0;
+    segments = 16;
+    placement = relief;
+    material = COLUMN;
+    tile_alias = stone;
+};
+
+detail column {
+    center = vec2(host.width * 0.65, host.depth * 0.50);
+    height = host.depth * 0.60;
+    radius = 0.28;
+    offset = -0.12;
+    base = 0.0;
+    cap = 0.0;
+    segments = 16;
+    placement = relief;
+    material = COLUMN;
+    tile_alias = stone;
+};
+
+output = [];

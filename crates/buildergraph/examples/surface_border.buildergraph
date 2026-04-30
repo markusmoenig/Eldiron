@@ -1,0 +1,13 @@
+name = "Raised Surface Border";
+host = sector;
+
+cut rect {
+    min = vec2(host.width * 0.20, host.depth * 0.20);
+    max = vec2(host.width * 0.80, host.depth * 0.80);
+    mode = replace;
+    offset = -0.05;
+    inset = 0.20;
+    shape = border;
+};
+
+output = [];

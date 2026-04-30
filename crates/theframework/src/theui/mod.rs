@@ -1030,6 +1030,7 @@ impl TheUI {
     ) -> bool {
         let mut redraw = false;
         let mut consumed = false;
+        let mut suppress_focused_widget = false;
 
         if let Some(c) = char {
             if self.ctrl || self.shift || self.alt || self.logo {
@@ -1051,7 +1052,20 @@ impl TheUI {
                 } else {
                     false
                 };
-                if focused_text_input_wants_select_all {
+                let focused_text_input = if let Some(id) = &ctx.ui.focus {
+                    if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {
+                        widget.supports_text_input()
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                let focused_text_input_wants_local_shortcut = focused_text_input
+                    && (self.ctrl || self.logo)
+                    && matches!(c.to_ascii_lowercase(), 'a' | '+' | '-' | '/');
+
+                if focused_text_input_wants_select_all || focused_text_input_wants_local_shortcut {
                     consumed = false;
                 } else {
                     // Check for accelerators in context menus.
@@ -1064,6 +1078,9 @@ impl TheUI {
                                 .send(TheEvent::StateChanged(id.clone(), TheWidgetState::Selected));
                             break;
                         }
+                    }
+                    if !consumed && focused_text_input {
+                        suppress_focused_widget = true;
                     }
                 }
             }
@@ -1091,7 +1108,7 @@ impl TheUI {
                 TheEvent::KeyCodeDown(TheValue::KeyCode(key.unwrap()))
             };
             ctx.ui.send(event.clone());
-            if let Some(id) = &ctx.ui.focus {
+            if !suppress_focused_widget && let Some(id) = &ctx.ui.focus {
                 if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {
                     redraw = widget.on_event(&event, ctx);
                     self.process_events(ctx);

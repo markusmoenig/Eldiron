@@ -1314,9 +1314,15 @@ impl Rasterizer {
                                     // color.y = lit.y.powf(1.0 / 2.2);
                                     // color.z = lit.z.powf(1.0 / 2.2);
 
-                                    color.x = linear_to_srgb_fast(lit.x);
-                                    color.y = linear_to_srgb_fast(lit.y);
-                                    color.z = linear_to_srgb_fast(lit.z);
+                                    if batch.receives_light {
+                                        color.x = linear_to_srgb_fast(lit.x);
+                                        color.y = linear_to_srgb_fast(lit.y);
+                                        color.z = linear_to_srgb_fast(lit.z);
+                                    } else {
+                                        color.x = mat_base.x;
+                                        color.y = mat_base.y;
+                                        color.z = mat_base.z;
+                                    }
                                     color.w = execution.opacity.x;
                                     texel = vec4_to_pixel(&color);
 

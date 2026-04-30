@@ -76,6 +76,7 @@ fn main() {
     println!("graph: {}", document.name());
     println!("target: {:?}", document.output_spec().target);
     println!("primitives: {}", assembly.primitives.len());
+    println!("surface details: {}", assembly.surface_details.len());
     println!("preview: {}", output.display());
 }
 

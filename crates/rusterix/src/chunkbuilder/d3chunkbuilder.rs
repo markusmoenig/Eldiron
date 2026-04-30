@@ -11,7 +11,10 @@ use crate::{
     VertexBlendPreset,
 };
 use crate::{BillboardAnimation, GeometrySource, LoopOp, ProfileLoop, RepeatMode, Sector};
-use buildergraph::{BuilderAssembly, BuilderAttachmentKind, BuilderDocument, BuilderPrimitive};
+use buildergraph::{
+    BuilderAssembly, BuilderAttachmentKind, BuilderCutMask, BuilderCutMode, BuilderDocument,
+    BuilderPrimitive,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::GeoId;
 use std::str::FromStr;
@@ -167,6 +170,120 @@ fn build_world_vertices(verts_uv: &[[f32; 2]], surface: &crate::Surface) -> Vec<
             [p.x, p.y, p.z, 1.0]
         })
         .collect()
+}
+
+fn points_close(a: Vec3<f32>, b: Vec3<f32>, epsilon: f32) -> bool {
+    (a - b).magnitude_squared() <= epsilon * epsilon
+}
+
+fn same_undirected_edge(a0: Vec3<f32>, a1: Vec3<f32>, b0: Vec3<f32>, b1: Vec3<f32>) -> bool {
+    const EDGE_EPSILON: f32 = 0.015;
+    (points_close(a0, b0, EDGE_EPSILON) && points_close(a1, b1, EDGE_EPSILON))
+        || (points_close(a0, b1, EDGE_EPSILON) && points_close(a1, b0, EDGE_EPSILON))
+}
+
+fn edge_has_surface_neighbor(
+    surface: &crate::Surface,
+    map: &Map,
+    edge_a: Vec3<f32>,
+    edge_b: Vec3<f32>,
+) -> bool {
+    for other in map.surfaces.values() {
+        if other.id == surface.id || other.sector_id == surface.sector_id || !other.is_valid() {
+            continue;
+        }
+        let Some(other_loop) = other.sector_loop_uv(map) else {
+            continue;
+        };
+        if other_loop.len() < 2 {
+            continue;
+        }
+        for index in 0..other_loop.len() {
+            let other_a = other.uv_to_world(other_loop[index]);
+            let other_b = other.uv_to_world(other_loop[(index + 1) % other_loop.len()]);
+            if same_undirected_edge(edge_a, edge_b, other_a, other_b) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+fn point_near_segment_2d(point: Vec2<f32>, a: Vec2<f32>, b: Vec2<f32>, epsilon: f32) -> bool {
+    let ab = b - a;
+    let len2 = ab.magnitude_squared();
+    if len2 <= 1e-8 {
+        return (point - a).magnitude_squared() <= epsilon * epsilon;
+    }
+    let t = ((point - a).dot(ab) / len2).clamp(0.0, 1.0);
+    let closest = a + ab * t;
+    (point - closest).magnitude_squared() <= epsilon * epsilon
+}
+
+fn point_in_or_on_polygon_2d(point: Vec2<f32>, polygon: &[Vec2<f32>], epsilon: f32) -> bool {
+    for index in 0..polygon.len() {
+        if point_near_segment_2d(
+            point,
+            polygon[index],
+            polygon[(index + 1) % polygon.len()],
+            epsilon,
+        ) {
+            return true;
+        }
+    }
+    point_in_polygon_2d(point, polygon)
+}
+
+fn edge_lies_on_surface_face(
+    surface: &crate::Surface,
+    map: &Map,
+    edge_a: Vec3<f32>,
+    edge_b: Vec3<f32>,
+) -> bool {
+    const PLANE_EPSILON: f32 = 0.015;
+    const UV_EPSILON: f32 = 0.02;
+    let mid = (edge_a + edge_b) * 0.5;
+
+    for other in map.surfaces.values() {
+        if other.id == surface.id || other.sector_id == surface.sector_id || !other.is_valid() {
+            continue;
+        }
+        let n_len = other.plane.normal.magnitude();
+        if n_len <= 1e-6 {
+            continue;
+        }
+        let n = other.plane.normal / n_len;
+        let signed_distance = |p: Vec3<f32>| (p - other.plane.origin).dot(n).abs();
+        if signed_distance(edge_a) > PLANE_EPSILON
+            || signed_distance(edge_b) > PLANE_EPSILON
+            || signed_distance(mid) > PLANE_EPSILON
+        {
+            continue;
+        }
+
+        let Some(loop_uv) = other.sector_loop_uv(map) else {
+            continue;
+        };
+        if loop_uv.len() < 3 {
+            continue;
+        }
+        let a_uv = other.world_to_uv(edge_a);
+        let b_uv = other.world_to_uv(edge_b);
+        let mid_uv = other.world_to_uv(mid);
+        if point_in_or_on_polygon_2d(a_uv, &loop_uv, UV_EPSILON)
+            && point_in_or_on_polygon_2d(b_uv, &loop_uv, UV_EPSILON)
+            && point_in_or_on_polygon_2d(mid_uv, &loop_uv, UV_EPSILON)
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn edge_is_vertical(a: Vec3<f32>, b: Vec3<f32>) -> bool {
+    (a.y - b.y).abs() > 0.01 && (a.x - b.x).abs().max((a.z - b.z).abs()) < 0.01
 }
 
 fn surface_tile_origin_uv(surface: &crate::Surface, map: &Map) -> Vec2<f32> {
@@ -1634,16 +1751,12 @@ impl ChunkBuilder for D3ChunkBuilder {
                         for i in 0..m {
                             let ia = i;
                             let ib = (i + 1) % m;
-                            let a_uv = loop_uv[ia];
-                            let b_uv = loop_uv[ib];
+                            let mut a_uv = loop_uv[ia];
+                            let mut b_uv = loop_uv[ib];
                             let a_front =
                                 surface.uv_to_world(a_uv) + n * front_offset + profile_bias_vec;
                             let b_front =
                                 surface.uv_to_world(b_uv) + n * front_offset + profile_bias_vec;
-                            let a_back =
-                                surface.uv_to_world(a_uv) + n * back_offset + profile_bias_vec;
-                            let b_back =
-                                surface.uv_to_world(b_uv) + n * back_offset + profile_bias_vec;
 
                             // Skip bottom horizontal edges of the loop to prevent coplanar
                             // z-fighting with floor surfaces (door/cutout bottoms).
@@ -1654,7 +1767,55 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 continue;
                             }
 
+                            let a_plane = surface.uv_to_world(a_uv);
+                            let b_plane = surface.uv_to_world(b_uv);
+                            if edge_is_vertical(a_plane, b_plane)
+                                && (edge_has_surface_neighbor(surface, map, a_plane, b_plane)
+                                    || edge_lies_on_surface_face(surface, map, a_plane, b_plane))
+                            {
+                                continue;
+                            }
+
+                            let endpoint_has_shared_vertical = |index: usize| -> bool {
+                                let p_uv = loop_uv[index];
+                                for other in [(index + m - 1) % m, (index + 1) % m] {
+                                    let p = surface.uv_to_world(p_uv);
+                                    let q = surface.uv_to_world(loop_uv[other]);
+                                    if edge_is_vertical(p, q)
+                                        && (edge_has_surface_neighbor(surface, map, p, q)
+                                            || edge_lies_on_surface_face(surface, map, p, q))
+                                    {
+                                        return true;
+                                    }
+                                }
+                                false
+                            };
+                            if !edge_is_vertical(a_plane, b_plane)
+                                && (endpoint_has_shared_vertical(ia)
+                                    || endpoint_has_shared_vertical(ib))
+                            {
+                                let edge_len = (b_plane - a_plane).magnitude();
+                                let trim = extrusion_thickness.clamp(0.0, edge_len * 0.35);
+                                if trim > 0.001 && edge_len > trim * 2.0 + 0.001 {
+                                    let t = trim / edge_len;
+                                    if endpoint_has_shared_vertical(ia) {
+                                        a_uv = a_uv + (b_uv - a_uv) * t;
+                                    }
+                                    if endpoint_has_shared_vertical(ib) {
+                                        b_uv = b_uv + (a_uv - b_uv) * t;
+                                    }
+                                }
+                            }
+
                             let base = verts.len();
+                            let a_front =
+                                surface.uv_to_world(a_uv) + n * front_offset + profile_bias_vec;
+                            let b_front =
+                                surface.uv_to_world(b_uv) + n * front_offset + profile_bias_vec;
+                            let a_back =
+                                surface.uv_to_world(a_uv) + n * back_offset + profile_bias_vec;
+                            let b_back =
+                                surface.uv_to_world(b_uv) + n * back_offset + profile_bias_vec;
                             verts.push([a_front.x, a_front.y, a_front.z, 1.0]);
                             verts.push([b_front.x, b_front.y, b_front.z, 1.0]);
                             verts.push([b_back.x, b_back.y, b_back.z, 1.0]);
@@ -3141,6 +3302,7 @@ fn add_terrain_collision(
 mod tests {
     use super::*;
     use crate::map::surface::{Basis3, EditPlane, ExtrusionSpec, Plane};
+    use crate::{Linedef, Surface, Vertex};
 
     fn make_wall_surface(up_y: f32) -> crate::Surface {
         let right = Vec3::new(1.0, 0.0, 0.0);
@@ -3197,6 +3359,169 @@ mod tests {
         let back = uv_to_tile_local_xy(uv, origin, true);
         assert!((back.x - local.x).abs() < 1e-6);
         assert!((back.y - local.y).abs() < 1e-6);
+    }
+
+    fn adjacent_coplanar_surface_map() -> Map {
+        let mut map = Map::default();
+        map.vertices = vec![
+            Vertex::new_3d(1, 0.0, 0.0, 0.0),
+            Vertex::new_3d(2, 1.0, 0.0, 0.0),
+            Vertex::new_3d(3, 1.0, 1.0, 0.0),
+            Vertex::new_3d(4, 0.0, 1.0, 0.0),
+            Vertex::new_3d(5, 2.0, 0.0, 0.0),
+            Vertex::new_3d(6, 2.0, 1.0, 0.0),
+        ];
+        map.linedefs = vec![
+            Linedef::new(1, 1, 2),
+            Linedef::new(2, 2, 3),
+            Linedef::new(3, 3, 4),
+            Linedef::new(4, 4, 1),
+            Linedef::new(5, 2, 5),
+            Linedef::new(6, 5, 6),
+            Linedef::new(7, 6, 3),
+            Linedef::new(8, 3, 2),
+        ];
+        map.sectors.push(Sector::new(1, vec![1, 2, 3, 4]));
+        map.sectors.push(Sector::new(2, vec![5, 6, 7, 8]));
+
+        let mut left = Surface::new(1);
+        left.calculate_geometry(&map);
+        map.surfaces.insert(left.id, left);
+
+        let mut right = Surface::new(2);
+        right.calculate_geometry(&map);
+        map.surfaces.insert(right.id, right);
+
+        map
+    }
+
+    #[test]
+    fn shared_surface_edge_is_detected() {
+        let map = adjacent_coplanar_surface_map();
+        let surface = map
+            .surfaces
+            .values()
+            .find(|surface| surface.sector_id == 1)
+            .expect("left surface");
+        let loop_uv = surface.sector_loop_uv(&map).expect("surface loop");
+        let shared_a = surface.uv_to_world(loop_uv[1]);
+        let shared_b = surface.uv_to_world(loop_uv[2]);
+        let outer_a = surface.uv_to_world(loop_uv[0]);
+        let outer_b = surface.uv_to_world(loop_uv[1]);
+
+        assert!(edge_has_surface_neighbor(surface, &map, shared_a, shared_b));
+        assert!(!edge_has_surface_neighbor(surface, &map, outer_a, outer_b));
+    }
+
+    fn perpendicular_shared_edge_surface_map() -> Map {
+        let mut map = Map::default();
+        map.vertices = vec![
+            Vertex::new_3d(16, 16.0, 10.0, 0.0),
+            Vertex::new_3d(24, 16.0, 10.0, 3.0),
+            Vertex::new_3d(40, 16.0, 2.0, 0.0),
+            Vertex::new_3d(41, 32.0, 2.0, 0.0),
+            Vertex::new_3d(42, 32.0, 2.0, 3.0),
+            Vertex::new_3d(43, 16.0, 2.0, 3.0),
+        ];
+        map.linedefs = vec![
+            Linedef::new(88, 40, 41),
+            Linedef::new(90, 41, 42),
+            Linedef::new(91, 42, 43),
+            Linedef::new(92, 43, 40),
+            Linedef::new(89, 16, 40),
+            Linedef::new(93, 40, 43),
+            Linedef::new(94, 43, 24),
+            Linedef::new(48, 24, 16),
+        ];
+        map.sectors.push(Sector::new(29, vec![88, 90, 91, 92]));
+        map.sectors.push(Sector::new(30, vec![89, 93, 94, 48]));
+
+        let mut surface_29 = Surface::new(29);
+        surface_29.calculate_geometry(&map);
+        map.surfaces.insert(surface_29.id, surface_29);
+
+        let mut surface_30 = Surface::new(30);
+        surface_30.calculate_geometry(&map);
+        map.surfaces.insert(surface_30.id, surface_30);
+
+        map
+    }
+
+    fn village_wall_corner_surface_map() -> Map {
+        let mut map = Map::default();
+        map.vertices = vec![
+            Vertex::new_3d(1, 9.0, -4.0, 0.0),
+            Vertex::new_3d(2, 9.0, 2.0, 0.0),
+            Vertex::new_3d(3, -8.0, 2.0, 0.0),
+            Vertex::new_3d(4, 9.0, -4.0, 3.0),
+            Vertex::new_3d(7, 9.0, -1.0, 5.0),
+            Vertex::new_3d(8, -8.0, 2.0, 3.0),
+            Vertex::new_3d(9, 9.0, 2.0, 3.0),
+        ];
+        map.linedefs = vec![
+            Linedef::new(2, 2, 3),
+            Linedef::new(10, 3, 8),
+            Linedef::new(11, 8, 9),
+            Linedef::new(12, 9, 2),
+            Linedef::new(14, 7, 4),
+            Linedef::new(16, 4, 1),
+            Linedef::new(1, 1, 2),
+            Linedef::new(17, 2, 9),
+            Linedef::new(7, 9, 7),
+        ];
+        map.sectors.push(Sector::new(3, vec![2, 10, 11, 12]));
+        map.sectors.push(Sector::new(5, vec![14, 16, 1, 17, 7]));
+
+        let mut surface_3 = Surface::new(3);
+        surface_3.calculate_geometry(&map);
+        map.surfaces.insert(surface_3.id, surface_3);
+
+        let mut surface_5 = Surface::new(5);
+        surface_5.calculate_geometry(&map);
+        map.surfaces.insert(surface_5.id, surface_5);
+
+        map
+    }
+
+    #[test]
+    fn perpendicular_shared_surface_edge_is_detected() {
+        let map = perpendicular_shared_edge_surface_map();
+        let surface = map
+            .surfaces
+            .values()
+            .find(|surface| surface.sector_id == 29)
+            .expect("sector 29 surface");
+        let loop_uv = surface.sector_loop_uv(&map).expect("surface loop");
+        let shared_a = surface.uv_to_world(loop_uv[3]);
+        let shared_b = surface.uv_to_world(loop_uv[0]);
+        let outer_a = surface.uv_to_world(loop_uv[0]);
+        let outer_b = surface.uv_to_world(loop_uv[1]);
+
+        assert!(edge_has_surface_neighbor(surface, &map, shared_a, shared_b));
+        assert!(!edge_has_surface_neighbor(surface, &map, outer_a, outer_b));
+        assert!(edge_is_vertical(shared_a, shared_b));
+        assert!(!edge_is_vertical(outer_a, outer_b));
+    }
+
+    #[test]
+    fn village_wall_corner_shared_surface_edge_is_detected() {
+        let map = village_wall_corner_surface_map();
+        let surface = map
+            .surfaces
+            .values()
+            .find(|surface| surface.sector_id == 3)
+            .expect("sector 3 surface");
+        let loop_uv = surface.sector_loop_uv(&map).expect("surface loop");
+        let shared_a = surface.uv_to_world(loop_uv[3]);
+        let shared_b = surface.uv_to_world(loop_uv[0]);
+        let outer_a = surface.uv_to_world(loop_uv[0]);
+        let outer_b = surface.uv_to_world(loop_uv[1]);
+
+        assert!(edge_has_surface_neighbor(surface, &map, shared_a, shared_b));
+        assert!(!edge_has_surface_neighbor(surface, &map, outer_a, outer_b));
+        assert!(edge_is_vertical(shared_a, shared_b));
+        assert!(edge_lies_on_surface_face(surface, &map, shared_a, shared_b));
+        assert!(!edge_lies_on_surface_face(surface, &map, outer_a, outer_b));
     }
 }
 
@@ -7720,18 +8045,16 @@ fn split_loops_for_base<'a>(
                                 == "sector"
                     })
                     .unwrap_or(false);
-                let builder_hide_host = builder_profile_sector
-                    .map(|ps| ps.properties.get_bool_default("builder_hide_host", false))
-                    .unwrap_or(false);
                 let builder_replace_surface = builder_profile_sector
                     .map(|ps| {
                         ps.properties
                             .get_str_default("builder_surface_mode", String::new())
                             == "replace"
+                            || builder_graph_replaces_surface(ps)
                     })
                     .unwrap_or(false);
                 if is_builder_feature {
-                    if builder_replace_surface && !builder_hide_host {
+                    if builder_replace_surface {
                         base_holes.push(h);
                     }
                     feature_loops.push(h);
@@ -7769,6 +8092,41 @@ fn split_loops_for_base<'a>(
         }
     }
     (base_holes, feature_loops)
+}
+
+fn builder_graph_replaces_surface(sector: &Sector) -> bool {
+    if sector
+        .properties
+        .get_str_default("builder_graph_target", "sector".to_string())
+        != "sector"
+    {
+        return false;
+    }
+    let builder_graph_data = sector
+        .properties
+        .get_str_default("builder_graph_data", String::new());
+    if builder_graph_data.trim().is_empty() {
+        return false;
+    }
+    let Ok(document) = BuilderDocument::from_text(&builder_graph_data) else {
+        return false;
+    };
+    let Ok(assembly) = document.evaluate() else {
+        return false;
+    };
+
+    assembly.cuts.iter().any(|cut| {
+        matches!(
+            cut,
+            BuilderCutMask::Rect {
+                mode: BuilderCutMode::Replace,
+                ..
+            } | BuilderCutMask::Loop {
+                mode: BuilderCutMode::Replace,
+                ..
+            }
+        )
+    })
 }
 
 /// Read profile loops (outer + holes) for a surface from the profile map, using profile sectors.

@@ -69,6 +69,8 @@ With the [Builder Tool](builder), the same HUD area is used for **builder slots*
 
 While Builder is active, contexts that would normally switch the lower dock to **Tiles** show the **Builder Picker** instead.
 
+For the script format and procedural asset model, see [Builder Graph](/docs/builder_graph).
+
 With the [Organic Tool](organic), the lower picker area shows the **Organic** dock instead:
 
 - a live brush preview

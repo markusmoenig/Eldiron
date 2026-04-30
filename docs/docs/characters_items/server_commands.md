@@ -806,3 +806,75 @@ teleport("Entrance", "Deadly Dungeon")
 ```
 
 ---
+
+## `teleport_entity`
+
+*This command can be used from World scripts and other server scripts.*
+
+Teleports a specific entity id to a named sector. The third parameter is optional and names the destination region. Use this from World scripts when a character or item delegates orchestration via `world_event(event, value)` and passes an entity id as the value.
+
+```eldrin
+teleport_entity(player_id, "entrance", "Dungeon")
+```
+
+---
+
+## `build_procedural`
+
+*This command can be used from World scripts and other server scripts.*
+
+Rebuilds the current region from its `[procedural]` settings. It currently supports the 2D `connected_rooms` generator.
+
+Pass a positive seed to rebuild with that exact seed. Pass `0` to advance the procedural run counter and derive the next seed from the region's configured seed.
+
+```eldrin
+build_procedural(0)
+```
+
+Region procedural settings are exposed through context variables. A script can read or write them before calling `build_procedural`.
+
+```eldrin
+region.procedural.room_count = 10
+region.procedural.characters.skeleton.percentage = 55
+build_procedural(0)
+```
+
+This is intended for roguelike loops where a World script handles a player reaching an exit, regenerates the current dungeon region, then moves the player to the new `entrance`.
+
+```eldrin
+fn event(event, value) {
+    if event == "dungeon_exit" {
+        build_procedural(0)
+        teleport_entity(value, "entrance", "Dungeon")
+    }
+}
+```
+
+See also: [Procedural Map Generation](/docs/building_maps/procedural_generation).
+
+---
+
+## `world_event`
+
+*This command can be used with characters, items, and region scripts.*
+
+Queues an event for the World script. The World script receives it through its normal `event(event, value)` handler on the next script processing step.
+
+Use this when local gameplay logic should delegate global orchestration, such as rebuilding a procedural dungeon, advancing a run, or moving a player between regions.
+
+```eldrin
+world_event("dungeon_exit", id())
+```
+
+World script:
+
+```eldrin
+fn event(event, value) {
+    if event == "dungeon_exit" {
+        build_procedural(0)
+        teleport_entity(value, "entrance", "Dungeon")
+    }
+}
+```
+
+---

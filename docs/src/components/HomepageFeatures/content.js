@@ -148,7 +148,7 @@ export const homepageContent = {
             "Create reusable builder graphs for props, furniture, fences, and other structural assemblies, with live preview, material slots, and attachment points for nested builds.",
           image: "/img/screenshots/Eldiron_v0.92_BG.png",
           alt: "Builder Graph preview",
-          href: "/docs/creator/tools/builder",
+          href: "/docs/builder_graph",
           linkLabel: "Open docs",
         },
         {

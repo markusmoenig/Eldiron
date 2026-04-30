@@ -174,7 +174,7 @@ impl GameWidgetBackend for TextGameWidgetBackend {
         scene_handler: &mut SceneHandler,
     ) {
         let _ = (time, animation_frame, scene_handler);
-        if map.name != widget.build_region_name {
+        if map.name != widget.build_region_name || map.changed != widget.build_map_changed {
             widget.text_build(map, assets);
         }
         widget.text_apply_entities(map);

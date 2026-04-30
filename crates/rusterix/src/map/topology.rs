@@ -279,7 +279,11 @@ impl MapTopology {
             return;
         };
         let terrain_mode = sector.properties.get_int_default("terrain_mode", 0);
-        if terrain_mode == 0 && !sector.properties.contains("terrain_source") {
+        if terrain_mode == 0
+            && !sector.properties.contains("terrain_source")
+            && !sector.properties.get_bool_default("cutout_handle", false)
+            && !sector.properties.contains("linked_cutout_handle")
+        {
             return;
         }
         let mut bbox = sector.bounding_box(map);

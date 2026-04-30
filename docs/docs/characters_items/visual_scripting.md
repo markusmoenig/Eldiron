@@ -11,7 +11,7 @@ The editor has one folder for every **event** you support for this entity.
 
 The same editor is also used for:
 
-- **Game / World / Visual Scripting**
+- **World / Visual Scripting**
 - **Region / Visual Scripting**
 
 So visual scripting is no longer limited to characters and items. World scripts are global, while region scripts are local to a single map.
@@ -72,4 +72,12 @@ region.render.background_color_2d = "#272744"
 region.post.saturation = 0.7
 ```
 
-In the visual scripting editor these are just normal **variable assignment** rows. The variable cell stores the full path, while the UI may show a shorter display label for readability.
+In the visual scripting editor these are normal **variable assignment** rows. The variable cell stores the full path, while the UI may show a shorter display label for readability.
+
+## World Events
+
+The **World Event** command block calls `world_event(event, value)`.
+
+Use it from character, item, or region visual scripts when the local script should ask the World script to handle a global task. For example, a dungeon exit tile can send `dungeon_exit` with `id()` as the value, and the World script can rebuild the next dungeon level and move that player to the new entrance.
+
+The World script receives the event through its normal `event(event, value)` handler. Use **Build Procedural** in the World script to rebuild the current procedural region, then **Teleport Entity** when the event value is an entity id that should be moved to a destination sector.

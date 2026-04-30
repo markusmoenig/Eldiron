@@ -7,9 +7,17 @@
 - Added the first topology-backed live 3D editing path, allowing vertex, linedef, and sector edits to update affected scene geometry directly instead of forcing full scene-manager rebuilds during normal drag editing.
 - Added FirstP fly navigation for the Creator: `Space` toggles fly mode, pointer position controls looking/turning, `WASD` moves through the level, and `Escape` exits back to normal editing.
 - Added live Rect Tool painting previews in 2D/3D so tile strokes appear while dragging instead of only after mouse release.
-- Added the first 2D procedural dungeon builder via the new **Build Procedural** action and `[procedural]` region settings, starting with the `connected_rooms` generator.
+<!--- Added the first 2D procedural dungeon builder via the new **Build Procedural** action and `[procedural]` region settings, starting with the `connected_rooms` generator.-->
 - Added procedural tile metadata in **Edit Tile Meta**, allowing tiles to be tagged by style, kind, and weight for generated maps.
 - Added procedural generation support for entrance/exit marker tiles, weighted item spawns such as doors, and weighted character spawns such as dungeon monsters.
+- Added support for endless 2D roguelike-style procedural loops, where scripts can scale `region.procedural.*` settings, rebuild the current dungeon, and place the player at the regenerated entrance.
+
+### Scripting
+
+- Added `world_event(event, value)` and the matching visual scripting **World Event** block, allowing characters, items, and region scripts to delegate orchestration to the World script's `event(event, value)` handler.
+- Added `teleport_entity(entity_id, sector, region)` and the matching visual scripting **Teleport Entity** block so World scripts can move a player or NPC passed in through a world event.
+- Added `build_procedural(seed)` and the matching visual scripting **Build Procedural** block so World scripts can regenerate 2D `connected_rooms` procedural regions during play.
+- Added script access to live region procedural settings through context variables such as `region.procedural.room_count` and `region.procedural.characters.skeleton.percentage`, enabling roguelike difficulty scaling before regeneration.
 
 ## Optimizations
 

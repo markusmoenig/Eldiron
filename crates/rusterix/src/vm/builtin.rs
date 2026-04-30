@@ -124,6 +124,30 @@ impl Default for Builtins {
             },
         );
         b.insert(
+            "world_event",
+            2,
+            NodeOp::HostCall {
+                name: "world_event".into(),
+                argc: 2,
+            },
+        );
+        b.insert(
+            "teleport_entity",
+            3,
+            NodeOp::HostCall {
+                name: "teleport_entity".into(),
+                argc: 3,
+            },
+        );
+        b.insert(
+            "build_procedural",
+            1,
+            NodeOp::HostCall {
+                name: "build_procedural".into(),
+                argc: 1,
+            },
+        );
+        b.insert(
             "message",
             3,
             NodeOp::HostCall {

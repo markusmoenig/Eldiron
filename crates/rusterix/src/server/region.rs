@@ -3631,8 +3631,6 @@ impl RegionInstance {
 
         // ---
 
-        let mut updates: Vec<Vec<u8>> = vec![];
-        let mut item_updates: Vec<Vec<u8>> = vec![];
         let now = Instant::now();
         let redraw_dt = now
             .saturating_duration_since(self.last_redraw_at)
@@ -3651,6 +3649,46 @@ impl RegionInstance {
             sim_dt = self.simulation_dt_for_frame(ctx, redraw_dt);
             ctx.delta_time = sim_dt;
             update_spell_cooldowns(ctx, sim_dt);
+            if ctx.procedural_spawn_guard > 0 {
+                let player_positions = ctx
+                    .map
+                    .entities
+                    .iter()
+                    .filter_map(|entity| {
+                        let is_player = entity
+                            .get_attr_string("class_name")
+                            .map(|class_name| ctx.entity_player_classes.contains(&class_name))
+                            .unwrap_or(false);
+                        if !is_player || ctx.map.find_sector_at(entity.get_pos_xz()).is_some() {
+                            return None;
+                        }
+                        Some((
+                            entity.id,
+                            entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01,
+                        ))
+                    })
+                    .collect::<Vec<_>>();
+
+                for (entity_id, radius) in player_positions {
+                    if let Some(entrance_pos) =
+                        ctx.resolve_sector_spawn_position("entrance", radius)
+                    {
+                        if let Some(entity) = ctx
+                            .map
+                            .entities
+                            .iter_mut()
+                            .find(|entity| entity.id == entity_id)
+                        {
+                            entity.set_attribute("sector", Value::Str(String::new()));
+                            entity.set_attribute("sector_id", Value::Int64(-1));
+                            entity.set_pos_xz(entrance_pos);
+                            entity.mark_all_dirty();
+                        }
+                        ctx.check_player_for_section_change_id(entity_id);
+                    }
+                }
+                ctx.procedural_spawn_guard = ctx.procedural_spawn_guard.saturating_sub(1);
+            }
             entities = ctx.map.entities.clone();
             let turn_speed_deg_per_sec =
                 get_config_i32_default(ctx, "game", "turn_speed_deg_per_sec", 120).max(1) as f32;
@@ -3661,10 +3699,6 @@ impl RegionInstance {
 
         for entity in &mut entities {
             if sim_dt <= 0.0 {
-                if entity.is_dirty() {
-                    updates.push(entity.get_update().pack());
-                    entity.clear_dirty();
-                }
                 continue;
             }
 
@@ -3674,10 +3708,6 @@ impl RegionInstance {
                     EntityAction::StepTo(_, _, _, _, _) | EntityAction::RotateTo(_)
                 )
             {
-                if entity.is_dirty() {
-                    updates.push(entity.get_update().pack());
-                    entity.clear_dirty();
-                }
                 continue;
             }
 
@@ -5548,38 +5578,11 @@ impl RegionInstance {
             if !current_anim.eq_ignore_ascii_case(desired_anim) {
                 entity.set_attribute("avatar_animation", Value::Str(desired_anim.to_string()));
             }
-
-            if entity.is_dirty() {
-                updates.push(entity.get_update().pack());
-                entity.clear_dirty();
-            }
         }
 
         with_regionctx(self.id, |ctx| {
             ctx.map.entities = entities;
             update_spell_items(ctx);
-
-            // Send the entity updates if non empty
-            if !updates.is_empty() {
-                self.from_sender
-                    .send(RegionMessage::EntitiesUpdate(self.id, updates))
-                    .unwrap();
-            }
-
-            // let mut items = MAP.borrow().items.clone();
-            for item in &mut ctx.map.items {
-                if item.is_dirty() {
-                    item_updates.push(item.get_update().pack());
-                    item.clear_dirty();
-                }
-            }
-
-            // Send the item updates if non empty
-            if !item_updates.is_empty() {
-                self.from_sender
-                    .send(RegionMessage::ItemsUpdate(self.id, item_updates))
-                    .unwrap();
-            }
         });
 
         // Execute delayed scripts for entities
@@ -5805,6 +5808,57 @@ impl RegionInstance {
             // }
         }
 
+        // Execute world events queued by scripts. This keeps world orchestration out of
+        // entity/item scripts while avoiding recursive VM execution during host calls.
+        let mut to_execute_world = vec![];
+        with_regionctx(self.id, |ctx| {
+            to_execute_world = ctx.to_execute_world.clone();
+            ctx.to_execute_world.clear();
+        });
+
+        for (event, value) in to_execute_world {
+            with_regionctx(self.id, |ctx| {
+                if let Some(program) = ctx.world_program.clone() {
+                    let previous_scope = ctx.current_script_scope;
+                    ctx.current_script_scope = ScriptScope::World;
+                    let args = [VMValue::from_string(event), value];
+                    run_server_fn(&mut self.exec, &args, &program, ctx);
+                    ctx.current_script_scope = previous_scope;
+                    flush_pending_entity_transfers(ctx);
+                }
+            });
+        }
+
+        let mut final_entity_updates: Vec<Vec<u8>> = vec![];
+        let mut final_item_updates: Vec<Vec<u8>> = vec![];
+        with_regionctx(self.id, |ctx| {
+            for entity in &mut ctx.map.entities {
+                if entity.is_dirty() {
+                    final_entity_updates.push(entity.get_update().pack());
+                    entity.clear_dirty();
+                }
+            }
+
+            for item in &mut ctx.map.items {
+                if item.is_dirty() {
+                    final_item_updates.push(item.get_update().pack());
+                    item.clear_dirty();
+                }
+            }
+        });
+
+        if !final_entity_updates.is_empty() {
+            self.from_sender
+                .send(RegionMessage::EntitiesUpdate(self.id, final_entity_updates))
+                .unwrap();
+        }
+
+        if !final_item_updates.is_empty() {
+            self.from_sender
+                .send(RegionMessage::ItemsUpdate(self.id, final_item_updates))
+                .unwrap();
+        }
+
         with_regionctx(self.id, |ctx| {
             if ctx.debug_mode {
                 self.from_sender
@@ -5882,6 +5936,21 @@ impl RegionInstance {
 
         if let Some(class_name) = entity.get_attr_string("class_name") {
             with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                if ctx.entity_player_classes.contains(&class_name) {
+                    let radius = entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01;
+                    if let Some(entrance_center) =
+                        ctx.resolve_sector_spawn_position("entrance", radius)
+                    {
+                        entity.set_pos_xz(entrance_center);
+                        entity.mark_all_dirty();
+                    } else {
+                        ctx.send_log_message(format!(
+                            "[Procedural] {}: spawning player '{}' but no entrance sector was found",
+                            ctx.map.name, class_name
+                        ));
+                    }
+                }
+
                 ctx.map.entities.push(entity.clone());
 
                 // Setting the data for the entity

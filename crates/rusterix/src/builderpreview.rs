@@ -1,9 +1,11 @@
 use crate::prelude::*;
 use buildergraph::{
-    BuilderAssembly, BuilderOutputSpec, BuilderOutputTarget, BuilderPreviewHost, BuilderPrimitive,
-    BuilderTransform,
+    BuilderAssembly, BuilderCutShape, BuilderDetailPlacement, BuilderMasonryPattern,
+    BuilderOutputSpec, BuilderOutputTarget, BuilderPreviewHost, BuilderPrimitive,
+    BuilderSurfaceDetail, BuilderTransform,
 };
-use vek::{Vec3, Vec4};
+use theframework::prelude::Uuid;
+use vek::{Vec2, Vec3, Vec4};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum PreviewVariants {
@@ -45,6 +47,17 @@ pub fn render_builder_preview(
     preview_host: &BuilderPreviewHost,
     options: BuilderPreviewOptions,
 ) -> Result<BuilderPreviewImage, String> {
+    let assets = Assets::default();
+    render_builder_preview_with_assets(assembly, spec, preview_host, options, &assets)
+}
+
+pub fn render_builder_preview_with_assets(
+    assembly: &BuilderAssembly,
+    spec: BuilderOutputSpec,
+    preview_host: &BuilderPreviewHost,
+    options: BuilderPreviewOptions,
+    assets: &Assets,
+) -> Result<BuilderPreviewImage, String> {
     if spec.target == BuilderOutputTarget::Linedef
         && options.variants == PreviewVariants::AllLineDirections
     {
@@ -59,7 +72,8 @@ pub fn render_builder_preview(
         let single_h = options.size as usize;
         let mut combined = vec![0_u8; single_w * yaws.len() * single_h * 4];
         for (index, yaw) in yaws.iter().enumerate() {
-            let rendered = render_preview_variant(assembly, spec, preview_host, options, *yaw)?;
+            let rendered =
+                render_preview_variant(assembly, spec, preview_host, options, *yaw, assets)?;
             blit_variant(
                 &mut combined,
                 single_w * yaws.len(),
@@ -79,7 +93,7 @@ pub fn render_builder_preview(
     Ok(BuilderPreviewImage {
         width: options.size,
         height: options.size,
-        pixels: render_preview_variant(assembly, spec, preview_host, options, 0.0)?,
+        pixels: render_preview_variant(assembly, spec, preview_host, options, 0.0, assets)?,
     })
 }
 
@@ -89,6 +103,7 @@ fn render_preview_variant(
     preview_host: &BuilderPreviewHost,
     options: BuilderPreviewOptions,
     host_yaw: f32,
+    assets: &Assets,
 ) -> Result<Vec<u8>, String> {
     const PREVIEW_SSAA: usize = 2;
 
@@ -108,13 +123,27 @@ fn render_preview_variant(
         if host_yaw != 0.0 {
             rotate_batch_y(&mut batch, host_yaw);
         }
-        let color = material_color(primitive_material_slot(primitive));
-        batch = batch
-            .source(PixelSource::Pixel(color))
-            .ambient_color(Vec3::broadcast(0.24))
-            .receives_light(true);
+        batch = style_batch_color(batch, primitive_material_slot(primitive), 0.24);
         extend_bounds(&mut min, &mut max, &batch.vertices);
         scene.d3_static.push(batch);
+    }
+
+    for detail in &assembly.surface_details {
+        for mut batch in batches_for_surface_detail(detail, spec.target, dims) {
+            batch.cull_mode = CullMode::Off;
+            if host_yaw != 0.0 {
+                rotate_batch_y(&mut batch, host_yaw);
+            }
+            batch = style_batch(
+                batch,
+                surface_detail_material_slot(detail),
+                surface_detail_pixel_source(detail, assets),
+                0.42,
+                true,
+            );
+            extend_bounds(&mut min, &mut max, &batch.vertices);
+            scene.d3_static.push(batch);
+        }
     }
 
     for host_batch in host_reference_batches(spec.target, dims) {
@@ -150,16 +179,12 @@ fn render_preview_variant(
     camera.near = 0.1;
     camera.far = 200.0;
 
-    let light_pos = center
-        + Vec3::new(
-            extent.x.max(1.0) * 0.85,
-            extent.y.max(1.0) * 1.9,
-            extent.z.max(1.0) * 0.30,
-        );
+    let (_forward, _right, up) = camera.basis_vectors();
+    let light_pos = camera.position() + up * extent.y.max(1.0) * 1.2;
     let light = Light::new(LightType::Point)
         .with_position(light_pos)
         .with_color([0.98, 0.96, 0.92])
-        .with_intensity(2.5)
+        .with_intensity(0.35)
         .with_start_distance(0.0)
         .with_end_distance(extent.magnitude().max(6.0) * 3.0)
         .compile();
@@ -176,14 +201,13 @@ fn render_preview_variant(
         .render_mode(RenderMode::render_3d())
         .background([46, 48, 52, 255])
         .ambient(Vec4::new(0.34, 0.35, 0.38, 1.0));
-    let assets = Assets::default();
     rasterizer.rasterize(
         &mut scene,
         &mut pixels,
         render_width,
         render_height,
         64,
-        &assets,
+        assets,
     );
 
     Ok(downsample_rgba_box(
@@ -332,6 +356,56 @@ fn primitive_material_slot(primitive: &BuilderPrimitive) -> Option<&str> {
     }
 }
 
+fn surface_detail_material_slot(detail: &BuilderSurfaceDetail) -> Option<&str> {
+    match detail {
+        BuilderSurfaceDetail::Rect { material_slot, .. } => material_slot.as_deref(),
+        BuilderSurfaceDetail::Column { material_slot, .. } => material_slot.as_deref(),
+        BuilderSurfaceDetail::Masonry { material_slot, .. } => material_slot.as_deref(),
+    }
+}
+
+fn style_batch_color(batch: Batch3D, material_slot: Option<&str>, ambient: f32) -> Batch3D {
+    style_batch(batch, material_slot, None, ambient, true)
+}
+
+fn style_batch(
+    batch: Batch3D,
+    material_slot: Option<&str>,
+    pixel_source: Option<PixelSource>,
+    ambient: f32,
+    receives_light: bool,
+) -> Batch3D {
+    batch
+        .source(pixel_source.unwrap_or_else(|| PixelSource::Pixel(material_color(material_slot))))
+        .ambient_color(Vec3::broadcast(ambient))
+        .receives_light(receives_light)
+}
+
+fn surface_detail_pixel_source(
+    detail: &BuilderSurfaceDetail,
+    assets: &Assets,
+) -> Option<PixelSource> {
+    let alias = match detail {
+        BuilderSurfaceDetail::Rect { tile_alias, .. } => tile_alias.as_deref(),
+        BuilderSurfaceDetail::Column { tile_alias, .. } => tile_alias.as_deref(),
+        BuilderSurfaceDetail::Masonry { tile_alias, .. } => tile_alias.as_deref(),
+    }?;
+    tile_id_by_alias(assets, alias).map(PixelSource::TileId)
+}
+
+fn tile_id_by_alias(assets: &Assets, alias: &str) -> Option<Uuid> {
+    let needle = alias.trim();
+    if needle.is_empty() {
+        return None;
+    }
+    assets.tiles.iter().find_map(|(id, tile)| {
+        tile.alias
+            .split(|ch: char| ch == ',' || ch == ';' || ch.is_whitespace())
+            .any(|part| part.eq_ignore_ascii_case(needle))
+            .then_some(*id)
+    })
+}
+
 fn material_color(slot: Option<&str>) -> [u8; 4] {
     match slot {
         Some("TOP") => [191, 164, 118, 255],
@@ -339,8 +413,335 @@ fn material_color(slot: Option<&str>) -> [u8; 4] {
         Some("BASE") => [160, 108, 68, 255],
         Some("TORCH") => [82, 72, 58, 255],
         Some("FLAME") => [235, 146, 58, 255],
+        Some("TRIM") => [188, 160, 112, 255],
+        Some("COLUMN") => [166, 151, 126, 255],
+        Some("STONE") => [150, 145, 134, 255],
+        Some("WOOD") => [139, 95, 55, 255],
         _ => [168, 140, 108, 255],
     }
+}
+
+fn batches_for_surface_detail(
+    detail: &BuilderSurfaceDetail,
+    target: BuilderOutputTarget,
+    dims: Vec3<f32>,
+) -> Vec<Batch3D> {
+    match detail {
+        BuilderSurfaceDetail::Rect {
+            min,
+            max,
+            offset,
+            inset,
+            shape,
+            ..
+        } => rect_detail_batches(*min, *max, *offset, *inset, *shape, target, dims),
+        BuilderSurfaceDetail::Column {
+            center,
+            height,
+            radius,
+            offset,
+            base_height,
+            cap_height,
+            segments,
+            placement,
+            ..
+        } => column_detail_batches(
+            *center,
+            *height,
+            *radius,
+            *offset,
+            *base_height,
+            *cap_height,
+            usize::from(*segments),
+            *placement,
+            target,
+            dims,
+        ),
+        BuilderSurfaceDetail::Masonry {
+            min,
+            max,
+            block,
+            mortar,
+            offset,
+            pattern,
+            ..
+        } => masonry_detail_batches(*min, *max, *block, *mortar, *offset, *pattern, target, dims),
+    }
+}
+
+fn masonry_detail_batches(
+    min: Vec2<f32>,
+    max: Vec2<f32>,
+    block: Vec2<f32>,
+    mortar: f32,
+    offset: f32,
+    pattern: BuilderMasonryPattern,
+    target: BuilderOutputTarget,
+    dims: Vec3<f32>,
+) -> Vec<Batch3D> {
+    masonry_block_rects(min, max, block, mortar, pattern)
+        .into_iter()
+        .map(|(block_min, block_max)| {
+            surface_slab_batch(
+                block_min.x,
+                block_min.y,
+                block_max.x,
+                block_max.y,
+                offset,
+                target,
+                dims,
+            )
+        })
+        .collect()
+}
+
+fn rect_detail_batches(
+    min: vek::Vec2<f32>,
+    max: vek::Vec2<f32>,
+    offset: f32,
+    inset: f32,
+    shape: BuilderCutShape,
+    target: BuilderOutputTarget,
+    dims: Vec3<f32>,
+) -> Vec<Batch3D> {
+    let u0 = min.x.min(max.x);
+    let u1 = min.x.max(max.x);
+    let v0 = min.y.min(max.y);
+    let v1 = min.y.max(max.y);
+    if (u1 - u0) <= 0.001 || (v1 - v0) <= 0.001 {
+        return Vec::new();
+    }
+
+    match shape {
+        BuilderCutShape::Fill => vec![surface_slab_batch(u0, v0, u1, v1, offset, target, dims)],
+        BuilderCutShape::Border => {
+            let inset = inset.max(0.01).min((u1 - u0).min(v1 - v0) * 0.45);
+            let mut batches = Vec::new();
+            batches.push(surface_slab_batch(
+                u0,
+                v0,
+                u1,
+                v0 + inset,
+                offset,
+                target,
+                dims,
+            ));
+            batches.push(surface_slab_batch(
+                u0,
+                v1 - inset,
+                u1,
+                v1,
+                offset,
+                target,
+                dims,
+            ));
+            batches.push(surface_slab_batch(
+                u0,
+                v0 + inset,
+                u0 + inset,
+                v1 - inset,
+                offset,
+                target,
+                dims,
+            ));
+            batches.push(surface_slab_batch(
+                u1 - inset,
+                v0 + inset,
+                u1,
+                v1 - inset,
+                offset,
+                target,
+                dims,
+            ));
+            batches
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn column_detail_batches(
+    center: vek::Vec2<f32>,
+    height: f32,
+    radius: f32,
+    offset: f32,
+    base_height: f32,
+    cap_height: f32,
+    segments: usize,
+    placement: BuilderDetailPlacement,
+    target: BuilderOutputTarget,
+    dims: Vec3<f32>,
+) -> Vec<Batch3D> {
+    let height = height.max(0.01);
+    let radius = radius.max(0.01);
+    let segments = segments.clamp(6, 48);
+    let mut batches = Vec::new();
+
+    match target {
+        BuilderOutputTarget::Sector | BuilderOutputTarget::VertexPair => {
+            let base_x = center.x - dims.x * 0.5;
+            let base_z = center.y - dims.z * 0.5;
+            let y0 = match placement {
+                BuilderDetailPlacement::Relief => offset.max(0.0),
+                BuilderDetailPlacement::Freestanding => 0.0,
+            };
+            let shaft_base_y = y0 + base_height.max(0.0);
+            let shaft_height = (height - base_height.max(0.0) - cap_height.max(0.0)).max(0.02);
+            if base_height > 0.0 {
+                batches.push(Batch3D::from_box(
+                    base_x - radius * 1.45,
+                    y0,
+                    base_z - radius * 1.45,
+                    radius * 2.9,
+                    base_height,
+                    radius * 2.9,
+                ));
+            }
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            let mut uvs = Vec::new();
+            add_cylinder_mesh(
+                &mut vertices,
+                &mut indices,
+                &mut uvs,
+                Vec3::new(base_x, shaft_base_y + shaft_height * 0.5, base_z),
+                shaft_height,
+                radius,
+                0.0,
+                0.0,
+                segments,
+            );
+            batches.push(Batch3D::new(vertices, indices, uvs));
+            if cap_height > 0.0 {
+                batches.push(Batch3D::from_box(
+                    base_x - radius * 1.45,
+                    shaft_base_y + shaft_height,
+                    base_z - radius * 1.45,
+                    radius * 2.9,
+                    cap_height,
+                    radius * 2.9,
+                ));
+            }
+        }
+        BuilderOutputTarget::Linedef => {
+            let x = center.x - dims.x * 0.5;
+            let y = center.y + base_height.max(0.0);
+            let z = -offset;
+            let shaft_height = (height - base_height.max(0.0) - cap_height.max(0.0)).max(0.02);
+            if base_height > 0.0 {
+                batches.push(Batch3D::from_box(
+                    x - radius * 1.45,
+                    center.y,
+                    z - radius * 0.35,
+                    radius * 2.9,
+                    base_height,
+                    radius * 0.7,
+                ));
+            }
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            let mut uvs = Vec::new();
+            add_cylinder_mesh(
+                &mut vertices,
+                &mut indices,
+                &mut uvs,
+                Vec3::new(x, y + shaft_height * 0.5, z),
+                shaft_height,
+                radius,
+                0.0,
+                0.0,
+                segments,
+            );
+            batches.push(Batch3D::new(vertices, indices, uvs));
+            if cap_height > 0.0 {
+                batches.push(Batch3D::from_box(
+                    x - radius * 1.45,
+                    y + shaft_height,
+                    z - radius * 0.35,
+                    radius * 2.9,
+                    cap_height,
+                    radius * 0.7,
+                ));
+            }
+        }
+    }
+
+    batches
+}
+
+fn surface_slab_batch(
+    u0: f32,
+    v0: f32,
+    u1: f32,
+    v1: f32,
+    offset: f32,
+    target: BuilderOutputTarget,
+    dims: Vec3<f32>,
+) -> Batch3D {
+    let thickness = offset.abs().max(0.035);
+    match target {
+        BuilderOutputTarget::Sector | BuilderOutputTarget::VertexPair => {
+            let x = u0 - dims.x * 0.5;
+            let z = v0 - dims.z * 0.5;
+            let y = if offset < 0.0 { 0.0 } else { -thickness };
+            Batch3D::from_box(x, y, z, u1 - u0, thickness, v1 - v0)
+        }
+        BuilderOutputTarget::Linedef => {
+            let x = u0 - dims.x * 0.5;
+            let y = v0;
+            let z = if offset < 0.0 { 0.0 } else { -thickness };
+            Batch3D::from_box(x, y, z, u1 - u0, v1 - v0, thickness)
+        }
+    }
+}
+
+fn masonry_block_rects(
+    min: Vec2<f32>,
+    max: Vec2<f32>,
+    block: Vec2<f32>,
+    mortar: f32,
+    pattern: BuilderMasonryPattern,
+) -> Vec<(Vec2<f32>, Vec2<f32>)> {
+    let raw_min = min;
+    let raw_max = max;
+    let min = Vec2::new(raw_min.x.min(raw_max.x), raw_min.y.min(raw_max.y));
+    let max = Vec2::new(raw_min.x.max(raw_max.x), raw_min.y.max(raw_max.y));
+    let block = Vec2::new(block.x.max(0.001), block.y.max(0.001));
+    let mortar = mortar.max(0.0);
+    let edge_margin = (mortar * 0.5).max(0.002);
+    let gap = mortar * 0.5;
+    let area_min = min + Vec2::broadcast(edge_margin);
+    let area_max = max - Vec2::broadcast(edge_margin);
+    if area_max.x <= area_min.x || area_max.y <= area_min.y {
+        return Vec::new();
+    }
+
+    let mut rects = Vec::new();
+    let mut row = 0usize;
+    let mut y0 = area_min.y;
+    while y0 < area_max.y - 0.001 && row < 512 {
+        let y1 = (y0 + block.y).min(area_max.y);
+        let row_offset = match pattern {
+            BuilderMasonryPattern::Grid => 0.0,
+            BuilderMasonryPattern::RunningBond if row % 2 == 1 => block.x * 0.5,
+            BuilderMasonryPattern::RunningBond => 0.0,
+        };
+        let mut x0 = area_min.x - row_offset;
+        let mut col = 0usize;
+        while x0 < area_max.x - 0.001 && col < 1024 {
+            let x1 = x0 + block.x;
+            let clipped_min = Vec2::new(x0.max(area_min.x) + gap, y0 + gap);
+            let clipped_max = Vec2::new(x1.min(area_max.x) - gap, y1 - gap);
+            if clipped_max.x > clipped_min.x + 0.001 && clipped_max.y > clipped_min.y + 0.001 {
+                rects.push((clipped_min, clipped_max));
+            }
+            x0 += block.x;
+            col += 1;
+        }
+        y0 += block.y;
+        row += 1;
+    }
+
+    rects
 }
 
 fn scale_x(value: f32, normalized: bool, dims: Vec3<f32>, _target: BuilderOutputTarget) -> f32 {

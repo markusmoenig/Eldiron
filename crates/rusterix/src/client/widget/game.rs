@@ -72,6 +72,7 @@ pub struct GameWidget {
 
     // Used to detect region changes (have to rebuild the geometry)
     pub build_region_name: String,
+    pub build_map_changed: u32,
 
     // Upscale factor (1.0 = no upscaling, >1.0 = render at lower res and upscale)
     pub upscale: f32,
@@ -136,6 +137,7 @@ impl GameWidget {
             camera: PlayerCamera::D2,
 
             build_region_name: String::new(),
+            build_map_changed: 0,
 
             upscale: 1.0,
             upscale_buffer: TheRGBABuffer::default(),
@@ -508,6 +510,8 @@ impl GameWidget {
         assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) {
+        self.update_player_context(map);
+
         if let Some(bbox) = map.bounding_box() {
             self.map_bbox = bbox;
         }
@@ -531,6 +535,7 @@ impl GameWidget {
         self.scenemanager
             .set_focus_chunk(Some(self.player_chunk_origin(32)));
         self.build_region_name = map.name.clone();
+        self.build_map_changed = map.changed;
         self.iso_hidden_sectors.clear();
         self.iso_sector_fade.clear();
     }
@@ -576,6 +581,7 @@ impl GameWidget {
         }
         self.ensure_text_resources(assets);
         self.build_region_name = map.name.clone();
+        self.build_map_changed = map.changed;
     }
 
     pub fn text_apply_entities(&mut self, map: &Map) {
@@ -688,7 +694,9 @@ impl GameWidget {
         let debug_dirty_before = self.scenemanager.dirty_count();
         let debug_loaded_before = self.loaded_chunks.len();
 
-        if map.name != self.build_region_name {
+        self.update_player_context(map);
+
+        if map.name != self.build_region_name || map.changed != self.build_map_changed {
             let start = debug_enabled.then(std::time::Instant::now);
             self.graphical_build(map, assets, scene_handler);
             if let Some(start) = start {

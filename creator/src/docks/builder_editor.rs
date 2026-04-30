@@ -1,8 +1,8 @@
 use crate::prelude::*;
 use rusterix::Surface;
-use rusterix::builderpreview::{BuilderPreviewOptions, PreviewVariants, render_builder_preview};
+use rusterix::builderpreview::{BuilderPreviewOptions, PreviewVariants};
 use scenevm::GeoId;
-use shared::buildergraph::{BuilderDocument, BuilderGraph};
+use shared::buildergraph::{BuilderCutMask, BuilderCutMode, BuilderDocument, BuilderGraph};
 
 const BUILDER_SCRIPT_EDITOR: &str = "Builder Script Editor";
 const BUILDER_SCRIPT_PREVIEW: &str = "Builder Script Preview";
@@ -13,6 +13,26 @@ const BUILDER_EDITOR_RESET_BUTTON: &str = "Builder Editor Reset";
 pub struct BuilderEditorDock {
     source: String,
     active_builder_id: Option<Uuid>,
+}
+
+fn builder_document_hides_host(document: &BuilderDocument) -> bool {
+    document
+        .evaluate()
+        .map(|assembly| {
+            assembly.cuts.iter().any(|cut| {
+                matches!(
+                    cut,
+                    BuilderCutMask::Rect {
+                        mode: BuilderCutMode::Replace,
+                        ..
+                    } | BuilderCutMask::Loop {
+                        mode: BuilderCutMode::Replace,
+                        ..
+                    }
+                )
+            })
+        })
+        .unwrap_or(false)
 }
 
 impl BuilderEditorDock {
@@ -235,7 +255,7 @@ impl BuilderEditorDock {
         server_ctx: &ServerContext,
     ) {
         self.sync_editor(ui, ctx);
-        self.render_preview(ui, ctx);
+        self.render_preview(ui, ctx, project);
         self.sync_title(ui, ctx, project, server_ctx);
     }
 
@@ -254,7 +274,7 @@ impl BuilderEditorDock {
         ui.set_widget_value(BUILDER_SCRIPT_TITLE, ctx, TheValue::Text(title));
     }
 
-    fn render_preview(&self, ui: &mut TheUI, _ctx: &mut TheContext) {
+    fn render_preview(&self, ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
         let mut buffer = TheRGBABuffer::new(TheDim::sized(384, 384));
         for pixel in buffer.pixels_mut().chunks_exact_mut(4) {
             pixel.copy_from_slice(&[30, 32, 36, 255]);
@@ -263,7 +283,9 @@ impl BuilderEditorDock {
         if let Ok(document) = BuilderDocument::from_text(&self.source)
             && let Ok(assembly) = document.evaluate()
         {
-            let preview = render_builder_preview(
+            let mut assets = rusterix::Assets::default();
+            assets.tiles = project.tiles.clone();
+            let preview = rusterix::builderpreview::render_builder_preview_with_assets(
                 &assembly,
                 document.output_spec(),
                 &document.preview_host(),
@@ -272,6 +294,7 @@ impl BuilderEditorDock {
                     variants: PreviewVariants::Single,
                     ..Default::default()
                 },
+                &assets,
             );
             if let Ok(preview) = preview {
                 buffer =
@@ -292,10 +315,25 @@ impl BuilderEditorDock {
         ctx: &mut TheContext,
     ) {
         let Some(builder_id) = self.active_builder_id.or(server_ctx.curr_builder_graph_id) else {
+            eprintln!("[BuilderGraphDebug][editor] save ignored: no active builder id");
             return;
         };
 
-        let parsed = BuilderDocument::from_text(&self.source).ok();
+        let parsed_result = BuilderDocument::from_text(&self.source);
+        if let Err(err) = &parsed_result {
+            eprintln!(
+                "[BuilderGraphDebug][editor] parse failed for builder={builder_id}: {} (bytes={} first_bytes={:?})",
+                err,
+                self.source.len(),
+                self.source
+                    .as_bytes()
+                    .iter()
+                    .take(8)
+                    .copied()
+                    .collect::<Vec<_>>()
+            );
+        }
+        let parsed = parsed_result.ok();
         let graph_name = parsed
             .as_ref()
             .map(|doc| doc.name().to_string())
@@ -307,13 +345,30 @@ impl BuilderEditorDock {
             })
             .unwrap_or_else(|| "Builder Script".to_string());
         let spec = parsed.as_ref().map(|doc| doc.output_spec());
+        let builder_hide_host = parsed
+            .as_ref()
+            .map(builder_document_hides_host)
+            .unwrap_or(false);
+
+        eprintln!(
+            "[BuilderGraphDebug][editor] save builder={builder_id} graph='{}' parsed={} target={:?} bytes={}",
+            graph_name,
+            parsed.is_some(),
+            spec.map(|spec| spec.target),
+            self.source.len()
+        );
 
         if let Some(asset) = project.builder_graphs.get_mut(&builder_id) {
             asset.graph_name = graph_name.clone();
             asset.graph_data = self.source.clone();
+        } else {
+            eprintln!(
+                "[BuilderGraphDebug][editor] builder asset {builder_id} not found in project"
+            );
         }
 
         if let Some(map) = project.get_map_mut(server_ctx) {
+            let mut updated_hosts = 0usize;
             if let Some(spec) = spec {
                 for sector_id in map.selected_sectors.clone() {
                     if let Some(sector) = map.find_sector_mut(sector_id) {
@@ -336,10 +391,11 @@ impl BuilderEditorDock {
                                 .set("builder_surface_mode", Value::Str("overlay".to_string()));
                             sector
                                 .properties
-                                .set("builder_hide_host", Value::Bool(true));
+                                .set("builder_hide_host", Value::Bool(builder_hide_host));
                             sector
                                 .properties
                                 .set("builder_graph_host_refs", Value::Int(spec.host_refs as i32));
+                            updated_hosts += 1;
                         }
                     }
                     if map.get_surface_for_sector_id(sector_id).is_none() {
@@ -368,6 +424,7 @@ impl BuilderEditorDock {
                             vertex
                                 .properties
                                 .set("builder_graph_host_refs", Value::Int(spec.host_refs as i32));
+                            updated_hosts += 1;
                         }
                     }
                 }
@@ -423,6 +480,7 @@ impl BuilderEditorDock {
                                 );
                             }
                             linedef.properties.remove("builder_graph_face_offset");
+                            updated_hosts += 1;
                         }
                     }
                 }
@@ -437,6 +495,7 @@ impl BuilderEditorDock {
                         sector
                             .properties
                             .set("builder_graph_data", Value::Str(self.source.clone()));
+                        updated_hosts += 1;
                     }
                 }
                 for vertex_id in map.selected_vertices.clone() {
@@ -449,6 +508,7 @@ impl BuilderEditorDock {
                         vertex
                             .properties
                             .set("builder_graph_data", Value::Str(self.source.clone()));
+                        updated_hosts += 1;
                     }
                 }
                 for linedef_id in map.selected_linedefs.clone() {
@@ -461,9 +521,19 @@ impl BuilderEditorDock {
                         linedef
                             .properties
                             .set("builder_graph_data", Value::Str(self.source.clone()));
+                        updated_hosts += 1;
                     }
                 }
             }
+            eprintln!(
+                "[BuilderGraphDebug][editor] selected hosts sectors={} linedefs={} vertices={} updated_hosts={}",
+                map.selected_sectors.len(),
+                map.selected_linedefs.len(),
+                map.selected_vertices.len(),
+                updated_hosts
+            );
+        } else {
+            eprintln!("[BuilderGraphDebug][editor] no mutable map in current context");
         }
 
         ctx.ui.send(TheEvent::Custom(
@@ -608,7 +678,7 @@ impl Dock for BuilderEditorDock {
                 if id.name == BUILDER_SCRIPT_EDITOR =>
             {
                 self.source = text.clone();
-                self.render_preview(ui, ctx);
+                self.render_preview(ui, ctx, project);
                 self.save_state_to_project(project, server_ctx, ctx);
                 true
             }

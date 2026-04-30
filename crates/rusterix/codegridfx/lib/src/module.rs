@@ -5,11 +5,12 @@ use theframework::prelude::*;
 const BLOCKS: [&str; 3] = ["Event", "Var = ..", "If .. == .."];
 const VALUES: [&str; 1] = ["Value"];
 const OPERATORS: [&str; 4] = ["Arithmetic", "Assignment", "Comparison", "Else"];
-const FUNCTIONS: [&str; 45] = [
+const FUNCTIONS: [&str; 48] = [
     "action",
     "add_item",
     "attack",
     "block_events",
+    "build_procedural",
     "cast_spell",
     "clear_audio",
     "clear_target",
@@ -50,7 +51,9 @@ const FUNCTIONS: [&str; 45] = [
     "target",
     "has_target",
     "teleport",
+    "teleport_entity",
     "toggle_attr",
+    "world_event",
 ];
 
 const SHADER_BLOCKS: [&str; 3] = ["Event", "Color = ..", "If .. == .."];

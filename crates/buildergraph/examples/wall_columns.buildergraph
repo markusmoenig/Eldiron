@@ -1,0 +1,46 @@
+name = "Wall Columns";
+host = linedef;
+
+preview {
+    width = 4.0;
+    depth = 0.3;
+    height = 2.4;
+}
+
+detail column {
+    center = vec2(host.width * 0.20, 0.0);
+    height = host.height;
+    radius = 0.10;
+    offset = -0.08;
+    base = 0.16;
+    cap = 0.16;
+    segments = 16;
+    material = COLUMN;
+    tile_alias = stone;
+};
+
+detail column {
+    center = vec2(host.width * 0.50, 0.0);
+    height = host.height;
+    radius = 0.10;
+    offset = -0.08;
+    base = 0.16;
+    cap = 0.16;
+    segments = 16;
+    material = COLUMN;
+    tile_alias = stone;
+};
+
+detail column {
+    center = vec2(host.width * 0.80, 0.0);
+    height = host.height;
+    radius = 0.10;
+    offset = -0.08;
+    base = 0.16;
+    cap = 0.16;
+    segments = 16;
+    material = COLUMN;
+    tile_alias = stone;
+};
+
+output = [];

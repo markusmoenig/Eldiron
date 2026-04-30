@@ -1,0 +1,38 @@
+name = "Surface Freestanding Columns";
+host = sector;
+
+preview {
+    width = 4.0;
+    depth = 2.5;
+    height = 2.0;
+}
+
+detail column {
+    placement = freestanding;
+    center = vec2(host.width * 0.30, host.depth * 0.50);
+    height = 1.45;
+    radius = 0.12;
+    offset = 0.0;
+    cut_footprint = true;
+    base = 0.14;
+    cap = 0.14;
+    segments = 16;
+    material = COLUMN;
+    tile_alias = stone;
+};
+
+detail column {
+    placement = freestanding;
+    center = vec2(host.width * 0.70, host.depth * 0.50);
+    height = 1.45;
+    radius = 0.12;
+    offset = 0.0;
+    cut_footprint = true;
+    base = 0.14;
+    cap = 0.14;
+    segments = 16;
+    material = COLUMN;
+    tile_alias = stone;
+};
+
+output = [];

@@ -20,6 +20,7 @@ pub mod intodata;
 pub mod map;
 pub mod material_profile;
 pub mod particleharness;
+pub mod procedural;
 pub mod rasterizer;
 pub mod ray;
 pub mod rect;

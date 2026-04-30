@@ -1,0 +1,20 @@
+name = "Surface Detail Border";
+host = sector;
+
+cut rect {
+    min = vec2(host.width * 0.20, host.depth * 0.20);
+    max = vec2(host.width * 0.80, host.depth * 0.80);
+    mode = cut;
+};
+
+detail rect {
+    min = vec2(host.width * 0.20, host.depth * 0.20);
+    max = vec2(host.width * 0.80, host.depth * 0.80);
+    offset = -0.05;
+    inset = 0.20;
+    shape = border;
+    material = TRIM;
+    tile_alias = wood;
+};
+
+output = [];

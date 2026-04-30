@@ -977,6 +977,20 @@ impl CellItem {
                 self.form = CellItemForm::LeftRounded;
                 grid.insert(pos, self)
             }
+            Cell::BuildProcedural => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("0".into()),
+                        self.id,
+                        true,
+                        "Seed",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
             Cell::CastSpell => {
                 grid.insert(
                     (pos.0 + 1, pos.1),
@@ -1363,6 +1377,31 @@ impl CellItem {
                 self.form = CellItemForm::LeftRounded;
                 grid.insert(pos, self)
             }
+            Cell::WorldEvent => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("\"event\"".into()),
+                        self.id,
+                        true,
+                        "Event Name",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("id()".into()),
+                        self.id,
+                        true,
+                        "Value",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
             Cell::OfferInventory => {
                 grid.insert(
                     (pos.0 + 1, pos.1),
@@ -1742,6 +1781,41 @@ impl CellItem {
                 );
                 grid.insert(
                     (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("\"\"".into()),
+                        self.id,
+                        true,
+                        "Region Name",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::TeleportEntity => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("id()".into()),
+                        self.id,
+                        true,
+                        "Entity ID",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 2, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("\"\"".into()),
+                        self.id,
+                        true,
+                        "Sector Name",
+                        CellItemForm::Box,
+                    ),
+                );
+                grid.insert(
+                    (pos.0 + 3, pos.1),
                     CellItem::new_dependency(
                         Cell::Value("\"\"".into()),
                         self.id,

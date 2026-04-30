@@ -1,0 +1,21 @@
+name = "Wall Masonry";
+host = linedef;
+
+preview {
+    width = 4.0;
+    depth = 0.3;
+    height = 2.4;
+}
+
+detail masonry {
+    min = vec2(0.05, 0.08);
+    max = vec2(host.width * 0.9875, host.height * 0.9667);
+    block = vec2(0.55, 0.32);
+    mortar = 0.035;
+    offset = -0.04;
+    pattern = running_bond;
+    material = STONE;
+    tile_alias = stone;
+};
+
+output = [];

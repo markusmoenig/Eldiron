@@ -7,7 +7,8 @@ use crate::server::region::{
 use crate::server::regionctx::ChoiceSession;
 use crate::vm::*;
 use crate::{
-    Choice, EntityAction, Item, Map, MultipleChoice, PlayerCamera, RegionCtx, Value, ValueContainer,
+    Choice, Entity, EntityAction, Item, Map, MultipleChoice, PixelSource, PlayerCamera, RegionCtx,
+    Value, ValueContainer,
 };
 use rand::Rng;
 use scenevm::{GeoId, PaletteRemap2DMode};
@@ -44,6 +45,252 @@ fn opening_geo_for_item(item: &Item) -> Option<GeoId> {
     }?;
 
     Some(GeoId::Hole(host_id, profile_id))
+}
+
+fn rebuild_runtime_navigation(ctx: &mut RegionCtx) {
+    ctx.mapmini = ctx.map.as_mini(&ctx.blocking_tiles);
+    ctx.collision_world = crate::CollisionWorld::default();
+
+    use crate::chunkbuilder::{ChunkBuilder, d3chunkbuilder::D3ChunkBuilder};
+    let mut chunk_builder = D3ChunkBuilder::new();
+    let chunk_size = 10;
+
+    if ctx.map.vertices.is_empty() {
+        return;
+    }
+
+    let bbox = ctx.map.bbox();
+    let min_chunk = Vec2::new(
+        (bbox.min.x / chunk_size as f32).floor() as i32,
+        (bbox.min.y / chunk_size as f32).floor() as i32,
+    );
+    let max_chunk = Vec2::new(
+        (bbox.max.x / chunk_size as f32).floor() as i32,
+        (bbox.max.y / chunk_size as f32).floor() as i32,
+    );
+
+    for cy in min_chunk.y..=max_chunk.y {
+        for cx in min_chunk.x..=max_chunk.x {
+            let chunk_origin = Vec2::new(cx, cy);
+            let chunk_collision =
+                chunk_builder.build_collision(&ctx.map, &ctx.assets, chunk_origin, chunk_size);
+            ctx.collision_world
+                .update_chunk(chunk_origin, chunk_collision);
+        }
+    }
+}
+
+fn rebuild_procedural_region(ctx: &mut RegionCtx, seed_arg: i64) -> bool {
+    let debug_context_value = |ctx: &RegionCtx, key: &str| {
+        ctx.get_region_value(key)
+            .map(|value| value.to_string())
+            .or_else(|| {
+                RegionHost::get_config_value(&ctx.config, key).map(|value| value.to_string())
+            })
+            .unwrap_or_else(|| "<missing>".into())
+    };
+
+    let Some(mut cfg) = crate::procedural::parse_procedural_config_table(&ctx.config) else {
+        ctx.send_log_message(format!(
+            "[Procedural] {}: no [procedural] settings found",
+            ctx.map.name
+        ));
+        return false;
+    };
+    cfg.apply_runtime_overrides(|key| ctx.get_region_value(key));
+    if !cfg.enabled
+        || !cfg.generator.eq_ignore_ascii_case("connected_rooms")
+        || !cfg.mode.eq_ignore_ascii_case("2d")
+    {
+        ctx.send_log_message(format!(
+            "[Procedural] {}: skipped generator='{}' mode='{}' enabled={}",
+            ctx.map.name, cfg.generator, cfg.mode, cfg.enabled
+        ));
+        return false;
+    }
+
+    let run = ctx
+        .get_region_value("procedural.run")
+        .and_then(|value| match value {
+            Value::Int(v) => Some(v.max(0) as u64),
+            Value::UInt(v) => Some(v as u64),
+            Value::Float(v) => Some(v.max(0.0) as u64),
+            Value::Int64(v) => Some(v.max(0) as u64),
+            _ => None,
+        })
+        .unwrap_or(0);
+    if seed_arg > 0 {
+        cfg.seed = seed_arg as u64;
+    } else {
+        let next_run = run.saturating_add(1);
+        cfg.seed = cfg.seed.wrapping_add(next_run);
+        ctx.set_region_value(
+            "procedural.run",
+            Value::Int(next_run.min(i32::MAX as u64) as i32),
+        );
+    }
+    ctx.send_log_message(format!(
+        "[Procedural] {}: rebuilding connected_rooms seed={} run={} depth={} rooms={} skeleton_pct={} size={}x{} room_size={}..{}",
+        ctx.map.name,
+        cfg.seed,
+        run,
+        debug_context_value(ctx, "dungeon.depth"),
+        debug_context_value(ctx, "procedural.room_count"),
+        debug_context_value(ctx, "procedural.characters.skeleton.percentage"),
+        cfg.width,
+        cfg.height,
+        cfg.room_min_size,
+        cfg.room_max_size
+    ));
+
+    let removed_item_ids = ctx.map.items.iter().map(|item| item.id).collect::<Vec<_>>();
+    ctx.map.items.clear();
+    for id in removed_item_ids {
+        ctx.item_classes.remove(&id);
+        ctx.item_state_data.remove(&id);
+        ctx.item_proximity_alerts.remove(&id);
+        ctx.notifications_items
+            .retain(|(item_id, _, _)| *item_id != id);
+        ctx.to_execute_item.retain(|(item_id, _, _)| *item_id != id);
+    }
+
+    let removed_entity_ids = ctx
+        .map
+        .entities
+        .iter()
+        .filter_map(|entity| {
+            let is_player = entity
+                .get_attr_string("class_name")
+                .map(|class_name| ctx.entity_player_classes.contains(&class_name))
+                .unwrap_or(false);
+            if is_player {
+                return None;
+            }
+            Some(entity.id)
+        })
+        .collect::<Vec<_>>();
+    ctx.map
+        .entities
+        .retain(|entity| !removed_entity_ids.contains(&entity.id));
+    for id in &removed_entity_ids {
+        ctx.entity_classes.remove(id);
+        ctx.entity_state_data.remove(id);
+        ctx.entity_proximity_alerts.remove(id);
+        ctx.notifications_entities
+            .retain(|(entity_id, _, _)| entity_id != id);
+        ctx.to_execute_entity
+            .retain(|(entity_id, _, _)| entity_id != id);
+        ctx.pending_entity_transfers
+            .retain(|(entity_id, _, _)| entity_id != id);
+    }
+    ctx.active_choice_sessions.retain(|session| {
+        !removed_entity_ids.contains(&session.from) && !removed_entity_ids.contains(&session.to)
+    });
+
+    let output = crate::procedural::bake_connected_rooms(&mut ctx.map, &ctx.assets.tiles, &cfg);
+    let item_spawn_count = output.item_spawns.len();
+    let character_spawn_count = output.character_spawns.len();
+
+    for spawn in output.item_spawns {
+        let Some(mut item) = ctx.create_item(spawn.name.clone()) else {
+            continue;
+        };
+        item.set_position(spawn.position);
+        item.set_attribute("procedural_generated", Value::Bool(true));
+        item.set_attribute("procedural_kind", Value::Str(spawn.kind));
+        item.mark_all_dirty();
+        ctx.map.items.push(item);
+    }
+
+    for spawn in output.character_spawns {
+        if !ctx.assets.entities.contains_key(&spawn.name) {
+            continue;
+        }
+        let id = crate::server::region::get_global_id();
+        let mut entity = Entity {
+            id,
+            position: spawn.position,
+            ..Default::default()
+        };
+        entity.set_attribute("class_name", Value::Str(spawn.name.clone()));
+        entity.set_attribute("name", Value::Str(spawn.name.clone()));
+        entity.set_attribute("mode", Value::Str("active".into()));
+        entity.set_attribute(
+            "_source_seq",
+            Value::Source(PixelSource::Sequence("idle".into())),
+        );
+        entity.set_attribute("procedural_generated", Value::Bool(true));
+        entity.set_attribute("procedural_kind", Value::Str(spawn.kind));
+        if let Some(data) = ctx.entity_class_data.get(&spawn.name) {
+            crate::server::data::apply_entity_data(&mut entity, data);
+        }
+        if let Some(Value::Int(inv_slots)) = entity.attributes.get("inventory_slots") {
+            entity.inventory = vec![None; *inv_slots as usize];
+        }
+        if let Some(Value::Int(wealth)) = entity.attributes.get("wealth") {
+            let _ = entity.add_base_currency(*wealth as i64, &ctx.currencies);
+        }
+        entity.mark_all_dirty();
+        ctx.entity_classes.insert(entity.id, spawn.name);
+        ctx.to_execute_entity
+            .push((entity.id, "startup".into(), VMValue::zero()));
+        ctx.map.entities.push(entity);
+    }
+
+    rebuild_runtime_navigation(ctx);
+    let player_entity_ids = ctx
+        .map
+        .entities
+        .iter()
+        .filter_map(|entity| {
+            let is_player = entity
+                .get_attr_string("class_name")
+                .map(|class_name| ctx.entity_player_classes.contains(&class_name))
+                .unwrap_or(false);
+            is_player.then_some((
+                entity.id,
+                entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01,
+            ))
+        })
+        .collect::<Vec<_>>();
+    for (entity_id, radius) in player_entity_ids {
+        if let Some(entrance_pos) = ctx.resolve_sector_spawn_position("entrance", radius) {
+            if let Some(entity) = ctx
+                .map
+                .entities
+                .iter_mut()
+                .find(|entity| entity.id == entity_id)
+            {
+                entity.set_attribute("sector", Value::Str(String::new()));
+                entity.set_attribute("sector_id", Value::Int64(-1));
+                entity.set_pos_xz(entrance_pos);
+                entity.mark_all_dirty();
+            }
+            ctx.check_player_for_section_change_id(entity_id);
+        } else {
+            ctx.send_log_message(format!(
+                "[Procedural] {}: no walkable entrance position found for retained player id={}",
+                ctx.map.name, entity_id
+            ));
+        }
+    }
+    ctx.procedural_spawn_guard = 8;
+    ctx.send_log_message(format!(
+        "[Procedural] {}: rebuilt vertices={} linedefs={} sectors={} surfaces={} items={} entities={} spawned_items={} spawned_characters={}",
+        ctx.map.name,
+        ctx.map.vertices.len(),
+        ctx.map.linedefs.len(),
+        ctx.map.sectors.len(),
+        ctx.map.surfaces.len(),
+        ctx.map.items.len(),
+        ctx.map.entities.len(),
+        item_spawn_count,
+        character_spawn_count
+    ));
+    if let Some(sender) = ctx.from_sender.get() {
+        let _ = sender.send(RegionMessage::MapUpdate(ctx.region_id, ctx.map.clone()));
+    }
+    true
 }
 
 fn convert_attr_value(key: &str, val: &VMValue, hint: Option<&Value>, health_attr: &str) -> Value {
@@ -312,11 +559,42 @@ impl<'a> RegionHost<'a> {
         }
     }
 
+    fn toml_to_runtime_value(value: &toml::Value) -> Option<Value> {
+        match value {
+            toml::Value::Boolean(value) => Some(Value::Bool(*value)),
+            toml::Value::Integer(value) => i32::try_from(*value)
+                .map(Value::Int)
+                .ok()
+                .or_else(|| Some(Value::Int64(*value))),
+            toml::Value::Float(value) => Some(Value::Float(*value as f32)),
+            toml::Value::String(value) => Some(Value::Str(value.clone())),
+            toml::Value::Array(values) => values
+                .iter()
+                .map(|value| value.as_str().map(str::to_string))
+                .collect::<Option<Vec<_>>>()
+                .map(Value::StrArray),
+            _ => None,
+        }
+    }
+
+    fn get_config_value(config: &toml::Table, key: &str) -> Option<Value> {
+        let mut parts = key.split('.').filter(|part| !part.is_empty());
+        let first = parts.next()?;
+        let mut value = config.get(first)?;
+        for part in parts {
+            value = value.as_table()?.get(part)?;
+        }
+        Self::toml_to_runtime_value(value)
+    }
+
     fn get_context_value(&self, path: &str) -> Option<Value> {
         let (root, key) = Self::split_context_path(path)?;
         match root {
             "world" => RegionCtx::get_world_value(key),
-            "region" => self.ctx.get_region_value(key),
+            "region" => self
+                .ctx
+                .get_region_value(key)
+                .or_else(|| Self::get_config_value(&self.ctx.config, key)),
             _ => None,
         }
     }
@@ -328,7 +606,9 @@ impl<'a> RegionHost<'a> {
 
         match root {
             "world" => RegionCtx::set_world_value(key, value.clone()),
-            "region" => self.ctx.set_region_value(key, value.clone()),
+            "region" => {
+                self.ctx.set_region_value(key, value.clone());
+            }
             _ => return,
         }
 
@@ -730,6 +1010,73 @@ impl<'a> HostHandler for RegionHost<'a> {
                         ent.set_attribute("intent", Value::Str(s.to_string()));
                     }
                 }
+            }
+            "world_event" => {
+                if let (Some(event), Some(value)) =
+                    (args.first().and_then(|v| v.as_string()), args.get(1))
+                {
+                    self.ctx
+                        .to_execute_world
+                        .push((event.to_string(), value.clone()));
+
+                    if self.ctx.debug_mode {
+                        add_debug_value(&mut self.ctx, TheValue::Text("Ok".into()), false);
+                    }
+                }
+            }
+            "teleport_entity" => {
+                if let (Some(entity_id), Some(dest)) = (
+                    args.first().map(|v| v.x as u32),
+                    args.get(1).and_then(|v| v.as_string()),
+                ) {
+                    let region_name = args.get(2).and_then(|v| v.as_string()).unwrap_or("");
+
+                    if region_name.is_empty() {
+                        let radius = self
+                            .ctx
+                            .map
+                            .entities
+                            .iter()
+                            .find(|e| e.id == entity_id)
+                            .map(|entity| {
+                                entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01
+                            })
+                            .unwrap_or(0.49);
+                        if let Some(center) = self.ctx.resolve_sector_spawn_position(&dest, radius)
+                        {
+                            if let Some(entity) =
+                                self.ctx.map.entities.iter_mut().find(|e| e.id == entity_id)
+                            {
+                                entity.set_pos_xz(center);
+                                entity.mark_all_dirty();
+                                self.ctx.check_player_for_section_change_id(entity_id);
+                                if let Some(sender) = self.ctx.from_sender.get() {
+                                    let _ = sender.send(RegionMessage::MapUpdate(
+                                        self.ctx.region_id,
+                                        self.ctx.map.clone(),
+                                    ));
+                                }
+                            }
+                        } else if self.ctx.debug_mode {
+                            add_debug_value(
+                                &mut self.ctx,
+                                TheValue::Text("Unknown Sector".into()),
+                                true,
+                            );
+                        }
+                    } else {
+                        self.ctx.pending_entity_transfers.push((
+                            entity_id,
+                            region_name.to_string(),
+                            dest.to_string(),
+                        ));
+                    }
+                }
+            }
+            "build_procedural" => {
+                let seed = args.first().map(|v| v.x as i64).unwrap_or(0);
+                let ok = rebuild_procedural_region(self.ctx, seed);
+                return self.debug_return_bool(ok);
             }
             "message" => {
                 if let (Some(receiver), Some(msg)) =
@@ -2196,22 +2543,31 @@ impl<'a> HostHandler for RegionHost<'a> {
                     let region_name = args.get(1).and_then(|v| v.as_string()).unwrap_or("");
 
                     if region_name.is_empty() {
-                        // Teleport entity in this region to the given sector.
-                        let center = {
-                            let map = &self.ctx.map;
-                            map.sectors
-                                .iter()
-                                .find(|s| s.name == dest)
-                                .and_then(|s| s.center(map))
-                        };
-
+                        let radius = self
+                            .ctx
+                            .map
+                            .entities
+                            .iter()
+                            .find(|entity| entity.id == self.ctx.curr_entity_id)
+                            .map(|entity| {
+                                entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01
+                            })
+                            .unwrap_or(0.49);
+                        let center = self.ctx.resolve_sector_spawn_position(&dest, radius);
                         if let Some(center) = center {
                             // First move the entity
                             if let Some(entity) = self.ctx.get_current_entity_mut() {
                                 let id = entity.id;
                                 entity.set_pos_xz(center);
+                                entity.mark_all_dirty();
                                 // Then run section change checks using a fresh borrow
                                 self.ctx.check_player_for_section_change_id(id);
+                                if let Some(sender) = self.ctx.from_sender.get() {
+                                    let _ = sender.send(RegionMessage::MapUpdate(
+                                        self.ctx.region_id,
+                                        self.ctx.map.clone(),
+                                    ));
+                                }
                             }
                         } else if self.ctx.debug_mode {
                             add_debug_value(

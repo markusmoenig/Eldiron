@@ -187,6 +187,45 @@ impl ToolList {
     fn sector_affects_terrain(sector: &rusterix::Sector) -> bool {
         sector.properties.get_int_default("terrain_mode", 0) != 0
             || sector.properties.contains("terrain_source")
+            || sector.properties.get_bool_default("cutout_handle", false)
+            || sector.properties.contains("linked_cutout_handle")
+    }
+
+    fn expand_cutout_related_sectors(map: &Map, sectors: &mut FxHashSet<u32>) {
+        let mut cutout_handles = FxHashSet::default();
+        let seeds = sectors.iter().copied().collect::<Vec<_>>();
+
+        for sector_id in &seeds {
+            if let Some(sector) = map.find_sector(*sector_id) {
+                if sector.properties.get_bool_default("cutout_handle", false) {
+                    cutout_handles.insert(*sector_id);
+                }
+                if let Some(handle_id) = sector.properties.get_int("linked_cutout_handle") {
+                    cutout_handles.insert(handle_id as u32);
+                }
+                if let Some(handle_id) = sector.properties.get_int("host_sector") {
+                    sectors.insert(handle_id as u32);
+                }
+            }
+        }
+
+        if cutout_handles.is_empty() {
+            return;
+        }
+
+        for sector in &map.sectors {
+            if let Some(handle_id) = sector.properties.get_int("linked_cutout_handle")
+                && cutout_handles.contains(&(handle_id as u32))
+            {
+                sectors.insert(sector.id);
+            }
+            if let Some(host_id) = sector.properties.get_int("host_sector")
+                && cutout_handles.contains(&sector.id)
+            {
+                sectors.insert(host_id as u32);
+            }
+        }
+        sectors.extend(cutout_handles);
     }
 
     fn selected_edit_affects_terrain(map: &Map, server_ctx: &ServerContext) -> bool {
@@ -437,6 +476,9 @@ impl ToolList {
             return None;
         }
 
+        Self::expand_cutout_related_sectors(old_map, &mut affected_sectors);
+        Self::expand_cutout_related_sectors(new_map, &mut affected_sectors);
+
         let mut chunk_origins: FxHashSet<(i32, i32)> = FxHashSet::default();
         let mut owners = FxHashSet::default();
         owners.extend(old_topology.owners_for_vertices(old_map, affected_vertices.iter().copied()));
@@ -545,17 +587,6 @@ impl ToolList {
     }
 
     fn apply_geometry_scene_update(new_map: &Map, plan: GeometryOwnerReplacementPlan) -> bool {
-        if plan.include_terrain {
-            if plan.chunk_origins.is_empty() {
-                return false;
-            }
-            crate::utils::editor_scene_replace_incremental_map_update(
-                new_map.clone(),
-                plan.chunk_origins.into_iter().collect(),
-            );
-            return true;
-        }
-
         Self::apply_geometry_owner_replacement(new_map, plan)
     }
 

@@ -1,4 +1,4 @@
-use crate::{Entity, Value, ValueContainer};
+use crate::{Entity, Map, Value, ValueContainer};
 use codegridfx::DebugModule;
 use scenevm::PaletteRemap2DMode;
 use theframework::prelude::*;
@@ -93,6 +93,8 @@ pub enum RegionMessage {
     TeleportEntity(u32, String, String),
     /// Instantly move an entity to a position in the current region.
     TeleportEntityPos(u32, Vec2<f32>),
+    /// Replace a region map after runtime procedural generation.
+    MapUpdate(u32, Map),
     /// Entity updates for a given region instance
     EntitiesUpdate(u32, Vec<Vec<u8>>),
     /// Item updates for a given region instance

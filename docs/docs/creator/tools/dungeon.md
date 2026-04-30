@@ -238,4 +238,5 @@ This is especially useful when painting dungeon walls, doors, and stair assembli
 - [Overview](/docs/creator/tools/overview)
 - [Rect Tool](/docs/creator/tools/rect)
 - [Builder Tool](/docs/creator/tools/builder)
+- [Builder Graph](/docs/builder_graph)
 - [Creating 3D Maps](/docs/building_maps/creating_3d_maps)

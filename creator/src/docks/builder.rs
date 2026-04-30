@@ -2,6 +2,7 @@ use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
 use rusterix::Surface;
 use scenevm::GeoId;
+use shared::buildergraph::{BuilderCutMask, BuilderCutMode, BuilderDocument};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const BUILDER_TAB_LAYOUT: &str = "Builder Dock Tabs";
@@ -44,6 +45,26 @@ pub struct BuilderDock {
     hovered: Option<Uuid>,
     placements: Vec<Vec<BuilderCardPlacement>>,
     last_asset_click: Option<(Uuid, u128)>,
+}
+
+fn builder_document_hides_host(document: &BuilderDocument) -> bool {
+    document
+        .evaluate()
+        .map(|assembly| {
+            assembly.cuts.iter().any(|cut| {
+                matches!(
+                    cut,
+                    BuilderCutMask::Rect {
+                        mode: BuilderCutMode::Replace,
+                        ..
+                    } | BuilderCutMask::Loop {
+                        mode: BuilderCutMode::Replace,
+                        ..
+                    }
+                )
+            })
+        })
+        .unwrap_or(false)
 }
 
 impl Dock for BuilderDock {
@@ -318,6 +339,13 @@ impl Dock for BuilderDock {
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "Builder Dock Apply Build" =>
             {
+                eprintln!(
+                    "[BuilderGraphDebug][click] Apply Build selected={:?} curr={:?} hud_slot={} map_tool={:?}",
+                    self.selected,
+                    server_ctx.curr_builder_graph_id,
+                    server_ctx.selected_hud_icon_index,
+                    server_ctx.curr_map_tool_type
+                );
                 if let Some(asset_id) = self.selected.or(server_ctx.curr_builder_graph_id) {
                     let mut applied_to_item_slot = false;
                     if let Some(asset) = project.builder_graphs.get(&asset_id).cloned()
@@ -329,9 +357,27 @@ impl Dock for BuilderDock {
                             server_ctx.selected_hud_icon_index,
                             &asset,
                         );
+                        eprintln!(
+                            "[BuilderGraphDebug][click] item-slot apply attempted result={} selected sectors={} linedefs={} vertices={}",
+                            applied_to_item_slot,
+                            map.selected_sectors.len(),
+                            map.selected_linedefs.len(),
+                            map.selected_vertices.len()
+                        );
+                    } else {
+                        eprintln!(
+                            "[BuilderGraphDebug][click] no asset or no mutable map for asset={asset_id}"
+                        );
                     }
                     if !applied_to_item_slot {
+                        eprintln!(
+                            "[BuilderGraphDebug][click] activating asset={asset_id} on host selection"
+                        );
                         self.activate_asset(asset_id, ui, ctx, project, server_ctx);
+                    } else {
+                        eprintln!(
+                            "[BuilderGraphDebug][click] consumed by item-slot apply; host activation skipped"
+                        );
                     }
                     crate::utils::editor_scene_full_rebuild(project, server_ctx);
                     ctx.ui.send(TheEvent::Custom(
@@ -340,6 +386,10 @@ impl Dock for BuilderDock {
                     ));
                     self.render_views(ui, ctx, project);
                     redraw = true;
+                } else {
+                    eprintln!(
+                        "[BuilderGraphDebug][click] Apply Build ignored: no selected builder asset"
+                    );
                 }
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
@@ -777,7 +827,7 @@ impl BuilderDock {
                     .builder_graphs
                     .values()
                     .map(|asset| {
-                        let preview = Self::preview_for_asset(asset);
+                        let preview = Self::preview_for_asset(asset, project);
                         let description = Self::description_for_asset(asset);
                         BuilderCardSpec {
                             kind: BuilderCardKind::Asset(asset.id),
@@ -820,10 +870,13 @@ impl BuilderDock {
         })
     }
 
-    fn preview_for_asset(asset: &BuilderGraphAsset) -> Option<TheRGBABuffer> {
+    fn preview_for_asset(asset: &BuilderGraphAsset, project: &Project) -> Option<TheRGBABuffer> {
         if let Ok(graph) = shared::buildergraph::BuilderDocument::from_text(&asset.graph_data)
             && let Ok(assembly) = graph.evaluate()
-            && let Ok(preview) = rusterix::builderpreview::render_builder_preview(
+        {
+            let mut assets = rusterix::Assets::default();
+            assets.tiles = project.tiles.clone();
+            let preview = rusterix::builderpreview::render_builder_preview_with_assets(
                 &assembly,
                 graph.output_spec(),
                 &graph.preview_host(),
@@ -833,8 +886,9 @@ impl BuilderDock {
                     variants: rusterix::builderpreview::PreviewVariants::Single,
                     ..Default::default()
                 },
+                &assets,
             )
-        {
+            .ok()?;
             let mut buffer =
                 TheRGBABuffer::new(TheDim::sized(preview.width as i32, preview.height as i32));
             buffer.pixels_mut().copy_from_slice(&preview.pixels);
@@ -899,10 +953,26 @@ impl BuilderDock {
         let asset_builder_id = asset.id;
         let asset_graph_name = asset.graph_name.clone();
         let asset_graph_data = asset.graph_data.clone();
-        let Ok(graph) = shared::buildergraph::BuilderDocument::from_text(&asset_graph_data) else {
-            return;
+        let graph = match shared::buildergraph::BuilderDocument::from_text(&asset_graph_data) {
+            Ok(graph) => graph,
+            Err(err) => {
+                eprintln!(
+                    "[BuilderGraphDebug][apply] asset='{}' parse failed: {} (bytes={} first_bytes={:?})",
+                    asset_graph_name,
+                    err,
+                    asset_graph_data.len(),
+                    asset_graph_data
+                        .as_bytes()
+                        .iter()
+                        .take(8)
+                        .copied()
+                        .collect::<Vec<_>>()
+                );
+                return;
+            }
         };
         let spec = graph.output_spec();
+        let builder_hide_host = builder_document_hides_host(&graph);
         let group_id = Uuid::new_v4();
 
         server_ctx.curr_map_tool_type = match spec.target {
@@ -910,6 +980,24 @@ impl BuilderDock {
             BuilderOutputTarget::VertexPair => MapToolType::Vertex,
             BuilderOutputTarget::Linedef => MapToolType::Linedef,
         };
+
+        eprintln!(
+            "[BuilderGraphDebug][apply] asset='{}' target={:?} selected sectors={} linedefs={} vertices={}",
+            asset_graph_name,
+            spec.target,
+            project
+                .get_map(server_ctx)
+                .map(|map| map.selected_sectors.len())
+                .unwrap_or_default(),
+            project
+                .get_map(server_ctx)
+                .map(|map| map.selected_linedefs.len())
+                .unwrap_or_default(),
+            project
+                .get_map(server_ctx)
+                .map(|map| map.selected_vertices.len())
+                .unwrap_or_default(),
+        );
 
         if let Some(map) = project.get_map_mut(server_ctx) {
             match spec.target {
@@ -935,7 +1023,7 @@ impl BuilderDock {
                                 .set("builder_surface_mode", Value::Str("overlay".to_string()));
                             sector
                                 .properties
-                                .set("builder_hide_host", Value::Bool(true));
+                                .set("builder_hide_host", Value::Bool(builder_hide_host));
                             sector
                                 .properties
                                 .set("builder_graph_host_refs", Value::Int(spec.host_refs as i32));
@@ -945,11 +1033,20 @@ impl BuilderDock {
                             sector
                                 .properties
                                 .set("builder_graph_group_order", Value::Int(group_order as i32));
+                            eprintln!(
+                                "[BuilderGraphDebug][apply] wrote sector={} graph bytes={} host_refs={}",
+                                sector_id,
+                                asset_graph_data.len(),
+                                spec.host_refs
+                            );
                         }
                         if map.get_surface_for_sector_id(sector_id).is_none() {
                             let mut surface = Surface::new(sector_id);
                             surface.calculate_geometry(map);
                             map.surfaces.insert(surface.id, surface);
+                            eprintln!(
+                                "[BuilderGraphDebug][apply] created surface for sector={sector_id}"
+                            );
                         }
                     }
                 }

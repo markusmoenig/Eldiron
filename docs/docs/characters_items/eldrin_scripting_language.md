@@ -183,19 +183,19 @@ Example:
 ```eldrin
 fn event(event, value) {
     if event == "startup" {
-        let world.render.pal.start = 0;
-        let world.render.pal.end = 9;
-        let world.render.pal.mode = "nearest";
-        let world.render.pal.blend = 1.0;
+        world.render.pal.start = 0;
+        world.render.pal.end = 9;
+        world.render.pal.mode = "nearest";
+        world.render.pal.blend = 1.0;
 
-        let region.render.background_color_2d = "#272744";
-        let region.render.fog_color = "#20242c";
-        let region.render.fog_density = 5.0;
+        region.render.background_color_2d = "#272744";
+        region.render.fog_color = "#20242c";
+        region.render.fog_density = 5.0;
 
-        let world.post.enabled = true;
-        let world.post.tone_mapper = "aces";
-        let world.post.exposure = 0.9;
-        let world.post.saturation = 0.7;
+        world.post.enabled = true;
+        world.post.tone_mapper = "aces";
+        world.post.exposure = 0.9;
+        world.post.saturation = 0.7;
     }
 }
 ```

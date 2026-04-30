@@ -66,6 +66,8 @@ pub struct Server {
     pub world_render: RuntimeRenderState,
     pub region_render: FxHashMap<u32, RuntimeRenderState>,
     pub times: FxHashMap<u32, TheTime>,
+    pub runtime_maps: FxHashMap<u32, Map>,
+    pub runtime_map_position_guards: FxHashMap<u32, u8>,
 
     pub state: ServerState,
 
@@ -105,6 +107,8 @@ impl Server {
             world_render: RuntimeRenderState::default(),
             region_render: FxHashMap::default(),
             times: FxHashMap::default(),
+            runtime_maps: FxHashMap::default(),
+            runtime_map_position_guards: FxHashMap::default(),
 
             state: ServerState::Off,
 
@@ -219,6 +223,10 @@ impl Server {
     /// Apply entities and items for a given region.
     pub fn apply_entities_items(&self, map: &mut Map) {
         if let Some(region_id) = self.region_id_map.get(&map.id) {
+            if let Some(runtime_map) = self.runtime_maps.get(region_id) {
+                *map = runtime_map.clone();
+            }
+
             if let Some(entities) = self.entities.get(region_id) {
                 map.entities = entities.clone();
             }
@@ -344,13 +352,39 @@ impl Server {
                             .into_iter()
                             .map(|data| EntityUpdate::unpack(&data))
                             .collect();
+                        let runtime_map = self.runtime_maps.get(&id).cloned();
+                        let guard_runtime_positions = self
+                            .runtime_map_position_guards
+                            .get(&id)
+                            .copied()
+                            .unwrap_or(0)
+                            > 0;
 
                         if let Some(entities) = self.entities.get_mut(&id) {
-                            Self::process_entity_updates(entities, updates, assets);
+                            Self::process_entity_updates(
+                                entities,
+                                updates,
+                                assets,
+                                runtime_map.as_ref(),
+                                guard_runtime_positions,
+                            );
                         } else {
                             let mut entities = vec![];
-                            Self::process_entity_updates(&mut entities, updates, assets);
+                            Self::process_entity_updates(
+                                &mut entities,
+                                updates,
+                                assets,
+                                runtime_map.as_ref(),
+                                guard_runtime_positions,
+                            );
                             self.entities.insert(id, entities);
+                        }
+
+                        if let Some(guard) = self.runtime_map_position_guards.get_mut(&id) {
+                            *guard = guard.saturating_sub(1);
+                            if *guard == 0 {
+                                self.runtime_map_position_guards.remove(&id);
+                            }
                         }
                     }
                     RegionMessage::ItemsUpdate(id, serialized_updates) => {
@@ -575,6 +609,16 @@ impl Server {
                             }
                         }
                     }
+                    RegionMessage::MapUpdate(_id, map) => {
+                        if let Some(region_id) = self.region_id_map.get(&map.id).copied() {
+                            self.entities.insert(region_id, map.entities.clone());
+                            self.items.insert(region_id, map.items.clone());
+                            self.runtime_maps.insert(region_id, map.clone());
+                            self.runtime_map_position_guards.insert(region_id, 4);
+                        }
+                        assets.maps.insert(map.name.clone(), map.clone());
+                        rc = Some(map.name.clone());
+                    }
                     RegionMessage::DebugData(data) => {
                         self.debug.merge(&data);
                     }
@@ -615,6 +659,8 @@ impl Server {
         entities: &mut Vec<Entity>,
         updates: Vec<EntityUpdate>,
         assets: &mut Assets,
+        runtime_map: Option<&Map>,
+        guard_runtime_positions: bool,
     ) {
         let interp_duration = Self::client_entity_interp_duration(assets);
         // Create a mapping from entity ID to index for efficient lookup
@@ -626,6 +672,21 @@ impl Server {
 
         for update in updates {
             if let Some(&index) = entity_map.get(&update.id) {
+                if guard_runtime_positions
+                    && entities[index].is_player()
+                    && let Some(position) = update.position
+                {
+                    let pos_2d = Vec2::new(position.x, position.z);
+                    let outside_runtime_map = runtime_map
+                        .map(|map| map.find_sector_at(pos_2d).is_none())
+                        .unwrap_or(false);
+                    let moved_far =
+                        (position - entities[index].position).magnitude_squared() > 0.25;
+                    if outside_runtime_map && moved_far {
+                        continue;
+                    }
+                }
+
                 let previous_position = entities[index].position;
                 let new_position = update.position;
                 let should_interpolate =

@@ -150,6 +150,7 @@ pub enum Cell {
     AddItem,
     Attack,
     BlockEvents,
+    BuildProcedural,
     CastSpell,
     ClearAudio,
     ClearTarget,
@@ -191,8 +192,10 @@ pub enum Cell {
     Target,
     HasTarget,
     Teleport,
+    TeleportEntity,
     ToggleAttr,
     TookDamage,
+    WorldEvent,
 
     // Shader based (sorted)
     Abs,
@@ -280,6 +283,7 @@ impl Cell {
             Cell::AddItem => "Add Item",
             Cell::Attack => "Attack",
             Cell::BlockEvents => "Block Events",
+            Cell::BuildProcedural => "Build Procedural",
             Cell::CastSpell => "Cast Spell",
             Cell::ClearAudio => "Clear Audio",
             Cell::ClearTarget => "Clear Target",
@@ -321,8 +325,10 @@ impl Cell {
             Cell::Target => "Target",
             Cell::HasTarget => "Has Target",
             Cell::Teleport => "Teleport",
+            Cell::TeleportEntity => "Teleport Entity",
             Cell::ToggleAttr => "Toggle Attr",
             Cell::TookDamage => "Took Damage",
+            Cell::WorldEvent => "World Event",
 
             Cell::Abs => "Abs",
             Cell::Atan => "Atan",
@@ -385,6 +391,7 @@ impl Cell {
             "add_item" => Some(Cell::AddItem),
             "attack" => Some(Cell::Attack),
             "block_events" => Some(Cell::BlockEvents),
+            "build_procedural" => Some(Cell::BuildProcedural),
             "cast_spell" => Some(Cell::CastSpell),
             "clear_audio" => Some(Cell::ClearAudio),
             "clear_target" => Some(Cell::ClearTarget),
@@ -425,8 +432,10 @@ impl Cell {
             "target" => Some(Cell::Target),
             "has_target" => Some(Cell::HasTarget),
             "teleport" => Some(Cell::Teleport),
+            "teleport_entity" => Some(Cell::TeleportEntity),
             "toggle_attr" => Some(Cell::ToggleAttr),
             "took_damage" => Some(Cell::TookDamage),
+            "world_event" => Some(Cell::WorldEvent),
 
             "abs" => Some(Cell::Abs),
             "atan" => Some(Cell::Atan),
@@ -504,6 +513,7 @@ impl Cell {
             AddItem => "add_item".into(),
             Attack => "attack".into(),
             BlockEvents => "block_events".into(),
+            BuildProcedural => "build_procedural".into(),
             CastSpell => "cast_spell".into(),
             ClearAudio => "clear_audio".into(),
             ClearTarget => "clear_target".into(),
@@ -544,8 +554,10 @@ impl Cell {
             Target => "target".into(),
             HasTarget => "has_target".into(),
             Teleport => "teleport".into(),
+            TeleportEntity => "teleport_entity".into(),
             ToggleAttr => "toggle_attr".into(),
             TookDamage => "took_damage".into(),
+            WorldEvent => "world_event".into(),
 
             Abs => "abs".into(),
             Atan => "atan".into(),
@@ -592,6 +604,9 @@ impl Cell {
             AddItem => "Add an item to the inventory of the current entity.".into(),
             Attack => "Attack the current target using progression.damage, or DMG / 1 as fallback, then apply weapon damage kind rules.".into(),
             BlockEvents => "Block specific events for a period of in-game minutes for the current entity or item.".into(),
+            BuildProcedural => {
+                "Rebuild the current region from its [procedural] settings. Use 0 to auto-advance the seed.".into()
+            }
             CastSpell => "Cast a spell template towards a target entity or position: cast_spell(template, target[, success_pct]).".into(),
             ClearAudio => "Stop currently playing audio on a bus, or all buses if omitted.".into(),
             ClearTarget => "Clear current target for the current entity or item.".into(),
@@ -639,8 +654,12 @@ impl Cell {
             Target => "Get current target entity ID.".into(),
             HasTarget => "Returns true if a valid current target is set.".into(),
             Teleport => "Teleport to a sector. Optionally in another region.".into(),
+            TeleportEntity => {
+                "Teleport the given entity ID to a sector, optionally in another region.".into()
+            }
             ToggleAttr => "Toggles a boolean attribute of the current entity or item.".into(),
             TookDamage => "Takes damage.".into(),
+            WorldEvent => "Send an event to the world script event(event, value) handler.".into(),
 
             Abs => "Absolute value of x.".into(),
             Atan => "Arc tangent of y/x (single-arg).".into(),

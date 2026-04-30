@@ -125,7 +125,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
             region.name.clone(),
             region.map.clone(),
             &rusterix.assets,
-            project.config.clone(),
+            region.config.clone(),
         );
     }
 

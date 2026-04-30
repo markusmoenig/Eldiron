@@ -25,6 +25,10 @@ fn default_rotation() -> f32 {
     0.0
 }
 
+fn is_context_variable(name: &str) -> bool {
+    name.starts_with("region.") || name.starts_with("world.")
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Routine {
     pub id: Uuid,
@@ -927,9 +931,13 @@ impl Routine {
                         is_else = true;
                     }
 
-                    if row.len() > 1 && matches!(item.cell, Cell::Variable(_)) {
-                        row_code += "let ";
-                        if let Cell::Variable(name) = &item.cell {
+                    if row.len() > 1
+                        && let Cell::Variable(name) = &item.cell
+                    {
+                        if !is_context_variable(name) {
+                            row_code += "let ";
+                        }
+                        if !is_context_variable(name) {
                             assignment_debug = Some((name.clone(), *pos));
                         }
                     }

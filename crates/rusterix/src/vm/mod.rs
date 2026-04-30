@@ -239,12 +239,49 @@ mod tests {
             .get("user_event")
             .copied()
             .unwrap();
-
         let mut exec = Execution::new(script.context.globals.len());
         exec.reset(script.context.globals.len());
         let args = [VMValue::broadcast(1.0), VMValue::broadcast(2.0)];
         let result = exec.execute_function(&args, func_index, &script.context.program);
         assert_eq!(result.x, 0.0);
+    }
+
+    #[test]
+    fn function_local_declaration_inside_if() {
+        let mut script = VM::default();
+        let module = script
+            .parse_str(
+                r#"
+                fn user_event(event, value) {
+                    if value == "exit" {
+                        let depth = 0 + 1;
+                        return depth;
+                    }
+                    return 0;
+                }
+                "#,
+            )
+            .unwrap();
+        script.compile(&module).unwrap();
+
+        let func_index = script
+            .context
+            .program
+            .user_functions_name_map
+            .get("user_event")
+            .copied()
+            .unwrap();
+        eprintln!(
+            "locals={} ops={:?}",
+            script.context.program.user_functions_locals[func_index],
+            script.context.program.user_functions[func_index]
+        );
+
+        let mut exec = Execution::new(script.context.globals.len());
+        exec.reset(script.context.globals.len());
+        let args = [VMValue::zero(), VMValue::from_string("exit")];
+        let result = exec.execute_function(&args, func_index, &script.context.program);
+        assert_eq!(result.x, 1.0);
     }
 
     #[test]

@@ -54,6 +54,8 @@ pub struct BuilderScript {
     pub host: BuilderScriptHost,
     pub preview_host: BuilderPreviewHost,
     pub parts: Vec<BuilderScriptPart>,
+    pub cuts: Vec<BuilderScriptCut>,
+    pub details: Vec<BuilderScriptSurfaceDetail>,
     pub slots: Vec<BuilderScriptSlot>,
     pub output: Vec<String>,
 }
@@ -90,6 +92,54 @@ pub enum BuilderScriptPartKind {
     Cylinder {
         length: BuilderScriptScalarExpr,
         radius: BuilderScriptScalarExpr,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BuilderScriptCut {
+    Rect {
+        min: [BuilderScriptScalarExpr; 2],
+        max: [BuilderScriptScalarExpr; 2],
+        mode: BuilderCutMode,
+        offset: Option<BuilderScriptScalarExpr>,
+        inset: Option<BuilderScriptScalarExpr>,
+        shape: BuilderCutShape,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BuilderScriptSurfaceDetail {
+    Rect {
+        min: [BuilderScriptScalarExpr; 2],
+        max: [BuilderScriptScalarExpr; 2],
+        offset: Option<BuilderScriptScalarExpr>,
+        inset: Option<BuilderScriptScalarExpr>,
+        shape: BuilderCutShape,
+        material: Option<String>,
+        tile_alias: Option<String>,
+    },
+    Masonry {
+        min: [BuilderScriptScalarExpr; 2],
+        max: [BuilderScriptScalarExpr; 2],
+        block: [BuilderScriptScalarExpr; 2],
+        mortar: Option<BuilderScriptScalarExpr>,
+        offset: Option<BuilderScriptScalarExpr>,
+        pattern: BuilderMasonryPattern,
+        material: Option<String>,
+        tile_alias: Option<String>,
+    },
+    Column {
+        center: [BuilderScriptScalarExpr; 2],
+        height: BuilderScriptScalarExpr,
+        radius: BuilderScriptScalarExpr,
+        offset: Option<BuilderScriptScalarExpr>,
+        base_height: Option<BuilderScriptScalarExpr>,
+        cap_height: Option<BuilderScriptScalarExpr>,
+        segments: Option<BuilderScriptScalarExpr>,
+        placement: BuilderDetailPlacement,
+        cut_footprint: bool,
+        material: Option<String>,
+        tile_alias: Option<String>,
     },
 }
 
@@ -260,13 +310,121 @@ pub struct BuilderOutputSpec {
     pub host_refs: u8,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct BuilderAssembly {
-    pub primitives: Vec<BuilderPrimitive>,
-    pub anchors: Vec<BuilderAnchor>,
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum BuilderHost {
+    Object(BuilderObjectHost),
+    Sector(BuilderSectorHost),
+    Linedef(BuilderLinedefHost),
+    Vertex(BuilderVertexHost),
+    Surface(BuilderSurfaceHost),
+    Terrain(BuilderTerrainHost),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BuilderObjectHost {
+    #[serde(default = "Uuid::new_v4")]
+    pub id: Uuid,
+    #[serde(default)]
+    pub seed: u64,
+    #[serde(default = "default_unit")]
+    pub width: f32,
+    #[serde(default = "default_unit")]
+    pub depth: f32,
+    #[serde(default = "default_unit")]
+    pub height: f32,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BuilderSectorHost {
+    #[serde(default = "Uuid::new_v4")]
+    pub id: Uuid,
+    #[serde(default)]
+    pub seed: u64,
+    #[serde(default = "default_unit")]
+    pub width: f32,
+    #[serde(default = "default_unit")]
+    pub depth: f32,
+    #[serde(default = "default_unit")]
+    pub height: f32,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BuilderLinedefHost {
+    #[serde(default = "Uuid::new_v4")]
+    pub id: Uuid,
+    #[serde(default)]
+    pub seed: u64,
+    #[serde(default = "default_unit")]
+    pub length: f32,
+    #[serde(default = "default_unit")]
+    pub height: f32,
+    #[serde(default)]
+    pub width: f32,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BuilderVertexHost {
+    #[serde(default = "Uuid::new_v4")]
+    pub id: Uuid,
+    #[serde(default)]
+    pub seed: u64,
+    #[serde(default = "default_unit")]
+    pub width: f32,
+    #[serde(default = "default_unit")]
+    pub depth: f32,
+    #[serde(default = "default_unit")]
+    pub height: f32,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BuilderSurfaceHost {
+    #[serde(default = "Uuid::new_v4")]
+    pub id: Uuid,
+    #[serde(default)]
+    pub seed: u64,
+    #[serde(default = "default_unit")]
+    pub width: f32,
+    #[serde(default = "default_unit")]
+    pub height: f32,
+    #[serde(default)]
+    pub thickness: f32,
+    #[serde(default)]
+    pub side: i32,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BuilderTerrainHost {
+    #[serde(default = "Uuid::new_v4")]
+    pub id: Uuid,
+    #[serde(default)]
+    pub seed: u64,
+    #[serde(default = "default_terrain_size")]
+    pub width: f32,
+    #[serde(default = "default_terrain_size")]
+    pub depth: f32,
+    #[serde(default)]
+    pub height: f32,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq)]
+pub struct BuilderAssembly {
+    #[serde(default)]
+    pub primitives: Vec<BuilderPrimitive>,
+    #[serde(default)]
+    pub anchors: Vec<BuilderAnchor>,
+    #[serde(default)]
+    pub cuts: Vec<BuilderCutMask>,
+    #[serde(default)]
+    pub surface_details: Vec<BuilderSurfaceDetail>,
+    #[serde(default)]
+    pub static_billboards: Vec<BuilderStaticBillboardBatch>,
+    #[serde(default)]
+    pub warnings: Vec<BuilderWarning>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum BuilderPrimitive {
     Box {
         size: Vec3<f32>,
@@ -291,7 +449,7 @@ pub enum BuilderPrimitive {
     },
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct BuilderAnchor {
     pub name: String,
     pub kind: BuilderAttachmentKind,
@@ -302,6 +460,148 @@ pub struct BuilderAnchor {
     pub surface_extent_normalized: bool,
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum BuilderCutMask {
+    Rect {
+        min: Vec2<f32>,
+        max: Vec2<f32>,
+        mode: BuilderCutMode,
+        #[serde(default)]
+        offset: f32,
+        #[serde(default)]
+        inset: f32,
+        #[serde(default)]
+        shape: BuilderCutShape,
+    },
+    Loop {
+        points: Vec<Vec2<f32>>,
+        mode: BuilderCutMode,
+        #[serde(default)]
+        offset: f32,
+        #[serde(default)]
+        inset: f32,
+        #[serde(default)]
+        shape: BuilderCutShape,
+    },
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum BuilderSurfaceDetail {
+    Rect {
+        min: Vec2<f32>,
+        max: Vec2<f32>,
+        #[serde(default)]
+        offset: f32,
+        #[serde(default)]
+        inset: f32,
+        #[serde(default)]
+        shape: BuilderCutShape,
+        material_slot: Option<String>,
+        tile_alias: Option<String>,
+    },
+    Column {
+        center: Vec2<f32>,
+        height: f32,
+        radius: f32,
+        #[serde(default)]
+        offset: f32,
+        #[serde(default)]
+        base_height: f32,
+        #[serde(default)]
+        cap_height: f32,
+        #[serde(default = "default_column_segments")]
+        segments: u16,
+        #[serde(default)]
+        placement: BuilderDetailPlacement,
+        #[serde(default)]
+        cut_footprint: bool,
+        material_slot: Option<String>,
+        tile_alias: Option<String>,
+    },
+    Masonry {
+        min: Vec2<f32>,
+        max: Vec2<f32>,
+        block: Vec2<f32>,
+        #[serde(default)]
+        mortar: f32,
+        #[serde(default)]
+        offset: f32,
+        #[serde(default)]
+        pattern: BuilderMasonryPattern,
+        material_slot: Option<String>,
+        tile_alias: Option<String>,
+    },
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum BuilderDetailPlacement {
+    #[default]
+    Relief,
+    Freestanding,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum BuilderMasonryPattern {
+    #[default]
+    Grid,
+    RunningBond,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BuilderCutMode {
+    Cut,
+    Replace,
+    CutOverlay,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BuilderCutShape {
+    #[default]
+    Fill,
+    Border,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BuilderStaticBillboardBatch {
+    pub material_slot: Option<String>,
+    #[serde(default)]
+    pub instances: Vec<BuilderStaticBillboard>,
+    pub facing: BuilderBillboardFacing,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BuilderStaticBillboard {
+    pub position: Vec3<f32>,
+    pub size: Vec2<f32>,
+    #[serde(default)]
+    pub rotation: f32,
+    #[serde(default = "default_tint")]
+    pub tint: [f32; 4],
+    #[serde(default)]
+    pub variant: u16,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BuilderBillboardFacing {
+    Camera,
+    AxialY,
+    FixedCross,
+    GroundAligned,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BuilderWarning {
+    pub code: String,
+    pub message: String,
+}
+
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum BuilderAttachmentKind {
@@ -309,7 +609,7 @@ pub enum BuilderAttachmentKind {
     Material,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq)]
 pub struct BuilderTransform {
     pub translation: Vec3<f32>,
     pub rotation_x: f32,
@@ -321,12 +621,28 @@ fn default_output_host_refs() -> u8 {
     1
 }
 
+fn default_unit() -> f32 {
+    1.0
+}
+
+fn default_terrain_size() -> f32 {
+    16.0
+}
+
+fn default_tint() -> [f32; 4] {
+    [1.0, 1.0, 1.0, 1.0]
+}
+
 fn default_corner_inset() -> f32 {
     0.10
 }
 
 fn default_grid_count() -> u16 {
     1
+}
+
+fn default_column_segments() -> u16 {
+    12
 }
 
 fn default_true() -> bool {
@@ -1086,6 +1402,10 @@ impl BuilderGraph {
         Ok(BuilderAssembly {
             primitives: output.primitives,
             anchors: output.anchors,
+            cuts: Vec::new(),
+            surface_details: Vec::new(),
+            static_billboards: Vec::new(),
+            warnings: Vec::new(),
         })
     }
 
@@ -1812,8 +2132,31 @@ impl BuilderScript {
 
     pub fn evaluate(&self) -> Result<BuilderAssembly, String> {
         let dims = HostPreviewDims::from_preview(self.host, &self.preview_host);
+        self.evaluate_with_dims(dims)
+    }
+
+    pub fn evaluate_with_host(&self, host: &BuilderHost) -> Result<BuilderAssembly, String> {
+        let dims = HostPreviewDims::from_host(host);
+        let mut assembly = self.evaluate_with_dims(dims)?;
+        if !host_matches_script_host(host, self.host) {
+            assembly.warnings.push(BuilderWarning {
+                code: "host_mismatch".to_string(),
+                message: format!(
+                    "script declares host {:?}, evaluated with {} host",
+                    self.host,
+                    host.kind_name()
+                ),
+            });
+        }
+        Ok(assembly)
+    }
+
+    fn evaluate_with_dims(&self, dims: HostPreviewDims) -> Result<BuilderAssembly, String> {
         let mut primitives = Vec::new();
         let mut anchors = Vec::new();
+        let mut cuts = Vec::new();
+        let mut surface_details = Vec::new();
+        let mut warnings = Vec::new();
         let mut resolved_parts: HashMap<String, ResolvedPart> = HashMap::default();
 
         for part in &self.parts {
@@ -1891,6 +2234,226 @@ impl BuilderScript {
             primitives.push(primitive);
         }
 
+        for (index, cut) in self.cuts.iter().enumerate() {
+            match cut {
+                BuilderScriptCut::Rect {
+                    min,
+                    max,
+                    mode,
+                    offset,
+                    inset,
+                    shape,
+                } => {
+                    let min = Vec2::new(
+                        eval_scalar_expr(&min[0], self.host, &dims)?,
+                        eval_scalar_expr(&min[1], self.host, &dims)?,
+                    );
+                    let max = Vec2::new(
+                        eval_scalar_expr(&max[0], self.host, &dims)?,
+                        eval_scalar_expr(&max[1], self.host, &dims)?,
+                    );
+                    let offset = offset
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    let inset = inset
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    if max.x <= min.x || max.y <= min.y {
+                        warnings.push(BuilderWarning {
+                            code: "invalid_cut_rect".to_string(),
+                            message: format!(
+                                "rect cut {index} has invalid bounds min=({}, {}) max=({}, {})",
+                                min.x, min.y, max.x, max.y
+                            ),
+                        });
+                    } else {
+                        cuts.push(BuilderCutMask::Rect {
+                            min,
+                            max,
+                            mode: *mode,
+                            offset,
+                            inset,
+                            shape: *shape,
+                        });
+                    }
+                }
+            }
+        }
+
+        for (index, detail) in self.details.iter().enumerate() {
+            match detail {
+                BuilderScriptSurfaceDetail::Rect {
+                    min,
+                    max,
+                    offset,
+                    inset,
+                    shape,
+                    material,
+                    tile_alias,
+                } => {
+                    let min = Vec2::new(
+                        eval_scalar_expr(&min[0], self.host, &dims)?,
+                        eval_scalar_expr(&min[1], self.host, &dims)?,
+                    );
+                    let max = Vec2::new(
+                        eval_scalar_expr(&max[0], self.host, &dims)?,
+                        eval_scalar_expr(&max[1], self.host, &dims)?,
+                    );
+                    let offset = offset
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    let inset = inset
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    if max.x <= min.x || max.y <= min.y {
+                        warnings.push(BuilderWarning {
+                            code: "invalid_detail_rect".to_string(),
+                            message: format!(
+                                "rect detail {index} has invalid bounds min=({}, {}) max=({}, {})",
+                                min.x, min.y, max.x, max.y
+                            ),
+                        });
+                    } else {
+                        surface_details.push(BuilderSurfaceDetail::Rect {
+                            min,
+                            max,
+                            offset,
+                            inset,
+                            shape: *shape,
+                            material_slot: material.clone(),
+                            tile_alias: tile_alias.clone(),
+                        });
+                    }
+                }
+                BuilderScriptSurfaceDetail::Column {
+                    center,
+                    height,
+                    radius,
+                    offset,
+                    base_height,
+                    cap_height,
+                    segments,
+                    placement,
+                    cut_footprint,
+                    material,
+                    tile_alias,
+                } => {
+                    let center = Vec2::new(
+                        eval_scalar_expr(&center[0], self.host, &dims)?,
+                        eval_scalar_expr(&center[1], self.host, &dims)?,
+                    );
+                    let height = eval_scalar_expr(height, self.host, &dims)?;
+                    let radius = eval_scalar_expr(radius, self.host, &dims)?;
+                    let offset = offset
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    let base_height = base_height
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    let cap_height = cap_height
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    let segments = segments
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .transpose()?
+                        .unwrap_or(default_column_segments() as f32)
+                        .round()
+                        .clamp(4.0, 32.0) as u16;
+                    if height <= 0.0 || radius <= 0.0 {
+                        warnings.push(BuilderWarning {
+                            code: "invalid_detail_column".to_string(),
+                            message: format!(
+                                "column detail {index} has invalid height/radius height={} radius={}",
+                                height, radius
+                            ),
+                        });
+                    } else {
+                        surface_details.push(BuilderSurfaceDetail::Column {
+                            center,
+                            height,
+                            radius,
+                            offset,
+                            base_height,
+                            cap_height,
+                            segments,
+                            placement: *placement,
+                            cut_footprint: *cut_footprint,
+                            material_slot: material.clone(),
+                            tile_alias: tile_alias.clone(),
+                        });
+                    }
+                }
+                BuilderScriptSurfaceDetail::Masonry {
+                    min,
+                    max,
+                    block,
+                    mortar,
+                    offset,
+                    pattern,
+                    material,
+                    tile_alias,
+                } => {
+                    let min = Vec2::new(
+                        eval_scalar_expr(&min[0], self.host, &dims)?,
+                        eval_scalar_expr(&min[1], self.host, &dims)?,
+                    );
+                    let max = Vec2::new(
+                        eval_scalar_expr(&max[0], self.host, &dims)?,
+                        eval_scalar_expr(&max[1], self.host, &dims)?,
+                    );
+                    let block = Vec2::new(
+                        eval_scalar_expr(&block[0], self.host, &dims)?,
+                        eval_scalar_expr(&block[1], self.host, &dims)?,
+                    );
+                    let mortar = mortar
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .transpose()?
+                        .unwrap_or(0.04);
+                    let offset = offset
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .transpose()?
+                        .unwrap_or(-0.035);
+                    if max.x <= min.x || max.y <= min.y || block.x <= 0.0 || block.y <= 0.0 {
+                        warnings.push(BuilderWarning {
+                            code: "invalid_detail_masonry".to_string(),
+                            message: format!(
+                                "masonry detail {index} has invalid bounds or block size min=({}, {}) max=({}, {}) block=({}, {})",
+                                min.x, min.y, max.x, max.y, block.x, block.y
+                            ),
+                        });
+                    } else {
+                        surface_details.push(BuilderSurfaceDetail::Masonry {
+                            min,
+                            max,
+                            block,
+                            mortar: mortar.max(0.0),
+                            offset,
+                            pattern: *pattern,
+                            material_slot: material.clone(),
+                            tile_alias: tile_alias.clone(),
+                        });
+                    }
+                }
+            }
+        }
+
         for slot in &self.slots {
             let point = eval_ref_point(&slot.source, self.host, &dims, &resolved_parts)?;
             anchors.push(BuilderAnchor {
@@ -1912,6 +2475,10 @@ impl BuilderScript {
         Ok(BuilderAssembly {
             primitives,
             anchors,
+            cuts,
+            surface_details,
+            static_billboards: Vec::new(),
+            warnings,
         })
     }
 
@@ -1928,6 +2495,19 @@ impl BuilderScript {
         let mut out = Vec::new();
         for part in &self.parts {
             if let Some(material) = &part.material
+                && !material.trim().is_empty()
+                && !out.iter().any(|existing| existing == material)
+            {
+                out.push(material.clone());
+            }
+        }
+        for detail in &self.details {
+            let material = match detail {
+                BuilderScriptSurfaceDetail::Rect { material, .. }
+                | BuilderScriptSurfaceDetail::Column { material, .. }
+                | BuilderScriptSurfaceDetail::Masonry { material, .. } => material,
+            };
+            if let Some(material) = material
                 && !material.trim().is_empty()
                 && !out.iter().any(|existing| existing == material)
             {
@@ -2004,6 +2584,20 @@ impl BuilderDocument {
         }
     }
 
+    pub fn evaluate_with_host(&self, host: &BuilderHost) -> Result<BuilderAssembly, String> {
+        match self {
+            Self::Script(script) => script.evaluate_with_host(host),
+            Self::Graph(graph) => {
+                let mut assembly = graph.evaluate()?;
+                assembly.warnings.push(BuilderWarning {
+                    code: "graph_host_ignored".to_string(),
+                    message: "node graph evaluation currently ignores explicit BuilderHost; script evaluation is host-aware".to_string(),
+                });
+                Ok(assembly)
+            }
+        }
+    }
+
     pub fn render_preview(&self, size: u32) -> BuilderPreview {
         match self {
             Self::Script(script) => script.render_preview(size),
@@ -2039,6 +2633,127 @@ impl HostPreviewDims {
             },
         }
     }
+
+    fn from_host(host: &BuilderHost) -> Self {
+        match host {
+            BuilderHost::Object(host) => Self {
+                width: host.width.max(0.01),
+                depth: host.depth.max(0.01),
+                height: host.height.max(0.01),
+            },
+            BuilderHost::Sector(host) => Self {
+                width: host.width.max(0.01),
+                depth: host.depth.max(0.01),
+                height: host.height.max(0.01),
+            },
+            BuilderHost::Linedef(host) => Self {
+                width: host.length.max(0.01),
+                depth: host.width.max(0.01),
+                height: host.height.max(0.01),
+            },
+            BuilderHost::Vertex(host) => Self {
+                width: host.width.max(0.01),
+                depth: host.depth.max(0.01),
+                height: host.height.max(0.01),
+            },
+            BuilderHost::Surface(host) => Self {
+                width: host.width.max(0.01),
+                depth: host.thickness.max(0.01),
+                height: host.height.max(0.01),
+            },
+            BuilderHost::Terrain(host) => Self {
+                width: host.width.max(0.01),
+                depth: host.depth.max(0.01),
+                height: host.height.max(0.01),
+            },
+        }
+    }
+}
+
+impl BuilderHost {
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            BuilderHost::Object(_) => "object",
+            BuilderHost::Sector(_) => "sector",
+            BuilderHost::Linedef(_) => "linedef",
+            BuilderHost::Vertex(_) => "vertex",
+            BuilderHost::Surface(_) => "surface",
+            BuilderHost::Terrain(_) => "terrain",
+        }
+    }
+
+    pub fn preview_wall(width: f32, height: f32, thickness: f32) -> Self {
+        Self::Surface(BuilderSurfaceHost {
+            id: Uuid::new_v4(),
+            seed: 0,
+            width,
+            height,
+            thickness,
+            side: 0,
+        })
+    }
+
+    pub fn preview_object(width: f32, depth: f32, height: f32) -> Self {
+        Self::Object(BuilderObjectHost {
+            id: Uuid::new_v4(),
+            seed: 0,
+            width,
+            depth,
+            height,
+        })
+    }
+
+    pub fn preview_floor(width: f32, depth: f32) -> Self {
+        Self::Sector(BuilderSectorHost {
+            id: Uuid::new_v4(),
+            seed: 0,
+            width,
+            depth,
+            height: 1.0,
+        })
+    }
+
+    pub fn preview_linedef(length: f32, height: f32, width: f32) -> Self {
+        Self::Linedef(BuilderLinedefHost {
+            id: Uuid::new_v4(),
+            seed: 0,
+            length,
+            height,
+            width,
+        })
+    }
+
+    pub fn preview_vertex(width: f32, depth: f32, height: f32) -> Self {
+        Self::Vertex(BuilderVertexHost {
+            id: Uuid::new_v4(),
+            seed: 0,
+            width,
+            depth,
+            height,
+        })
+    }
+
+    pub fn preview_terrain(width: f32, depth: f32, seed: u64) -> Self {
+        Self::Terrain(BuilderTerrainHost {
+            id: Uuid::new_v4(),
+            seed,
+            width,
+            depth,
+            height: 0.0,
+        })
+    }
+}
+
+fn host_matches_script_host(host: &BuilderHost, script_host: BuilderScriptHost) -> bool {
+    matches!(
+        (host, script_host),
+        (BuilderHost::Linedef(_), BuilderScriptHost::Line)
+            | (BuilderHost::Sector(_), BuilderScriptHost::Sector)
+            | (BuilderHost::Surface(_), BuilderScriptHost::Sector)
+            | (BuilderHost::Terrain(_), BuilderScriptHost::Sector)
+            | (BuilderHost::Vertex(_), BuilderScriptHost::Vertex)
+            | (BuilderHost::Object(_), BuilderScriptHost::Sector)
+    )
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -2074,6 +2789,8 @@ impl BuilderScriptParser {
         let mut host = None;
         let mut preview_host = None;
         let mut parts = Vec::new();
+        let mut cuts = Vec::new();
+        let mut details = Vec::new();
         let mut slots = Vec::new();
         let mut output = Vec::new();
 
@@ -2112,6 +2829,10 @@ impl BuilderScriptParser {
                 preview_host = Some(preview);
             } else if self.peek_ident("let") {
                 parts.push(self.parse_part()?);
+            } else if self.peek_ident("cut") {
+                cuts.push(self.parse_cut()?);
+            } else if self.peek_ident("detail") {
+                details.push(self.parse_detail()?);
             } else if self.peek_ident("slot") {
                 slots.push(self.parse_slot()?);
             } else if self.peek_ident("output") {
@@ -2145,6 +2866,8 @@ impl BuilderScriptParser {
             host,
             preview_host,
             parts,
+            cuts,
+            details,
             slots,
             output,
         })
@@ -2207,6 +2930,177 @@ impl BuilderScriptParser {
         })
     }
 
+    fn parse_cut(&mut self) -> Result<BuilderScriptCut, String> {
+        self.expect_ident("cut")?;
+        let kind_name = self.expect_ident_any()?;
+        self.expect_symbol('{')?;
+
+        let mut min = None;
+        let mut max = None;
+        let mut mode = BuilderCutMode::Cut;
+        let mut offset = None;
+        let mut inset = None;
+        let mut shape = BuilderCutShape::Fill;
+
+        while !self.consume_symbol('}') {
+            let key = self.expect_ident_any()?;
+            self.expect_symbol('=')?;
+            match key.as_str() {
+                "min" => min = Some(self.parse_vec2_expr()?),
+                "max" => max = Some(self.parse_vec2_expr()?),
+                "offset" => offset = Some(self.parse_scalar_expr()?),
+                "inset" => inset = Some(self.parse_scalar_expr()?),
+                "shape" => {
+                    shape = match self.expect_ident_any()?.as_str() {
+                        "fill" => BuilderCutShape::Fill,
+                        "border" => BuilderCutShape::Border,
+                        other => return Err(format!("unsupported cut shape '{other}'")),
+                    };
+                }
+                "mode" => {
+                    mode = match self.expect_ident_any()?.as_str() {
+                        "cut" => BuilderCutMode::Cut,
+                        "replace" => BuilderCutMode::Replace,
+                        "cut_overlay" | "cutoverlay" => BuilderCutMode::CutOverlay,
+                        other => return Err(format!("unsupported cut mode '{other}'")),
+                    };
+                }
+                other => return Err(format!("unsupported cut field '{other}'")),
+            }
+            self.expect_symbol(';')?;
+        }
+        self.expect_symbol(';')?;
+
+        match kind_name.as_str() {
+            "rect" => Ok(BuilderScriptCut::Rect {
+                min: min.ok_or_else(|| "rect cut is missing min".to_string())?,
+                max: max.ok_or_else(|| "rect cut is missing max".to_string())?,
+                mode,
+                offset,
+                inset,
+                shape,
+            }),
+            other => Err(format!("unsupported cut primitive '{other}'")),
+        }
+    }
+
+    fn parse_detail(&mut self) -> Result<BuilderScriptSurfaceDetail, String> {
+        self.expect_ident("detail")?;
+        let kind_name = self.expect_ident_any()?;
+        self.expect_symbol('{')?;
+
+        let mut min = None;
+        let mut max = None;
+        let mut center = None;
+        let mut block = None;
+        let mut height = None;
+        let mut radius = None;
+        let mut offset = None;
+        let mut mortar = None;
+        let mut inset = None;
+        let mut base_height = None;
+        let mut cap_height = None;
+        let mut segments = None;
+        let mut placement = BuilderDetailPlacement::Relief;
+        let mut cut_footprint = false;
+        let mut shape = BuilderCutShape::Fill;
+        let mut pattern = BuilderMasonryPattern::Grid;
+        let mut material = None;
+        let mut tile_alias = None;
+
+        while !self.consume_symbol('}') {
+            let key = self.expect_ident_any()?;
+            self.expect_symbol('=')?;
+            match key.as_str() {
+                "min" => min = Some(self.parse_vec2_expr()?),
+                "max" => max = Some(self.parse_vec2_expr()?),
+                "center" => center = Some(self.parse_vec2_expr()?),
+                "block" | "block_size" | "stone" | "stone_size" => {
+                    block = Some(self.parse_vec2_expr()?)
+                }
+                "height" => height = Some(self.parse_scalar_expr()?),
+                "radius" => radius = Some(self.parse_scalar_expr()?),
+                "offset" => offset = Some(self.parse_scalar_expr()?),
+                "mortar" | "gap" => mortar = Some(self.parse_scalar_expr()?),
+                "inset" => inset = Some(self.parse_scalar_expr()?),
+                "base_height" | "base" => base_height = Some(self.parse_scalar_expr()?),
+                "cap_height" | "cap" => cap_height = Some(self.parse_scalar_expr()?),
+                "segments" => segments = Some(self.parse_scalar_expr()?),
+                "pattern" => {
+                    pattern = match self.expect_ident_any()?.as_str() {
+                        "grid" | "stacked" => BuilderMasonryPattern::Grid,
+                        "running_bond" | "bond" | "brick" => BuilderMasonryPattern::RunningBond,
+                        other => return Err(format!("unsupported masonry pattern '{other}'")),
+                    };
+                }
+                "placement" => {
+                    placement = match self.expect_ident_any()?.as_str() {
+                        "relief" => BuilderDetailPlacement::Relief,
+                        "freestanding" | "free" => BuilderDetailPlacement::Freestanding,
+                        other => return Err(format!("unsupported detail placement '{other}'")),
+                    };
+                }
+                "cut_footprint" | "footprint_cut" => {
+                    cut_footprint = match self.expect_ident_any()?.as_str() {
+                        "true" | "yes" | "on" => true,
+                        "false" | "no" | "off" => false,
+                        other => return Err(format!("unsupported cut_footprint value '{other}'")),
+                    };
+                }
+                "shape" => {
+                    shape = match self.expect_ident_any()?.as_str() {
+                        "fill" => BuilderCutShape::Fill,
+                        "border" => BuilderCutShape::Border,
+                        other => return Err(format!("unsupported detail shape '{other}'")),
+                    };
+                }
+                "material" => material = Some(self.expect_ident_any()?),
+                "tile_alias" | "alias" => tile_alias = Some(self.expect_ident_any()?),
+                other => return Err(format!("unsupported detail field '{other}'")),
+            }
+            self.expect_symbol(';')?;
+        }
+        self.expect_symbol(';')?;
+
+        match kind_name.as_str() {
+            "rect" => Ok(BuilderScriptSurfaceDetail::Rect {
+                min: min.ok_or_else(|| "rect detail is missing min".to_string())?,
+                max: max.ok_or_else(|| "rect detail is missing max".to_string())?,
+                offset,
+                inset,
+                shape,
+                material,
+                tile_alias,
+            }),
+            "masonry" | "blocks" | "brick" | "stonework" => {
+                Ok(BuilderScriptSurfaceDetail::Masonry {
+                    min: min.ok_or_else(|| "masonry detail is missing min".to_string())?,
+                    max: max.ok_or_else(|| "masonry detail is missing max".to_string())?,
+                    block: block.ok_or_else(|| "masonry detail is missing block".to_string())?,
+                    mortar,
+                    offset,
+                    pattern,
+                    material,
+                    tile_alias,
+                })
+            }
+            "column" | "pilaster" => Ok(BuilderScriptSurfaceDetail::Column {
+                center: center.ok_or_else(|| "column detail is missing center".to_string())?,
+                height: height.ok_or_else(|| "column detail is missing height".to_string())?,
+                radius: radius.ok_or_else(|| "column detail is missing radius".to_string())?,
+                offset,
+                base_height,
+                cap_height,
+                segments,
+                placement,
+                cut_footprint,
+                material,
+                tile_alias,
+            }),
+            other => Err(format!("unsupported detail primitive '{other}'")),
+        }
+    }
+
     fn parse_slot(&mut self) -> Result<BuilderScriptSlot, String> {
         self.expect_ident("slot")?;
         let kind = match self.expect_ident_any()?.as_str() {
@@ -2231,6 +3125,16 @@ impl BuilderScriptParser {
         let z = self.parse_scalar_expr()?;
         self.expect_symbol(')')?;
         Ok([x, y, z])
+    }
+
+    fn parse_vec2_expr(&mut self) -> Result<[BuilderScriptScalarExpr; 2], String> {
+        self.expect_ident("vec2")?;
+        self.expect_symbol('(')?;
+        let x = self.parse_scalar_expr()?;
+        self.expect_symbol(',')?;
+        let y = self.parse_scalar_expr()?;
+        self.expect_symbol(')')?;
+        Ok([x, y])
     }
 
     fn parse_point_expr(&mut self) -> Result<BuilderScriptPointExpr, String> {
@@ -3206,4 +4110,292 @@ fn default_builder_nodes() -> Vec<BuilderNode> {
 
 fn default_translate() -> Vec3<f32> {
     Vec3::zero()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn surface_host_drives_script_dimensions() {
+        let script = BuilderScript::from_text(include_str!("../examples/table.buildergraph"))
+            .expect("table script should parse");
+        let host = BuilderHost::preview_wall(6.0, 3.0, 0.3);
+        let assembly = script
+            .evaluate_with_host(&host)
+            .expect("surface host should evaluate");
+
+        assert_eq!(assembly.primitives.len(), 5);
+        assert!(assembly.warnings.is_empty());
+
+        let BuilderPrimitive::Box { size, .. } = &assembly.primitives[0] else {
+            panic!("table top should be a box");
+        };
+        assert_eq!(*size, Vec3::new(6.0, 0.05, 0.3));
+    }
+
+    #[test]
+    fn host_and_assembly_json_round_trip() {
+        let host = BuilderHost::preview_wall(4.0, 2.5, 0.2);
+        let host_json = serde_json::to_string(&host).expect("host should encode");
+        let decoded_host: BuilderHost =
+            serde_json::from_str(&host_json).expect("host should decode");
+        assert_eq!(decoded_host.kind_name(), "surface");
+
+        let assembly = BuilderAssembly {
+            warnings: vec![BuilderWarning {
+                code: "test".to_string(),
+                message: "round trip".to_string(),
+            }],
+            ..BuilderAssembly::default()
+        };
+        let assembly_json = serde_json::to_string(&assembly).expect("assembly should encode");
+        let decoded_assembly: BuilderAssembly =
+            serde_json::from_str(&assembly_json).expect("assembly should decode");
+        assert_eq!(decoded_assembly.warnings.len(), 1);
+        assert_eq!(decoded_assembly.warnings[0].code, "test");
+    }
+
+    #[test]
+    fn script_rect_cut_emits_cut_mask() {
+        let script = BuilderScript::from_text(
+            r#"
+name = "Cut Test";
+host = sector;
+
+preview {
+    width = 4.0;
+    depth = 1.0;
+    height = 3.0;
+}
+
+cut rect {
+    min = vec2(-host.width / 2.0, 0.5);
+    max = vec2(host.width / 2.0, host.height);
+    mode = cut_overlay;
+    offset = 0.125;
+    inset = 0.25;
+    shape = border;
+};
+
+output = [];
+"#,
+        )
+        .expect("cut script should parse");
+
+        let assembly = script.evaluate().expect("cut script should evaluate");
+        assert_eq!(assembly.cuts.len(), 1);
+        assert!(assembly.warnings.is_empty());
+
+        let BuilderCutMask::Rect {
+            min,
+            max,
+            mode,
+            offset,
+            inset,
+            shape,
+        } = &assembly.cuts[0]
+        else {
+            panic!("expected rect cut");
+        };
+        assert_eq!(*min, Vec2::new(-2.0, 0.5));
+        assert_eq!(*max, Vec2::new(2.0, 3.0));
+        assert_eq!(*mode, BuilderCutMode::CutOverlay);
+        assert_eq!(*offset, 0.125);
+        assert_eq!(*inset, 0.25);
+        assert_eq!(*shape, BuilderCutShape::Border);
+    }
+
+    #[test]
+    fn script_rect_detail_emits_surface_detail() {
+        let script = BuilderScript::from_text(
+            r#"
+name = "Detail Test";
+host = sector;
+
+detail rect {
+    min = vec2(host.width * 0.2, host.depth * 0.2);
+    max = vec2(host.width * 0.8, host.depth * 0.8);
+    offset = -0.05;
+    inset = 0.2;
+    shape = border;
+    material = TRIM;
+    tile_alias = wood;
+};
+
+output = [];
+"#,
+        )
+        .expect("detail script should parse");
+
+        let host = BuilderHost::preview_floor(10.0, 5.0);
+        let assembly = script
+            .evaluate_with_host(&host)
+            .expect("detail script should evaluate");
+
+        assert!(assembly.cuts.is_empty());
+        assert_eq!(assembly.surface_details.len(), 1);
+        assert!(assembly.warnings.is_empty());
+
+        let BuilderSurfaceDetail::Rect {
+            min,
+            max,
+            offset,
+            inset,
+            shape,
+            material_slot,
+            tile_alias,
+        } = &assembly.surface_details[0]
+        else {
+            panic!("expected rect detail");
+        };
+
+        assert_eq!(*min, Vec2::new(2.0, 1.0));
+        assert_eq!(*max, Vec2::new(8.0, 4.0));
+        assert_eq!(*offset, -0.05);
+        assert_eq!(*inset, 0.2);
+        assert_eq!(*shape, BuilderCutShape::Border);
+        assert_eq!(material_slot.as_deref(), Some("TRIM"));
+        assert_eq!(tile_alias.as_deref(), Some("wood"));
+    }
+
+    #[test]
+    fn script_column_detail_emits_surface_detail() {
+        let script = BuilderScript::from_text(
+            r#"
+name = "Column Detail Test";
+host = sector;
+
+detail column {
+    center = vec2(host.width * 0.5, host.depth * 0.1);
+    height = host.depth * 0.8;
+    radius = 0.125;
+    offset = -0.1;
+    base = 0.2;
+    cap = 0.25;
+    segments = 16;
+    material = COLUMN;
+    tile_alias = stone;
+};
+
+output = [];
+"#,
+        )
+        .expect("column detail script should parse");
+
+        let host = BuilderHost::preview_floor(6.0, 2.5);
+        let assembly = script
+            .evaluate_with_host(&host)
+            .expect("column detail script should evaluate");
+
+        assert_eq!(assembly.surface_details.len(), 1);
+        assert!(assembly.warnings.is_empty());
+
+        let BuilderSurfaceDetail::Column {
+            center,
+            height,
+            radius,
+            offset,
+            base_height,
+            cap_height,
+            segments,
+            placement,
+            cut_footprint,
+            material_slot,
+            tile_alias,
+        } = &assembly.surface_details[0]
+        else {
+            panic!("expected column detail");
+        };
+
+        assert_eq!(*center, Vec2::new(3.0, 0.25));
+        assert_eq!(*height, 2.0);
+        assert_eq!(*radius, 0.125);
+        assert_eq!(*offset, -0.1);
+        assert_eq!(*base_height, 0.2);
+        assert_eq!(*cap_height, 0.25);
+        assert_eq!(*segments, 16);
+        assert_eq!(*placement, BuilderDetailPlacement::Relief);
+        assert!(!*cut_footprint);
+        assert_eq!(material_slot.as_deref(), Some("COLUMN"));
+        assert_eq!(tile_alias.as_deref(), Some("stone"));
+    }
+
+    #[test]
+    fn script_masonry_detail_emits_surface_detail() {
+        let script = BuilderScript::from_text(
+            r#"
+name = "Masonry Detail Test";
+host = sector;
+
+detail masonry {
+    min = vec2(0.25, 0.5);
+    max = vec2(host.width * 0.9375, host.depth * 0.75);
+    block = vec2(0.5, 0.25);
+    mortar = 0.035;
+    offset = -0.04;
+    pattern = running_bond;
+    material = STONE;
+    tile_alias = stone;
+};
+
+output = [];
+"#,
+        )
+        .expect("masonry detail script should parse");
+
+        let host = BuilderHost::preview_floor(4.0, 2.0);
+        let assembly = script
+            .evaluate_with_host(&host)
+            .expect("masonry detail script should evaluate");
+
+        assert_eq!(assembly.surface_details.len(), 1);
+        assert!(assembly.warnings.is_empty());
+
+        let BuilderSurfaceDetail::Masonry {
+            min,
+            max,
+            block,
+            mortar,
+            offset,
+            pattern,
+            material_slot,
+            tile_alias,
+        } = &assembly.surface_details[0]
+        else {
+            panic!("expected masonry detail");
+        };
+
+        assert_eq!(*min, Vec2::new(0.25, 0.5));
+        assert_eq!(*max, Vec2::new(3.75, 1.5));
+        assert_eq!(*block, Vec2::new(0.5, 0.25));
+        assert_eq!(*mortar, 0.035);
+        assert_eq!(*offset, -0.04);
+        assert_eq!(*pattern, BuilderMasonryPattern::RunningBond);
+        assert_eq!(material_slot.as_deref(), Some("STONE"));
+        assert_eq!(tile_alias.as_deref(), Some("stone"));
+    }
+
+    #[test]
+    fn invalid_rect_cut_reports_warning() {
+        let script = BuilderScript::from_text(
+            r#"
+name = "Bad Cut Test";
+host = sector;
+
+cut rect {
+    min = vec2(1.0, 1.0);
+    max = vec2(0.0, 0.0);
+};
+
+output = [];
+"#,
+        )
+        .expect("cut script should parse");
+
+        let assembly = script.evaluate().expect("cut script should evaluate");
+        assert!(assembly.cuts.is_empty());
+        assert_eq!(assembly.warnings.len(), 1);
+        assert_eq!(assembly.warnings[0].code, "invalid_cut_rect");
+    }
 }

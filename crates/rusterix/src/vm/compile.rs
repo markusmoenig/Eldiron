@@ -25,6 +25,7 @@ pub struct CompileVisitor {
 
     /// List of local variables which are in scope (inside functions)
     locals: IndexSet<String>,
+    in_function: bool,
 }
 
 impl CompileVisitor {
@@ -81,6 +82,7 @@ impl Visitor for CompileVisitor {
             functions,
             user_functions: IndexMap::default(),
             locals: IndexSet::default(),
+            in_function: false,
         }
     }
 
@@ -151,7 +153,7 @@ impl Visitor for CompileVisitor {
     ) -> Result<ASTValue, RuntimeError> {
         _ = expression.accept(self, ctx)?;
 
-        if self.locals.is_empty() {
+        if !self.in_function {
             // Global scope
             if let Some(index) = ctx.globals.get(name) {
                 ctx.emit(NodeOp::StoreGlobal(*index as usize));
@@ -954,6 +956,8 @@ impl Visitor for CompileVisitor {
         ctx: &mut Context,
     ) -> Result<ASTValue, RuntimeError> {
         self.locals.clear();
+        let previous_in_function = self.in_function;
+        self.in_function = true;
 
         // Compile locals (and their optional default values)
         let mut cp: IndexMap<String, Option<Vec<NodeOp>>> = IndexMap::default();
@@ -974,14 +978,21 @@ impl Visitor for CompileVisitor {
 
         let index = ctx.program.user_functions.len();
 
-        // locals_len counts parameters + any locals declared in the body.
-        let locals_len = cp.len();
+        // Provisional entry allows recursive/user calls while compiling the body.
+        let provisional_locals_len = cp.len();
         self.user_functions.insert(
             objectd.name.clone(),
-            (objectd.arity, cp.clone(), locals_len, index),
+            (objectd.arity, cp.clone(), provisional_locals_len, index),
         );
 
         objectd.block.accept(self, ctx)?;
+        // locals_len counts parameters + any locals declared in the body. Some
+        // generated visual-script locals can appear inside nested blocks, so use
+        // the compile-time local set instead of the parser pre-scan alone.
+        let locals_len = self.locals.len();
+        if let Some(entry) = self.user_functions.get_mut(&objectd.name) {
+            entry.2 = locals_len;
+        }
         if let Some(mut codes) = ctx.take_last_custom_target() {
             optimize(&mut codes);
             ctx.program
@@ -994,6 +1005,7 @@ impl Visitor for CompileVisitor {
         }
 
         self.locals.clear();
+        self.in_function = previous_in_function;
 
         Ok(ASTValue::None)
     }

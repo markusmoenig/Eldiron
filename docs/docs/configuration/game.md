@@ -8,7 +8,7 @@ You can configure **Eldiron** by selecting the **Game -> Settings** item in the 
 Other game-level TOML documents are edited separately:
 
 - **Game -> Authoring**: [Authoring Configuration](./authoring)
-- **Game -> World / Visual Scripting**: global graph-based runtime logic
+- **World / Visual Scripting**: global graph-based runtime logic
 - **Game -> World / Eldrin Scripting**: global text-based runtime logic
 - **Game -> Rules**: [Rules](../rules)
 - **Game -> Locales**: [Localization](../localization)
@@ -474,10 +474,10 @@ This lets you keep stable defaults in TOML and then change mood, fog, palette re
 The 2D palette remap lives under `render.pal.*`:
 
 ```eldrin
-let world.render.pal.start = 0;
-let world.render.pal.end = 9;
-let world.render.pal.mode = "nearest";
-let world.render.pal.blend = 1.0;
+world.render.pal.start = 0;
+world.render.pal.end = 9;
+world.render.pal.mode = "nearest";
+world.render.pal.blend = 1.0;
 ```
 
 Supported fields:
@@ -499,12 +499,12 @@ Supported modes:
 Common runtime render overrides include:
 
 ```eldrin
-let region.render.background_color_2d = "#272744";
-let region.render.visibility_range_2d = 6.0;
-let region.render.visibility_alpha_2d = 0.6;
-let region.render.fog_color = "#20242c";
-let region.render.fog_density = 5.0;
-let world.render.sun_enabled = false;
+region.render.background_color_2d = "#272744";
+region.render.visibility_range_2d = 6.0;
+region.render.visibility_alpha_2d = 0.6;
+region.render.fog_color = "#20242c";
+region.render.fog_density = 5.0;
+world.render.sun_enabled = false;
 ```
 
 Most scalar values from `[render]` are available at runtime, including:
@@ -552,11 +552,11 @@ Most scalar values from `[render]` are available at runtime, including:
 The main post controls are also available at runtime:
 
 ```eldrin
-let world.post.enabled = true;
-let world.post.tone_mapper = "aces";
-let world.post.exposure = 0.9;
-let world.post.saturation = 0.7;
-let world.post.grit = 0.25;
+world.post.enabled = true;
+world.post.tone_mapper = "aces";
+world.post.exposure = 0.9;
+world.post.saturation = 0.7;
+world.post.grit = 0.25;
 ```
 
 Supported runtime post fields:

@@ -201,7 +201,7 @@ impl TerminalApp {
                 region.name.clone(),
                 region.map.clone(),
                 &self.assets,
-                self.project.config.clone(),
+                region.config.clone(),
             );
         }
 

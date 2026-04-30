@@ -1,0 +1,21 @@
+name = "Surface Masonry";
+host = sector;
+
+preview {
+    width = 4.0;
+    depth = 2.5;
+    height = 1.0;
+}
+
+detail masonry {
+    min = vec2(host.width * 0.08, host.depth * 0.12);
+    max = vec2(host.width * 0.92, host.depth * 0.88);
+    block = vec2(0.52, 0.28);
+    mortar = 0.035;
+    offset = -0.04;
+    pattern = running_bond;
+    material = STONE;
+    tile_alias = stone;
+};
+
+output = [];

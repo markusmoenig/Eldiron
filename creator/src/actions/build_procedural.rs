@@ -779,6 +779,57 @@ impl BuildProcedural {
         Vec3::new(ox + x as f32 + 0.5, 0.0, oy + y as f32 + 0.5)
     }
 
+    fn data_attr_bool(data: &str, key: &str) -> bool {
+        let Ok(value) = data.parse::<toml::Value>() else {
+            return false;
+        };
+        let attrs = value
+            .get("attributes")
+            .and_then(toml::Value::as_table)
+            .or_else(|| value.as_table());
+        let Some(attrs) = attrs else {
+            return false;
+        };
+        match attrs.get(key) {
+            Some(toml::Value::Boolean(value)) => *value,
+            Some(toml::Value::Integer(value)) => *value != 0,
+            Some(toml::Value::String(value)) => value.eq_ignore_ascii_case("true"),
+            _ => false,
+        }
+    }
+
+    fn place_player_instances_at_entrance(
+        region: &mut Region,
+        character_templates: &IndexMap<Uuid, Character>,
+    ) {
+        let entrance_center = region
+            .map
+            .sectors
+            .iter()
+            .find(|sector| sector.name == "entrance")
+            .and_then(|sector| sector.center(&region.map));
+        let Some(entrance_center) = entrance_center else {
+            eprintln!("Build Procedural: no entrance sector found; player instances not moved.");
+            return;
+        };
+
+        let mut moved_players = 0;
+        for character in region.characters.values_mut() {
+            let is_player = character_templates
+                .get(&character.character_id)
+                .map(|template| Self::data_attr_bool(&template.data, "player"))
+                .unwrap_or(false);
+            if is_player {
+                character.position = Vec3::new(entrance_center.x, 0.0, entrance_center.y);
+                moved_players += 1;
+            }
+        }
+        eprintln!(
+            "Build Procedural: moved {moved_players} player instance(s) to entrance=({:.2},{:.2}).",
+            entrance_center.x, entrance_center.y
+        );
+    }
+
     fn room_spawn_position(room: Room, cfg: &ProceduralConfig) -> Vec3<f32> {
         let (x, y) = room.center();
         Self::cell_world_position(x, y, cfg)
@@ -1059,6 +1110,16 @@ impl BuildProcedural {
         }
 
         map.camera = MapCamera::TwoD;
+        if let Some(entrance_center) = map
+            .sectors
+            .iter()
+            .find(|sector| sector.name == "entrance")
+            .and_then(|sector| sector.center(map))
+        {
+            // Keep the legacy 2D editor view centered on regenerated content.
+            map.offset.x = -entrance_center.x * map.grid_size;
+            map.offset.y = entrance_center.y * map.grid_size;
+        }
         map.changed = map.changed.wrapping_add(1);
         map.update_surfaces();
         (item_spawns, character_spawns)
@@ -1146,6 +1207,7 @@ impl Action for BuildProcedural {
             Self::bake_connected_rooms(&mut region.map, &tiles, &cfg);
         Self::add_generated_region_items(region, &item_templates, &cfg, item_spawns);
         Self::add_generated_region_characters(region, &character_templates, &cfg, character_spawns);
+        Self::place_player_instances_at_entrance(region, &character_templates);
         let new_map = region.map.clone();
         let map_changed = old_map.vertices != new_map.vertices
             || old_map.linedefs != new_map.linedefs
