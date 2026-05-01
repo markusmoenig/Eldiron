@@ -1,22 +1,14 @@
 use buildergraph::{
     BuilderCutMask, BuilderCutMode, BuilderCutShape, BuilderDocument, BuilderHost,
-    BuilderSurfaceDetail,
+    BuilderPreviewHost, BuilderSurfaceDetail,
 };
-use image::RgbaImage;
 use std::env;
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 use std::thread;
 use std::time::{Duration, SystemTime};
 use vek::Vec2;
-
-fn save_png(path: &Path, width: u32, height: u32, pixels: Vec<u8>) -> Result<(), String> {
-    let image = RgbaImage::from_raw(width, height, pixels)
-        .ok_or_else(|| "failed to create image buffer".to_string())?;
-    image
-        .save(path)
-        .map_err(|err| format!("failed to save {}: {err}", path.display()))
-}
 
 fn load_document(path: &str) -> Result<BuilderDocument, String> {
     let source = fs::read_to_string(path).map_err(|err| format!("failed to read {path}: {err}"))?;
@@ -63,6 +55,46 @@ fn default_png_path(input_path: &str) -> String {
     path.with_extension("png").to_string_lossy().to_string()
 }
 
+fn run_shared_builderpreview(input_path: &str, out_path: &str, size: u32) -> Result<(), String> {
+    let size_arg = size.clamp(128, 2048).to_string();
+    let mut command = Command::new("cargo");
+    command.args([
+        "run",
+        "-p",
+        "rusterix",
+        "--bin",
+        "builderpreview",
+        "--",
+        input_path,
+        "--size",
+        &size_arg,
+    ]);
+
+    let output = command
+        .output()
+        .map_err(|err| format!("failed to run shared builder preview: {err}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!(
+            "shared builder preview failed\nstdout:\n{stdout}\nstderr:\n{stderr}"
+        ));
+    }
+
+    let default_out = Path::new(input_path).with_extension("png");
+    let requested_out = Path::new(out_path);
+    if default_out != requested_out {
+        fs::copy(&default_out, requested_out).map_err(|err| {
+            format!(
+                "failed to copy preview {} to {}: {err}",
+                default_out.display(),
+                requested_out.display()
+            )
+        })?;
+    }
+    Ok(())
+}
+
 fn arg_f32(args: &[String], name: &str, default: f32) -> f32 {
     arg_value(args, name)
         .and_then(|value| value.parse::<f32>().ok())
@@ -89,43 +121,50 @@ fn load_host(path: &str) -> Result<BuilderHost, String> {
         .map_err(|err| format!("failed to parse host {path}: {err}"))
 }
 
-fn host_from_args(args: &[String]) -> Result<BuilderHost, String> {
+fn host_from_args(
+    args: &[String],
+    preview_host: Option<&BuilderPreviewHost>,
+) -> Result<BuilderHost, String> {
     if let Some(path) = arg_value(args, "--host-json") {
         return load_host(&path);
     }
+
+    let preview_width = preview_host.map(|host| host.width).unwrap_or(4.0);
+    let preview_height = preview_host.map(|host| host.height).unwrap_or(2.5);
+    let preview_depth = preview_host.map(|host| host.depth).unwrap_or(0.2);
 
     match arg_value(args, "--host")
         .unwrap_or_else(|| "wall".to_string())
         .as_str()
     {
         "object" => Ok(BuilderHost::preview_object(
-            arg_f32(args, "--width", 1.0),
-            arg_f32(args, "--depth", 1.0),
-            arg_f32(args, "--height", 1.0),
+            arg_f32(args, "--width", preview_width),
+            arg_f32(args, "--depth", preview_depth),
+            arg_f32(args, "--height", preview_height),
         )),
         "floor" | "sector" => Ok(BuilderHost::preview_floor(
-            arg_f32(args, "--width", 4.0),
-            arg_f32(args, "--depth", 4.0),
+            arg_f32(args, "--width", preview_width),
+            arg_f32(args, "--depth", preview_depth),
         )),
         "linedef" | "line" => Ok(BuilderHost::preview_linedef(
-            arg_f32(args, "--width", 4.0),
-            arg_f32(args, "--height", 2.0),
-            arg_f32(args, "--depth", 0.2),
+            arg_f32(args, "--width", preview_width),
+            arg_f32(args, "--height", preview_height),
+            arg_f32(args, "--depth", preview_depth),
         )),
         "vertex" | "point" => Ok(BuilderHost::preview_vertex(
-            arg_f32(args, "--width", 1.0),
-            arg_f32(args, "--depth", 1.0),
-            arg_f32(args, "--height", 1.0),
+            arg_f32(args, "--width", preview_width),
+            arg_f32(args, "--depth", preview_depth),
+            arg_f32(args, "--height", preview_height),
         )),
         "terrain" => Ok(BuilderHost::preview_terrain(
-            arg_f32(args, "--width", 16.0),
-            arg_f32(args, "--depth", 16.0),
+            arg_f32(args, "--width", preview_width),
+            arg_f32(args, "--depth", preview_depth),
             arg_u64(args, "--seed", 0),
         )),
         "wall" | "surface" => Ok(BuilderHost::preview_wall(
-            arg_f32(args, "--width", 4.0),
-            arg_f32(args, "--height", 2.5),
-            arg_f32(args, "--thickness", 0.2),
+            arg_f32(args, "--width", preview_width),
+            arg_f32(args, "--height", preview_height),
+            arg_f32(args, "--thickness", preview_depth),
         )),
         other => Err(format!("unsupported host '{other}'")),
     }
@@ -328,251 +367,10 @@ fn format_loop(points: &[Vec2<f32>]) -> String {
         .join(", ")
 }
 
-fn host_surface_size(host: &BuilderHost) -> Vec2<f32> {
-    match host {
-        BuilderHost::Sector(host) => Vec2::new(host.width, host.depth),
-        BuilderHost::Surface(host) => Vec2::new(host.width, host.height),
-        BuilderHost::Terrain(host) => Vec2::new(host.width, host.depth),
-        BuilderHost::Object(host) => Vec2::new(host.width, host.depth),
-        BuilderHost::Linedef(host) => Vec2::new(host.length, host.height),
-        BuilderHost::Vertex(host) => Vec2::new(host.width, host.depth),
-    }
-}
-
-fn point_in_loop(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> bool {
-    if polygon.len() < 3 {
-        return false;
-    }
-    let mut inside = false;
-    let mut previous = polygon[polygon.len() - 1];
-    for current in polygon {
-        let crosses_y = (current.y > point.y) != (previous.y > point.y);
-        if crosses_y {
-            let x_at_y = (previous.x - current.x) * (point.y - current.y)
-                / (previous.y - current.y).max(f32::MIN_POSITIVE)
-                + current.x;
-            if point.x < x_at_y {
-                inside = !inside;
-            }
-        }
-        previous = *current;
-    }
-    inside
-}
-
-fn point_in_filled_region(point: Vec2<f32>, outer: &[Vec2<f32>], holes: &[Vec<Vec2<f32>>]) -> bool {
-    point_in_loop(point, outer) && !holes.iter().any(|hole| point_in_loop(point, hole))
-}
-
-fn put_pixel(pixels: &mut [u8], width: u32, x: i32, y: i32, color: [u8; 4]) {
-    if x < 0 || y < 0 || x >= width as i32 {
-        return;
-    }
-    let index = (y as u32)
-        .checked_mul(width)
-        .and_then(|row| row.checked_add(x as u32))
-        .and_then(|pixel| pixel.checked_mul(4))
-        .map(|index| index as usize);
-    let Some(index) = index else {
-        return;
-    };
-    if index + 3 >= pixels.len() {
-        return;
-    }
-    pixels[index..index + 4].copy_from_slice(&color);
-}
-
-fn draw_line(
-    pixels: &mut [u8],
-    width: u32,
-    height: u32,
-    a: (i32, i32),
-    b: (i32, i32),
-    color: [u8; 4],
-) {
-    let (mut x0, mut y0) = a;
-    let (x1, y1) = b;
-    let dx = (x1 - x0).abs();
-    let sx = if x0 < x1 { 1 } else { -1 };
-    let dy = -(y1 - y0).abs();
-    let sy = if y0 < y1 { 1 } else { -1 };
-    let mut err = dx + dy;
-
-    loop {
-        if y0 >= 0 && y0 < height as i32 {
-            put_pixel(pixels, width, x0, y0, color);
-        }
-        if x0 == x1 && y0 == y1 {
-            break;
-        }
-        let e2 = 2 * err;
-        if e2 >= dy {
-            err += dy;
-            x0 += sx;
-        }
-        if e2 <= dx {
-            err += dx;
-            y0 += sy;
-        }
-    }
-}
-
-fn draw_loop_outline(
-    pixels: &mut [u8],
-    width: u32,
-    height: u32,
-    points: &[Vec2<f32>],
-    to_px: impl Fn(Vec2<f32>) -> (i32, i32),
-    color: [u8; 4],
-) {
-    if points.len() < 2 {
-        return;
-    }
-    for index in 0..points.len() {
-        let a = to_px(points[index]);
-        let b = to_px(points[(index + 1) % points.len()]);
-        draw_line(pixels, width, height, a, b, color);
-    }
-}
-
-fn render_surface_png(
-    assembly: &buildergraph::BuilderAssembly,
-    host: &BuilderHost,
-    path: &Path,
-    size: u32,
-) -> Result<(), String> {
-    let size = size.clamp(128, 2048);
-    let host_size = host_surface_size(host);
-    let margin = 24.0_f32;
-    let drawable = (size as f32 - margin * 2.0).max(1.0);
-    let scale = (drawable / host_size.x.max(0.01)).min(drawable / host_size.y.max(0.01));
-    let surface_px = Vec2::new(host_size.x * scale, host_size.y * scale);
-    let origin = Vec2::new(
-        (size as f32 - surface_px.x) * 0.5,
-        (size as f32 - surface_px.y) * 0.5,
-    );
-    let to_px = |point: Vec2<f32>| -> (i32, i32) {
-        (
-            (origin.x + point.x * scale).round() as i32,
-            (origin.y + surface_px.y - point.y * scale).round() as i32,
-        )
-    };
-    let from_px = |x: u32, y: u32| -> Vec2<f32> {
-        Vec2::new(
-            (x as f32 + 0.5 - origin.x) / scale,
-            (surface_px.y - (y as f32 + 0.5 - origin.y)) / scale,
-        )
-    };
-
-    let mut pixels = vec![245_u8; (size * size * 4) as usize];
-    for pixel in pixels.chunks_exact_mut(4) {
-        pixel.copy_from_slice(&[28, 30, 34, 255]);
-    }
-
-    let host_outer = vec![
-        Vec2::new(0.0, 0.0),
-        Vec2::new(host_size.x, 0.0),
-        Vec2::new(host_size.x, host_size.y),
-        Vec2::new(0.0, host_size.y),
-    ];
-
-    for y in 0..size {
-        for x in 0..size {
-            let point = from_px(x, y);
-            if point_in_loop(point, &host_outer) {
-                let checker = (((point.x * 4.0).floor() + (point.y * 4.0).floor()) as i32) & 1;
-                let color = if checker == 0 {
-                    [174, 155, 118, 255]
-                } else {
-                    [161, 143, 108, 255]
-                };
-                put_pixel(&mut pixels, size, x as i32, y as i32, color);
-            }
-        }
-    }
-
-    for cut in &assembly.cuts {
-        let Some((mode, shape, offset, inset, hole_loop)) = resolved_cut_loop(cut) else {
-            continue;
-        };
-        if matches!(mode, BuilderCutMode::Cut | BuilderCutMode::Replace) {
-            for y in 0..size {
-                for x in 0..size {
-                    let point = from_px(x, y);
-                    if point_in_loop(point, &hole_loop) {
-                        put_pixel(&mut pixels, size, x as i32, y as i32, [55, 49, 44, 255]);
-                    }
-                }
-            }
-        }
-
-        if mode == BuilderCutMode::Replace {
-            let inner_loop = inset_loop(&hole_loop, inset);
-            let (cap_loop, cap_holes) = if shape == BuilderCutShape::Border {
-                (
-                    hole_loop.clone(),
-                    if inset > 0.0 && inner_loop.len() >= 3 {
-                        vec![inner_loop.clone()]
-                    } else {
-                        Vec::new()
-                    },
-                )
-            } else {
-                (inner_loop.clone(), Vec::new())
-            };
-            let cap_color = if offset < -0.001 {
-                [80, 143, 190, 255]
-            } else if offset > 0.001 {
-                [89, 108, 130, 255]
-            } else {
-                [117, 138, 151, 255]
-            };
-
-            for y in 0..size {
-                for x in 0..size {
-                    let point = from_px(x, y);
-                    if point_in_filled_region(point, &cap_loop, &cap_holes) {
-                        put_pixel(&mut pixels, size, x as i32, y as i32, cap_color);
-                    }
-                }
-            }
-
-            let outline = if offset.abs() > 0.001 {
-                [226, 202, 126, 255]
-            } else {
-                [218, 220, 224, 255]
-            };
-            draw_loop_outline(&mut pixels, size, size, &cap_loop, to_px, outline);
-            for hole in cap_holes {
-                draw_loop_outline(&mut pixels, size, size, &hole, to_px, [32, 35, 40, 255]);
-            }
-        }
-
-        draw_loop_outline(
-            &mut pixels,
-            size,
-            size,
-            &hole_loop,
-            to_px,
-            [27, 29, 33, 255],
-        );
-    }
-
-    draw_loop_outline(
-        &mut pixels,
-        size,
-        size,
-        &host_outer,
-        to_px,
-        [226, 216, 185, 255],
-    );
-
-    save_png(path, size, size, pixels)
-}
-
 fn run_surface_command(path: &str, args: &[String], force_png: bool) -> Result<(), String> {
     let document = load_document(path)?;
-    let host = host_from_args(args)?;
+    let preview_host = document.preview_host();
+    let host = host_from_args(args, Some(&preview_host))?;
     let assembly = document.evaluate_with_host(&host)?;
     print_surface_debug(&document, &assembly, &host);
 
@@ -580,12 +378,7 @@ fn run_surface_command(path: &str, args: &[String], force_png: bool) -> Result<(
         arg_optional_value(args, "--png").or_else(|| if force_png { Some(None) } else { None });
     if let Some(out) = png_out {
         let out = out.unwrap_or_else(|| default_png_path(path));
-        render_surface_png(
-            &assembly,
-            &host,
-            Path::new(&out),
-            arg_u32(args, "--png-size", 512),
-        )?;
+        run_shared_builderpreview(path, &out, arg_u32(args, "--png-size", 512))?;
         println!("surface preview: {out}");
     } else if has_arg(args, "--png-size") {
         return Err("--png-size requires --png or --watch".to_string());
@@ -673,18 +466,23 @@ fn print_surface_debug(
             offset,
             base_height,
             cap_height,
+            transition_height,
             segments,
             placement,
             cut_footprint,
             material_slot,
+            rect_material_slot,
+            cyl_material_slot,
             tile_alias,
         } = detail
         {
             println!(
-                "detail[{index}]: column center=({:.3}, {:.3}) height={height:.3} radius={radius:.3} offset={offset:.3} base={base_height:.3} cap={cap_height:.3} segments={segments} placement={placement:?} cut_footprint={cut_footprint} material={} tile_alias={}",
+                "detail[{index}]: column center=({:.3}, {:.3}) height={height:.3} radius={radius:.3} offset={offset:.3} base={base_height:.3} cap={cap_height:.3} transition={transition_height:.3} segments={segments} placement={placement:?} cut_footprint={cut_footprint} material={} rect_material={} cyl_material={} tile_alias={}",
                 center.x,
                 center.y,
                 material_slot.as_deref().unwrap_or("-"),
+                rect_material_slot.as_deref().unwrap_or("-"),
+                cyl_material_slot.as_deref().unwrap_or("-"),
                 tile_alias.as_deref().unwrap_or("-")
             );
             continue;
@@ -738,17 +536,9 @@ fn legacy_preview(path: &str) -> Result<(), String> {
     let document = load_document(path)?;
     let assembly = document.evaluate()?;
     print_inspection(&document, &assembly);
-    let preview = document.render_preview(256);
 
-    let input_path = Path::new(path);
-    let output_file = if let Some(stem) = input_path.file_stem().and_then(|s| s.to_str()) {
-        input_path.with_file_name(format!("{stem}.png"))
-    } else {
-        input_path.with_extension("png")
-    };
-
-    save_png(&output_file, preview.width, preview.height, preview.pixels)?;
-
+    let output_file = Path::new(path).with_extension("png");
+    run_shared_builderpreview(path, &output_file.to_string_lossy(), 512)?;
     println!("preview: {}", output_file.display());
     Ok(())
 }
@@ -791,7 +581,8 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 return Err("missing input file".to_string());
             };
             let document = load_document(path)?;
-            let host = host_from_args(&args[3..])?;
+            let preview_host = document.preview_host();
+            let host = host_from_args(&args[3..], Some(&preview_host))?;
             let assembly = document.evaluate_with_host(&host)?;
             let json = serde_json::to_string_pretty(&assembly)
                 .map_err(|err| format!("failed to encode assembly JSON: {err}"))?;

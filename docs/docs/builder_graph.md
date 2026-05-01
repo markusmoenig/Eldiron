@@ -24,13 +24,17 @@ The host provides dimensions and orientation. The script stays generic, and the 
 name = "Wall Columns";
 host = linedef;
 
+param radius = 0.14;
+param cap = 0.22;
+
 detail column {
     center = vec2(host.width * 0.50, 0.0);
     height = host.height;
-    radius = 0.10;
+    radius = radius;
     offset = -0.08;
     base = 0.16;
-    cap = 0.16;
+    cap = cap;
+    transition = 0.08;
     material = COLUMN;
     tile_alias = stone;
 };
@@ -68,6 +72,45 @@ preview {
 ```
 
 Use preview dimensions that make the asset easy to inspect. They do not hardcode the final map size.
+
+## Parameters
+
+Scripts can expose tunable numeric parameters with `param` declarations.
+
+```txt
+param radius = 0.14;
+param spacing = 2.0;
+param broken_chance = 0.0;
+param seed = 1.0;
+```
+
+Parameters can be used anywhere a scalar expression is expected:
+
+```txt
+detail columns {
+    start = host.width * 0.08;
+    end = host.width * 0.92;
+    y = 0.0;
+    spacing = spacing;
+    height = host.depth;
+    radius = radius;
+    broken_chance = broken_chance;
+    seed = seed;
+    placement = structural;
+};
+```
+
+When a Builder Graph is selected in the Builder dock, Eldiron shows exposed parameters in a TOML sidebar next to the lower picker. Editing the sidebar updates the corresponding `param ... = ...;` lines in the script. The script remains the source of truth.
+
+Use parameters for values that tune a template:
+
+- radius, spacing, height, offset
+- cap/base/transition size
+- damage amount or chance
+- deterministic seed values
+- material or item behavior later when supported by the script
+
+Do not try to make one script cover every structural choice. If the question is "cut the wall or keep masonry behind it?", "attached or structural?", or "arches or columns?", that should usually be a different template rather than another parameter.
 
 ## Primitives
 
@@ -109,12 +152,20 @@ detail rect {
 
 ### Column Details
 
-Column details support two placement modes:
+Column details support four placement modes:
 
 - `placement = relief;`
   - surface decoration
   - the column is treated like raised or recessed surface geometry
   - useful for shallow columns, trims, pilasters, and decorative surface work
+
+- `placement = attached;`
+  - real protruding geometry mounted to the host surface
+  - useful for round wall columns, half-columns, and architectural columns in front of masonry
+
+- `placement = structural;`
+  - real geometry centered in the host surface thickness
+  - useful for replacing a cut-out wall span with columns under the same ceiling line
 
 - `placement = freestanding;`
   - real upright 3D geometry anchored on the surface
@@ -122,6 +173,10 @@ Column details support two placement modes:
   - can optionally cut a prepared footprint out of the sector surface
 
 Relief is the default for compatibility.
+
+`base` and `cap` add square blocks. `transition` adds a short connector between the square blocks and the round shaft, which is useful for columns that should not look like a cylinder simply stacked on a cube.
+
+`material` is the fallback material for the full column. Use `rect_material` for square base/cap sections and `cyl_material` for round shaft/transition sections when those parts need separate material slots.
 
 ```txt
 detail column {
@@ -132,10 +187,56 @@ detail column {
     cut_footprint = true;
     base = 0.14;
     cap = 0.14;
+    transition = 0.06;
     material = COLUMN;
+    rect_material = BLOCK;
+    cyl_material = SHAFT;
     tile_alias = stone;
 };
 ```
+
+Use `detail columns` for an aligned row. The first and last columns are placed exactly at `start` and `end`; the requested `spacing` is rounded to a whole number of equal gaps.
+
+```txt
+detail columns {
+    start = host.width * 0.16;
+    end = host.width * 0.84;
+    y = 0.0;
+    spacing = 2.0;
+    height = host.depth;
+    radius = 0.10;
+    placement = attached;
+    material = COLUMN;
+    rect_material = BLOCK;
+    cyl_material = SHAFT;
+    tile_alias = stone;
+};
+```
+
+Column rows can also use deterministic damage controls:
+
+```txt
+detail columns {
+    start = host.width * 0.08;
+    end = host.width * 0.92;
+    y = 0.0;
+    spacing = spacing;
+    height = host.depth;
+    radius = radius;
+    broken_chance = broken_chance;
+    broken_min_height = broken_min_height;
+    seed = seed;
+    placement = structural;
+    material = COLUMN;
+    rect_material = BLOCK;
+    cyl_material = SHAFT;
+    tile_alias = stone;
+};
+```
+
+`broken_chance` is a `0.0..1.0` probability per column. `broken_min_height` controls the shortest allowed broken column as a fraction of the original height. `seed` makes the result stable across rebuilds.
+
+See `crates/buildergraph/examples/wall_column_series.buildergraph` for a standalone attached series example without masonry. See `crates/buildergraph/examples/wall_column_opening.buildergraph` for a structural series that cuts out the wall span first.
 
 ## Cuts
 
@@ -201,6 +302,39 @@ Supported patterns:
 - `pattern = running_bond;`
 
 Masonry blocks are inset slightly from the requested bounds. That avoids adding relief geometry exactly on sector boundaries, but it does not replace the need for a topology-level fix for duplicate coplanar surfaces on shared edges.
+
+The Builder dock's **New** menu includes starter templates for:
+
+- `Surface Masonry`
+- `Wall Masonry` for explicit linedef / edge-hosted wall spans
+- `Wall Columns Masonry` for broader sector-owned surface decoration
+
+Use these as script templates, then tune `block`, `mortar`, `offset`, and `tile_alias` for the target tiles.
+
+## Templates And Treasury
+
+Builder Graph is designed around focused procedural templates, not one giant universal graph.
+
+A template should encode the structural intent:
+
+- wall masonry relief
+- wall columns with masonry
+- wall column opening
+- broken wall column opening
+- wall arch opening
+- floor cracked tiles
+- floor border relief
+
+Parameters then tune that intent. For example, `Wall Column Opening` can expose `radius`, `spacing`, `broken_chance`, and `seed`, while `Wall Masonry Relief` exposes `block`, `mortar`, and `offset`.
+
+This keeps non-scripting workflows manageable:
+
+1. Pick the right template from the Treasury or Builder dock.
+2. Tune exposed parameters in the TOML sidebar.
+3. Assign material slots through the HUD.
+4. Apply the graph to matching map hosts.
+
+The Treasury should contain several clear templates rather than one script with dozens of unrelated controls.
 
 ## Materials
 
@@ -284,6 +418,7 @@ preview {
     width = 4.0;
     depth = 0.3;
     height = 2.4;
+    surface = wall;
 }
 
 detail column {
@@ -294,6 +429,8 @@ detail column {
     base = 0.16;
     cap = 0.16;
     material = COLUMN;
+    rect_material = BLOCK;
+    cyl_material = SHAFT;
     tile_alias = stone;
 };
 
@@ -320,7 +457,7 @@ Builder Graph is still evolving. Current limits include:
 - no Tree-sitter grammar yet
 - no visual node editor for Builder Graph scripts
 - collision for generated details is not complete
-- square-to-round transitions, arches, and richer architectural profiles are still planned
+- arches and richer architectural profiles are still planned
 - exact selected-host texture inheritance is separate from alias/material resolution
 
 ## Related Pages

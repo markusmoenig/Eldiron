@@ -1033,7 +1033,7 @@ impl TheUI {
         let mut suppress_focused_widget = false;
 
         if let Some(c) = char {
-            if self.ctrl || self.shift || self.alt || self.logo {
+            if self.ctrl || self.alt || self.logo {
                 // Local text editing shortcuts must override global accelerators.
                 // In particular Cmd/Ctrl+A should select-all in focused editors
                 // instead of triggering app-level actions like "Save As".

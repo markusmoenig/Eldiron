@@ -10,7 +10,8 @@ use crate::{
 };
 use buildergraph::{
     BuilderCutMask, BuilderCutMode, BuilderCutShape, BuilderDetailPlacement, BuilderDocument,
-    BuilderHost, BuilderMasonryPattern, BuilderSurfaceDetail,
+    BuilderHost, BuilderMasonryPattern, BuilderPreviewSurface, BuilderSectorHost,
+    BuilderSurfaceDetail,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::GeoId;
@@ -97,8 +98,16 @@ impl TopologyBuilderWallDetail {
                 offset,
                 base_height,
                 cap_height,
+                transition_height,
                 ..
-            } => radius * 2.0 + offset.abs() + base_height.max(*cap_height).max(0.0),
+            } => {
+                radius * 2.0
+                    + offset.abs()
+                    + base_height
+                        .max(*cap_height)
+                        .max(*transition_height)
+                        .max(0.0)
+            }
             BuilderSurfaceDetail::Masonry {
                 min, max, offset, ..
             } => (max.x - min.x).abs().max((max.y - min.y).abs()) + offset.abs(),
@@ -242,6 +251,26 @@ fn rounded_column_loop(
     points
 }
 
+fn column_transition_height(height: f32, base_height: f32, cap_height: f32, requested: f32) -> f32 {
+    let requested = requested.max(0.0);
+    if requested <= 0.0 {
+        return 0.0;
+    }
+    let available = height - base_height - cap_height;
+    if available <= 0.03 {
+        return 0.0;
+    }
+    requested.min((available - 0.02) * 0.5)
+}
+
+fn normalized_or(vector: Vec3<f32>, fallback: Vec3<f32>) -> Vec3<f32> {
+    if vector.magnitude() <= 0.001 {
+        fallback
+    } else {
+        vector.normalized()
+    }
+}
+
 fn regular_polygon(center: Vec2<f32>, radius: f32, segments: usize) -> Vec<Vec2<f32>> {
     let segments = segments.max(3);
     (0..segments)
@@ -318,20 +347,22 @@ impl TopologyScene {
                 continue;
             };
 
+            let preferred_surface = document.preview_host().surface;
             let (host, surface_id, host_min_uv, host_size_uv) =
-                Self::builder_host_for_sector_surface(map, sector.id).unwrap_or_else(|| {
-                    let bbox = sector.bounding_box(map);
-                    let size = Vec2::new(
-                        (bbox.max.x - bbox.min.x).abs().max(0.01),
-                        (bbox.max.y - bbox.min.y).abs().max(0.01),
-                    );
-                    (
-                        BuilderHost::preview_floor(size.x, size.y),
-                        None,
-                        Vec2::zero(),
-                        size,
-                    )
-                });
+                Self::builder_host_for_sector_surface(map, sector.id, preferred_surface)
+                    .unwrap_or_else(|| {
+                        let bbox = sector.bounding_box(map);
+                        let size = Vec2::new(
+                            (bbox.max.x - bbox.min.x).abs().max(0.01),
+                            (bbox.max.y - bbox.min.y).abs().max(0.01),
+                        );
+                        (
+                            BuilderHost::preview_floor(size.x, size.y),
+                            None,
+                            Vec2::zero(),
+                            size,
+                        )
+                    });
 
             let Ok(assembly) = document.evaluate_with_host(&host) else {
                 eprintln!(
@@ -397,20 +428,22 @@ impl TopologyScene {
                 continue;
             };
 
+            let preferred_surface = document.preview_host().surface;
             let (host, surface_id, host_min_uv, _host_size_uv) =
-                Self::builder_host_for_sector_surface(map, sector.id).unwrap_or_else(|| {
-                    let bbox = sector.bounding_box(map);
-                    let size = Vec2::new(
-                        (bbox.max.x - bbox.min.x).abs().max(0.01),
-                        (bbox.max.y - bbox.min.y).abs().max(0.01),
-                    );
-                    (
-                        BuilderHost::preview_floor(size.x, size.y),
-                        None,
-                        Vec2::zero(),
-                        size,
-                    )
-                });
+                Self::builder_host_for_sector_surface(map, sector.id, preferred_surface)
+                    .unwrap_or_else(|| {
+                        let bbox = sector.bounding_box(map);
+                        let size = Vec2::new(
+                            (bbox.max.x - bbox.min.x).abs().max(0.01),
+                            (bbox.max.y - bbox.min.y).abs().max(0.01),
+                        );
+                        (
+                            BuilderHost::preview_floor(size.x, size.y),
+                            None,
+                            Vec2::zero(),
+                            size,
+                        )
+                    });
 
             let Ok(assembly) = document.evaluate_with_host(&host) else {
                 continue;
@@ -743,34 +776,53 @@ impl TopologyScene {
                     offset,
                     base_height,
                     cap_height,
+                    transition_height,
                     segments,
                     placement,
                     cut_footprint: _,
                     material_slot,
+                    rect_material_slot,
+                    cyl_material_slot,
                     tile_alias,
                 } => {
                     if *height <= 0.0 || *radius <= 0.0 {
                         continue;
                     }
-                    if *placement == BuilderDetailPlacement::Freestanding {
+                    if *placement != BuilderDetailPlacement::Relief {
                         continue;
                     }
                     let center = detail.host_min_uv + *center;
                     let base_width = radius * 1.55;
-                    let shaft_loop =
-                        rounded_column_loop(center, *height, *radius, *segments as usize);
+                    let base_height = (*base_height).max(0.0);
+                    let cap_height = (*cap_height).max(0.0);
+                    let transition_height = column_transition_height(
+                        (*height).max(0.01),
+                        base_height,
+                        cap_height,
+                        *transition_height,
+                    );
+                    let shaft_height =
+                        (*height - base_height - cap_height - transition_height * 2.0).max(0.02);
+                    let rect_material_slot = rect_material_slot.clone().or(material_slot.clone());
+                    let cyl_material_slot = cyl_material_slot.clone().or(material_slot.clone());
+                    let shaft_loop = rounded_column_loop(
+                        center + Vec2::new(0.0, base_height + transition_height),
+                        shaft_height,
+                        *radius,
+                        *segments as usize,
+                    );
                     if let Some(patch) = Self::loop_detail_patch(
                         sector_id,
                         surface_id,
                         shaft_loop,
                         *offset,
-                        material_slot.clone(),
+                        cyl_material_slot.clone(),
                         tile_alias.clone(),
                     ) {
                         out.push(patch);
                     }
 
-                    if *base_height > 0.0 {
+                    if base_height > 0.0 {
                         let base_min = Vec2::new(center.x - base_width, center.y);
                         let base_max = Vec2::new(center.x + base_width, center.y + base_height);
                         if let Some(patch) = Self::rect_detail_patch(
@@ -781,14 +833,62 @@ impl TopologyScene {
                             *offset,
                             0.0,
                             BuilderCutShape::Fill,
-                            material_slot.clone(),
+                            rect_material_slot.clone(),
                             tile_alias.clone(),
                         ) {
                             out.push(patch);
                         }
                     }
 
-                    if *cap_height > 0.0 {
+                    if transition_height > 0.0 {
+                        let transition_width = (base_width + radius) * 0.5;
+                        let bottom_min =
+                            Vec2::new(center.x - transition_width, center.y + base_height);
+                        let bottom_max = Vec2::new(
+                            center.x + transition_width,
+                            center.y + base_height + transition_height,
+                        );
+                        if let Some(patch) = Self::rect_detail_patch(
+                            sector_id,
+                            surface_id,
+                            bottom_min,
+                            bottom_max,
+                            *offset,
+                            0.0,
+                            BuilderCutShape::Fill,
+                            cyl_material_slot.clone(),
+                            tile_alias.clone(),
+                        ) {
+                            out.push(patch);
+                        }
+                    }
+
+                    if transition_height > 0.0 {
+                        let transition_width = (base_width + radius) * 0.5;
+                        let top_min = Vec2::new(
+                            center.x - transition_width,
+                            center.y + base_height + transition_height + shaft_height,
+                        );
+                        let top_max = Vec2::new(
+                            center.x + transition_width,
+                            center.y + base_height + transition_height * 2.0 + shaft_height,
+                        );
+                        if let Some(patch) = Self::rect_detail_patch(
+                            sector_id,
+                            surface_id,
+                            top_min,
+                            top_max,
+                            *offset,
+                            0.0,
+                            BuilderCutShape::Fill,
+                            cyl_material_slot.clone(),
+                            tile_alias.clone(),
+                        ) {
+                            out.push(patch);
+                        }
+                    }
+
+                    if cap_height > 0.0 {
                         let cap_min =
                             Vec2::new(center.x - base_width, center.y + height - cap_height);
                         let cap_max = Vec2::new(center.x + base_width, center.y + height);
@@ -800,7 +900,7 @@ impl TopologyScene {
                             *offset,
                             0.0,
                             BuilderCutShape::Fill,
-                            material_slot.clone(),
+                            rect_material_slot.clone(),
                             tile_alias.clone(),
                         ) {
                             out.push(patch);
@@ -969,8 +1069,10 @@ impl TopologyScene {
     fn builder_host_for_sector_surface(
         map: &Map,
         sector_id: u32,
+        preferred_surface: BuilderPreviewSurface,
     ) -> Option<(BuilderHost, Option<Uuid>, Vec2<f32>, Vec2<f32>)> {
         let mut best: Option<(&crate::Surface, Vec2<f32>, Vec2<f32>)> = None;
+        let mut fallback: Option<(&crate::Surface, Vec2<f32>, Vec2<f32>)> = None;
 
         for surface in map.surfaces.values() {
             if surface.sector_id != sector_id {
@@ -992,20 +1094,64 @@ impl TopologyScene {
                 max_uv.y = max_uv.y.max(uv.y);
             }
 
-            let replace = best
+            let fallback_replace = fallback
                 .as_ref()
                 .map(|(best_surface, _, _)| surface.plane.origin.y > best_surface.plane.origin.y)
+                .unwrap_or(true);
+            if fallback_replace {
+                fallback = Some((surface, min_uv, max_uv));
+            }
+
+            let surface_matches = match preferred_surface {
+                BuilderPreviewSurface::Floor => surface.plane.normal.y.abs() >= 0.25,
+                BuilderPreviewSurface::Wall => surface.plane.normal.y.abs() < 0.25,
+            };
+            if !surface_matches {
+                continue;
+            }
+
+            let replace = best
+                .as_ref()
+                .map(
+                    |(best_surface, best_min, best_max)| match preferred_surface {
+                        BuilderPreviewSurface::Floor => {
+                            surface.plane.origin.y > best_surface.plane.origin.y
+                        }
+                        BuilderPreviewSurface::Wall => {
+                            let area = (max_uv.x - min_uv.x).abs() * (max_uv.y - min_uv.y).abs();
+                            let best_area =
+                                (best_max.x - best_min.x).abs() * (best_max.y - best_min.y).abs();
+                            area > best_area
+                        }
+                    },
+                )
                 .unwrap_or(true);
             if replace {
                 best = Some((surface, min_uv, max_uv));
             }
         }
 
-        best.map(|(surface, min_uv, max_uv)| {
+        let selected = best.or(match preferred_surface {
+            BuilderPreviewSurface::Floor => fallback,
+            BuilderPreviewSurface::Wall => None,
+        });
+
+        selected.map(|(surface, min_uv, max_uv)| {
             let width = (max_uv.x - min_uv.x).abs().max(0.01);
             let depth = (max_uv.y - min_uv.y).abs().max(0.01);
+            let height = if surface.plane.normal.y.abs() >= 0.25 {
+                surface.extrusion.thickness().max(0.01)
+            } else {
+                depth
+            };
             (
-                BuilderHost::preview_floor(width, depth),
+                BuilderHost::Sector(BuilderSectorHost {
+                    id: surface.id,
+                    seed: 0,
+                    width,
+                    depth,
+                    height,
+                }),
                 Some(surface.id),
                 min_uv,
                 Vec2::new(width, depth),
@@ -1203,10 +1349,10 @@ impl TopologyScene {
                     && matches!(
                         cut.mask,
                         BuilderCutMask::Rect {
-                            mode: BuilderCutMode::Replace,
+                            mode: BuilderCutMode::Cut | BuilderCutMode::Replace,
                             ..
                         } | BuilderCutMask::Loop {
-                            mode: BuilderCutMode::Replace,
+                            mode: BuilderCutMode::Cut | BuilderCutMode::Replace,
                             ..
                         }
                     )
@@ -1377,10 +1523,10 @@ impl TopologyScene {
                         matches!(
                             cut.mask,
                             BuilderCutMask::Rect {
-                                mode: BuilderCutMode::Replace,
+                                mode: BuilderCutMode::Cut | BuilderCutMode::Replace,
                                 ..
                             } | BuilderCutMask::Loop {
-                                mode: BuilderCutMode::Replace,
+                                mode: BuilderCutMode::Cut | BuilderCutMode::Replace,
                                 ..
                             }
                         )
@@ -1811,81 +1957,150 @@ impl TopologyBuilder {
                         offset,
                         base_height,
                         cap_height,
+                        transition_height,
                         segments,
                         placement,
                         cut_footprint: _,
                         material_slot,
+                        rect_material_slot,
+                        cyl_material_slot,
                         tile_alias,
                     } = &detail.detail
                     else {
                         continue;
                     };
-                    if *placement != BuilderDetailPlacement::Freestanding {
+                    if !matches!(
+                        *placement,
+                        BuilderDetailPlacement::Freestanding
+                            | BuilderDetailPlacement::Attached
+                            | BuilderDetailPlacement::Structural
+                    ) {
                         continue;
                     }
 
-                    let tile_id = Self::sector_detail_material_tile_id(
+                    let rect_tile_id = Self::sector_detail_material_tile_id(
                         sector,
                         *sector_id,
-                        material_slot.as_deref(),
+                        rect_material_slot.as_deref().or(material_slot.as_deref()),
+                        tile_alias.as_deref(),
+                        assets,
+                    );
+                    let cyl_tile_id = Self::sector_detail_material_tile_id(
+                        sector,
+                        *sector_id,
+                        cyl_material_slot.as_deref().or(material_slot.as_deref()),
                         tile_alias.as_deref(),
                         assets,
                     );
                     let anchor_uv = detail.host_min_uv + *center;
-                    let anchor = surface.uvw_to_world(anchor_uv, *offset);
-                    let up = Vec3::new(0.0, 1.0, 0.0);
-                    let mut along = surface.edit_uv.right;
-                    along.y = 0.0;
-                    if along.magnitude() <= 0.001 {
-                        along = Vec3::new(1.0, 0.0, 0.0);
+                    let (anchor, along, up, outward) = if matches!(
+                        *placement,
+                        BuilderDetailPlacement::Attached | BuilderDetailPlacement::Structural
+                    ) {
+                        let along = normalized_or(surface.edit_uv.right, Vec3::unit_x());
+                        let surface_normal =
+                            normalized_or(surface.frame.normal, along.cross(Vec3::unit_y()));
+                        if *placement == BuilderDetailPlacement::Structural {
+                            if surface_normal.y.abs() >= 0.25 {
+                                let up = if surface_normal.y < 0.0 {
+                                    -surface_normal
+                                } else {
+                                    surface_normal
+                                };
+                                let outward = normalized_or(surface.edit_uv.up, Vec3::unit_z());
+                                (
+                                    surface.uv_to_world(anchor_uv) + up * *offset,
+                                    along,
+                                    up,
+                                    outward,
+                                )
+                            } else {
+                                let up = normalized_or(surface.edit_uv.up, Vec3::unit_y());
+                                let (front, back) = surface.extrusion.span();
+                                let center_offset = (front + back) * 0.5 + *offset;
+                                (
+                                    surface.uv_to_world(anchor_uv) + surface_normal * center_offset,
+                                    along,
+                                    up,
+                                    surface_normal,
+                                )
+                            }
+                        } else {
+                            let up = normalized_or(surface.edit_uv.up, Vec3::unit_y());
+                            let outward = if *offset <= 0.0 {
+                                -surface_normal
+                            } else {
+                                surface_normal
+                            };
+                            let center_distance = offset.abs().max((*radius).max(0.01) * 1.45);
+                            (
+                                surface.uv_to_world(anchor_uv) + outward * center_distance,
+                                along,
+                                up,
+                                outward,
+                            )
+                        }
                     } else {
-                        along = along.normalized();
-                    }
-                    let mut outward = along.cross(up);
-                    if outward.magnitude() <= 0.001 {
-                        outward = Vec3::new(0.0, 0.0, 1.0);
-                    } else {
-                        outward = outward.normalized();
-                    }
+                        let anchor = surface.uvw_to_world(anchor_uv, *offset);
+                        let up = Vec3::new(0.0, 1.0, 0.0);
+                        let mut along = surface.edit_uv.right;
+                        along.y = 0.0;
+                        if along.magnitude() <= 0.001 {
+                            along = Vec3::new(1.0, 0.0, 0.0);
+                        } else {
+                            along = along.normalized();
+                        }
+                        let mut outward = along.cross(up);
+                        if outward.magnitude() <= 0.001 {
+                            outward = Vec3::new(0.0, 0.0, 1.0);
+                        } else {
+                            outward = outward.normalized();
+                        }
+                        (anchor, along, up, outward)
+                    };
 
-                    let mut vertices = Vec::new();
-                    let mut uvs = Vec::new();
-                    let mut indices = Vec::new();
-                    append_freestanding_column_mesh(
-                        &mut vertices,
-                        &mut uvs,
-                        &mut indices,
+                    let parts = build_column_mesh_parts(
                         anchor,
                         (*height).max(0.01),
                         (*radius).max(0.01),
                         (*base_height).max(0.0),
                         (*cap_height).max(0.0),
+                        *transition_height,
                         (*segments as usize).clamp(6, 48),
                         along,
                         up,
                         outward,
                     );
-                    if indices.is_empty() {
-                        continue;
-                    }
+                    for part in parts {
+                        if part.indices.is_empty() {
+                            continue;
+                        }
+                        let tile_id = match part.material {
+                            ColumnMeshMaterial::Rect => rect_tile_id,
+                            ColumnMeshMaterial::Cylinder => cyl_tile_id,
+                        };
+                        let mut batch = Batch3D::new(
+                            part.vertices.clone(),
+                            part.indices.clone(),
+                            part.uvs.clone(),
+                        );
+                        batch.repeat_mode = RepeatMode::RepeatXY;
+                        batch.geometry_source = GeometrySource::Sector(*sector_id);
+                        if let Some(texture_index) = assets.tile_index(&tile_id) {
+                            batch.source = PixelSource::StaticTileIndex(texture_index);
+                        }
+                        chunk.batches3d.push(batch);
 
-                    let mut batch = Batch3D::new(vertices.clone(), indices.clone(), uvs.clone());
-                    batch.repeat_mode = RepeatMode::RepeatXY;
-                    batch.geometry_source = GeometrySource::Sector(*sector_id);
-                    if let Some(texture_index) = assets.tile_index(&tile_id) {
-                        batch.source = PixelSource::StaticTileIndex(texture_index);
+                        vmchunk.add_poly_3d(
+                            GeoId::Sector(*sector_id),
+                            tile_id,
+                            part.vertices,
+                            part.uvs,
+                            part.indices,
+                            0,
+                            true,
+                        );
                     }
-                    chunk.batches3d.push(batch);
-
-                    vmchunk.add_poly_3d(
-                        GeoId::Sector(*sector_id),
-                        tile_id,
-                        vertices,
-                        uvs,
-                        indices,
-                        0,
-                        true,
-                    );
                 }
             }
         }
@@ -1983,8 +2198,9 @@ impl TopologyBuilder {
                 offset,
                 base_height,
                 cap_height,
+                transition_height,
                 segments,
-                placement: _,
+                placement,
                 cut_footprint: _,
                 ..
             } => {
@@ -1992,7 +2208,15 @@ impl TopologyBuilder {
                 let radius = radius.max(0.01);
                 let base_height = base_height.max(0.0);
                 let cap_height = cap_height.max(0.0);
-                let shaft_height = (height - base_height - cap_height).max(0.02);
+                let transition_height =
+                    column_transition_height(height, base_height, cap_height, *transition_height);
+                let shaft_height =
+                    (height - base_height - cap_height - transition_height * 2.0).max(0.02);
+                let cap_depth = if *placement == BuilderDetailPlacement::Attached {
+                    radius * 2.9
+                } else {
+                    radius * 0.7
+                };
                 let base_center = detail.origin
                     + detail.along * center.x
                     + detail.up * center.y
@@ -2005,8 +2229,24 @@ impl TopologyBuilder {
                         indices,
                         base_center
                             + detail.up * (base_height * 0.5)
-                            + detail.outward * (radius * 0.15),
-                        Vec3::new(radius * 2.9, base_height, radius * 0.7),
+                            + detail.outward * (cap_depth * 0.5),
+                        Vec3::new(radius * 2.9, base_height, cap_depth),
+                        detail.along,
+                        detail.up,
+                        detail.outward,
+                    );
+                }
+
+                if transition_height > 0.0 {
+                    append_oriented_tapered_cylinder(
+                        vertices,
+                        uvs,
+                        indices,
+                        base_center + detail.up * (base_height + transition_height * 0.5),
+                        transition_height,
+                        radius * 1.45,
+                        radius,
+                        (*segments as usize).clamp(6, 48),
                         detail.along,
                         detail.up,
                         detail.outward,
@@ -2017,7 +2257,8 @@ impl TopologyBuilder {
                     vertices,
                     uvs,
                     indices,
-                    base_center + detail.up * (base_height + shaft_height * 0.5),
+                    base_center
+                        + detail.up * (base_height + transition_height + shaft_height * 0.5),
                     shaft_height,
                     radius,
                     (*segments as usize).clamp(6, 48),
@@ -2026,15 +2267,40 @@ impl TopologyBuilder {
                     detail.outward,
                 );
 
+                if transition_height > 0.0 {
+                    append_oriented_tapered_cylinder(
+                        vertices,
+                        uvs,
+                        indices,
+                        base_center
+                            + detail.up
+                                * (base_height
+                                    + transition_height
+                                    + shaft_height
+                                    + transition_height * 0.5),
+                        transition_height,
+                        radius,
+                        radius * 1.45,
+                        (*segments as usize).clamp(6, 48),
+                        detail.along,
+                        detail.up,
+                        detail.outward,
+                    );
+                }
+
                 if cap_height > 0.0 {
                     append_oriented_box(
                         vertices,
                         uvs,
                         indices,
                         base_center
-                            + detail.up * (base_height + shaft_height + cap_height * 0.5)
-                            + detail.outward * (radius * 0.15),
-                        Vec3::new(radius * 2.9, cap_height, radius * 0.7),
+                            + detail.up
+                                * (base_height
+                                    + transition_height * 2.0
+                                    + shaft_height
+                                    + cap_height * 0.5)
+                            + detail.outward * (cap_depth * 0.5),
+                        Vec3::new(radius * 2.9, cap_height, cap_depth),
                         detail.along,
                         detail.up,
                         detail.outward,
@@ -2484,38 +2750,127 @@ fn append_oriented_cylinder(
     }
 }
 
-fn append_freestanding_column_mesh(
+#[allow(clippy::too_many_arguments)]
+fn append_oriented_tapered_cylinder(
     vertices: &mut Vec<[f32; 4]>,
     uvs: &mut Vec<[f32; 2]>,
     indices: &mut Vec<(usize, usize, usize)>,
-    anchor: Vec3<f32>,
-    height: f32,
-    radius: f32,
-    base_height: f32,
-    cap_height: f32,
+    center: Vec3<f32>,
+    length: f32,
+    bottom_radius: f32,
+    top_radius: f32,
     segments: usize,
     along: Vec3<f32>,
     up: Vec3<f32>,
     outward: Vec3<f32>,
 ) {
-    let shaft_height = (height - base_height - cap_height).max(0.02);
-    if base_height > 0.0 {
-        append_oriented_box(
+    let segments = segments.max(6);
+    let half = length * 0.5;
+    let mut bottom = Vec::with_capacity(segments);
+    let mut top = Vec::with_capacity(segments);
+    for index in 0..segments {
+        let angle = index as f32 / segments as f32 * std::f32::consts::TAU;
+        let bottom_radial =
+            along * (angle.cos() * bottom_radius) + outward * (angle.sin() * bottom_radius);
+        let top_radial = along * (angle.cos() * top_radius) + outward * (angle.sin() * top_radius);
+        bottom.push(append_mesh_vertex(
             vertices,
             uvs,
-            indices,
+            center - up * half + bottom_radial,
+        ));
+        top.push(append_mesh_vertex(
+            vertices,
+            uvs,
+            center + up * half + top_radial,
+        ));
+    }
+    for index in 0..segments {
+        let next = (index + 1) % segments;
+        append_mesh_quad_reversed(indices, bottom[index], top[index], top[next], bottom[next]);
+    }
+}
+
+enum ColumnMeshMaterial {
+    Rect,
+    Cylinder,
+}
+
+struct ColumnMeshPart {
+    material: ColumnMeshMaterial,
+    vertices: Vec<[f32; 4]>,
+    uvs: Vec<[f32; 2]>,
+    indices: Vec<(usize, usize, usize)>,
+}
+
+fn build_column_mesh_parts(
+    anchor: Vec3<f32>,
+    height: f32,
+    radius: f32,
+    base_height: f32,
+    cap_height: f32,
+    transition_height: f32,
+    segments: usize,
+    along: Vec3<f32>,
+    up: Vec3<f32>,
+    outward: Vec3<f32>,
+) -> Vec<ColumnMeshPart> {
+    let transition_height =
+        column_transition_height(height, base_height, cap_height, transition_height);
+    let shaft_height = (height - base_height - cap_height - transition_height * 2.0).max(0.02);
+    let mut parts = Vec::new();
+    if base_height > 0.0 {
+        let mut vertices = Vec::new();
+        let mut uvs = Vec::new();
+        let mut indices = Vec::new();
+        append_oriented_box(
+            &mut vertices,
+            &mut uvs,
+            &mut indices,
             anchor + up * (base_height * 0.5),
             Vec3::new(radius * 2.9, base_height, radius * 2.9),
             along,
             up,
             outward,
         );
+        parts.push(ColumnMeshPart {
+            material: ColumnMeshMaterial::Rect,
+            vertices,
+            uvs,
+            indices,
+        });
     }
+    if transition_height > 0.0 {
+        let mut vertices = Vec::new();
+        let mut uvs = Vec::new();
+        let mut indices = Vec::new();
+        append_oriented_tapered_cylinder(
+            &mut vertices,
+            &mut uvs,
+            &mut indices,
+            anchor + up * (base_height + transition_height * 0.5),
+            transition_height,
+            radius * 1.45,
+            radius,
+            segments,
+            along,
+            up,
+            outward,
+        );
+        parts.push(ColumnMeshPart {
+            material: ColumnMeshMaterial::Cylinder,
+            vertices,
+            uvs,
+            indices,
+        });
+    }
+    let mut vertices = Vec::new();
+    let mut uvs = Vec::new();
+    let mut indices = Vec::new();
     append_oriented_cylinder(
-        vertices,
-        uvs,
-        indices,
-        anchor + up * (base_height + shaft_height * 0.5),
+        &mut vertices,
+        &mut uvs,
+        &mut indices,
+        anchor + up * (base_height + transition_height + shaft_height * 0.5),
         shaft_height,
         radius,
         segments,
@@ -2523,18 +2878,59 @@ fn append_freestanding_column_mesh(
         up,
         outward,
     );
-    if cap_height > 0.0 {
-        append_oriented_box(
+    parts.push(ColumnMeshPart {
+        material: ColumnMeshMaterial::Cylinder,
+        vertices,
+        uvs,
+        indices,
+    });
+    if transition_height > 0.0 {
+        let mut vertices = Vec::new();
+        let mut uvs = Vec::new();
+        let mut indices = Vec::new();
+        append_oriented_tapered_cylinder(
+            &mut vertices,
+            &mut uvs,
+            &mut indices,
+            anchor
+                + up * (base_height + transition_height + shaft_height + transition_height * 0.5),
+            transition_height,
+            radius,
+            radius * 1.45,
+            segments,
+            along,
+            up,
+            outward,
+        );
+        parts.push(ColumnMeshPart {
+            material: ColumnMeshMaterial::Cylinder,
             vertices,
             uvs,
             indices,
-            anchor + up * (base_height + shaft_height + cap_height * 0.5),
+        });
+    }
+    if cap_height > 0.0 {
+        let mut vertices = Vec::new();
+        let mut uvs = Vec::new();
+        let mut indices = Vec::new();
+        append_oriented_box(
+            &mut vertices,
+            &mut uvs,
+            &mut indices,
+            anchor + up * (base_height + transition_height * 2.0 + shaft_height + cap_height * 0.5),
             Vec3::new(radius * 2.9, cap_height, radius * 2.9),
             along,
             up,
             outward,
         );
+        parts.push(ColumnMeshPart {
+            material: ColumnMeshMaterial::Rect,
+            vertices,
+            uvs,
+            indices,
+        });
     }
+    parts
 }
 
 fn masonry_block_rects(

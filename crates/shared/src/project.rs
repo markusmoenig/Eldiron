@@ -106,15 +106,14 @@ pub struct BuilderGraphAsset {
 }
 
 impl BuilderGraphAsset {
-    pub fn new_table(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_table_script_named(name.clone());
+    fn from_script(name: String, fallback_name: &str, graph_data: String) -> Self {
         let graph_name = if let Ok(document) = buildergraph::BuilderDocument::from_text(&graph_data)
         {
             document.name().to_string()
         } else if name.is_empty() {
-            "Table".to_string()
+            fallback_name.to_string()
         } else {
-            name.clone()
+            name
         };
         Self {
             id: Uuid::new_v4(),
@@ -122,78 +121,46 @@ impl BuilderGraphAsset {
             graph_name,
             graph_data,
         }
+    }
+
+    pub fn new_table(name: String) -> Self {
+        let graph_data = BuilderGraph::preset_table_script_named(name.clone());
+        Self::from_script(name, "Table", graph_data)
     }
 
     pub fn new_empty(name: String) -> Self {
         let graph_data = BuilderGraph::empty_script_named(name.clone());
-        let graph_name = if let Ok(document) = buildergraph::BuilderDocument::from_text(&graph_data)
-        {
-            document.name().to_string()
-        } else if name.is_empty() {
-            "Empty".to_string()
-        } else {
-            name.clone()
-        };
-        Self {
-            id: Uuid::new_v4(),
-            graph_id: Uuid::new_v4(),
-            graph_name,
-            graph_data,
-        }
+        Self::from_script(name, "Empty", graph_data)
     }
 
     pub fn new_wall_torch(name: String) -> Self {
         let graph_data = BuilderGraph::preset_wall_torch_script_named(name.clone());
-        let graph_name = if let Ok(document) = buildergraph::BuilderDocument::from_text(&graph_data)
-        {
-            document.name().to_string()
-        } else if name.is_empty() {
-            "Wall Torch".to_string()
-        } else {
-            name.clone()
-        };
-        Self {
-            id: Uuid::new_v4(),
-            graph_id: Uuid::new_v4(),
-            graph_name,
-            graph_data,
-        }
+        Self::from_script(name, "Wall Torch", graph_data)
     }
 
     pub fn new_wall_lantern(name: String) -> Self {
         let graph_data = BuilderGraph::preset_wall_lantern_script_named(name.clone());
-        let graph_name = if let Ok(document) = buildergraph::BuilderDocument::from_text(&graph_data)
-        {
-            document.name().to_string()
-        } else if name.is_empty() {
-            "Wall Lantern".to_string()
-        } else {
-            name.clone()
-        };
-        Self {
-            id: Uuid::new_v4(),
-            graph_id: Uuid::new_v4(),
-            graph_name,
-            graph_data,
-        }
+        Self::from_script(name, "Wall Lantern", graph_data)
     }
 
     pub fn new_campfire(name: String) -> Self {
         let graph_data = BuilderGraph::preset_campfire_script_named(name.clone());
-        let graph_name = if let Ok(document) = buildergraph::BuilderDocument::from_text(&graph_data)
-        {
-            document.name().to_string()
-        } else if name.is_empty() {
-            "Campfire".to_string()
-        } else {
-            name.clone()
-        };
-        Self {
-            id: Uuid::new_v4(),
-            graph_id: Uuid::new_v4(),
-            graph_name,
-            graph_data,
-        }
+        Self::from_script(name, "Campfire", graph_data)
+    }
+
+    pub fn new_surface_masonry(name: String) -> Self {
+        let graph_data = BuilderGraph::preset_surface_masonry_script_named(name.clone());
+        Self::from_script(name, "Surface Masonry", graph_data)
+    }
+
+    pub fn new_wall_masonry(name: String) -> Self {
+        let graph_data = BuilderGraph::preset_wall_masonry_script_named(name.clone());
+        Self::from_script(name, "Wall Masonry", graph_data)
+    }
+
+    pub fn new_wall_columns_masonry(name: String) -> Self {
+        let graph_data = BuilderGraph::preset_wall_columns_masonry_script_named(name.clone());
+        Self::from_script(name, "Wall Columns Masonry", graph_data)
     }
 }
 

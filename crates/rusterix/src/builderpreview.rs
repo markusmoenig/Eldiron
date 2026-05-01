@@ -1,8 +1,8 @@
 use crate::prelude::*;
 use buildergraph::{
-    BuilderAssembly, BuilderCutShape, BuilderDetailPlacement, BuilderMasonryPattern,
-    BuilderOutputSpec, BuilderOutputTarget, BuilderPreviewHost, BuilderPrimitive,
-    BuilderSurfaceDetail, BuilderTransform,
+    BuilderAssembly, BuilderCutMask, BuilderCutMode, BuilderCutShape, BuilderDetailPlacement,
+    BuilderMasonryPattern, BuilderOutputSpec, BuilderOutputTarget, BuilderPreviewHost,
+    BuilderPreviewSurface, BuilderPrimitive, BuilderSurfaceDetail, BuilderTransform,
 };
 use theframework::prelude::Uuid;
 use vek::{Vec2, Vec3, Vec4};
@@ -39,6 +39,12 @@ pub struct BuilderPreviewImage {
     pub width: u32,
     pub height: u32,
     pub pixels: Vec<u8>,
+}
+
+struct DetailPreviewBatch {
+    batch: Batch3D,
+    material_slot: Option<String>,
+    tile_alias: Option<String>,
 }
 
 pub fn render_builder_preview(
@@ -107,11 +113,8 @@ fn render_preview_variant(
 ) -> Result<Vec<u8>, String> {
     const PREVIEW_SSAA: usize = 2;
 
-    let dims = Vec3::new(
-        preview_host.width.max(0.01),
-        preview_host.height.max(0.01),
-        preview_host.depth.max(0.01),
-    );
+    let target = preview_render_target(spec.target, preview_host);
+    let dims = preview_render_dims(preview_host);
 
     let mut scene = Scene::empty();
     let mut min = Vec3::new(f32::MAX, f32::MAX, f32::MAX);
@@ -129,15 +132,16 @@ fn render_preview_variant(
     }
 
     for detail in &assembly.surface_details {
-        for mut batch in batches_for_surface_detail(detail, spec.target, dims) {
+        for detail_batch in batches_for_surface_detail(detail, target, dims) {
+            let mut batch = detail_batch.batch;
             batch.cull_mode = CullMode::Off;
             if host_yaw != 0.0 {
                 rotate_batch_y(&mut batch, host_yaw);
             }
             batch = style_batch(
                 batch,
-                surface_detail_material_slot(detail),
-                surface_detail_pixel_source(detail, assets),
+                detail_batch.material_slot.as_deref(),
+                detail_preview_pixel_source(detail_batch.tile_alias.as_deref(), assets),
                 0.42,
                 true,
             );
@@ -146,7 +150,7 @@ fn render_preview_variant(
         }
     }
 
-    for host_batch in host_reference_batches(spec.target, dims) {
+    for host_batch in host_reference_batches(target, dims, &assembly.cuts) {
         let mut batch = host_batch;
         if host_yaw != 0.0 {
             rotate_batch_y(&mut batch, host_yaw);
@@ -216,6 +220,33 @@ fn render_preview_variant(
         render_height,
         PREVIEW_SSAA,
     ))
+}
+
+fn preview_render_target(
+    target: BuilderOutputTarget,
+    preview_host: &BuilderPreviewHost,
+) -> BuilderOutputTarget {
+    if target == BuilderOutputTarget::Sector && preview_host.surface == BuilderPreviewSurface::Wall
+    {
+        BuilderOutputTarget::Linedef
+    } else {
+        target
+    }
+}
+
+fn preview_render_dims(preview_host: &BuilderPreviewHost) -> Vec3<f32> {
+    match preview_host.surface {
+        BuilderPreviewSurface::Floor => Vec3::new(
+            preview_host.width.max(0.01),
+            preview_host.height.max(0.01),
+            preview_host.depth.max(0.01),
+        ),
+        BuilderPreviewSurface::Wall => Vec3::new(
+            preview_host.width.max(0.01),
+            preview_host.depth.max(0.01),
+            preview_host.height.max(0.01),
+        ),
+    }
 }
 
 fn downsample_rgba_box(src: &[u8], width: usize, height: usize, factor: usize) -> Vec<u8> {
@@ -356,14 +387,6 @@ fn primitive_material_slot(primitive: &BuilderPrimitive) -> Option<&str> {
     }
 }
 
-fn surface_detail_material_slot(detail: &BuilderSurfaceDetail) -> Option<&str> {
-    match detail {
-        BuilderSurfaceDetail::Rect { material_slot, .. } => material_slot.as_deref(),
-        BuilderSurfaceDetail::Column { material_slot, .. } => material_slot.as_deref(),
-        BuilderSurfaceDetail::Masonry { material_slot, .. } => material_slot.as_deref(),
-    }
-}
-
 fn style_batch_color(batch: Batch3D, material_slot: Option<&str>, ambient: f32) -> Batch3D {
     style_batch(batch, material_slot, None, ambient, true)
 }
@@ -381,16 +404,8 @@ fn style_batch(
         .receives_light(receives_light)
 }
 
-fn surface_detail_pixel_source(
-    detail: &BuilderSurfaceDetail,
-    assets: &Assets,
-) -> Option<PixelSource> {
-    let alias = match detail {
-        BuilderSurfaceDetail::Rect { tile_alias, .. } => tile_alias.as_deref(),
-        BuilderSurfaceDetail::Column { tile_alias, .. } => tile_alias.as_deref(),
-        BuilderSurfaceDetail::Masonry { tile_alias, .. } => tile_alias.as_deref(),
-    }?;
-    tile_id_by_alias(assets, alias).map(PixelSource::TileId)
+fn detail_preview_pixel_source(alias: Option<&str>, assets: &Assets) -> Option<PixelSource> {
+    tile_id_by_alias(assets, alias?).map(PixelSource::TileId)
 }
 
 fn tile_id_by_alias(assets: &Assets, alias: &str) -> Option<Uuid> {
@@ -425,7 +440,7 @@ fn batches_for_surface_detail(
     detail: &BuilderSurfaceDetail,
     target: BuilderOutputTarget,
     dims: Vec3<f32>,
-) -> Vec<Batch3D> {
+) -> Vec<DetailPreviewBatch> {
     match detail {
         BuilderSurfaceDetail::Rect {
             min,
@@ -433,8 +448,17 @@ fn batches_for_surface_detail(
             offset,
             inset,
             shape,
+            material_slot,
+            tile_alias,
             ..
-        } => rect_detail_batches(*min, *max, *offset, *inset, *shape, target, dims),
+        } => rect_detail_batches(*min, *max, *offset, *inset, *shape, target, dims)
+            .into_iter()
+            .map(|batch| DetailPreviewBatch {
+                batch,
+                material_slot: material_slot.clone(),
+                tile_alias: tile_alias.clone(),
+            })
+            .collect(),
         BuilderSurfaceDetail::Column {
             center,
             height,
@@ -442,8 +466,13 @@ fn batches_for_surface_detail(
             offset,
             base_height,
             cap_height,
+            transition_height,
             segments,
             placement,
+            material_slot,
+            rect_material_slot,
+            cyl_material_slot,
+            tile_alias,
             ..
         } => column_detail_batches(
             *center,
@@ -452,8 +481,13 @@ fn batches_for_surface_detail(
             *offset,
             *base_height,
             *cap_height,
+            *transition_height,
             usize::from(*segments),
             *placement,
+            material_slot.as_deref(),
+            rect_material_slot.as_deref(),
+            cyl_material_slot.as_deref(),
+            tile_alias.as_deref(),
             target,
             dims,
         ),
@@ -464,8 +498,17 @@ fn batches_for_surface_detail(
             mortar,
             offset,
             pattern,
+            material_slot,
+            tile_alias,
             ..
-        } => masonry_detail_batches(*min, *max, *block, *mortar, *offset, *pattern, target, dims),
+        } => masonry_detail_batches(*min, *max, *block, *mortar, *offset, *pattern, target, dims)
+            .into_iter()
+            .map(|batch| DetailPreviewBatch {
+                batch,
+                material_slot: material_slot.clone(),
+                tile_alias: tile_alias.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -566,15 +609,41 @@ fn column_detail_batches(
     offset: f32,
     base_height: f32,
     cap_height: f32,
+    transition_height: f32,
     segments: usize,
     placement: BuilderDetailPlacement,
+    material_slot: Option<&str>,
+    rect_material_slot: Option<&str>,
+    cyl_material_slot: Option<&str>,
+    tile_alias: Option<&str>,
     target: BuilderOutputTarget,
     dims: Vec3<f32>,
-) -> Vec<Batch3D> {
+) -> Vec<DetailPreviewBatch> {
     let height = height.max(0.01);
     let radius = radius.max(0.01);
     let segments = segments.clamp(6, 48);
+    let base_height = base_height.max(0.0);
+    let cap_height = cap_height.max(0.0);
+    let transition_height =
+        column_transition_height(height, base_height, cap_height, transition_height);
     let mut batches = Vec::new();
+    let rect_material_slot = rect_material_slot.or(material_slot).map(str::to_string);
+    let cyl_material_slot = cyl_material_slot.or(material_slot).map(str::to_string);
+    let tile_alias = tile_alias.map(str::to_string);
+    let add_rect_batch = |batches: &mut Vec<DetailPreviewBatch>, batch: Batch3D| {
+        batches.push(DetailPreviewBatch {
+            batch,
+            material_slot: rect_material_slot.clone(),
+            tile_alias: tile_alias.clone(),
+        });
+    };
+    let add_cyl_batch = |batches: &mut Vec<DetailPreviewBatch>, batch: Batch3D| {
+        batches.push(DetailPreviewBatch {
+            batch,
+            material_slot: cyl_material_slot.clone(),
+            tile_alias: tile_alias.clone(),
+        });
+    };
 
     match target {
         BuilderOutputTarget::Sector | BuilderOutputTarget::VertexPair => {
@@ -582,19 +651,43 @@ fn column_detail_batches(
             let base_z = center.y - dims.z * 0.5;
             let y0 = match placement {
                 BuilderDetailPlacement::Relief => offset.max(0.0),
+                BuilderDetailPlacement::Attached => offset.max(0.0),
+                BuilderDetailPlacement::Structural => 0.0,
                 BuilderDetailPlacement::Freestanding => 0.0,
             };
-            let shaft_base_y = y0 + base_height.max(0.0);
-            let shaft_height = (height - base_height.max(0.0) - cap_height.max(0.0)).max(0.02);
+            let shaft_base_y = y0 + base_height + transition_height;
+            let shaft_height =
+                (height - base_height - cap_height - transition_height * 2.0).max(0.02);
             if base_height > 0.0 {
-                batches.push(Batch3D::from_box(
-                    base_x - radius * 1.45,
-                    y0,
-                    base_z - radius * 1.45,
-                    radius * 2.9,
-                    base_height,
-                    radius * 2.9,
-                ));
+                add_rect_batch(
+                    &mut batches,
+                    Batch3D::from_box(
+                        base_x - radius * 1.45,
+                        y0,
+                        base_z - radius * 1.45,
+                        radius * 2.9,
+                        base_height,
+                        radius * 2.9,
+                    ),
+                );
+            }
+            if transition_height > 0.0 {
+                let mut vertices = Vec::new();
+                let mut indices = Vec::new();
+                let mut uvs = Vec::new();
+                add_tapered_cylinder_mesh(
+                    &mut vertices,
+                    &mut indices,
+                    &mut uvs,
+                    Vec3::new(base_x, y0 + base_height + transition_height * 0.5, base_z),
+                    transition_height,
+                    radius * 1.45,
+                    radius,
+                    0.0,
+                    0.0,
+                    segments,
+                );
+                add_cyl_batch(&mut batches, Batch3D::new(vertices, indices, uvs));
             }
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
@@ -610,32 +703,152 @@ fn column_detail_batches(
                 0.0,
                 segments,
             );
-            batches.push(Batch3D::new(vertices, indices, uvs));
+            add_cyl_batch(&mut batches, Batch3D::new(vertices, indices, uvs));
+            if transition_height > 0.0 {
+                let mut vertices = Vec::new();
+                let mut indices = Vec::new();
+                let mut uvs = Vec::new();
+                add_tapered_cylinder_mesh(
+                    &mut vertices,
+                    &mut indices,
+                    &mut uvs,
+                    Vec3::new(
+                        base_x,
+                        shaft_base_y + shaft_height + transition_height * 0.5,
+                        base_z,
+                    ),
+                    transition_height,
+                    radius,
+                    radius * 1.45,
+                    0.0,
+                    0.0,
+                    segments,
+                );
+                add_cyl_batch(&mut batches, Batch3D::new(vertices, indices, uvs));
+            }
             if cap_height > 0.0 {
-                batches.push(Batch3D::from_box(
-                    base_x - radius * 1.45,
-                    shaft_base_y + shaft_height,
-                    base_z - radius * 1.45,
-                    radius * 2.9,
-                    cap_height,
-                    radius * 2.9,
-                ));
+                add_rect_batch(
+                    &mut batches,
+                    Batch3D::from_box(
+                        base_x - radius * 1.45,
+                        shaft_base_y + shaft_height + transition_height,
+                        base_z - radius * 1.45,
+                        radius * 2.9,
+                        cap_height,
+                        radius * 2.9,
+                    ),
+                );
             }
         }
         BuilderOutputTarget::Linedef => {
+            if placement == BuilderDetailPlacement::Relief {
+                let add_wall_slab =
+                    |u0: f32, v0: f32, u1: f32, v1: f32, batches: &mut Vec<DetailPreviewBatch>| {
+                        if u1 > u0 && v1 > v0 {
+                            add_rect_batch(
+                                batches,
+                                surface_slab_batch(u0, v0, u1, v1, offset, target, dims),
+                            );
+                        }
+                    };
+                let half_base = radius * 1.45;
+                let half_transition = (half_base + radius) * 0.5;
+                let shaft_y0 = center.y + base_height + transition_height;
+                let shaft_height =
+                    (height - base_height - cap_height - transition_height * 2.0).max(0.02);
+
+                if base_height > 0.0 {
+                    add_wall_slab(
+                        center.x - half_base,
+                        center.y,
+                        center.x + half_base,
+                        center.y + base_height,
+                        &mut batches,
+                    );
+                }
+                if transition_height > 0.0 {
+                    add_wall_slab(
+                        center.x - half_transition,
+                        center.y + base_height,
+                        center.x + half_transition,
+                        center.y + base_height + transition_height,
+                        &mut batches,
+                    );
+                }
+                add_wall_slab(
+                    center.x - radius,
+                    shaft_y0,
+                    center.x + radius,
+                    shaft_y0 + shaft_height,
+                    &mut batches,
+                );
+                if transition_height > 0.0 {
+                    add_wall_slab(
+                        center.x - half_transition,
+                        shaft_y0 + shaft_height,
+                        center.x + half_transition,
+                        shaft_y0 + shaft_height + transition_height,
+                        &mut batches,
+                    );
+                }
+                if cap_height > 0.0 {
+                    add_wall_slab(
+                        center.x - half_base,
+                        center.y + height - cap_height,
+                        center.x + half_base,
+                        center.y + height,
+                        &mut batches,
+                    );
+                }
+                return batches;
+            }
+
             let x = center.x - dims.x * 0.5;
-            let y = center.y + base_height.max(0.0);
-            let z = -offset;
-            let shaft_height = (height - base_height.max(0.0) - cap_height.max(0.0)).max(0.02);
+            let y = center.y + base_height + transition_height;
+            let cap_depth = if placement == BuilderDetailPlacement::Attached {
+                radius * 2.9
+            } else {
+                radius * 0.7
+            };
+            let z = if placement == BuilderDetailPlacement::Attached {
+                offset.abs().max(cap_depth * 0.5)
+            } else if placement == BuilderDetailPlacement::Structural {
+                offset
+            } else {
+                -offset
+            };
+            let shaft_height =
+                (height - base_height - cap_height - transition_height * 2.0).max(0.02);
             if base_height > 0.0 {
-                batches.push(Batch3D::from_box(
-                    x - radius * 1.45,
-                    center.y,
-                    z - radius * 0.35,
-                    radius * 2.9,
-                    base_height,
-                    radius * 0.7,
-                ));
+                add_rect_batch(
+                    &mut batches,
+                    Batch3D::from_box(
+                        x - radius * 1.45,
+                        center.y,
+                        z - cap_depth * 0.5,
+                        radius * 2.9,
+                        base_height,
+                        cap_depth,
+                    ),
+                );
+            }
+            if transition_height > 0.0 {
+                let mut vertices = Vec::new();
+                let mut indices = Vec::new();
+                let mut uvs = Vec::new();
+                add_tapered_cylinder_mesh(
+                    &mut vertices,
+                    &mut indices,
+                    &mut uvs,
+                    Vec3::new(x, center.y + base_height + transition_height * 0.5, z),
+                    transition_height,
+                    radius * 1.45,
+                    radius,
+                    0.0,
+                    0.0,
+                    segments,
+                );
+                add_cyl_batch(&mut batches, Batch3D::new(vertices, indices, uvs));
             }
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
@@ -651,16 +864,37 @@ fn column_detail_batches(
                 0.0,
                 segments,
             );
-            batches.push(Batch3D::new(vertices, indices, uvs));
+            add_cyl_batch(&mut batches, Batch3D::new(vertices, indices, uvs));
+            if transition_height > 0.0 {
+                let mut vertices = Vec::new();
+                let mut indices = Vec::new();
+                let mut uvs = Vec::new();
+                add_tapered_cylinder_mesh(
+                    &mut vertices,
+                    &mut indices,
+                    &mut uvs,
+                    Vec3::new(x, y + shaft_height + transition_height * 0.5, z),
+                    transition_height,
+                    radius,
+                    radius * 1.45,
+                    0.0,
+                    0.0,
+                    segments,
+                );
+                add_cyl_batch(&mut batches, Batch3D::new(vertices, indices, uvs));
+            }
             if cap_height > 0.0 {
-                batches.push(Batch3D::from_box(
-                    x - radius * 1.45,
-                    y + shaft_height,
-                    z - radius * 0.35,
-                    radius * 2.9,
-                    cap_height,
-                    radius * 0.7,
-                ));
+                add_rect_batch(
+                    &mut batches,
+                    Batch3D::from_box(
+                        x - radius * 1.45,
+                        y + shaft_height + transition_height,
+                        z - cap_depth * 0.5,
+                        radius * 2.9,
+                        cap_height,
+                        cap_depth,
+                    ),
+                );
             }
         }
     }
@@ -802,16 +1036,13 @@ fn floor_batch(min: Vec3<f32>, max: Vec3<f32>) -> Batch3D {
         .receives_light(true)
 }
 
-fn host_reference_batches(target: BuilderOutputTarget, dims: Vec3<f32>) -> Vec<Batch3D> {
+fn host_reference_batches(
+    target: BuilderOutputTarget,
+    dims: Vec3<f32>,
+    cuts: &[BuilderCutMask],
+) -> Vec<Batch3D> {
     match target {
-        BuilderOutputTarget::Linedef => {
-            let mut wall = Batch3D::from_box(-dims.x * 0.5, 0.0, -0.01, dims.x, dims.y, 0.02)
-                .source(PixelSource::Pixel([78, 82, 88, 255]))
-                .ambient_color(Vec3::broadcast(0.20))
-                .receives_light(true);
-            wall.cull_mode = CullMode::Off;
-            vec![wall]
-        }
+        BuilderOutputTarget::Linedef => host_wall_reference_batches(dims, cuts),
         BuilderOutputTarget::Sector => {
             let mut plane =
                 Batch3D::from_box(-dims.x * 0.5, -0.01, -dims.z * 0.5, dims.x, 0.02, dims.z)
@@ -823,6 +1054,55 @@ fn host_reference_batches(target: BuilderOutputTarget, dims: Vec3<f32>) -> Vec<B
         }
         BuilderOutputTarget::VertexPair => Vec::new(),
     }
+}
+
+fn host_wall_reference_batches(dims: Vec3<f32>, cuts: &[BuilderCutMask]) -> Vec<Batch3D> {
+    let mut spans = vec![(0.0_f32, dims.x)];
+    for cut in cuts {
+        let BuilderCutMask::Rect { min, max, mode, .. } = cut else {
+            continue;
+        };
+        if !matches!(mode, BuilderCutMode::Cut | BuilderCutMode::Replace) {
+            continue;
+        }
+        let x0 = min.x.min(max.x).clamp(0.0, dims.x);
+        let x1 = min.x.max(max.x).clamp(0.0, dims.x);
+        let y0 = min.y.min(max.y);
+        let y1 = min.y.max(max.y);
+        if x1 <= x0 || y0 > 0.001 || y1 < dims.y - 0.001 {
+            continue;
+        }
+        let mut next = Vec::new();
+        for (span0, span1) in spans {
+            if x1 <= span0 || x0 >= span1 {
+                next.push((span0, span1));
+            } else {
+                if x0 > span0 {
+                    next.push((span0, x0));
+                }
+                if x1 < span1 {
+                    next.push((x1, span1));
+                }
+            }
+        }
+        spans = next;
+    }
+
+    spans
+        .into_iter()
+        .filter_map(|(x0, x1)| {
+            let width = x1 - x0;
+            (width > 0.001).then(|| {
+                let mut wall =
+                    Batch3D::from_box(x0 - dims.x * 0.5, 0.0, -0.01, width, dims.y, 0.02)
+                        .source(PixelSource::Pixel([78, 82, 88, 255]))
+                        .ambient_color(Vec3::broadcast(0.20))
+                        .receives_light(true);
+                wall.cull_mode = CullMode::Off;
+                wall
+            })
+        })
+        .collect()
 }
 
 fn extend_bounds(min: &mut Vec3<f32>, max: &mut Vec3<f32>, vertices: &[[f32; 4]]) {
@@ -869,6 +1149,18 @@ fn blit_variant(
         destination[dest_row..dest_row + src_width * 4]
             .copy_from_slice(&source[src_row..src_row + src_width * 4]);
     }
+}
+
+fn column_transition_height(height: f32, base_height: f32, cap_height: f32, requested: f32) -> f32 {
+    let requested = requested.max(0.0);
+    if requested <= 0.0 {
+        return 0.0;
+    }
+    let available = height - base_height - cap_height;
+    if available <= 0.03 {
+        return 0.0;
+    }
+    requested.min((available - 0.02) * 0.5)
 }
 
 fn add_box_mesh(
@@ -965,6 +1257,50 @@ fn add_box_mesh(
         (base + 20, base + 23, base + 22),
         (base + 20, base + 22, base + 21),
     ]);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn add_tapered_cylinder_mesh(
+    vertices: &mut Vec<[f32; 4]>,
+    indices: &mut Vec<(usize, usize, usize)>,
+    uvs: &mut Vec<[f32; 2]>,
+    center: Vec3<f32>,
+    length: f32,
+    bottom_radius: f32,
+    top_radius: f32,
+    rotation_x: f32,
+    rotation_y: f32,
+    segments: usize,
+) {
+    let half = length * 0.5;
+    let base = vertices.len();
+
+    for ring in 0..2 {
+        let y = if ring == 0 { -half } else { half };
+        let radius = if ring == 0 { bottom_radius } else { top_radius };
+        for i in 0..segments {
+            let t = i as f32 / segments as f32 * std::f32::consts::TAU;
+            let local = Vec3::new(t.cos() * radius, y, t.sin() * radius);
+            let rotated = rotate_y(rotate_x(local, rotation_x), rotation_y);
+            vertices.push([
+                center.x + rotated.x,
+                center.y + rotated.y,
+                center.z + rotated.z,
+                1.0,
+            ]);
+            uvs.push([i as f32 / segments as f32, ring as f32]);
+        }
+    }
+
+    for i in 0..segments {
+        let next = (i + 1) % segments;
+        let b0 = base + i;
+        let b1 = base + next;
+        let t0 = base + segments + i;
+        let t1 = base + segments + next;
+        indices.push((b0, b1, t1));
+        indices.push((b0, t1, t0));
+    }
 }
 
 fn add_cylinder_mesh(

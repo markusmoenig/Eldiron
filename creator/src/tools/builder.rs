@@ -7,6 +7,36 @@ pub struct BuilderTool {
     previous_dock: Option<String>,
 }
 
+impl BuilderTool {
+    fn selected_host_tool(project: &Project, server_ctx: &ServerContext) -> Option<MapToolType> {
+        let map = project.get_map(server_ctx)?;
+        if !map.selected_sectors.is_empty() {
+            Some(MapToolType::Sector)
+        } else if !map.selected_linedefs.is_empty() {
+            Some(MapToolType::Linedef)
+        } else if !map.selected_vertices.is_empty() {
+            Some(MapToolType::Vertex)
+        } else {
+            None
+        }
+    }
+
+    fn selected_builder_tool(project: &Project, server_ctx: &ServerContext) -> Option<MapToolType> {
+        let builder_id = server_ctx.curr_builder_graph_id?;
+        project
+            .builder_graphs
+            .get(&builder_id)
+            .and_then(|asset| {
+                shared::buildergraph::BuilderDocument::from_text(&asset.graph_data).ok()
+            })
+            .map(|graph| match graph.output_spec().target {
+                BuilderOutputTarget::Sector => MapToolType::Sector,
+                BuilderOutputTarget::VertexPair => MapToolType::Vertex,
+                BuilderOutputTarget::Linedef => MapToolType::Linedef,
+            })
+    }
+}
+
 impl Tool for BuilderTool {
     fn new() -> Self
     where
@@ -49,24 +79,9 @@ impl Tool for BuilderTool {
         match tool_event {
             Activate => {
                 server_ctx.builder_tool_active = true;
-                server_ctx.curr_map_tool_type = if let Some(builder_id) =
-                    server_ctx.curr_builder_graph_id
-                {
-                    project
-                        .builder_graphs
-                        .get(&builder_id)
-                        .and_then(|asset| {
-                            shared::buildergraph::BuilderDocument::from_text(&asset.graph_data).ok()
-                        })
-                        .map(|graph| match graph.output_spec().target {
-                            BuilderOutputTarget::Sector => MapToolType::Sector,
-                            BuilderOutputTarget::VertexPair => MapToolType::Vertex,
-                            BuilderOutputTarget::Linedef => MapToolType::Linedef,
-                        })
-                        .unwrap_or(MapToolType::Sector)
-                } else {
-                    MapToolType::Sector
-                };
+                server_ctx.curr_map_tool_type = Self::selected_host_tool(project, server_ctx)
+                    .or_else(|| Self::selected_builder_tool(project, server_ctx))
+                    .unwrap_or(MapToolType::Sector);
                 server_ctx.hover_cursor = None;
                 server_ctx.hover_cursor_3d = None;
 

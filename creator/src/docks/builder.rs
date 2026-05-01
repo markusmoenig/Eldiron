@@ -8,6 +8,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const BUILDER_TAB_LAYOUT: &str = "Builder Dock Tabs";
 const BUILDER_VIEW_PREFIX: &str = "Builder Dock View ";
 const BUILDER_DOCK_REFRESH: &str = "Builder Dock Refresh";
+const BUILDER_PARAMS_TOML: &str = "Builder Parameters TOML";
+const BUILDER_PARAMS_WIDTH: i32 = 300;
 const BUILDER_CARD_W: i32 = 164;
 const BUILDER_CARD_H: i32 = 202;
 const BUILDER_CARD_GAP: i32 = 12;
@@ -125,6 +127,18 @@ impl Dock for BuilderDock {
                     "Campfire".to_string(),
                     TheId::named("Builder Dock New Campfire"),
                 ),
+                TheContextMenuItem::new(
+                    "Surface Masonry".to_string(),
+                    TheId::named("Builder Dock New Surface Masonry"),
+                ),
+                TheContextMenuItem::new(
+                    "Wall Masonry".to_string(),
+                    TheId::named("Builder Dock New Wall Masonry"),
+                ),
+                TheContextMenuItem::new(
+                    "Wall Columns Masonry".to_string(),
+                    TheId::named("Builder Dock New Wall Columns Masonry"),
+                ),
             ],
             ..Default::default()
         }));
@@ -151,6 +165,8 @@ impl Dock for BuilderDock {
         toolbar_canvas.set_layout(toolbar_hlayout);
         canvas.set_top(toolbar_canvas);
 
+        let mut center = TheCanvas::new();
+
         let mut tab_layout = TheTabLayout::new(TheId::named(BUILDER_TAB_LAYOUT));
         for tab in 0..3 {
             let mut tab_canvas = TheCanvas::new();
@@ -164,7 +180,36 @@ impl Dock for BuilderDock {
             };
             tab_layout.add_canvas(label.to_string(), tab_canvas);
         }
-        canvas.set_layout(tab_layout);
+        center.set_layout(tab_layout);
+
+        let mut params_canvas = TheCanvas::new();
+        let mut params_edit = TheTextAreaEdit::new(TheId::named(BUILDER_PARAMS_TOML));
+        if let Some(bytes) = crate::Embedded::get("parser/TOML.sublime-syntax")
+            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+        {
+            params_edit.add_syntax_from_string(source);
+            params_edit.set_code_type("TOML");
+        }
+        if let Some(bytes) = crate::Embedded::get("parser/gruvbox-dark.tmTheme")
+            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+        {
+            params_edit.add_theme_from_string(source);
+            params_edit.set_code_theme("Gruvbox Dark");
+        }
+        params_edit.set_continuous(true);
+        params_edit.display_line_number(false);
+        params_edit.use_global_statusbar(true);
+        params_edit.set_font_size(13.0);
+        params_edit
+            .limiter_mut()
+            .set_min_width(BUILDER_PARAMS_WIDTH);
+        params_edit
+            .limiter_mut()
+            .set_max_width(BUILDER_PARAMS_WIDTH);
+        params_canvas.set_widget(params_edit);
+        center.set_right(params_canvas);
+
+        canvas.set_center(center);
 
         canvas
     }
@@ -179,6 +224,7 @@ impl Dock for BuilderDock {
         self.selected = server_ctx.curr_builder_graph_id;
         ctx.ui.relayout = true;
         self.render_views(ui, ctx, project);
+        self.sync_params_ui(ui, project, server_ctx);
         ctx.ui.send(TheEvent::Custom(
             TheId::named(BUILDER_DOCK_REFRESH),
             TheValue::Empty,
@@ -219,6 +265,7 @@ impl Dock for BuilderDock {
                                 TheId::named("Builder Selection Changed"),
                                 TheValue::Id(asset_id),
                             ));
+                            self.sync_params_ui(ui, project, server_ctx);
                             let now = SystemTime::now()
                                 .duration_since(UNIX_EPOCH)
                                 .map(|d| d.as_millis())
@@ -239,6 +286,7 @@ impl Dock for BuilderDock {
                         BuilderCardKind::TreasuryPlaceholder => {}
                     }
                     self.render_views(ui, ctx, project);
+                    self.sync_params_ui(ui, project, server_ctx);
                     redraw = true;
                 }
             }
@@ -323,6 +371,18 @@ impl Dock for BuilderDock {
                     "Builder Dock New Campfire" => BuilderGraphAsset::new_campfire(
                         Self::next_builder_name(project, "Campfire"),
                     ),
+                    "Builder Dock New Surface Masonry" => BuilderGraphAsset::new_surface_masonry(
+                        Self::next_builder_name(project, "Surface Masonry"),
+                    ),
+                    "Builder Dock New Wall Masonry" => BuilderGraphAsset::new_wall_masonry(
+                        Self::next_builder_name(project, "Wall Masonry"),
+                    ),
+                    "Builder Dock New Wall Columns Masonry" => {
+                        BuilderGraphAsset::new_wall_columns_masonry(Self::next_builder_name(
+                            project,
+                            "Wall Columns Masonry",
+                        ))
+                    }
                     _ => return false,
                 };
                 let asset_id = asset.id;
@@ -334,7 +394,65 @@ impl Dock for BuilderDock {
                     TheValue::Id(asset_id),
                 ));
                 self.render_views(ui, ctx, project);
+                self.sync_params_ui(ui, project, server_ctx);
                 redraw = true;
+            }
+            TheEvent::ValueChanged(id, TheValue::Text(text)) if id.name == BUILDER_PARAMS_TOML => {
+                let Some(builder_id) = self.selected.or(server_ctx.curr_builder_graph_id) else {
+                    return false;
+                };
+                let Some(source) = project
+                    .builder_graphs
+                    .get(&builder_id)
+                    .map(|asset| asset.graph_data.clone())
+                else {
+                    return false;
+                };
+                let mut nodeui = Self::params_nodeui_for_source(&source);
+                if !nodeui.is_empty()
+                    && toml::from_str::<toml::Value>(text).is_ok()
+                    && apply_toml_to_nodeui(&mut nodeui, text).is_ok()
+                {
+                    let values = nodeui_to_value_pairs(&nodeui)
+                        .into_iter()
+                        .filter_map(|(name, value)| match value {
+                            TheValue::Float(value) => Some((name, value)),
+                            TheValue::Int(value) => Some((name, value as f32)),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    let updated = Self::replace_param_value_lines(&source, &values);
+                    if updated != source {
+                        let graph_name = BuilderDocument::from_text(&updated)
+                            .map(|document| document.name().to_string())
+                            .ok()
+                            .or_else(|| {
+                                project
+                                    .builder_graphs
+                                    .get(&builder_id)
+                                    .map(|asset| asset.graph_name.clone())
+                            })
+                            .unwrap_or_else(|| "Builder Script".to_string());
+                        if let Some(asset) = project.builder_graphs.get_mut(&builder_id) {
+                            asset.graph_name = graph_name.clone();
+                            asset.graph_data = updated.clone();
+                        }
+                        Self::update_applied_hosts(
+                            project,
+                            server_ctx,
+                            builder_id,
+                            &graph_name,
+                            &updated,
+                        );
+                        crate::utils::editor_scene_full_rebuild(project, server_ctx);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Builder Graph Updated"),
+                            TheValue::Id(builder_id),
+                        ));
+                        self.render_views(ui, ctx, project);
+                        redraw = true;
+                    }
+                }
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "Builder Dock Apply Build" =>
@@ -385,6 +503,7 @@ impl Dock for BuilderDock {
                         TheValue::Id(asset_id),
                     ));
                     self.render_views(ui, ctx, project);
+                    self.sync_params_ui(ui, project, server_ctx);
                     redraw = true;
                 } else {
                     eprintln!(
@@ -424,11 +543,13 @@ impl Dock for BuilderDock {
                     self.selected = server_ctx.curr_builder_graph_id;
                 }
                 self.render_views(ui, ctx, project);
+                self.sync_params_ui(ui, project, server_ctx);
                 redraw = true;
             }
             TheEvent::Custom(id, _) if id.name == BUILDER_DOCK_REFRESH => {
                 ctx.ui.relayout = true;
                 self.render_views(ui, ctx, project);
+                self.sync_params_ui(ui, project, server_ctx);
                 redraw = true;
             }
             _ => {}
@@ -447,6 +568,182 @@ impl Dock for BuilderDock {
 }
 
 impl BuilderDock {
+    fn params_nodeui_for_source(source: &str) -> TheNodeUI {
+        let mut nodeui = TheNodeUI::default();
+        if let Ok(document) = BuilderDocument::from_text(source)
+            && let Ok(params) = document.parameter_values()
+            && !params.is_empty()
+        {
+            nodeui.add_item(TheNodeUIItem::OpenTree("Parameters".into()));
+            for (name, value) in params {
+                let range = if name.contains("chance") || name.contains("damage") {
+                    0.0..=1.0
+                } else if name.contains("seed") {
+                    0.0..=9999.0
+                } else if name.contains("segment") {
+                    3.0..=64.0
+                } else if name.contains("spacing") {
+                    0.05..=8.0
+                } else {
+                    0.0..=8.0
+                };
+                nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                    name.clone(),
+                    name.clone(),
+                    format!("BuilderGraph parameter '{name}'."),
+                    value,
+                    range,
+                    true,
+                ));
+            }
+            nodeui.add_item(TheNodeUIItem::CloseTree);
+        }
+        nodeui
+    }
+
+    fn params_toml(&self, project: &Project, server_ctx: &ServerContext) -> String {
+        let source = self
+            .selected
+            .or(server_ctx.curr_builder_graph_id)
+            .and_then(|builder_id| project.builder_graphs.get(&builder_id))
+            .map(|asset| asset.graph_data.as_str());
+        let Some(source) = source else {
+            return "# Select a Builder Graph to edit parameters.\n".to_string();
+        };
+        let nodeui = Self::params_nodeui_for_source(source);
+        if nodeui.is_empty() {
+            "# No exposed builder parameters.\n# Add lines like: param radius = 0.14;\n".to_string()
+        } else {
+            let mut text = nodeui_to_toml(&nodeui).trim_end().to_string();
+            text.push('\n');
+            text
+        }
+    }
+
+    fn sync_params_ui(&self, ui: &mut TheUI, project: &Project, server_ctx: &ServerContext) {
+        if let Some(widget) = ui.get_widget(BUILDER_PARAMS_TOML)
+            && let Some(edit) = widget.as_text_area_edit()
+        {
+            let toml_text = self.params_toml(project, server_ctx);
+            if edit.text() != toml_text {
+                let previous = edit.get_state();
+                edit.set_text(toml_text);
+                let mut state = edit.get_state();
+                let row_max = state.rows.len().saturating_sub(1);
+                let row = previous.cursor.row.min(row_max);
+                let col_max = state
+                    .rows
+                    .get(row)
+                    .map(|line| line.chars().count())
+                    .unwrap_or(0);
+                state.cursor.row = row;
+                state.cursor.column = previous.cursor.column.min(col_max);
+                state.selection.reset();
+                TheTextAreaEditTrait::set_state(edit, state);
+            }
+        }
+    }
+
+    fn replace_param_value_lines(source: &str, values: &[(String, f32)]) -> String {
+        let mut out = Vec::new();
+        for line in source.lines() {
+            let trimmed = line.trim_start();
+            let indent = &line[..line.len() - trimmed.len()];
+            let replacement = values.iter().find_map(|(name, value)| {
+                let prefix = format!("param {name}");
+                if trimmed.starts_with(&prefix)
+                    && trimmed[prefix.len()..].trim_start().starts_with('=')
+                {
+                    Some(format!("{indent}param {name} = {value:.4};"))
+                } else {
+                    None
+                }
+            });
+            out.push(replacement.unwrap_or_else(|| line.to_string()));
+        }
+        let mut text = out.join("\n");
+        if source.ends_with('\n') {
+            text.push('\n');
+        }
+        text
+    }
+
+    fn update_applied_hosts(
+        project: &mut Project,
+        server_ctx: &ServerContext,
+        builder_id: Uuid,
+        graph_name: &str,
+        graph_data: &str,
+    ) {
+        let Ok(document) = BuilderDocument::from_text(graph_data) else {
+            return;
+        };
+        let spec = document.output_spec();
+        let builder_hide_host = builder_document_hides_host(&document);
+        let Some(map) = project.get_map_mut(server_ctx) else {
+            return;
+        };
+
+        for sector in &mut map.sectors {
+            if matches!(sector.properties.get("builder_graph_id"), Some(Value::Id(id)) if *id == builder_id)
+            {
+                sector
+                    .properties
+                    .set("builder_graph_name", Value::Str(graph_name.to_string()));
+                sector
+                    .properties
+                    .set("builder_graph_data", Value::Str(graph_data.to_string()));
+                sector
+                    .properties
+                    .set("builder_graph_target", Value::Str("sector".to_string()));
+                sector
+                    .properties
+                    .set("builder_surface_mode", Value::Str("overlay".to_string()));
+                sector
+                    .properties
+                    .set("builder_hide_host", Value::Bool(builder_hide_host));
+                sector
+                    .properties
+                    .set("builder_graph_host_refs", Value::Int(spec.host_refs as i32));
+            }
+        }
+        for vertex in &mut map.vertices {
+            if matches!(vertex.properties.get("builder_graph_id"), Some(Value::Id(id)) if *id == builder_id)
+            {
+                vertex
+                    .properties
+                    .set("builder_graph_name", Value::Str(graph_name.to_string()));
+                vertex
+                    .properties
+                    .set("builder_graph_data", Value::Str(graph_data.to_string()));
+                vertex.properties.set(
+                    "builder_graph_target",
+                    Value::Str("vertex_pair".to_string()),
+                );
+                vertex
+                    .properties
+                    .set("builder_graph_host_refs", Value::Int(spec.host_refs as i32));
+            }
+        }
+        for linedef in &mut map.linedefs {
+            if matches!(linedef.properties.get("builder_graph_id"), Some(Value::Id(id)) if *id == builder_id)
+            {
+                linedef
+                    .properties
+                    .set("builder_graph_name", Value::Str(graph_name.to_string()));
+                linedef
+                    .properties
+                    .set("builder_graph_data", Value::Str(graph_data.to_string()));
+                linedef
+                    .properties
+                    .set("builder_graph_target", Value::Str("linedef".to_string()));
+                linedef
+                    .properties
+                    .set("builder_graph_host_refs", Value::Int(spec.host_refs as i32));
+            }
+        }
+    }
+
     fn linedef_builder_host_sector_id(map: &Map, linedef_id: u32) -> Option<u32> {
         let linedef = map.find_linedef(linedef_id)?;
         let host_sector = linedef

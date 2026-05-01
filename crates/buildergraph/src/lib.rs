@@ -36,6 +36,16 @@ pub struct BuilderPreviewHost {
     pub depth: f32,
     #[serde(default)]
     pub height: f32,
+    #[serde(default)]
+    pub surface: BuilderPreviewSurface,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum BuilderPreviewSurface {
+    #[default]
+    Floor,
+    Wall,
 }
 
 impl Default for BuilderPreviewHost {
@@ -44,6 +54,7 @@ impl Default for BuilderPreviewHost {
             width: 1.0,
             depth: 1.0,
             height: 1.0,
+            surface: BuilderPreviewSurface::Floor,
         }
     }
 }
@@ -53,6 +64,7 @@ pub struct BuilderScript {
     pub name: String,
     pub host: BuilderScriptHost,
     pub preview_host: BuilderPreviewHost,
+    pub params: Vec<BuilderScriptParam>,
     pub parts: Vec<BuilderScriptPart>,
     pub cuts: Vec<BuilderScriptCut>,
     pub details: Vec<BuilderScriptSurfaceDetail>,
@@ -71,6 +83,12 @@ pub enum BuilderScriptHost {
     Line,
     Sector,
     Vertex,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BuilderScriptParam {
+    pub name: String,
+    pub value: BuilderScriptScalarExpr,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -135,10 +153,35 @@ pub enum BuilderScriptSurfaceDetail {
         offset: Option<BuilderScriptScalarExpr>,
         base_height: Option<BuilderScriptScalarExpr>,
         cap_height: Option<BuilderScriptScalarExpr>,
+        transition_height: Option<BuilderScriptScalarExpr>,
         segments: Option<BuilderScriptScalarExpr>,
         placement: BuilderDetailPlacement,
         cut_footprint: bool,
         material: Option<String>,
+        rect_material: Option<String>,
+        cyl_material: Option<String>,
+        tile_alias: Option<String>,
+    },
+    ColumnSeries {
+        start: BuilderScriptScalarExpr,
+        end: BuilderScriptScalarExpr,
+        y: BuilderScriptScalarExpr,
+        spacing: BuilderScriptScalarExpr,
+        height: BuilderScriptScalarExpr,
+        radius: BuilderScriptScalarExpr,
+        broken_chance: Option<BuilderScriptScalarExpr>,
+        broken_min_height: Option<BuilderScriptScalarExpr>,
+        seed: Option<BuilderScriptScalarExpr>,
+        offset: Option<BuilderScriptScalarExpr>,
+        base_height: Option<BuilderScriptScalarExpr>,
+        cap_height: Option<BuilderScriptScalarExpr>,
+        transition_height: Option<BuilderScriptScalarExpr>,
+        segments: Option<BuilderScriptScalarExpr>,
+        placement: BuilderDetailPlacement,
+        cut_footprint: bool,
+        material: Option<String>,
+        rect_material: Option<String>,
+        cyl_material: Option<String>,
         tile_alias: Option<String>,
     },
 }
@@ -174,6 +217,7 @@ pub enum BuilderScriptScalarExpr {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BuilderScriptRef {
     Host(String),
+    Param(String),
     Part(String, String),
 }
 
@@ -511,6 +555,8 @@ pub enum BuilderSurfaceDetail {
         base_height: f32,
         #[serde(default)]
         cap_height: f32,
+        #[serde(default)]
+        transition_height: f32,
         #[serde(default = "default_column_segments")]
         segments: u16,
         #[serde(default)]
@@ -518,6 +564,8 @@ pub enum BuilderSurfaceDetail {
         #[serde(default)]
         cut_footprint: bool,
         material_slot: Option<String>,
+        rect_material_slot: Option<String>,
+        cyl_material_slot: Option<String>,
         tile_alias: Option<String>,
     },
     Masonry {
@@ -540,6 +588,8 @@ pub enum BuilderSurfaceDetail {
 pub enum BuilderDetailPlacement {
     #[default]
     Relief,
+    Attached,
+    Structural,
     Freestanding,
 }
 
@@ -643,6 +693,18 @@ fn default_grid_count() -> u16 {
 
 fn default_column_segments() -> u16 {
     12
+}
+
+fn builder_param_rand01(seed: u64, index: u64) -> f32 {
+    let mut x = seed
+        .wrapping_add(index.wrapping_mul(0x9e3779b97f4a7c15))
+        .wrapping_add(0xbf58476d1ce4e5b9);
+    x ^= x >> 30;
+    x = x.wrapping_mul(0xbf58476d1ce4e5b9);
+    x ^= x >> 27;
+    x = x.wrapping_mul(0x94d049bb133111eb);
+    x ^= x >> 31;
+    ((x >> 40) as f32) / ((1u64 << 24) as f32)
 }
 
 fn default_true() -> bool {
@@ -962,6 +1024,45 @@ impl BuilderGraph {
         let mut script = include_str!("../examples/campfire.buildergraph").to_string();
         let graph_name = if name.trim().is_empty() {
             "Campfire".to_string()
+        } else {
+            name
+        };
+        if let Some(line_end) = script.find('\n') {
+            script.replace_range(0..line_end, &format!("name = \"{graph_name}\";"));
+        }
+        script
+    }
+
+    pub fn preset_surface_masonry_script_named(name: String) -> String {
+        let mut script = include_str!("../examples/surface_masonry.buildergraph").to_string();
+        let graph_name = if name.trim().is_empty() {
+            "Surface Masonry".to_string()
+        } else {
+            name
+        };
+        if let Some(line_end) = script.find('\n') {
+            script.replace_range(0..line_end, &format!("name = \"{graph_name}\";"));
+        }
+        script
+    }
+
+    pub fn preset_wall_masonry_script_named(name: String) -> String {
+        let mut script = include_str!("../examples/wall_masonry.buildergraph").to_string();
+        let graph_name = if name.trim().is_empty() {
+            "Wall Masonry".to_string()
+        } else {
+            name
+        };
+        if let Some(line_end) = script.find('\n') {
+            script.replace_range(0..line_end, &format!("name = \"{graph_name}\";"));
+        }
+        script
+    }
+
+    pub fn preset_wall_columns_masonry_script_named(name: String) -> String {
+        let mut script = include_str!("../examples/wall_columns_masonry.buildergraph").to_string();
+        let graph_name = if name.trim().is_empty() {
+            "Wall Columns Masonry".to_string()
         } else {
             name
         };
@@ -2158,6 +2259,12 @@ impl BuilderScript {
         let mut surface_details = Vec::new();
         let mut warnings = Vec::new();
         let mut resolved_parts: HashMap<String, ResolvedPart> = HashMap::default();
+        let mut params: HashMap<String, f32> = HashMap::default();
+
+        for param in &self.params {
+            let value = eval_scalar_expr(&param.value, self.host, &dims, &params)?;
+            params.insert(param.name.clone(), value);
+        }
 
         for part in &self.parts {
             let parent_transform = part
@@ -2169,23 +2276,23 @@ impl BuilderScript {
             let local_rotation_x = part
                 .rotate_x
                 .as_ref()
-                .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
                 .transpose()?
                 .unwrap_or(0.0);
             let attach = if part.parent.is_some() {
                 let local_attach =
-                    eval_point_expr(&part.attach, self.host, &dims, &resolved_parts)?;
+                    eval_point_expr(&part.attach, self.host, &dims, &resolved_parts, &params)?;
                 transform_point(&parent_transform, local_attach)
             } else {
-                eval_point_expr(&part.attach, self.host, &dims, &resolved_parts)?
+                eval_point_expr(&part.attach, self.host, &dims, &resolved_parts, &params)?
             };
             let rotation_x = parent_transform.rotation_x + local_rotation_x;
             let rotation_y = parent_transform.rotation_y;
             let primitive = match &part.kind {
                 BuilderScriptPartKind::Box { size } => {
-                    let sx = eval_scalar_expr(&size[0], self.host, &dims)?;
-                    let sy = eval_scalar_expr(&size[1], self.host, &dims)?;
-                    let sz = eval_scalar_expr(&size[2], self.host, &dims)?;
+                    let sx = eval_scalar_expr(&size[0], self.host, &dims, &params)?;
+                    let sy = eval_scalar_expr(&size[1], self.host, &dims, &params)?;
+                    let sz = eval_scalar_expr(&size[2], self.host, &dims, &params)?;
                     resolved_parts.insert(
                         part.name.clone(),
                         resolved_box_anchors(attach, Vec3::new(sx, sy, sz), rotation_x, rotation_y),
@@ -2207,8 +2314,8 @@ impl BuilderScript {
                     }
                 }
                 BuilderScriptPartKind::Cylinder { length, radius } => {
-                    let sy = eval_scalar_expr(length, self.host, &dims)?;
-                    let r = eval_scalar_expr(radius, self.host, &dims)?;
+                    let sy = eval_scalar_expr(length, self.host, &dims, &params)?;
+                    let r = eval_scalar_expr(radius, self.host, &dims, &params)?;
                     resolved_parts.insert(
                         part.name.clone(),
                         resolved_cylinder_anchors(attach, sy, rotation_x, rotation_y),
@@ -2245,21 +2352,21 @@ impl BuilderScript {
                     shape,
                 } => {
                     let min = Vec2::new(
-                        eval_scalar_expr(&min[0], self.host, &dims)?,
-                        eval_scalar_expr(&min[1], self.host, &dims)?,
+                        eval_scalar_expr(&min[0], self.host, &dims, &params)?,
+                        eval_scalar_expr(&min[1], self.host, &dims, &params)?,
                     );
                     let max = Vec2::new(
-                        eval_scalar_expr(&max[0], self.host, &dims)?,
-                        eval_scalar_expr(&max[1], self.host, &dims)?,
+                        eval_scalar_expr(&max[0], self.host, &dims, &params)?,
+                        eval_scalar_expr(&max[1], self.host, &dims, &params)?,
                     );
                     let offset = offset
                         .as_ref()
-                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
                         .transpose()?
                         .unwrap_or(0.0);
                     let inset = inset
                         .as_ref()
-                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
                         .transpose()?
                         .unwrap_or(0.0);
                     if max.x <= min.x || max.y <= min.y {
@@ -2296,21 +2403,21 @@ impl BuilderScript {
                     tile_alias,
                 } => {
                     let min = Vec2::new(
-                        eval_scalar_expr(&min[0], self.host, &dims)?,
-                        eval_scalar_expr(&min[1], self.host, &dims)?,
+                        eval_scalar_expr(&min[0], self.host, &dims, &params)?,
+                        eval_scalar_expr(&min[1], self.host, &dims, &params)?,
                     );
                     let max = Vec2::new(
-                        eval_scalar_expr(&max[0], self.host, &dims)?,
-                        eval_scalar_expr(&max[1], self.host, &dims)?,
+                        eval_scalar_expr(&max[0], self.host, &dims, &params)?,
+                        eval_scalar_expr(&max[1], self.host, &dims, &params)?,
                     );
                     let offset = offset
                         .as_ref()
-                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
                         .transpose()?
                         .unwrap_or(0.0);
                     let inset = inset
                         .as_ref()
-                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
                         .transpose()?
                         .unwrap_or(0.0);
                     if max.x <= min.x || max.y <= min.y {
@@ -2340,36 +2447,44 @@ impl BuilderScript {
                     offset,
                     base_height,
                     cap_height,
+                    transition_height,
                     segments,
                     placement,
                     cut_footprint,
                     material,
+                    rect_material,
+                    cyl_material,
                     tile_alias,
                 } => {
                     let center = Vec2::new(
-                        eval_scalar_expr(&center[0], self.host, &dims)?,
-                        eval_scalar_expr(&center[1], self.host, &dims)?,
+                        eval_scalar_expr(&center[0], self.host, &dims, &params)?,
+                        eval_scalar_expr(&center[1], self.host, &dims, &params)?,
                     );
-                    let height = eval_scalar_expr(height, self.host, &dims)?;
-                    let radius = eval_scalar_expr(radius, self.host, &dims)?;
+                    let height = eval_scalar_expr(height, self.host, &dims, &params)?;
+                    let radius = eval_scalar_expr(radius, self.host, &dims, &params)?;
                     let offset = offset
                         .as_ref()
-                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
                         .transpose()?
                         .unwrap_or(0.0);
                     let base_height = base_height
                         .as_ref()
-                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
                         .transpose()?
                         .unwrap_or(0.0);
                     let cap_height = cap_height
                         .as_ref()
-                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    let transition_height = transition_height
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
                         .transpose()?
                         .unwrap_or(0.0);
                     let segments = segments
                         .as_ref()
-                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
                         .transpose()?
                         .unwrap_or(default_column_segments() as f32)
                         .round()
@@ -2390,12 +2505,131 @@ impl BuilderScript {
                             offset,
                             base_height,
                             cap_height,
+                            transition_height,
                             segments,
                             placement: *placement,
                             cut_footprint: *cut_footprint,
                             material_slot: material.clone(),
+                            rect_material_slot: rect_material.clone(),
+                            cyl_material_slot: cyl_material.clone(),
                             tile_alias: tile_alias.clone(),
                         });
+                    }
+                }
+                BuilderScriptSurfaceDetail::ColumnSeries {
+                    start,
+                    end,
+                    y,
+                    spacing,
+                    height,
+                    radius,
+                    broken_chance,
+                    broken_min_height,
+                    seed,
+                    offset,
+                    base_height,
+                    cap_height,
+                    transition_height,
+                    segments,
+                    placement,
+                    cut_footprint,
+                    material,
+                    rect_material,
+                    cyl_material,
+                    tile_alias,
+                } => {
+                    let start = eval_scalar_expr(start, self.host, &dims, &params)?;
+                    let end = eval_scalar_expr(end, self.host, &dims, &params)?;
+                    let y = eval_scalar_expr(y, self.host, &dims, &params)?;
+                    let spacing = eval_scalar_expr(spacing, self.host, &dims, &params)?.max(0.01);
+                    let height = eval_scalar_expr(height, self.host, &dims, &params)?;
+                    let radius = eval_scalar_expr(radius, self.host, &dims, &params)?;
+                    let broken_chance = broken_chance
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0)
+                        .clamp(0.0, 1.0);
+                    let broken_min_height = broken_min_height
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.35)
+                        .clamp(0.05, 1.0);
+                    let seed = seed
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0)
+                        .round() as u64;
+                    let offset = offset
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    let base_height = base_height
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    let cap_height = cap_height
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    let transition_height = transition_height
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    let segments = segments
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(default_column_segments() as f32)
+                        .round()
+                        .clamp(4.0, 32.0) as u16;
+                    if height <= 0.0 || radius <= 0.0 || (end - start).abs() <= 0.001 {
+                        warnings.push(BuilderWarning {
+                            code: "invalid_detail_columns".to_string(),
+                            message: format!(
+                                "column series detail {index} has invalid span/height/radius start={} end={} height={} radius={}",
+                                start, end, height, radius
+                            ),
+                        });
+                    } else {
+                        let span = end - start;
+                        let gaps = ((span.abs() / spacing).round() as usize).max(1);
+                        for step in 0..=gaps {
+                            let t = step as f32 / gaps as f32;
+                            let mut column_height = height;
+                            if broken_chance > 0.0
+                                && builder_param_rand01(seed, step as u64) < broken_chance
+                            {
+                                let range = (1.0 - broken_min_height).max(0.0);
+                                let factor = broken_min_height
+                                    + builder_param_rand01(seed ^ 0x9e3779b97f4a7c15, step as u64)
+                                        * range
+                                        * 0.65;
+                                column_height = height * factor.clamp(0.05, 1.0);
+                            }
+                            surface_details.push(BuilderSurfaceDetail::Column {
+                                center: Vec2::new(start + span * t, y),
+                                height: column_height,
+                                radius,
+                                offset,
+                                base_height,
+                                cap_height,
+                                transition_height,
+                                segments,
+                                placement: *placement,
+                                cut_footprint: *cut_footprint,
+                                material_slot: material.clone(),
+                                rect_material_slot: rect_material.clone(),
+                                cyl_material_slot: cyl_material.clone(),
+                                tile_alias: tile_alias.clone(),
+                            });
+                        }
                     }
                 }
                 BuilderScriptSurfaceDetail::Masonry {
@@ -2409,25 +2643,25 @@ impl BuilderScript {
                     tile_alias,
                 } => {
                     let min = Vec2::new(
-                        eval_scalar_expr(&min[0], self.host, &dims)?,
-                        eval_scalar_expr(&min[1], self.host, &dims)?,
+                        eval_scalar_expr(&min[0], self.host, &dims, &params)?,
+                        eval_scalar_expr(&min[1], self.host, &dims, &params)?,
                     );
                     let max = Vec2::new(
-                        eval_scalar_expr(&max[0], self.host, &dims)?,
-                        eval_scalar_expr(&max[1], self.host, &dims)?,
+                        eval_scalar_expr(&max[0], self.host, &dims, &params)?,
+                        eval_scalar_expr(&max[1], self.host, &dims, &params)?,
                     );
                     let block = Vec2::new(
-                        eval_scalar_expr(&block[0], self.host, &dims)?,
-                        eval_scalar_expr(&block[1], self.host, &dims)?,
+                        eval_scalar_expr(&block[0], self.host, &dims, &params)?,
+                        eval_scalar_expr(&block[1], self.host, &dims, &params)?,
                     );
                     let mortar = mortar
                         .as_ref()
-                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
                         .transpose()?
                         .unwrap_or(0.04);
                     let offset = offset
                         .as_ref()
-                        .map(|expr| eval_scalar_expr(expr, self.host, &dims))
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
                         .transpose()?
                         .unwrap_or(-0.035);
                     if max.x <= min.x || max.y <= min.y || block.x <= 0.0 || block.y <= 0.0 {
@@ -2502,19 +2736,48 @@ impl BuilderScript {
             }
         }
         for detail in &self.details {
-            let material = match detail {
+            let mut materials = Vec::new();
+            match detail {
                 BuilderScriptSurfaceDetail::Rect { material, .. }
-                | BuilderScriptSurfaceDetail::Column { material, .. }
-                | BuilderScriptSurfaceDetail::Masonry { material, .. } => material,
-            };
-            if let Some(material) = material
-                && !material.trim().is_empty()
-                && !out.iter().any(|existing| existing == material)
-            {
-                out.push(material.clone());
+                | BuilderScriptSurfaceDetail::Masonry { material, .. } => {
+                    materials.push(material);
+                }
+                BuilderScriptSurfaceDetail::Column {
+                    material,
+                    rect_material,
+                    cyl_material,
+                    ..
+                }
+                | BuilderScriptSurfaceDetail::ColumnSeries {
+                    material,
+                    rect_material,
+                    cyl_material,
+                    ..
+                } => {
+                    materials.push(material);
+                    materials.push(rect_material);
+                    materials.push(cyl_material);
+                }
+            }
+            for material in materials.into_iter().flatten() {
+                if !material.trim().is_empty() && !out.iter().any(|existing| existing == material) {
+                    out.push(material.clone());
+                }
             }
         }
         out
+    }
+
+    pub fn parameter_values(&self) -> Result<Vec<(String, f32)>, String> {
+        let dims = HostPreviewDims::from_preview(self.host, &self.preview_host);
+        let mut params: HashMap<String, f32> = HashMap::default();
+        let mut out = Vec::new();
+        for param in &self.params {
+            let value = eval_scalar_expr(&param.value, self.host, &dims, &params)?;
+            params.insert(param.name.clone(), value);
+            out.push((param.name.clone(), value));
+        }
+        Ok(out)
     }
 
     pub fn item_slot_names(&self) -> Vec<String> {
@@ -2564,6 +2827,13 @@ impl BuilderDocument {
         match self {
             Self::Script(script) => script.item_slot_names(),
             Self::Graph(graph) => graph.item_slot_names(),
+        }
+    }
+
+    pub fn parameter_values(&self) -> Result<Vec<(String, f32)>, String> {
+        match self {
+            Self::Script(script) => script.parameter_values(),
+            Self::Graph(_) => Ok(Vec::new()),
         }
     }
 
@@ -2788,6 +3058,7 @@ impl BuilderScriptParser {
         let mut name = "Builder Script".to_string();
         let mut host = None;
         let mut preview_host = None;
+        let mut params = Vec::new();
         let mut parts = Vec::new();
         let mut cuts = Vec::new();
         let mut details = Vec::new();
@@ -2810,6 +3081,13 @@ impl BuilderScriptParser {
                     other => return Err(format!("unsupported host '{other}'")),
                 });
                 self.expect_symbol(';')?;
+            } else if self.peek_ident("param") {
+                self.expect_ident("param")?;
+                let name = self.expect_ident_any()?;
+                self.expect_symbol('=')?;
+                let value = self.parse_scalar_expr()?;
+                self.expect_symbol(';')?;
+                params.push(BuilderScriptParam { name, value });
             } else if self.peek_ident("preview") {
                 self.expect_ident("preview")?;
                 self.expect_symbol('{')?;
@@ -2817,14 +3095,22 @@ impl BuilderScriptParser {
                 while !self.consume_symbol('}') {
                     let key = self.expect_ident_any()?;
                     self.expect_symbol('=')?;
-                    let value = self.expect_number()?;
-                    self.expect_symbol(';')?;
                     match key.as_str() {
-                        "width" => preview.width = value,
-                        "depth" => preview.depth = value,
-                        "height" => preview.height = value,
+                        "width" => preview.width = self.expect_number()?,
+                        "depth" => preview.depth = self.expect_number()?,
+                        "height" => preview.height = self.expect_number()?,
+                        "surface" | "orientation" => {
+                            preview.surface = match self.expect_ident_any()?.as_str() {
+                                "floor" | "sector" | "horizontal" => BuilderPreviewSurface::Floor,
+                                "wall" | "surface" | "vertical" => BuilderPreviewSurface::Wall,
+                                other => {
+                                    return Err(format!("unsupported preview surface '{other}'"));
+                                }
+                            }
+                        }
                         other => return Err(format!("unsupported preview field '{other}'")),
                     }
+                    self.expect_symbol(';')?;
                 }
                 preview_host = Some(preview);
             } else if self.peek_ident("let") {
@@ -2865,6 +3151,7 @@ impl BuilderScriptParser {
             name,
             host,
             preview_host,
+            params,
             parts,
             cuts,
             details,
@@ -2992,20 +3279,30 @@ impl BuilderScriptParser {
         let mut min = None;
         let mut max = None;
         let mut center = None;
+        let mut start = None;
+        let mut end = None;
+        let mut y = None;
+        let mut spacing = None;
         let mut block = None;
         let mut height = None;
         let mut radius = None;
+        let mut broken_chance = None;
+        let mut broken_min_height = None;
+        let mut seed = None;
         let mut offset = None;
         let mut mortar = None;
         let mut inset = None;
         let mut base_height = None;
         let mut cap_height = None;
+        let mut transition_height = None;
         let mut segments = None;
         let mut placement = BuilderDetailPlacement::Relief;
         let mut cut_footprint = false;
         let mut shape = BuilderCutShape::Fill;
         let mut pattern = BuilderMasonryPattern::Grid;
         let mut material = None;
+        let mut rect_material = None;
+        let mut cyl_material = None;
         let mut tile_alias = None;
 
         while !self.consume_symbol('}') {
@@ -3015,16 +3312,28 @@ impl BuilderScriptParser {
                 "min" => min = Some(self.parse_vec2_expr()?),
                 "max" => max = Some(self.parse_vec2_expr()?),
                 "center" => center = Some(self.parse_vec2_expr()?),
+                "start" => start = Some(self.parse_scalar_expr()?),
+                "end" => end = Some(self.parse_scalar_expr()?),
+                "y" => y = Some(self.parse_scalar_expr()?),
+                "spacing" | "step" | "approx_spacing" => spacing = Some(self.parse_scalar_expr()?),
                 "block" | "block_size" | "stone" | "stone_size" => {
                     block = Some(self.parse_vec2_expr()?)
                 }
                 "height" => height = Some(self.parse_scalar_expr()?),
                 "radius" => radius = Some(self.parse_scalar_expr()?),
+                "broken_chance" | "break_chance" => broken_chance = Some(self.parse_scalar_expr()?),
+                "broken_min_height" | "break_min_height" => {
+                    broken_min_height = Some(self.parse_scalar_expr()?)
+                }
+                "seed" => seed = Some(self.parse_scalar_expr()?),
                 "offset" => offset = Some(self.parse_scalar_expr()?),
                 "mortar" | "gap" => mortar = Some(self.parse_scalar_expr()?),
                 "inset" => inset = Some(self.parse_scalar_expr()?),
                 "base_height" | "base" => base_height = Some(self.parse_scalar_expr()?),
                 "cap_height" | "cap" => cap_height = Some(self.parse_scalar_expr()?),
+                "transition_height" | "transition" => {
+                    transition_height = Some(self.parse_scalar_expr()?)
+                }
                 "segments" => segments = Some(self.parse_scalar_expr()?),
                 "pattern" => {
                     pattern = match self.expect_ident_any()?.as_str() {
@@ -3036,6 +3345,8 @@ impl BuilderScriptParser {
                 "placement" => {
                     placement = match self.expect_ident_any()?.as_str() {
                         "relief" => BuilderDetailPlacement::Relief,
+                        "attached" | "attach" | "mounted" => BuilderDetailPlacement::Attached,
+                        "structural" | "embedded" | "inline" => BuilderDetailPlacement::Structural,
                         "freestanding" | "free" => BuilderDetailPlacement::Freestanding,
                         other => return Err(format!("unsupported detail placement '{other}'")),
                     };
@@ -3055,6 +3366,12 @@ impl BuilderScriptParser {
                     };
                 }
                 "material" => material = Some(self.expect_ident_any()?),
+                "rect_material" | "block_material" => {
+                    rect_material = Some(self.expect_ident_any()?)
+                }
+                "cyl_material" | "shaft_material" | "round_material" => {
+                    cyl_material = Some(self.expect_ident_any()?)
+                }
                 "tile_alias" | "alias" => tile_alias = Some(self.expect_ident_any()?),
                 other => return Err(format!("unsupported detail field '{other}'")),
             }
@@ -3091,12 +3408,43 @@ impl BuilderScriptParser {
                 offset,
                 base_height,
                 cap_height,
+                transition_height,
                 segments,
                 placement,
                 cut_footprint,
                 material,
+                rect_material,
+                cyl_material,
                 tile_alias,
             }),
+            "columns" | "column_series" | "pilasters" => {
+                Ok(BuilderScriptSurfaceDetail::ColumnSeries {
+                    start: start
+                        .ok_or_else(|| "column series detail is missing start".to_string())?,
+                    end: end.ok_or_else(|| "column series detail is missing end".to_string())?,
+                    y: y.ok_or_else(|| "column series detail is missing y".to_string())?,
+                    spacing: spacing
+                        .ok_or_else(|| "column series detail is missing spacing".to_string())?,
+                    height: height
+                        .ok_or_else(|| "column series detail is missing height".to_string())?,
+                    radius: radius
+                        .ok_or_else(|| "column series detail is missing radius".to_string())?,
+                    broken_chance,
+                    broken_min_height,
+                    seed,
+                    offset,
+                    base_height,
+                    cap_height,
+                    transition_height,
+                    segments,
+                    placement,
+                    cut_footprint,
+                    material,
+                    rect_material,
+                    cyl_material,
+                    tile_alias,
+                })
+            }
             other => Err(format!("unsupported detail primitive '{other}'")),
         }
     }
@@ -3208,7 +3556,9 @@ impl BuilderScriptParser {
 
     fn parse_ref(&mut self) -> Result<BuilderScriptRef, String> {
         let left = self.expect_ident_any()?;
-        self.expect_symbol('.')?;
+        if !self.consume_symbol('.') {
+            return Ok(BuilderScriptRef::Param(left));
+        }
         let right = self.expect_ident_any()?;
         if left == "host" {
             Ok(BuilderScriptRef::Host(right))
@@ -3381,6 +3731,7 @@ fn eval_point_expr(
     host: BuilderScriptHost,
     dims: &HostPreviewDims,
     parts: &HashMap<String, ResolvedPart>,
+    params: &HashMap<String, f32>,
 ) -> Result<Vec3<f32>, String> {
     let mut result = Vec3::zero();
     for (sign, term) in &expr.terms {
@@ -3388,12 +3739,12 @@ fn eval_point_expr(
             BuilderScriptVecExpr::Ref(reference) => eval_ref_point(reference, host, dims, parts)?,
             BuilderScriptVecExpr::ScaledRef(reference, scalar) => {
                 eval_ref_vector(reference, host, dims, parts)?
-                    * eval_scalar_expr(scalar, host, dims)?
+                    * eval_scalar_expr(scalar, host, dims, params)?
             }
             BuilderScriptVecExpr::Literal(values) => Vec3::new(
-                eval_scalar_expr(&values[0], host, dims)?,
-                eval_scalar_expr(&values[1], host, dims)?,
-                eval_scalar_expr(&values[2], host, dims)?,
+                eval_scalar_expr(&values[0], host, dims, params)?,
+                eval_scalar_expr(&values[1], host, dims, params)?,
+                eval_scalar_expr(&values[2], host, dims, params)?,
             ),
         };
         result += value * *sign;
@@ -3405,17 +3756,18 @@ fn eval_scalar_expr(
     expr: &BuilderScriptScalarExpr,
     host: BuilderScriptHost,
     dims: &HostPreviewDims,
+    params: &HashMap<String, f32>,
 ) -> Result<f32, String> {
     match expr {
         BuilderScriptScalarExpr::Constant(value) => Ok(*value),
-        BuilderScriptScalarExpr::Ref(reference) => eval_ref_scalar(reference, host, dims),
+        BuilderScriptScalarExpr::Ref(reference) => eval_ref_scalar(reference, host, dims, params),
         BuilderScriptScalarExpr::Mul(a, b) => {
-            Ok(eval_scalar_expr(a, host, dims)? * eval_scalar_expr(b, host, dims)?)
+            Ok(eval_scalar_expr(a, host, dims, params)? * eval_scalar_expr(b, host, dims, params)?)
         }
         BuilderScriptScalarExpr::Div(a, b) => {
-            Ok(eval_scalar_expr(a, host, dims)? / eval_scalar_expr(b, host, dims)?)
+            Ok(eval_scalar_expr(a, host, dims, params)? / eval_scalar_expr(b, host, dims, params)?)
         }
-        BuilderScriptScalarExpr::Neg(inner) => Ok(-eval_scalar_expr(inner, host, dims)?),
+        BuilderScriptScalarExpr::Neg(inner) => Ok(-eval_scalar_expr(inner, host, dims, params)?),
     }
 }
 
@@ -3423,6 +3775,7 @@ fn eval_ref_scalar(
     reference: &BuilderScriptRef,
     _host: BuilderScriptHost,
     dims: &HostPreviewDims,
+    params: &HashMap<String, f32>,
 ) -> Result<f32, String> {
     match reference {
         BuilderScriptRef::Host(name) => match name.as_str() {
@@ -3444,6 +3797,10 @@ fn eval_ref_scalar(
             | "bottom_right_corner" => Err(format!("'host.{name}' is a vector, not a scalar")),
             _ => Err(format!("unsupported host scalar 'host.{name}'")),
         },
+        BuilderScriptRef::Param(name) => params
+            .get(name)
+            .copied()
+            .ok_or_else(|| format!("unknown builder parameter '{name}'")),
         BuilderScriptRef::Part(part, anchor) => Err(format!(
             "'{part}.{anchor}' cannot be used as a scalar in this builder script"
         )),
@@ -3472,6 +3829,9 @@ fn eval_ref_vector(
             "bottom_right_corner" => Ok(host_anchor(host, dims, "bottom_right_corner")),
             _ => Err(format!("unsupported host vector 'host.{name}'")),
         },
+        BuilderScriptRef::Param(name) => Err(format!(
+            "builder parameter '{name}' cannot be used as a vector"
+        )),
         BuilderScriptRef::Part(part, anchor) => {
             let resolved = parts
                 .get(part)
@@ -3508,6 +3868,9 @@ fn eval_ref_transform(
             rotation_y: 0.0,
             scale: Vec3::one(),
         }),
+        BuilderScriptRef::Param(name) => Err(format!(
+            "builder parameter '{name}' cannot be used as a transform"
+        )),
         BuilderScriptRef::Part(part, anchor) => {
             let resolved = parts
                 .get(part)
@@ -3652,16 +4015,19 @@ fn default_preview_host(target: BuilderOutputTarget) -> BuilderPreviewHost {
             width: 1.6,
             depth: 0.9,
             height: 0.8,
+            surface: BuilderPreviewSurface::Floor,
         },
         BuilderOutputTarget::VertexPair => BuilderPreviewHost {
             width: 1.0,
             depth: 1.0,
             height: 1.0,
+            surface: BuilderPreviewSurface::Floor,
         },
         BuilderOutputTarget::Linedef => BuilderPreviewHost {
             width: 1.0,
             depth: 0.3,
             height: 2.0,
+            surface: BuilderPreviewSurface::Wall,
         },
     }
 }
@@ -4273,8 +4639,11 @@ detail column {
     offset = -0.1;
     base = 0.2;
     cap = 0.25;
+    transition = 0.08;
     segments = 16;
     material = COLUMN;
+    rect_material = BLOCK;
+    cyl_material = SHAFT;
     tile_alias = stone;
 };
 
@@ -4298,10 +4667,13 @@ output = [];
             offset,
             base_height,
             cap_height,
+            transition_height,
             segments,
             placement,
             cut_footprint,
             material_slot,
+            rect_material_slot,
+            cyl_material_slot,
             tile_alias,
         } = &assembly.surface_details[0]
         else {
@@ -4314,10 +4686,13 @@ output = [];
         assert_eq!(*offset, -0.1);
         assert_eq!(*base_height, 0.2);
         assert_eq!(*cap_height, 0.25);
+        assert_eq!(*transition_height, 0.08);
         assert_eq!(*segments, 16);
         assert_eq!(*placement, BuilderDetailPlacement::Relief);
         assert!(!*cut_footprint);
         assert_eq!(material_slot.as_deref(), Some("COLUMN"));
+        assert_eq!(rect_material_slot.as_deref(), Some("BLOCK"));
+        assert_eq!(cyl_material_slot.as_deref(), Some("SHAFT"));
         assert_eq!(tile_alias.as_deref(), Some("stone"));
     }
 

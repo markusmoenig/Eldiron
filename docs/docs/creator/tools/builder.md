@@ -13,6 +13,7 @@ The Builder Tool lets you:
 
 - browse project builder assets
 - create new builder assets
+- tune exposed builder parameters in the lower dock sidebar
 - open the Builder script editor
 - apply the selected builder asset to selected map hosts
 - clear builder data from selected hosts
@@ -27,6 +28,7 @@ When the Builder Tool is active, the lower picker area shows the **Builder Picke
 From the picker you can:
 
 - select a builder asset
+- edit exposed `param` values in the TOML sidebar
 - create a new asset with **New**
 - open an asset by double-clicking it, pressing **Return**, or maximizing the editor
 - use **Apply Build** to apply the asset to selected hosts
@@ -56,7 +58,12 @@ Selecting a builder asset switches the map edit host mode to the matching target
 
 Opening a builder asset shows the Builder script editor.
 
-The editor contains:
+The lower Builder dock contains:
+
+- the Builder Picker
+- a TOML parameter sidebar for exposed `param` values
+
+The maximized Builder script editor contains:
 
 - a text editor for the `.buildergraph` script
 - a live 3D preview
@@ -64,11 +71,23 @@ The editor contains:
 
 The editor is intended for fast iteration:
 
-- change script dimensions
+- tune exposed template parameters
+- change script dimensions when needed
 - check host orientation
 - inspect material slots
 - inspect surface details
 - verify wall side and growth direction
+
+The lower-dock TOML sidebar is generated from `param` declarations in the selected script:
+
+```txt
+param radius = 0.14;
+param spacing = 2.0;
+param broken_chance = 0.0;
+param seed = 1.0;
+```
+
+Editing the sidebar updates those `param ... = ...;` lines. Use this for tuning a selected template. Choose a different template when the structure changes, such as switching from masonry relief to a cut-out column opening.
 
 For the script language itself, see [Builder Graph](/docs/builder_graph).
 
@@ -137,12 +156,17 @@ The project includes several starting points:
 - **Campfire**
 - **Surface Freestanding Columns**
 - **Wall Columns**
+- **Wall Masonry**
+- **Wall Columns Masonry**
+- **Wall Column Opening**
 
 See [Builder Graph](/docs/builder_graph) for script examples and language details.
 
 ## Tips
 
 - Use the Builder Tool for reusable placed structures and procedural details.
+- Prefer focused templates over one giant script with many unrelated controls.
+- Use the parameter sidebar for tuning values such as radius, spacing, damage chance, and seed.
 - Keep scripts generic and expose named slots instead of hardcoding materials.
 - Use `tile_alias` in scripts to get useful previews before assigning exact material tiles.
 - Use `host = sector` for floor/sector details.

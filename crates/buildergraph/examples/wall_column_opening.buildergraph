@@ -1,0 +1,47 @@
+name = "Wall Column Opening";
+host = sector;
+
+param radius = 0.14;
+param spacing = 2.0;
+param base = 0.22;
+param cap = 0.22;
+param transition = 0.10;
+param broken_chance = 0.0;
+param broken_min_height = 0.35;
+param seed = 1.0;
+
+preview {
+    width = 7.0;
+    depth = 2.6;
+    height = 0.3;
+    surface = wall;
+}
+
+cut rect {
+    min = vec2(host.width * 0.08, 0.0);
+    max = vec2(host.width * 0.92, host.depth);
+    mode = cut;
+};
+
+detail columns {
+    start = host.width * 0.08;
+    end = host.width * 0.92;
+    y = 0.0;
+    spacing = spacing;
+    height = host.depth;
+    radius = radius;
+    base = base;
+    cap = cap;
+    transition = transition;
+    broken_chance = broken_chance;
+    broken_min_height = broken_min_height;
+    seed = seed;
+    segments = 16;
+    placement = structural;
+    material = COLUMN;
+    rect_material = BLOCK;
+    cyl_material = SHAFT;
+    tile_alias = stone;
+};
+
+output = [];
