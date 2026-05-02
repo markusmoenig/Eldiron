@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 use vek::{Vec2, Vec3};
 
@@ -88,7 +88,25 @@ pub enum BuilderScriptHost {
 #[derive(Clone, Debug, PartialEq)]
 pub struct BuilderScriptParam {
     pub name: String,
-    pub value: BuilderScriptScalarExpr,
+    pub value: BuilderScriptParamValue,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BuilderScriptParamValue {
+    Scalar(BuilderScriptScalarExpr),
+    Ident(String),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BuilderScriptParameterValue {
+    Number(f32),
+    Ident(String),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BuilderScriptPlacementExpr {
+    Literal(BuilderDetailPlacement),
+    Param(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -100,6 +118,7 @@ pub struct BuilderScriptPart {
     pub material: Option<String>,
     pub axis: Option<BuilderScriptRef>,
     pub rotate_x: Option<BuilderScriptScalarExpr>,
+    pub rotate_y: Option<BuilderScriptScalarExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -110,6 +129,15 @@ pub enum BuilderScriptPartKind {
     Cylinder {
         length: BuilderScriptScalarExpr,
         radius: BuilderScriptScalarExpr,
+    },
+    Planks {
+        size: [BuilderScriptScalarExpr; 3],
+        count: BuilderScriptScalarExpr,
+        direction: BuilderPlankDirection,
+        jitter: Option<BuilderScriptScalarExpr>,
+        alignment_jitter: Option<BuilderScriptScalarExpr>,
+        missing_chance: Option<BuilderScriptScalarExpr>,
+        seed: Option<BuilderScriptScalarExpr>,
     },
 }
 
@@ -146,6 +174,19 @@ pub enum BuilderScriptSurfaceDetail {
         material: Option<String>,
         tile_alias: Option<String>,
     },
+    Planks {
+        min: [BuilderScriptScalarExpr; 2],
+        max: [BuilderScriptScalarExpr; 2],
+        count: BuilderScriptScalarExpr,
+        direction: BuilderPlankDirection,
+        jitter: Option<BuilderScriptScalarExpr>,
+        alignment_jitter: Option<BuilderScriptScalarExpr>,
+        missing_chance: Option<BuilderScriptScalarExpr>,
+        seed: Option<BuilderScriptScalarExpr>,
+        offset: Option<BuilderScriptScalarExpr>,
+        material: Option<String>,
+        tile_alias: Option<String>,
+    },
     Column {
         center: [BuilderScriptScalarExpr; 2],
         height: BuilderScriptScalarExpr,
@@ -155,7 +196,7 @@ pub enum BuilderScriptSurfaceDetail {
         cap_height: Option<BuilderScriptScalarExpr>,
         transition_height: Option<BuilderScriptScalarExpr>,
         segments: Option<BuilderScriptScalarExpr>,
-        placement: BuilderDetailPlacement,
+        placement: BuilderScriptPlacementExpr,
         cut_footprint: bool,
         material: Option<String>,
         rect_material: Option<String>,
@@ -177,7 +218,7 @@ pub enum BuilderScriptSurfaceDetail {
         cap_height: Option<BuilderScriptScalarExpr>,
         transition_height: Option<BuilderScriptScalarExpr>,
         segments: Option<BuilderScriptScalarExpr>,
-        placement: BuilderDetailPlacement,
+        placement: BuilderScriptPlacementExpr,
         cut_footprint: bool,
         material: Option<String>,
         rect_material: Option<String>,
@@ -209,6 +250,8 @@ pub enum BuilderScriptVecExpr {
 pub enum BuilderScriptScalarExpr {
     Constant(f32),
     Ref(BuilderScriptRef),
+    Add(Box<BuilderScriptScalarExpr>, Box<BuilderScriptScalarExpr>),
+    Sub(Box<BuilderScriptScalarExpr>, Box<BuilderScriptScalarExpr>),
     Mul(Box<BuilderScriptScalarExpr>, Box<BuilderScriptScalarExpr>),
     Div(Box<BuilderScriptScalarExpr>, Box<BuilderScriptScalarExpr>),
     Neg(Box<BuilderScriptScalarExpr>),
@@ -601,6 +644,14 @@ pub enum BuilderMasonryPattern {
     RunningBond,
 }
 
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum BuilderPlankDirection {
+    #[default]
+    Horizontal,
+    Vertical,
+}
+
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum BuilderCutMode {
@@ -695,6 +746,32 @@ fn default_column_segments() -> u16 {
     12
 }
 
+fn parse_placement_ident(name: &str) -> Option<BuilderDetailPlacement> {
+    match name {
+        "relief" => Some(BuilderDetailPlacement::Relief),
+        "attached" | "attach" | "mounted" => Some(BuilderDetailPlacement::Attached),
+        "structural" | "embedded" | "inline" => Some(BuilderDetailPlacement::Structural),
+        "freestanding" | "free" => Some(BuilderDetailPlacement::Freestanding),
+        _ => None,
+    }
+}
+
+fn eval_placement_expr(
+    expr: &BuilderScriptPlacementExpr,
+    ident_params: &HashMap<String, String>,
+) -> Result<BuilderDetailPlacement, String> {
+    match expr {
+        BuilderScriptPlacementExpr::Literal(placement) => Ok(*placement),
+        BuilderScriptPlacementExpr::Param(name) => {
+            let value = ident_params
+                .get(name)
+                .ok_or_else(|| format!("unknown builder placement parameter '{name}'"))?;
+            parse_placement_ident(value)
+                .ok_or_else(|| format!("unsupported detail placement parameter '{name} = {value}'"))
+        }
+    }
+}
+
 fn builder_param_rand01(seed: u64, index: u64) -> f32 {
     let mut x = seed
         .wrapping_add(index.wrapping_mul(0x9e3779b97f4a7c15))
@@ -705,6 +782,159 @@ fn builder_param_rand01(seed: u64, index: u64) -> f32 {
     x = x.wrapping_mul(0x94d049bb133111eb);
     x ^= x >> 31;
     ((x >> 40) as f32) / ((1u64 << 24) as f32)
+}
+
+fn plank_detail_rects(
+    min: Vec2<f32>,
+    max: Vec2<f32>,
+    count: usize,
+    direction: BuilderPlankDirection,
+    jitter: f32,
+    alignment_jitter: f32,
+    missing_chance: f32,
+    seed: u64,
+) -> Vec<(Vec2<f32>, Vec2<f32>)> {
+    let raw_min = min;
+    let raw_max = max;
+    let min = Vec2::new(raw_min.x.min(raw_max.x), raw_min.y.min(raw_max.y));
+    let max = Vec2::new(raw_min.x.max(raw_max.x), raw_min.y.max(raw_max.y));
+    if max.x <= min.x || max.y <= min.y || count == 0 {
+        return Vec::new();
+    }
+
+    let mut rects = Vec::new();
+    let span = max - min;
+    match direction {
+        BuilderPlankDirection::Horizontal => {
+            let lane = span.y / count as f32;
+            let gap = (lane * 0.08).min(0.035);
+            let end_jitter = span.x * 0.04 * jitter;
+            for index in 0..count {
+                if missing_chance > 0.0 && builder_param_rand01(seed, index as u64) < missing_chance
+                {
+                    continue;
+                }
+                let y_rand = builder_param_rand01(seed ^ 0x517cc1b727220a95, index as u64);
+                let h_rand = builder_param_rand01(seed ^ 0x94d049bb133111eb, index as u64);
+                let y0 = min.y
+                    + index as f32 * lane
+                    + gap * 0.5
+                    + (y_rand - 0.5) * lane * 0.35 * alignment_jitter;
+                let y1 = (y0 + lane * (0.72 + h_rand * 0.18) - gap).min(max.y);
+                let x0 = min.x
+                    + builder_param_rand01(seed ^ 0xda942042e4dd58b5, index as u64) * end_jitter;
+                let x1 = max.x
+                    - builder_param_rand01(seed ^ 0xa24baed4963ee407, index as u64) * end_jitter;
+                if x1 > x0 + 0.001 && y1 > y0 + 0.001 {
+                    rects.push((Vec2::new(x0, y0), Vec2::new(x1, y1)));
+                }
+            }
+        }
+        BuilderPlankDirection::Vertical => {
+            let lane = span.x / count as f32;
+            let gap = (lane * 0.08).min(0.035);
+            let end_jitter = span.y * 0.04 * jitter;
+            for index in 0..count {
+                if missing_chance > 0.0 && builder_param_rand01(seed, index as u64) < missing_chance
+                {
+                    continue;
+                }
+                let x_rand = builder_param_rand01(seed ^ 0x517cc1b727220a95, index as u64);
+                let w_rand = builder_param_rand01(seed ^ 0x94d049bb133111eb, index as u64);
+                let x0 = min.x
+                    + index as f32 * lane
+                    + gap * 0.5
+                    + (x_rand - 0.5) * lane * 0.35 * alignment_jitter;
+                let x1 = (x0 + lane * (0.72 + w_rand * 0.18) - gap).min(max.x);
+                let y0 = min.y
+                    + builder_param_rand01(seed ^ 0xda942042e4dd58b5, index as u64) * end_jitter;
+                let y1 = max.y
+                    - builder_param_rand01(seed ^ 0xa24baed4963ee407, index as u64) * end_jitter;
+                if x1 > x0 + 0.001 && y1 > y0 + 0.001 {
+                    rects.push((Vec2::new(x0, y0), Vec2::new(x1, y1)));
+                }
+            }
+        }
+    }
+    rects
+}
+
+fn plank_primitive_boxes(
+    size: Vec3<f32>,
+    count: usize,
+    direction: BuilderPlankDirection,
+    jitter: f32,
+    alignment_jitter: f32,
+    missing_chance: f32,
+    seed: u64,
+) -> Vec<(Vec3<f32>, Vec3<f32>)> {
+    let size = Vec3::new(size.x.max(0.001), size.y.max(0.001), size.z.max(0.001));
+    if count == 0 {
+        return Vec::new();
+    }
+
+    let mut out = Vec::new();
+    match direction {
+        BuilderPlankDirection::Horizontal => {
+            let lane = size.y / count as f32;
+            let gap = (lane * 0.08).min(0.035);
+            let end_jitter = size.x * 0.04 * jitter;
+            for index in 0..count {
+                if missing_chance > 0.0 && builder_param_rand01(seed, index as u64) < missing_chance
+                {
+                    continue;
+                }
+                let h_rand = builder_param_rand01(seed ^ 0x94d049bb133111eb, index as u64);
+                let plank_h = (lane * (0.72 + h_rand * 0.18) - gap).max(0.002);
+                let x_trim_a =
+                    builder_param_rand01(seed ^ 0xda942042e4dd58b5, index as u64) * end_jitter;
+                let x_trim_b =
+                    builder_param_rand01(seed ^ 0xa24baed4963ee407, index as u64) * end_jitter;
+                let plank_w = (size.x - x_trim_a - x_trim_b).max(0.002);
+                let y_shift = (builder_param_rand01(seed ^ 0x517cc1b727220a95, index as u64)
+                    - 0.5)
+                    * lane
+                    * 0.35
+                    * alignment_jitter;
+                let local_bottom = Vec3::new(
+                    (x_trim_a - x_trim_b) * 0.5,
+                    index as f32 * lane + gap * 0.5 + y_shift,
+                    0.0,
+                );
+                out.push((local_bottom, Vec3::new(plank_w, plank_h, size.z)));
+            }
+        }
+        BuilderPlankDirection::Vertical => {
+            let lane = size.x / count as f32;
+            let gap = (lane * 0.08).min(0.035);
+            let end_jitter = size.y * 0.04 * jitter;
+            for index in 0..count {
+                if missing_chance > 0.0 && builder_param_rand01(seed, index as u64) < missing_chance
+                {
+                    continue;
+                }
+                let w_rand = builder_param_rand01(seed ^ 0x94d049bb133111eb, index as u64);
+                let plank_w = (lane * (0.72 + w_rand * 0.18) - gap).max(0.002);
+                let y_trim_a =
+                    builder_param_rand01(seed ^ 0xda942042e4dd58b5, index as u64) * end_jitter;
+                let y_trim_b =
+                    builder_param_rand01(seed ^ 0xa24baed4963ee407, index as u64) * end_jitter;
+                let plank_h = (size.y - y_trim_a - y_trim_b).max(0.002);
+                let x_shift = (builder_param_rand01(seed ^ 0x517cc1b727220a95, index as u64)
+                    - 0.5)
+                    * lane
+                    * 0.35
+                    * alignment_jitter;
+                let local_bottom = Vec3::new(
+                    -size.x * 0.5 + index as f32 * lane + lane * 0.5 + x_shift,
+                    y_trim_a,
+                    0.0,
+                );
+                out.push((local_bottom, Vec3::new(plank_w, plank_h, size.z)));
+            }
+        }
+    }
+    out
 }
 
 fn default_true() -> bool {
@@ -2260,13 +2490,24 @@ impl BuilderScript {
         let mut warnings = Vec::new();
         let mut resolved_parts: HashMap<String, ResolvedPart> = HashMap::default();
         let mut params: HashMap<String, f32> = HashMap::default();
+        let mut ident_params: HashMap<String, String> = HashMap::default();
+        let output_parts: HashSet<&str> = self.output.iter().map(String::as_str).collect();
+        let emit_all_parts = output_parts.is_empty();
 
         for param in &self.params {
-            let value = eval_scalar_expr(&param.value, self.host, &dims, &params)?;
-            params.insert(param.name.clone(), value);
+            match &param.value {
+                BuilderScriptParamValue::Scalar(expr) => {
+                    let value = eval_scalar_expr(expr, self.host, &dims, &params)?;
+                    params.insert(param.name.clone(), value);
+                }
+                BuilderScriptParamValue::Ident(value) => {
+                    ident_params.insert(param.name.clone(), value.clone());
+                }
+            }
         }
 
         for part in &self.parts {
+            let emit_part = emit_all_parts || output_parts.contains(part.name.as_str());
             let parent_transform = part
                 .parent
                 .as_ref()
@@ -2287,7 +2528,13 @@ impl BuilderScript {
                 eval_point_expr(&part.attach, self.host, &dims, &resolved_parts, &params)?
             };
             let rotation_x = parent_transform.rotation_x + local_rotation_x;
-            let rotation_y = parent_transform.rotation_y;
+            let local_rotation_y = part
+                .rotate_y
+                .as_ref()
+                .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                .transpose()?
+                .unwrap_or(0.0);
+            let rotation_y = parent_transform.rotation_y + local_rotation_y;
             let primitive = match &part.kind {
                 BuilderScriptPartKind::Box { size } => {
                     let sx = eval_scalar_expr(&size[0], self.host, &dims, &params)?;
@@ -2337,8 +2584,89 @@ impl BuilderScript {
                         host_scale_z_normalized: false,
                     }
                 }
+                BuilderScriptPartKind::Planks {
+                    size,
+                    count,
+                    direction,
+                    jitter,
+                    alignment_jitter,
+                    missing_chance,
+                    seed,
+                } => {
+                    let sx = eval_scalar_expr(&size[0], self.host, &dims, &params)?;
+                    let sy = eval_scalar_expr(&size[1], self.host, &dims, &params)?;
+                    let sz = eval_scalar_expr(&size[2], self.host, &dims, &params)?;
+                    let count = eval_scalar_expr(count, self.host, &dims, &params)?
+                        .round()
+                        .clamp(1.0, 256.0) as usize;
+                    let jitter = jitter
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.15)
+                        .clamp(0.0, 1.0);
+                    let alignment_jitter = alignment_jitter
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(jitter)
+                        .clamp(0.0, 1.0);
+                    let missing_chance = missing_chance
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0)
+                        .clamp(0.0, 1.0);
+                    let seed = seed
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0)
+                        .round() as u64;
+                    resolved_parts.insert(
+                        part.name.clone(),
+                        resolved_box_anchors(attach, Vec3::new(sx, sy, sz), rotation_x, rotation_y),
+                    );
+                    let panel_transform = BuilderTransform {
+                        translation: attach,
+                        rotation_x,
+                        rotation_y,
+                        scale: Vec3::one(),
+                    };
+                    let plank_specs = plank_primitive_boxes(
+                        Vec3::new(sx, sy, sz),
+                        count,
+                        *direction,
+                        jitter,
+                        alignment_jitter,
+                        missing_chance,
+                        seed,
+                    );
+                    for (local_bottom, plank_size) in plank_specs {
+                        if emit_part {
+                            primitives.push(BuilderPrimitive::Box {
+                                size: plank_size,
+                                transform: BuilderTransform {
+                                    translation: transform_point(&panel_transform, local_bottom),
+                                    rotation_x,
+                                    rotation_y,
+                                    scale: Vec3::one(),
+                                },
+                                material_slot: part.material.clone(),
+                                host_position_normalized: false,
+                                host_position_y_normalized: false,
+                                host_scale_y_normalized: false,
+                                host_scale_x_normalized: false,
+                                host_scale_z_normalized: false,
+                            });
+                        }
+                    }
+                    continue;
+                }
             };
-            primitives.push(primitive);
+            if emit_part {
+                primitives.push(primitive);
+            }
         }
 
         for (index, cut) in self.cuts.iter().enumerate() {
@@ -2489,6 +2817,7 @@ impl BuilderScript {
                         .unwrap_or(default_column_segments() as f32)
                         .round()
                         .clamp(4.0, 32.0) as u16;
+                    let placement = eval_placement_expr(placement, &ident_params)?;
                     if height <= 0.0 || radius <= 0.0 {
                         warnings.push(BuilderWarning {
                             code: "invalid_detail_column".to_string(),
@@ -2507,7 +2836,7 @@ impl BuilderScript {
                             cap_height,
                             transition_height,
                             segments,
-                            placement: *placement,
+                            placement,
                             cut_footprint: *cut_footprint,
                             material_slot: material.clone(),
                             rect_material_slot: rect_material.clone(),
@@ -2589,6 +2918,7 @@ impl BuilderScript {
                         .unwrap_or(default_column_segments() as f32)
                         .round()
                         .clamp(4.0, 32.0) as u16;
+                    let placement = eval_placement_expr(placement, &ident_params)?;
                     if height <= 0.0 || radius <= 0.0 || (end - start).abs() <= 0.001 {
                         warnings.push(BuilderWarning {
                             code: "invalid_detail_columns".to_string(),
@@ -2622,7 +2952,7 @@ impl BuilderScript {
                                 cap_height,
                                 transition_height,
                                 segments,
-                                placement: *placement,
+                                placement,
                                 cut_footprint: *cut_footprint,
                                 material_slot: material.clone(),
                                 rect_material_slot: rect_material.clone(),
@@ -2685,6 +3015,82 @@ impl BuilderScript {
                         });
                     }
                 }
+                BuilderScriptSurfaceDetail::Planks {
+                    min,
+                    max,
+                    count,
+                    direction,
+                    jitter,
+                    alignment_jitter,
+                    missing_chance,
+                    seed,
+                    offset,
+                    material,
+                    tile_alias,
+                } => {
+                    let min = Vec2::new(
+                        eval_scalar_expr(&min[0], self.host, &dims, &params)?,
+                        eval_scalar_expr(&min[1], self.host, &dims, &params)?,
+                    );
+                    let max = Vec2::new(
+                        eval_scalar_expr(&max[0], self.host, &dims, &params)?,
+                        eval_scalar_expr(&max[1], self.host, &dims, &params)?,
+                    );
+                    let count = eval_scalar_expr(count, self.host, &dims, &params)?
+                        .round()
+                        .clamp(1.0, 256.0) as usize;
+                    let jitter = jitter
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.15)
+                        .clamp(0.0, 1.0);
+                    let alignment_jitter = alignment_jitter
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(jitter)
+                        .clamp(0.0, 1.0);
+                    let missing_chance = missing_chance
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0)
+                        .clamp(0.0, 1.0);
+                    let seed = seed
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0)
+                        .round() as u64;
+                    let offset = offset
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(-0.035);
+                    let local_min = Vec2::new(min.x.min(max.x), min.y.min(max.y));
+                    let local_max = Vec2::new(min.x.max(max.x), min.y.max(max.y));
+                    for (plank_min, plank_max) in plank_detail_rects(
+                        local_min,
+                        local_max,
+                        count,
+                        *direction,
+                        jitter,
+                        alignment_jitter,
+                        missing_chance,
+                        seed,
+                    ) {
+                        surface_details.push(BuilderSurfaceDetail::Rect {
+                            min: plank_min,
+                            max: plank_max,
+                            offset,
+                            inset: 0.0,
+                            shape: BuilderCutShape::Fill,
+                            material_slot: material.clone(),
+                            tile_alias: tile_alias.clone(),
+                        });
+                    }
+                }
             }
         }
 
@@ -2739,7 +3145,8 @@ impl BuilderScript {
             let mut materials = Vec::new();
             match detail {
                 BuilderScriptSurfaceDetail::Rect { material, .. }
-                | BuilderScriptSurfaceDetail::Masonry { material, .. } => {
+                | BuilderScriptSurfaceDetail::Masonry { material, .. }
+                | BuilderScriptSurfaceDetail::Planks { material, .. } => {
                     materials.push(material);
                 }
                 BuilderScriptSurfaceDetail::Column {
@@ -2768,14 +3175,27 @@ impl BuilderScript {
         out
     }
 
-    pub fn parameter_values(&self) -> Result<Vec<(String, f32)>, String> {
+    pub fn parameter_values(&self) -> Result<Vec<(String, BuilderScriptParameterValue)>, String> {
         let dims = HostPreviewDims::from_preview(self.host, &self.preview_host);
         let mut params: HashMap<String, f32> = HashMap::default();
         let mut out = Vec::new();
         for param in &self.params {
-            let value = eval_scalar_expr(&param.value, self.host, &dims, &params)?;
-            params.insert(param.name.clone(), value);
-            out.push((param.name.clone(), value));
+            match &param.value {
+                BuilderScriptParamValue::Scalar(expr) => {
+                    let value = eval_scalar_expr(expr, self.host, &dims, &params)?;
+                    params.insert(param.name.clone(), value);
+                    out.push((
+                        param.name.clone(),
+                        BuilderScriptParameterValue::Number(value),
+                    ));
+                }
+                BuilderScriptParamValue::Ident(value) => {
+                    out.push((
+                        param.name.clone(),
+                        BuilderScriptParameterValue::Ident(value.clone()),
+                    ));
+                }
+            }
         }
         Ok(out)
     }
@@ -2830,7 +3250,7 @@ impl BuilderDocument {
         }
     }
 
-    pub fn parameter_values(&self) -> Result<Vec<(String, f32)>, String> {
+    pub fn parameter_values(&self) -> Result<Vec<(String, BuilderScriptParameterValue)>, String> {
         match self {
             Self::Script(script) => script.parameter_values(),
             Self::Graph(_) => Ok(Vec::new()),
@@ -3085,7 +3505,15 @@ impl BuilderScriptParser {
                 self.expect_ident("param")?;
                 let name = self.expect_ident_any()?;
                 self.expect_symbol('=')?;
-                let value = self.parse_scalar_expr()?;
+                let value = if matches!(self.peek(), Some(BuilderScriptToken::Ident(_)))
+                    && matches!(
+                        self.tokens.get(self.index + 1),
+                        Some(BuilderScriptToken::Symbol(';'))
+                    ) {
+                    BuilderScriptParamValue::Ident(self.expect_ident_any()?)
+                } else {
+                    BuilderScriptParamValue::Scalar(self.parse_scalar_expr()?)
+                };
                 self.expect_symbol(';')?;
                 params.push(BuilderScriptParam { name, value });
             } else if self.peek_ident("preview") {
@@ -3175,6 +3603,13 @@ impl BuilderScriptParser {
         let mut radius = None;
         let mut axis = None;
         let mut rotate_x = None;
+        let mut rotate_y = None;
+        let mut count = None;
+        let mut direction = BuilderPlankDirection::Horizontal;
+        let mut jitter = None;
+        let mut alignment_jitter = None;
+        let mut missing_chance = None;
+        let mut seed = None;
 
         while !self.consume_symbol('}') {
             let key = self.expect_ident_any()?;
@@ -3188,6 +3623,23 @@ impl BuilderScriptParser {
                 "radius" => radius = Some(self.parse_scalar_expr()?),
                 "axis" => axis = Some(self.parse_ref()?),
                 "rotate_x" => rotate_x = Some(self.parse_scalar_expr()?),
+                "rotate_y" => rotate_y = Some(self.parse_scalar_expr()?),
+                "count" => count = Some(self.parse_scalar_expr()?),
+                "jitter" | "variation" => jitter = Some(self.parse_scalar_expr()?),
+                "alignment_jitter" | "align_jitter" | "alignment" | "unevenness" => {
+                    alignment_jitter = Some(self.parse_scalar_expr()?)
+                }
+                "missing_chance" | "skip_chance" => {
+                    missing_chance = Some(self.parse_scalar_expr()?)
+                }
+                "seed" => seed = Some(self.parse_scalar_expr()?),
+                "direction" | "dir" => {
+                    direction = match self.expect_ident_any()?.as_str() {
+                        "horizontal" | "x" | "along" => BuilderPlankDirection::Horizontal,
+                        "vertical" | "y" | "up" => BuilderPlankDirection::Vertical,
+                        other => return Err(format!("unsupported plank direction '{other}'")),
+                    };
+                }
                 other => return Err(format!("unsupported part field '{other}'")),
             }
             self.expect_symbol(';')?;
@@ -3203,6 +3655,15 @@ impl BuilderScriptParser {
                 length: length.ok_or_else(|| format!("part '{name}' is missing length"))?,
                 radius: radius.ok_or_else(|| format!("part '{name}' is missing radius"))?,
             },
+            "planks" | "boards" => BuilderScriptPartKind::Planks {
+                size: size.ok_or_else(|| format!("part '{name}' is missing size"))?,
+                count: count.ok_or_else(|| format!("part '{name}' is missing count"))?,
+                direction,
+                jitter,
+                alignment_jitter,
+                missing_chance,
+                seed,
+            },
             other => return Err(format!("unsupported primitive '{other}'")),
         };
 
@@ -3214,6 +3675,7 @@ impl BuilderScriptParser {
             material,
             axis,
             rotate_x,
+            rotate_y,
         })
     }
 
@@ -3284,10 +3746,14 @@ impl BuilderScriptParser {
         let mut y = None;
         let mut spacing = None;
         let mut block = None;
+        let mut count = None;
         let mut height = None;
         let mut radius = None;
         let mut broken_chance = None;
+        let mut missing_chance = None;
         let mut broken_min_height = None;
+        let mut jitter = None;
+        let mut alignment_jitter = None;
         let mut seed = None;
         let mut offset = None;
         let mut mortar = None;
@@ -3296,10 +3762,11 @@ impl BuilderScriptParser {
         let mut cap_height = None;
         let mut transition_height = None;
         let mut segments = None;
-        let mut placement = BuilderDetailPlacement::Relief;
+        let mut placement = BuilderScriptPlacementExpr::Literal(BuilderDetailPlacement::Relief);
         let mut cut_footprint = false;
         let mut shape = BuilderCutShape::Fill;
         let mut pattern = BuilderMasonryPattern::Grid;
+        let mut direction = BuilderPlankDirection::Horizontal;
         let mut material = None;
         let mut rect_material = None;
         let mut cyl_material = None;
@@ -3316,12 +3783,20 @@ impl BuilderScriptParser {
                 "end" => end = Some(self.parse_scalar_expr()?),
                 "y" => y = Some(self.parse_scalar_expr()?),
                 "spacing" | "step" | "approx_spacing" => spacing = Some(self.parse_scalar_expr()?),
+                "count" => count = Some(self.parse_scalar_expr()?),
                 "block" | "block_size" | "stone" | "stone_size" => {
                     block = Some(self.parse_vec2_expr()?)
                 }
                 "height" => height = Some(self.parse_scalar_expr()?),
                 "radius" => radius = Some(self.parse_scalar_expr()?),
                 "broken_chance" | "break_chance" => broken_chance = Some(self.parse_scalar_expr()?),
+                "missing_chance" | "skip_chance" => {
+                    missing_chance = Some(self.parse_scalar_expr()?)
+                }
+                "jitter" | "variation" => jitter = Some(self.parse_scalar_expr()?),
+                "alignment_jitter" | "align_jitter" | "alignment" | "unevenness" => {
+                    alignment_jitter = Some(self.parse_scalar_expr()?)
+                }
                 "broken_min_height" | "break_min_height" => {
                     broken_min_height = Some(self.parse_scalar_expr()?)
                 }
@@ -3342,13 +3817,18 @@ impl BuilderScriptParser {
                         other => return Err(format!("unsupported masonry pattern '{other}'")),
                     };
                 }
+                "direction" | "dir" => {
+                    direction = match self.expect_ident_any()?.as_str() {
+                        "horizontal" | "x" | "along" => BuilderPlankDirection::Horizontal,
+                        "vertical" | "y" | "up" => BuilderPlankDirection::Vertical,
+                        other => return Err(format!("unsupported plank direction '{other}'")),
+                    };
+                }
                 "placement" => {
-                    placement = match self.expect_ident_any()?.as_str() {
-                        "relief" => BuilderDetailPlacement::Relief,
-                        "attached" | "attach" | "mounted" => BuilderDetailPlacement::Attached,
-                        "structural" | "embedded" | "inline" => BuilderDetailPlacement::Structural,
-                        "freestanding" | "free" => BuilderDetailPlacement::Freestanding,
-                        other => return Err(format!("unsupported detail placement '{other}'")),
+                    let name = self.expect_ident_any()?;
+                    placement = match parse_placement_ident(&name) {
+                        Some(placement) => BuilderScriptPlacementExpr::Literal(placement),
+                        None => BuilderScriptPlacementExpr::Param(name),
                     };
                 }
                 "cut_footprint" | "footprint_cut" => {
@@ -3397,6 +3877,21 @@ impl BuilderScriptParser {
                     mortar,
                     offset,
                     pattern,
+                    material,
+                    tile_alias,
+                })
+            }
+            "planks" | "boards" | "woodwork" | "shingles" => {
+                Ok(BuilderScriptSurfaceDetail::Planks {
+                    min: min.ok_or_else(|| "planks detail is missing min".to_string())?,
+                    max: max.ok_or_else(|| "planks detail is missing max".to_string())?,
+                    count: count.ok_or_else(|| "planks detail is missing count".to_string())?,
+                    direction,
+                    jitter,
+                    alignment_jitter,
+                    missing_chance,
+                    seed,
+                    offset,
                     material,
                     tile_alias,
                 })
@@ -3501,7 +3996,7 @@ impl BuilderScriptParser {
             } else {
                 let reference = self.parse_ref()?;
                 if self.consume_symbol('*') {
-                    BuilderScriptVecExpr::ScaledRef(reference, self.parse_scalar_expr()?)
+                    BuilderScriptVecExpr::ScaledRef(reference, self.parse_scalar_factor()?)
                 } else {
                     BuilderScriptVecExpr::Ref(reference)
                 }
@@ -3516,6 +4011,22 @@ impl BuilderScriptParser {
     }
 
     fn parse_scalar_expr(&mut self) -> Result<BuilderScriptScalarExpr, String> {
+        let mut expr = self.parse_scalar_term()?;
+        loop {
+            if self.consume_symbol('+') {
+                let rhs = self.parse_scalar_term()?;
+                expr = BuilderScriptScalarExpr::Add(Box::new(expr), Box::new(rhs));
+            } else if self.consume_symbol('-') {
+                let rhs = self.parse_scalar_term()?;
+                expr = BuilderScriptScalarExpr::Sub(Box::new(expr), Box::new(rhs));
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
+    fn parse_scalar_term(&mut self) -> Result<BuilderScriptScalarExpr, String> {
         let mut expr = self.parse_scalar_factor()?;
         loop {
             if self.consume_symbol('*') {
@@ -3761,6 +4272,12 @@ fn eval_scalar_expr(
     match expr {
         BuilderScriptScalarExpr::Constant(value) => Ok(*value),
         BuilderScriptScalarExpr::Ref(reference) => eval_ref_scalar(reference, host, dims, params),
+        BuilderScriptScalarExpr::Add(a, b) => {
+            Ok(eval_scalar_expr(a, host, dims, params)? + eval_scalar_expr(b, host, dims, params)?)
+        }
+        BuilderScriptScalarExpr::Sub(a, b) => {
+            Ok(eval_scalar_expr(a, host, dims, params)? - eval_scalar_expr(b, host, dims, params)?)
+        }
         BuilderScriptScalarExpr::Mul(a, b) => {
             Ok(eval_scalar_expr(a, host, dims, params)? * eval_scalar_expr(b, host, dims, params)?)
         }

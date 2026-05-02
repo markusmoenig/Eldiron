@@ -5,6 +5,12 @@ use std::path::{Path, PathBuf};
 const TREASURY_RAW_BASE: &str =
     "https://raw.githubusercontent.com/markusmoenig/Eldiron-Treasury/main/";
 
+#[derive(Clone, Debug)]
+pub struct TreasuryBuilderGraphTemplate {
+    pub summary: TreasuryBuilderGraphSummary,
+    pub graph_data: String,
+}
+
 pub fn fetch_tile_packages() -> Result<Vec<TreasuryPackageSummary>, String> {
     let text = fetch_url_text(&format!("{TREASURY_RAW_BASE}index.json"))?;
     let index: TreasuryIndex = serde_json::from_str(&text).map_err(|e| e.to_string())?;
@@ -18,6 +24,37 @@ pub fn fetch_tile_packages() -> Result<Vec<TreasuryPackageSummary>, String> {
         .into_iter()
         .filter(|entry| !entry.slug.trim().is_empty())
         .collect())
+}
+
+pub fn fetch_builder_graph_templates() -> Result<Vec<TreasuryBuilderGraphTemplate>, String> {
+    let text = fetch_url_text(&format!("{TREASURY_RAW_BASE}index.json"))?;
+    let index: TreasuryIndex = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let mut entries = if !index.builder_graphs.is_empty() {
+        index.builder_graphs
+    } else {
+        index.categories.builder_graphs
+    };
+    entries.retain(|entry| !entry.path.trim().is_empty());
+    entries.sort_by(|a, b| {
+        a.display_name()
+            .to_lowercase()
+            .cmp(&b.display_name().to_lowercase())
+    });
+
+    let mut templates = Vec::new();
+    for summary in entries {
+        let graph_data = fetch_url_text(&format!("{TREASURY_RAW_BASE}{}", summary.path))?;
+        templates.push(TreasuryBuilderGraphTemplate {
+            summary,
+            graph_data,
+        });
+    }
+
+    if templates.is_empty() {
+        Err("No Builder Graph templates found in the Treasury index.".to_string())
+    } else {
+        Ok(templates)
+    }
 }
 
 pub fn install_tile_package(
@@ -269,7 +306,10 @@ fn slugify(name: &str) -> String {
 }
 
 fn fetch_url_text(url: &str) -> Result<String, String> {
-    let response = ureq::get(url).call().map_err(|e| e.to_string())?;
+    let response = ureq::get(url)
+        .set("User-Agent", "Eldiron")
+        .call()
+        .map_err(|e| e.to_string())?;
     let mut reader = response.into_reader();
     let mut bytes = Vec::new();
     reader.read_to_end(&mut bytes).map_err(|e| e.to_string())?;

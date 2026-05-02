@@ -4353,16 +4353,24 @@ fn emit_builder_attached_item_graphs(
                         ),
                         0.0,
                     );
-                    let local_child = rotate_vec3_y(
-                        Vec3::new(
-                            child_tx,
-                            if host_position_y_normalized {
-                                transform.translation.y * parent_host_dims.y
-                            } else {
-                                transform.translation.y
-                            } + scaled.y * 0.5,
-                            child_tz,
+                    let local_child_origin = Vec3::new(
+                        child_tx,
+                        if host_position_y_normalized {
+                            transform.translation.y * parent_host_dims.y
+                        } else {
+                            transform.translation.y
+                        },
+                        child_tz,
+                    );
+                    let local_child_center_offset = rotate_vec3_y(
+                        rotate_vec3_x(
+                            Vec3::new(0.0, scaled.y * 0.5, 0.0),
+                            transform.rotation_x,
                         ),
+                        transform.rotation_y,
+                    );
+                    let local_child = rotate_vec3_y(
+                        local_child_origin + local_child_center_offset,
                         anchor.transform.rotation_y,
                     );
                     let center = origin
@@ -4580,10 +4588,14 @@ fn emit_builder_linedef_group_meshes(
                 } else {
                     transform.translation.y
                 };
+                let center_offset = rotate_vec3_y(
+                    rotate_vec3_x(Vec3::new(0.0, scaled.y * 0.5, 0.0), transform.rotation_x),
+                    transform.rotation_y,
+                );
                 let center = host_origin
-                    + along * tx
-                    + up * (ty + scaled.y * 0.5)
-                    + outward * transform.translation.z;
+                    + along * (tx + center_offset.x)
+                    + up * (ty + center_offset.y)
+                    + outward * (transform.translation.z + center_offset.z);
                 let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
                 let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
                 let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
@@ -4991,10 +5003,14 @@ fn emit_builder_vertex_meshes(
                 } else {
                     transform.translation.y
                 };
+                let center_offset = rotate_vec3_y(
+                    rotate_vec3_x(Vec3::new(0.0, scaled.y * 0.5, 0.0), transform.rotation_x),
+                    transform.rotation_y,
+                );
                 let center = origin
-                    + along * tx
-                    + up * (ty + scaled.y * 0.5)
-                    + outward * transform.translation.z;
+                    + along * (tx + center_offset.x)
+                    + up * (ty + center_offset.y)
+                    + outward * (transform.translation.z + center_offset.z);
                 let mut mesh_vertices: Vec<[f32; 4]> = Vec::new();
                 let mut mesh_uvs: Vec<[f32; 2]> = Vec::new();
                 let mut mesh_indices: Vec<(usize, usize, usize)> = Vec::new();
@@ -8852,13 +8868,19 @@ fn emit_builder_sector_meshes(
                 );
                 let base_world =
                     surface.uv_to_world(center_uv + offset_uv) + upward * base_extrusion;
+                let ty = if *host_position_y_normalized {
+                    transform.translation.y * sector_size.y
+                } else {
+                    transform.translation.y
+                };
+                let center_offset = rotate_vec3_y(
+                    rotate_vec3_x(Vec3::new(0.0, scaled.y * 0.5, 0.0), transform.rotation_x),
+                    transform.rotation_y,
+                );
                 let center = base_world
-                    + upward
-                        * ((if *host_position_y_normalized {
-                            transform.translation.y * sector_size.y
-                        } else {
-                            transform.translation.y
-                        }) + scaled.y * 0.5);
+                    + along * center_offset.x
+                    + upward * (ty + center_offset.y)
+                    + outward * center_offset.z;
                 add_builder_box_mesh(
                     &mut mesh_vertices,
                     &mut mesh_uvs,

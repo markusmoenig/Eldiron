@@ -40,8 +40,9 @@ pub mod prelude {
     };
     pub use crate::tilemap::{Tile, Tilemap};
     pub use crate::treasury::{
-        TreasuryIndex, TreasuryIndexCategories, TreasuryPackageManifest, TreasuryPackageMetadata,
-        TreasuryPackageSummary, TreasuryTileCollectionPackage,
+        TreasuryBuilderGraphSummary, TreasuryIndex, TreasuryIndexCategories,
+        TreasuryPackageManifest, TreasuryPackageMetadata, TreasuryPackageSummary,
+        TreasuryTileCollectionPackage,
     };
     pub use indexmap::IndexMap;
     pub use rusterix::{

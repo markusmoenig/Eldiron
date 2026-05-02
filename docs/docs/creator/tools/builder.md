@@ -83,11 +83,14 @@ The lower-dock TOML sidebar is generated from `param` declarations in the select
 ```txt
 param radius = 0.14;
 param spacing = 2.0;
+param placement = attached;
 param broken_chance = 0.0;
 param seed = 1.0;
 ```
 
 Editing the sidebar updates those `param ... = ...;` lines. Use this for tuning a selected template. Choose a different template when the structure changes, such as switching from masonry relief to a cut-out column opening.
+
+The Builder dock has a **Treasury** tab for published Builder Graph packages. It downloads the indexed package list only when the Treasury tab is opened. Starter templates such as tables, wall lights, campfires, masonry, column structures, and farmhouse shells live there. Treasury items can be applied directly, or installed into the project with **Install** if the script should become a permanent editable project asset.
 
 For the script language itself, see [Builder Graph](/docs/builder_graph).
 

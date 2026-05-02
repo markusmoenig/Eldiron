@@ -70,6 +70,40 @@ pub struct TreasuryPackageSummary {
     pub description: String,
 }
 
+#[derive(Clone, Serialize, Deserialize, Default, Debug, PartialEq, Eq)]
+pub struct TreasuryBuilderGraphSummary {
+    #[serde(default = "default_treasury_package_id")]
+    pub id: Uuid,
+    #[serde(default)]
+    pub slug: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub author: String,
+    #[serde(default)]
+    pub version: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub aliases: Vec<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub target: String,
+}
+
+impl TreasuryBuilderGraphSummary {
+    pub fn display_name(&self) -> String {
+        if self.name.is_empty() {
+            self.slug.clone()
+        } else {
+            self.name.clone()
+        }
+    }
+}
+
 impl TreasuryPackageSummary {
     pub fn display_name(&self) -> String {
         if self.name.is_empty() {
@@ -93,12 +127,16 @@ impl TreasuryPackageSummary {
 pub struct TreasuryIndexCategories {
     #[serde(default)]
     pub tiles: Vec<TreasuryPackageSummary>,
+    #[serde(default, alias = "graphs")]
+    pub builder_graphs: Vec<TreasuryBuilderGraphSummary>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Default, Debug, PartialEq, Eq)]
 pub struct TreasuryIndex {
     #[serde(default)]
     pub tiles: Vec<TreasuryPackageSummary>,
+    #[serde(default, alias = "graphs")]
+    pub builder_graphs: Vec<TreasuryBuilderGraphSummary>,
     #[serde(default)]
     pub categories: TreasuryIndexCategories,
 }

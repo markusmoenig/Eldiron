@@ -9,6 +9,7 @@ param transition = 0.10;
 param broken_chance = 0.0;
 param broken_min_height = 0.35;
 param seed = 1.0;
+param placement = attached;
 
 preview {
     width = 7.0;
@@ -32,7 +33,7 @@ detail columns {
     broken_min_height = broken_min_height;
     seed = seed;
     segments = 16;
-    placement = attached;
+    placement = placement;
     material = COLUMN;
     rect_material = BLOCK;
     cyl_material = SHAFT;

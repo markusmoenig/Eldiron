@@ -16,6 +16,8 @@ pub enum PreviewVariants {
 #[derive(Clone, Copy)]
 pub struct BuilderPreviewOptions {
     pub size: u32,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
     pub azimuth_deg: f32,
     pub elevation_deg: f32,
     pub scale: Option<f32>,
@@ -26,6 +28,8 @@ impl Default for BuilderPreviewOptions {
     fn default() -> Self {
         Self {
             size: 384,
+            width: None,
+            height: None,
             azimuth_deg: 135.0,
             elevation_deg: 35.264_39,
             scale: None,
@@ -74,8 +78,8 @@ pub fn render_builder_preview_with_assets(
             std::f32::consts::PI * 1.5,
             std::f32::consts::FRAC_PI_4,
         ];
-        let single_w = options.size as usize;
-        let single_h = options.size as usize;
+        let single_w = options.width.unwrap_or(options.size) as usize;
+        let single_h = options.height.unwrap_or(options.size) as usize;
         let mut combined = vec![0_u8; single_w * yaws.len() * single_h * 4];
         for (index, yaw) in yaws.iter().enumerate() {
             let rendered =
@@ -90,15 +94,15 @@ pub fn render_builder_preview_with_assets(
             );
         }
         return Ok(BuilderPreviewImage {
-            width: options.size * yaws.len() as u32,
-            height: options.size,
+            width: single_w as u32 * yaws.len() as u32,
+            height: single_h as u32,
             pixels: combined,
         });
     }
 
     Ok(BuilderPreviewImage {
-        width: options.size,
-        height: options.size,
+        width: options.width.unwrap_or(options.size),
+        height: options.height.unwrap_or(options.size),
         pixels: render_preview_variant(assembly, spec, preview_host, options, 0.0, assets)?,
     })
 }
@@ -194,8 +198,8 @@ fn render_preview_variant(
         .compile();
     scene.lights.push(light);
 
-    let width = options.size as usize;
-    let height = options.size as usize;
+    let width = options.width.unwrap_or(options.size) as usize;
+    let height = options.height.unwrap_or(options.size) as usize;
     let render_width = width * PREVIEW_SSAA;
     let render_height = height * PREVIEW_SSAA;
     let mut pixels = vec![0_u8; render_width * render_height * 4];
@@ -322,7 +326,11 @@ fn batch_for_primitive(
                 *host_position_y_normalized,
                 dims,
             );
-            let center = translation + Vec3::new(0.0, scaled.y * 0.5, 0.0);
+            let center = translation
+                + rotate_y(
+                    rotate_x(Vec3::new(0.0, scaled.y * 0.5, 0.0), transform.rotation_x),
+                    transform.rotation_y,
+                );
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
             let mut uvs = Vec::new();
@@ -360,7 +368,14 @@ fn batch_for_primitive(
                 *host_position_y_normalized,
                 dims,
             );
-            let center = translation + Vec3::new(0.0, scaled_length * 0.5, 0.0);
+            let center = translation
+                + rotate_y(
+                    rotate_x(
+                        Vec3::new(0.0, scaled_length * 0.5, 0.0),
+                        transform.rotation_x,
+                    ),
+                    transform.rotation_y,
+                );
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
             let mut uvs = Vec::new();
@@ -432,6 +447,11 @@ fn material_color(slot: Option<&str>) -> [u8; 4] {
         Some("COLUMN") => [166, 151, 126, 255],
         Some("STONE") => [150, 145, 134, 255],
         Some("WOOD") => [139, 95, 55, 255],
+        Some("WALL") => [92, 68, 48, 255],
+        Some("PLANK") => [164, 122, 76, 255],
+        Some("ROOF") => [86, 62, 42, 255],
+        Some("ROOF_PLANK") => [150, 105, 62, 255],
+        Some("BEAM") => [96, 64, 38, 255],
         _ => [168, 140, 108, 255],
     }
 }

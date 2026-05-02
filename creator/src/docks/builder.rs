@@ -2,30 +2,36 @@ use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
 use rusterix::Surface;
 use scenevm::GeoId;
-use shared::buildergraph::{BuilderCutMask, BuilderCutMode, BuilderDocument};
-use std::time::{SystemTime, UNIX_EPOCH};
+use shared::buildergraph::{
+    BuilderCutMask, BuilderCutMode, BuilderDocument, BuilderScriptParameterValue,
+};
+use std::{
+    collections::HashMap,
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 const BUILDER_TAB_LAYOUT: &str = "Builder Dock Tabs";
 const BUILDER_VIEW_PREFIX: &str = "Builder Dock View ";
 const BUILDER_DOCK_REFRESH: &str = "Builder Dock Refresh";
 const BUILDER_PARAMS_TOML: &str = "Builder Parameters TOML";
 const BUILDER_PARAMS_WIDTH: i32 = 300;
-const BUILDER_CARD_W: i32 = 164;
-const BUILDER_CARD_H: i32 = 202;
+const BUILDER_CARD_BASE_W: i32 = 240;
+const BUILDER_CARD_BASE_H: i32 = 178;
 const BUILDER_CARD_GAP: i32 = 12;
 const BUILDER_PADDING: i32 = 12;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum BuilderTabKind {
     Project,
-    Collections,
     Treasury,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum BuilderCardKind {
     Asset(Uuid),
-    TreasuryPlaceholder,
+    Treasury(usize),
 }
 
 struct BuilderCardSpec {
@@ -41,12 +47,41 @@ struct BuilderCardPlacement {
     rect: Vec4<i32>,
 }
 
+struct BuilderTreasuryItem {
+    id: Uuid,
+    path: String,
+    aliases: String,
+    description: String,
+    target: String,
+    graph_name: String,
+    graph_data: String,
+}
+
+impl BuilderTreasuryItem {
+    fn as_asset(&self) -> BuilderGraphAsset {
+        BuilderGraphAsset {
+            id: self.id,
+            graph_id: self.id,
+            graph_name: self.graph_name.clone(),
+            graph_data: self.graph_data.clone(),
+        }
+    }
+}
+
 pub struct BuilderDock {
     active_tab: usize,
     selected: Option<Uuid>,
-    hovered: Option<Uuid>,
+    selected_treasury: Option<usize>,
+    hovered: Option<BuilderCardKind>,
     placements: Vec<Vec<BuilderCardPlacement>>,
+    tab_offset: Vec<Vec2<i32>>,
+    zoom: f32,
+    filter: String,
+    preview_cache: HashMap<BuilderCardKind, (u64, TheRGBABuffer)>,
     last_asset_click: Option<(Uuid, u128)>,
+    treasury_items: Vec<BuilderTreasuryItem>,
+    treasury_error: Option<String>,
+    treasury_loaded: bool,
 }
 
 fn builder_document_hides_host(document: &BuilderDocument) -> bool {
@@ -77,9 +112,17 @@ impl Dock for BuilderDock {
         Self {
             active_tab: 0,
             selected: None,
+            selected_treasury: None,
             hovered: None,
-            placements: vec![Vec::new(), Vec::new(), Vec::new()],
+            placements: vec![Vec::new(), Vec::new()],
+            tab_offset: vec![Vec2::zero(), Vec2::zero()],
+            zoom: 1.0,
+            filter: String::new(),
+            preview_cache: HashMap::new(),
             last_asset_click: None,
+            treasury_items: Vec::new(),
+            treasury_error: None,
+            treasury_loaded: false,
         }
     }
 
@@ -94,10 +137,14 @@ impl Dock for BuilderDock {
         toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
         toolbar_hlayout.set_padding(3);
 
-        let mut title = TheText::new(TheId::named("Builder Dock Title"));
-        title.set_text(fl!("builder_picker_title"));
-        title.set_text_size(12.5);
-        toolbar_hlayout.add_widget(Box::new(title));
+        let mut filter_edit = TheTextLineEdit::new(TheId::named("Builder Dock Filter Edit"));
+        filter_edit.set_text(String::new());
+        filter_edit.limiter_mut().set_min_width(220);
+        filter_edit.limiter_mut().set_max_height(18);
+        filter_edit.set_font_size(12.5);
+        filter_edit.set_status_text("Filter Builder Graphs by name, path, or alias.");
+        filter_edit.set_continuous(true);
+        toolbar_hlayout.add_widget(Box::new(filter_edit));
 
         let spacer = TheSpacer::new(TheId::empty());
         toolbar_hlayout.add_widget(Box::new(spacer));
@@ -106,49 +153,19 @@ impl Dock for BuilderDock {
         new_button.set_text(fl!("new"));
         new_button.set_status_text(&fl!("status_builder_new"));
         new_button.set_context_menu(Some(TheContextMenu {
-            items: vec![
-                TheContextMenuItem::new(
-                    "Empty".to_string(),
-                    TheId::named("Builder Dock New Empty"),
-                ),
-                TheContextMenuItem::new(
-                    "Table".to_string(),
-                    TheId::named("Builder Dock New Table"),
-                ),
-                TheContextMenuItem::new(
-                    "Wall Torch".to_string(),
-                    TheId::named("Builder Dock New Wall Torch"),
-                ),
-                TheContextMenuItem::new(
-                    "Wall Lantern".to_string(),
-                    TheId::named("Builder Dock New Wall Lantern"),
-                ),
-                TheContextMenuItem::new(
-                    "Campfire".to_string(),
-                    TheId::named("Builder Dock New Campfire"),
-                ),
-                TheContextMenuItem::new(
-                    "Surface Masonry".to_string(),
-                    TheId::named("Builder Dock New Surface Masonry"),
-                ),
-                TheContextMenuItem::new(
-                    "Wall Masonry".to_string(),
-                    TheId::named("Builder Dock New Wall Masonry"),
-                ),
-                TheContextMenuItem::new(
-                    "Wall Columns Masonry".to_string(),
-                    TheId::named("Builder Dock New Wall Columns Masonry"),
-                ),
-            ],
+            items: vec![TheContextMenuItem::new(
+                "Empty".to_string(),
+                TheId::named("Builder Dock New Empty"),
+            )],
             ..Default::default()
         }));
         toolbar_hlayout.add_widget(Box::new(new_button));
 
-        let mut collections_button =
-            TheTraybarButton::new(TheId::named("Builder Dock Collections"));
-        collections_button.set_text(fl!("collections"));
-        collections_button.set_status_text(&fl!("status_builder_collections"));
-        toolbar_hlayout.add_widget(Box::new(collections_button));
+        let mut install_button = TheTraybarButton::new(TheId::named("Builder Dock Install"));
+        install_button.set_text("Install".to_string());
+        install_button
+            .set_status_text("Install the selected Treasury Builder Graph into this project.");
+        toolbar_hlayout.add_widget(Box::new(install_button));
 
         let mut apply_button = TheTraybarButton::new(TheId::named("Builder Dock Apply Build"));
         apply_button.set_text(fl!("builder_apply_build"));
@@ -168,14 +185,13 @@ impl Dock for BuilderDock {
         let mut center = TheCanvas::new();
 
         let mut tab_layout = TheTabLayout::new(TheId::named(BUILDER_TAB_LAYOUT));
-        for tab in 0..3 {
+        for tab in 0..2 {
             let mut tab_canvas = TheCanvas::new();
             tab_canvas.set_widget(TheRenderView::new(TheId::named(&format!(
                 "{BUILDER_VIEW_PREFIX}{tab}"
             ))));
             let label = match tab {
                 0 => "Project",
-                1 => "Collections",
                 _ => "Treasury",
             };
             tab_layout.add_canvas(label.to_string(), tab_canvas);
@@ -222,6 +238,7 @@ impl Dock for BuilderDock {
         server_ctx: &mut ServerContext,
     ) {
         self.selected = server_ctx.curr_builder_graph_id;
+        self.selected_treasury = None;
         ctx.ui.relayout = true;
         self.render_views(ui, ctx, project);
         self.sync_params_ui(ui, project, server_ctx);
@@ -250,6 +267,9 @@ impl Dock for BuilderDock {
                 if id.name == format!("{BUILDER_TAB_LAYOUT} Tabbar") =>
             {
                 self.active_tab = *index;
+                if matches!(Self::tab_kind(*index), BuilderTabKind::Treasury) {
+                    self.ensure_treasury_loaded();
+                }
                 self.render_views(ui, ctx, project);
                 redraw = true;
             }
@@ -260,6 +280,7 @@ impl Dock for BuilderDock {
                     match kind {
                         BuilderCardKind::Asset(asset_id) => {
                             self.selected = Some(asset_id);
+                            self.selected_treasury = None;
                             server_ctx.curr_builder_graph_id = Some(asset_id);
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Builder Selection Changed"),
@@ -283,7 +304,15 @@ impl Dock for BuilderDock {
                                 ));
                             }
                         }
-                        BuilderCardKind::TreasuryPlaceholder => {}
+                        BuilderCardKind::Treasury(index) => {
+                            self.selected = None;
+                            self.selected_treasury = Some(index);
+                            server_ctx.curr_builder_graph_id = None;
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Builder Selection Changed"),
+                                TheValue::Empty,
+                            ));
+                        }
                     }
                     self.render_views(ui, ctx, project);
                     self.sync_params_ui(ui, project, server_ctx);
@@ -307,6 +336,7 @@ impl Dock for BuilderDock {
                             server_ctx.curr_builder_graph_id = None;
                         }
                         self.selected = None;
+                        self.selected_treasury = None;
                         self.hovered = None;
                         self.last_asset_click = None;
                         let after = project.clone();
@@ -325,23 +355,34 @@ impl Dock for BuilderDock {
             }
             TheEvent::RenderViewHoverChanged(id, coord) => {
                 if let Some(tab) = Self::tab_from_view_name(&id.name) {
-                    self.hovered = match self.pick_asset(tab, *coord) {
-                        Some(BuilderCardKind::Asset(asset_id)) => Some(asset_id),
-                        _ => None,
-                    };
-                    if let Some(asset_id) = self.hovered
-                        && let Some(asset) = project.builder_graphs.get(&asset_id)
-                    {
-                        ctx.ui.send(TheEvent::SetStatusText(
-                            id.clone(),
-                            format!(
-                                "{}",
-                                fl!(
-                                    "status_builder_select_asset",
-                                    asset_name = asset.graph_name.clone()
-                                )
-                            ),
-                        ));
+                    self.hovered = self.pick_asset(tab, *coord);
+                    match self.hovered {
+                        Some(BuilderCardKind::Asset(asset_id)) => {
+                            if let Some(asset) = project.builder_graphs.get(&asset_id) {
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    id.clone(),
+                                    format!(
+                                        "{}",
+                                        fl!(
+                                            "status_builder_select_asset",
+                                            asset_name = asset.graph_name.clone()
+                                        )
+                                    ),
+                                ));
+                            }
+                        }
+                        Some(BuilderCardKind::Treasury(index)) => {
+                            if let Some(item) = self.treasury_items.get(index) {
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    id.clone(),
+                                    format!(
+                                        "Treasury Builder Graph: {} ({})",
+                                        item.graph_name, item.path
+                                    ),
+                                ));
+                            }
+                        }
+                        None => {}
                     }
                     self.render_views(ui, ctx, project);
                     redraw = true;
@@ -354,34 +395,26 @@ impl Dock for BuilderDock {
                     redraw = true;
                 }
             }
+            TheEvent::RenderViewScrollBy(id, delta) => {
+                if let Some(tab) = Self::tab_from_view_name(&id.name) {
+                    if ui.ctrl || ui.logo {
+                        self.zoom = (self.zoom + (delta.y as f32) * 0.05).clamp(0.75, 2.0);
+                    } else if let Some(offset) = self.tab_offset.get_mut(tab) {
+                        offset.x = (offset.x + delta.x).max(0);
+                        offset.y = (offset.y + delta.y).max(0);
+                    }
+                    self.render_views(ui, ctx, project);
+                    if let Some(render_view) = ui.get_render_view(&id.name) {
+                        render_view.set_needs_redraw(true);
+                    }
+                    ctx.ui.redraw_all = true;
+                    redraw = true;
+                }
+            }
             TheEvent::ContextMenuSelected(id, item) if id.name == "Builder Dock New" => {
                 let asset = match item.name.as_str() {
                     "Builder Dock New Empty" => {
                         BuilderGraphAsset::new_empty(Self::next_builder_name(project, "Empty"))
-                    }
-                    "Builder Dock New Table" => {
-                        BuilderGraphAsset::new_table(Self::next_builder_name(project, "Table"))
-                    }
-                    "Builder Dock New Wall Torch" => BuilderGraphAsset::new_wall_torch(
-                        Self::next_builder_name(project, "Wall Torch"),
-                    ),
-                    "Builder Dock New Wall Lantern" => BuilderGraphAsset::new_wall_lantern(
-                        Self::next_builder_name(project, "Wall Lantern"),
-                    ),
-                    "Builder Dock New Campfire" => BuilderGraphAsset::new_campfire(
-                        Self::next_builder_name(project, "Campfire"),
-                    ),
-                    "Builder Dock New Surface Masonry" => BuilderGraphAsset::new_surface_masonry(
-                        Self::next_builder_name(project, "Surface Masonry"),
-                    ),
-                    "Builder Dock New Wall Masonry" => BuilderGraphAsset::new_wall_masonry(
-                        Self::next_builder_name(project, "Wall Masonry"),
-                    ),
-                    "Builder Dock New Wall Columns Masonry" => {
-                        BuilderGraphAsset::new_wall_columns_masonry(Self::next_builder_name(
-                            project,
-                            "Wall Columns Masonry",
-                        ))
                     }
                     _ => return false,
                 };
@@ -397,15 +430,27 @@ impl Dock for BuilderDock {
                 self.sync_params_ui(ui, project, server_ctx);
                 redraw = true;
             }
+            TheEvent::ValueChanged(id, TheValue::Text(text))
+                if id.name == "Builder Dock Filter Edit" =>
+            {
+                self.filter = text.to_lowercase();
+                self.render_views(ui, ctx, project);
+                redraw = true;
+            }
             TheEvent::ValueChanged(id, TheValue::Text(text)) if id.name == BUILDER_PARAMS_TOML => {
-                let Some(builder_id) = self.selected.or(server_ctx.curr_builder_graph_id) else {
-                    return false;
-                };
-                let Some(source) = project
-                    .builder_graphs
-                    .get(&builder_id)
-                    .map(|asset| asset.graph_data.clone())
-                else {
+                let selected_treasury = self.selected_treasury;
+                let selected_project = self.selected.or(server_ctx.curr_builder_graph_id);
+                let source = if let Some(index) = selected_treasury {
+                    let Some(item) = self.treasury_items.get(index) else {
+                        return false;
+                    };
+                    item.graph_data.clone()
+                } else if let Some(builder_id) = selected_project {
+                    let Some(asset) = project.builder_graphs.get(&builder_id) else {
+                        return false;
+                    };
+                    asset.graph_data.clone()
+                } else {
                     return false;
                 };
                 let mut nodeui = Self::params_nodeui_for_source(&source);
@@ -413,62 +458,103 @@ impl Dock for BuilderDock {
                     && toml::from_str::<toml::Value>(text).is_ok()
                     && apply_toml_to_nodeui(&mut nodeui, text).is_ok()
                 {
-                    let values = nodeui_to_value_pairs(&nodeui)
-                        .into_iter()
-                        .filter_map(|(name, value)| match value {
-                            TheValue::Float(value) => Some((name, value)),
-                            TheValue::Int(value) => Some((name, value as f32)),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
+                    let values = Self::param_replacement_values(&nodeui);
                     let updated = Self::replace_param_value_lines(&source, &values);
                     if updated != source {
                         let graph_name = BuilderDocument::from_text(&updated)
                             .map(|document| document.name().to_string())
                             .ok()
                             .or_else(|| {
-                                project
-                                    .builder_graphs
-                                    .get(&builder_id)
-                                    .map(|asset| asset.graph_name.clone())
+                                selected_project.and_then(|builder_id| {
+                                    project
+                                        .builder_graphs
+                                        .get(&builder_id)
+                                        .map(|asset| asset.graph_name.clone())
+                                })
+                            })
+                            .or_else(|| {
+                                selected_treasury.and_then(|index| {
+                                    self.treasury_items
+                                        .get(index)
+                                        .map(|item| item.graph_name.clone())
+                                })
                             })
                             .unwrap_or_else(|| "Builder Script".to_string());
-                        if let Some(asset) = project.builder_graphs.get_mut(&builder_id) {
+                        if let Some(builder_id) = selected_project
+                            && let Some(asset) = project.builder_graphs.get_mut(&builder_id)
+                        {
                             asset.graph_name = graph_name.clone();
                             asset.graph_data = updated.clone();
+                            Self::update_applied_hosts(
+                                project,
+                                server_ctx,
+                                builder_id,
+                                &graph_name,
+                                &updated,
+                            );
+                            crate::utils::editor_scene_full_rebuild(project, server_ctx);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Builder Graph Updated"),
+                                TheValue::Id(builder_id),
+                            ));
+                        } else if let Some(index) = selected_treasury
+                            && let Some(item) = self.treasury_items.get_mut(index)
+                        {
+                            let item_id = item.id;
+                            item.graph_name = graph_name.clone();
+                            item.graph_data = updated.clone();
+                            Self::update_applied_hosts(
+                                project,
+                                server_ctx,
+                                item_id,
+                                &graph_name,
+                                &updated,
+                            );
+                            crate::utils::editor_scene_full_rebuild(project, server_ctx);
                         }
-                        Self::update_applied_hosts(
-                            project,
-                            server_ctx,
-                            builder_id,
-                            &graph_name,
-                            &updated,
-                        );
-                        crate::utils::editor_scene_full_rebuild(project, server_ctx);
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Builder Graph Updated"),
-                            TheValue::Id(builder_id),
-                        ));
                         self.render_views(ui, ctx, project);
                         redraw = true;
                     }
                 }
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
+                if id.name == "Builder Dock Install" =>
+            {
+                if let Some(index) = self.selected_treasury
+                    && let Some(item) = self.treasury_items.get(index)
+                {
+                    let mut asset = item.as_asset();
+                    asset.id = Uuid::new_v4();
+                    asset.graph_id = Uuid::new_v4();
+                    let asset_id = asset.id;
+                    project.add_builder_graph(asset);
+                    self.selected = Some(asset_id);
+                    self.selected_treasury = None;
+                    server_ctx.curr_builder_graph_id = Some(asset_id);
+                    self.render_views(ui, ctx, project);
+                    self.sync_params_ui(ui, project, server_ctx);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Builder Selection Changed"),
+                        TheValue::Id(asset_id),
+                    ));
+                    redraw = true;
+                }
+            }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "Builder Dock Apply Build" =>
             {
                 eprintln!(
-                    "[BuilderGraphDebug][click] Apply Build selected={:?} curr={:?} hud_slot={} map_tool={:?}",
+                    "[BuilderGraphDebug][click] Apply Build selected={:?} treasury={:?} curr={:?} hud_slot={} map_tool={:?}",
                     self.selected,
+                    self.selected_treasury,
                     server_ctx.curr_builder_graph_id,
                     server_ctx.selected_hud_icon_index,
                     server_ctx.curr_map_tool_type
                 );
-                if let Some(asset_id) = self.selected.or(server_ctx.curr_builder_graph_id) {
+                if let Some(asset) = self.selected_builder_asset(project, server_ctx) {
+                    let asset_id = asset.id;
                     let mut applied_to_item_slot = false;
-                    if let Some(asset) = project.builder_graphs.get(&asset_id).cloned()
-                        && let Some(map) = project.get_map_mut(server_ctx)
-                    {
+                    if let Some(map) = project.get_map_mut(server_ctx) {
                         applied_to_item_slot = crate::actions::apply_builder_item_to_selection(
                             map,
                             server_ctx,
@@ -482,16 +568,12 @@ impl Dock for BuilderDock {
                             map.selected_linedefs.len(),
                             map.selected_vertices.len()
                         );
-                    } else {
-                        eprintln!(
-                            "[BuilderGraphDebug][click] no asset or no mutable map for asset={asset_id}"
-                        );
                     }
                     if !applied_to_item_slot {
                         eprintln!(
                             "[BuilderGraphDebug][click] activating asset={asset_id} on host selection"
                         );
-                        self.activate_asset(asset_id, ui, ctx, project, server_ctx);
+                        self.activate_builder_asset(&asset, ui, ctx, project, server_ctx);
                     } else {
                         eprintln!(
                             "[BuilderGraphDebug][click] consumed by item-slot apply; host activation skipped"
@@ -507,7 +589,7 @@ impl Dock for BuilderDock {
                     redraw = true;
                 } else {
                     eprintln!(
-                        "[BuilderGraphDebug][click] Apply Build ignored: no selected builder asset"
+                        "[BuilderGraphDebug][click] Apply Build ignored: no selected builder graph"
                     );
                 }
             }
@@ -538,9 +620,13 @@ impl Dock for BuilderDock {
             {
                 if let TheValue::Id(builder_id) = value {
                     self.selected = Some(*builder_id);
+                    self.selected_treasury = None;
                     server_ctx.curr_builder_graph_id = Some(*builder_id);
                 } else {
                     self.selected = server_ctx.curr_builder_graph_id;
+                    if self.selected.is_some() {
+                        self.selected_treasury = None;
+                    }
                 }
                 self.render_views(ui, ctx, project);
                 self.sync_params_ui(ui, project, server_ctx);
@@ -568,6 +654,32 @@ impl Dock for BuilderDock {
 }
 
 impl BuilderDock {
+    fn param_replacement_values(nodeui: &TheNodeUI) -> Vec<(String, String)> {
+        let mut out = Vec::new();
+        for (_, item) in nodeui.list_items() {
+            match item {
+                TheNodeUIItem::FloatEditSlider(id, _, _, value, _, _)
+                | TheNodeUIItem::FloatSlider(id, _, _, value, _, _, _) => {
+                    out.push((id.clone(), format!("{value:.4}")));
+                }
+                TheNodeUIItem::IntEditSlider(id, _, _, value, _, _)
+                | TheNodeUIItem::IntSlider(id, _, _, value, _, _, _) => {
+                    out.push((id.clone(), value.to_string()));
+                }
+                TheNodeUIItem::Selector(id, _, _, values, index) => {
+                    if let Some(value) = values.get((*index).max(0) as usize) {
+                        out.push((id.clone(), value.clone()));
+                    }
+                }
+                TheNodeUIItem::Text(id, _, _, value, _, _) => {
+                    out.push((id.clone(), value.clone()));
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
     fn params_nodeui_for_source(source: &str) -> TheNodeUI {
         let mut nodeui = TheNodeUI::default();
         if let Ok(document) = BuilderDocument::from_text(source)
@@ -576,25 +688,62 @@ impl BuilderDock {
         {
             nodeui.add_item(TheNodeUIItem::OpenTree("Parameters".into()));
             for (name, value) in params {
-                let range = if name.contains("chance") || name.contains("damage") {
-                    0.0..=1.0
-                } else if name.contains("seed") {
-                    0.0..=9999.0
-                } else if name.contains("segment") {
-                    3.0..=64.0
-                } else if name.contains("spacing") {
-                    0.05..=8.0
-                } else {
-                    0.0..=8.0
-                };
-                nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-                    name.clone(),
-                    name.clone(),
-                    format!("BuilderGraph parameter '{name}'."),
-                    value,
-                    range,
-                    true,
-                ));
+                match value {
+                    BuilderScriptParameterValue::Number(value) => {
+                        let range = if name.contains("percent") {
+                            0.0..=100.0
+                        } else if name.contains("chance") || name.contains("damage") {
+                            0.0..=1.0
+                        } else if name.contains("seed") {
+                            0.0..=9999.0
+                        } else if name.contains("count") || name.contains("density") {
+                            1.0..=128.0
+                        } else if name.contains("segment") {
+                            3.0..=64.0
+                        } else if name.contains("spacing") {
+                            0.05..=8.0
+                        } else {
+                            0.0..=8.0
+                        };
+                        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+                            name.clone(),
+                            name.clone(),
+                            format!("BuilderGraph parameter '{name}'."),
+                            value,
+                            range,
+                            true,
+                        ));
+                    }
+                    BuilderScriptParameterValue::Ident(value) if name == "placement" => {
+                        let values = vec![
+                            "relief".to_string(),
+                            "attached".to_string(),
+                            "structural".to_string(),
+                            "freestanding".to_string(),
+                        ];
+                        let index = values
+                            .iter()
+                            .position(|candidate| candidate == &value)
+                            .unwrap_or(0) as i32;
+                        nodeui.add_item(TheNodeUIItem::Selector(
+                            name.clone(),
+                            name.clone(),
+                            "BuilderGraph placement mode.".into(),
+                            values,
+                            index,
+                        ));
+                    }
+                    BuilderScriptParameterValue::Ident(value) => {
+                        nodeui.add_item(TheNodeUIItem::Text(
+                            name.clone(),
+                            name.clone(),
+                            format!("BuilderGraph parameter '{name}'."),
+                            value,
+                            None,
+                            true,
+                        ));
+                    }
+                }
             }
             nodeui.add_item(TheNodeUIItem::CloseTree);
         }
@@ -602,11 +751,16 @@ impl BuilderDock {
     }
 
     fn params_toml(&self, project: &Project, server_ctx: &ServerContext) -> String {
-        let source = self
-            .selected
-            .or(server_ctx.curr_builder_graph_id)
-            .and_then(|builder_id| project.builder_graphs.get(&builder_id))
-            .map(|asset| asset.graph_data.as_str());
+        let source = if let Some(index) = self.selected_treasury {
+            self.treasury_items
+                .get(index)
+                .map(|item| item.graph_data.as_str())
+        } else {
+            self.selected
+                .or(server_ctx.curr_builder_graph_id)
+                .and_then(|builder_id| project.builder_graphs.get(&builder_id))
+                .map(|asset| asset.graph_data.as_str())
+        };
         let Some(source) = source else {
             return "# Select a Builder Graph to edit parameters.\n".to_string();
         };
@@ -644,7 +798,7 @@ impl BuilderDock {
         }
     }
 
-    fn replace_param_value_lines(source: &str, values: &[(String, f32)]) -> String {
+    fn replace_param_value_lines(source: &str, values: &[(String, String)]) -> String {
         let mut out = Vec::new();
         for line in source.lines() {
             let trimmed = line.trim_start();
@@ -654,7 +808,7 @@ impl BuilderDock {
                 if trimmed.starts_with(&prefix)
                     && trimmed[prefix.len()..].trim_start().starts_with('=')
                 {
-                    Some(format!("{indent}param {name} = {value:.4};"))
+                    Some(format!("{indent}param {name} = {value};"))
                 } else {
                     None
                 }
@@ -935,7 +1089,7 @@ impl BuilderDock {
     }
 
     fn render_views(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
-        for tab in 0..3 {
+        for tab in 0..2 {
             let Some(render_view) = ui.get_render_view(&format!("{BUILDER_VIEW_PREFIX}{tab}"))
             else {
                 continue;
@@ -956,7 +1110,7 @@ impl BuilderDock {
     }
 
     fn draw_tab(
-        &self,
+        &mut self,
         buffer: &mut TheRGBABuffer,
         ctx: &mut TheContext,
         project: &Project,
@@ -964,29 +1118,49 @@ impl BuilderDock {
     ) -> Vec<BuilderCardPlacement> {
         let stride = buffer.stride();
         let assets = self.assets_for_tab(project, tab);
-        let cols = ((buffer.dim().width - BUILDER_PADDING * 2 + BUILDER_CARD_GAP)
-            / (BUILDER_CARD_W + BUILDER_CARD_GAP))
-            .max(1);
+        let card_w = ((BUILDER_CARD_BASE_W as f32) * self.zoom)
+            .round()
+            .max(160.0) as i32;
+        let card_h = ((BUILDER_CARD_BASE_H as f32) * self.zoom)
+            .round()
+            .max(132.0) as i32;
+        let gap = ((BUILDER_CARD_GAP as f32) * self.zoom).round().max(8.0) as i32;
+        let cols = ((buffer.dim().width - BUILDER_PADDING * 2 + gap) / (card_w + gap)).max(1);
+        let rows = ((assets.len() as i32 + cols - 1) / cols).max(1);
+        let content_height = BUILDER_PADDING * 2 + rows * card_h + (rows - 1).max(0) * gap;
+        if let Some(offset) = self.tab_offset.get_mut(tab) {
+            offset.x = 0;
+            offset.y = offset.y.min((content_height - buffer.dim().height).max(0));
+        }
+        let offset = self.tab_offset.get(tab).copied().unwrap_or_else(Vec2::zero);
 
         let mut placements = Vec::new();
         for (index, spec) in assets.iter().enumerate() {
             let col = index as i32 % cols;
             let row = index as i32 / cols;
             let rect = Vec4::new(
-                BUILDER_PADDING + col * (BUILDER_CARD_W + BUILDER_CARD_GAP),
-                BUILDER_PADDING + row * (BUILDER_CARD_H + BUILDER_CARD_GAP),
-                BUILDER_CARD_W,
-                BUILDER_CARD_H,
+                BUILDER_PADDING + col * (card_w + gap) - offset.x,
+                BUILDER_PADDING + row * (card_h + gap) - offset.y,
+                card_w,
+                card_h,
             );
             placements.push(BuilderCardPlacement {
                 kind: spec.kind,
                 rect,
             });
+            if rect.x >= buffer.dim().width
+                || rect.x + rect.z <= 0
+                || rect.y >= buffer.dim().height
+                || rect.y + rect.w <= 0
+            {
+                continue;
+            }
 
-            let hovered =
-                matches!(spec.kind, BuilderCardKind::Asset(id) if self.hovered == Some(id));
-            let selected =
-                matches!(spec.kind, BuilderCardKind::Asset(id) if self.selected == Some(id));
+            let hovered = self.hovered == Some(spec.kind);
+            let selected = match spec.kind {
+                BuilderCardKind::Asset(id) => self.selected == Some(id),
+                BuilderCardKind::Treasury(index) => self.selected_treasury == Some(index),
+            };
             let fill = if hovered {
                 [84, 84, 84, 255]
             } else {
@@ -1006,19 +1180,19 @@ impl BuilderDock {
                     .rect_outline(buffer.pixels_mut(), &card, stride, &outline);
             }
 
-            let preview_size = rect.z - 16;
-            let preview_rect = Vec4::new(rect.x + 8, rect.y + 8, preview_size, preview_size);
+            let preview_h = (card_h - 58).max(76);
+            let preview_rect = Vec4::new(rect.x + 8, rect.y + 8, rect.z - 16, preview_h);
             if let Some(preview) = Self::clip_rect(buffer, preview_rect, 0) {
                 ctx.draw
                     .rect(buffer.pixels_mut(), &preview, stride, &[44, 44, 44, 255]);
                 ctx.draw
                     .rect_outline(buffer.pixels_mut(), &preview, stride, &[78, 78, 78, 255]);
-                self.draw_preview_shape(buffer, ctx, preview_rect, spec.preview.as_ref());
+                self.draw_preview_shape(buffer, preview_rect, spec.preview.as_ref());
             }
 
             let title_rect = (
                 (rect.x + 8).max(0) as usize,
-                (rect.y + 8 + preview_size + 8).max(0) as usize,
+                (rect.y + 8 + preview_h + 8).max(0) as usize,
                 (rect.z - 16).max(1) as usize,
                 18usize,
             );
@@ -1038,7 +1212,7 @@ impl BuilderDock {
 
             let body_rect = (
                 (rect.x + 8).max(0) as usize,
-                (rect.y + 8 + preview_size + 26).max(0) as usize,
+                (rect.y + 8 + preview_h + 26).max(0) as usize,
                 (rect.z - 16).max(1) as usize,
                 28usize,
             );
@@ -1063,38 +1237,95 @@ impl BuilderDock {
     fn draw_preview_shape(
         &self,
         buffer: &mut TheRGBABuffer,
-        ctx: &mut TheContext,
         rect: Vec4<i32>,
         preview: Option<&TheRGBABuffer>,
     ) {
         if let Some(preview) = preview {
-            if let Some(view) = Self::clip_rect(buffer, rect, 0) {
-                let stride = buffer.stride();
-                let view_w = view.2 as i32;
-                let view_h = view.3 as i32;
-                let src_w = preview.dim().width.max(1);
-                let src_h = preview.dim().height.max(1);
-                let fit = ((view_w as f32) / (src_w as f32))
-                    .min((view_h as f32) / (src_h as f32))
-                    .max(0.01);
-                let draw_w = ((src_w as f32) * fit).round().max(1.0) as i32;
-                let draw_h = ((src_h as f32) * fit).round().max(1.0) as i32;
-                let centered = (
-                    (view.0 as i32 + (view_w - draw_w) / 2).max(0) as usize,
-                    (view.1 as i32 + (view_h - draw_h) / 2).max(0) as usize,
-                    draw_w.max(1) as usize,
-                    draw_h.max(1) as usize,
-                );
-                ctx.draw.scale_chunk(
-                    buffer.pixels_mut(),
-                    &centered,
-                    stride,
-                    preview.pixels(),
-                    &(preview.dim().width as usize, preview.dim().height as usize),
-                    1.0,
-                );
+            let src_w = preview.dim().width.max(1);
+            let src_h = preview.dim().height.max(1);
+            let (crop_x, crop_y, crop_w, crop_h) =
+                Self::preview_content_bounds(preview).unwrap_or((0, 0, src_w, src_h));
+            let draw_w = rect.z.max(1);
+            let draw_h = rect.w.max(1);
+            let draw_x = rect.x;
+            let draw_y = rect.y;
+
+            let clip_x0 = draw_x.max(0).max(rect.x).max(0);
+            let clip_y0 = draw_y.max(0).max(rect.y).max(0);
+            let clip_x1 = (draw_x + draw_w)
+                .min(rect.x + rect.z)
+                .min(buffer.dim().width);
+            let clip_y1 = (draw_y + draw_h)
+                .min(rect.y + rect.w)
+                .min(buffer.dim().height);
+            if clip_x1 <= clip_x0 || clip_y1 <= clip_y0 {
+                return;
+            }
+
+            let dst_stride = buffer.stride();
+            let dst = buffer.pixels_mut();
+            let src = preview.pixels();
+            let src_stride = src_w as usize;
+            for y in clip_y0..clip_y1 {
+                let sy = crop_y as usize
+                    + (((y - draw_y) as i64 * crop_h as i64) / draw_h as i64)
+                        .clamp(0, crop_h as i64 - 1) as usize;
+                for x in clip_x0..clip_x1 {
+                    let sx = crop_x as usize
+                        + (((x - draw_x) as i64 * crop_w as i64) / draw_w as i64)
+                            .clamp(0, crop_w as i64 - 1) as usize;
+                    let src_index = (sy * src_stride + sx) * 4;
+                    let dst_index = (y as usize * dst_stride + x as usize) * 4;
+                    dst[dst_index..dst_index + 4].copy_from_slice(&src[src_index..src_index + 4]);
+                }
             }
         }
+    }
+
+    fn preview_content_bounds(preview: &TheRGBABuffer) -> Option<(i32, i32, i32, i32)> {
+        let width = preview.dim().width.max(1) as usize;
+        let height = preview.dim().height.max(1) as usize;
+        let pixels = preview.pixels();
+        let mut min_x = width;
+        let mut min_y = height;
+        let mut max_x = 0usize;
+        let mut max_y = 0usize;
+
+        for y in 0..height {
+            for x in 0..width {
+                let index = (y * width + x) * 4;
+                if pixels[index + 3] == 0 {
+                    continue;
+                }
+                let r = pixels[index] as i32;
+                let g = pixels[index + 1] as i32;
+                let b = pixels[index + 2] as i32;
+                let background_like =
+                    (r - 46).abs() <= 5 && (g - 48).abs() <= 5 && (b - 52).abs() <= 5;
+                if background_like {
+                    continue;
+                }
+                min_x = min_x.min(x);
+                min_y = min_y.min(y);
+                max_x = max_x.max(x);
+                max_y = max_y.max(y);
+            }
+        }
+
+        if min_x > max_x || min_y > max_y {
+            return None;
+        }
+        let margin = 4usize;
+        min_x = min_x.saturating_sub(margin);
+        min_y = min_y.saturating_sub(margin);
+        max_x = (max_x + margin).min(width - 1);
+        max_y = (max_y + margin).min(height - 1);
+        Some((
+            min_x as i32,
+            min_y as i32,
+            (max_x - min_x + 1).max(1) as i32,
+            (max_y - min_y + 1).max(1) as i32,
+        ))
     }
 
     fn clip_rect(
@@ -1117,17 +1348,23 @@ impl BuilderDock {
         ))
     }
 
-    fn assets_for_tab(&self, project: &Project, tab: usize) -> Vec<BuilderCardSpec> {
+    fn assets_for_tab(&mut self, project: &Project, tab: usize) -> Vec<BuilderCardSpec> {
         match Self::tab_kind(tab) {
-            BuilderTabKind::Project | BuilderTabKind::Collections => {
-                let mut out: Vec<BuilderCardSpec> = project
+            BuilderTabKind::Project => {
+                let assets: Vec<BuilderGraphAsset> = project
                     .builder_graphs
                     .values()
+                    .filter(|asset| self.matches_asset(asset))
+                    .cloned()
+                    .collect();
+                let mut out: Vec<BuilderCardSpec> = assets
+                    .iter()
                     .map(|asset| {
-                        let preview = Self::preview_for_asset(asset, project);
+                        let kind = BuilderCardKind::Asset(asset.id);
+                        let preview = self.preview_for_asset_cached(kind, asset, project);
                         let description = Self::description_for_asset(asset);
                         BuilderCardSpec {
-                            kind: BuilderCardKind::Asset(asset.id),
+                            kind,
                             preview,
                             label: asset.graph_name.clone(),
                             description,
@@ -1137,19 +1374,51 @@ impl BuilderDock {
                 out.sort_by(|a, b| a.label.cmp(&b.label));
                 out
             }
-            BuilderTabKind::Treasury => vec![BuilderCardSpec {
-                kind: BuilderCardKind::TreasuryPlaceholder,
-                preview: None,
-                label: "Treasury".to_string(),
-                description: "Shared builder assets will appear here once builder packages are wired into Treasury.".to_string(),
-            }],
+            BuilderTabKind::Treasury => {
+                if self.treasury_items.is_empty() {
+                    return vec![BuilderCardSpec {
+                        kind: BuilderCardKind::Treasury(usize::MAX),
+                        preview: None,
+                        label: "Treasury".to_string(),
+                        description: self
+                            .treasury_error
+                            .clone()
+                            .unwrap_or_else(|| "No Builder Graph templates found.".to_string()),
+                    }];
+                }
+                let assets: Vec<(usize, BuilderGraphAsset)> = self
+                    .treasury_items
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, item)| self.matches_treasury_item(item))
+                    .map(|(index, item)| (index, item.as_asset()))
+                    .collect();
+                assets
+                    .iter()
+                    .map(|(index, asset)| {
+                        let kind = BuilderCardKind::Treasury(*index);
+                        let description = self
+                            .treasury_items
+                            .get(*index)
+                            .and_then(|item| {
+                                (!item.description.is_empty()).then(|| item.description.clone())
+                            })
+                            .unwrap_or_else(|| Self::description_for_asset(asset));
+                        BuilderCardSpec {
+                            kind,
+                            preview: self.preview_for_asset_cached(kind, asset, project),
+                            label: asset.graph_name.clone(),
+                            description,
+                        }
+                    })
+                    .collect()
+            }
         }
     }
 
     fn tab_kind(tab: usize) -> BuilderTabKind {
         match tab {
-            1 => BuilderTabKind::Collections,
-            2 => BuilderTabKind::Treasury,
+            1 => BuilderTabKind::Treasury,
             _ => BuilderTabKind::Project,
         }
     }
@@ -1161,10 +1430,137 @@ impl BuilderDock {
 
     fn pick_asset(&self, tab: usize, coord: Vec2<i32>) -> Option<BuilderCardKind> {
         self.placements.get(tab)?.iter().find_map(|placement| {
+            if matches!(placement.kind, BuilderCardKind::Treasury(usize::MAX)) {
+                return None;
+            }
             let r = placement.rect;
             (coord.x >= r.x && coord.x < r.x + r.z && coord.y >= r.y && coord.y < r.y + r.w)
                 .then_some(placement.kind)
         })
+    }
+
+    fn ensure_treasury_loaded(&mut self) {
+        if self.treasury_loaded {
+            return;
+        }
+        match Self::load_treasury_items() {
+            Ok(items) => {
+                self.treasury_items = items;
+                self.treasury_error = None;
+            }
+            Err(err) => {
+                self.treasury_items.clear();
+                self.treasury_error = Some(err);
+            }
+        }
+        self.treasury_loaded = true;
+    }
+
+    fn load_treasury_items() -> Result<Vec<BuilderTreasuryItem>, String> {
+        let mut items = Vec::new();
+        for template in crate::treasury::fetch_builder_graph_templates()? {
+            let Ok(document) = BuilderDocument::from_text(&template.graph_data) else {
+                continue;
+            };
+            let mut alias_text = Self::treasury_aliases_for_path(
+                &template.summary.path,
+                &template.summary.display_name(),
+            );
+            for alias in template
+                .summary
+                .aliases
+                .iter()
+                .chain(template.summary.tags.iter())
+            {
+                alias_text.push(' ');
+                alias_text.push_str(&alias.to_lowercase());
+            }
+            items.push(BuilderTreasuryItem {
+                id: template.summary.id,
+                aliases: alias_text,
+                description: template.summary.description,
+                target: template.summary.target,
+                path: template.summary.path,
+                graph_name: if template.summary.name.is_empty() {
+                    document.name().to_string()
+                } else {
+                    template.summary.name
+                },
+                graph_data: template.graph_data,
+            });
+        }
+        if items.is_empty() {
+            Err("No valid .buildergraph templates found in the Treasury GitHub repo.".to_string())
+        } else {
+            Ok(items)
+        }
+    }
+
+    fn treasury_aliases_for_path(path: &str, graph_name: &str) -> String {
+        let mut aliases = graph_name.to_lowercase();
+        aliases.push(' ');
+        aliases.push_str(&path.to_lowercase());
+        for token in path
+            .split(['/', '\\', '_', '-', '.'])
+            .filter(|token| !token.trim().is_empty())
+        {
+            aliases.push(' ');
+            aliases.push_str(&token.to_lowercase());
+        }
+        aliases
+    }
+
+    fn selected_builder_asset(
+        &self,
+        project: &Project,
+        server_ctx: &ServerContext,
+    ) -> Option<BuilderGraphAsset> {
+        if let Some(index) = self.selected_treasury {
+            self.treasury_items
+                .get(index)
+                .map(BuilderTreasuryItem::as_asset)
+        } else {
+            self.selected
+                .or(server_ctx.curr_builder_graph_id)
+                .and_then(|asset_id| project.builder_graphs.get(&asset_id).cloned())
+        }
+    }
+
+    fn matches_asset(&self, asset: &BuilderGraphAsset) -> bool {
+        self.filter.is_empty() || asset.graph_name.to_lowercase().contains(&self.filter)
+    }
+
+    fn matches_treasury_item(&self, item: &BuilderTreasuryItem) -> bool {
+        self.filter.is_empty()
+            || item.graph_name.to_lowercase().contains(&self.filter)
+            || item.path.to_lowercase().contains(&self.filter)
+            || item.description.to_lowercase().contains(&self.filter)
+            || item.target.to_lowercase().contains(&self.filter)
+            || item.aliases.contains(&self.filter)
+    }
+
+    fn preview_for_asset_cached(
+        &mut self,
+        kind: BuilderCardKind,
+        asset: &BuilderGraphAsset,
+        project: &Project,
+    ) -> Option<TheRGBABuffer> {
+        let hash = Self::preview_hash(asset, project);
+        if let Some((cached_hash, preview)) = self.preview_cache.get(&kind)
+            && *cached_hash == hash
+        {
+            return Some(preview.clone());
+        }
+        let preview = Self::preview_for_asset(asset, project)?;
+        self.preview_cache.insert(kind, (hash, preview.clone()));
+        Some(preview)
+    }
+
+    fn preview_hash(asset: &BuilderGraphAsset, project: &Project) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        asset.graph_data.hash(&mut hasher);
+        project.tiles.len().hash(&mut hasher);
+        hasher.finish()
     }
 
     fn preview_for_asset(asset: &BuilderGraphAsset, project: &Project) -> Option<TheRGBABuffer> {
@@ -1178,7 +1574,9 @@ impl BuilderDock {
                 graph.output_spec(),
                 &graph.preview_host(),
                 rusterix::builderpreview::BuilderPreviewOptions {
-                    size: (BUILDER_CARD_W - 16) as u32,
+                    size: (BUILDER_CARD_BASE_W - 16) as u32,
+                    width: Some((BUILDER_CARD_BASE_W - 16) as u32),
+                    height: Some((BUILDER_CARD_BASE_H - 58) as u32),
                     scale: Some(1.0),
                     variants: rusterix::builderpreview::PreviewVariants::Single,
                     ..Default::default()
@@ -1236,17 +1634,14 @@ impl BuilderDock {
         }
     }
 
-    fn activate_asset(
+    fn activate_builder_asset(
         &self,
-        asset_id: Uuid,
+        asset: &BuilderGraphAsset,
         _ui: &mut TheUI,
         _ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
-        let Some(asset) = project.builder_graphs.get(&asset_id) else {
-            return;
-        };
         let asset_builder_id = asset.id;
         let asset_graph_name = asset.graph_name.clone();
         let asset_graph_data = asset.graph_data.clone();

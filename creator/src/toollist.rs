@@ -2714,17 +2714,6 @@ impl ToolList {
                     .add_line_3d(id, tile_id, a, b, thickness, normal, 100);
             };
 
-            let hover_point = server_ctx.hover_cursor_3d.map(|p| {
-                if server_ctx.curr_map_tool_type == MapToolType::Linedef
-                    || server_ctx.curr_map_tool_type == MapToolType::Vertex
-                    || server_ctx.curr_map_tool_type == MapToolType::Sector
-                {
-                    server_ctx.snap_world_point_for_edit(map, p)
-                } else {
-                    p
-                }
-            });
-
             if !server_ctx.show_editing_geometry {
                 drop(rusterix);
                 self.update_tool_preview_overlay_3d(project, server_ctx);
@@ -2814,22 +2803,6 @@ impl ToolList {
                 if server_ctx.curr_map_tool_type == MapToolType::Linedef
                     || show_builder_selected_linedefs
                 {
-                    if server_ctx.curr_map_tool_type == MapToolType::Linedef
-                        && let (Some(start), Some(end)) = (map.curr_grid_pos_3d, hover_point)
-                    {
-                        if start != end {
-                            push_line(
-                                GeoId::Unknown(5000),
-                                &mut rusterix,
-                                start + view_nudge,
-                                end + view_nudge,
-                                cam_forward,
-                                false,
-                                true,
-                            );
-                        }
-                    }
-
                     if server_ctx.curr_map_tool_type == MapToolType::Linedef
                         && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
                     {
@@ -3161,6 +3134,32 @@ impl ToolList {
                         }
                     }
                 }
+            }
+        } else if server_ctx.curr_map_tool_type == MapToolType::Linedef {
+            if let (Some(start), Some(pos)) = (map.curr_grid_pos_3d, server_ctx.hover_cursor_3d) {
+                let end = server_ctx.snap_world_point_for_edit(map, pos);
+                if start != end {
+                    rusterix.scene_handler.tool_overlay_3d.add_line_3d(
+                        GeoId::Unknown(5000),
+                        selected,
+                        start + view_nudge,
+                        end + view_nudge,
+                        thickness,
+                        cam_forward,
+                        100,
+                    );
+                }
+            } else if let Some(pos) = server_ctx.hover_cursor_3d {
+                let pos = server_ctx.snap_world_point_for_edit(map, pos);
+                rusterix.scene_handler.tool_overlay_3d.add_billboard_3d(
+                    GeoId::Triangle(1000),
+                    yellow,
+                    pos + view_nudge,
+                    cam_right,
+                    cam_up,
+                    0.24,
+                    true,
+                );
             }
         } else if DOCKMANAGER.read().unwrap().dock == "Organic" {
             if let Some(pos) = server_ctx.hover_cursor_3d {

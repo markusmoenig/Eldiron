@@ -75,11 +75,12 @@ Use preview dimensions that make the asset easy to inspect. They do not hardcode
 
 ## Parameters
 
-Scripts can expose tunable numeric parameters with `param` declarations.
+Scripts can expose tunable parameters with `param` declarations. Parameters can be numeric or symbolic.
 
 ```txt
 param radius = 0.14;
 param spacing = 2.0;
+param placement = attached;
 param broken_chance = 0.0;
 param seed = 1.0;
 ```
@@ -94,9 +95,9 @@ detail columns {
     spacing = spacing;
     height = host.depth;
     radius = radius;
+    placement = placement;
     broken_chance = broken_chance;
     seed = seed;
-    placement = structural;
 };
 ```
 
@@ -105,6 +106,7 @@ When a Builder Graph is selected in the Builder dock, Eldiron shows exposed para
 Use parameters for values that tune a template:
 
 - radius, spacing, height, offset
+- placement modes such as `attached` or `structural`
 - cap/base/transition size
 - damage amount or chance
 - deterministic seed values
@@ -114,7 +116,7 @@ Do not try to make one script cover every structural choice. If the question is 
 
 ## Primitives
 
-Builder scripts can emit object-style primitives such as `box` and `cylinder`.
+Builder scripts can emit object-style primitives such as `box`, `cylinder`, and procedural `planks`.
 
 These are useful for props and assemblies:
 
@@ -129,6 +131,22 @@ output = [top];
 ```
 
 Primitives can expose anchors and material slots so other builder assets can attach to them.
+
+Use `planks` for seeded rows of boards, shingles, or broken wooden siding. It expands into multiple box primitives, so the result is stable geometry rather than a special renderer path.
+
+```txt
+let wall_planks = planks {
+    attach = host.middle + host.out * (host.depth * -0.5 - 0.095);
+    size = vec3(host.width * 0.96, wall_height * 0.92, 0.035);
+    count = plank_count;
+    direction = vertical;
+    jitter = 0.55;
+    unevenness = 0.40;
+    missing_chance = damage;
+    seed = seed;
+    material = PLANK;
+};
+```
 
 ## Surface Details
 
@@ -149,6 +167,28 @@ detail rect {
     tile_alias = stone;
 };
 ```
+
+### Plank Details
+
+Plank details create seeded rows of rectangular relief details on a sector or linedef surface. Use them when the desired result should remain part of the surface, not a freestanding object assembly.
+
+```txt
+detail planks {
+    min = vec2(host.width * 0.05, host.depth * 0.10);
+    max = vec2(host.width * 0.95, host.depth * 0.90);
+    count = 12.0;
+    direction = horizontal;
+    jitter = 0.35;
+    unevenness = 0.30;
+    missing_chance = 0.05;
+    seed = seed;
+    offset = 0.035;
+    material = PLANK;
+    tile_alias = wood;
+};
+```
+
+`jitter` changes plank lengths and widths. `unevenness` / `alignment_jitter` shifts each plank within its lane, which makes boards look less mechanically aligned. `missing_chance` is a `0.0..1.0` probability per plank.
 
 ### Column Details
 
@@ -303,13 +343,7 @@ Supported patterns:
 
 Masonry blocks are inset slightly from the requested bounds. That avoids adding relief geometry exactly on sector boundaries, but it does not replace the need for a topology-level fix for duplicate coplanar surfaces on shared edges.
 
-The Builder dock's **New** menu includes starter templates for:
-
-- `Surface Masonry`
-- `Wall Masonry` for explicit linedef / edge-hosted wall spans
-- `Wall Columns Masonry` for broader sector-owned surface decoration
-
-Use these as script templates, then tune `block`, `mortar`, `offset`, and `tile_alias` for the target tiles.
+The Builder dock's **New** menu creates an empty project graph. Starter templates such as `Table`, `Wall Torch`, `Wall Lantern`, `Campfire`, `Surface Masonry`, `Wall Linedef Masonry`, and `Wall Columns Masonry` live in Treasury so they have metadata, aliases, previews, and versioning.
 
 ## Templates And Treasury
 
@@ -335,6 +369,10 @@ This keeps non-scripting workflows manageable:
 4. Apply the graph to matching map hosts.
 
 The Treasury should contain several clear templates rather than one script with dozens of unrelated controls.
+
+Published Treasury templates are indexed in `Eldiron-Treasury/index.json` under `builder_graphs`. Each entry points at a package folder containing `package.toml` metadata and a `graph.buildergraph` script. The Builder dock reads the index when the Treasury tab is opened, so metadata such as aliases, tags, target type, and description can be used for filtering without crawling the repository.
+
+Treasury templates can be applied directly. Use **Install** when you want to copy a Treasury template into the current project and edit it as a normal project Builder Graph.
 
 ## Materials
 
