@@ -13,7 +13,7 @@ use crate::{
 use crate::{BillboardAnimation, GeometrySource, LoopOp, ProfileLoop, RepeatMode, Sector};
 use buildergraph::{
     BuilderAssembly, BuilderAttachmentKind, BuilderCutMask, BuilderCutMode, BuilderDocument,
-    BuilderPrimitive,
+    BuilderHost, BuilderPrimitive, BuilderSectorHost,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::GeoId;
@@ -4211,6 +4211,21 @@ fn add_builder_cylinder_mesh(
 }
 
 fn normalize_builder_material_key(name: &str) -> String {
+    if !name.chars().any(|ch| ch.is_ascii_lowercase()) {
+        let mut out = String::new();
+        let mut prev_is_sep = false;
+        for ch in name.chars() {
+            if ch.is_ascii_alphanumeric() {
+                out.push(ch.to_ascii_lowercase());
+                prev_is_sep = false;
+            } else if !prev_is_sep && !out.is_empty() {
+                out.push('_');
+                prev_is_sep = true;
+            }
+        }
+        return out.trim_matches('_').to_string();
+    }
+
     let mut out = String::new();
     let mut prev_is_sep = false;
     for (i, ch) in name.chars().enumerate() {
@@ -4239,6 +4254,30 @@ fn builder_item_graph_data_key(name: &str) -> String {
     )
 }
 
+fn tile_id_by_alias(assets: &Assets, alias: &str, seed: u32) -> Option<Uuid> {
+    let normalized = alias.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return None;
+    }
+    let mut matches = assets
+        .tiles
+        .iter()
+        .filter(|(_, tile)| {
+            tile.alias
+                .split([',', ';', '\n'])
+                .map(str::trim)
+                .any(|part| !part.is_empty() && part.eq_ignore_ascii_case(&normalized))
+        })
+        .map(|(id, _)| *id)
+        .collect::<Vec<_>>();
+    matches.sort();
+    if matches.is_empty() {
+        None
+    } else {
+        Some(matches[seed as usize % matches.len()])
+    }
+}
+
 fn resolve_builder_material_tile_id(
     properties: &ValueContainer,
     fallback_source: Option<&Value>,
@@ -4256,6 +4295,20 @@ fn resolve_builder_material_tile_id(
                 .tile_from_tile_list(assets)
                 .map(|tile| tile.id)
                 .unwrap_or(default_tile_id);
+        }
+        let alias = normalize_builder_material_key(material_slot);
+        if let Some(tile_id) = tile_id_by_alias(assets, &alias, 0) {
+            return tile_id;
+        }
+        let fallback_alias = match alias.as_str() {
+            "beam" | "plank" | "roof" | "roof_plank" | "wall" | "wood" => Some("wood"),
+            "block" | "column" | "shaft" | "stone" => Some("stone"),
+            _ => None,
+        };
+        if let Some(alias) = fallback_alias
+            && let Some(tile_id) = tile_id_by_alias(assets, alias, 0)
+        {
+            return tile_id;
         }
     }
     match fallback_source {
@@ -8795,17 +8848,29 @@ fn emit_builder_sector_meshes(
     let Ok(graph) = BuilderDocument::from_text(graph_text) else {
         return false;
     };
-    let Ok(assembly) = graph.evaluate() else {
+
+    let fallback_source = feature_pixelsource(surface, map, sector, loop_origin, "source");
+
+    let center_uv = Vec2::new((min_uv.x + max_uv.x) * 0.5, (min_uv.y + max_uv.y) * 0.5);
+    let sector_size = Vec2::new((max_uv.x - min_uv.x).abs(), (max_uv.y - min_uv.y).abs());
+    let host_height = if surface.plane.normal.y.abs() >= 0.25 {
+        surface.extrusion.thickness().max(0.01)
+    } else {
+        sector_size.y.max(0.01)
+    };
+    let host = BuilderHost::Sector(BuilderSectorHost {
+        id: surface.id,
+        seed: sector.id as u64,
+        width: sector_size.x.max(0.01),
+        depth: sector_size.y.max(0.01),
+        height: host_height,
+    });
+    let Ok(assembly) = graph.evaluate_with_host(&host) else {
         return false;
     };
     if assembly.primitives.is_empty() {
         return false;
     }
-
-    let fallback_source = feature_pixelsource(surface, map, sector, loop_origin, "source");
-
-    let center_uv = Vec2::new((min_uv.x + max_uv.x) * 0.5, (min_uv.y + max_uv.y) * 0.5);
-    let sector_size = max_uv - min_uv;
     let along = surface.edit_uv.right.normalized();
     let mut upward = surface.frame.normal.normalized();
     if upward.y < 0.0 {
