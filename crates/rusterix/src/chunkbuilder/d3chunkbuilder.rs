@@ -3361,6 +3361,25 @@ mod tests {
         assert!((back.y - local.y).abs() < 1e-6);
     }
 
+    #[test]
+    fn builder_sector_translation_uses_builder_local_outward() {
+        let host_origin = Vec3::new(10.0, 0.0, 10.0);
+        let along = Vec3::new(1.0, 0.0, 0.0);
+        let upward = Vec3::new(0.0, 1.0, 0.0);
+        let outward = along.cross(upward).normalized();
+
+        let world = builder_sector_base_world(
+            host_origin,
+            along,
+            outward,
+            Vec2::new(4.0, 3.0),
+            Vec3::new(0.25, 0.0, 0.5),
+            true,
+        );
+
+        assert_eq!(world, Vec3::new(11.0, 0.0, 11.5));
+    }
+
     fn adjacent_coplanar_surface_map() -> Map {
         let mut map = Map::default();
         map.vertices = vec![
@@ -8829,6 +8848,27 @@ fn emit_feature_meshes(
     }
 }
 
+fn builder_sector_base_world(
+    host_origin: Vec3<f32>,
+    along: Vec3<f32>,
+    outward: Vec3<f32>,
+    sector_size: Vec2<f32>,
+    translation: Vec3<f32>,
+    host_position_normalized: bool,
+) -> Vec3<f32> {
+    let tx = if host_position_normalized {
+        translation.x * sector_size.x
+    } else {
+        translation.x
+    };
+    let tz = if host_position_normalized {
+        translation.z * sector_size.y
+    } else {
+        translation.z
+    };
+    host_origin + along * tx + outward * tz
+}
+
 fn emit_builder_sector_meshes(
     graph_text: &str,
     min_uv: Vec2<f32>,
@@ -8919,20 +8959,14 @@ fn emit_builder_sector_meshes(
                     size.y * transform.scale.y
                 };
                 let scaled = Vec3::new(size.x * sx, sy, size.z * sz);
-                let offset_uv = Vec2::new(
-                    if *host_position_normalized {
-                        transform.translation.x * sector_size.x
-                    } else {
-                        transform.translation.x
-                    },
-                    if *host_position_normalized {
-                        transform.translation.z * sector_size.y
-                    } else {
-                        transform.translation.z
-                    },
+                let base_world = builder_sector_base_world(
+                    host_origin,
+                    along,
+                    outward,
+                    sector_size,
+                    transform.translation,
+                    *host_position_normalized,
                 );
-                let base_world =
-                    surface.uv_to_world(center_uv + offset_uv) + upward * base_extrusion;
                 let ty = if *host_position_y_normalized {
                     transform.translation.y * sector_size.y
                 } else {
@@ -8999,20 +9033,14 @@ fn emit_builder_sector_meshes(
                     } else {
                         transform.scale.z
                     };
-                let offset_uv = Vec2::new(
-                    if *host_position_normalized {
-                        transform.translation.x * sector_size.x
-                    } else {
-                        transform.translation.x
-                    },
-                    if *host_position_normalized {
-                        transform.translation.z * sector_size.y
-                    } else {
-                        transform.translation.z
-                    },
+                let base_world = builder_sector_base_world(
+                    host_origin,
+                    along,
+                    outward,
+                    sector_size,
+                    transform.translation,
+                    *host_position_normalized,
                 );
-                let base_world =
-                    surface.uv_to_world(center_uv + offset_uv) + upward * base_extrusion;
                 let center = base_world
                     + upward
                         * ((if *host_position_y_normalized {

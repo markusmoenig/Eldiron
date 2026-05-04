@@ -426,22 +426,6 @@ impl PaletteDock {
         }
     }
 
-    fn current_selection_tool_type(project: &Project, server_ctx: &ServerContext) -> MapToolType {
-        if let Some(map) = project.get_map(server_ctx) {
-            if !map.selected_vertices.is_empty() {
-                MapToolType::Vertex
-            } else if !map.selected_linedefs.is_empty() {
-                MapToolType::Linedef
-            } else if !map.selected_sectors.is_empty() {
-                MapToolType::Sector
-            } else {
-                MapToolType::Sector
-            }
-        } else {
-            MapToolType::Sector
-        }
-    }
-
     fn apply_current_palette_color(
         &self,
         project: &mut Project,
@@ -449,7 +433,9 @@ impl PaletteDock {
         server_ctx: &mut ServerContext,
     ) {
         let source = PixelSource::PaletteIndex(project.palette.current_index);
-        server_ctx.curr_map_tool_type = Self::current_selection_tool_type(project, server_ctx);
+        if let Some(map) = project.get_map(server_ctx) {
+            server_ctx.curr_map_tool_type = crate::actions::current_selection_tool_type(map);
+        }
 
         let mut undo_atom: Option<ProjectUndoAtom> = None;
         let mut needs_scene_redraw = false;
@@ -513,7 +499,9 @@ impl PaletteDock {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        server_ctx.curr_map_tool_type = Self::current_selection_tool_type(project, server_ctx);
+        if let Some(map) = project.get_map(server_ctx) {
+            server_ctx.curr_map_tool_type = crate::actions::current_selection_tool_type(map);
+        }
 
         let mut cleared_action_slot = false;
         let mut undo_atom: Option<ProjectUndoAtom> = None;

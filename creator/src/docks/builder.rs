@@ -9,6 +9,11 @@ use std::{
     collections::HashMap,
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
+    sync::{
+        Mutex,
+        mpsc::{Receiver, channel},
+    },
+    thread,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -82,6 +87,8 @@ pub struct BuilderDock {
     treasury_items: Vec<BuilderTreasuryItem>,
     treasury_error: Option<String>,
     treasury_loaded: bool,
+    treasury_loading: bool,
+    treasury_load_rx: Option<Mutex<Receiver<Result<Vec<BuilderTreasuryItem>, String>>>>,
 }
 
 fn builder_document_hides_host(document: &BuilderDocument) -> bool {
@@ -123,6 +130,8 @@ impl Dock for BuilderDock {
             treasury_items: Vec::new(),
             treasury_error: None,
             treasury_loaded: false,
+            treasury_loading: false,
+            treasury_load_rx: None,
         }
     }
 
@@ -257,6 +266,7 @@ impl Dock for BuilderDock {
         server_ctx: &mut ServerContext,
     ) -> bool {
         let mut redraw = false;
+        redraw |= self.poll_treasury_loader(ui, ctx, project);
 
         match event {
             TheEvent::Resize => {
@@ -268,7 +278,7 @@ impl Dock for BuilderDock {
             {
                 self.active_tab = *index;
                 if matches!(Self::tab_kind(*index), BuilderTabKind::Treasury) {
-                    self.ensure_treasury_loaded();
+                    self.ensure_treasury_loaded(ctx);
                 }
                 self.render_views(ui, ctx, project);
                 redraw = true;
@@ -633,6 +643,7 @@ impl Dock for BuilderDock {
                 redraw = true;
             }
             TheEvent::Custom(id, _) if id.name == BUILDER_DOCK_REFRESH => {
+                self.poll_treasury_loader(ui, ctx, project);
                 ctx.ui.relayout = true;
                 self.render_views(ui, ctx, project);
                 self.sync_params_ui(ui, project, server_ctx);
@@ -1439,11 +1450,32 @@ impl BuilderDock {
         })
     }
 
-    fn ensure_treasury_loaded(&mut self) {
-        if self.treasury_loaded {
-            return;
-        }
-        match Self::load_treasury_items() {
+    fn poll_treasury_loader(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+    ) -> bool {
+        let result = {
+            let Some(rx) = self.treasury_load_rx.as_ref() else {
+                return false;
+            };
+            let Ok(rx) = rx.lock() else {
+                return false;
+            };
+            match rx.try_recv() {
+                Ok(result) => result,
+                Err(std::sync::mpsc::TryRecvError::Empty) => return false,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    Err("Treasury loader stopped before returning a result.".to_string())
+                }
+            }
+        };
+
+        self.treasury_load_rx = None;
+        self.treasury_loading = false;
+        self.treasury_loaded = true;
+        match result {
             Ok(items) => {
                 self.treasury_items = items;
                 self.treasury_error = None;
@@ -1453,7 +1485,29 @@ impl BuilderDock {
                 self.treasury_error = Some(err);
             }
         }
-        self.treasury_loaded = true;
+        self.render_views(ui, ctx, project);
+        true
+    }
+
+    fn ensure_treasury_loaded(&mut self, ctx: &mut TheContext) {
+        if self.treasury_loaded || self.treasury_loading {
+            return;
+        }
+        self.treasury_loading = true;
+        self.treasury_error = Some("Loading Builder Graph templates from Treasury...".to_string());
+        let (tx, rx) = channel();
+        let event_sender = ctx.ui.state_events_sender.clone();
+        thread::spawn(move || {
+            let result = Self::load_treasury_items();
+            let _ = tx.send(result);
+            if let Some(event_sender) = event_sender {
+                let _ = event_sender.send(TheEvent::Custom(
+                    TheId::named(BUILDER_DOCK_REFRESH),
+                    TheValue::Empty,
+                ));
+            }
+        });
+        self.treasury_load_rx = Some(Mutex::new(rx));
     }
 
     fn load_treasury_items() -> Result<Vec<BuilderTreasuryItem>, String> {

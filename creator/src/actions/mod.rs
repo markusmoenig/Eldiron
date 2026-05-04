@@ -48,19 +48,38 @@ pub fn source_to_text(source: Option<&Value>) -> String {
 }
 
 pub fn builder_material_property_key(label: &str) -> String {
-    format!("builder_material_{}", normalize_toml_key(label))
+    format!("builder_material_{}", normalize_builder_slot_key(label))
 }
 
 pub fn builder_item_graph_data_property_key(label: &str) -> String {
-    format!("builder_item_{}_graph_data", normalize_toml_key(label))
+    format!(
+        "builder_item_{}_graph_data",
+        normalize_builder_slot_key(label)
+    )
 }
 
 pub fn builder_item_graph_id_property_key(label: &str) -> String {
-    format!("builder_item_{}_graph_id", normalize_toml_key(label))
+    format!(
+        "builder_item_{}_graph_id",
+        normalize_builder_slot_key(label)
+    )
 }
 
 pub fn builder_item_graph_name_property_key(label: &str) -> String {
-    format!("builder_item_{}_graph_name", normalize_toml_key(label))
+    format!(
+        "builder_item_{}_graph_name",
+        normalize_builder_slot_key(label)
+    )
+}
+
+pub fn current_selection_tool_type(map: &Map) -> MapToolType {
+    if !map.selected_vertices.is_empty() {
+        MapToolType::Vertex
+    } else if !map.selected_linedefs.is_empty() {
+        MapToolType::Linedef
+    } else {
+        MapToolType::Sector
+    }
 }
 
 fn builder_material_slots_from_properties(
@@ -700,6 +719,25 @@ fn normalize_toml_key(key: &str) -> String {
     out.trim_matches('_').to_string()
 }
 
+fn normalize_builder_slot_key(key: &str) -> String {
+    if !key.chars().any(|ch| ch.is_ascii_lowercase()) {
+        let mut out = String::new();
+        let mut prev_is_sep = false;
+        for ch in key.chars() {
+            if ch.is_ascii_alphanumeric() {
+                out.push(ch.to_ascii_lowercase());
+                prev_is_sep = false;
+            } else if !prev_is_sep && !out.is_empty() {
+                out.push('_');
+                prev_is_sep = true;
+            }
+        }
+        return out.trim_matches('_').to_string();
+    }
+
+    normalize_toml_key(key)
+}
+
 fn action_param_key(id: &str) -> String {
     let key = normalize_toml_key(id);
     key.strip_prefix("action_").unwrap_or(&key).to_string()
@@ -1310,4 +1348,25 @@ pub fn nodeui_to_value_pairs(nodeui: &TheNodeUI) -> Vec<(String, TheValue)> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builder_material_keys_keep_acronym_slots_readable() {
+        assert_eq!(
+            builder_material_property_key("PLANK"),
+            "builder_material_plank"
+        );
+        assert_eq!(
+            builder_material_property_key("ROOF_PLANK"),
+            "builder_material_roof_plank"
+        );
+        assert_eq!(
+            builder_material_property_key("roofMat"),
+            "builder_material_roof_mat"
+        );
+    }
 }
