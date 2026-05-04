@@ -250,6 +250,7 @@ pub enum BuilderScriptVecExpr {
 pub enum BuilderScriptScalarExpr {
     Constant(f32),
     Ref(BuilderScriptRef),
+    Function(String, Box<BuilderScriptScalarExpr>),
     Add(Box<BuilderScriptScalarExpr>, Box<BuilderScriptScalarExpr>),
     Sub(Box<BuilderScriptScalarExpr>, Box<BuilderScriptScalarExpr>),
     Mul(Box<BuilderScriptScalarExpr>, Box<BuilderScriptScalarExpr>),
@@ -4053,6 +4054,16 @@ impl BuilderScriptParser {
                 Ok(BuilderScriptScalarExpr::Constant(self.expect_number()?))
             }
             Some(BuilderScriptToken::Ident(_)) => {
+                if matches!(
+                    self.tokens.get(self.index + 1),
+                    Some(BuilderScriptToken::Symbol('('))
+                ) {
+                    let function = self.expect_ident_any()?;
+                    self.expect_symbol('(')?;
+                    let arg = self.parse_scalar_expr()?;
+                    self.expect_symbol(')')?;
+                    return Ok(BuilderScriptScalarExpr::Function(function, Box::new(arg)));
+                }
                 Ok(BuilderScriptScalarExpr::Ref(self.parse_ref()?))
             }
             Some(BuilderScriptToken::Symbol('(')) => {
@@ -4272,6 +4283,21 @@ fn eval_scalar_expr(
     match expr {
         BuilderScriptScalarExpr::Constant(value) => Ok(*value),
         BuilderScriptScalarExpr::Ref(reference) => eval_ref_scalar(reference, host, dims, params),
+        BuilderScriptScalarExpr::Function(function, arg) => {
+            let value = eval_scalar_expr(arg, host, dims, params)?;
+            match function.as_str() {
+                "abs" => Ok(value.abs()),
+                "sqrt" => Ok(value.max(0.0).sqrt()),
+                "sin" => Ok(value.sin()),
+                "cos" => Ok(value.cos()),
+                "tan" => Ok(value.tan()),
+                "atan" => Ok(value.atan()),
+                "floor" => Ok(value.floor()),
+                "ceil" => Ok(value.ceil()),
+                "round" => Ok(value.round()),
+                other => Err(format!("unsupported scalar function '{other}'")),
+            }
+        }
         BuilderScriptScalarExpr::Add(a, b) => {
             Ok(eval_scalar_expr(a, host, dims, params)? + eval_scalar_expr(b, host, dims, params)?)
         }
@@ -5037,6 +5063,50 @@ mod tests {
             serde_json::from_str(&assembly_json).expect("assembly should decode");
         assert_eq!(decoded_assembly.warnings.len(), 1);
         assert_eq!(decoded_assembly.warnings[0].code, "test");
+    }
+
+    #[test]
+    fn scalar_functions_drive_script_dimensions() {
+        let script = BuilderScript::from_text(
+            r#"
+name = "Math Test";
+host = sector;
+
+param run = host.depth * 0.5;
+param rise = 1.0;
+param pitch = atan(rise / run);
+param length = sqrt(run * run + rise * rise);
+
+preview {
+    width = 4.0;
+    depth = 4.0;
+    height = 2.0;
+}
+
+let roof = box {
+    attach = host.middle;
+    size = vec3(host.width, length, 0.1);
+    rotate_x = pitch;
+    material = ROOF;
+};
+
+output = [roof];
+"#,
+        )
+        .expect("math script should parse");
+
+        let host = BuilderHost::preview_floor(6.0, 8.0);
+        let assembly = script
+            .evaluate_with_host(&host)
+            .expect("math script should evaluate");
+        let BuilderPrimitive::Box {
+            size, transform, ..
+        } = &assembly.primitives[0]
+        else {
+            panic!("roof should be a box");
+        };
+        assert!((size.y - (17.0_f32).sqrt()).abs() < 0.0001);
+        assert!((transform.rotation_x - 0.24497867).abs() < 0.0001);
     }
 
     #[test]

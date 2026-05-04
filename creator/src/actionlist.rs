@@ -53,6 +53,7 @@ impl ActionList {
             Box::new(crate::tools::import_vcode::ImportVCode::new()),
             Box::new(crate::tools::paste_vcode::PasteVCode::new()),
             Box::new(crate::tools::import_palette::ImportPalette::new()),
+            Box::new(crate::tools::make_sector_rectangular::MakeSectorRectangular::new()),
             Box::new(crate::tools::new_tile::NewTile::new()),
             Box::new(crate::tools::minimize::Minimize::new()),
             Box::new(crate::tools::recess::Recess::new()),

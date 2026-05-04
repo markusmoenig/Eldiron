@@ -563,6 +563,7 @@ pub mod gate_door;
 pub mod import_palette;
 pub mod import_vcode;
 pub mod iso_camera;
+pub mod make_sector_rectangular;
 pub mod minimize;
 pub mod new_tile;
 pub mod orbit_camera;
