@@ -23,6 +23,7 @@ pub struct TheTraybarButton {
     context_menu: Option<TheContextMenu>,
 
     fixed_size: bool,
+    is_toggle: bool,
 }
 
 impl TheWidget for TheTraybarButton {
@@ -54,6 +55,7 @@ impl TheWidget for TheTraybarButton {
             custom_color: None,
             context_menu: None,
             fixed_size: false,
+            is_toggle: false,
         }
     }
 
@@ -83,7 +85,19 @@ impl TheWidget for TheTraybarButton {
         //println!("event ({}): {:?}", self.id.name, event);
         match event {
             TheEvent::MouseDown(_coord) => {
-                if self.state != TheWidgetState::Clicked {
+                if self.is_toggle {
+                    self.state = if self.state == TheWidgetState::Selected {
+                        TheWidgetState::None
+                    } else {
+                        TheWidgetState::Selected
+                    };
+                    ctx.ui.set_focus(self.id());
+                    ctx.ui.send_widget_state_changed(self.id(), self.state);
+                    ctx.ui.send_widget_value_changed(
+                        self.id(),
+                        TheValue::Bool(self.state == TheWidgetState::Selected),
+                    );
+                } else if self.state != TheWidgetState::Clicked {
                     //self.state = TheWidgetState::Clicked;
                     ctx.ui.set_focus(self.id());
                     ctx.ui
@@ -112,7 +126,7 @@ impl TheWidget for TheTraybarButton {
                 }
             }
             TheEvent::MouseUp(_coord) => {
-                if self.state == TheWidgetState::Clicked {
+                if !self.is_toggle && self.state == TheWidgetState::Clicked {
                     self.state = TheWidgetState::None;
                     ctx.ui.clear_focus();
                 }
@@ -251,7 +265,7 @@ impl TheWidget for TheTraybarButton {
         if !self.is_disabled && self.state != TheWidgetState::None
             || self.id().equals(&ctx.ui.hover)
         {
-            if self.state == TheWidgetState::Clicked {
+            if self.state == TheWidgetState::Clicked || self.state == TheWidgetState::Selected {
                 ctx.draw.rect_outline_border(
                     buffer.pixels_mut(),
                     &self.dim.to_buffer_shrunk_utuple(&shrinker),
@@ -356,6 +370,7 @@ pub trait TheTraybarButtonTrait {
     fn set_text(&mut self, text: String);
     fn set_icon(&mut self, icon: TheRGBABuffer);
     fn set_fixed_size(&mut self, fixed_size: bool);
+    fn set_is_toggle(&mut self, is_toggle: bool);
     fn set_custom_color(&mut self, color: Option<TheColor>);
 }
 
@@ -374,6 +389,9 @@ impl TheTraybarButtonTrait for TheTraybarButton {
     }
     fn set_fixed_size(&mut self, fixed_size: bool) {
         self.fixed_size = fixed_size;
+    }
+    fn set_is_toggle(&mut self, is_toggle: bool) {
+        self.is_toggle = is_toggle;
     }
     fn set_custom_color(&mut self, color: Option<TheColor>) {
         self.custom_color = color;

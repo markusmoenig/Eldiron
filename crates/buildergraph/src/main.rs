@@ -185,6 +185,11 @@ fn print_inspection(document: &BuilderDocument, assembly: &buildergraph::Builder
         "static billboard batches: {}",
         assembly.static_billboards.len()
     );
+    println!(
+        "organic billboard batches: {}",
+        assembly.organic_billboards.len()
+    );
+    println!("organic mesh batches: {}", assembly.organic_meshes.len());
     println!("warnings: {}", assembly.warnings.len());
     for warning in &assembly.warnings {
         println!("warning[{}]: {}", warning.code, warning.message);

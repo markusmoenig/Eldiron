@@ -21,6 +21,7 @@ const BUILDER_TAB_LAYOUT: &str = "Builder Dock Tabs";
 const BUILDER_VIEW_PREFIX: &str = "Builder Dock View ";
 const BUILDER_DOCK_REFRESH: &str = "Builder Dock Refresh";
 const BUILDER_PARAMS_TOML: &str = "Builder Parameters TOML";
+const BUILDER_AUTO_VERTEX_BUTTON: &str = "Builder Dock Auto Vertex";
 const BUILDER_PARAMS_WIDTH: i32 = 300;
 const BUILDER_CARD_BASE_W: i32 = 240;
 const BUILDER_CARD_BASE_H: i32 = 178;
@@ -34,7 +35,15 @@ enum BuilderTabKind {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum BuilderBuiltinKind {
+    Grass,
+    Bush,
+    Tree,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum BuilderCardKind {
+    Builtin(BuilderBuiltinKind),
     Asset(Uuid),
     Treasury(usize),
 }
@@ -76,6 +85,8 @@ impl BuilderTreasuryItem {
 pub struct BuilderDock {
     active_tab: usize,
     selected: Option<Uuid>,
+    selected_builtin: Option<BuilderBuiltinKind>,
+    builtin_sources: HashMap<(BuilderBuiltinKind, bool), String>,
     selected_treasury: Option<usize>,
     hovered: Option<BuilderCardKind>,
     placements: Vec<Vec<BuilderCardPlacement>>,
@@ -119,6 +130,8 @@ impl Dock for BuilderDock {
         Self {
             active_tab: 0,
             selected: None,
+            selected_builtin: None,
+            builtin_sources: HashMap::new(),
             selected_treasury: None,
             hovered: None,
             placements: vec![Vec::new(), Vec::new()],
@@ -176,6 +189,15 @@ impl Dock for BuilderDock {
             .set_status_text("Install the selected Treasury Builder Graph into this project.");
         toolbar_hlayout.add_widget(Box::new(install_button));
 
+        let mut auto_vertex_button =
+            TheTraybarButton::new(TheId::named(BUILDER_AUTO_VERTEX_BUTTON));
+        auto_vertex_button.set_text("Auto Vertex".to_string());
+        auto_vertex_button.set_is_toggle(true);
+        auto_vertex_button.set_status_text(
+            "When active, clicking in 3D creates a vertex at the hit point and applies the selected vertex Builder Graph.",
+        );
+        toolbar_hlayout.add_widget(Box::new(auto_vertex_button));
+
         let mut apply_button = TheTraybarButton::new(TheId::named("Builder Dock Apply Build"));
         apply_button.set_text(fl!("builder_apply_build"));
         apply_button.set_status_text(&fl!("status_builder_apply_build"));
@@ -186,7 +208,7 @@ impl Dock for BuilderDock {
         clear_button.set_status_text(&fl!("status_builder_clear_build"));
         toolbar_hlayout.add_widget(Box::new(clear_button));
 
-        toolbar_hlayout.set_reverse_index(Some(2));
+        toolbar_hlayout.set_reverse_index(Some(3));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
         canvas.set_top(toolbar_canvas);
@@ -290,8 +312,10 @@ impl Dock for BuilderDock {
                     match kind {
                         BuilderCardKind::Asset(asset_id) => {
                             self.selected = Some(asset_id);
+                            self.selected_builtin = None;
                             self.selected_treasury = None;
                             server_ctx.curr_builder_graph_id = Some(asset_id);
+                            self.sync_current_builder_context(project, server_ctx);
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Builder Selection Changed"),
                                 TheValue::Id(asset_id),
@@ -314,10 +338,23 @@ impl Dock for BuilderDock {
                                 ));
                             }
                         }
+                        BuilderCardKind::Builtin(kind) => {
+                            self.selected = None;
+                            self.selected_builtin = Some(kind);
+                            self.selected_treasury = None;
+                            server_ctx.curr_builder_graph_id = None;
+                            self.sync_current_builder_context(project, server_ctx);
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Builder Selection Changed"),
+                                TheValue::Empty,
+                            ));
+                        }
                         BuilderCardKind::Treasury(index) => {
                             self.selected = None;
+                            self.selected_builtin = None;
                             self.selected_treasury = Some(index);
                             server_ctx.curr_builder_graph_id = None;
+                            self.sync_current_builder_context(project, server_ctx);
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Builder Selection Changed"),
                                 TheValue::Empty,
@@ -344,6 +381,8 @@ impl Dock for BuilderDock {
                     if project.builder_graphs.shift_remove(&asset_id).is_some() {
                         if server_ctx.curr_builder_graph_id == Some(asset_id) {
                             server_ctx.curr_builder_graph_id = None;
+                            server_ctx.curr_builder_graph_name = None;
+                            server_ctx.curr_builder_graph_data = None;
                         }
                         self.selected = None;
                         self.selected_treasury = None;
@@ -380,6 +419,19 @@ impl Dock for BuilderDock {
                                     ),
                                 ));
                             }
+                        }
+                        Some(BuilderCardKind::Builtin(kind)) => {
+                            let asset = Self::builtin_asset(kind, project, server_ctx);
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                id.clone(),
+                                format!(
+                                    "{}",
+                                    fl!(
+                                        "status_builder_select_asset",
+                                        asset_name = asset.graph_name
+                                    )
+                                ),
+                            ));
                         }
                         Some(BuilderCardKind::Treasury(index)) => {
                             if let Some(item) = self.treasury_items.get(index) {
@@ -431,7 +483,9 @@ impl Dock for BuilderDock {
                 let asset_id = asset.id;
                 project.add_builder_graph(asset);
                 self.selected = Some(asset_id);
+                self.selected_builtin = None;
                 server_ctx.curr_builder_graph_id = Some(asset_id);
+                self.sync_current_builder_context(project, server_ctx);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Builder Selection Changed"),
                     TheValue::Id(asset_id),
@@ -450,7 +504,10 @@ impl Dock for BuilderDock {
             TheEvent::ValueChanged(id, TheValue::Text(text)) if id.name == BUILDER_PARAMS_TOML => {
                 let selected_treasury = self.selected_treasury;
                 let selected_project = self.selected.or(server_ctx.curr_builder_graph_id);
-                let source = if let Some(index) = selected_treasury {
+                let selected_builtin = self.selected_builtin;
+                let source = if let Some(kind) = selected_builtin {
+                    self.builtin_source(kind, project, server_ctx)
+                } else if let Some(index) = selected_treasury {
                     let Some(item) = self.treasury_items.get(index) else {
                         return false;
                     };
@@ -490,11 +547,17 @@ impl Dock for BuilderDock {
                                 })
                             })
                             .unwrap_or_else(|| "Builder Script".to_string());
-                        if let Some(builder_id) = selected_project
+                        if let Some(kind) = selected_builtin {
+                            let use_vertex = Self::builtin_uses_vertex(project, server_ctx);
+                            self.builtin_sources
+                                .insert((kind, use_vertex), updated.clone());
+                            self.sync_current_builder_context(project, server_ctx);
+                        } else if let Some(builder_id) = selected_project
                             && let Some(asset) = project.builder_graphs.get_mut(&builder_id)
                         {
                             asset.graph_name = graph_name.clone();
                             asset.graph_data = updated.clone();
+                            self.sync_current_builder_context(project, server_ctx);
                             Self::update_applied_hosts(
                                 project,
                                 server_ctx,
@@ -513,6 +576,7 @@ impl Dock for BuilderDock {
                             let item_id = item.id;
                             item.graph_name = graph_name.clone();
                             item.graph_data = updated.clone();
+                            self.sync_current_builder_context(project, server_ctx);
                             Self::update_applied_hosts(
                                 project,
                                 server_ctx,
@@ -539,13 +603,20 @@ impl Dock for BuilderDock {
                     let asset_id = asset.id;
                     project.add_builder_graph(asset);
                     self.selected = Some(asset_id);
+                    self.selected_builtin = None;
                     self.selected_treasury = None;
                     server_ctx.curr_builder_graph_id = Some(asset_id);
+                    self.sync_current_builder_context(project, server_ctx);
                     self.render_views(ui, ctx, project);
                     self.sync_params_ui(ui, project, server_ctx);
+                    let selection_value = if self.selected_builtin.is_some() {
+                        TheValue::Empty
+                    } else {
+                        TheValue::Id(asset_id)
+                    };
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Builder Selection Changed"),
-                        TheValue::Id(asset_id),
+                        selection_value,
                     ));
                     redraw = true;
                 }
@@ -590,9 +661,15 @@ impl Dock for BuilderDock {
                         );
                     }
                     crate::utils::editor_scene_full_rebuild(project, server_ctx);
+                    self.sync_current_builder_context(project, server_ctx);
+                    let selection_value = if self.selected_builtin.is_some() {
+                        TheValue::Empty
+                    } else {
+                        TheValue::Id(asset_id)
+                    };
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Builder Selection Changed"),
-                        TheValue::Id(asset_id),
+                        selection_value,
                     ));
                     self.render_views(ui, ctx, project);
                     self.sync_params_ui(ui, project, server_ctx);
@@ -602,6 +679,14 @@ impl Dock for BuilderDock {
                         "[BuilderGraphDebug][click] Apply Build ignored: no selected builder graph"
                     );
                 }
+            }
+            TheEvent::StateChanged(id, state) if id.name == BUILDER_AUTO_VERTEX_BUTTON => {
+                server_ctx.builder_auto_vertex_mode = *state == TheWidgetState::Selected;
+                self.sync_current_builder_context(project, server_ctx);
+                self.sync_auto_vertex_button(ui, server_ctx);
+                self.sync_params_ui(ui, project, server_ctx);
+                self.render_views(ui, ctx, project);
+                redraw = true;
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == "Builder Dock Clear Build" =>
@@ -630,16 +715,22 @@ impl Dock for BuilderDock {
             {
                 if let TheValue::Id(builder_id) = value {
                     self.selected = Some(*builder_id);
+                    self.selected_builtin = None;
                     self.selected_treasury = None;
                     server_ctx.curr_builder_graph_id = Some(*builder_id);
+                    self.sync_current_builder_context(project, server_ctx);
                 } else {
-                    self.selected = server_ctx.curr_builder_graph_id;
-                    if self.selected.is_some() {
+                    if self.selected_builtin.is_none() {
+                        self.selected = server_ctx.curr_builder_graph_id;
+                    }
+                    if self.selected.is_some() && self.selected_builtin.is_none() {
                         self.selected_treasury = None;
                     }
+                    self.sync_current_builder_context(project, server_ctx);
                 }
                 self.render_views(ui, ctx, project);
                 self.sync_params_ui(ui, project, server_ctx);
+                self.sync_auto_vertex_button(ui, server_ctx);
                 redraw = true;
             }
             TheEvent::Custom(id, _) if id.name == BUILDER_DOCK_REFRESH => {
@@ -647,6 +738,7 @@ impl Dock for BuilderDock {
                 ctx.ui.relayout = true;
                 self.render_views(ui, ctx, project);
                 self.sync_params_ui(ui, project, server_ctx);
+                self.sync_auto_vertex_button(ui, server_ctx);
                 redraw = true;
             }
             _ => {}
@@ -665,6 +757,23 @@ impl Dock for BuilderDock {
 }
 
 impl BuilderDock {
+    fn sync_auto_vertex_button(&self, ui: &mut TheUI, server_ctx: &ServerContext) {
+        if let Some(widget) = ui.get_widget(BUILDER_AUTO_VERTEX_BUTTON) {
+            widget.set_state(if server_ctx.builder_auto_vertex_mode {
+                TheWidgetState::Selected
+            } else {
+                TheWidgetState::None
+            });
+            widget.set_value(TheValue::Text("Auto Vertex".to_string()));
+        }
+    }
+
+    fn sync_current_builder_context(&self, project: &Project, server_ctx: &mut ServerContext) {
+        let asset = self.selected_builder_asset(project, server_ctx);
+        server_ctx.curr_builder_graph_name = asset.as_ref().map(|asset| asset.graph_name.clone());
+        server_ctx.curr_builder_graph_data = asset.as_ref().map(|asset| asset.graph_data.clone());
+    }
+
     fn param_replacement_values(nodeui: &TheNodeUI) -> Vec<(String, String)> {
         let mut out = Vec::new();
         for (_, item) in nodeui.list_items() {
@@ -762,20 +871,22 @@ impl BuilderDock {
     }
 
     fn params_toml(&self, project: &Project, server_ctx: &ServerContext) -> String {
-        let source = if let Some(index) = self.selected_treasury {
+        let source = if let Some(kind) = self.selected_builtin {
+            Some(self.builtin_source(kind, project, server_ctx))
+        } else if let Some(index) = self.selected_treasury {
             self.treasury_items
                 .get(index)
-                .map(|item| item.graph_data.as_str())
+                .map(|item| item.graph_data.clone())
         } else {
             self.selected
                 .or(server_ctx.curr_builder_graph_id)
                 .and_then(|builder_id| project.builder_graphs.get(&builder_id))
-                .map(|asset| asset.graph_data.as_str())
+                .map(|asset| asset.graph_data.clone())
         };
         let Some(source) = source else {
             return "# Select a Builder Graph to edit parameters.\n".to_string();
         };
-        let nodeui = Self::params_nodeui_for_source(source);
+        let nodeui = Self::params_nodeui_for_source(&source);
         if nodeui.is_empty() {
             "# No exposed builder parameters.\n# Add lines like: param radius = 0.14;\n".to_string()
         } else {
@@ -1169,6 +1280,7 @@ impl BuilderDock {
 
             let hovered = self.hovered == Some(spec.kind);
             let selected = match spec.kind {
+                BuilderCardKind::Builtin(kind) => self.selected_builtin == Some(kind),
                 BuilderCardKind::Asset(id) => self.selected == Some(id),
                 BuilderCardKind::Treasury(index) => self.selected_treasury == Some(index),
             };
@@ -1368,7 +1480,27 @@ impl BuilderDock {
                     .filter(|asset| self.matches_asset(asset))
                     .cloned()
                     .collect();
-                let mut out: Vec<BuilderCardSpec> = assets
+                let mut out: Vec<BuilderCardSpec> = Self::builtin_kinds()
+                    .iter()
+                    .filter_map(|kind| {
+                        let asset = Self::builtin_asset_for_host(*kind, false);
+                        let preview_asset = Self::builtin_asset_for_host(*kind, true);
+                        self.matches_asset(&asset).then(|| {
+                            let card_kind = BuilderCardKind::Builtin(*kind);
+                            BuilderCardSpec {
+                                kind: card_kind,
+                                preview: self.preview_for_asset_cached(
+                                    card_kind,
+                                    &preview_asset,
+                                    project,
+                                ),
+                                label: asset.graph_name.clone(),
+                                description: "Built-in organic".to_string(),
+                            }
+                        })
+                    })
+                    .collect();
+                let mut project_cards: Vec<BuilderCardSpec> = assets
                     .iter()
                     .map(|asset| {
                         let kind = BuilderCardKind::Asset(asset.id);
@@ -1382,7 +1514,8 @@ impl BuilderDock {
                         }
                     })
                     .collect();
-                out.sort_by(|a, b| a.label.cmp(&b.label));
+                project_cards.sort_by(|a, b| a.label.cmp(&b.label));
+                out.extend(project_cards);
                 out
             }
             BuilderTabKind::Treasury => {
@@ -1569,7 +1702,14 @@ impl BuilderDock {
         project: &Project,
         server_ctx: &ServerContext,
     ) -> Option<BuilderGraphAsset> {
-        if let Some(index) = self.selected_treasury {
+        if let Some(kind) = self.selected_builtin {
+            let mut asset = Self::builtin_asset(kind, project, server_ctx);
+            asset.graph_data = self.builtin_source(kind, project, server_ctx);
+            if let Ok(document) = BuilderDocument::from_text(&asset.graph_data) {
+                asset.graph_name = document.name().to_string();
+            }
+            Some(asset)
+        } else if let Some(index) = self.selected_treasury {
             self.treasury_items
                 .get(index)
                 .map(BuilderTreasuryItem::as_asset)
@@ -1582,6 +1722,59 @@ impl BuilderDock {
 
     fn matches_asset(&self, asset: &BuilderGraphAsset) -> bool {
         self.filter.is_empty() || asset.graph_name.to_lowercase().contains(&self.filter)
+    }
+
+    fn builtin_kinds() -> [BuilderBuiltinKind; 3] {
+        [
+            BuilderBuiltinKind::Grass,
+            BuilderBuiltinKind::Bush,
+            BuilderBuiltinKind::Tree,
+        ]
+    }
+
+    fn builtin_asset(
+        kind: BuilderBuiltinKind,
+        project: &Project,
+        server_ctx: &ServerContext,
+    ) -> BuilderGraphAsset {
+        let use_vertex = Self::builtin_uses_vertex(project, server_ctx);
+        Self::builtin_asset_for_host(kind, use_vertex)
+    }
+
+    fn builtin_uses_vertex(project: &Project, server_ctx: &ServerContext) -> bool {
+        if server_ctx.builder_auto_vertex_mode {
+            return true;
+        }
+        project
+            .get_map(server_ctx)
+            .map(|map| !map.selected_vertices.is_empty() && map.selected_sectors.is_empty())
+            .unwrap_or(false)
+    }
+
+    fn builtin_source(
+        &self,
+        kind: BuilderBuiltinKind,
+        project: &Project,
+        server_ctx: &ServerContext,
+    ) -> String {
+        let use_vertex = Self::builtin_uses_vertex(project, server_ctx);
+        self.builtin_sources
+            .get(&(kind, use_vertex))
+            .cloned()
+            .unwrap_or_else(|| Self::builtin_asset(kind, project, server_ctx).graph_data)
+    }
+
+    fn builtin_asset_for_host(kind: BuilderBuiltinKind, use_vertex: bool) -> BuilderGraphAsset {
+        match (kind, use_vertex) {
+            (BuilderBuiltinKind::Grass, true) => {
+                BuilderGraphAsset::new_grass_vertex("Grass".into())
+            }
+            (BuilderBuiltinKind::Bush, true) => BuilderGraphAsset::new_bush_vertex("Bush".into()),
+            (BuilderBuiltinKind::Tree, true) => BuilderGraphAsset::new_tree_vertex("Tree".into()),
+            (BuilderBuiltinKind::Grass, false) => BuilderGraphAsset::new_grass("Grass".into()),
+            (BuilderBuiltinKind::Bush, false) => BuilderGraphAsset::new_bush("Bush".into()),
+            (BuilderBuiltinKind::Tree, false) => BuilderGraphAsset::new_tree("Tree".into()),
+        }
     }
 
     fn matches_treasury_item(&self, item: &BuilderTreasuryItem) -> bool {

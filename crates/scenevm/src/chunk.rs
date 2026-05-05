@@ -1,4 +1,7 @@
-use crate::{BBox2D, GeoId, LineStrip2D, OrganicSurfaceDetail, Poly2D, Poly3D};
+use crate::{
+    BBox2D, GeoId, LineStrip2D, OrganicBillboardInstance, OrganicBillboardSprite,
+    OrganicSurfaceDetail, Poly2D, Poly3D,
+};
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 
@@ -18,6 +21,10 @@ pub struct Chunk {
 
     /// 3D Geometry,
     pub polys3d_map: rustc_hash::FxHashMap<GeoId, Vec<Poly3D>>,
+
+    /// Static organic billboard sprites and instances owned by this chunk.
+    pub organic_billboard_sprites: Vec<OrganicBillboardSprite>,
+    pub organic_billboard_instances: Vec<OrganicBillboardInstance>,
 
     /// The priority of the chunk.
     pub priority: i32,

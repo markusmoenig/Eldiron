@@ -1,0 +1,33 @@
+name = "Tree";
+host = sector;
+
+param density = 0.12;
+param min_height = 3.4;
+param max_height = 5.8;
+param min_width = 2.0;
+param max_width = 3.4;
+param shape = 0.7;
+param seed = 0.0;
+param auto_seed = 1.0;
+
+preview {
+    width = 10.0;
+    depth = 10.0;
+    height = 6.2;
+}
+
+detail tree {
+    min = vec2(0.0, 0.0);
+    max = vec2(host.width, host.depth);
+    density = density;
+    height_min = min_height;
+    height_max = max_height;
+    width_min = min_width;
+    width_max = max_width;
+    shape = shape;
+    seed = seed;
+    auto_seed = auto_seed;
+    material = TREE;
+};
+
+output = [];

@@ -13,7 +13,8 @@ use crate::{
 use crate::{BillboardAnimation, GeometrySource, LoopOp, ProfileLoop, RepeatMode, Sector};
 use buildergraph::{
     BuilderAssembly, BuilderAttachmentKind, BuilderCutMask, BuilderCutMode, BuilderDocument,
-    BuilderHost, BuilderPrimitive, BuilderSectorHost,
+    BuilderHost, BuilderOrganicBillboardBatch, BuilderOrganicKind, BuilderOrganicMeshBatch,
+    BuilderPrimitive, BuilderSectorHost, BuilderStaticBillboardBatch, BuilderVertexHost,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::GeoId;
@@ -4339,6 +4340,578 @@ fn resolve_builder_material_tile_id(
     }
 }
 
+fn builder_palette_tile_id_from_color(assets: &Assets, target: [f32; 4]) -> Option<Uuid> {
+    let mut best: Option<(usize, f32)> = None;
+    for (index, color) in assets.palette.colors.iter().enumerate() {
+        let Some(color) = color else {
+            continue;
+        };
+        let dr = color.r - target[0];
+        let dg = color.g - target[1];
+        let db = color.b - target[2];
+        let distance = dr * dr + dg * dg + db * db;
+        if best.is_none_or(|(_, best_distance)| distance < best_distance) {
+            best = Some((index, distance));
+        }
+    }
+    let (index, _) = best?;
+    PixelSource::PaletteIndex(index as u16)
+        .tile_from_tile_list(assets)
+        .map(|tile| tile.id)
+}
+
+fn organic_default_palette_color(material_slot: Option<&str>, tint: [f32; 4]) -> [f32; 4] {
+    let base = match material_slot {
+        Some("TREE_TRUNK") => [0.46, 0.30, 0.18, 1.0],
+        Some("TREE") => [0.24, 0.52, 0.22, 1.0],
+        Some("BUSH") => [0.28, 0.58, 0.24, 1.0],
+        Some("GRASS") => [0.36, 0.72, 0.26, 1.0],
+        _ => [0.32, 0.62, 0.26, 1.0],
+    };
+    [
+        (base[0] * tint[0]).clamp(0.0, 1.0),
+        (base[1] * tint[1]).clamp(0.0, 1.0),
+        (base[2] * tint[2]).clamp(0.0, 1.0),
+        (base[3] * tint[3]).clamp(0.0, 1.0),
+    ]
+}
+
+fn resolve_builder_organic_tile_id(
+    properties: &ValueContainer,
+    fallback_source: Option<&Value>,
+    material_slot: Option<&str>,
+    tint: [f32; 4],
+    assets: &Assets,
+) -> Uuid {
+    if let Some(material_slot) = material_slot {
+        let key = format!(
+            "builder_material_{}",
+            normalize_builder_material_key(material_slot)
+        );
+        if let Some(Value::Source(ps)) = properties.get(&key)
+            && let Some(tile) = ps.tile_from_tile_list(assets)
+        {
+            return tile.id;
+        }
+    }
+
+    if let Some(tile_id) = builder_palette_tile_id_from_color(
+        assets,
+        organic_default_palette_color(material_slot, tint),
+    ) {
+        return tile_id;
+    }
+
+    resolve_builder_material_tile_id(properties, fallback_source, material_slot, assets)
+}
+
+fn append_builder_static_billboard_plane(
+    mesh_vertices: &mut Vec<[f32; 4]>,
+    mesh_uvs: &mut Vec<[f32; 2]>,
+    mesh_indices: &mut Vec<(usize, usize, usize)>,
+    bottom_center: Vec3<f32>,
+    right: Vec3<f32>,
+    up: Vec3<f32>,
+    width: f32,
+    height: f32,
+) {
+    let half = right * (width * 0.5);
+    let bottom_left = bottom_center - half;
+    let bottom_right = bottom_center + half;
+    let top_right = bottom_right + up * height;
+    let top_left = bottom_left + up * height;
+    let base = mesh_vertices.len();
+
+    mesh_vertices.extend_from_slice(&[
+        [bottom_left.x, bottom_left.y, bottom_left.z, 1.0],
+        [bottom_right.x, bottom_right.y, bottom_right.z, 1.0],
+        [top_right.x, top_right.y, top_right.z, 1.0],
+        [top_left.x, top_left.y, top_left.z, 1.0],
+    ]);
+    mesh_uvs.extend_from_slice(&[[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]);
+    mesh_indices.extend_from_slice(&[
+        (base, base + 1, base + 2),
+        (base, base + 2, base + 3),
+        (base, base + 2, base + 1),
+        (base, base + 3, base + 2),
+    ]);
+}
+
+fn emit_builder_static_billboards(
+    batches: &[BuilderStaticBillboardBatch],
+    geo_id: GeoId,
+    host_properties: &ValueContainer,
+    fallback_source: Option<&Value>,
+    assets: &Assets,
+    vmchunk: &mut scenevm::Chunk,
+    origin: Vec3<f32>,
+    along: Vec3<f32>,
+    up: Vec3<f32>,
+    outward: Vec3<f32>,
+) -> bool {
+    let mut emitted = false;
+    for batch in batches {
+        if batch.instances.is_empty() {
+            continue;
+        }
+
+        let tile_id = resolve_builder_material_tile_id(
+            host_properties,
+            fallback_source,
+            batch.material_slot.as_deref(),
+            assets,
+        );
+        let mut mesh_vertices: Vec<[f32; 4]> = Vec::with_capacity(batch.instances.len() * 8);
+        let mut mesh_uvs: Vec<[f32; 2]> = Vec::with_capacity(batch.instances.len() * 8);
+        let mut mesh_indices: Vec<(usize, usize, usize)> =
+            Vec::with_capacity(batch.instances.len() * 8);
+
+        for instance in &batch.instances {
+            let bottom_center = origin
+                + along * instance.position.x
+                + up * instance.position.y
+                + outward * instance.position.z;
+            let (s, c) = instance.rotation.sin_cos();
+            let primary = (along * c + outward * s).normalized();
+            let secondary = (along * -s + outward * c).normalized();
+            append_builder_static_billboard_plane(
+                &mut mesh_vertices,
+                &mut mesh_uvs,
+                &mut mesh_indices,
+                bottom_center,
+                primary,
+                up,
+                instance.size.x,
+                instance.size.y,
+            );
+            append_builder_static_billboard_plane(
+                &mut mesh_vertices,
+                &mut mesh_uvs,
+                &mut mesh_indices,
+                bottom_center,
+                secondary,
+                up,
+                instance.size.x,
+                instance.size.y,
+            );
+        }
+
+        if !mesh_vertices.is_empty() {
+            vmchunk.add_poly_3d(
+                geo_id,
+                tile_id,
+                mesh_vertices,
+                mesh_uvs,
+                mesh_indices,
+                0,
+                true,
+            );
+            emitted = true;
+        }
+    }
+    emitted
+}
+
+fn emit_builder_organic_meshes(
+    batches: &[BuilderOrganicMeshBatch],
+    geo_id: GeoId,
+    host_properties: &ValueContainer,
+    fallback_source: Option<&Value>,
+    assets: &Assets,
+    vmchunk: &mut scenevm::Chunk,
+    origin: Vec3<f32>,
+    along: Vec3<f32>,
+    up: Vec3<f32>,
+    outward: Vec3<f32>,
+) -> bool {
+    let mut emitted = false;
+    for batch in batches {
+        if batch.vertices.is_empty() || batch.indices.is_empty() {
+            continue;
+        }
+
+        let tile_id = resolve_builder_organic_tile_id(
+            host_properties,
+            fallback_source,
+            batch.material_slot.as_deref(),
+            batch.tint,
+            assets,
+        );
+        let vertices = batch
+            .vertices
+            .iter()
+            .map(|p| {
+                let local = Vec3::new(p[0], p[1], p[2]);
+                let world = origin + along * local.x + up * local.y + outward * local.z;
+                [world.x, world.y, world.z, 1.0]
+            })
+            .collect::<Vec<_>>();
+        vmchunk.add_poly_3d(
+            geo_id,
+            tile_id,
+            vertices,
+            batch.uvs.clone(),
+            batch.indices.clone(),
+            0,
+            true,
+        );
+        emitted = true;
+    }
+    emitted
+}
+
+fn organic_sprite_palette_color_seeded(
+    assets: &Assets,
+    target: [f32; 3],
+    fallback: [u8; 4],
+    seed: u32,
+) -> [u8; 4] {
+    let mut candidates: Vec<([u8; 4], f32)> = assets
+        .palette
+        .colors
+        .iter()
+        .flatten()
+        .filter_map(|color| {
+            let brightness = color.r.max(color.g).max(color.b);
+            if brightness < 0.08 {
+                return None;
+            }
+            let dr = color.r - target[0];
+            let dg = color.g - target[1];
+            let db = color.b - target[2];
+            let distance = dr * dr + dg * dg + db * db;
+            (distance < 0.34).then_some((
+                [
+                    (color.r.clamp(0.0, 1.0) * 255.0).round() as u8,
+                    (color.g.clamp(0.0, 1.0) * 255.0).round() as u8,
+                    (color.b.clamp(0.0, 1.0) * 255.0).round() as u8,
+                    255,
+                ],
+                distance,
+            ))
+        })
+        .collect();
+    candidates.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    if candidates.is_empty() {
+        return fallback;
+    }
+    let pick_span = candidates.len().min(6);
+    let pick = (hash01(seed) * pick_span as f32).floor() as usize;
+    candidates[pick.min(pick_span - 1)].0
+}
+
+fn organic_tint_pixel(color: [u8; 4], amount: f32) -> [u8; 4] {
+    let scale = (1.0 + amount).clamp(0.35, 1.7);
+    [
+        ((color[0] as f32 * scale).clamp(0.0, 255.0)).round() as u8,
+        ((color[1] as f32 * scale).clamp(0.0, 255.0)).round() as u8,
+        ((color[2] as f32 * scale).clamp(0.0, 255.0)).round() as u8,
+        color[3],
+    ]
+}
+
+fn organic_put_pixel(rgba: &mut [u8], size: u32, x: i32, y: i32, color: [u8; 4]) {
+    if x < 0 || y < 0 || x >= size as i32 || y >= size as i32 {
+        return;
+    }
+    let idx = (y as usize * size as usize + x as usize) * 4;
+    rgba[idx..idx + 4].copy_from_slice(&color);
+}
+
+fn organic_draw_line(
+    rgba: &mut [u8],
+    size: u32,
+    mut x0: i32,
+    mut y0: i32,
+    x1: i32,
+    y1: i32,
+    color: [u8; 4],
+) {
+    let dx = (x1 - x0).abs();
+    let sx = if x0 < x1 { 1 } else { -1 };
+    let dy = -(y1 - y0).abs();
+    let sy = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx + dy;
+    loop {
+        organic_put_pixel(rgba, size, x0, y0, color);
+        if x0 == x1 && y0 == y1 {
+            break;
+        }
+        let e2 = err * 2;
+        if e2 >= dy {
+            err += dy;
+            x0 += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
+fn organic_draw_disc(
+    rgba: &mut [u8],
+    size: u32,
+    cx: f32,
+    cy: f32,
+    rx: f32,
+    ry: f32,
+    seed: u32,
+    dark: [u8; 4],
+    mid: [u8; 4],
+    light: [u8; 4],
+) {
+    let min_x = (cx - rx - 1.0).floor() as i32;
+    let max_x = (cx + rx + 1.0).ceil() as i32;
+    let min_y = (cy - ry - 1.0).floor() as i32;
+    let max_y = (cy + ry + 1.0).ceil() as i32;
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let nx = (x as f32 - cx) / rx.max(0.01);
+            let ny = (y as f32 - cy) / ry.max(0.01);
+            let noise =
+                hash01(seed ^ ((x as u32).wrapping_mul(271)) ^ ((y as u32).wrapping_mul(557)));
+            let d = nx * nx + ny * ny;
+            if d < 1.0 + (noise - 0.5) * 0.36 {
+                let lit = (1.0 - d).clamp(0.0, 1.0);
+                let color = if noise + lit * 0.35 > 0.82 {
+                    light
+                } else if noise < 0.28 || d > 0.82 {
+                    dark
+                } else {
+                    mid
+                };
+                organic_put_pixel(rgba, size, x, y, color);
+            }
+        }
+    }
+}
+
+pub(crate) fn organic_billboard_sprite(
+    kind: BuilderOrganicKind,
+    seed: u64,
+    variant: u32,
+    shape: f32,
+    assets: &Assets,
+) -> scenevm::OrganicBillboardSprite {
+    let size = match kind {
+        BuilderOrganicKind::Grass => 24,
+        BuilderOrganicKind::Bush => 32,
+        BuilderOrganicKind::Tree => 48,
+    };
+    let seed32 = (seed as u32)
+        .wrapping_add(variant.wrapping_mul(0x9e37_79b9))
+        .wrapping_add(match kind {
+            BuilderOrganicKind::Grass => 11,
+            BuilderOrganicKind::Bush => 23,
+            BuilderOrganicKind::Tree => 37,
+        });
+    let shape = shape.clamp(0.0, 1.0);
+    let mut rgba = vec![0u8; size as usize * size as usize * 4];
+    let seasonal = hash01(seed32 ^ 0xa5a5_1287) * 2.0 - 1.0;
+    let brightness = hash01(seed32 ^ 0x51ed_7a11) * 0.18 - 0.07;
+    let dark_green = organic_sprite_palette_color_seeded(
+        assets,
+        [
+            0.20 + seasonal * 0.05,
+            0.36 + seasonal * 0.08,
+            0.16 - seasonal * 0.02,
+        ],
+        organic_tint_pixel([42, 83, 34, 255], brightness),
+        seed32 ^ 0x10,
+    );
+    let mid_green = organic_sprite_palette_color_seeded(
+        assets,
+        [
+            0.33 + seasonal * 0.08,
+            0.55 + seasonal * 0.10,
+            0.24 - seasonal * 0.03,
+        ],
+        organic_tint_pixel([72, 130, 55, 255], brightness),
+        seed32 ^ 0x20,
+    );
+    let light_green = organic_sprite_palette_color_seeded(
+        assets,
+        [
+            0.50 + seasonal * 0.10,
+            0.70 + seasonal * 0.08,
+            0.32 - seasonal * 0.02,
+        ],
+        organic_tint_pixel([126, 174, 78, 255], brightness),
+        seed32 ^ 0x30,
+    );
+    let trunk = organic_sprite_palette_color_seeded(
+        assets,
+        [0.40 + seasonal * 0.02, 0.27 + seasonal * 0.02, 0.15],
+        organic_tint_pixel([103, 70, 39, 255], brightness * 0.45),
+        seed32 ^ 0x40,
+    );
+
+    match kind {
+        BuilderOrganicKind::Grass => {
+            let base_y = size as i32 - 3;
+            let blades = 9 + (shape * 10.0).round() as u32;
+            for blade in 0..blades {
+                let h = 7 + (hash01(seed32 ^ blade * 917) * (10.0 + shape * 8.0)) as i32;
+                let x = 4 + (hash01(seed32 ^ blade * 613) * (size as f32 - 8.0)) as i32;
+                let lean = (hash01(seed32 ^ blade * 421) * (5.0 + shape * 5.0)
+                    - (2.5 + shape * 2.5)) as i32;
+                let color = if blade % 3 == 0 {
+                    light_green
+                } else {
+                    mid_green
+                };
+                organic_draw_line(&mut rgba, size, x, base_y, x + lean, base_y - h, color);
+            }
+        }
+        BuilderOrganicKind::Bush => {
+            let cx = size as f32 * 0.5;
+            let cy = size as f32 * 0.55;
+            let rx = size as f32 * (0.32 + shape * 0.16);
+            let ry = size as f32 * (0.26 + shape * 0.12);
+            for y in 4..size as i32 - 3 {
+                for x in 3..size as i32 - 3 {
+                    let nx = (x as f32 - cx) / rx;
+                    let ny = (y as f32 - cy) / ry;
+                    let noise = hash01(seed32 ^ ((x as u32) * 193) ^ ((y as u32) * 491));
+                    if nx * nx + ny * ny < 1.0 + (noise - 0.5) * (0.18 + shape * 0.42) {
+                        let color = if noise > 0.72 {
+                            light_green
+                        } else if noise < 0.28 {
+                            dark_green
+                        } else {
+                            mid_green
+                        };
+                        organic_put_pixel(&mut rgba, size, x, y, color);
+                    }
+                }
+            }
+        }
+        BuilderOrganicKind::Tree => {
+            let base_x = size as i32 / 2 + (hash01(seed32 ^ 0x86ab) * 5.0 - 2.5).round() as i32;
+            let base_y = size as i32 - 3;
+            let top_y = 10 + (hash01(seed32 ^ 0x44) * (6.0 - shape * 2.0).max(1.0)).round() as i32;
+            let trunk_bend = (hash01(seed32 ^ 0xb17d) * 8.0 - 4.0) * (0.35 + shape * 0.45);
+            let trunk_height = (base_y - top_y).max(1) as f32;
+            let trunk_x_at = |t: f32| -> i32 {
+                (base_x as f32
+                    + trunk_bend * t * t
+                    + (t * std::f32::consts::PI * 2.0).sin() * (hash01(seed32 ^ 0xcc31) * 1.4))
+                    .round() as i32
+            };
+
+            let mut branch_tips = Vec::new();
+            for step in 0..=trunk_height as i32 {
+                let t = step as f32 / trunk_height;
+                let y = base_y - step;
+                let x = trunk_x_at(t);
+                let half_w = (2.2 - t * 1.45).max(0.65);
+                for ox in -(half_w.ceil() as i32)..=(half_w.ceil() as i32) {
+                    if (ox as f32).abs() <= half_w {
+                        organic_put_pixel(&mut rgba, size, x + ox, y, trunk);
+                    }
+                }
+            }
+
+            let branches = 7 + (shape * 7.0).round() as u32;
+            for branch in 0..branches {
+                let t = 0.18 + branch as f32 / branches.max(1) as f32 * 0.76;
+                let sx = trunk_x_at(t);
+                let sy = base_y - (trunk_height * t).round() as i32;
+                let side = if branch % 2 == 0 { -1.0 } else { 1.0 };
+                let len = 7.0 + hash01(seed32 ^ branch.wrapping_mul(733)) * (10.0 + shape * 8.0);
+                let lift = 3.0 + hash01(seed32 ^ branch.wrapping_mul(991)) * (6.0 + shape * 5.0);
+                let ex = sx + (side * len).round() as i32;
+                let ey = sy - lift.round() as i32;
+                organic_draw_line(&mut rgba, size, sx, sy, ex, ey, trunk);
+                branch_tips.push((ex as f32, ey as f32, branch));
+                if branch > 2 && hash01(seed32 ^ branch.wrapping_mul(1231)) > 0.35 {
+                    let fork_side = -side * (0.55 + hash01(seed32 ^ branch * 1777) * 0.35);
+                    let fx = ex + (fork_side * len * 0.42).round() as i32;
+                    let fy = ey - (lift * 0.45).round() as i32;
+                    organic_draw_line(&mut rgba, size, ex, ey, fx, fy, trunk);
+                    branch_tips.push((fx as f32, fy as f32, branch ^ 0x55));
+                }
+            }
+            branch_tips.push((trunk_x_at(1.0) as f32, top_y as f32, 0x77));
+
+            for (x, y, branch_seed) in branch_tips {
+                let spread = 4.5 + shape * 5.0 + hash01(seed32 ^ branch_seed * 3457) * 3.5;
+                let rx = spread * (0.82 + hash01(seed32 ^ branch_seed * 4513) * 0.45);
+                let ry = spread * (0.55 + hash01(seed32 ^ branch_seed * 5527) * 0.50);
+                organic_draw_disc(
+                    &mut rgba,
+                    size,
+                    x,
+                    y,
+                    rx,
+                    ry,
+                    seed32 ^ branch_seed.wrapping_mul(0x45d9_f3b),
+                    dark_green,
+                    mid_green,
+                    light_green,
+                );
+            }
+        }
+    }
+
+    scenevm::OrganicBillboardSprite {
+        width: size,
+        height: size,
+        rgba,
+    }
+}
+
+fn emit_builder_organic_billboards(
+    batches: &[BuilderOrganicBillboardBatch],
+    assets: &Assets,
+    vmchunk: &mut scenevm::Chunk,
+    origin: Vec3<f32>,
+    along: Vec3<f32>,
+    up: Vec3<f32>,
+    outward: Vec3<f32>,
+    anchor_at_origin: bool,
+) -> bool {
+    let mut emitted = false;
+    for batch in batches {
+        if batch.instances.is_empty() {
+            continue;
+        }
+        let sprite_base = vmchunk.organic_billboard_sprites.len() as u32;
+        let variant_count = 8u32;
+        for variant in 0..variant_count {
+            vmchunk
+                .organic_billboard_sprites
+                .push(organic_billboard_sprite(
+                    batch.kind,
+                    batch.seed,
+                    variant,
+                    batch.shape,
+                    assets,
+                ));
+        }
+        for instance in &batch.instances {
+            let local = if anchor_at_origin {
+                Vec3::new(0.0, instance.position.y, 0.0)
+            } else {
+                instance.position
+            };
+            let world = origin + along * local.x + up * local.y + outward * local.z;
+            vmchunk
+                .organic_billboard_instances
+                .push(scenevm::OrganicBillboardInstance {
+                    center: [world.x, world.y, world.z],
+                    width: instance.size.x.max(0.01),
+                    height: instance.size.y.max(0.01),
+                    sprite_index: sprite_base + (instance.variant as u32 % variant_count),
+                    flags: 0,
+                });
+            emitted = true;
+        }
+    }
+    emitted
+}
+
 fn emit_builder_attached_item_graphs(
     assembly: &BuilderAssembly,
     host_properties: &ValueContainer,
@@ -4435,10 +5008,7 @@ fn emit_builder_attached_item_graphs(
                         child_tz,
                     );
                     let local_child_center_offset = rotate_vec3_y(
-                        rotate_vec3_x(
-                            Vec3::new(0.0, scaled.y * 0.5, 0.0),
-                            transform.rotation_x,
-                        ),
+                        rotate_vec3_x(Vec3::new(0.0, scaled.y * 0.5, 0.0), transform.rotation_x),
                         transform.rotation_y,
                     );
                     let local_child = rotate_vec3_y(
@@ -4619,7 +5189,11 @@ fn emit_builder_linedef_group_meshes(
     let Ok(assembly) = graph.evaluate() else {
         return false;
     };
-    if assembly.primitives.is_empty() {
+    if assembly.primitives.is_empty()
+        && assembly.static_billboards.is_empty()
+        && assembly.organic_billboards.is_empty()
+        && assembly.organic_meshes.is_empty()
+    {
         return false;
     }
 
@@ -4770,6 +5344,41 @@ fn emit_builder_linedef_group_meshes(
         }
     }
 
+    let emitted_billboards = emit_builder_static_billboards(
+        &assembly.static_billboards,
+        GeoId::Linedef(host_id),
+        host_properties,
+        host_properties.get("source"),
+        assets,
+        vmchunk,
+        host_origin,
+        along,
+        up,
+        outward,
+    );
+    let emitted_organic_meshes = emit_builder_organic_meshes(
+        &assembly.organic_meshes,
+        GeoId::Linedef(host_id),
+        host_properties,
+        host_properties.get("source"),
+        assets,
+        vmchunk,
+        host_origin,
+        along,
+        up,
+        outward,
+    );
+    let emitted_organic_billboards = emit_builder_organic_billboards(
+        &assembly.organic_billboards,
+        assets,
+        vmchunk,
+        host_origin,
+        along,
+        up,
+        outward,
+        false,
+    );
+
     emit_builder_attached_item_graphs(
         &assembly,
         host_properties,
@@ -4782,7 +5391,10 @@ fn emit_builder_linedef_group_meshes(
         assets,
         vmchunk,
     );
-    true
+    emitted_billboards
+        || emitted_organic_meshes
+        || emitted_organic_billboards
+        || !assembly.primitives.is_empty()
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -5031,10 +5643,33 @@ fn emit_builder_vertex_meshes(
     .try_normalized()
     .unwrap_or_else(|| builder_linedef_outward(along, host_properties));
     let up = Vec3::new(0.0, 1.0, 0.0);
-    let Ok(assembly) = graph.evaluate() else {
+    let preview = graph.preview_host();
+    let seed_x = (origin.x * 1000.0).round() as i64 as u64;
+    let seed_y = (origin.y * 1000.0).round() as i64 as u64;
+    let seed_z = (origin.z * 1000.0).round() as i64 as u64;
+    let host_seed = (host_id as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15)
+        ^ seed_x.rotate_left(11)
+        ^ seed_y.rotate_left(29)
+        ^ seed_z.rotate_left(43);
+    let host = BuilderHost::Vertex(BuilderVertexHost {
+        id: Uuid::from_u128(0xB17D_0000_0000_0000_0000_0000_0000_0000u128 | host_id as u128),
+        seed: host_seed,
+        width: if hosts.len() >= 2 {
+            span_length.max(0.01)
+        } else {
+            preview.width.max(0.01)
+        },
+        depth: preview.depth.max(0.01),
+        height: preview.height.max(0.01),
+    });
+    let Ok(assembly) = graph.evaluate_with_host(&host) else {
         return false;
     };
-    if assembly.primitives.is_empty() {
+    if assembly.primitives.is_empty()
+        && assembly.static_billboards.is_empty()
+        && assembly.organic_billboards.is_empty()
+        && assembly.organic_meshes.is_empty()
+    {
         return false;
     }
 
@@ -5196,7 +5831,19 @@ fn emit_builder_vertex_meshes(
         assets,
         vmchunk,
     );
-    true
+    let emitted_organic_billboards = emit_builder_organic_billboards(
+        &assembly.organic_billboards,
+        assets,
+        vmchunk,
+        origin,
+        along,
+        up,
+        outward,
+        true,
+    );
+    emitted_organic_billboards
+        || !assembly.primitives.is_empty()
+        || !assembly.static_billboards.is_empty()
 }
 
 fn generate_vertex_builder_features(
@@ -8908,7 +9555,11 @@ fn emit_builder_sector_meshes(
     let Ok(assembly) = graph.evaluate_with_host(&host) else {
         return false;
     };
-    if assembly.primitives.is_empty() {
+    if assembly.primitives.is_empty()
+        && assembly.static_billboards.is_empty()
+        && assembly.organic_billboards.is_empty()
+        && assembly.organic_meshes.is_empty()
+    {
         return false;
     }
     let along = surface.edit_uv.right.normalized();
@@ -9082,6 +9733,40 @@ fn emit_builder_sector_meshes(
             }
         }
     }
+    let emitted_billboards = emit_builder_static_billboards(
+        &assembly.static_billboards,
+        builder_geo_id,
+        &sector.properties,
+        fallback_source.as_ref(),
+        assets,
+        vmchunk,
+        host_origin,
+        along,
+        upward,
+        outward,
+    );
+    let emitted_organic_meshes = emit_builder_organic_meshes(
+        &assembly.organic_meshes,
+        builder_geo_id,
+        &sector.properties,
+        fallback_source.as_ref(),
+        assets,
+        vmchunk,
+        host_origin,
+        along,
+        upward,
+        outward,
+    );
+    let emitted_organic_billboards = emit_builder_organic_billboards(
+        &assembly.organic_billboards,
+        assets,
+        vmchunk,
+        host_origin,
+        along,
+        upward,
+        outward,
+        false,
+    );
     emit_builder_attached_item_graphs(
         &assembly,
         &sector.properties,
@@ -9094,7 +9779,10 @@ fn emit_builder_sector_meshes(
         assets,
         vmchunk,
     );
-    true
+    emitted_billboards
+        || emitted_organic_meshes
+        || emitted_organic_billboards
+        || !assembly.primitives.is_empty()
 }
 
 /// Process a feature loop using the SurfaceAction trait system

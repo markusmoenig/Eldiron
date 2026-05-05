@@ -19,6 +19,22 @@ pub enum GeoId {
     Gizmo(u32),
 }
 
+#[derive(Debug, Clone)]
+pub struct OrganicBillboardSprite {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OrganicBillboardInstance {
+    pub center: [f32; 3],
+    pub width: f32,
+    pub height: f32,
+    pub sprite_index: u32,
+    pub flags: u32,
+}
+
 /// VM instruction set
 #[derive(Debug)]
 pub enum Atom {
@@ -160,6 +176,11 @@ pub enum Atom {
     SetOrganicVisible {
         visible: bool,
     },
+    SetOrganicBillboards {
+        sprites: Vec<OrganicBillboardSprite>,
+        instances: Vec<OrganicBillboardInstance>,
+    },
+    ClearOrganicBillboards,
     RemoveAvatarBillboardData {
         id: GeoId,
     },

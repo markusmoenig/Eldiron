@@ -441,6 +441,12 @@ pub struct ServerContext {
     /// The currently selected builder graph asset, if any.
     pub curr_builder_graph_id: Option<Uuid>,
 
+    /// The currently selected BuilderGraph name, including built-ins that are not project assets.
+    pub curr_builder_graph_name: Option<String>,
+
+    /// The currently selected BuilderGraph source, including built-ins that are not project assets.
+    pub curr_builder_graph_data: Option<String>,
+
     /// The currently selected conceptual dungeon paint archetype.
     pub curr_dungeon_tile: DungeonTileKind,
 
@@ -515,6 +521,9 @@ pub struct ServerContext {
 
     /// Whether the Builder tool is currently active.
     pub builder_tool_active: bool,
+
+    /// Whether the Builder tool should place vertex-hosted builders directly on 3D clicks.
+    pub builder_auto_vertex_mode: bool,
     /// Whether the Palette tool is currently active.
     pub palette_tool_active: bool,
 
@@ -728,6 +737,8 @@ impl ServerContext {
             curr_tile_source: None,
             tile_node_group_id: None,
             curr_builder_graph_id: None,
+            curr_builder_graph_name: None,
+            curr_builder_graph_data: None,
             curr_dungeon_tile: DungeonTileKind::FLOOR,
             prev_dungeon_dock: None,
             curr_dungeon_floor_base: 0.0,
@@ -753,6 +764,7 @@ impl ServerContext {
             curr_dungeon_render_fog_color: "#000000".to_string(),
             prev_dungeon_subdivisions: None,
             builder_tool_active: false,
+            builder_auto_vertex_mode: false,
             palette_tool_active: false,
             curr_tile_frame_index: 0,
 
@@ -938,7 +950,10 @@ impl ServerContext {
         self.curr_screen = Uuid::nil();
         self.tile_node_group_id = None;
         self.curr_builder_graph_id = None;
+        self.curr_builder_graph_name = None;
+        self.curr_builder_graph_data = None;
         self.builder_tool_active = false;
+        self.builder_auto_vertex_mode = false;
         self.palette_tool_active = false;
         self.interactions.clear();
         self.moved_entities.clear();

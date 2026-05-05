@@ -225,6 +225,22 @@ pub enum BuilderScriptSurfaceDetail {
         cyl_material: Option<String>,
         tile_alias: Option<String>,
     },
+    Organic {
+        kind: BuilderOrganicKind,
+        min: [BuilderScriptScalarExpr; 2],
+        max: [BuilderScriptScalarExpr; 2],
+        count: Option<BuilderScriptScalarExpr>,
+        density: Option<BuilderScriptScalarExpr>,
+        height_min: Option<BuilderScriptScalarExpr>,
+        height_max: Option<BuilderScriptScalarExpr>,
+        width_min: Option<BuilderScriptScalarExpr>,
+        width_max: Option<BuilderScriptScalarExpr>,
+        offset: Option<BuilderScriptScalarExpr>,
+        seed: Option<BuilderScriptScalarExpr>,
+        host_seed: Option<BuilderScriptScalarExpr>,
+        shape: Option<BuilderScriptScalarExpr>,
+        material: Option<String>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -508,6 +524,10 @@ pub struct BuilderAssembly {
     #[serde(default)]
     pub static_billboards: Vec<BuilderStaticBillboardBatch>,
     #[serde(default)]
+    pub organic_billboards: Vec<BuilderOrganicBillboardBatch>,
+    #[serde(default)]
+    pub organic_meshes: Vec<BuilderOrganicMeshBatch>,
+    #[serde(default)]
     pub warnings: Vec<BuilderWarning>,
 }
 
@@ -655,6 +675,14 @@ pub enum BuilderPlankDirection {
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+pub enum BuilderOrganicKind {
+    Grass,
+    Bush,
+    Tree,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub enum BuilderCutMode {
     Cut,
     Replace,
@@ -696,6 +724,39 @@ pub enum BuilderBillboardFacing {
     AxialY,
     FixedCross,
     GroundAligned,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BuilderOrganicMeshBatch {
+    pub material_slot: Option<String>,
+    #[serde(default = "default_tint")]
+    pub tint: [f32; 4],
+    #[serde(default)]
+    pub vertices: Vec<[f32; 3]>,
+    #[serde(default)]
+    pub uvs: Vec<[f32; 2]>,
+    #[serde(default)]
+    pub indices: Vec<(usize, usize, usize)>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BuilderOrganicBillboardBatch {
+    pub kind: BuilderOrganicKind,
+    pub material_slot: Option<String>,
+    #[serde(default)]
+    pub seed: u64,
+    #[serde(default = "default_organic_shape")]
+    pub shape: f32,
+    #[serde(default)]
+    pub instances: Vec<BuilderOrganicBillboard>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct BuilderOrganicBillboard {
+    pub position: Vec3<f32>,
+    pub size: Vec2<f32>,
+    #[serde(default)]
+    pub variant: u16,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
@@ -783,6 +844,448 @@ fn builder_param_rand01(seed: u64, index: u64) -> f32 {
     x = x.wrapping_mul(0x94d049bb133111eb);
     x ^= x >> 31;
     ((x >> 40) as f32) / ((1u64 << 24) as f32)
+}
+
+fn default_organic_shape() -> f32 {
+    0.5
+}
+
+fn organic_default_density(kind: BuilderOrganicKind) -> f32 {
+    match kind {
+        BuilderOrganicKind::Grass => 18.0,
+        BuilderOrganicKind::Bush => 0.75,
+        BuilderOrganicKind::Tree => 0.18,
+    }
+}
+
+fn organic_default_height_range(kind: BuilderOrganicKind) -> (f32, f32) {
+    match kind {
+        BuilderOrganicKind::Grass => (0.12, 0.38),
+        BuilderOrganicKind::Bush => (0.55, 1.15),
+        BuilderOrganicKind::Tree => (1.8, 3.2),
+    }
+}
+
+fn organic_default_width_range(kind: BuilderOrganicKind) -> (f32, f32) {
+    match kind {
+        BuilderOrganicKind::Grass => (0.10, 0.24),
+        BuilderOrganicKind::Bush => (0.55, 1.15),
+        BuilderOrganicKind::Tree => (1.15, 2.1),
+    }
+}
+
+fn organic_default_material(kind: BuilderOrganicKind) -> &'static str {
+    match kind {
+        BuilderOrganicKind::Grass => "GRASS",
+        BuilderOrganicKind::Bush => "BUSH",
+        BuilderOrganicKind::Tree => "TREE",
+    }
+}
+
+#[allow(dead_code)]
+fn organic_tint(kind: BuilderOrganicKind, seed: u64, index: u64) -> [f32; 4] {
+    let r0 = builder_param_rand01(seed ^ 0x6f1d_2b71_9acd_f12d, index);
+    let r1 = builder_param_rand01(seed ^ 0xbb67_ae85_84ca_a73b, index);
+    let r2 = builder_param_rand01(seed ^ 0x3c6e_f372_fe94_f82b, index);
+    match kind {
+        BuilderOrganicKind::Grass => [0.55 + r0 * 0.22, 0.78 + r1 * 0.18, 0.38 + r2 * 0.18, 1.0],
+        BuilderOrganicKind::Bush => [0.45 + r0 * 0.18, 0.62 + r1 * 0.20, 0.34 + r2 * 0.16, 1.0],
+        BuilderOrganicKind::Tree => [0.36 + r0 * 0.16, 0.55 + r1 * 0.22, 0.28 + r2 * 0.16, 1.0],
+    }
+}
+
+fn organic_kind_seed(kind: BuilderOrganicKind) -> u64 {
+    match kind {
+        BuilderOrganicKind::Grass => 0x4752_4153_535f_3031,
+        BuilderOrganicKind::Bush => 0x4255_5348_5f5f_3031,
+        BuilderOrganicKind::Tree => 0x5452_4545_5f5f_3031,
+    }
+}
+
+fn organic_color_slot(kind: BuilderOrganicKind) -> &'static str {
+    match kind {
+        BuilderOrganicKind::Grass => "GRASS",
+        BuilderOrganicKind::Bush => "BUSH",
+        BuilderOrganicKind::Tree => "TREE",
+    }
+}
+
+#[allow(dead_code)]
+fn organic_push_vertex(
+    vertices: &mut Vec<[f32; 3]>,
+    uvs: &mut Vec<[f32; 2]>,
+    p: Vec3<f32>,
+    uv: [f32; 2],
+) -> usize {
+    let index = vertices.len();
+    vertices.push([p.x, p.y, p.z]);
+    uvs.push(uv);
+    index
+}
+
+#[allow(dead_code)]
+fn organic_push_double_sided_tri(
+    indices: &mut Vec<(usize, usize, usize)>,
+    a: usize,
+    b: usize,
+    c: usize,
+) {
+    indices.push((a, b, c));
+    indices.push((a, c, b));
+}
+
+#[allow(dead_code)]
+fn organic_push_double_sided_quad(
+    vertices: &mut Vec<[f32; 3]>,
+    uvs: &mut Vec<[f32; 2]>,
+    indices: &mut Vec<(usize, usize, usize)>,
+    a: Vec3<f32>,
+    b: Vec3<f32>,
+    c: Vec3<f32>,
+    d: Vec3<f32>,
+) {
+    let base = vertices.len();
+    vertices.extend_from_slice(&[
+        [a.x, a.y, a.z],
+        [b.x, b.y, b.z],
+        [c.x, c.y, c.z],
+        [d.x, d.y, d.z],
+    ]);
+    uvs.extend_from_slice(&[[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]);
+    indices.extend_from_slice(&[
+        (base, base + 1, base + 2),
+        (base, base + 2, base + 3),
+        (base, base + 2, base + 1),
+        (base, base + 3, base + 2),
+    ]);
+}
+
+#[allow(dead_code)]
+fn organic_append_grass_clump(
+    vertices: &mut Vec<[f32; 3]>,
+    uvs: &mut Vec<[f32; 2]>,
+    indices: &mut Vec<(usize, usize, usize)>,
+    center: Vec3<f32>,
+    width: f32,
+    height: f32,
+    seed: u64,
+    index: u64,
+) {
+    let blades = 4 + (builder_param_rand01(seed ^ 0x91e1_ba5e_9a2f_3b21, index) * 5.0) as usize;
+    for blade in 0..blades {
+        let blade_index = index * 17 + blade as u64;
+        let yaw =
+            builder_param_rand01(seed ^ 0xc2b2_ae35_87b6_271f, blade_index) * std::f32::consts::TAU;
+        let (s, c) = yaw.sin_cos();
+        let side = Vec3::new(c, 0.0, s);
+        let bend_dir = Vec3::new(-s, 0.0, c);
+        let blade_h = height
+            * (0.72 + builder_param_rand01(seed ^ 0x1656_67b1_9e37_79f9, blade_index) * 0.45);
+        let blade_w =
+            width * (0.18 + builder_param_rand01(seed ^ 0xd6e8_feb8_6659_fd93, blade_index) * 0.28);
+        let root_jitter = width * 0.22;
+        let root = center
+            + Vec3::new(
+                (builder_param_rand01(seed ^ 0x9e37_79b9_7f4a_7c15, blade_index) - 0.5)
+                    * root_jitter,
+                0.0,
+                (builder_param_rand01(seed ^ 0xbf58_476d_1ce4_e5b9, blade_index) - 0.5)
+                    * root_jitter,
+            );
+        let lean = bend_dir
+            * blade_h
+            * (0.12 + builder_param_rand01(seed ^ 0x94d0_49bb_1331_11eb, blade_index) * 0.24);
+        let mid = root + Vec3::new(0.0, blade_h * 0.55, 0.0) + lean * 0.38;
+        let tip = root + Vec3::new(0.0, blade_h, 0.0) + lean;
+        let b0 = root - side * (blade_w * 0.5);
+        let b1 = root + side * (blade_w * 0.5);
+        let m0 = mid - side * (blade_w * 0.22);
+        let m1 = mid + side * (blade_w * 0.22);
+        let i0 = organic_push_vertex(vertices, uvs, b0, [0.0, 1.0]);
+        let i1 = organic_push_vertex(vertices, uvs, b1, [1.0, 1.0]);
+        let i2 = organic_push_vertex(vertices, uvs, m1, [0.72, 0.42]);
+        let i3 = organic_push_vertex(vertices, uvs, m0, [0.28, 0.42]);
+        let i4 = organic_push_vertex(vertices, uvs, tip, [0.5, 0.0]);
+        organic_push_double_sided_quad(vertices, uvs, indices, b0, b1, m1, m0);
+        organic_push_double_sided_tri(indices, i3, i2, i4);
+        let _ = (i0, i1);
+    }
+}
+
+#[allow(dead_code)]
+fn organic_append_ellipsoid(
+    vertices: &mut Vec<[f32; 3]>,
+    uvs: &mut Vec<[f32; 2]>,
+    indices: &mut Vec<(usize, usize, usize)>,
+    center: Vec3<f32>,
+    radius: Vec3<f32>,
+    seed: u64,
+    index: u64,
+) {
+    let rings = 4usize;
+    let segments = 8usize;
+    let base = vertices.len();
+    for ring in 0..=rings {
+        let v = ring as f32 / rings as f32;
+        let theta = v * std::f32::consts::PI;
+        let y = theta.cos();
+        let ring_r = theta.sin();
+        for segment in 0..segments {
+            let u = segment as f32 / segments as f32;
+            let phi = u * std::f32::consts::TAU;
+            let jitter = 0.86
+                + builder_param_rand01(
+                    seed ^ 0xf00d_fade_1234_9876,
+                    index * 131 + ring as u64 * 17 + segment as u64,
+                ) * 0.28;
+            let p = Vec3::new(
+                phi.cos() * ring_r * radius.x * jitter,
+                y * radius.y * jitter,
+                phi.sin() * ring_r * radius.z * jitter,
+            );
+            organic_push_vertex(vertices, uvs, center + p, [u, v]);
+        }
+    }
+    for ring in 0..rings {
+        for segment in 0..segments {
+            let next = (segment + 1) % segments;
+            let a = base + ring * segments + segment;
+            let b = base + ring * segments + next;
+            let c = base + (ring + 1) * segments + next;
+            let d = base + (ring + 1) * segments + segment;
+            indices.push((a, b, c));
+            indices.push((a, c, d));
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn organic_append_tapered_cylinder(
+    vertices: &mut Vec<[f32; 3]>,
+    uvs: &mut Vec<[f32; 2]>,
+    indices: &mut Vec<(usize, usize, usize)>,
+    base_center: Vec3<f32>,
+    height: f32,
+    base_radius: f32,
+    top_radius: f32,
+    seed: u64,
+    index: u64,
+) {
+    let segments = 7usize;
+    let rings = 3usize;
+    let base = vertices.len();
+    for ring in 0..=rings {
+        let t = ring as f32 / rings as f32;
+        let radius = base_radius + (top_radius - base_radius) * t;
+        let wobble = Vec3::new(
+            (builder_param_rand01(seed ^ 0x5a17_9a44_51f3_9e11, index + ring as u64) - 0.5)
+                * base_radius
+                * 0.35
+                * t,
+            height * t,
+            (builder_param_rand01(seed ^ 0x9d2c_5680_642f_e57b, index + ring as u64) - 0.5)
+                * base_radius
+                * 0.35
+                * t,
+        );
+        for segment in 0..segments {
+            let u = segment as f32 / segments as f32;
+            let phi = u * std::f32::consts::TAU;
+            organic_push_vertex(
+                vertices,
+                uvs,
+                base_center + wobble + Vec3::new(phi.cos() * radius, 0.0, phi.sin() * radius),
+                [u, t],
+            );
+        }
+    }
+    for ring in 0..rings {
+        for segment in 0..segments {
+            let next = (segment + 1) % segments;
+            let a = base + ring * segments + segment;
+            let b = base + ring * segments + next;
+            let c = base + (ring + 1) * segments + next;
+            let d = base + (ring + 1) * segments + segment;
+            indices.push((a, b, c));
+            indices.push((a, c, d));
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn organic_mesh_batches(
+    kind: BuilderOrganicKind,
+    dims: HostPreviewDims,
+    min: Vec2<f32>,
+    span: Vec2<f32>,
+    count: usize,
+    height_min: f32,
+    height_max: f32,
+    width_min: f32,
+    width_max: f32,
+    offset: f32,
+    seed: u64,
+    material: Option<String>,
+) -> Vec<BuilderOrganicMeshBatch> {
+    let mut main_vertices = Vec::new();
+    let mut main_uvs = Vec::new();
+    let mut main_indices = Vec::new();
+    let mut trunk_vertices = Vec::new();
+    let mut trunk_uvs = Vec::new();
+    let mut trunk_indices = Vec::new();
+
+    for instance_index in 0..count {
+        let i = instance_index as u64;
+        let x = min.x + builder_param_rand01(seed ^ 0xa076_1d64_78bd_642f, i) * span.x;
+        let z = min.y + builder_param_rand01(seed ^ 0xe703_7ed1_a0b4_28db, i) * span.y;
+        let height_t = builder_param_rand01(seed ^ 0x8ebc_6af0_9c88_c6e3, i);
+        let width_t = builder_param_rand01(seed ^ 0x5899_65cc_7537_4cc3, i);
+        let height = height_min + (height_max - height_min) * height_t;
+        let width = width_min + (width_max - width_min) * width_t;
+        let center = Vec3::new(x - dims.width * 0.5, offset, z - dims.depth * 0.5);
+        match kind {
+            BuilderOrganicKind::Grass => organic_append_grass_clump(
+                &mut main_vertices,
+                &mut main_uvs,
+                &mut main_indices,
+                center,
+                width,
+                height,
+                seed,
+                i,
+            ),
+            BuilderOrganicKind::Bush => {
+                let lumps =
+                    3 + (builder_param_rand01(seed ^ 0x2f32_1a6e_c12d_4b61, i) * 4.0) as usize;
+                for lump in 0..lumps {
+                    let li = i * 19 + lump as u64;
+                    let yaw = builder_param_rand01(seed ^ 0xa24b_aed4_963e_e407, li)
+                        * std::f32::consts::TAU;
+                    let (s, c) = yaw.sin_cos();
+                    let local = Vec3::new(
+                        c * width * 0.24 * builder_param_rand01(seed ^ 0x517c_c1b7_2722_0a95, li),
+                        height
+                            * (0.30
+                                + builder_param_rand01(seed ^ 0x94d0_49bb_1331_11eb, li) * 0.30),
+                        s * width * 0.24 * builder_param_rand01(seed ^ 0xd6e8_feb8_6659_fd93, li),
+                    );
+                    organic_append_ellipsoid(
+                        &mut main_vertices,
+                        &mut main_uvs,
+                        &mut main_indices,
+                        center + local,
+                        Vec3::new(width * 0.34, height * 0.30, width * 0.34),
+                        seed,
+                        li,
+                    );
+                }
+            }
+            BuilderOrganicKind::Tree => {
+                let trunk_h = height * 0.48;
+                organic_append_tapered_cylinder(
+                    &mut trunk_vertices,
+                    &mut trunk_uvs,
+                    &mut trunk_indices,
+                    center,
+                    trunk_h,
+                    width * 0.10,
+                    width * 0.055,
+                    seed,
+                    i,
+                );
+                let crown_center = center + Vec3::new(0.0, trunk_h + height * 0.18, 0.0);
+                let lumps =
+                    4 + (builder_param_rand01(seed ^ 0x1656_67b1_9e37_79f9, i) * 4.0) as usize;
+                for lump in 0..lumps {
+                    let li = i * 23 + lump as u64;
+                    let yaw = builder_param_rand01(seed ^ 0xc2b2_ae35_87b6_271f, li)
+                        * std::f32::consts::TAU;
+                    let (s, c) = yaw.sin_cos();
+                    let local = Vec3::new(
+                        c * width * 0.28 * builder_param_rand01(seed ^ 0xbf58_476d_1ce4_e5b9, li),
+                        (builder_param_rand01(seed ^ 0x9e37_79b9_7f4a_7c15, li) - 0.35)
+                            * height
+                            * 0.16,
+                        s * width * 0.28 * builder_param_rand01(seed ^ 0x94d0_49bb_1331_11eb, li),
+                    );
+                    organic_append_ellipsoid(
+                        &mut main_vertices,
+                        &mut main_uvs,
+                        &mut main_indices,
+                        crown_center + local,
+                        Vec3::new(width * 0.34, height * 0.18, width * 0.34),
+                        seed,
+                        li,
+                    );
+                }
+            }
+        }
+    }
+
+    let mut batches = Vec::new();
+    if !trunk_vertices.is_empty() {
+        batches.push(BuilderOrganicMeshBatch {
+            material_slot: Some("TREE_TRUNK".to_string()),
+            tint: [0.58, 0.42, 0.27, 1.0],
+            vertices: trunk_vertices,
+            uvs: trunk_uvs,
+            indices: trunk_indices,
+        });
+    }
+    if !main_vertices.is_empty() {
+        batches.push(BuilderOrganicMeshBatch {
+            material_slot: material.or_else(|| Some(organic_color_slot(kind).to_string())),
+            tint: organic_tint(kind, seed, 0),
+            vertices: main_vertices,
+            uvs: main_uvs,
+            indices: main_indices,
+        });
+    }
+    batches
+}
+
+fn organic_billboard_batch(
+    kind: BuilderOrganicKind,
+    dims: HostPreviewDims,
+    min: Vec2<f32>,
+    span: Vec2<f32>,
+    count: usize,
+    height_min: f32,
+    height_max: f32,
+    width_min: f32,
+    width_max: f32,
+    offset: f32,
+    seed: u64,
+    shape: f32,
+    material: Option<String>,
+) -> BuilderOrganicBillboardBatch {
+    let mut instances = Vec::with_capacity(count);
+    for instance_index in 0..count {
+        let i = instance_index as u64;
+        let x = min.x + builder_param_rand01(seed ^ 0xa076_1d64_78bd_642f, i) * span.x;
+        let z = min.y + builder_param_rand01(seed ^ 0xe703_7ed1_a0b4_28db, i) * span.y;
+        let height_t = builder_param_rand01(seed ^ 0x8ebc_6af0_9c88_c6e3, i);
+        let width_t = builder_param_rand01(seed ^ 0x5899_65cc_7537_4cc3, i);
+        let height = height_min + (height_max - height_min) * height_t;
+        let width = width_min + (width_max - width_min) * width_t;
+        let variant = (builder_param_rand01(seed ^ 0x54a7_d23b_9ee1_7d31, i) * 8.0) as u16;
+        instances.push(BuilderOrganicBillboard {
+            position: Vec3::new(
+                x - dims.width * 0.5,
+                offset + height * 0.5,
+                z - dims.depth * 0.5,
+            ),
+            size: Vec2::new(width, height),
+            variant,
+        });
+    }
+    BuilderOrganicBillboardBatch {
+        kind,
+        material_slot: material.or_else(|| Some(organic_color_slot(kind).to_string())),
+        seed,
+        shape: shape.clamp(0.0, 1.0),
+        instances,
+    }
 }
 
 fn plank_detail_rects(
@@ -892,8 +1395,7 @@ fn plank_primitive_boxes(
                 let x_trim_b =
                     builder_param_rand01(seed ^ 0xa24baed4963ee407, index as u64) * end_jitter;
                 let plank_w = (size.x - x_trim_a - x_trim_b).max(0.002);
-                let y_shift = (builder_param_rand01(seed ^ 0x517cc1b727220a95, index as u64)
-                    - 0.5)
+                let y_shift = (builder_param_rand01(seed ^ 0x517cc1b727220a95, index as u64) - 0.5)
                     * lane
                     * 0.35
                     * alignment_jitter;
@@ -921,8 +1423,7 @@ fn plank_primitive_boxes(
                 let y_trim_b =
                     builder_param_rand01(seed ^ 0xa24baed4963ee407, index as u64) * end_jitter;
                 let plank_h = (size.y - y_trim_a - y_trim_b).max(0.002);
-                let x_shift = (builder_param_rand01(seed ^ 0x517cc1b727220a95, index as u64)
-                    - 0.5)
+                let x_shift = (builder_param_rand01(seed ^ 0x517cc1b727220a95, index as u64) - 0.5)
                     * lane
                     * 0.35
                     * alignment_jitter;
@@ -991,6 +1492,7 @@ struct NodeOutput {
     primitives: Vec<BuilderPrimitive>,
     anchors: Vec<BuilderAnchor>,
     placements: Vec<BuilderPlacement>,
+    static_billboards: Vec<BuilderStaticBillboardBatch>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1009,6 +1511,7 @@ impl NodeOutput {
         }
         self.anchors.extend(other.anchors);
         self.placements.extend(other.placements);
+        self.static_billboards.extend(other.static_billboards);
     }
 
     fn merge_primitive(&mut self, primitive: BuilderPrimitive) {
@@ -1110,6 +1613,7 @@ impl NodeOutput {
             primitives,
             anchors,
             placements,
+            static_billboards: translate_static_billboards(&self.static_billboards, translation),
         }
     }
 }
@@ -1192,6 +1696,30 @@ fn primitive_has_material_slot(primitive: &BuilderPrimitive) -> bool {
         BuilderPrimitive::Box { material_slot, .. } => material_slot.is_some(),
         BuilderPrimitive::Cylinder { material_slot, .. } => material_slot.is_some(),
     }
+}
+
+fn translate_static_billboards(
+    batches: &[BuilderStaticBillboardBatch],
+    translation: Vec3<f32>,
+) -> Vec<BuilderStaticBillboardBatch> {
+    batches
+        .iter()
+        .map(|batch| BuilderStaticBillboardBatch {
+            material_slot: batch.material_slot.clone(),
+            facing: batch.facing,
+            instances: batch
+                .instances
+                .iter()
+                .map(|instance| BuilderStaticBillboard {
+                    position: instance.position + translation,
+                    size: instance.size,
+                    rotation: instance.rotation,
+                    tint: instance.tint,
+                    variant: instance.variant,
+                })
+                .collect(),
+        })
+        .collect()
 }
 
 impl Default for BuilderGraph {
@@ -1301,6 +1829,174 @@ impl BuilderGraph {
             script.replace_range(0..line_end, &format!("name = \"{graph_name}\";"));
         }
         script
+    }
+
+    pub fn preset_grass_script_named(name: String) -> String {
+        let mut script = include_str!("../examples/grass_patch.buildergraph").to_string();
+        let graph_name = if name.trim().is_empty() {
+            "Grass".to_string()
+        } else {
+            name
+        };
+        if let Some(line_end) = script.find('\n') {
+            script.replace_range(0..line_end, &format!("name = \"{graph_name}\";"));
+        }
+        script
+    }
+
+    pub fn preset_grass_patch_script_named(name: String) -> String {
+        Self::preset_grass_script_named(name)
+    }
+
+    pub fn preset_bush_script_named(name: String) -> String {
+        let mut script = include_str!("../examples/bush_cluster.buildergraph").to_string();
+        let graph_name = if name.trim().is_empty() {
+            "Bush".to_string()
+        } else {
+            name
+        };
+        if let Some(line_end) = script.find('\n') {
+            script.replace_range(0..line_end, &format!("name = \"{graph_name}\";"));
+        }
+        script
+    }
+
+    pub fn preset_bush_cluster_script_named(name: String) -> String {
+        Self::preset_bush_script_named(name)
+    }
+
+    pub fn preset_tree_script_named(name: String) -> String {
+        let mut script = include_str!("../examples/tree_grove.buildergraph").to_string();
+        let graph_name = if name.trim().is_empty() {
+            "Tree".to_string()
+        } else {
+            name
+        };
+        if let Some(line_end) = script.find('\n') {
+            script.replace_range(0..line_end, &format!("name = \"{graph_name}\";"));
+        }
+        script
+    }
+
+    pub fn preset_tree_grove_script_named(name: String) -> String {
+        Self::preset_tree_script_named(name)
+    }
+
+    pub fn preset_grass_vertex_script_named(name: String) -> String {
+        let graph_name = if name.trim().is_empty() {
+            "Grass".to_string()
+        } else {
+            name
+        };
+        format!(
+            r#"name = "{graph_name}";
+host = vertex;
+
+param height = 0.28;
+param width = 0.16;
+param shape = 0.55;
+param seed = 0.0;
+param auto_seed = 1.0;
+
+preview {{
+    width = 1.0;
+    depth = 1.0;
+    height = 1.0;
+}}
+
+detail grass {{
+    min = vec2(0.0, 0.0);
+    max = vec2(1.0, 1.0);
+    count = 1;
+    height = height;
+    width = width;
+    shape = shape;
+    seed = seed;
+    auto_seed = auto_seed;
+    material = GRASS;
+}};
+
+output = [];
+"#
+        )
+    }
+
+    pub fn preset_bush_vertex_script_named(name: String) -> String {
+        let graph_name = if name.trim().is_empty() {
+            "Bush".to_string()
+        } else {
+            name
+        };
+        format!(
+            r#"name = "{graph_name}";
+host = vertex;
+
+param height = 0.9;
+param width = 0.9;
+param shape = 0.65;
+param seed = 0.0;
+param auto_seed = 1.0;
+
+preview {{
+    width = 1.0;
+    depth = 1.0;
+    height = 1.4;
+}}
+
+detail bush {{
+    min = vec2(0.0, 0.0);
+    max = vec2(1.0, 1.0);
+    count = 1;
+    height = height;
+    width = width;
+    shape = shape;
+    seed = seed;
+    auto_seed = auto_seed;
+    material = BUSH;
+}};
+
+output = [];
+"#
+        )
+    }
+
+    pub fn preset_tree_vertex_script_named(name: String) -> String {
+        let graph_name = if name.trim().is_empty() {
+            "Tree".to_string()
+        } else {
+            name
+        };
+        format!(
+            r#"name = "{graph_name}";
+host = vertex;
+
+param height = 4.6;
+param width = 2.8;
+param shape = 0.7;
+param seed = 0.0;
+param auto_seed = 1.0;
+
+preview {{
+    width = 1.0;
+    depth = 1.0;
+    height = 5.2;
+}}
+
+detail tree {{
+    min = vec2(0.0, 0.0);
+    max = vec2(1.0, 1.0);
+    count = 1;
+    height = height;
+    width = width;
+    shape = shape;
+    seed = seed;
+    auto_seed = auto_seed;
+    material = TREE;
+}};
+
+output = [];
+"#
+        )
     }
 
     pub fn empty_named(name: String) -> Self {
@@ -1736,7 +2432,9 @@ impl BuilderGraph {
             anchors: output.anchors,
             cuts: Vec::new(),
             surface_details: Vec::new(),
-            static_billboards: Vec::new(),
+            static_billboards: output.static_billboards,
+            organic_billboards: Vec::new(),
+            organic_meshes: Vec::new(),
             warnings: Vec::new(),
         })
     }
@@ -1826,6 +2524,7 @@ impl BuilderGraph {
                     host_scale_x_normalized: true,
                     host_scale_z_normalized: true,
                 }],
+                static_billboards: Vec::new(),
             },
             BuilderNodeKind::LinedefSurface => NodeOutput {
                 primitives: Vec::new(),
@@ -1837,6 +2536,7 @@ impl BuilderGraph {
                     host_scale_x_normalized: true,
                     host_scale_z_normalized: false,
                 }],
+                static_billboards: Vec::new(),
             },
             BuilderNodeKind::VertexPoint => NodeOutput {
                 primitives: Vec::new(),
@@ -1848,6 +2548,7 @@ impl BuilderGraph {
                     host_scale_x_normalized: false,
                     host_scale_z_normalized: false,
                 }],
+                static_billboards: Vec::new(),
             },
             BuilderNodeKind::Offset { translate } => self
                 .input_output(node.id, 0, cache)?
@@ -1933,6 +2634,7 @@ impl BuilderGraph {
                 },
                 anchors: Vec::new(),
                 placements: Vec::new(),
+                static_billboards: Vec::new(),
             },
             BuilderNodeKind::Cylinder { length, radius } => NodeOutput {
                 primitives: {
@@ -1974,6 +2676,7 @@ impl BuilderGraph {
                 },
                 anchors: Vec::new(),
                 placements: Vec::new(),
+                static_billboards: Vec::new(),
             },
             BuilderNodeKind::SectorCorners {
                 inset_x,
@@ -2380,6 +3083,7 @@ impl BuilderGraph {
                     surface_extent_normalized: false,
                 }],
                 placements: Vec::new(),
+                static_billboards: Vec::new(),
             },
             BuilderNodeKind::MaterialSlot { name, position } => NodeOutput {
                 primitives: Vec::new(),
@@ -2398,6 +3102,7 @@ impl BuilderGraph {
                     surface_extent_normalized: false,
                 }],
                 placements: Vec::new(),
+                static_billboards: Vec::new(),
             },
             BuilderNodeKind::Join => {
                 let mut out = NodeOutput::default();
@@ -2488,6 +3193,9 @@ impl BuilderScript {
         let mut anchors = Vec::new();
         let mut cuts = Vec::new();
         let mut surface_details = Vec::new();
+        let static_billboards = Vec::new();
+        let mut organic_billboards = Vec::new();
+        let organic_meshes = Vec::new();
         let mut warnings = Vec::new();
         let mut resolved_parts: HashMap<String, ResolvedPart> = HashMap::default();
         let mut params: HashMap<String, f32> = HashMap::default();
@@ -3092,6 +3800,130 @@ impl BuilderScript {
                         });
                     }
                 }
+                BuilderScriptSurfaceDetail::Organic {
+                    kind,
+                    min,
+                    max,
+                    count,
+                    density,
+                    height_min,
+                    height_max,
+                    width_min,
+                    width_max,
+                    offset,
+                    seed,
+                    host_seed,
+                    shape,
+                    material,
+                } => {
+                    let raw_min = Vec2::new(
+                        eval_scalar_expr(&min[0], self.host, &dims, &params)?,
+                        eval_scalar_expr(&min[1], self.host, &dims, &params)?,
+                    );
+                    let raw_max = Vec2::new(
+                        eval_scalar_expr(&max[0], self.host, &dims, &params)?,
+                        eval_scalar_expr(&max[1], self.host, &dims, &params)?,
+                    );
+                    let min = Vec2::new(raw_min.x.min(raw_max.x), raw_min.y.min(raw_max.y));
+                    let max = Vec2::new(raw_min.x.max(raw_max.x), raw_min.y.max(raw_max.y));
+                    let span = max - min;
+                    if span.x <= 0.001 || span.y <= 0.001 {
+                        warnings.push(BuilderWarning {
+                            code: "invalid_detail_organic".to_string(),
+                            message: format!(
+                                "organic detail {index} has invalid bounds min=({}, {}) max=({}, {})",
+                                min.x, min.y, max.x, max.y
+                            ),
+                        });
+                        continue;
+                    }
+
+                    let density = density
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or_else(|| organic_default_density(*kind))
+                        .max(0.0);
+                    let count = count
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .map(|value| value.round().max(0.0) as usize)
+                        .unwrap_or_else(|| (span.x * span.y * density).round() as usize)
+                        .clamp(0, 1024);
+                    if count == 0 {
+                        continue;
+                    }
+
+                    let (default_height_min, default_height_max) =
+                        organic_default_height_range(*kind);
+                    let (default_width_min, default_width_max) = organic_default_width_range(*kind);
+                    let height_min = height_min
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(default_height_min)
+                        .max(0.01);
+                    let height_max = height_max
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(default_height_max)
+                        .max(height_min);
+                    let width_min = width_min
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(default_width_min)
+                        .max(0.01);
+                    let width_max = width_max
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(default_width_max)
+                        .max(width_min);
+                    let offset = offset
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0);
+                    let seed = seed
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(0.0)
+                        .round() as u64;
+                    let use_host_seed = host_seed
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or(1.0)
+                        != 0.0;
+                    let seed =
+                        seed ^ if use_host_seed { dims.seed } else { 0 } ^ organic_kind_seed(*kind);
+                    let shape = shape
+                        .as_ref()
+                        .map(|expr| eval_scalar_expr(expr, self.host, &dims, &params))
+                        .transpose()?
+                        .unwrap_or_else(default_organic_shape)
+                        .clamp(0.0, 1.0);
+
+                    organic_billboards.push(organic_billboard_batch(
+                        *kind,
+                        dims,
+                        min,
+                        span,
+                        count,
+                        height_min,
+                        height_max,
+                        width_min,
+                        width_max,
+                        offset,
+                        seed,
+                        shape,
+                        material.clone(),
+                    ));
+                }
             }
         }
 
@@ -3118,7 +3950,9 @@ impl BuilderScript {
             anchors,
             cuts,
             surface_details,
-            static_billboards: Vec::new(),
+            static_billboards,
+            organic_billboards,
+            organic_meshes,
             warnings,
         })
     }
@@ -3149,6 +3983,14 @@ impl BuilderScript {
                 | BuilderScriptSurfaceDetail::Masonry { material, .. }
                 | BuilderScriptSurfaceDetail::Planks { material, .. } => {
                     materials.push(material);
+                }
+                BuilderScriptSurfaceDetail::Organic { kind, material, .. } => {
+                    materials.push(material);
+                    if *kind == BuilderOrganicKind::Tree
+                        && !out.iter().any(|existing| existing == "TREE_TRUNK")
+                    {
+                        out.push("TREE_TRUNK".to_string());
+                    }
                 }
                 BuilderScriptSurfaceDetail::Column {
                     material,
@@ -3302,6 +4144,7 @@ struct HostPreviewDims {
     width: f32,
     depth: f32,
     height: f32,
+    seed: u64,
 }
 
 impl HostPreviewDims {
@@ -3311,16 +4154,19 @@ impl HostPreviewDims {
                 width: preview.width.max(0.01),
                 depth: preview.depth.max(0.01),
                 height: preview.height.max(0.01),
+                seed: 0,
             },
             BuilderScriptHost::Sector => Self {
                 width: preview.width.max(0.01),
                 depth: preview.depth.max(0.01),
                 height: preview.height.max(0.01),
+                seed: 0,
             },
             BuilderScriptHost::Vertex => Self {
                 width: preview.width.max(0.01),
                 depth: preview.depth.max(0.01),
                 height: preview.height.max(0.01),
+                seed: 0,
             },
         }
     }
@@ -3331,31 +4177,37 @@ impl HostPreviewDims {
                 width: host.width.max(0.01),
                 depth: host.depth.max(0.01),
                 height: host.height.max(0.01),
+                seed: host.seed,
             },
             BuilderHost::Sector(host) => Self {
                 width: host.width.max(0.01),
                 depth: host.depth.max(0.01),
                 height: host.height.max(0.01),
+                seed: host.seed,
             },
             BuilderHost::Linedef(host) => Self {
                 width: host.length.max(0.01),
                 depth: host.width.max(0.01),
                 height: host.height.max(0.01),
+                seed: host.seed,
             },
             BuilderHost::Vertex(host) => Self {
                 width: host.width.max(0.01),
                 depth: host.depth.max(0.01),
                 height: host.height.max(0.01),
+                seed: host.seed,
             },
             BuilderHost::Surface(host) => Self {
                 width: host.width.max(0.01),
                 depth: host.thickness.max(0.01),
                 height: host.height.max(0.01),
+                seed: host.seed,
             },
             BuilderHost::Terrain(host) => Self {
                 width: host.width.max(0.01),
                 depth: host.depth.max(0.01),
                 height: host.height.max(0.01),
+                seed: host.seed,
             },
         }
     }
@@ -3749,13 +4601,20 @@ impl BuilderScriptParser {
         let mut block = None;
         let mut count = None;
         let mut height = None;
+        let mut height_min = None;
+        let mut height_max = None;
+        let mut width_min = None;
+        let mut width_max = None;
         let mut radius = None;
+        let mut density = None;
         let mut broken_chance = None;
         let mut missing_chance = None;
         let mut broken_min_height = None;
         let mut jitter = None;
         let mut alignment_jitter = None;
         let mut seed = None;
+        let mut host_seed = None;
+        let mut organic_shape = None;
         let mut offset = None;
         let mut mortar = None;
         let mut inset = None;
@@ -3789,7 +4648,17 @@ impl BuilderScriptParser {
                     block = Some(self.parse_vec2_expr()?)
                 }
                 "height" => height = Some(self.parse_scalar_expr()?),
+                "height_min" | "min_height" => height_min = Some(self.parse_scalar_expr()?),
+                "height_max" | "max_height" => height_max = Some(self.parse_scalar_expr()?),
+                "width" => {
+                    let width = self.parse_scalar_expr()?;
+                    width_min = Some(width.clone());
+                    width_max = Some(width);
+                }
+                "width_min" | "min_width" => width_min = Some(self.parse_scalar_expr()?),
+                "width_max" | "max_width" => width_max = Some(self.parse_scalar_expr()?),
                 "radius" => radius = Some(self.parse_scalar_expr()?),
+                "density" => density = Some(self.parse_scalar_expr()?),
                 "broken_chance" | "break_chance" => broken_chance = Some(self.parse_scalar_expr()?),
                 "missing_chance" | "skip_chance" => {
                     missing_chance = Some(self.parse_scalar_expr()?)
@@ -3802,6 +4671,7 @@ impl BuilderScriptParser {
                     broken_min_height = Some(self.parse_scalar_expr()?)
                 }
                 "seed" => seed = Some(self.parse_scalar_expr()?),
+                "host_seed" | "auto_seed" => host_seed = Some(self.parse_scalar_expr()?),
                 "offset" => offset = Some(self.parse_scalar_expr()?),
                 "mortar" | "gap" => mortar = Some(self.parse_scalar_expr()?),
                 "inset" => inset = Some(self.parse_scalar_expr()?),
@@ -3839,13 +4709,19 @@ impl BuilderScriptParser {
                         other => return Err(format!("unsupported cut_footprint value '{other}'")),
                     };
                 }
-                "shape" => {
-                    shape = match self.expect_ident_any()?.as_str() {
-                        "fill" => BuilderCutShape::Fill,
-                        "border" => BuilderCutShape::Border,
-                        other => return Err(format!("unsupported detail shape '{other}'")),
-                    };
-                }
+                "shape" => match kind_name.as_str() {
+                    "grass" | "grass_patch" | "bush" | "bushes" | "bush_cluster" | "tree"
+                    | "trees" | "tree_cluster" => {
+                        organic_shape = Some(self.parse_scalar_expr()?);
+                    }
+                    _ => {
+                        shape = match self.expect_ident_any()?.as_str() {
+                            "fill" => BuilderCutShape::Fill,
+                            "border" => BuilderCutShape::Border,
+                            other => return Err(format!("unsupported detail shape '{other}'")),
+                        };
+                    }
+                },
                 "material" => material = Some(self.expect_ident_any()?),
                 "rect_material" | "block_material" => {
                     rect_material = Some(self.expect_ident_any()?)
@@ -3941,6 +4817,60 @@ impl BuilderScriptParser {
                     tile_alias,
                 })
             }
+            "grass" | "grass_patch" => Ok(BuilderScriptSurfaceDetail::Organic {
+                kind: BuilderOrganicKind::Grass,
+                min: min.ok_or_else(|| "grass detail is missing min".to_string())?,
+                max: max.ok_or_else(|| "grass detail is missing max".to_string())?,
+                count,
+                density,
+                height_min: height_min.or_else(|| height.clone()),
+                height_max: height_max.or(height),
+                width_min,
+                width_max,
+                offset,
+                seed,
+                host_seed,
+                shape: organic_shape.clone(),
+                material: material.or_else(|| {
+                    Some(organic_default_material(BuilderOrganicKind::Grass).to_string())
+                }),
+            }),
+            "bush" | "bushes" | "bush_cluster" => Ok(BuilderScriptSurfaceDetail::Organic {
+                kind: BuilderOrganicKind::Bush,
+                min: min.ok_or_else(|| "bush detail is missing min".to_string())?,
+                max: max.ok_or_else(|| "bush detail is missing max".to_string())?,
+                count,
+                density,
+                height_min: height_min.or_else(|| height.clone()),
+                height_max: height_max.or(height),
+                width_min,
+                width_max,
+                offset,
+                seed,
+                host_seed,
+                shape: organic_shape.clone(),
+                material: material.or_else(|| {
+                    Some(organic_default_material(BuilderOrganicKind::Bush).to_string())
+                }),
+            }),
+            "tree" | "trees" | "tree_cluster" => Ok(BuilderScriptSurfaceDetail::Organic {
+                kind: BuilderOrganicKind::Tree,
+                min: min.ok_or_else(|| "tree detail is missing min".to_string())?,
+                max: max.ok_or_else(|| "tree detail is missing max".to_string())?,
+                count,
+                density,
+                height_min: height_min.or_else(|| height.clone()),
+                height_max: height_max.or(height),
+                width_min,
+                width_max,
+                offset,
+                seed,
+                host_seed,
+                shape: organic_shape,
+                material: material.or_else(|| {
+                    Some(organic_default_material(BuilderOrganicKind::Tree).to_string())
+                }),
+            }),
             other => Err(format!("unsupported detail primitive '{other}'")),
         }
     }
@@ -5336,6 +6266,58 @@ output = [];
         assert_eq!(*pattern, BuilderMasonryPattern::RunningBond);
         assert_eq!(material_slot.as_deref(), Some("STONE"));
         assert_eq!(tile_alias.as_deref(), Some("stone"));
+    }
+
+    #[test]
+    fn script_organic_detail_emits_billboard_instances() {
+        let script = BuilderScript::from_text(
+            r#"
+name = "Organic Detail Test";
+host = sector;
+
+detail grass {
+    min = vec2(0.0, 0.0);
+    max = vec2(host.width, host.depth);
+    count = 7;
+    height_min = 0.1;
+    height_max = 0.2;
+    width = 0.15;
+    seed = 12;
+    material = GRASS;
+};
+
+output = [];
+"#,
+        )
+        .expect("organic detail script should parse");
+
+        let host = BuilderHost::preview_floor(4.0, 3.0);
+        let assembly = script
+            .evaluate_with_host(&host)
+            .expect("organic detail script should evaluate");
+
+        assert!(assembly.primitives.is_empty());
+        assert!(assembly.surface_details.is_empty());
+        assert!(assembly.warnings.is_empty());
+        assert!(assembly.static_billboards.is_empty());
+        assert!(assembly.organic_meshes.is_empty());
+        assert_eq!(assembly.organic_billboards.len(), 1);
+
+        let batch = &assembly.organic_billboards[0];
+        assert_eq!(batch.kind, BuilderOrganicKind::Grass);
+        assert_eq!(batch.material_slot.as_deref(), Some("GRASS"));
+        assert_eq!(batch.instances.len(), 7);
+        assert!(batch.instances.iter().all(|instance| {
+            instance.position.x >= -2.0
+                && instance.position.x <= 2.0
+                && instance.position.y >= 0.05
+                && instance.position.y <= 0.3
+                && instance.position.z >= -1.5
+                && instance.position.z <= 1.5
+                && instance.size.x >= 0.15
+                && instance.size.y >= 0.1
+                && instance.size.y <= 0.2
+        }));
     }
 
     #[test]

@@ -162,6 +162,48 @@ impl BuilderGraphAsset {
         let graph_data = BuilderGraph::preset_wall_columns_masonry_script_named(name.clone());
         Self::from_script(name, "Wall Columns Masonry", graph_data)
     }
+
+    pub fn new_grass(name: String) -> Self {
+        let graph_data = BuilderGraph::preset_grass_script_named(name.clone());
+        Self::from_script(name, "Grass", graph_data)
+    }
+
+    pub fn new_grass_patch(name: String) -> Self {
+        Self::new_grass(name)
+    }
+
+    pub fn new_bush(name: String) -> Self {
+        let graph_data = BuilderGraph::preset_bush_script_named(name.clone());
+        Self::from_script(name, "Bush", graph_data)
+    }
+
+    pub fn new_bush_cluster(name: String) -> Self {
+        Self::new_bush(name)
+    }
+
+    pub fn new_tree(name: String) -> Self {
+        let graph_data = BuilderGraph::preset_tree_script_named(name.clone());
+        Self::from_script(name, "Tree", graph_data)
+    }
+
+    pub fn new_tree_grove(name: String) -> Self {
+        Self::new_tree(name)
+    }
+
+    pub fn new_grass_vertex(name: String) -> Self {
+        let graph_data = BuilderGraph::preset_grass_vertex_script_named(name.clone());
+        Self::from_script(name, "Grass", graph_data)
+    }
+
+    pub fn new_bush_vertex(name: String) -> Self {
+        let graph_data = BuilderGraph::preset_bush_vertex_script_named(name.clone());
+        Self::from_script(name, "Bush", graph_data)
+    }
+
+    pub fn new_tree_vertex(name: String) -> Self {
+        let graph_data = BuilderGraph::preset_tree_vertex_script_named(name.clone());
+        Self::from_script(name, "Tree", graph_data)
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

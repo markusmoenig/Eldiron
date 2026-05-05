@@ -1,8 +1,10 @@
 use crate::prelude::*;
 use buildergraph::{
     BuilderAssembly, BuilderCutMask, BuilderCutMode, BuilderCutShape, BuilderDetailPlacement,
-    BuilderMasonryPattern, BuilderOutputSpec, BuilderOutputTarget, BuilderPreviewHost,
-    BuilderPreviewSurface, BuilderPrimitive, BuilderSurfaceDetail, BuilderTransform,
+    BuilderMasonryPattern, BuilderOrganicBillboardBatch, BuilderOrganicKind,
+    BuilderOrganicMeshBatch, BuilderOutputSpec, BuilderOutputTarget, BuilderPreviewHost,
+    BuilderPreviewSurface, BuilderPrimitive, BuilderStaticBillboard, BuilderStaticBillboardBatch,
+    BuilderSurfaceDetail, BuilderTransform,
 };
 use theframework::prelude::Uuid;
 use vek::{Vec2, Vec3, Vec4};
@@ -148,6 +150,68 @@ fn render_preview_variant(
                 detail_preview_pixel_source(detail_batch.tile_alias.as_deref(), assets),
                 0.42,
                 true,
+            );
+            extend_bounds(&mut min, &mut max, &batch.vertices);
+            scene.d3_static.push(batch);
+        }
+    }
+
+    for billboard_batch in &assembly.static_billboards {
+        for (mut batch, pixel_source) in billboard_preview_batches(billboard_batch) {
+            batch.cull_mode = CullMode::Off;
+            if host_yaw != 0.0 {
+                rotate_batch_y(&mut batch, host_yaw);
+            }
+            batch = style_batch(
+                batch,
+                billboard_batch.material_slot.as_deref(),
+                Some(pixel_source),
+                0.58,
+                false,
+            );
+            extend_bounds(&mut min, &mut max, &batch.vertices);
+            scene.d3_static.push(batch);
+        }
+    }
+
+    for organic_mesh in &assembly.organic_meshes {
+        let mut batch = organic_mesh_preview_batch(organic_mesh);
+        batch.cull_mode = CullMode::Off;
+        if host_yaw != 0.0 {
+            rotate_batch_y(&mut batch, host_yaw);
+        }
+        let is_grass = organic_mesh.material_slot.as_deref() == Some("GRASS");
+        batch = style_batch(
+            batch,
+            organic_mesh.material_slot.as_deref(),
+            Some(PixelSource::Pixel(tinted_material_color(
+                organic_mesh.material_slot.as_deref(),
+                organic_mesh.tint,
+            ))),
+            if is_grass { 0.95 } else { 0.52 },
+            !is_grass,
+        );
+        extend_bounds(&mut min, &mut max, &batch.vertices);
+        scene.d3_static.push(batch);
+    }
+
+    for organic_batch in &assembly.organic_billboards {
+        for (mut batch, color) in organic_billboard_preview_batches(organic_batch, assets) {
+            batch.cull_mode = CullMode::Off;
+            if host_yaw != 0.0 {
+                rotate_batch_y(&mut batch, host_yaw);
+            }
+            let ambient = match organic_batch.kind {
+                BuilderOrganicKind::Grass => 0.95,
+                BuilderOrganicKind::Bush => 0.68,
+                BuilderOrganicKind::Tree => 0.62,
+            };
+            batch = style_batch(
+                batch,
+                organic_batch.material_slot.as_deref(),
+                Some(PixelSource::Pixel(color)),
+                ambient,
+                false,
             );
             extend_bounds(&mut min, &mut max, &batch.vertices);
             scene.d3_static.push(batch);
@@ -402,6 +466,134 @@ fn primitive_material_slot(primitive: &BuilderPrimitive) -> Option<&str> {
     }
 }
 
+fn billboard_preview_batches(batch: &BuilderStaticBillboardBatch) -> Vec<(Batch3D, PixelSource)> {
+    let mut out = Vec::new();
+    for instance in &batch.instances {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let mut uvs = Vec::new();
+        append_billboard_preview_instance(&mut vertices, &mut indices, &mut uvs, instance);
+        let color = tinted_material_color(batch.material_slot.as_deref(), instance.tint);
+        out.push((
+            Batch3D::new(vertices, indices, uvs),
+            PixelSource::Pixel(color),
+        ));
+    }
+    out
+}
+
+fn organic_mesh_preview_batch(mesh: &BuilderOrganicMeshBatch) -> Batch3D {
+    Batch3D::new(
+        mesh.vertices
+            .iter()
+            .map(|p| [p[0], p[1], p[2], 1.0])
+            .collect(),
+        mesh.indices.clone(),
+        mesh.uvs.clone(),
+    )
+}
+
+fn organic_preview_quad(center: Vec3<f32>, width: f32, height: f32) -> Batch3D {
+    let half_w = width * 0.5;
+    let half_h = height * 0.5;
+    Batch3D::new(
+        vec![
+            [center.x - half_w, center.y - half_h, center.z, 1.0],
+            [center.x - half_w, center.y + half_h, center.z, 1.0],
+            [center.x + half_w, center.y + half_h, center.z, 1.0],
+            [center.x + half_w, center.y - half_h, center.z, 1.0],
+        ],
+        vec![(0, 1, 2), (0, 2, 3)],
+        vec![[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]],
+    )
+}
+
+fn organic_billboard_preview_batches(
+    batch: &BuilderOrganicBillboardBatch,
+    assets: &Assets,
+) -> Vec<(Batch3D, [u8; 4])> {
+    let mut out = Vec::new();
+    let Some(instance) = batch.instances.first() else {
+        return out;
+    };
+    let sprite = crate::chunkbuilder::d3chunkbuilder::organic_billboard_sprite(
+        batch.kind,
+        batch.seed,
+        instance.variant as u32,
+        batch.shape,
+        assets,
+    );
+    let width = sprite.width.max(1);
+    let height = sprite.height.max(1);
+    let pixel_w = instance.size.x / width as f32;
+    let pixel_h = instance.size.y / height as f32;
+
+    for y in 0..height {
+        for x in 0..width {
+            let index = ((y * width + x) * 4) as usize;
+            let color = [
+                sprite.rgba[index],
+                sprite.rgba[index + 1],
+                sprite.rgba[index + 2],
+                sprite.rgba[index + 3],
+            ];
+            if color[3] < 128 {
+                continue;
+            }
+            let local_x = (x as f32 + 0.5) / width as f32 - 0.5;
+            let local_y = 0.5 - (y as f32 + 0.5) / height as f32;
+            let center = instance.position
+                + Vec3::new(
+                    local_x * instance.size.x,
+                    local_y * instance.size.y,
+                    (y as f32 * width as f32 + x as f32) * 0.000001,
+                );
+            out.push((organic_preview_quad(center, pixel_w, pixel_h), color));
+        }
+    }
+    out
+}
+
+fn append_billboard_preview_instance(
+    vertices: &mut Vec<[f32; 4]>,
+    indices: &mut Vec<(usize, usize, usize)>,
+    uvs: &mut Vec<[f32; 2]>,
+    instance: &BuilderStaticBillboard,
+) {
+    let yaw = instance.rotation;
+    for dir in [
+        Vec2::new(yaw.cos(), yaw.sin()),
+        Vec2::new(
+            (yaw + std::f32::consts::FRAC_PI_2).cos(),
+            (yaw + std::f32::consts::FRAC_PI_2).sin(),
+        ),
+    ] {
+        let half = Vec3::new(
+            dir.x * instance.size.x * 0.5,
+            0.0,
+            dir.y * instance.size.x * 0.5,
+        );
+        let base = vertices.len();
+        let p0 = instance.position - half;
+        let p1 = instance.position + half;
+        let p2 = instance.position + half + Vec3::new(0.0, instance.size.y, 0.0);
+        let p3 = instance.position - half + Vec3::new(0.0, instance.size.y, 0.0);
+        vertices.extend_from_slice(&[
+            [p0.x, p0.y, p0.z, 1.0],
+            [p1.x, p1.y, p1.z, 1.0],
+            [p2.x, p2.y, p2.z, 1.0],
+            [p3.x, p3.y, p3.z, 1.0],
+        ]);
+        uvs.extend_from_slice(&[[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]);
+        indices.extend_from_slice(&[
+            (base, base + 1, base + 2),
+            (base, base + 2, base + 3),
+            (base + 2, base + 1, base),
+            (base + 3, base + 2, base),
+        ]);
+    }
+}
+
 fn style_batch_color(batch: Batch3D, material_slot: Option<&str>, ambient: f32) -> Batch3D {
     style_batch(batch, material_slot, None, ambient, true)
 }
@@ -438,6 +630,10 @@ fn tile_id_by_alias(assets: &Assets, alias: &str) -> Option<Uuid> {
 
 fn material_color(slot: Option<&str>) -> [u8; 4] {
     match slot {
+        Some("GRASS") => [92, 148, 62, 255],
+        Some("BUSH") => [74, 126, 58, 255],
+        Some("TREE") => [64, 112, 54, 255],
+        Some("TREE_TRUNK") => [118, 82, 48, 255],
         Some("TOP") => [191, 164, 118, 255],
         Some("LEGS") => [138, 104, 66, 255],
         Some("BASE") => [160, 108, 68, 255],
@@ -454,6 +650,16 @@ fn material_color(slot: Option<&str>) -> [u8; 4] {
         Some("BEAM") => [96, 64, 38, 255],
         _ => [168, 140, 108, 255],
     }
+}
+
+fn tinted_material_color(slot: Option<&str>, tint: [f32; 4]) -> [u8; 4] {
+    let base = material_color(slot);
+    [
+        ((base[0] as f32) * tint[0]).round().clamp(0.0, 255.0) as u8,
+        ((base[1] as f32) * tint[1]).round().clamp(0.0, 255.0) as u8,
+        ((base[2] as f32) * tint[2]).round().clamp(0.0, 255.0) as u8,
+        ((base[3] as f32) * tint[3]).round().clamp(0.0, 255.0) as u8,
+    ]
 }
 
 fn batches_for_surface_detail(

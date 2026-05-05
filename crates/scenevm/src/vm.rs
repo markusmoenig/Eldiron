@@ -4,7 +4,10 @@ const DUMMY_U32_1: [u32; 1] = [0];
 use crate::{
     Camera3D, CameraKind, Chunk, Light, LightType, Poly2D, Texture,
     atlas::{AtlasEntry, AtlasGpuTables, SharedAtlas, default_material_frame},
-    core::{Atom, GeoId, LayerBlendMode, PaletteRemap2DMode, RenderMode, VMDebugStats},
+    core::{
+        Atom, GeoId, LayerBlendMode, OrganicBillboardInstance, OrganicBillboardSprite,
+        PaletteRemap2DMode, RenderMode, VMDebugStats,
+    },
     dynamic::{DynamicKind, DynamicObject},
 };
 use bytemuck::{Pod, Zeroable};
@@ -354,6 +357,13 @@ struct DynamicAvatarData {
     rgba: Vec<u8>,
 }
 
+#[derive(Clone, Debug, Default)]
+struct OrganicBillboardData {
+    sprites: Vec<OrganicBillboardSprite>,
+    instances: Vec<OrganicBillboardInstance>,
+    dirty: bool,
+}
+
 #[allow(dead_code)]
 const SCENE_BILLBOARD_CMD_WORDS: u32 =
     (std::mem::size_of::<DynamicBillboardPod>() / std::mem::size_of::<u32>()) as u32;
@@ -380,6 +390,7 @@ pub struct VMGpu {
     pub raster3d_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_alpha_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_particle_pipeline: Option<wgpu::RenderPipeline>,
+    pub raster3d_organic_billboard_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_shadow_pipeline: Option<wgpu::RenderPipeline>,
     pub u2d_buf: Option<wgpu::Buffer>,
     pub u3d_buf: Option<wgpu::Buffer>,
@@ -438,6 +449,9 @@ pub struct VMGpu {
     // Scene-wide data (lights, billboards, ...)
     pub scene_data_ssbo: Option<wgpu::Buffer>,
     pub scene_data_ssbo_size: usize,
+    pub organic_billboard_ssbo: Option<wgpu::Buffer>,
+    pub organic_billboard_ssbo_size: usize,
+    pub organic_billboard_count: u32,
     // --- Scene-wide uniform grid buffers (3D)
     pub grid_hdr: Option<wgpu::Buffer>,
     pub grid_data: Option<wgpu::Buffer>,
@@ -2066,6 +2080,205 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 }
 "#;
 
+pub const SCENEVM_3D_ORGANIC_BILLBOARD_WGSL: &str = r#"
+struct U {
+    cam_pos: vec4<f32>,
+    cam_fwd: vec4<f32>,
+    cam_right: vec4<f32>,
+    cam_up: vec4<f32>,
+    sun_color_intensity: vec4<f32>,
+    sun_dir_enabled: vec4<f32>,
+    ambient_color_strength: vec4<f32>,
+    sky_color: vec4<f32>,
+    fog_color_density: vec4<f32>,
+    shadow_light_right: vec4<f32>,
+    shadow_light_up: vec4<f32>,
+    shadow_light_fwd: vec4<f32>,
+    shadow_light_center: vec4<f32>,
+    shadow_light_extents: vec4<f32>,
+    shadow_params: vec4<f32>,
+    render_params: vec4<f32>,
+    point_light_pos_intensity: array<vec4<f32>, 4>,
+    point_light_color_range: array<vec4<f32>, 4>,
+    point_light_count_pad: vec4<u32>,
+    _pad_lights: vec4<u32>,
+    fb_size: vec2<f32>,
+    cam_vfov_deg: f32,
+    cam_ortho_half_h: f32,
+    cam_near: f32,
+    cam_far: f32,
+    cam_kind: u32,
+    anim_counter: u32,
+    _pad0: vec2<u32>,
+    _pad_post_pre: vec2<u32>,
+    post_params: vec4<f32>,
+    post_color_adjust: vec4<f32>,
+    post_style0: vec4<f32>,
+    post_style1: vec4<f32>,
+    avatar_highlight_params: vec4<f32>,
+    _pad_tail: vec4<u32>,
+    palette: array<vec4<f32>, 256>,
+    palette_tile_indices: array<vec4<u32>, 64>,
+    organic_params: vec4<u32>,
+};
+
+@group(0) @binding(0) var<uniform> UBO: U;
+
+struct OrganicBillboardData {
+    data: array<u32>,
+};
+@group(0) @binding(10) var<storage, read> organic_billboards: OrganicBillboardData;
+
+struct VsOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) @interpolate(flat) sprite_index: u32,
+    @location(2) world_pos: vec3<f32>,
+    @location(3) normal: vec3<f32>,
+};
+
+fn organic_word(index: u32) -> u32 {
+    if (index >= arrayLength(&organic_billboards.data)) {
+        return 0u;
+    }
+    return organic_billboards.data[index];
+}
+
+fn organic_f32(index: u32) -> f32 {
+    return bitcast<f32>(organic_word(index));
+}
+
+fn camera_to_clip(world_pos: vec3<f32>) -> vec4<f32> {
+    let rel = world_pos - UBO.cam_pos.xyz;
+    let cx = dot(rel, UBO.cam_right.xyz);
+    let cy = dot(rel, UBO.cam_up.xyz);
+    let cz = dot(rel, UBO.cam_fwd.xyz);
+
+    let near_z = max(UBO.cam_near, 0.0001);
+    let far_z = max(UBO.cam_far, near_z + 0.0001);
+    let aspect = max(UBO.fb_size.x / max(UBO.fb_size.y, 1.0), 0.0001);
+
+    if (UBO.cam_kind == 0u) {
+        let depth = clamp((cz - near_z) / (far_z - near_z), 0.0, 1.0);
+        let half_h = max(UBO.cam_ortho_half_h, 0.0001);
+        let half_w = max(half_h * aspect, 0.0001);
+        return vec4<f32>(cx / half_w, cy / half_h, depth, 1.0);
+    }
+
+    var z = cz;
+    if (abs(z) < 0.0001) {
+        z = select(-0.0001, 0.0001, z >= 0.0);
+    }
+    let f = 1.0 / tan(radians(max(UBO.cam_vfov_deg, 1.0)) * 0.5);
+    let a = far_z / (far_z - near_z);
+    let b = (-near_z * far_z) / (far_z - near_z);
+    return vec4<f32>(cx * (f / aspect), cy * f, a * z + b, z);
+}
+
+fn apply_post(color_in: vec3<f32>, pos: vec4<f32>) -> vec3<f32> {
+    var c = max(color_in, vec3<f32>(0.0));
+    if (UBO.post_params.x > 0.5) {
+        c *= max(UBO.post_params.z, 0.0);
+        let tone = u32(max(UBO.post_params.y, 0.0));
+        if (tone == 1u) {
+            c = c / (c + vec3<f32>(1.0));
+        } else if (tone == 2u) {
+            c = clamp((c * (2.51 * c + vec3<f32>(0.03))) /
+                      (c * (2.43 * c + vec3<f32>(0.59)) + vec3<f32>(0.14)),
+                      vec3<f32>(0.0), vec3<f32>(1.0));
+        }
+        c *= max(UBO.post_color_adjust.y, 0.0);
+        let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+        c = mix(vec3<f32>(luma), c, max(UBO.post_color_adjust.x, 0.0));
+    }
+    return pow(c, vec3<f32>(1.0 / max(UBO.post_params.w, 0.001)));
+}
+
+@vertex
+fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VsOut {
+    var out: VsOut;
+    let instance_count = organic_word(2u);
+    if (instance_count == 0u) {
+        out.pos = vec4<f32>(0.0);
+        out.uv = vec2<f32>(0.0);
+        out.sprite_index = 0u;
+        out.world_pos = vec3<f32>(0.0);
+        out.normal = vec3<f32>(0.0, 1.0, 0.0);
+        return out;
+    }
+
+    let instance_index = min(vertex_index / 6u, instance_count - 1u);
+    let corner_index = vertex_index % 6u;
+    let corners = array<vec2<f32>, 6>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(-1.0,  1.0),
+        vec2<f32>( 1.0,  1.0),
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>( 1.0,  1.0),
+        vec2<f32>( 1.0, -1.0)
+    );
+    let corner = corners[corner_index];
+    let instance_base = organic_word(3u) + instance_index * 8u;
+    let center = vec3<f32>(
+        organic_f32(instance_base + 0u),
+        organic_f32(instance_base + 1u),
+        organic_f32(instance_base + 2u)
+    );
+    let width = max(organic_f32(instance_base + 3u), 0.001);
+    let height = max(organic_f32(instance_base + 4u), 0.001);
+    let sprite_index = organic_word(instance_base + 5u);
+    let right = normalize(UBO.cam_right.xyz) * (width * 0.5);
+    let up = normalize(UBO.cam_up.xyz) * (height * 0.5);
+    let world_pos = center + right * corner.x + up * corner.y;
+
+    out.pos = camera_to_clip(world_pos);
+    out.uv = vec2<f32>(corner.x * 0.5 + 0.5, 0.5 - corner.y * 0.5);
+    out.sprite_index = sprite_index;
+    out.world_pos = world_pos;
+    out.normal = normalize(cross(right, up));
+    return out;
+}
+
+fn sample_sprite(sprite_index: u32, uv: vec2<f32>) -> vec4<f32> {
+    let sprite_count = organic_word(1u);
+    if (sprite_index >= sprite_count) {
+        return vec4<f32>(0.0);
+    }
+    let meta_base = organic_word(4u) + sprite_index * 4u;
+    let pixel_offset = organic_word(meta_base + 0u);
+    let width = max(organic_word(meta_base + 1u), 1u);
+    let height = max(organic_word(meta_base + 2u), 1u);
+    let x = min(u32(floor(clamp(uv.x, 0.0, 0.9999) * f32(width))), width - 1u);
+    let y = min(u32(floor(clamp(uv.y, 0.0, 0.9999) * f32(height))), height - 1u);
+    let packed = organic_word(organic_word(5u) + pixel_offset + y * width + x);
+    let r = f32((packed >> 0u) & 0xffu) * (1.0 / 255.0);
+    let g = f32((packed >> 8u) & 0xffu) * (1.0 / 255.0);
+    let b = f32((packed >> 16u) & 0xffu) * (1.0 / 255.0);
+    let a = f32((packed >> 24u) & 0xffu) * (1.0 / 255.0);
+    return vec4<f32>(r, g, b, a);
+}
+
+@fragment
+fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    let texel = sample_sprite(in.sprite_index, in.uv);
+    if (texel.a <= 0.5) {
+        discard;
+    }
+    // These sprites are already baked as tiny pixel-art colors. Keep them readable
+    // instead of pushing them through the full scene lighting path.
+    var lit = texel.rgb;
+
+    let fog_density = max(UBO.fog_color_density.w, 0.0);
+    if (fog_density > 0.0) {
+        let fog_dist = distance(in.world_pos, UBO.cam_pos.xyz);
+        let fog_factor = clamp(exp(-(fog_density * fog_dist * fog_dist)), 0.0, 1.0);
+        lit = mix(UBO.fog_color_density.xyz, lit, fog_factor);
+    }
+
+    return vec4<f32>(lit, 1.0);
+}
+"#;
+
 pub struct VM {
     shared_atlas: SharedAtlas,
     pub chunks_map: FxHashMap<Uuid, Chunk>,
@@ -2120,6 +2333,7 @@ pub struct VM {
     dynamic_objects: Vec<DynamicObject>,
     dynamic_avatar_objects: FxHashMap<GeoId, DynamicObject>,
     dynamic_avatar_data: FxHashMap<GeoId, DynamicAvatarData>,
+    organic_billboards: OrganicBillboardData,
 
     pub current_layer: i32,
 
@@ -3073,6 +3287,129 @@ impl VM {
         self.cached_scene_data_hash = scene_data_hash;
     }
 
+    fn build_organic_billboard_words(&self) -> Vec<u32> {
+        let chunk_sprite_count: usize = self
+            .chunks_map
+            .values()
+            .map(|chunk| chunk.organic_billboard_sprites.len())
+            .sum();
+        let chunk_instance_count: usize = self
+            .chunks_map
+            .values()
+            .map(|chunk| chunk.organic_billboard_instances.len())
+            .sum();
+        let sprite_count = (self.organic_billboards.sprites.len() + chunk_sprite_count)
+            .min(u32::MAX as usize) as u32;
+        let instance_count = (self.organic_billboards.instances.len() + chunk_instance_count)
+            .min(u32::MAX as usize) as u32;
+        let instance_offset_words = 8u32;
+        let sprite_meta_offset_words = instance_offset_words + instance_count * 8;
+        let pixel_offset_words = sprite_meta_offset_words + sprite_count * 4;
+        let mut words = vec![
+            0x4F42_494Cu32,
+            sprite_count,
+            instance_count,
+            instance_offset_words,
+            sprite_meta_offset_words,
+            pixel_offset_words,
+            0,
+            0,
+        ];
+
+        let mut sprite_base = self.organic_billboards.sprites.len() as u32;
+        for instance in self.organic_billboards.instances.iter() {
+            words.extend_from_slice(&[
+                instance.center[0].to_bits(),
+                instance.center[1].to_bits(),
+                instance.center[2].to_bits(),
+                instance.width.to_bits(),
+                instance.height.to_bits(),
+                instance.sprite_index,
+                instance.flags,
+                0,
+            ]);
+        }
+        for chunk in self.chunks_map.values() {
+            for instance in &chunk.organic_billboard_instances {
+                words.extend_from_slice(&[
+                    instance.center[0].to_bits(),
+                    instance.center[1].to_bits(),
+                    instance.center[2].to_bits(),
+                    instance.width.to_bits(),
+                    instance.height.to_bits(),
+                    sprite_base.saturating_add(instance.sprite_index),
+                    instance.flags,
+                    0,
+                ]);
+            }
+            sprite_base = sprite_base.saturating_add(chunk.organic_billboard_sprites.len() as u32);
+        }
+
+        let mut pixel_words = Vec::new();
+        for sprite in &self.organic_billboards.sprites {
+            let offset_pixels = pixel_words.len() as u32;
+            words.extend_from_slice(&[offset_pixels, sprite.width, sprite.height, 0]);
+            for px in sprite.rgba.chunks_exact(4) {
+                pixel_words.push(u32::from_le_bytes([px[0], px[1], px[2], px[3]]));
+            }
+        }
+        for chunk in self.chunks_map.values() {
+            for sprite in &chunk.organic_billboard_sprites {
+                let offset_pixels = pixel_words.len() as u32;
+                words.extend_from_slice(&[offset_pixels, sprite.width, sprite.height, 0]);
+                for px in sprite.rgba.chunks_exact(4) {
+                    pixel_words.push(u32::from_le_bytes([px[0], px[1], px[2], px[3]]));
+                }
+            }
+        }
+        words.extend_from_slice(&pixel_words);
+
+        if words.is_empty() {
+            words.push(0);
+        }
+        words
+    }
+
+    fn upload_organic_billboard_ssbo(&mut self, device: &wgpu::Device, _queue: &wgpu::Queue) {
+        use wgpu::util::DeviceExt;
+
+        let organic_words = self.build_organic_billboard_words();
+        let organic_bytes: &[u8] = bytemuck::cast_slice(&organic_words);
+        let organic_byte_len = organic_bytes.len().max(std::mem::size_of::<u32>());
+        let instance_count = self.organic_billboards.instances.len().saturating_add(
+            self.chunks_map
+                .values()
+                .map(|chunk| chunk.organic_billboard_instances.len())
+                .sum::<usize>(),
+        ) as u32;
+        let needs_recreate = if let Some(g) = self.gpu.as_ref() {
+            self.organic_billboards.dirty
+                || g.organic_billboard_ssbo.is_none()
+                || g.organic_billboard_ssbo_size != organic_byte_len
+        } else {
+            true
+        };
+
+        if !needs_recreate {
+            if let Some(g) = self.gpu.as_mut() {
+                g.organic_billboard_count = instance_count;
+            }
+            return;
+        }
+
+        let g = self.gpu.as_mut().unwrap();
+        g.organic_billboard_ssbo = Some(device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("vm-organic-billboards"),
+                contents: organic_bytes,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            },
+        ));
+        g.organic_billboard_ssbo_size = organic_byte_len;
+        g.organic_billboard_count = instance_count;
+        self.organic_billboards.dirty = false;
+    }
+
     fn ensure_organic_surface_slot(&mut self, surface_id: Uuid) -> OrganicSurfaceGpuMeta {
         if let Some(meta) = self.organic_surface_slots.get(&surface_id).copied() {
             return meta;
@@ -3469,6 +3806,7 @@ impl VM {
             dynamic_objects: Vec::new(),
             dynamic_avatar_objects: FxHashMap::default(),
             dynamic_avatar_data: FxHashMap::default(),
+            organic_billboards: OrganicBillboardData::default(),
             current_layer: 0,
             scene_accel: SceneAccel::default(),
             accel_dirty: true,
@@ -3756,12 +4094,14 @@ impl VM {
             Atom::NewChunk { id } => {
                 self.chunks_map.entry(id).or_insert_with(Chunk::default);
                 self.accel_dirty = true;
+                self.organic_billboards.dirty = true;
                 self.mark_2d_dirty();
             }
             Atom::AddChunk { id, chunk } => {
                 // Insert or replace the chunk as-is; caller controls current_chunk separately
                 self.chunks_map.insert(id, chunk);
                 self.accel_dirty = true;
+                self.organic_billboards.dirty = true;
                 self.mark_2d_dirty();
             }
             Atom::RemoveChunk { id } => {
@@ -3771,6 +4111,7 @@ impl VM {
                     self.current_chunk = None;
                 }
                 self.accel_dirty = true;
+                self.organic_billboards.dirty = true;
                 self.mark_2d_dirty();
             }
             Atom::RemoveChunkAt { origin } => {
@@ -3787,6 +4128,7 @@ impl VM {
                     }
                 }
                 self.accel_dirty = true;
+                self.organic_billboards.dirty = true;
                 self.mark_2d_dirty();
             }
             Atom::SetCurrentChunk { id } => {
@@ -3852,6 +4194,10 @@ impl VM {
                 self.dynamic_objects.clear();
                 self.dynamic_avatar_objects.clear();
                 self.dynamic_avatar_data.clear();
+                self.organic_billboards = OrganicBillboardData {
+                    dirty: true,
+                    ..OrganicBillboardData::default()
+                };
                 self.organic_surface_slots.clear();
                 self.organic_surface_pixels.clear();
                 self.organic_detail_dirty = true;
@@ -3863,6 +4209,10 @@ impl VM {
                 self.mark_all_geometry_dirty();
                 self.dynamic_objects.clear();
                 self.dynamic_avatar_objects.clear();
+                self.organic_billboards = OrganicBillboardData {
+                    dirty: true,
+                    ..OrganicBillboardData::default()
+                };
             }
             Atom::ClearGeometry => {
                 // Remove all chunks and unset current chunk; keep tiles/atlas/state
@@ -3872,6 +4222,10 @@ impl VM {
                 self.mark_2d_dirty();
                 self.dynamic_objects.clear();
                 self.dynamic_avatar_objects.clear();
+                self.organic_billboards = OrganicBillboardData {
+                    dirty: true,
+                    ..OrganicBillboardData::default()
+                };
                 self.organic_surface_slots.clear();
                 self.organic_surface_pixels.clear();
                 self.organic_detail_dirty = true;
@@ -3931,6 +4285,7 @@ impl VM {
                         g.raster3d_pipeline = None;
                         g.raster3d_alpha_pipeline = None;
                         g.raster3d_particle_pipeline = None;
+                        g.raster3d_organic_billboard_pipeline = None;
                         g.raster3d_shadow_pipeline = None;
                         g.u_raster3d_bgl = None;
                         g.u_raster3d_shadow_bgl = None;
@@ -4054,6 +4409,42 @@ impl VM {
             }
             Atom::SetOrganicVisible { visible } => {
                 self.organic_visible = visible;
+            }
+            Atom::SetOrganicBillboards { sprites, instances } => {
+                let sanitized_sprites: Vec<OrganicBillboardSprite> = sprites
+                    .into_iter()
+                    .filter(|sprite| {
+                        sprite.width > 0
+                            && sprite.height > 0
+                            && sprite.width <= 256
+                            && sprite.height <= 256
+                            && sprite.rgba.len()
+                                == sprite.width as usize * sprite.height as usize * 4
+                    })
+                    .collect();
+                let sprite_count = sanitized_sprites.len() as u32;
+                let sanitized_instances: Vec<OrganicBillboardInstance> = instances
+                    .into_iter()
+                    .filter(|instance| {
+                        instance.sprite_index < sprite_count
+                            && instance.width.is_finite()
+                            && instance.width > 0.0
+                            && instance.height.is_finite()
+                            && instance.height > 0.0
+                            && instance.center.iter().all(|v| v.is_finite())
+                    })
+                    .collect();
+                self.organic_billboards = OrganicBillboardData {
+                    sprites: sanitized_sprites,
+                    instances: sanitized_instances,
+                    dirty: true,
+                };
+            }
+            Atom::ClearOrganicBillboards => {
+                self.organic_billboards = OrganicBillboardData {
+                    dirty: true,
+                    ..OrganicBillboardData::default()
+                };
             }
             Atom::RemoveAvatarBillboardData { id } => {
                 self.dynamic_avatar_data.remove(&id);
@@ -4218,6 +4609,7 @@ impl VM {
             raster3d_pipeline: None,
             raster3d_alpha_pipeline: None,
             raster3d_particle_pipeline: None,
+            raster3d_organic_billboard_pipeline: None,
             raster3d_shadow_pipeline: None,
             u2d_buf: None,
             u3d_buf: None,
@@ -4274,6 +4666,9 @@ impl VM {
             tile_frames_ssbo: None,
             scene_data_ssbo: None,
             scene_data_ssbo_size: 0,
+            organic_billboard_ssbo: None,
+            organic_billboard_ssbo_size: 0,
+            organic_billboard_count: 0,
             grid_hdr: None,
             grid_data: None,
             sdf_data_ssbo: None,
@@ -5057,6 +5452,7 @@ impl VM {
             && g.raster3d_alpha_pipeline.is_some()
             && g.u_raster3d_bgl.is_some()
             && g.u_raster3d_buf.is_some()
+            && g.raster3d_organic_billboard_pipeline.is_some()
         {
             return Ok(());
         }
@@ -5158,6 +5554,16 @@ impl VM {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 10,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -5240,6 +5646,12 @@ impl VM {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("vm-3d-raster-shader"),
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SCENEVM_3D_RASTER_WGSL)),
+        });
+        let organic_billboard_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("vm-3d-organic-billboard-shader"),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
+                SCENEVM_3D_ORGANIC_BILLBOARD_WGSL,
+            )),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -5595,6 +6007,50 @@ impl VM {
                 multiview: None,
                 cache: None,
             });
+        let raster3d_organic_billboard_pipeline =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("vm-3d-organic-billboard-pipeline"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &organic_billboard_shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &organic_billboard_shader,
+                    entry_point: Some("fs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: None,
+                    unclipped_depth: false,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState {
+                    count: raster_samples,
+                    alpha_to_coverage_enabled: true,
+                    ..Default::default()
+                },
+                multiview: None,
+                cache: None,
+            });
         let raster3d_shadow_pipeline =
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("vm-3d-raster-shadow-pipeline"),
@@ -5729,6 +6185,7 @@ impl VM {
         g.raster3d_pipeline = Some(raster3d_pipeline);
         g.raster3d_alpha_pipeline = Some(raster3d_alpha_pipeline);
         g.raster3d_particle_pipeline = Some(raster3d_particle_pipeline);
+        g.raster3d_organic_billboard_pipeline = Some(raster3d_organic_billboard_pipeline);
         g.raster3d_shadow_pipeline = Some(raster3d_shadow_pipeline);
         g.shadow_sampler_compare = Some(shadow_sampler_compare);
 
@@ -7730,6 +8187,7 @@ impl VM {
 
         let debug_upload_start = std::time::Instant::now();
         {
+            self.upload_organic_billboard_ssbo(device, queue);
             let g = self.gpu.as_mut().unwrap();
             g.ensure_raster3d_targets(device, fb_w, fb_h, shadow_res, raster_samples);
             queue.write_buffer(
@@ -7896,58 +8354,68 @@ impl VM {
                     },
                 ],
             }));
-            g.u_raster3d_bg = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("vm-raster3d-bg"),
-                layout: g.u_raster3d_bgl.as_ref().unwrap(),
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: g.u_raster3d_buf.as_ref().unwrap().as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::TextureView(&atlas_view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: wgpu::BindingResource::Sampler(&g.sampler_raster),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 3,
-                        resource: g.tile_meta_ssbo.as_ref().unwrap().as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 4,
-                        resource: g.tile_frames_ssbo.as_ref().unwrap().as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 5,
-                        resource: wgpu::BindingResource::TextureView(
-                            g.raster3d_shadow_view.as_ref().unwrap(),
-                        ),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 6,
-                        resource: wgpu::BindingResource::Sampler(
-                            g.shadow_sampler_compare.as_ref().unwrap(),
-                        ),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 7,
-                        resource: wgpu::BindingResource::TextureView(&atlas_mat_view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 8,
-                        resource: g.scene_data_ssbo.as_ref().unwrap().as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 9,
-                        resource: wgpu::BindingResource::TextureView(
-                            g.organic_detail_view.as_ref().unwrap(),
-                        ),
-                    },
-                ],
-            }));
+            g.u_raster3d_bg = Some(
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("vm-raster3d-bg"),
+                    layout: g.u_raster3d_bgl.as_ref().unwrap(),
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: g.u_raster3d_buf.as_ref().unwrap().as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(&atlas_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::Sampler(&g.sampler_raster),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: g.tile_meta_ssbo.as_ref().unwrap().as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: g.tile_frames_ssbo.as_ref().unwrap().as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: wgpu::BindingResource::TextureView(
+                                g.raster3d_shadow_view.as_ref().unwrap(),
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: wgpu::BindingResource::Sampler(
+                                g.shadow_sampler_compare.as_ref().unwrap(),
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: wgpu::BindingResource::TextureView(&atlas_mat_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 8,
+                            resource: g.scene_data_ssbo.as_ref().unwrap().as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 9,
+                            resource: wgpu::BindingResource::TextureView(
+                                g.organic_detail_view.as_ref().unwrap(),
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 10,
+                            resource: g
+                                .organic_billboard_ssbo
+                                .as_ref()
+                                .unwrap()
+                                .as_entire_binding(),
+                        },
+                    ],
+                }),
+            );
         }
         let debug_upload_ms = debug_upload_start.elapsed().as_secs_f64() * 1000.0;
 
@@ -8109,6 +8577,11 @@ impl VM {
                     wgpu::IndexFormat::Uint32,
                 );
                 pass.draw_indexed(0..g.i3d_raster_opaque_count, 0, 0..1);
+            }
+            if g.organic_billboard_count > 0 && self.organic_visible {
+                pass.set_pipeline(g.raster3d_organic_billboard_pipeline.as_ref().unwrap());
+                pass.set_bind_group(0, g.u_raster3d_bg.as_ref().unwrap(), &[]);
+                pass.draw(0..g.organic_billboard_count.saturating_mul(6), 0..1);
             }
             if g.i3d_raster_transparent_count > 0 {
                 pass.set_pipeline(g.raster3d_alpha_pipeline.as_ref().unwrap());
