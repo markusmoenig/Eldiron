@@ -19,6 +19,7 @@ use buildergraph::{
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::GeoId;
 use std::str::FromStr;
+use theframework::prelude::TheColor;
 use uuid::Uuid;
 use vek::{Vec2, Vec3};
 
@@ -4340,16 +4341,39 @@ fn resolve_builder_material_tile_id(
     }
 }
 
+fn organic_palette_color_matches_target(color: &TheColor, target: [f32; 3]) -> bool {
+    let max = color.r.max(color.g).max(color.b);
+    let min = color.r.min(color.g).min(color.b);
+    let saturation = if max <= 0.001 { 0.0 } else { (max - min) / max };
+    if saturation < 0.16 {
+        return false;
+    }
+
+    if target[1] >= target[0] && target[1] >= target[2] {
+        color.g >= color.r * 0.92 && color.g >= color.b * 0.92
+    } else if target[0] >= target[1] && target[1] >= target[2] {
+        color.r >= color.b * 1.15 && color.g >= color.b * 0.85
+    } else {
+        true
+    }
+}
+
 fn builder_palette_tile_id_from_color(assets: &Assets, target: [f32; 4]) -> Option<Uuid> {
     let mut best: Option<(usize, f32)> = None;
     for (index, color) in assets.palette.colors.iter().enumerate() {
         let Some(color) = color else {
             continue;
         };
+        if !organic_palette_color_matches_target(color, [target[0], target[1], target[2]]) {
+            continue;
+        }
         let dr = color.r - target[0];
         let dg = color.g - target[1];
         let db = color.b - target[2];
         let distance = dr * dr + dg * dg + db * db;
+        if distance > 0.18 {
+            continue;
+        }
         if best.is_none_or(|(_, best_distance)| distance < best_distance) {
             best = Some((index, distance));
         }
@@ -4576,11 +4600,14 @@ fn organic_sprite_palette_color_seeded(
             if brightness < 0.08 {
                 return None;
             }
+            if !organic_palette_color_matches_target(color, target) {
+                return None;
+            }
             let dr = color.r - target[0];
             let dg = color.g - target[1];
             let db = color.b - target[2];
             let distance = dr * dr + dg * dg + db * db;
-            (distance < 0.34).then_some((
+            (distance < 0.18).then_some((
                 [
                     (color.r.clamp(0.0, 1.0) * 255.0).round() as u8,
                     (color.g.clamp(0.0, 1.0) * 255.0).round() as u8,
@@ -4595,7 +4622,7 @@ fn organic_sprite_palette_color_seeded(
     if candidates.is_empty() {
         return fallback;
     }
-    let pick_span = candidates.len().min(6);
+    let pick_span = candidates.len().min(3);
     let pick = (hash01(seed) * pick_span as f32).floor() as usize;
     candidates[pick.min(pick_span - 1)].0
 }

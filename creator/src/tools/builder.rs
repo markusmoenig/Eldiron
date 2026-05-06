@@ -268,13 +268,12 @@ impl Tool for BuilderTool {
                 server_ctx.curr_map_tool_type = MapToolType::General;
                 server_ctx.hover_cursor = None;
                 server_ctx.hover_cursor_3d = None;
-                if DOCKMANAGER.read().unwrap().dock == "Builder"
-                    && let Some(prev) = self.previous_dock.take()
-                {
-                    DOCKMANAGER
-                        .write()
-                        .unwrap()
-                        .set_dock(prev, ui, ctx, project, server_ctx);
+                if DOCKMANAGER.read().unwrap().dock == "Builder" {
+                    let mut dockmanager = DOCKMANAGER.write().unwrap();
+                    dockmanager.minimize_for_tool_switch(ui, ctx);
+                    if let Some(prev) = self.previous_dock.take() {
+                        dockmanager.set_dock(prev, ui, ctx, project, server_ctx);
+                    }
                 }
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Geometry Overlay 3D"),

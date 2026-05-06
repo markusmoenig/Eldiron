@@ -336,15 +336,16 @@ impl DockManager {
         }
     }
 
-    /// Shows the editor of the current dock if available, otherwise maximizes the dock.
-    pub fn minimize(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+    fn minimize_inner(&mut self, ui: &mut TheUI, ctx: &mut TheContext, restore_game_tools: bool) {
         if self.state != DockManagerState::Minimized {
             // Switch back to game tools when minimizing from editor mode
             if self.state == DockManagerState::Editor {
                 if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
                     editor_dock.minimized(ui, ctx);
                 }
-                TOOLLIST.write().unwrap().set_game_tools(ui, ctx);
+                if restore_game_tools {
+                    TOOLLIST.write().unwrap().set_game_tools(ui, ctx);
+                }
                 if let Some(stack) = ui.get_stack_layout("Editor Stack") {
                     stack.set_index(0);
                 }
@@ -356,6 +357,16 @@ impl DockManager {
 
             self.set_supports_undo(self.docks[self.index].supports_undo(), ctx);
         }
+    }
+
+    /// Shows the editor of the current dock if available, otherwise maximizes the dock.
+    pub fn minimize(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.minimize_inner(ui, ctx, true);
+    }
+
+    /// Minimize during game-tool switching, while the tool list is already locked by the caller.
+    pub fn minimize_for_tool_switch(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.minimize_inner(ui, ctx, false);
     }
 
     /// Returns true if the current dock (either the editor dock or the normal dock) supports undo.

@@ -674,6 +674,13 @@ impl Dock for BuilderEditorDock {
         server_ctx: &mut ServerContext,
     ) -> bool {
         match event {
+            TheEvent::KeyCodeDown(TheValue::KeyCode(key)) if *key == TheKeyCode::Escape => {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Minimize Dock"),
+                    TheValue::Empty,
+                ));
+                true
+            }
             TheEvent::ValueChanged(id, TheValue::Text(text))
                 if id.name == BUILDER_SCRIPT_EDITOR =>
             {

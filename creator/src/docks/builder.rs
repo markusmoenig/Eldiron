@@ -373,6 +373,12 @@ impl Dock for BuilderDock {
                         TheValue::Id(server_ctx.curr_builder_graph_id.unwrap()),
                     ));
                     redraw = true;
+                } else if *key == TheKeyCode::Escape {
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Minimize Dock"),
+                        TheValue::Empty,
+                    ));
+                    redraw = true;
                 } else if *key == TheKeyCode::Delete
                     && !ui.focus_widget_supports_text_input(ctx)
                     && let Some(asset_id) = self.selected
