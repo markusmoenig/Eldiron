@@ -1,11 +1,13 @@
 ---
 title: "Sector Tool"
-sidebar_position: 4
+sidebar_position: 5
 ---
 
 The **Sector Tool** (keyboard shortcut **'E'**) allows you to **select, edit, move and delete sectors** in the map.
 
 It is specifically designed for working with **sectors only**. Unlike the **Linedef Tool**, it does not include a creation mode, as sectors are automatically formed when a closed shape is created.
+
+In 3D views, the Sector Tool selects faces on direct geometry objects.
 
 ## Selection Modes
 
@@ -18,14 +20,14 @@ It is specifically designed for working with **sectors only**. Unlike the **Line
 - **Delete Key**: Remove selected sectors.
 - **Escape Key**: Clear the selection.
 
-## 3D Modes
+## 3D Shortcuts
 
-In 3D views, the Sector tool works in both `GEOM` and `DETAIL`:
-
-- `GEOM`: selects and moves world sectors.
-- `DETAIL`: selects and moves sectors inside the active surface profile.
-
-Profile sectors are used for holes, windows, gates, recesses, reliefs, and other surface-local features.
+- **E**: Extrude selected faces by one grid step.
+- **X**: Subdivide selected quad faces.
+- **T**: Apply the current tile, color, tilegraph, or nodegraph source.
+- **+ / -**: Push or pull selected faces along their normals.
+- **[ / ]**: Move selected faces vertically by one grid step.
+- **Delete**: Delete selected faces. Boundary vertices remain selected so the opening can be filled with **F** in vertex editing.
 
 ## Assigning Tiles
 
@@ -51,9 +53,7 @@ Use sectors to create logical units, such as a house, and fill them with content
 
 ### 3D
 
-Use sectors to create foundations of structures; you can [Extrude](../actions/#extrude) the linedefs of sectors to create walls and build up complex **3D** objects.
-
-In `DETAIL`, sectors are not structural world sectors. They are profile sectors attached to the currently active surface.
+Use the Sector Tool to edit faces on direct geometry objects. Select a face and press **E** to extrude, **X** to subdivide, or **T** to apply the current tile source.
 
 ### 2D and 3D
 

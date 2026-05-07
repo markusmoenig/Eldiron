@@ -94,7 +94,7 @@ percentage = 35
 
 - `enabled`: if `false`, **Build Procedural** does nothing.
 - `generator`: currently supports `connected_rooms`.
-- `mode`: `2d` builds tile-map geometry. `3d` is reserved for a later Dungeon Tool-backed generator.
+- `mode`: `2d` builds tile-map geometry. `3d` is reserved for a future direct geometry generator.
 - `seed`: makes the generated layout deterministic.
 - `style`: selects tiles whose procedural style matches this value.
 - `width` / `height`: generated grid size.

@@ -1047,6 +1047,7 @@ impl Client {
         height: usize,
         _assets: &Assets,
         scene_handler: &mut SceneHandler,
+        editor_neutral_background: bool,
     ) {
         self.scene.animation_frame = self.animation_frame;
 
@@ -1057,6 +1058,11 @@ impl Client {
         scene_handler.apply_runtime_render_state_settings();
         scene_handler.settings.apply_3d(&mut scene_handler.vm);
         scene_handler.apply_runtime_render_state_3d();
+        if editor_neutral_background {
+            scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGP0(Vec4::new(0.018, 0.018, 0.020, 0.0)));
+        }
 
         scene_handler
             .vm

@@ -1,6 +1,6 @@
 ---
 title: "Entity Tool"
-sidebar_position: 6
+sidebar_position: 8
 ---
 
 The **Entity Tool** (keyboard shortcut **'Y'**) allows you to **select, move, and delete character and item instances** in the map.

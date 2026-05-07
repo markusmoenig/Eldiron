@@ -1,5 +1,5 @@
 use crate::{
-    BBox2D, GeoId, LineStrip2D, OrganicBillboardInstance, OrganicBillboardSprite,
+    BBox2D, GeoId, Line3D, LineStrip2D, OrganicBillboardInstance, OrganicBillboardSprite,
     OrganicSurfaceDetail, Poly2D, Poly3D,
 };
 use rustc_hash::FxHashMap;
@@ -22,6 +22,9 @@ pub struct Chunk {
     /// 3D Geometry,
     pub polys3d_map: rustc_hash::FxHashMap<GeoId, Vec<Poly3D>>,
 
+    /// 3D hardware line overlay geometry.
+    pub lines3d: rustc_hash::FxHashMap<GeoId, Vec<Line3D>>,
+
     /// Static organic billboard sprites and instances owned by this chunk.
     pub organic_billboard_sprites: Vec<OrganicBillboardSprite>,
     pub organic_billboard_instances: Vec<OrganicBillboardInstance>,
@@ -36,6 +39,7 @@ impl Chunk {
             .keys()
             .chain(self.lines2d_px.keys())
             .chain(self.polys3d_map.keys())
+            .chain(self.lines3d.keys())
             .copied()
     }
 
@@ -71,6 +75,10 @@ impl Chunk {
 
     pub fn add_3d(&mut self, poly: Poly3D) {
         self.polys3d_map.entry(poly.id).or_default().push(poly);
+    }
+
+    pub fn add_line3d(&mut self, line: Line3D) {
+        self.lines3d.entry(line.id).or_default().push(line);
     }
 
     /// Add a 2D polygon with explicit vertices/uvs/indices. Indices are local to this chunk.
@@ -544,5 +552,28 @@ impl Chunk {
             organic_detail: None,
         };
         self.polys3d_map.entry(id).or_default().push(poly);
+    }
+
+    pub fn add_hardware_line_3d(
+        &mut self,
+        id: GeoId,
+        a: Vec3<f32>,
+        b: Vec3<f32>,
+        color: [f32; 4],
+        layer: i32,
+    ) {
+        let dir = b - a;
+        let len2 = dir.magnitude_squared();
+        if !len2.is_finite() || len2 < 1e-12 {
+            return;
+        }
+        self.add_line3d(Line3D {
+            id,
+            a,
+            b,
+            color,
+            layer,
+            visible: true,
+        });
     }
 }

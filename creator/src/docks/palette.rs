@@ -456,6 +456,16 @@ impl PaletteDock {
                 needs_scene_redraw = true;
             } else {
                 let mut changed = false;
+                let geometry_source = crate::utils::SurfaceApplySource::Direct(source.clone());
+                for (object_id, face_index) in map.selected_geometry_faces.clone() {
+                    changed |= crate::utils::apply_surface_source_to_geometry_face(
+                        map,
+                        object_id,
+                        face_index,
+                        &geometry_source,
+                        Some(1),
+                    );
+                }
                 for sector_id in map.selected_sectors.clone() {
                     let mut source_key = "source";
                     if server_ctx.pc.is_screen() && server_ctx.selected_hud_icon_index == 1 {
@@ -543,6 +553,10 @@ impl PaletteDock {
         if !cleared_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
             let mut changed = false;
             let prev = map.clone();
+            for (object_id, face_index) in map.selected_geometry_faces.clone() {
+                changed |=
+                    crate::utils::clear_surface_source_on_geometry_face(map, object_id, face_index);
+            }
             for sector_id in map.selected_sectors.clone() {
                 let mut source_key = "source";
                 if server_ctx.pc.is_screen() && server_ctx.selected_hud_icon_index == 1 {

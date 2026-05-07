@@ -49,6 +49,29 @@ impl ToolList {
     const TEXT_PLAY_BUTTON_NAME: &'static str = "Text Play";
     const PALETTE_BUTTON_NAME: &'static str = "Palette Mode";
 
+    fn grid_subdivision_from_shift_key(c: char) -> Option<f32> {
+        match c {
+            '1' | '!' => Some(1.0),
+            '2' | '@' => Some(2.0),
+            '3' | '#' => Some(3.0),
+            '4' | '$' => Some(4.0),
+            '5' | '%' => Some(5.0),
+            '6' | '^' => Some(6.0),
+            '7' | '&' => Some(7.0),
+            '8' | '*' => Some(8.0),
+            '9' | '(' => Some(9.0),
+            '0' | ')' => Some(10.0),
+            _ => None,
+        }
+    }
+
+    fn is_grid_subdivision_key(c: char) -> bool {
+        matches!(
+            c,
+            '0'..='9' | '!' | '@' | '#' | '$' | '%' | '^' | '&' | '*' | '(' | ')'
+        )
+    }
+
     fn get_tool_map_mut<'a>(
         project: &'a mut Project,
         server_ctx: &ServerContext,
@@ -309,6 +332,16 @@ impl ToolList {
                     z.div_euclid(chunk_size) * chunk_size,
                 ));
             }
+            GeoId::GeometryObject(object_id) => {
+                if let Some(bbox) = map
+                    .geometry_objects
+                    .iter()
+                    .find(|object| object.id == object_id)
+                    .and_then(|object| object.bbox())
+                {
+                    Self::add_bbox_dirty_chunks(bbox, chunks);
+                }
+            }
             _ => {}
         }
     }
@@ -383,6 +416,7 @@ impl ToolList {
         let mut affected_sectors: FxHashSet<u32> = FxHashSet::default();
         let mut affected_linedefs: FxHashSet<u32> = FxHashSet::default();
         let mut affected_vertices: FxHashSet<u32> = FxHashSet::default();
+        let mut affected_geometry_objects: FxHashSet<Uuid> = FxHashSet::default();
 
         let old_vertices = old_map
             .vertices
@@ -469,9 +503,36 @@ impl ToolList {
             }
         }
 
+        let old_geometry_objects = old_map
+            .geometry_objects
+            .iter()
+            .map(|object| (object.id, object))
+            .collect::<FxHashMap<_, _>>();
+        let new_geometry_objects = new_map
+            .geometry_objects
+            .iter()
+            .map(|object| (object.id, object))
+            .collect::<FxHashMap<_, _>>();
+        let mut geometry_object_ids = FxHashSet::default();
+        geometry_object_ids.extend(old_geometry_objects.keys().copied());
+        geometry_object_ids.extend(new_geometry_objects.keys().copied());
+
+        for object_id in geometry_object_ids {
+            match (
+                old_geometry_objects.get(&object_id),
+                new_geometry_objects.get(&object_id),
+            ) {
+                (Some(old), Some(new)) if *old == *new => {}
+                _ => {
+                    affected_geometry_objects.insert(object_id);
+                }
+            }
+        }
+
         if affected_sectors.is_empty()
             && affected_linedefs.is_empty()
             && affected_vertices.is_empty()
+            && affected_geometry_objects.is_empty()
         {
             return None;
         }
@@ -487,6 +548,12 @@ impl ToolList {
         owners.extend(new_topology.owners_for_linedefs(new_map, affected_linedefs.iter().copied()));
         owners.extend(old_topology.owners_for_sectors(old_map, affected_sectors.iter().copied()));
         owners.extend(new_topology.owners_for_sectors(new_map, affected_sectors.iter().copied()));
+        owners.extend(
+            affected_geometry_objects
+                .iter()
+                .copied()
+                .map(GeoId::GeometryObject),
+        );
         let include_terrain = Self::changed_elements_affect_terrain(
             old_map,
             new_map,
@@ -517,6 +584,20 @@ impl ToolList {
         for linedef_id in &affected_linedefs {
             Self::add_linedef_dirty_chunks(old_map, *linedef_id, &mut chunk_origins);
             Self::add_linedef_dirty_chunks(new_map, *linedef_id, &mut chunk_origins);
+        }
+        for object_id in &affected_geometry_objects {
+            if let Some(bbox) = old_geometry_objects
+                .get(object_id)
+                .and_then(|object| object.bbox())
+            {
+                Self::add_bbox_dirty_chunks(bbox, &mut chunk_origins);
+            }
+            if let Some(bbox) = new_geometry_objects
+                .get(object_id)
+                .and_then(|object| object.bbox())
+            {
+                Self::add_bbox_dirty_chunks(bbox, &mut chunk_origins);
+            }
         }
         for owner in owners.iter().copied() {
             Self::add_owner_dirty_chunks(old_map, owner, &mut chunk_origins);
@@ -587,6 +668,20 @@ impl ToolList {
     }
 
     fn apply_geometry_scene_update(new_map: &Map, plan: GeometryOwnerReplacementPlan) -> bool {
+        if plan
+            .owners
+            .iter()
+            .any(|owner| matches!(owner, GeoId::GeometryObject(_)))
+        {
+            let mut build_map = new_map.clone();
+            build_map.changed = build_map.changed.wrapping_add(1);
+            build_map.update_surfaces();
+            crate::utils::editor_scene_replace_incremental_map_update(
+                build_map,
+                plan.chunk_origins.into_iter().collect(),
+            );
+            return true;
+        }
         Self::apply_geometry_owner_replacement(new_map, plan)
     }
 
@@ -622,16 +717,52 @@ impl ToolList {
         }
         if !matches!(
             server_ctx.curr_map_tool_type,
-            MapToolType::Vertex | MapToolType::Linedef | MapToolType::Sector
+            MapToolType::Vertex
+                | MapToolType::Linedef
+                | MapToolType::Sector
+                | MapToolType::Selection
         ) {
             return false;
         }
 
+        if server_ctx.curr_map_tool_type == MapToolType::Selection {
+            let owners: FxHashSet<GeoId> = map
+                .selected_geometry_objects
+                .iter()
+                .copied()
+                .map(GeoId::GeometryObject)
+                .collect();
+            if owners.is_empty() {
+                return false;
+            }
+
+            let mut chunk_origins = {
+                let rusterix = RUSTERIX.read().unwrap();
+                rusterix
+                    .scene_handler
+                    .build_index
+                    .chunks_for_owners(owners.iter().copied())
+            };
+            for id in &map.selected_geometry_objects {
+                if let Some(object) = map.geometry_objects.iter().find(|object| object.id == *id)
+                    && let Some(bbox) = object.bbox()
+                {
+                    Self::add_bbox_dirty_chunks(bbox, &mut chunk_origins);
+                }
+            }
+            if chunk_origins.is_empty() {
+                return false;
+            }
+
+            crate::utils::editor_scene_replace_incremental_map_update(
+                map.clone(),
+                chunk_origins.into_iter().collect(),
+            );
+            return true;
+        }
+
         let topology = rusterix::MapTopology::build(map);
         let include_terrain = Self::selected_edit_affects_terrain(map, server_ctx);
-        if include_terrain {
-            return false;
-        }
         let mut owners = match server_ctx.curr_map_tool_type {
             MapToolType::Vertex => topology.owners_for_vertices(map, map.selected_vertices.clone()),
             MapToolType::Linedef => {
@@ -667,6 +798,49 @@ impl ToolList {
 
         if chunk_origins.is_empty() {
             return false;
+        }
+
+        if include_terrain {
+            let mut live_owners = owners.clone();
+            Self::strip_terrain_owners(&mut live_owners);
+
+            if !live_owners.is_empty() {
+                let mut live_chunk_origins = {
+                    let rusterix = RUSTERIX.read().unwrap();
+                    rusterix
+                        .scene_handler
+                        .build_index
+                        .chunks_for_owners(live_owners.iter().copied())
+                };
+                for owner in live_owners.iter().copied() {
+                    Self::add_owner_dirty_chunks(map, owner, &mut live_chunk_origins);
+                }
+                Self::expand_topology_owners_for_chunks(
+                    map,
+                    &live_chunk_origins,
+                    &mut live_owners,
+                    false,
+                );
+                Self::expand_index_owners_for_chunks(&live_chunk_origins, &mut live_owners, false);
+                Self::strip_terrain_owners(&mut live_owners);
+
+                if !live_chunk_origins.is_empty() && !live_owners.is_empty() {
+                    let _ = Self::apply_geometry_owner_replacement(
+                        map,
+                        GeometryOwnerReplacementPlan {
+                            owners: live_owners,
+                            chunk_origins: live_chunk_origins,
+                            include_terrain: false,
+                        },
+                    );
+                }
+            }
+
+            crate::utils::editor_scene_replace_incremental_map_update(
+                map.clone(),
+                chunk_origins.into_iter().collect(),
+            );
+            return true;
         }
 
         Self::apply_geometry_owner_replacement(
@@ -816,9 +990,8 @@ impl ToolList {
             Box::new(VertexTool::new()),
             Box::new(LinedefTool::new()),
             Box::new(SectorTool::new()),
+            Box::new(GeometryTool::new()),
             Box::new(RectTool::new()),
-            Box::new(crate::tools::dungeon::DungeonTool::new()),
-            Box::new(crate::tools::builder::BuilderTool::new()),
             Box::new(crate::tools::organic::OrganicTool::new()),
             Box::new(crate::tools::entity::EntityTool::new()),
             // Box::new(RenderTool::new()),
@@ -1455,16 +1628,46 @@ impl ToolList {
                             } else if *c == '.' {
                                 map.grid_size += 2.0;
                                 return false;
+                            } else if ui.shift
+                                && let Some(subdivision) = Self::grid_subdivision_from_shift_key(*c)
+                            {
+                                map.subdivisions = subdivision;
+                                RUSTERIX.write().unwrap().set_dirty();
+                                return false;
+                            } else if Self::is_grid_subdivision_key(*c)
+                                && server_ctx.curr_map_tool_type != MapToolType::Selection
+                            {
+                                return false;
                             } else if server_ctx.editor_view_mode != EditorViewMode::D2
                                 && !server_ctx.game_input_mode
                                 && server_ctx.curr_map_tool_type != MapToolType::Game
                             {
-                                if *c == 'g' || *c == 'G' {
-                                    server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
-                                    self.update_geometry_overlay_3d(project, server_ctx);
-                                    RUSTERIX.write().unwrap().set_dirty();
-                                    return false;
-                                } else if *c == 'd' || *c == 'D' {
+                                if server_ctx.curr_map_tool_type == MapToolType::Selection {
+                                    let op = match c.to_ascii_lowercase() {
+                                        'm' => Some(GeometryGizmoOp::Move),
+                                        's' => Some(GeometryGizmoOp::Resize),
+                                        _ => None,
+                                    };
+                                    if let Some(op) = op {
+                                        server_ctx.geometry_gizmo_op = op;
+                                        self.update_geometry_overlay_3d(project, server_ctx);
+                                        RUSTERIX.write().unwrap().set_dirty();
+                                        ctx.ui.send(TheEvent::SetStatusText(
+                                            TheId::empty(),
+                                            match op {
+                                                GeometryGizmoOp::Move => {
+                                                    fl!("status_hud_geometry_op_move")
+                                                }
+                                                GeometryGizmoOp::Resize => {
+                                                    fl!("status_hud_geometry_op_size")
+                                                }
+                                            },
+                                        ));
+                                        return false;
+                                    }
+                                }
+
+                                if *c == 'd' || *c == 'D' {
                                     server_ctx.geometry_edit_mode = GeometryEditMode::Detail;
                                     self.update_geometry_overlay_3d(project, server_ctx);
                                     RUSTERIX.write().unwrap().set_dirty();
@@ -1547,7 +1750,7 @@ impl ToolList {
                         // Check editor tool accelerators
                         for tool in self.editor_tools.iter() {
                             if let Some(acc) = tool.accel() {
-                                if acc.to_ascii_lowercase() == *c {
+                                if acc.to_ascii_lowercase() == c.to_ascii_lowercase() {
                                     tool_uuid = Some(tool.id().uuid);
                                     ctx.ui.set_widget_state(
                                         self.editor_tools[self.curr_editor_tool].id().name,
@@ -1562,7 +1765,7 @@ impl ToolList {
                         // Check game tool accelerators
                         for tool in self.game_tools.iter() {
                             if let Some(acc) = tool.accel() {
-                                if acc.to_ascii_lowercase() == *c {
+                                if acc.to_ascii_lowercase() == c.to_ascii_lowercase() {
                                     tool_uuid = Some(tool.id().uuid);
                                     ctx.ui.set_widget_state(
                                         self.game_tools[self.curr_game_tool].id().name,
@@ -1913,6 +2116,20 @@ impl ToolList {
                                         }
                                     }
                                 }
+                            }
+                        }
+
+                        if server_ctx.editor_view_mode != EditorViewMode::D2
+                            && let Some(render_view) = ui.get_render_view("PolyView")
+                        {
+                            if let Some(rc) =
+                                self.get_geometry_hit(render_view, *coord, project, server_ctx)
+                            {
+                                server_ctx.geo_hit = Some(rc.0);
+                                server_ctx.geo_hit_pos = rc.1;
+                            } else {
+                                server_ctx.geo_hit = None;
+                                server_ctx.geo_hit_pos = Vec3::zero();
                             }
                         }
 
@@ -2714,6 +2931,539 @@ impl ToolList {
                     .add_line_3d(id, tile_id, a, b, thickness, normal, 100);
             };
 
+            let grid_bbox = map.bbox().expanded(Vec2::new(16.0, 16.0));
+            let min_x = grid_bbox.min.x.floor().min(-8.0) as i32;
+            let max_x = grid_bbox.max.x.ceil().max(8.0) as i32;
+            let min_z = grid_bbox.min.y.floor().min(-8.0) as i32;
+            let max_z = grid_bbox.max.y.ceil().max(8.0) as i32;
+            let grid_y = 0.012;
+            let mut grid_index = 0u32;
+
+            for x in min_x..=max_x {
+                if x == 0 {
+                    continue;
+                }
+                let is_major = x % 4 == 0;
+                rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                    GeoId::Unknown(0xE300_0000u32.wrapping_add(grid_index)),
+                    Vec3::new(x as f32, grid_y, min_z as f32),
+                    Vec3::new(x as f32, grid_y, max_z as f32),
+                    if is_major {
+                        [0.15, 0.15, 0.15, 0.36]
+                    } else {
+                        [0.11, 0.11, 0.11, 0.28]
+                    },
+                    10,
+                );
+                grid_index = grid_index.wrapping_add(1);
+            }
+
+            for z in min_z..=max_z {
+                if z == 0 {
+                    continue;
+                }
+                let is_major = z % 4 == 0;
+                rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                    GeoId::Unknown(0xE301_0000u32.wrapping_add(grid_index)),
+                    Vec3::new(min_x as f32, grid_y, z as f32),
+                    Vec3::new(max_x as f32, grid_y, z as f32),
+                    if is_major {
+                        [0.15, 0.15, 0.15, 0.36]
+                    } else {
+                        [0.11, 0.11, 0.11, 0.28]
+                    },
+                    10,
+                );
+                grid_index = grid_index.wrapping_add(1);
+            }
+
+            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                GeoId::Unknown(0xE302_0000),
+                Vec3::new(min_x as f32, grid_y + 0.004, 0.0),
+                Vec3::new(max_x as f32, grid_y + 0.004, 0.0),
+                [0.15, 0.15, 0.15, 0.42],
+                11,
+            );
+            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                GeoId::Unknown(0xE302_0001),
+                Vec3::new(0.0, grid_y + 0.004, min_z as f32),
+                Vec3::new(0.0, grid_y + 0.004, max_z as f32),
+                [0.15, 0.15, 0.15, 0.42],
+                11,
+            );
+
+            let direct_geometry_tool = matches!(
+                server_ctx.curr_map_tool_type,
+                MapToolType::Selection
+                    | MapToolType::Vertex
+                    | MapToolType::Linedef
+                    | MapToolType::Sector
+            );
+            let selected_tile = rusterix.scene_handler.selected;
+            let white_tile = rusterix.scene_handler.white;
+            let push_handle_rect = |rusterix: &mut rusterix::Rusterix,
+                                    outline_id_base: u32,
+                                    hit_id: GeoId,
+                                    selected: bool,
+                                    center: Vec3<f32>,
+                                    size: f32,
+                                    color: [f32; 4],
+                                    opacity: f32| {
+                let half = size * 0.5;
+                let p0 = center - view_right * half - view_up * half;
+                let p1 = center + view_right * half - view_up * half;
+                let p2 = center + view_right * half + view_up * half;
+                let p3 = center - view_right * half + view_up * half;
+                let mut fill = scenevm::Poly3D::poly(
+                    hit_id,
+                    if selected { selected_tile } else { white_tile },
+                    vec![
+                        [p0.x, p0.y, p0.z, 1.0],
+                        [p1.x, p1.y, p1.z, 1.0],
+                        [p2.x, p2.y, p2.z, 1.0],
+                        [p3.x, p3.y, p3.z, 1.0],
+                    ],
+                    vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+                    vec![(0, 1, 2), (0, 2, 3)],
+                )
+                .with_opacity(opacity);
+                fill.layer = 39;
+                rusterix.scene_handler.overlay_3d.add_3d(fill);
+
+                for (index, (a, b)) in [(p0, p1), (p1, p2), (p2, p3), (p3, p0)]
+                    .into_iter()
+                    .enumerate()
+                {
+                    rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                        GeoId::Unknown(outline_id_base.wrapping_add(index as u32)),
+                        a,
+                        b,
+                        color,
+                        40,
+                    );
+                }
+            };
+            for object in &map.geometry_objects {
+                let selected = map.selected_geometry_objects.contains(&object.id);
+                let hovered = server_ctx.geo_hit == Some(GeoId::GeometryObject(object.id));
+                if !selected && !hovered {
+                    continue;
+                }
+                let id_salt = (object.id.as_u128() as u32) & 0x0000_F000;
+
+                let mut min = Vec3::broadcast(f32::INFINITY);
+                let mut max = Vec3::broadcast(f32::NEG_INFINITY);
+                let mut found = false;
+                for vertex in &object.vertices {
+                    let world = object.transform_point(*vertex) + view_nudge;
+                    if !world.x.is_finite() || !world.y.is_finite() || !world.z.is_finite() {
+                        continue;
+                    }
+                    min.x = min.x.min(world.x);
+                    min.y = min.y.min(world.y);
+                    min.z = min.z.min(world.z);
+                    max.x = max.x.max(world.x);
+                    max.y = max.y.max(world.y);
+                    max.z = max.z.max(world.z);
+                    found = true;
+                }
+                if !found {
+                    continue;
+                }
+
+                if direct_geometry_tool {
+                    let mut gizmo_min = Vec3::broadcast(f32::INFINITY);
+                    let mut gizmo_max = Vec3::broadcast(f32::NEG_INFINITY);
+                    let mut gizmo_found = false;
+                    let mut has_mode_selection =
+                        server_ctx.curr_map_tool_type == MapToolType::Selection;
+                    if server_ctx.curr_map_tool_type != MapToolType::Selection {
+                        for (_, vertex_index) in map
+                            .selected_geometry_vertices
+                            .iter()
+                            .filter(|(id, _)| *id == object.id)
+                        {
+                            let Some(vertex) = object.vertices.get(*vertex_index) else {
+                                continue;
+                            };
+                            let world = object.transform_point(*vertex) + view_nudge;
+                            gizmo_min.x = gizmo_min.x.min(world.x);
+                            gizmo_min.y = gizmo_min.y.min(world.y);
+                            gizmo_min.z = gizmo_min.z.min(world.z);
+                            gizmo_max.x = gizmo_max.x.max(world.x);
+                            gizmo_max.y = gizmo_max.y.max(world.y);
+                            gizmo_max.z = gizmo_max.z.max(world.z);
+                            gizmo_found = true;
+                            if matches!(
+                                server_ctx.curr_map_tool_type,
+                                MapToolType::Vertex | MapToolType::Linedef
+                            ) {
+                                has_mode_selection = true;
+                            }
+                        }
+                        for (_, face_index) in map
+                            .selected_geometry_faces
+                            .iter()
+                            .filter(|(id, _)| *id == object.id)
+                        {
+                            let Some(face) = object.faces.get(*face_index) else {
+                                continue;
+                            };
+                            for vertex_index in &face.indices {
+                                let Some(vertex) = object.vertices.get(*vertex_index) else {
+                                    continue;
+                                };
+                                let world = object.transform_point(*vertex) + view_nudge;
+                                gizmo_min.x = gizmo_min.x.min(world.x);
+                                gizmo_min.y = gizmo_min.y.min(world.y);
+                                gizmo_min.z = gizmo_min.z.min(world.z);
+                                gizmo_max.x = gizmo_max.x.max(world.x);
+                                gizmo_max.y = gizmo_max.y.max(world.y);
+                                gizmo_max.z = gizmo_max.z.max(world.z);
+                                gizmo_found = true;
+                            }
+                            if server_ctx.curr_map_tool_type == MapToolType::Sector {
+                                has_mode_selection = true;
+                            }
+                        }
+                    }
+                    let gizmo_min = if gizmo_found { gizmo_min } else { min };
+                    let gizmo_max = if gizmo_found { gizmo_max } else { max };
+                    let center = (gizmo_min + gizmo_max) * 0.5;
+                    let axis_len = ((gizmo_max - gizmo_min).magnitude() * 0.35).max(0.75);
+                    if selected && has_mode_selection {
+                        let show_move_gizmo = server_ctx.curr_map_tool_type
+                            != MapToolType::Selection
+                            || server_ctx.geometry_gizmo_op == GeometryGizmoOp::Move;
+                        let show_resize_gizmo = server_ctx.curr_map_tool_type
+                            == MapToolType::Selection
+                            && server_ctx.geometry_gizmo_op == GeometryGizmoOp::Resize;
+                        if show_move_gizmo {
+                            for (axis_id, delta, color) in [
+                                (1, Vec3::new(axis_len, 0.0, 0.0), [0.86, 0.22, 0.22, 1.0]),
+                                (2, Vec3::new(0.0, axis_len, 0.0), [0.28, 0.78, 0.32, 1.0]),
+                                (3, Vec3::new(0.0, 0.0, axis_len), [0.32, 0.48, 0.94, 1.0]),
+                            ]
+                            .into_iter()
+                            {
+                                let handle_center = center + delta + view_nudge;
+                                rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                    GeoId::Gizmo(axis_id),
+                                    center + view_nudge,
+                                    handle_center,
+                                    color,
+                                    42 + axis_id as i32,
+                                );
+                                push_handle_rect(
+                                    &mut rusterix,
+                                    0xE3A0_0000u32
+                                        .wrapping_add(id_salt)
+                                        .wrapping_add(axis_id << 4),
+                                    GeoId::Gizmo(axis_id),
+                                    false,
+                                    handle_center + cam_forward * -0.012,
+                                    0.22,
+                                    color,
+                                    0.88,
+                                );
+                            }
+                        }
+                        if show_resize_gizmo {
+                            for (axis_id, handle_center, color) in [
+                                (
+                                    101,
+                                    Vec3::new(gizmo_min.x, center.y, center.z),
+                                    [0.86, 0.22, 0.22, 1.0],
+                                ),
+                                (
+                                    102,
+                                    Vec3::new(gizmo_max.x, center.y, center.z),
+                                    [0.86, 0.22, 0.22, 1.0],
+                                ),
+                                (
+                                    103,
+                                    Vec3::new(center.x, gizmo_min.y, center.z),
+                                    [0.28, 0.78, 0.32, 1.0],
+                                ),
+                                (
+                                    104,
+                                    Vec3::new(center.x, gizmo_max.y, center.z),
+                                    [0.28, 0.78, 0.32, 1.0],
+                                ),
+                                (
+                                    105,
+                                    Vec3::new(center.x, center.y, gizmo_min.z),
+                                    [0.32, 0.48, 0.94, 1.0],
+                                ),
+                                (
+                                    106,
+                                    Vec3::new(center.x, center.y, gizmo_max.z),
+                                    [0.32, 0.48, 0.94, 1.0],
+                                ),
+                            ] {
+                                push_handle_rect(
+                                    &mut rusterix,
+                                    0xE3B0_0000u32
+                                        .wrapping_add(id_salt)
+                                        .wrapping_add(axis_id << 4),
+                                    GeoId::Gizmo(axis_id),
+                                    false,
+                                    handle_center + view_nudge + cam_forward * -0.014,
+                                    0.18,
+                                    color,
+                                    0.72,
+                                );
+                            }
+                        }
+                    }
+                }
+
+                if server_ctx.curr_map_tool_type == MapToolType::Selection {
+                    let corners = [
+                        Vec3::new(min.x, min.y, min.z),
+                        Vec3::new(max.x, min.y, min.z),
+                        Vec3::new(max.x, max.y, min.z),
+                        Vec3::new(min.x, max.y, min.z),
+                        Vec3::new(min.x, min.y, max.z),
+                        Vec3::new(max.x, min.y, max.z),
+                        Vec3::new(max.x, max.y, max.z),
+                        Vec3::new(min.x, max.y, max.z),
+                    ];
+                    let edges = [
+                        (0, 1),
+                        (1, 2),
+                        (2, 3),
+                        (3, 0),
+                        (4, 5),
+                        (5, 6),
+                        (6, 7),
+                        (7, 4),
+                        (0, 4),
+                        (1, 5),
+                        (2, 6),
+                        (3, 7),
+                    ];
+                    let color = if selected {
+                        [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
+                    } else {
+                        [1.0, 1.0, 1.0, 0.78]
+                    };
+                    for (edge_index, (a, b)) in edges.iter().enumerate() {
+                        rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                            GeoId::Unknown(
+                                0xE340_0000u32
+                                    .wrapping_add(id_salt)
+                                    .wrapping_add(edge_index as u32),
+                            ),
+                            corners[*a],
+                            corners[*b],
+                            color,
+                            20,
+                        );
+                    }
+                }
+
+                if server_ctx.curr_map_tool_type == MapToolType::Vertex {
+                    for (vertex_index, vertex) in object.vertices.iter().enumerate() {
+                        let is_selected = map
+                            .selected_geometry_vertices
+                            .contains(&(object.id, vertex_index));
+                        push_handle_rect(
+                            &mut rusterix,
+                            0xE365_0000u32
+                                .wrapping_add(id_salt)
+                                .wrapping_add((vertex_index as u32) << 3),
+                            GeoId::GeometryObject(object.id),
+                            is_selected,
+                            object.transform_point(*vertex) + view_nudge + cam_forward * -0.01,
+                            if is_selected { 0.28 } else { 0.18 },
+                            if is_selected {
+                                [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
+                            } else {
+                                [1.0, 1.0, 1.0, 0.86]
+                            },
+                            if is_selected { 0.92 } else { 0.62 },
+                        );
+                    }
+                }
+
+                if server_ctx.curr_map_tool_type == MapToolType::Linedef {
+                    let mut edge_index = 0u32;
+                    for face in &object.faces {
+                        for index in 0..face.indices.len() {
+                            let Some(a) = object.vertices.get(face.indices[index]) else {
+                                continue;
+                            };
+                            let Some(b) = object
+                                .vertices
+                                .get(face.indices[(index + 1) % face.indices.len()])
+                            else {
+                                continue;
+                            };
+                            let a_selected = map
+                                .selected_geometry_vertices
+                                .contains(&(object.id, face.indices[index]));
+                            let b_selected = map.selected_geometry_vertices.contains(&(
+                                object.id,
+                                face.indices[(index + 1) % face.indices.len()],
+                            ));
+                            let edge_selected = a_selected && b_selected;
+                            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                GeoId::Unknown(
+                                    0xE370_0000u32
+                                        .wrapping_add(id_salt)
+                                        .wrapping_add(edge_index),
+                                ),
+                                object.transform_point(*a) + view_nudge,
+                                object.transform_point(*b) + view_nudge,
+                                if edge_selected {
+                                    [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
+                                } else {
+                                    [1.0, 1.0, 1.0, 0.82]
+                                },
+                                20,
+                            );
+                            edge_index = edge_index.wrapping_add(1);
+                        }
+                    }
+                }
+
+                if server_ctx.curr_map_tool_type == MapToolType::Sector {
+                    for (face_index, face) in object.faces.iter().enumerate() {
+                        let is_selected = map
+                            .selected_geometry_faces
+                            .contains(&(object.id, face_index));
+                        if is_selected && face.indices.len() >= 3 {
+                            let vertices = face
+                                .indices
+                                .iter()
+                                .filter_map(|vertex_index| object.vertices.get(*vertex_index))
+                                .map(|vertex| {
+                                    let point = object.transform_point(*vertex)
+                                        + view_nudge
+                                        + cam_forward * -0.012;
+                                    [point.x, point.y, point.z, 1.0]
+                                })
+                                .collect::<Vec<_>>();
+                            if vertices.len() >= 3 {
+                                let uv_len = vertices.len();
+                                let mut indices = Vec::with_capacity(vertices.len() - 2);
+                                for index in 1..vertices.len() - 1 {
+                                    indices.push((0, index, index + 1));
+                                }
+                                let mut fill = scenevm::Poly3D::poly(
+                                    GeoId::GeometryObject(object.id),
+                                    selected_tile,
+                                    vertices,
+                                    vec![[0.0, 0.0]; uv_len],
+                                    indices,
+                                )
+                                .with_opacity(0.32);
+                                fill.layer = 38;
+                                rusterix.scene_handler.overlay_3d.add_3d(fill);
+                            }
+                        }
+                        for edge_index in 0..face.indices.len() {
+                            let Some(a) = object.vertices.get(face.indices[edge_index]) else {
+                                continue;
+                            };
+                            let Some(b) = object
+                                .vertices
+                                .get(face.indices[(edge_index + 1) % face.indices.len()])
+                            else {
+                                continue;
+                            };
+                            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                GeoId::Unknown(
+                                    0xE380_0000u32
+                                        .wrapping_add(id_salt)
+                                        .wrapping_add((face_index as u32) << 8)
+                                        .wrapping_add(edge_index as u32),
+                                ),
+                                object.transform_point(*a) + view_nudge,
+                                object.transform_point(*b) + view_nudge,
+                                if is_selected {
+                                    [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
+                                } else {
+                                    [1.0, 1.0, 1.0, 0.82]
+                                },
+                                20,
+                            );
+                        }
+                    }
+                }
+
+                if selected {
+                    for (selection_index, (_, face_index)) in map
+                        .selected_geometry_faces
+                        .iter()
+                        .filter(|(id, _)| *id == object.id)
+                        .enumerate()
+                    {
+                        let Some(face) = object.faces.get(*face_index) else {
+                            continue;
+                        };
+                        if face.indices.len() < 2 {
+                            continue;
+                        }
+                        for edge_index in 0..face.indices.len() {
+                            let Some(a) = object.vertices.get(face.indices[edge_index]) else {
+                                continue;
+                            };
+                            let Some(b) = object
+                                .vertices
+                                .get(face.indices[(edge_index + 1) % face.indices.len()])
+                            else {
+                                continue;
+                            };
+                            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                GeoId::Unknown(
+                                    0xE350_0000u32
+                                        .wrapping_add(id_salt)
+                                        .wrapping_add((selection_index as u32) << 8)
+                                        .wrapping_add(edge_index as u32),
+                                ),
+                                object.transform_point(*a) + view_nudge,
+                                object.transform_point(*b) + view_nudge,
+                                [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0],
+                                21,
+                            );
+                        }
+                    }
+
+                    for (selection_index, (_, vertex_index)) in map
+                        .selected_geometry_vertices
+                        .iter()
+                        .filter(|(id, _)| *id == object.id)
+                        .enumerate()
+                    {
+                        let Some(vertex) = object.vertices.get(*vertex_index) else {
+                            continue;
+                        };
+                        push_handle_rect(
+                            &mut rusterix,
+                            0xE360_0000u32
+                                .wrapping_add(id_salt)
+                                .wrapping_add((selection_index as u32) << 3),
+                            GeoId::GeometryObject(object.id),
+                            true,
+                            object.transform_point(*vertex) + view_nudge + cam_forward * -0.012,
+                            0.24,
+                            [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0],
+                            0.94,
+                        );
+                    }
+                }
+            }
+
+            if direct_geometry_tool && !map.geometry_objects.is_empty() {
+                drop(rusterix);
+                self.update_tool_preview_overlay_3d(project, server_ctx);
+                let mut rusterix = RUSTERIX.write().unwrap();
+                rusterix.scene_handler.set_overlay();
+                return;
+            }
+
             if !server_ctx.show_editing_geometry {
                 drop(rusterix);
                 self.update_tool_preview_overlay_3d(project, server_ctx);
@@ -3090,12 +3840,11 @@ impl ToolList {
         rusterix.scene_handler.tool_overlay_3d = scenevm::Chunk::default();
         rusterix.scene_handler.tool_overlay_3d.priority = 1;
 
-        let (cam_forward, cam_right, cam_up) = rusterix.client.camera_d3.basis_vectors();
+        let (cam_forward, _, _) = rusterix.client.camera_d3.basis_vectors();
         let view_nudge = cam_forward * -0.002;
         let thickness = 0.15;
         let white = rusterix.scene_handler.white;
         let selected = rusterix.scene_handler.selected;
-        let yellow = rusterix.scene_handler.yellow;
 
         if server_ctx.curr_map_tool_type == MapToolType::Rect {
             if let Some(terrain_id) = server_ctx.rect_terrain_id {
@@ -3134,32 +3883,6 @@ impl ToolList {
                         }
                     }
                 }
-            }
-        } else if server_ctx.curr_map_tool_type == MapToolType::Linedef {
-            if let (Some(start), Some(pos)) = (map.curr_grid_pos_3d, server_ctx.hover_cursor_3d) {
-                let end = server_ctx.snap_world_point_for_edit(map, pos);
-                if start != end {
-                    rusterix.scene_handler.tool_overlay_3d.add_line_3d(
-                        GeoId::Unknown(5000),
-                        selected,
-                        start + view_nudge,
-                        end + view_nudge,
-                        thickness,
-                        cam_forward,
-                        100,
-                    );
-                }
-            } else if let Some(pos) = server_ctx.hover_cursor_3d {
-                let pos = server_ctx.snap_world_point_for_edit(map, pos);
-                rusterix.scene_handler.tool_overlay_3d.add_billboard_3d(
-                    GeoId::Triangle(1000),
-                    yellow,
-                    pos + view_nudge,
-                    cam_right,
-                    cam_up,
-                    0.24,
-                    true,
-                );
             }
         } else if DOCKMANAGER.read().unwrap().dock == "Organic" {
             if let Some(pos) = server_ctx.hover_cursor_3d {
@@ -3230,24 +3953,6 @@ impl ToolList {
                     }
                 }
             }
-        } else if let Some(pos) = server_ctx.hover_cursor_3d {
-            let pos = if server_ctx.curr_map_tool_type == MapToolType::Linedef
-                || server_ctx.curr_map_tool_type == MapToolType::Vertex
-                || server_ctx.curr_map_tool_type == MapToolType::Sector
-            {
-                server_ctx.snap_world_point_for_edit(map, pos)
-            } else {
-                pos
-            };
-            rusterix.scene_handler.tool_overlay_3d.add_billboard_3d(
-                GeoId::Triangle(1000),
-                yellow,
-                pos + view_nudge,
-                cam_right,
-                cam_up,
-                0.24,
-                true,
-            );
         }
 
         let id = rusterix.scene_handler.tool_overlay_3d_id;
@@ -3390,15 +4095,38 @@ impl ToolList {
         let mut rusterix = RUSTERIX.write().unwrap();
 
         server_ctx.hover_cursor_3d = None;
+        server_ctx.hover_ray_origin_3d = None;
         server_ctx.hover_ray_dir_3d = None;
         server_ctx.hover_surface = None;
         server_ctx.hover_surface_hit_pos = None;
-        if let Some((_, ray_dir)) = rusterix.scene_handler.vm.ray_from_uv_with_size(
+        if let Some((ray_origin, ray_dir)) = rusterix.scene_handler.vm.ray_from_uv_with_size(
             dim.width as u32,
             dim.height as u32,
             screen_uv,
         ) {
+            server_ctx.hover_ray_origin_3d = Some(ray_origin);
             server_ctx.hover_ray_dir_3d = Some(ray_dir);
+        }
+
+        if matches!(
+            server_ctx.curr_map_tool_type,
+            MapToolType::Selection
+                | MapToolType::Vertex
+                | MapToolType::Linedef
+                | MapToolType::Sector
+        ) {
+            rusterix.scene_handler.vm.set_active_vm(2);
+            if let Some((GeoId::Gizmo(axis), pos, _)) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
+                dim.width as u32,
+                dim.height as u32,
+                screen_uv,
+                false,
+                false,
+            ) {
+                rusterix.scene_handler.vm.set_active_vm(0);
+                return Some((GeoId::Gizmo(axis), pos));
+            }
+            rusterix.scene_handler.vm.set_active_vm(0);
         }
 
         rusterix.scene_handler.vm.set_active_vm(0);
@@ -3434,6 +4162,16 @@ impl ToolList {
             }
             if server_ctx.curr_map_tool_type == MapToolType::Sector
                 && server_ctx.geometry_edit_mode != GeometryEditMode::Detail
+            {
+                return Some((raw.0, raw.1));
+            }
+            if matches!(
+                server_ctx.curr_map_tool_type,
+                MapToolType::Selection
+                    | MapToolType::Vertex
+                    | MapToolType::Linedef
+                    | MapToolType::Sector
+            ) && matches!(raw.0, GeoId::GeometryObject(_))
             {
                 return Some((raw.0, raw.1));
             }

@@ -458,6 +458,18 @@ impl Dock for TilesDock {
                                     changed = true;
                                 }
                             }
+                            for (object_id, face_index) in map.selected_geometry_faces.clone() {
+                                if let Some(object) = map
+                                    .geometry_objects
+                                    .iter_mut()
+                                    .find(|object| object.id == object_id)
+                                    && let Some(face) = object.faces.get_mut(face_index)
+                                    && !face.auto_uv
+                                {
+                                    face.auto_uv = true;
+                                    changed = true;
+                                }
+                            }
                             if changed {
                                 map.update_surfaces();
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
@@ -496,6 +508,18 @@ impl Dock for TilesDock {
                                     && sector.properties.get_int_default("tile_mode", 1) != 0
                                 {
                                     sector.properties.set("tile_mode", Value::Int(0));
+                                    changed = true;
+                                }
+                            }
+                            for (object_id, face_index) in map.selected_geometry_faces.clone() {
+                                if let Some(object) = map
+                                    .geometry_objects
+                                    .iter_mut()
+                                    .find(|object| object.id == object_id)
+                                    && let Some(face) = object.faces.get_mut(face_index)
+                                    && face.auto_uv
+                                {
+                                    face.auto_uv = false;
                                     changed = true;
                                 }
                             }
@@ -633,7 +657,7 @@ impl Dock for TilesDock {
                                 crate::actions::current_selection_tool_type(map);
                         }
 
-                        if let Some(source) = builder_selected_source
+                        if let Some(source) = builder_selected_source.clone()
                             && let Some(map) = project.get_map_mut(server_ctx)
                         {
                             let prev = map.clone();
@@ -681,6 +705,16 @@ impl Dock for TilesDock {
                             if let Some(map) = project.get_map_mut(server_ctx) {
                                 let mut changed = false;
                                 let prev = map.clone();
+
+                                for (object_id, face_index) in map.selected_geometry_faces.clone() {
+                                    changed |= crate::utils::apply_surface_source_to_geometry_face(
+                                        map,
+                                        object_id,
+                                        face_index,
+                                        &selected_source,
+                                        Some(self.apply_tile_mode),
+                                    );
+                                }
 
                                 for sector_id in map.selected_sectors.clone() {
                                     let mut source_key = "source";
@@ -776,6 +810,12 @@ impl Dock for TilesDock {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             let mut changed = false;
                             let prev = map.clone();
+
+                            for (object_id, face_index) in map.selected_geometry_faces.clone() {
+                                changed |= crate::utils::clear_surface_source_on_geometry_face(
+                                    map, object_id, face_index,
+                                );
+                            }
 
                             for sector_id in map.selected_sectors.clone() {
                                 let mut source = "source";

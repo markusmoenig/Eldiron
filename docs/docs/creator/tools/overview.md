@@ -8,13 +8,12 @@ This chapter and its sub-sections describe the tools available in **Eldiron Crea
 ## Map Tools Specifics
 
 Some tools are specifically designed for **map editing** and display a common **HUD**. These include:
+- **Object Tool**
 - **Vertex Tool**
 - **Linedef Tool**
 - **Sector Tool**
 - **Rect Tool**
-- **Builder Tool**
 - **Organic Tool**
-- **Dungeon Tool**
 
 The tool strip also contains **mode toggles** below the main map tools:
 
@@ -24,9 +23,10 @@ The tool strip also contains **mode toggles** below the main map tools:
 
 ### Terminology
 
-- **Vertices**: Points that define the corners of geometry *(edited via the Vertex Tool)*.
-- **Linedefs**: Lines that connect vertices *(edited via the Linedef Tool)*. Used to create **walls, doors, or paths**.
-- **Sectors**: Areas enclosed by edges *(edited via the Sector Tool)*. Used to create **floors, ceilings, or other surfaces**.
+- **Geometry Objects**: Editable 3D objects made from vertices and faces *(edited via the Object Tool)*.
+- **Vertices**: Points that define the corners of 2D map geometry or 3D objects *(edited via the Vertex Tool)*.
+- **Linedefs**: Lines that connect vertices in 2D, or edges on 3D objects *(edited via the Linedef Tool)*.
+- **Sectors**: Areas enclosed by edges in 2D, or faces on 3D objects *(edited via the Sector Tool)*.
 
 ### Navigation
 
@@ -40,36 +40,31 @@ You can navigate the map using:
 
 ![HUD](/img/docs/hud.png)
 
-- The **upper-left corner** of the HUD shows the **current map position**, which is also marked by a **yellow rectangle** on the map during normal geometry workflows.
+- The **upper-left corner** of the HUD shows the **current map position**.
 - The numbers **1, 2, ..., 0** represent **subdivisions** of the map:
   - **1** = Largest subdivision (for broad layouts)
   - **10** = Smallest subdivision (for fine details)
 - Larger subdivisions help create **detailed** maps, while smaller subdivisions are useful for **general layouts**.
-- In 3D views, the HUD also contains a `GEOM / DETAIL` switch:
-  - `GEOM` edits world geometry.
-  - `DETAIL` edits the active surface profile directly in 3D.
+- In 3D Object mode, the HUD also contains `MOVE / SIZE` controls for the active object gizmo.
 
 ### Keyboard Shortcuts
 
-When the **map view** has focus, you can use the **number keys (1-0)** on your keyboard to quickly switch between subdivisions, instead of clicking on the HUD.
+When the **map view** has focus, you can use **Shift + number keys (1-0)** on your keyboard to quickly switch between subdivisions, instead of clicking on the HUD.
 
 In 3D geometry views you can also use:
 
-- `G`: switch to `GEOM`
-- `D`: switch to `DETAIL`
+- `G`: Object Tool
+- `V`: Vertex Tool
+- `L`: Linedef / edge tool
+- `E`: Sector / face tool
+- `M`: Move object gizmo
+- `S`: Size object gizmo
 
-### Tile Icons
+For direct 3D geometry editing shortcuts, see [Object Tool](object).
+
+### Tile Icons And Geometry Modes
 
 The **icons in the upper-right corner** of the HUD are **tool-specific** and allow you to **assign tiles** to the selected geometry using the **Apply** and **Remove** buttons.
-
-With the [Builder Tool](builder), the same HUD area is used for **builder slots** instead:
-
-- **material slots** such as `TOP` or `LEGS`
-- **item slots** used to attach child builder assets
-
-While Builder is active, contexts that would normally switch the lower dock to **Tiles** show the **Builder Picker** instead.
-
-For the script format and procedural asset model, see [Builder Graph](/docs/builder_graph).
 
 With the [Organic Tool](organic), the lower picker area shows the **Organic** dock instead:
 
@@ -77,11 +72,6 @@ With the [Organic Tool](organic), the lower picker area shows the **Organic** do
 - visual brush-shape presets
 - a compact brush inspector for `Base`, `Border`, `Noise`, `Brush Size`, `Border Size`, `Noise Amount`, and `Opacity`
 - toolbar controls for `Free / Locked`, `Clear`, and `Active / Deactive`
-
-With the [Dungeon Tool](dungeon), the lower picker area shows the **Dungeon dock** instead:
-
-- a structural tile palette for conceptual dungeon cells
-- a TOML settings panel for dungeon generation parameters such as floor base, height, and door settings
 
 With the [Palette Tool](palette), the lower picker area shows the **Palette** dock instead:
 
@@ -91,17 +81,18 @@ With the [Palette Tool](palette), the lower picker area shows the **Palette** do
 
 In 3D, the Organic tool also replaces the normal yellow hover marker with a brush-footprint preview so you can see the current paint radius directly on the target surface.
 
-## 3D Detail Editing
+## Direct 3D Geometry Editing
 
-`DETAIL` replaces the older separate surface-edit workflow. Instead of switching into a dedicated editing-surface mode, you stay in the normal 3D view and click the wall, floor, or ceiling you want to edit.
+The direct 3D path uses editable geometry objects as the main construction model.
 
-In `DETAIL`:
+In 3D views:
 
-- `Vertex` edits profile vertices.
-- `Linedef` edits profile edges and creates profile geometry.
-- `Sector` edits profile sectors such as holes and cutouts.
+- **Object Tool** selects whole 3D geometry objects.
+- **Vertex Tool** selects object vertices.
+- **Linedef Tool** selects object edges.
+- **Sector Tool** selects object faces.
 
-Profile-specific actions such as `Window`, `Gate / Door`, `Recess`, `Relief`, `Clear Profile`, and `Create Prop` appear when they are applicable.
+This keeps the familiar 2D tool vocabulary while changing the 3D behavior to direct object, face, edge, and vertex editing.
 
 ## Authoring Mode
 
@@ -119,6 +110,6 @@ Palette mode is used for:
 
 - editing project palette entries
 - changing palette material properties
-- applying palette-index sources to geometry and Builder material slots
+- applying palette-index sources to geometry
 
 For the full workflow, see [Palette Tool](palette).

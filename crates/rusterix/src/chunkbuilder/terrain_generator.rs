@@ -46,6 +46,11 @@ pub struct TerrainGenerator {
     config: TerrainConfig,
 }
 
+struct ExcludedSectorPoly {
+    bbox: BBox,
+    vertices: Vec<Vec2<f32>>,
+}
+
 impl TerrainGenerator {
     pub fn new(config: TerrainConfig) -> Self {
         Self { config }
@@ -554,7 +559,7 @@ impl TerrainGenerator {
     }
 
     /// Collect sectors marked for terrain exclusion
-    fn collect_excluded_sectors(&self, map: &Map, bbox: &BBox) -> Vec<u32> {
+    fn collect_excluded_sectors(&self, map: &Map, bbox: &BBox) -> Vec<ExcludedSectorPoly> {
         let mut excluded = Vec::new();
 
         for sector in &map.sectors {
@@ -568,7 +573,20 @@ impl TerrainGenerator {
             let terrain_mode = sector.properties.get_int_default("terrain_mode", 0);
             if terrain_mode == 1 {
                 // terrain_mode = 1 means exclude
-                excluded.push(sector.id);
+                let mut vertices = Vec::with_capacity(sector.linedefs.len());
+                for &linedef_id in &sector.linedefs {
+                    if let Some(linedef) = map.find_linedef(linedef_id) {
+                        if let Some(start_vertex) = map.find_vertex(linedef.start_vertex) {
+                            vertices.push(Vec2::new(start_vertex.x, start_vertex.y));
+                        }
+                    }
+                }
+                if vertices.len() >= 3 {
+                    excluded.push(ExcludedSectorPoly {
+                        bbox: sector_bbox,
+                        vertices,
+                    });
+                }
             }
         }
 
@@ -867,8 +885,8 @@ impl TerrainGenerator {
         &self,
         grid: &[Vec2<f32>],
         heights: &[f32],
-        excluded_sectors: &[u32],
-        map: &Map,
+        excluded_sectors: &[ExcludedSectorPoly],
+        _map: &Map,
     ) -> (Vec<Vec3<f32>>, Vec<u32>, Vec<[f32; 2]>) {
         // First generate all grid vertices and triangles
         let mut all_vertices = Vec::new();
@@ -912,17 +930,22 @@ impl TerrainGenerator {
             // Check if triangle is entirely inside any excluded sector
             let mut should_exclude = false;
 
-            for &sector_id in excluded_sectors {
-                if let Some(sector) = map.find_sector(sector_id) {
-                    // Conservative exclusion: only drop triangles fully inside the room.
-                    // Higher terrain subdivision handles the boundary cleanly without outside holes.
-                    if self.point_in_sector(p0, sector, map)
-                        && self.point_in_sector(p1, sector, map)
-                        && self.point_in_sector(p2, sector, map)
-                    {
-                        should_exclude = true;
-                        break;
-                    }
+            for sector in excluded_sectors {
+                if !sector.bbox.contains(p0)
+                    || !sector.bbox.contains(p1)
+                    || !sector.bbox.contains(p2)
+                {
+                    continue;
+                }
+
+                // Conservative exclusion: only drop triangles fully inside the room.
+                // Higher terrain subdivision handles the boundary cleanly without outside holes.
+                if Self::point_in_polygon(p0, &sector.vertices)
+                    && Self::point_in_polygon(p1, &sector.vertices)
+                    && Self::point_in_polygon(p2, &sector.vertices)
+                {
+                    should_exclude = true;
+                    break;
                 }
             }
 
@@ -1007,18 +1030,8 @@ impl TerrainGenerator {
     }
 
     /// Check if a point is inside or on the boundary of a sector using ray casting algorithm
-    fn point_in_sector(&self, point: Vec2<f32>, sector: &crate::Sector, map: &crate::Map) -> bool {
-        // Get sector boundary vertices
-        let mut sector_verts = Vec::new();
-        for &linedef_id in &sector.linedefs {
-            if let Some(linedef) = map.find_linedef(linedef_id) {
-                if let Some(start_vertex) = map.find_vertex(linedef.start_vertex) {
-                    sector_verts.push(Vec2::new(start_vertex.x, start_vertex.y));
-                }
-            }
-        }
-
-        if sector_verts.len() < 3 {
+    fn point_in_polygon(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> bool {
+        if polygon.len() < 3 {
             return false;
         }
 
@@ -1026,10 +1039,10 @@ impl TerrainGenerator {
         let epsilon = 0.01;
 
         // First check if point is very close to any edge (on the boundary)
-        let mut j = sector_verts.len() - 1;
-        for i in 0..sector_verts.len() {
-            let vi = sector_verts[i];
-            let vj = sector_verts[j];
+        let mut j = polygon.len() - 1;
+        for i in 0..polygon.len() {
+            let vi = polygon[i];
+            let vj = polygon[j];
 
             // Calculate distance from point to line segment
             let edge = vj - vi;
@@ -1050,11 +1063,11 @@ impl TerrainGenerator {
 
         // Ray casting algorithm: count intersections with edges
         let mut inside = false;
-        j = sector_verts.len() - 1;
+        j = polygon.len() - 1;
 
-        for i in 0..sector_verts.len() {
-            let vi = sector_verts[i];
-            let vj = sector_verts[j];
+        for i in 0..polygon.len() {
+            let vi = polygon[i];
+            let vj = polygon[j];
 
             if ((vi.y > point.y) != (vj.y > point.y))
                 && (point.x < (vj.x - vi.x) * (point.y - vi.y) / (vj.y - vi.y) + vi.x)

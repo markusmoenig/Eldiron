@@ -1,6 +1,6 @@
 ---
 title: "Rect Tool"
-sidebar_position: 5
+sidebar_position: 6
 ---
 
 The **Rect Tool** (keyboard shortcut **'R'**) allows you to **directly draw tiles** onto the map.

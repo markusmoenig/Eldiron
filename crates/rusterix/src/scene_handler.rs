@@ -114,8 +114,12 @@ pub struct SceneHandler {
     pub white: Uuid,
     pub selected: Uuid,
     pub gray: Uuid,
+    pub grid_major: Uuid,
+    pub grid_minor: Uuid,
     pub outline: Uuid,
     pub yellow: Uuid,
+    pub red: Uuid,
+    pub blue: Uuid,
 
     pub settings: RenderSettings,
     pub base_settings: RenderSettings,
@@ -2315,8 +2319,12 @@ impl SceneHandler {
             white: Uuid::new_v4(),
             selected: Uuid::new_v4(),
             gray: Uuid::new_v4(),
+            grid_major: Uuid::new_v4(),
+            grid_minor: Uuid::new_v4(),
             outline: Uuid::new_v4(),
             yellow: Uuid::new_v4(),
+            red: Uuid::new_v4(),
+            blue: Uuid::new_v4(),
 
             settings: RenderSettings::default(),
             base_settings: RenderSettings::default(),
@@ -2914,12 +2922,28 @@ impl SceneHandler {
                 color: [138, 138, 138, 220],
             });
             self.vm.execute(Atom::AddSolid {
+                id: self.grid_major,
+                color: [38, 38, 38, 255],
+            });
+            self.vm.execute(Atom::AddSolid {
+                id: self.grid_minor,
+                color: [28, 28, 28, 255],
+            });
+            self.vm.execute(Atom::AddSolid {
                 id: self.outline,
                 color: [122, 208, 187, 255],
             });
             self.vm.execute(Atom::AddSolid {
                 id: self.yellow,
                 color: vek::Rgba::yellow().into_array(),
+            });
+            self.vm.execute(Atom::AddSolid {
+                id: self.red,
+                color: [220, 72, 72, 255],
+            });
+            self.vm.execute(Atom::AddSolid {
+                id: self.blue,
+                color: [72, 128, 240, 255],
             });
         }
 

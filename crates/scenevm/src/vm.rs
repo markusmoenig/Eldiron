@@ -75,6 +75,14 @@ pub struct Vert3DPod {
     pub organic_atlas_size: [f32; 2],
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Line3DPod {
+    pub pos: [f32; 3],
+    pub _pad0: f32,
+    pub color: [f32; 4],
+}
+
 const ORGANIC_DETAIL_TEXTURE_SIZE: u32 = 48;
 
 #[derive(Default)]
@@ -390,6 +398,7 @@ pub struct VMGpu {
     pub raster3d_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_alpha_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_particle_pipeline: Option<wgpu::RenderPipeline>,
+    pub raster3d_line_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_organic_billboard_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_shadow_pipeline: Option<wgpu::RenderPipeline>,
     pub u2d_buf: Option<wgpu::Buffer>,
@@ -427,6 +436,9 @@ pub struct VMGpu {
     pub i3d_raster_particles: Option<wgpu::Buffer>,
     pub i3d_raster_particles_count: u32,
     pub i3d_raster_particles_capacity: u64,
+    pub line3d_raster: Option<wgpu::Buffer>,
+    pub line3d_raster_count: u32,
+    pub line3d_raster_capacity: u64,
     pub shadow_sampler_compare: Option<wgpu::Sampler>,
     pub raster3d_shadow_tex: Option<wgpu::Texture>,
     pub raster3d_shadow_view: Option<wgpu::TextureView>,
@@ -2080,6 +2092,100 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 }
 "#;
 
+pub const SCENEVM_3D_LINE_WGSL: &str = r#"
+struct U {
+    cam_pos: vec4<f32>,
+    cam_fwd: vec4<f32>,
+    cam_right: vec4<f32>,
+    cam_up: vec4<f32>,
+    sun_color_intensity: vec4<f32>,
+    sun_dir_enabled: vec4<f32>,
+    ambient_color_strength: vec4<f32>,
+    sky_color: vec4<f32>,
+    fog_color_density: vec4<f32>,
+    shadow_light_right: vec4<f32>,
+    shadow_light_up: vec4<f32>,
+    shadow_light_fwd: vec4<f32>,
+    shadow_light_center: vec4<f32>,
+    shadow_light_extents: vec4<f32>,
+    shadow_params: vec4<f32>,
+    render_params: vec4<f32>,
+    point_light_pos_intensity: array<vec4<f32>, 4>,
+    point_light_color_range: array<vec4<f32>, 4>,
+    point_light_count_pad: vec4<u32>,
+    _pad_lights: vec4<u32>,
+    fb_size: vec2<f32>,
+    cam_vfov_deg: f32,
+    cam_ortho_half_h: f32,
+    cam_near: f32,
+    cam_far: f32,
+    cam_kind: u32,
+    anim_counter: u32,
+    _pad0: vec2<u32>,
+    _pad_post_pre: vec2<u32>,
+    post_params: vec4<f32>,
+    post_color_adjust: vec4<f32>,
+    post_style0: vec4<f32>,
+    post_style1: vec4<f32>,
+    avatar_highlight_params: vec4<f32>,
+    _pad_tail: vec4<u32>,
+    palette: array<vec4<f32>, 256>,
+    palette_tile_indices: array<vec4<u32>, 64>,
+    organic_params: vec4<u32>,
+};
+@group(0) @binding(0) var<uniform> UBO: U;
+
+struct VsIn {
+    @location(0) pos: vec3<f32>,
+    @location(1) color: vec4<f32>,
+};
+
+struct VsOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) color: vec4<f32>,
+};
+
+fn camera_to_clip(world_pos: vec3<f32>) -> vec4<f32> {
+    let rel = world_pos - UBO.cam_pos.xyz;
+    let cx = dot(rel, UBO.cam_right.xyz);
+    let cy = dot(rel, UBO.cam_up.xyz);
+    let cz = dot(rel, UBO.cam_fwd.xyz);
+
+    let near_z = max(UBO.cam_near, 0.0001);
+    let far_z = max(UBO.cam_far, near_z + 0.0001);
+    let aspect = max(UBO.fb_size.x / max(UBO.fb_size.y, 1.0), 0.0001);
+
+    if (UBO.cam_kind == 0u) {
+        let depth = clamp((cz - near_z) / (far_z - near_z), 0.0, 1.0);
+        let half_h = max(UBO.cam_ortho_half_h, 0.0001);
+        let half_w = max(half_h * aspect, 0.0001);
+        return vec4<f32>(cx / half_w, cy / half_h, depth, 1.0);
+    }
+
+    var z = cz;
+    if (abs(z) < 0.0001) {
+        z = select(-0.0001, 0.0001, z >= 0.0);
+    }
+    let f = 1.0 / tan(radians(max(UBO.cam_vfov_deg, 1.0)) * 0.5);
+    let a = far_z / (far_z - near_z);
+    let b = (-near_z * far_z) / (far_z - near_z);
+    return vec4<f32>(cx * (f / aspect), cy * f, a * z + b, z);
+}
+
+@vertex
+fn vs_main(in: VsIn) -> VsOut {
+    var out: VsOut;
+    out.pos = camera_to_clip(in.pos);
+    out.color = in.color;
+    return out;
+}
+
+@fragment
+fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    return in.color;
+}
+"#;
+
 pub const SCENEVM_3D_ORGANIC_BILLBOARD_WGSL: &str = r#"
 struct U {
     cam_pos: vec4<f32>,
@@ -2355,6 +2461,8 @@ pub struct VM {
     cached_static_raster_particle_indices: Vec<u32>,
     cached_static_raster_camera_key: [f32; 6],
     cached_static_raster_indices_valid: bool,
+    cached_line3d: Vec<Line3DPod>,
+    line3d_dirty: bool,
     visibility_dirty: bool, // True when only visibility changed (no BVH rebuild needed)
     geometry3d_dirty: bool, // True when 3D vertex attributes changed (e.g. opacity)
     geometry2d_dirty: bool,
@@ -3584,6 +3692,7 @@ impl VM {
     pub fn mark_all_geometry_dirty(&mut self) {
         self.geometry2d_dirty = true;
         self.accel_dirty = true;
+        self.line3d_dirty = true;
         self.cached_static_v3.clear();
         self.cached_static_i3.clear();
         self.cached_static_tri_visibility.clear();
@@ -3825,6 +3934,8 @@ impl VM {
             cached_static_raster_particle_indices: Vec::new(),
             cached_static_raster_camera_key: [0.0; 6],
             cached_static_raster_indices_valid: false,
+            cached_line3d: Vec::new(),
+            line3d_dirty: true,
             visibility_dirty: false,
             geometry3d_dirty: false,
             geometry2d_dirty: true,
@@ -4042,6 +4153,23 @@ impl VM {
                 self.chunks_map.entry(chunk_id).or_default().add_3d(poly);
                 self.accel_dirty = true;
             }
+            Atom::AddLine3D { line } => {
+                let chunk_id = match self.current_chunk {
+                    Some(cid) => cid,
+                    None => {
+                        let cid = Uuid::new_v4();
+                        self.chunks_map.insert(cid, Chunk::default());
+                        self.current_chunk = Some(cid);
+                        cid
+                    }
+                };
+
+                self.chunks_map
+                    .entry(chunk_id)
+                    .or_default()
+                    .add_line3d(line);
+                self.line3d_dirty = true;
+            }
             Atom::AddLineStrip2D {
                 id,
                 tile_id,
@@ -4094,6 +4222,7 @@ impl VM {
             Atom::NewChunk { id } => {
                 self.chunks_map.entry(id).or_insert_with(Chunk::default);
                 self.accel_dirty = true;
+                self.line3d_dirty = true;
                 self.organic_billboards.dirty = true;
                 self.mark_2d_dirty();
             }
@@ -4101,6 +4230,7 @@ impl VM {
                 // Insert or replace the chunk as-is; caller controls current_chunk separately
                 self.chunks_map.insert(id, chunk);
                 self.accel_dirty = true;
+                self.line3d_dirty = true;
                 self.organic_billboards.dirty = true;
                 self.mark_2d_dirty();
             }
@@ -4111,6 +4241,7 @@ impl VM {
                     self.current_chunk = None;
                 }
                 self.accel_dirty = true;
+                self.line3d_dirty = true;
                 self.organic_billboards.dirty = true;
                 self.mark_2d_dirty();
             }
@@ -4128,6 +4259,7 @@ impl VM {
                     }
                 }
                 self.accel_dirty = true;
+                self.line3d_dirty = true;
                 self.organic_billboards.dirty = true;
                 self.mark_2d_dirty();
             }
@@ -4174,6 +4306,7 @@ impl VM {
             Atom::SetTransform3D(m) => {
                 self.transform3d = m;
                 self.accel_dirty = true;
+                self.line3d_dirty = true;
             }
             Atom::SetLayer(l) => {
                 self.current_layer = l;
@@ -4609,6 +4742,7 @@ impl VM {
             raster3d_pipeline: None,
             raster3d_alpha_pipeline: None,
             raster3d_particle_pipeline: None,
+            raster3d_line_pipeline: None,
             raster3d_organic_billboard_pipeline: None,
             raster3d_shadow_pipeline: None,
             u2d_buf: None,
@@ -4646,6 +4780,9 @@ impl VM {
             i3d_raster_particles: None,
             i3d_raster_particles_count: 0,
             i3d_raster_particles_capacity: 0,
+            line3d_raster: None,
+            line3d_raster_count: 0,
+            line3d_raster_capacity: 0,
             shadow_sampler_compare: None,
             raster3d_shadow_tex: None,
             raster3d_shadow_view: None,
@@ -5450,6 +5587,7 @@ impl VM {
         let g = self.gpu.as_mut().unwrap();
         if g.raster3d_pipeline.is_some()
             && g.raster3d_alpha_pipeline.is_some()
+            && g.raster3d_line_pipeline.is_some()
             && g.u_raster3d_bgl.is_some()
             && g.u_raster3d_buf.is_some()
             && g.raster3d_organic_billboard_pipeline.is_some()
@@ -5652,6 +5790,10 @@ impl VM {
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
                 SCENEVM_3D_ORGANIC_BILLBOARD_WGSL,
             )),
+        });
+        let line_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("vm-3d-line-shader"),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SCENEVM_3D_LINE_WGSL)),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -5881,13 +6023,13 @@ impl VM {
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
                     depth_write_enabled: false,
-                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    depth_compare: wgpu::CompareFunction::Always,
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),
                 multisample: wgpu::MultisampleState {
                     count: raster_samples,
-                    alpha_to_coverage_enabled: true,
+                    alpha_to_coverage_enabled: false,
                     ..Default::default()
                 },
                 multiview: None,
@@ -5985,6 +6127,65 @@ impl VM {
                 }),
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: None,
+                    unclipped_depth: false,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: false,
+                    depth_compare: wgpu::CompareFunction::Always,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState {
+                    count: raster_samples,
+                    alpha_to_coverage_enabled: false,
+                    ..Default::default()
+                },
+                multiview: None,
+                cache: None,
+            });
+        let raster3d_line_pipeline =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("vm-3d-line-pipeline"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &line_shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<Line3DPod>() as u64,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &[
+                            wgpu::VertexAttribute {
+                                offset: 0,
+                                shader_location: 0,
+                                format: wgpu::VertexFormat::Float32x3,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 16,
+                                shader_location: 1,
+                                format: wgpu::VertexFormat::Float32x4,
+                            },
+                        ],
+                    }],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &line_shader,
+                    entry_point: Some("fs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::LineList,
                     strip_index_format: None,
                     front_face: wgpu::FrontFace::Ccw,
                     cull_mode: None,
@@ -6185,6 +6386,7 @@ impl VM {
         g.raster3d_pipeline = Some(raster3d_pipeline);
         g.raster3d_alpha_pipeline = Some(raster3d_alpha_pipeline);
         g.raster3d_particle_pipeline = Some(raster3d_particle_pipeline);
+        g.raster3d_line_pipeline = Some(raster3d_line_pipeline);
         g.raster3d_organic_billboard_pipeline = Some(raster3d_organic_billboard_pipeline);
         g.raster3d_shadow_pipeline = Some(raster3d_shadow_pipeline);
         g.shadow_sampler_compare = Some(shadow_sampler_compare);
@@ -8010,6 +8212,47 @@ impl VM {
             self.accel_dirty = false;
         }
 
+        let mut line3d_changed = false;
+        if self.line3d_dirty {
+            let mut layered_lines = Vec::new();
+            for ch in self.chunks_map.values() {
+                for line_list in ch.lines3d.values() {
+                    for line in line_list {
+                        if !line.visible {
+                            continue;
+                        }
+
+                        let a = m * Vec4::new(line.a.x, line.a.y, line.a.z, 1.0);
+                        let b = m * Vec4::new(line.b.x, line.b.y, line.b.z, 1.0);
+                        let aw = if a.w != 0.0 { a.w } else { 1.0 };
+                        let bw = if b.w != 0.0 { b.w } else { 1.0 };
+                        layered_lines.push((
+                            line.layer,
+                            Line3DPod {
+                                pos: [a.x / aw, a.y / aw, a.z / aw],
+                                _pad0: 0.0,
+                                color: line.color,
+                            },
+                            Line3DPod {
+                                pos: [b.x / bw, b.y / bw, b.z / bw],
+                                _pad0: 0.0,
+                                color: line.color,
+                            },
+                        ));
+                    }
+                }
+            }
+            layered_lines.sort_by_key(|(layer, _, _)| *layer);
+            let mut lines = Vec::with_capacity(layered_lines.len() * 2);
+            for (_, a, b) in layered_lines {
+                lines.push(a);
+                lines.push(b);
+            }
+            self.cached_line3d = lines;
+            self.line3d_dirty = false;
+            line3d_changed = true;
+        }
+
         // Keep static atlas/tile metadata in sync.
         self.upload_atlas_to_gpu_with(device, queue);
         self.upload_tile_metadata_to_gpu(device);
@@ -8242,6 +8485,28 @@ impl VM {
                         bytemuck::cast_slice(&self.cached_i3[static_index_count..]),
                     );
                 }
+            }
+
+            if line3d_changed || g.line3d_raster.is_none() {
+                let line_upload = if self.cached_line3d.is_empty() {
+                    vec![Line3DPod {
+                        pos: [0.0, 0.0, 0.0],
+                        _pad0: 0.0,
+                        color: [0.0, 0.0, 0.0, 0.0],
+                    }]
+                } else {
+                    self.cached_line3d.clone()
+                };
+                g.line3d_raster_count = self.cached_line3d.len() as u32;
+                g.line3d_raster = Some(device.create_buffer_init(
+                    &wgpu::util::BufferInitDescriptor {
+                        label: Some("vm-3d-lines-raster"),
+                        contents: bytemuck::cast_slice(&line_upload),
+                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    },
+                ));
+                g.line3d_raster_capacity =
+                    (line_upload.len() * std::mem::size_of::<Line3DPod>()) as u64;
             }
 
             let visible_upload = if visible_indices.is_empty() {
@@ -8602,6 +8867,12 @@ impl VM {
                     wgpu::IndexFormat::Uint32,
                 );
                 pass.draw_indexed(0..g.i3d_raster_particles_count, 0, 0..1);
+            }
+            if g.line3d_raster_count > 0 {
+                pass.set_pipeline(g.raster3d_line_pipeline.as_ref().unwrap());
+                pass.set_bind_group(0, g.u_raster3d_bg.as_ref().unwrap(), &[]);
+                pass.set_vertex_buffer(0, g.line3d_raster.as_ref().unwrap().slice(..));
+                pass.draw(0..g.line3d_raster_count, 0..1);
             }
         }
         let debug_encode_ms = debug_encode_start.elapsed().as_secs_f64() * 1000.0;

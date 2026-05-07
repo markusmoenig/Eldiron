@@ -1,11 +1,13 @@
 ---
 title: "Linedef Tool"
-sidebar_position: 3
+sidebar_position: 4
 ---
 
 The **Linedef Tool** (keyboard shortcut **'L'**) allows you to **select, edit, and create linedefs** in the map.
 
 It is specifically designed for working with **linedefs only**. It also includes **creation modes** for quickly building map geometry (sectors).
+
+In 3D views, the Linedef Tool selects edges on direct geometry objects.
 
 ## Selection Modes
 
@@ -17,14 +19,11 @@ It is specifically designed for working with **linedefs only**. It also includes
 - **Delete Key**: Remove selected linedefs.
 - **Escape Key**: Clear the selection.
 
-## 3D Modes
+## 3D Shortcuts
 
-In 3D views, the Linedef tool supports both geometry modes:
-
-- `GEOM`: create and move world-space linedefs.
-- `DETAIL`: create and move profile linedefs on the active surface.
-
-In `DETAIL`, clicking a wall, floor, or ceiling makes that surface active. New lines are written into that surface profile, not into the world map itself.
+- **X**: Split selected geometry edges.
+- **L**: Expand a selected edge into an edge loop on quad geometry.
+- **[ / ]**: Move selected edge vertices vertically by one grid step.
 
 ## Creation Mode (Manual)
 
@@ -40,8 +39,6 @@ This manual mode creates sectors by keeping a history of vertex clicks. You can 
  Hold **Command (macOS) / Ctrl** while clicking on vertices; on every click, the automatic mode checks if it can close an existing polygon. For example, if you have a shape that is not closed, you can add linedefs to this shape to close the shape and create a **sector**.
 
 This mode fails if you have a grid of existing geometry created by the [Rect Tool](rect).
-
-In `DETAIL`, the same creation logic applies, but the vertices and linedefs are stored in the active surface profile.
 
 ## Terrain (Region Maps)
 

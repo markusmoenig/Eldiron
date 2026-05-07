@@ -5,111 +5,128 @@ sidebar_position: 4
 
 import Admonition from '@theme/Admonition';
 
-## Creating Walls
+Eldiron's 3D workflow is based on direct **Geometry Objects**.
 
-In 3D views, the HUD exposes two geometry modes:
+You create and edit 3D objects directly in the scene through object, face, edge, and vertex editing.
 
-- `GEOM`: edit world geometry directly.
-- `DETAIL`: edit the profile of the clicked surface directly in the 3D view.
-
-Use `GEOM` for layout, extrusions, roofs, and structural work. Use `DETAIL` for holes, windows, gates, recesses, reliefs, and other surface-local detail.
-
-Every structure starts with a foundation. Let’s create a **sector**.
-
-![3D Tutorial Step1](3d_tutorial1.png)
-
-I selected the back and right **linedefs** of the **sector** and chose the [Extrude Linedef](/docs/creator/actions/#extrude-linedef) action, which extrudes a linedef (by a given distance and angle) into a new **surface**.
-
-<Admonition type="note" title="Surface">
-    A **surface** is the same as a **sector**, I just use it to differentiate flat 2D sectors from 3D ones.
+<Admonition type="note" title="2D Map Layer">
+The 3D editor currently displays and edits Geometry Objects. A 2D reference overlay for 3D editing is a planned editor feature.
 </Admonition>
 
-Applying the [Extrude Linedef](/docs/creator/actions/#extrude-linedef) action creates two new **surfaces** with the linedefs as their basis.
+## The 3D Editing Tools
 
-![3D Tutorial Step2](3d_tutorial2.png)
+The familiar map tools keep their names, but in a 3D camera they operate on Geometry Objects:
 
-I also used the [3D Iso Camera](/docs/creator/actions/#3d-iso-camera) action to switch to a 3D view of the scene.
+- **Object Tool (`G`)**: select, move, resize, create, duplicate, and delete whole objects.
+- **Vertex Tool (`V`)**: select and edit object vertices.
+- **Linedef Tool (`L`)**: select and edit object edges.
+- **Sector Tool (`E`)**: select and edit object faces.
 
-I selected the two **surfaces** we just created and ran the [Extrude Sector](/docs/creator/actions/#extrude-sector) action.
+The 3D workflow is direct and mesh-like while using the same tool vocabulary as the 2D editor.
 
-When we *Apply* the tool, the wall now has depth.
+## Creating The First Object
 
-![3D Tutorial Step3](3d_tutorial3.png)
+Switch to a 3D camera and use **Create Box** to add a Geometry Object.
 
-I used the [Toggle Editing Geometry](/docs/creator/actions/#toggle-editing-geometry) action to hide the editing geometry.
+The created box becomes normal editable geometry:
 
-<Admonition type="note" title="Non-Destructive Workflow">
-    Extrusions are non-destructive. You can change the extrusion depth at any time by reapplying the [Extrude Sector](/docs/creator/actions/#extrude-sector) action—including reverting to no extrusion by setting the depth to 0.0.
-</Admonition>
+- select it with the **Object Tool**
+- move it with the object gizmo
+- resize it with the size gizmo or keyboard shortcuts
+- duplicate it with **Cmd / Ctrl + D**
 
-## Cutting Holes
+Create Box remembers the last box size. When a face is selected, Create Box can attach a new box to that face and match the selected face size on the in-plane axes.
 
-Let’s cut a hole in a wall for a passage. Switch to `DETAIL` mode and click the wall you want to edit.
+## Object Editing
 
-![3D Tutorial Step4](3d_tutorial4.png)
+With the **Object Tool (`G`)** active:
 
-After selecting the wall in `DETAIL` mode, the normal 3D tools work on that surface profile.
+- **M** switches the object gizmo to move mode.
+- **S** switches the object gizmo to size mode.
+- **Drag a handle** to move or resize on that axis.
+- **+ / -** resize selected objects horizontally.
+- **[ / ]** resize selected objects vertically.
+- **Delete** removes the selected objects.
 
-![3D Tutorial Step5](3d_tutorial5.png)
+Movement and resizing snap to the current grid size.
 
-The turquoise outline shows the boundaries of the active surface. Everything you draw in `DETAIL` mode is stored in that surface profile.
+Use **Shift + 1 ... 0** to change the map subdivision, and **, / .** to decrease or increase the 3D grid size.
 
-Here I added a sector for a door into the profile. Each **sector** you add to a **surface profile** creates a hole by default. When you activate the isometric camera again you can see the result in 3D (I also applied a tile to the walls).
+## Face Editing
 
-![3D Tutorial Step6](3d_tutorial6.png)
+Use the **Sector Tool (`E`)** in 3D to select faces.
 
-<Admonition type="note" title="Extrusion and holes">
-    Holes in profile surfaces are independent from the extrusion of the wall itself. You can change the depth of the wall extrusion and the holes will automatically adjust.
-</Admonition>
+Useful face shortcuts:
 
-For a gate, a nice decoration is to select the top **linedef** of the profile and apply the [Arch](/docs/creator/actions/#arch) action to create an arch for the doorway.
+- **E** extrudes selected faces by one grid step.
+- **X** subdivides selected quad faces.
+- **T** applies the current tile, palette color, tilegraph, or nodegraph source.
+- **+ / -** push or pull selected faces along their normals.
+- **[ / ]** move selected faces vertically by one grid step.
+- **Delete** removes selected faces and leaves the boundary vertices selected.
 
-You can have any number of holes of any shape, edit the profile geometry for windows or reliefs in any way you want.
+After deleting a face, switch to the **Vertex Tool** and press **F** to fill a selected boundary again.
 
-## Hole-Based Actions
+## Edge Editing
 
-Instead of just using a **surface profile** as a hole, you can also apply the [Recess](/docs/creator/actions/#recess) and [Relief](/docs/creator/actions/#relief) actions to create a recess and relief of a given depth or height. These actions appear when `DETAIL` mode is active and a profile sector is selected. You can drag and drop tiles for the sides and cap to the given action.
+Use the **Linedef Tool (`L`)** in 3D to select edges.
 
-A more sophisticated profile action is [Gate / Door](/docs/creator/actions/#gate--door), which uses the given icon to create a gate or door for the hole. The key is that, by selecting the **sector**, you can use the [Edit Sector](/docs/creator/actions/#edit-sector) action to associate an item for the gate (set **Item Name** to the name of the **Item Template**). In the item behavior code you can then dynamically open/close the gate and make it **blocking** by setting the **visible** and **blocking** attributes of the item.
+Useful edge shortcuts:
 
-All this is discussed in more detail in the upcoming scripting chapter.
+- **X** splits selected geometry edges.
+- **L** expands a selected edge into an edge loop on quad geometry.
+- **[ / ]** moves selected edge vertices vertically by one grid step.
 
-## Creating a Roof
+Edge loops are most useful after subdividing quad faces, because they let you select a continuous row or column of edges quickly.
 
-So far **Eldiron** has done the surface building for us. To add a roof we need to build a surface sector ourselves.
+## Vertex Editing
 
-### Flat Roof
+Use the **Vertex Tool (`V`)** in 3D to select vertices.
 
-You can select the vertices you want to create a new surface sector for and apply the [Create Sector](/docs/creator/actions/#create-sector) action
+Useful vertex shortcuts:
 
-![3D Tutorial Step7](3d_tutorial7.png)
+- **X** splits selected geometry edges when the selected vertices form object edges.
+- **F** fills a selected vertex boundary with a face.
+- **L** expands a selected edge into an edge loop on quad geometry.
+- **[ / ]** moves selected vertices vertically by one grid step.
 
-which will create a new surface sector. After extrusion and applying a tile the roof will look like this.
+Vertex editing is the escape hatch for custom shapes: delete a face, move the boundary vertices, and fill it again when the shape is ready.
 
-![3D Tutorial Step8](3d_tutorial8.png)
+## Applying Tiles And Colors
 
-### Gable Roof
+3D faces can use the same visual sources as the rest of Eldiron:
 
-For a gable roof we need to create new vertices. Undo the flat roof creation and select the two linedefs of the upper side walls like this:
+- tiles from the Tile Picker
+- palette colors from the Palette dock
+- tilegraphs
+- nodegraphs
 
-![3D Tutorial Step9](3d_tutorial9.png)
+Select one or more faces with the **Sector Tool** and press **T**, or use the relevant dock apply button.
 
-Applying the [Split](/docs/creator/actions/#split) action on the two linedefs will split them in two, i.e. create a new vertex in the middle of each of them.
+Faces can either repeat a tile in 1x1 world units or scale the source across the selected face, depending on the active tile application mode.
 
-Now we can select each vertex with the **vertex tool**, which automatically selects the [Edit Vertex](/docs/creator/actions/#edit-vertex) action. Here we change the **Y** coordinate of the vertex from 2 to 4, moving it up.
+## Suggested Blockout Workflow
 
-![3D Tutorial Step10](3d_tutorial10.png)
+1. Use **Create Box** for the first block.
+2. Resize and duplicate boxes with the **Object Tool**.
+3. Select faces with the **Sector Tool** and extrude them to build connected walls, floors, ledges, and rooms.
+4. Subdivide faces with **X** when you need smaller editable regions.
+5. Use **Linedef** and **Vertex** tools for edge loops, cleanup, holes, and custom shapes.
+6. Paint faces with tiles, palette colors, tilegraphs, or nodegraphs.
 
-Selecting the four vertices and applying the [Create Sector](/docs/creator/actions/#create-sector) action again will create one half of the gable roof.
+This workflow is meant to stay realtime while editing.
 
-![3D Tutorial Step11](3d_tutorial11.png)
+## 2D Map Reference
 
-<Admonition type="note" title="Create Sector">
-    The **Create Sector** action works with both vertices and linedefs. Use it to create custom surface sectors for your geometry.
-</Admonition>
+Geometry Objects are responsible for the visible 3D world.
 
-Of course you can further decorate roof surfaces or floors in `DETAIL` mode with profiles (recesses / reliefs) like we did with the side wall.
+The 2D map is still useful as project data for:
 
-<Admonition type="tip" title="Creating Vertices">
-    Shift-clicking geometry with the **vertex** tool creates a new vertex at the hit position—handy for quickly adding and connecting vertices.
-</Admonition>
+- gameplay zones
+- triggers and metadata
+- minimap data
+
+The 3D view does not currently show a dedicated 2D geometry overlay. For visible 3D construction, use Geometry Objects:
+
+- houses, dungeons, walls, floors, platforms, and props
+- direct face, edge, and vertex editing

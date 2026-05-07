@@ -70,6 +70,7 @@ pub struct SectorTool {
     cached_sectors_to_move: Vec<u32>,
 
     hud: Hud,
+    direct_geometry: crate::tools::geometry::GeometryTool,
 }
 
 impl Tool for SectorTool {
@@ -90,6 +91,7 @@ impl Tool for SectorTool {
             cached_sectors_to_move: vec![],
 
             hud: Hud::new(HudMode::Sector),
+            direct_geometry: crate::tools::geometry::GeometryTool::new(),
         }
     }
 
@@ -132,6 +134,9 @@ impl Tool for SectorTool {
                 server_ctx.curr_map_tool_type = MapToolType::Sector;
 
                 if let Some(map) = project.get_map_mut(server_ctx) {
+                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                        map.geometry_selection_mode = 1;
+                    }
                     map.selected_vertices.clear();
                     map.selected_linedefs.clear();
                 }
@@ -158,6 +163,17 @@ impl Tool for SectorTool {
         map: &mut Map,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        if server_ctx.editor_view_mode != EditorViewMode::D2 {
+            map.geometry_selection_mode = 1;
+            if matches!(server_ctx.geo_hit, Some(GeoId::GeometryObject(_)))
+                || !map.selected_geometry_objects.is_empty()
+            {
+                return self
+                    .direct_geometry
+                    .map_event(map_event, ui, ctx, map, server_ctx);
+            }
+        }
+
         let mut undo_atom: Option<ProjectUndoAtom> = None;
         let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
             && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;

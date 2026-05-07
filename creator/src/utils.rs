@@ -259,10 +259,20 @@ pub fn get_surface_apply_source(
                 .curr_tile_id
                 .map(PixelSource::TileId)
                 .map(SurfaceApplySource::Direct),
-            TileSource::Procedural(_) => server_ctx
-                .curr_tile_id
-                .map(PixelSource::TileId)
-                .map(SurfaceApplySource::Direct),
+            TileSource::Procedural(id) => project
+                .tile_groups
+                .get(&id)
+                .cloned()
+                .map(|group| SurfaceApplySource::TileGroup {
+                    group,
+                    flip_y: project.tile_node_groups.contains_key(&id),
+                })
+                .or_else(|| {
+                    server_ctx
+                        .curr_tile_id
+                        .map(PixelSource::TileId)
+                        .map(SurfaceApplySource::Direct)
+                }),
         };
     }
 
@@ -502,6 +512,159 @@ pub fn apply_surface_source_to_sector(
             false
         }
     }
+}
+
+fn geometry_face_auto_uvs(points: &[Vec3<f32>]) -> Vec<Vec2<f32>> {
+    if points.len() < 3 {
+        return vec![Vec2::zero(); points.len()];
+    }
+
+    let mut normal = Vec3::<f32>::zero();
+    for index in 1..points.len() - 1 {
+        normal += (points[index] - points[0]).cross(points[index + 1] - points[0]);
+    }
+
+    let abs = Vec3::new(normal.x.abs(), normal.y.abs(), normal.z.abs());
+    points
+        .iter()
+        .map(|point| {
+            if abs.y >= abs.x && abs.y >= abs.z {
+                Vec2::new(point.x, point.z)
+            } else if abs.x >= abs.z {
+                Vec2::new(point.z, point.y)
+            } else {
+                Vec2::new(point.x, point.y)
+            }
+        })
+        .collect()
+}
+
+pub fn apply_surface_source_to_geometry_face(
+    map: &mut Map,
+    object_id: Uuid,
+    face_index: usize,
+    source: &SurfaceApplySource,
+    tile_mode: Option<i32>,
+) -> bool {
+    let Some(object) = map
+        .geometry_objects
+        .iter_mut()
+        .find(|object| object.id == object_id)
+    else {
+        return false;
+    };
+
+    let Some(face) = object.faces.get_mut(face_index) else {
+        return false;
+    };
+
+    match source {
+        SurfaceApplySource::Direct(pixel_source) => {
+            let auto_uv = tile_mode.unwrap_or(1) != 0;
+            let changed = face.tile.as_ref() != Some(pixel_source)
+                || !face.tiles.is_empty()
+                || face.auto_uv != auto_uv;
+            if changed {
+                face.tile = Some(pixel_source.clone());
+                face.tiles.clear();
+                face.auto_uv = auto_uv;
+            }
+            changed
+        }
+        SurfaceApplySource::TileGroup { group, flip_y } => {
+            if group.width == 0 || group.height == 0 || group.members.is_empty() {
+                return false;
+            }
+
+            let points = face
+                .indices
+                .iter()
+                .filter_map(|vertex_index| object.vertices.get(*vertex_index).copied())
+                .collect::<Vec<_>>();
+            if points.len() != face.indices.len() || points.len() < 3 {
+                return false;
+            }
+
+            let face_uvs = geometry_face_auto_uvs(&points);
+            let min_uv = face_uvs
+                .iter()
+                .fold(Vec2::broadcast(f32::INFINITY), |acc, uv| {
+                    Vec2::new(acc.x.min(uv.x), acc.y.min(uv.y))
+                });
+            let max_uv = face_uvs
+                .iter()
+                .fold(Vec2::broadcast(f32::NEG_INFINITY), |acc, uv| {
+                    Vec2::new(acc.x.max(uv.x), acc.y.max(uv.y))
+                });
+            if !min_uv.x.is_finite()
+                || !min_uv.y.is_finite()
+                || !max_uv.x.is_finite()
+                || !max_uv.y.is_finite()
+            {
+                return false;
+            }
+
+            let cells_x = (max_uv.x - min_uv.x).ceil().max(1.0) as i32;
+            let cells_y = (max_uv.y - min_uv.y).ceil().max(1.0) as i32;
+            let member_lookup: FxHashMap<(i32, i32), Uuid> = group
+                .members
+                .iter()
+                .map(|member| ((member.x as i32, member.y as i32), member.tile_id))
+                .collect();
+            let mut tiles: FxHashMap<(i32, i32), PixelSource> = FxHashMap::default();
+
+            for y in 0..cells_y {
+                for x in 0..cells_x {
+                    let gx = x.rem_euclid(group.width as i32);
+                    let gy = if *flip_y {
+                        (group.height as i32 - 1) - y.rem_euclid(group.height as i32)
+                    } else {
+                        y.rem_euclid(group.height as i32)
+                    };
+                    if let Some(tile_id) = member_lookup.get(&(gx, gy)) {
+                        tiles.insert((x, y), PixelSource::TileId(*tile_id));
+                    }
+                }
+            }
+
+            let first_source = group
+                .members
+                .first()
+                .map(|member| PixelSource::TileId(member.tile_id));
+            let changed = face.tile != first_source || face.tiles != tiles || !face.auto_uv;
+            if changed {
+                face.tile = first_source;
+                face.tiles = tiles;
+                face.auto_uv = true;
+            }
+            changed
+        }
+    }
+}
+
+pub fn clear_surface_source_on_geometry_face(
+    map: &mut Map,
+    object_id: Uuid,
+    face_index: usize,
+) -> bool {
+    let Some(object) = map
+        .geometry_objects
+        .iter_mut()
+        .find(|object| object.id == object_id)
+    else {
+        return false;
+    };
+
+    let Some(face) = object.faces.get_mut(face_index) else {
+        return false;
+    };
+
+    let changed = face.tile.is_some() || !face.tiles.is_empty();
+    if changed {
+        face.tile = None;
+        face.tiles.clear();
+    }
+    changed
 }
 
 pub fn clear_surface_source_on_sector(map: &mut Map, sector_id: u32, source_key: &str) -> bool {

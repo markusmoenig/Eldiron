@@ -107,6 +107,12 @@ pub enum GeometryEditMode {
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
+pub enum GeometryGizmoOp {
+    Move,
+    Resize,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum EditorViewMode {
     D2,
     Orbit,
@@ -550,6 +556,8 @@ pub struct ServerContext {
 
     /// The current 3d hover position
     pub hover_cursor_3d: Option<Vec3<f32>>,
+    /// Ray origin for the current 3D hover position.
+    pub hover_ray_origin_3d: Option<Vec3<f32>>,
     /// Ray direction for the current 3D hover hit.
     pub hover_ray_dir_3d: Option<Vec3<f32>>,
 
@@ -666,10 +674,13 @@ pub struct ServerContext {
     pub gizmo_mode: GizmoMode,
     /// Geometry edits work in world/gizmo space, detail edits on hovered surfaces.
     pub geometry_edit_mode: GeometryEditMode,
+    /// Operation used by the direct 3D object gizmo.
+    pub geometry_gizmo_op: GeometryGizmoOp,
 
     // For the Rect tool, identify the current sector and tile for preview
     pub rect_sector_id_3d: Option<u32>,
     pub rect_tile_id_3d: (i32, i32),
+    pub rect_geometry_face_3d: Option<(Uuid, usize)>,
     pub rect_terrain_id: Option<(i32, i32)>,
     pub rect_blend_preset: VertexBlendPreset,
 
@@ -778,6 +789,7 @@ impl ServerContext {
             hover: (None, None, None),
             hover_cursor: None,
             hover_cursor_3d: None,
+            hover_ray_origin_3d: None,
             hover_ray_dir_3d: None,
             hover_surface: None,
             hover_surface_hit_pos: None,
@@ -834,11 +846,13 @@ impl ServerContext {
 
             gizmo_mode: GizmoMode::XZ,
             geometry_edit_mode: GeometryEditMode::Geometry,
+            geometry_gizmo_op: GeometryGizmoOp::Move,
 
             editing_slice: 0.0,
             editing_slice_height: 2.0,
             rect_sector_id_3d: None,
             rect_tile_id_3d: (0, 0),
+            rect_geometry_face_3d: None,
             rect_terrain_id: None,
             rect_blend_preset: VertexBlendPreset::Solid,
 

@@ -346,6 +346,18 @@ impl Rusterix {
 
     /// Draw the client scene in 3D
     pub fn draw_d3(&mut self, map: &Map, pixels: &mut [u8], width: usize, height: usize) {
+        self.draw_d3_with_editor_background(map, pixels, width, height, false);
+    }
+
+    /// Draw the client scene in 3D, optionally using the neutral construction background.
+    pub fn draw_d3_with_editor_background(
+        &mut self,
+        map: &Map,
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        editor_neutral_background: bool,
+    ) {
         self.apply_runtime_render_state(map);
         self.client.draw_d3(
             map,
@@ -354,6 +366,7 @@ impl Rusterix {
             height,
             &self.assets,
             &mut self.scene_handler,
+            editor_neutral_background,
         );
     }
 
@@ -380,6 +393,7 @@ impl Rusterix {
                     height,
                     &self.assets,
                     &mut self.scene_handler,
+                    false,
                 );
             }
         }

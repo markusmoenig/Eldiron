@@ -1,6 +1,7 @@
 pub mod action;
 pub mod d2chunkbuilder;
 pub mod d3chunkbuilder;
+pub mod geometry_object_builder;
 pub mod surface_mesh_builder;
 pub mod terrain_generator;
 pub mod topology_builder;

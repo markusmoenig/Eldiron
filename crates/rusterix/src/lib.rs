@@ -141,6 +141,7 @@ pub use crate::{
         ChunkBuilder,
         d2chunkbuilder::D2ChunkBuilder,
         d3chunkbuilder::D3ChunkBuilder,
+        geometry_object_builder::GeometryObjectBuilder,
         topology_builder::{TopologyBuilder, TopologyScene},
     },
     collision_world::CollisionWorld,
@@ -153,6 +154,7 @@ pub use crate::{
         dungeon::{
             DungeonCell, DungeonLayer, DungeonMap, DungeonTileKind, rebuild_generated_geometry,
         },
+        geometry_object::{GeometryFace, GeometryObject, GeometryObjectKind},
         light::CompiledLight,
         light::Light,
         light::LightType,

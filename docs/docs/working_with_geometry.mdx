@@ -49,20 +49,18 @@ The [Vertex](creator/tools/vertex), [Linedef](creator/tools/linedef) and [Sector
 
 ## 3D Geometry Modes
 
-In 3D views, Eldiron has two geometry edit modes in the HUD:
+In 3D views, Eldiron uses direct **Geometry Object** editing.
 
-- `GEOM`: edit world geometry directly.
-- `DETAIL`: edit the active surface profile directly in 3D.
+The same tool names are reused, but they operate on the selected 3D object:
 
-`GEOM` is used for structural edits such as moving vertices, building sectors, and extruding geometry.
+- The **Object Tool** selects and transforms whole objects.
+- The **Vertex Tool** selects and edits object vertices.
+- The **Linedef Tool** selects and edits object edges.
+- The **Sector Tool** selects and edits object faces.
 
-`DETAIL` is used for surface-local edits such as holes, windows, gates, recesses, and reliefs. In this mode you click a wall, floor, or ceiling and the `Vertex`, `Linedef`, and `Sector` tools operate on that surface profile instead of on the world map.
+This keeps the 2D editor vocabulary intact while giving the 3D path direct object, face, edge, and vertex editing.
 
-Using each tool you can select and drag the corresponding geometry, both in 2D and 3D. In `GEOM`, 3D camera views show a small gizmo helper at the bottom right of the viewport to control in which plane you are dragging the geometry:
-
-![3D Gizmo](3d_gizmo.png)
-
-In `DETAIL`, the active surface defines the editing plane, so the plane gizmo is hidden.
+The 3D editor works with Geometry Objects. The 2D map data can still be used for gameplay zones, triggers, and minimaps.
 
 Press **Delete** to remove the currently selected geometry.
 

@@ -1,6 +1,6 @@
 ---
 title: "Organic Tool"
-sidebar_position: 7
+sidebar_position: 10
 ---
 
 The **Organic Tool** (keyboard shortcut **`O`**) paints organic surface detail directly onto map surfaces.
@@ -127,11 +127,10 @@ This includes:
 ## Notes
 
 - Organic painting is intended for **surface detail**, not for placing trees, bushes, or other large procedural scene objects.
-- Builder remains the better tool for reusable placed assemblies and future hybrid mesh / billboard content.
+- Reusable placed assemblies are being redesigned around the direct geometry workflow.
 - Organic paint is rendered as a surface layer. It does not generate separate organic geometry.
 
 ## Related Pages
 
 - [Overview](/docs/creator/tools/overview)
 - [Palette Tool](palette)
-- [Builder Tool](builder)

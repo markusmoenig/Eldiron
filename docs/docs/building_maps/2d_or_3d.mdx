@@ -21,16 +21,20 @@ The screenshot above shows the **Hideout 2D** example game created with **Eldiro
 
 ![3D Game](/img/docs/3d_game.png)
 
-**Eldiron** has inbuilt 3D editing to easily create geometry for dungeons, towns, houses and more. This geometry interacts with an integrated terrain system. Other 3D features include day / night time simulation (including the sun) and powerful 3D rendering. 
+**Eldiron** has inbuilt 3D editing to create dungeons, towns, houses and props directly inside the editor. Other 3D features include day / night time simulation, isometric and first-person cameras, and powerful 3D rendering.
 
-Tiles in 3D support PBR materials and can be painted on 3D surfaces as well as on the terrain.
+Tiles in 3D support PBR materials and can be painted onto editable geometry surfaces.
 
-3D editing has two complementary workflows:
+3D maps use editable **Geometry Objects** as the main construction model:
 
-- `GEOM` for structural world editing.
-- `DETAIL` for editing wall, floor, and ceiling surface profiles directly in the 3D view.
+- The **Object Tool** selects and transforms whole 3D objects.
+- The **Vertex Tool** edits object vertices.
+- The **Linedef Tool** edits object edges.
+- The **Sector Tool** edits object faces and surface tiles.
 
-This lets you stay in the 3D editor while creating openings, windows, gates, recesses, and other surface-local detail.
+The 3D editor works with Geometry Objects. The 2D map data can still be useful for gameplay zones, triggers, and minimaps.
+
+For the direct geometry workflow, see [Creating 3D Maps: Geometry](creating_3d_maps).
 
 The camera you choose for your game defines the perspective, you can either use a configurable orthographic / isometric camera or a first person camera.
 
@@ -40,4 +44,4 @@ Eldiron always uses non-perspective tiles in 3D. Some engines support pre-render
 
 ---
 
-In the following chapters we will discuss both 2D and 3D game map creation.
+The following chapters cover 2D map creation and direct 3D geometry.

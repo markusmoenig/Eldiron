@@ -1,11 +1,66 @@
 use crate::prelude::*;
 use rusterix::{Linedef, Sector, Surface};
+use std::sync::Mutex;
 
 pub const DUPLICATE_ACTION_ID: &str = "1468f85f-ef66-49f9-8c3f-54fbde6e3d9c";
+
+static LAST_GEOMETRY_DUPLICATE_OFFSET: Mutex<Option<Vec3<f32>>> = Mutex::new(None);
 
 pub struct Duplicate {
     id: TheId,
     nodeui: TheNodeUI,
+}
+
+impl Duplicate {
+    fn geometry_only_selection(map: &Map) -> bool {
+        !map.selected_geometry_objects.is_empty()
+            && map.selected_vertices.is_empty()
+            && map.selected_linedefs.is_empty()
+            && map.selected_sectors.is_empty()
+    }
+
+    fn selected_geometry_width(map: &Map, fallback: f32) -> f32 {
+        let mut min = Vec3::broadcast(f32::INFINITY);
+        let mut max = Vec3::broadcast(f32::NEG_INFINITY);
+        let mut found = false;
+        for object_id in &map.selected_geometry_objects {
+            let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *object_id)
+            else {
+                continue;
+            };
+            for vertex in &object.vertices {
+                let world = object.transform_point(*vertex);
+                if !world.x.is_finite() || !world.y.is_finite() || !world.z.is_finite() {
+                    continue;
+                }
+                min.x = min.x.min(world.x);
+                max.x = max.x.max(world.x);
+                found = true;
+            }
+        }
+
+        if found {
+            (max.x - min.x).max(fallback)
+        } else {
+            fallback
+        }
+    }
+
+    fn last_geometry_offset() -> Option<Vec3<f32>> {
+        LAST_GEOMETRY_DUPLICATE_OFFSET
+            .lock()
+            .ok()
+            .and_then(|offset| *offset)
+    }
+
+    fn remember_geometry_offset(offset: Vec3<f32>) {
+        if let Ok(mut last_offset) = LAST_GEOMETRY_DUPLICATE_OFFSET.lock() {
+            *last_offset = Some(offset);
+        }
+    }
 }
 
 impl Action for Duplicate {
@@ -17,7 +72,7 @@ impl Action for Duplicate {
 
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
             "actionDuplicateX".into(),
-            "".into(),
+            "X".into(),
             "".into(),
             0.0,
             -1000.0..=1000.0,
@@ -25,7 +80,7 @@ impl Action for Duplicate {
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
             "actionDuplicateY".into(),
-            "".into(),
+            "Y".into(),
             "".into(),
             1.0,
             -1000.0..=1000.0,
@@ -33,7 +88,7 @@ impl Action for Duplicate {
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
             "actionDuplicateZ".into(),
-            "".into(),
+            "Z".into(),
             "".into(),
             0.0,
             -1000.0..=1000.0,
@@ -42,7 +97,7 @@ impl Action for Duplicate {
         nodeui.add_item(TheNodeUIItem::OpenTree("sector".into()));
         nodeui.add_item(TheNodeUIItem::Checkbox(
             "actionSectorConnect".into(),
-            "".into(),
+            "Connect Sectors".into(),
             "".into(),
             false,
         ));
@@ -69,10 +124,35 @@ impl Action for Duplicate {
         ActionRole::Editor
     }
 
+    fn accel(&self) -> Option<TheAccelerator> {
+        Some(TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'd'))
+    }
+
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
         !map.selected_vertices.is_empty()
             || !map.selected_linedefs.is_empty()
             || !map.selected_sectors.is_empty()
+            || !map.selected_geometry_objects.is_empty()
+    }
+
+    fn load_params(&mut self, map: &Map) {
+        let step = 1.0 / map.subdivisions.max(1.0);
+        if Self::geometry_only_selection(map) {
+            if let Some(offset) = Self::last_geometry_offset() {
+                self.nodeui.set_f32_value("actionDuplicateX", offset.x);
+                self.nodeui.set_f32_value("actionDuplicateY", offset.y);
+                self.nodeui.set_f32_value("actionDuplicateZ", offset.z);
+            } else {
+                let width = Self::selected_geometry_width(map, step);
+                self.nodeui.set_f32_value("actionDuplicateX", width);
+                self.nodeui.set_f32_value("actionDuplicateY", 0.0);
+                self.nodeui.set_f32_value("actionDuplicateZ", 0.0);
+            }
+        } else {
+            self.nodeui.set_f32_value("actionDuplicateX", 0.0);
+            self.nodeui.set_f32_value("actionDuplicateY", step);
+            self.nodeui.set_f32_value("actionDuplicateZ", 0.0);
+        }
     }
 
     fn apply(
@@ -85,11 +165,13 @@ impl Action for Duplicate {
         if map.selected_vertices.is_empty()
             && map.selected_linedefs.is_empty()
             && map.selected_sectors.is_empty()
+            && map.selected_geometry_objects.is_empty()
         {
             return None;
         }
 
         let prev = map.clone();
+        let duplicate_geometry = !map.selected_geometry_objects.is_empty();
 
         // Match editor XYZ convention: Y maps to vertex.z and Z maps to vertex.y (vertical).
         let offset_x = self.nodeui.get_f32_value("actionDuplicateX").unwrap_or(0.0);
@@ -147,7 +229,29 @@ impl Action for Duplicate {
         let mut new_vertices = Vec::new();
         let mut new_linedefs = Vec::new();
         let mut new_sectors = Vec::new();
+        let mut new_geometry_objects = Vec::new();
         let mut sector_map: FxHashMap<u32, u32> = FxHashMap::default();
+
+        for object_id in map.selected_geometry_objects.clone() {
+            if let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == object_id)
+                .cloned()
+            {
+                let mut new_object = object;
+                new_object.id = Uuid::new_v4();
+                new_object.name = if new_object.name.is_empty() {
+                    "Copy".to_string()
+                } else {
+                    format!("{} Copy", new_object.name)
+                };
+                new_object.transform[3][0] += offset_x;
+                new_object.transform[3][1] += offset_z;
+                new_object.transform[3][2] += offset_y;
+                new_geometry_objects.push(new_object);
+            }
+        }
 
         for old_vid in sorted_vertex_ids {
             if let Some(old_vertex) = map.find_vertex(old_vid).cloned() {
@@ -289,13 +393,22 @@ impl Action for Duplicate {
             }
         }
 
-        if new_vertices.is_empty() && new_linedefs.is_empty() && new_sectors.is_empty() {
+        if new_vertices.is_empty()
+            && new_linedefs.is_empty()
+            && new_sectors.is_empty()
+            && new_geometry_objects.is_empty()
+        {
             return None;
+        }
+
+        if duplicate_geometry && !new_geometry_objects.is_empty() {
+            Self::remember_geometry_offset(Vec3::new(offset_x, offset_y, offset_z));
         }
 
         map.vertices.extend(new_vertices.clone());
         map.linedefs.extend(new_linedefs.clone());
         map.sectors.extend(new_sectors.clone());
+        map.geometry_objects.extend(new_geometry_objects.clone());
 
         // Ensure duplicated/connector sectors have matching surfaces so they render in 3D.
         for sector in &new_sectors {
@@ -332,6 +445,12 @@ impl Action for Duplicate {
 
         // For selected sectors we duplicated all their linedefs, so one-to-one order mapping is valid.
         map.selected_sectors = new_sectors.iter().map(|s| s.id).collect();
+        map.selected_geometry_objects = new_geometry_objects
+            .iter()
+            .map(|object| object.id)
+            .collect();
+        map.selected_geometry_faces.clear();
+        map.selected_geometry_vertices.clear();
 
         Some(ProjectUndoAtom::MapEdit(
             server_ctx.pc,

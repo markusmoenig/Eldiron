@@ -5,6 +5,7 @@ use rusterix::Assets;
 // pub mod config;
 // pub mod data;
 pub mod game;
+pub mod geometry;
 // pub mod info;
 pub mod builder;
 pub mod dungeon;

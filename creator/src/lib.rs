@@ -61,6 +61,7 @@ pub mod prelude {
     pub use crate::utils::*;
 
     pub use crate::tools::game::GameTool;
+    pub use crate::tools::geometry::GeometryTool;
     pub use crate::tools::linedef::LinedefTool;
     pub use crate::tools::sector::SectorTool;
     // pub use crate::tools::tileset::TilesetTool;

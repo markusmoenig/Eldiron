@@ -1,6 +1,7 @@
 ---
 title: "Dungeon Tool"
-sidebar_position: 7
+sidebar_position: 9
+draft: true
 ---
 
 The **Dungeon Tool** (keyboard shortcut **`U`**) lets you paint **conceptual dungeon structure** in a top-down grid view and generate normal map geometry from it.

@@ -1,6 +1,6 @@
 use crate::{
-    Assets, BBox, Chunk, ChunkBuilder, D2ChunkBuilder, Map, PixelSource, Texture, Tile,
-    TopologyBuilder, Value, ValueContainer,
+    Assets, BBox, Chunk, ChunkBuilder, D2ChunkBuilder, GeometryObjectBuilder, Map, PixelSource,
+    Texture, Tile, Value, ValueContainer,
 };
 use scenevm::Chunk as VMChunk;
 use theframework::prelude::*;
@@ -136,7 +136,7 @@ impl SceneManager {
             focus_chunk: None,
 
             chunk_builder_d2: Some(Box::new(D2ChunkBuilder::new())),
-            chunk_builder_d3: Some(Box::new(TopologyBuilder::new())),
+            chunk_builder_d3: Some(Box::new(GeometryObjectBuilder::new())),
             apply_preview_filters: false,
 
             results: Vec::new(),

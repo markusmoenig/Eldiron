@@ -11,6 +11,7 @@ pub mod core;
 pub mod dynamic;
 pub mod intodata;
 pub mod light;
+pub mod line3d;
 #[cfg(all(feature = "ui", not(target_arch = "wasm32")))]
 pub mod native_dialogs;
 pub mod poly2d;
@@ -59,6 +60,7 @@ pub mod prelude {
         dynamic::{AlphaMode, DynamicKind, DynamicMeshVertex, DynamicObject, RepeatMode},
         intodata::IntoDataInput,
         light::{Light, LightType},
+        line3d::Line3D,
         poly2d::Poly2D,
         poly3d::{OrganicSurfaceDetail, Poly3D},
         texture::Texture,
@@ -115,6 +117,7 @@ pub use crate::{
     dynamic::{AlphaMode, DynamicKind, DynamicMeshVertex, DynamicObject, RepeatMode},
     intodata::IntoDataInput,
     light::{Light, LightType},
+    line3d::Line3D,
     poly2d::Poly2D,
     poly3d::{OrganicSurfaceDetail, Poly3D},
     texture::Texture,

@@ -1,5 +1,6 @@
 use crate::editor::DOCKMANAGER;
 use crate::prelude::*;
+use rusterix::PixelSource;
 
 pub struct ApplyTile {
     id: TheId,
@@ -48,7 +49,7 @@ impl Action for ApplyTile {
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        !map.selected_sectors.is_empty()
+        (!map.selected_sectors.is_empty() || !map.selected_geometry_faces.is_empty())
             && DOCKMANAGER.read().unwrap().dock == "Tiles"
             && (server_ctx.curr_tile_source.is_some() || server_ctx.curr_tile_id.is_some())
     }
@@ -90,6 +91,22 @@ impl Action for ApplyTile {
                     sector.properties.set("tile_mode", Value::Int(mode));
                     changed = true;
                 }
+            }
+
+            let selected_geometry_faces = map.selected_geometry_faces.clone();
+            let geometry_source = server_ctx
+                .curr_tile_id
+                .map(PixelSource::TileId)
+                .unwrap_or_else(|| source_value.clone());
+            let geometry_source = crate::utils::SurfaceApplySource::Direct(geometry_source);
+            for (object_id, face_index) in selected_geometry_faces {
+                changed |= crate::utils::apply_surface_source_to_geometry_face(
+                    map,
+                    object_id,
+                    face_index,
+                    &geometry_source,
+                    Some(mode),
+                );
             }
         }
 

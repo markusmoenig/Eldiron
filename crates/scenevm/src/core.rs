@@ -1,4 +1,4 @@
-use crate::{Camera3D, Chunk, Light, Poly2D, Poly3D, dynamic::DynamicObject};
+use crate::{Camera3D, Chunk, Light, Line3D, Poly2D, Poly3D, dynamic::DynamicObject};
 use uuid::Uuid;
 use vek::{Mat3, Vec2, Vec4};
 
@@ -15,6 +15,7 @@ pub enum GeoId {
     ItemLight(u32),
     Triangle(u32),
     Terrain(i32, i32),
+    GeometryObject(Uuid),
     Hole(u32, u32),
     Gizmo(u32),
 }
@@ -68,6 +69,9 @@ pub enum Atom {
     },
     AddPoly3D {
         poly: Poly3D,
+    },
+    AddLine3D {
+        line: Line3D,
     },
     AddLineStrip2D {
         id: GeoId,

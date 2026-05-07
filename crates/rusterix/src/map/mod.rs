@@ -1,6 +1,7 @@
 pub mod bbox;
 pub mod dungeon;
 pub mod geometry;
+pub mod geometry_object;
 pub mod light;
 pub mod linedef;
 pub mod meta;
@@ -17,8 +18,8 @@ pub mod topology;
 pub mod vertex;
 
 use crate::{
-    BBox, Keyform, MapMini, OrganicVolumeLayer, PixelSource, SoftRig, SoftRigAnimator, Surface,
-    Value, ValueContainer,
+    BBox, GeometryObject, Keyform, MapMini, OrganicVolumeLayer, PixelSource, SoftRig,
+    SoftRigAnimator, Surface, Value, ValueContainer,
 };
 use codegridfx::Module;
 use indexmap::IndexMap;
@@ -87,6 +88,11 @@ pub struct Map {
     pub linedefs: Vec<Linedef>,
     pub sectors: Vec<Sector>,
 
+    /// Directly editable 3D geometry objects. This is separate from the 2D
+    /// vertices/linedefs/sectors so existing 2D maps stay intact.
+    #[serde(default)]
+    pub geometry_objects: Vec<GeometryObject>,
+
     pub sky_texture: Option<Uuid>,
 
     // Camera Mode
@@ -109,6 +115,14 @@ pub struct Map {
     pub selected_vertices: Vec<u32>,
     pub selected_linedefs: Vec<u32>,
     pub selected_sectors: Vec<u32>,
+    #[serde(default)]
+    pub selected_geometry_objects: Vec<Uuid>,
+    #[serde(skip)]
+    pub selected_geometry_vertices: Vec<(Uuid, usize)>,
+    #[serde(skip)]
+    pub selected_geometry_faces: Vec<(Uuid, usize)>,
+    #[serde(skip)]
+    pub geometry_selection_mode: u8,
 
     pub selected_entity_item: Option<Uuid>,
 
@@ -177,6 +191,7 @@ impl Map {
             vertices: vec![],
             linedefs: vec![],
             sectors: vec![],
+            geometry_objects: vec![],
 
             sky_texture: None,
 
@@ -191,6 +206,10 @@ impl Map {
             selected_vertices: vec![],
             selected_linedefs: vec![],
             selected_sectors: vec![],
+            selected_geometry_objects: vec![],
+            selected_geometry_vertices: vec![],
+            selected_geometry_faces: vec![],
+            geometry_selection_mode: 0,
 
             selected_entity_item: None,
 
@@ -221,6 +240,9 @@ impl Map {
         self.selected_vertices = vec![];
         self.selected_linedefs = vec![];
         self.selected_sectors = vec![];
+        self.selected_geometry_objects = vec![];
+        self.selected_geometry_vertices = vec![];
+        self.selected_geometry_faces = vec![];
         self.selected_entity_item = None;
     }
 
@@ -386,31 +408,31 @@ impl Map {
 
     /// Generate a bounding box for all vertices in the map
     pub fn bbox(&self) -> BBox {
-        // Find min and max coordinates among all vertices
-        let min_x = self
-            .vertices
-            .iter()
-            .map(|v| v.x)
-            .fold(f32::INFINITY, f32::min);
-        let max_x = self
-            .vertices
-            .iter()
-            .map(|v| v.x)
-            .fold(f32::NEG_INFINITY, f32::max);
-        let min_y = self
-            .vertices
-            .iter()
-            .map(|v| v.y)
-            .fold(f32::INFINITY, f32::min);
-        let max_y = self
-            .vertices
-            .iter()
-            .map(|v| v.y)
-            .fold(f32::NEG_INFINITY, f32::max);
-        BBox {
-            min: Vec2::new(min_x, min_y),
-            max: Vec2::new(max_x, max_y),
+        let mut bbox: Option<BBox> = None;
+
+        for vertex in &self.vertices {
+            let point = Vec2::new(vertex.x, vertex.y);
+            match &mut bbox {
+                Some(bbox) => {
+                    bbox.min.x = bbox.min.x.min(point.x);
+                    bbox.min.y = bbox.min.y.min(point.y);
+                    bbox.max.x = bbox.max.x.max(point.x);
+                    bbox.max.y = bbox.max.y.max(point.y);
+                }
+                None => bbox = Some(BBox::new(point, point)),
+            }
         }
+
+        for object in &self.geometry_objects {
+            if let Some(object_bbox) = object.bbox() {
+                match &mut bbox {
+                    Some(bbox) => bbox.expand_bbox(object_bbox),
+                    None => bbox = Some(object_bbox),
+                }
+            }
+        }
+
+        bbox.unwrap_or_else(|| BBox::new(Vec2::new(-1.0, -1.0), Vec2::new(1.0, 1.0)))
     }
 
     /// Generate a bounding box for all vertices in the map
@@ -1847,6 +1869,7 @@ impl Map {
             vertices: self.vertices.clone(),
             linedefs: self.linedefs.clone(),
             sectors: self.sectors.clone(),
+            geometry_objects: self.geometry_objects.clone(),
 
             sky_texture: None,
 
@@ -1861,6 +1884,10 @@ impl Map {
             selected_vertices: vec![],
             selected_linedefs: vec![],
             selected_sectors: vec![],
+            selected_geometry_objects: vec![],
+            selected_geometry_vertices: vec![],
+            selected_geometry_faces: vec![],
+            geometry_selection_mode: 0,
 
             selected_entity_item: None,
 

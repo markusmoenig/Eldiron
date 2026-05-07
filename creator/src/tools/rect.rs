@@ -5,7 +5,7 @@ use MapEvent::*;
 use ToolEvent::*;
 use rusterix::prelude::*;
 use std::time::{Duration, Instant};
-use vek::Vec2;
+use vek::{Vec2, Vec3};
 
 const LIVE_PAINT_SYNC_INTERVAL: Duration = Duration::from_millis(75);
 
@@ -787,7 +787,150 @@ impl RectTool {
             return Self::sample_sector_override_source(map, sector_id, server_ctx.rect_tile_id_3d);
         }
 
+        if let Some((object_id, face_index)) = server_ctx.rect_geometry_face_3d {
+            let object = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == object_id)?;
+            let face = object.faces.get(face_index)?;
+            if let Some(source) = face.tiles.get(&server_ctx.rect_tile_id_3d) {
+                return Self::tile_source_from_pixel_source(source);
+            }
+            return face
+                .tile
+                .as_ref()
+                .and_then(Self::tile_source_from_pixel_source);
+        }
+
         None
+    }
+
+    fn geometry_object_local_from_world(
+        object: &rusterix::GeometryObject,
+        world: Vec3<f32>,
+    ) -> Vec3<f32> {
+        let m = &object.transform;
+        let sx = if m[0][0].abs() > 1e-6 { m[0][0] } else { 1.0 };
+        let sy = if m[1][1].abs() > 1e-6 { m[1][1] } else { 1.0 };
+        let sz = if m[2][2].abs() > 1e-6 { m[2][2] } else { 1.0 };
+        Vec3::new(
+            (world.x - m[3][0]) / sx,
+            (world.y - m[3][1]) / sy,
+            (world.z - m[3][2]) / sz,
+        )
+    }
+
+    fn geometry_face_uv_basis(points: &[Vec3<f32>]) -> Option<Vec3<f32>> {
+        if points.len() < 3 {
+            return None;
+        }
+        let mut normal = Vec3::<f32>::zero();
+        for index in 1..points.len() - 1 {
+            normal += (points[index] - points[0]).cross(points[index + 1] - points[0]);
+        }
+        (normal.magnitude() > 1e-6).then_some(normal)
+    }
+
+    fn geometry_point_auto_uv(point: Vec3<f32>, normal: Vec3<f32>) -> Vec2<f32> {
+        let abs = Vec3::new(normal.x.abs(), normal.y.abs(), normal.z.abs());
+        if abs.y >= abs.x && abs.y >= abs.z {
+            Vec2::new(point.x, point.z)
+        } else if abs.x >= abs.z {
+            Vec2::new(point.z, point.y)
+        } else {
+            Vec2::new(point.x, point.y)
+        }
+    }
+
+    fn barycentric_2d(
+        p: Vec2<f32>,
+        a: Vec2<f32>,
+        b: Vec2<f32>,
+        c: Vec2<f32>,
+    ) -> Option<(f32, f32, f32)> {
+        let v0 = b - a;
+        let v1 = c - a;
+        let v2 = p - a;
+        let d00 = v0.dot(v0);
+        let d01 = v0.dot(v1);
+        let d11 = v1.dot(v1);
+        let d20 = v2.dot(v0);
+        let d21 = v2.dot(v1);
+        let denom = d00 * d11 - d01 * d01;
+        if denom.abs() <= 1e-6 {
+            return None;
+        }
+        let v = (d11 * d20 - d01 * d21) / denom;
+        let w = (d00 * d21 - d01 * d20) / denom;
+        let u = 1.0 - v - w;
+        (u >= -1e-4 && v >= -1e-4 && w >= -1e-4).then_some((u, v, w))
+    }
+
+    fn uv_inside_face(uv: Vec2<f32>, face_uvs: &[Vec2<f32>]) -> bool {
+        if face_uvs.len() < 3 {
+            return false;
+        }
+        (1..face_uvs.len() - 1).any(|index| {
+            Self::barycentric_2d(uv, face_uvs[0], face_uvs[index], face_uvs[index + 1]).is_some()
+        })
+    }
+
+    fn geometry_face_target_at_world(
+        map: &Map,
+        object_id: Uuid,
+        world_hit: Vec3<f32>,
+    ) -> Option<(usize, (i32, i32))> {
+        let object = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)?;
+        let local_hit = Self::geometry_object_local_from_world(object, world_hit);
+
+        let mut best: Option<(usize, (i32, i32), f32)> = None;
+        for (face_index, face) in object.faces.iter().enumerate() {
+            if face.indices.len() < 3 {
+                continue;
+            }
+            let points = face
+                .indices
+                .iter()
+                .filter_map(|vertex_index| object.vertices.get(*vertex_index).copied())
+                .collect::<Vec<_>>();
+            if points.len() != face.indices.len() {
+                continue;
+            }
+            let Some(normal) = Self::geometry_face_uv_basis(&points) else {
+                continue;
+            };
+            let normal_unit = normal / normal.magnitude();
+            let plane_dist = (local_hit - points[0]).dot(normal_unit).abs();
+            let face_uvs = points
+                .iter()
+                .map(|point| Self::geometry_point_auto_uv(*point, normal))
+                .collect::<Vec<_>>();
+            let hit_uv = Self::geometry_point_auto_uv(local_hit, normal);
+            if !Self::uv_inside_face(hit_uv, &face_uvs) {
+                continue;
+            }
+            let min_uv = face_uvs
+                .iter()
+                .fold(Vec2::broadcast(f32::INFINITY), |acc, uv| {
+                    Vec2::new(acc.x.min(uv.x), acc.y.min(uv.y))
+                });
+            let tile = (
+                (hit_uv.x - min_uv.x).floor() as i32,
+                (hit_uv.y - min_uv.y).floor() as i32,
+            );
+            if best
+                .as_ref()
+                .map(|(_, _, best_dist)| plane_dist < *best_dist)
+                .unwrap_or(true)
+            {
+                best = Some((face_index, tile, plane_dist));
+            }
+        }
+
+        best.map(|(face_index, tile, _)| (face_index, tile))
     }
 
     fn begin_stroke_if_needed(&mut self, map: &Map) {
@@ -868,6 +1011,14 @@ impl RectTool {
                 x.div_euclid(chunk_size) * chunk_size,
                 z.div_euclid(chunk_size) * chunk_size,
             ));
+        } else if let Some((object_id, _)) = server_ctx.rect_geometry_face_3d {
+            let rusterix = crate::editor::RUSTERIX.read().unwrap();
+            dirty_chunks.extend(
+                rusterix
+                    .scene_handler
+                    .build_index
+                    .chunks_for_owner(scenevm::GeoId::GeometryObject(object_id)),
+            );
         } else if let Some(sector_id) = server_ctx.rect_sector_id_3d
             && let Some(sector) = work_map.find_sector(sector_id)
         {
@@ -1021,6 +1172,25 @@ impl RectTool {
             return Some(Vec2::new(x, z));
         }
 
+        if let Some((object_id, face_index)) = server_ctx.rect_geometry_face_3d {
+            let key = server_ctx.rect_tile_id_3d;
+            let object = map
+                .geometry_objects
+                .iter_mut()
+                .find(|object| object.id == object_id)?;
+            let face = object.faces.get_mut(face_index)?;
+
+            if ui.shift {
+                face.tiles.remove(&key);
+            } else if let Some(tile_id) = curr_tile_id {
+                face.tiles.insert(key, PixelSource::TileId(tile_id));
+            } else {
+                return None;
+            }
+
+            return Some(Vec2::new(key.0, key.1));
+        }
+
         if let Some(sector_id) = server_ctx.rect_sector_id_3d
             && let Some(sector) = map.find_sector_mut(sector_id)
         {
@@ -1098,6 +1268,8 @@ impl RectTool {
             );
 
             let mut found = false;
+            server_ctx.rect_geometry_face_3d = None;
+
             if let Some((scenevm::GeoId::Sector(id), world_hit, _)) = rc {
                 let mut best: Option<((i32, i32), f32)> = None;
 
@@ -1134,14 +1306,28 @@ impl RectTool {
                 }
             }
 
+            if !found
+                && let Some((scenevm::GeoId::GeometryObject(id), world_hit, _)) = rc
+                && let Some((face_index, tile)) =
+                    Self::geometry_face_target_at_world(map, id, world_hit)
+            {
+                server_ctx.rect_tile_id_3d = tile;
+                server_ctx.rect_geometry_face_3d = Some((id, face_index));
+                server_ctx.rect_sector_id_3d = None;
+                server_ctx.rect_terrain_id = None;
+                found = true;
+            }
+
             if let Some((scenevm::GeoId::Terrain(x, z), _, _)) = rc {
                 server_ctx.rect_terrain_id = Some((x, z));
+                server_ctx.rect_geometry_face_3d = None;
             } else {
                 server_ctx.rect_terrain_id = None;
             }
 
             if !found {
                 server_ctx.rect_sector_id_3d = None;
+                server_ctx.rect_geometry_face_3d = None;
             }
         }
     }

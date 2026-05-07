@@ -37,7 +37,7 @@ impl Action for ClearTile {
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
-        if map.selected_sectors.is_empty() {
+        if map.selected_sectors.is_empty() && map.selected_geometry_faces.is_empty() {
             return false;
         }
         // match server_ctx.editor_view_mode {
@@ -63,6 +63,25 @@ impl Action for ClearTile {
                     sector.properties.remove("source");
                     changed = true;
                 }
+            }
+        }
+
+        for (object_id, face_index) in map.selected_geometry_faces.clone() {
+            let Some(object) = map
+                .geometry_objects
+                .iter_mut()
+                .find(|object| object.id == object_id)
+            else {
+                continue;
+            };
+            let Some(face) = object.faces.get_mut(face_index) else {
+                continue;
+            };
+            if face.tile.is_some() || !face.tiles.is_empty() {
+                face.tile = None;
+                face.tiles.clear();
+                face.auto_uv = true;
+                changed = true;
             }
         }
 

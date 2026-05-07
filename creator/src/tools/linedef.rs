@@ -76,6 +76,7 @@ pub struct LinedefTool {
     was_clicked: bool,
 
     hud: Hud,
+    direct_geometry: crate::tools::geometry::GeometryTool,
 }
 
 impl Tool for LinedefTool {
@@ -95,6 +96,7 @@ impl Tool for LinedefTool {
             was_clicked: false,
 
             hud: Hud::new(HudMode::Linedef),
+            direct_geometry: crate::tools::geometry::GeometryTool::new(),
         }
     }
 
@@ -181,6 +183,16 @@ impl Tool for LinedefTool {
         map: &mut Map,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        if server_ctx.editor_view_mode != EditorViewMode::D2 {
+            map.geometry_selection_mode = 3;
+            map.curr_grid_pos = None;
+            map.curr_grid_pos_3d = None;
+            map.clear_temp();
+            return self
+                .direct_geometry
+                .map_event(map_event, ui, ctx, map, server_ctx);
+        }
+
         let mut undo_atom: Option<ProjectUndoAtom> = None;
 
         fn vertex_is_in_rect_sector(map: &Map, vertex_id: u32) -> bool {

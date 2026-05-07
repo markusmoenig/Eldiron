@@ -1,6 +1,6 @@
 ---
 title: "Palette Tool"
-sidebar_position: 8
+sidebar_position: 11
 ---
 
 The **Palette Tool** (keyboard shortcut **`P`**) switches Eldiron into **palette editing mode**.
@@ -17,7 +17,7 @@ Use the Palette Tool to work with the project palette as a board of fixed slots:
 - delete entries
 - swap entries by drag and drop
 - edit the selected entry color and material values
-- apply the selected palette entry to geometry and Builder material slots
+- apply the selected palette entry to geometry
 
 ## Palette Dock
 
@@ -44,7 +44,7 @@ Each palette entry stores both a color and a small set of material properties:
 - `Opacity`
 - `Emissive`
 
-These values are used when a palette entry is applied through `PaletteIndex` sources, for example on sectors or Builder material slots.
+These values are used when a palette entry is applied through `PaletteIndex` sources, for example on sectors, faces, or material slots.
 
 ## Minimap Color Picking
 
@@ -62,10 +62,7 @@ Drag sampling creates a single undo step on mouse release.
 
 Palette mode still uses the normal geometry selection and HUD slot system.
 
-That means you can:
-
-- select a sector and apply the current palette entry as its source
-- select a Builder host and use the HUD material slots to apply the current palette entry to a Builder material slot
+That means you can select geometry and apply the current palette entry as its source.
 
 `Apply Color` belongs to the Palette dock, not to the Tile Picker.
 

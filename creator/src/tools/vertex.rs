@@ -44,6 +44,7 @@ pub struct VertexTool {
     was_clicked: bool,
 
     hud: Hud,
+    direct_geometry: crate::tools::geometry::GeometryTool,
 }
 
 impl Tool for VertexTool {
@@ -62,6 +63,7 @@ impl Tool for VertexTool {
             was_clicked: false,
 
             hud: Hud::new(HudMode::Vertex),
+            direct_geometry: crate::tools::geometry::GeometryTool::new(),
         }
     }
 
@@ -95,6 +97,9 @@ impl Tool for VertexTool {
                 server_ctx.curr_map_tool_type = MapToolType::Vertex;
 
                 if let Some(map) = project.get_map_mut(server_ctx) {
+                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                        map.geometry_selection_mode = 2;
+                    }
                     map.selected_linedefs.clear();
                     map.selected_sectors.clear();
                 }
@@ -124,6 +129,17 @@ impl Tool for VertexTool {
         map: &mut Map,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        if server_ctx.editor_view_mode != EditorViewMode::D2 {
+            map.geometry_selection_mode = 2;
+            if matches!(server_ctx.geo_hit, Some(GeoId::GeometryObject(_)))
+                || !map.selected_geometry_objects.is_empty()
+            {
+                return self
+                    .direct_geometry
+                    .map_event(map_event, ui, ctx, map, server_ctx);
+            }
+        }
+
         let mut undo_atom: Option<ProjectUndoAtom> = None;
         let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
             && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;

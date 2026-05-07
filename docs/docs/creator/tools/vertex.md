@@ -1,11 +1,13 @@
 ---
 title: "Vertex Tool"
-sidebar_position: 2
+sidebar_position: 3
 ---
 
 The **Vertex Tool** (keyboard shortcut **'V'**) allows you to **select, edit, and delete vertices** in the map.
 
 It is specifically designed for working with **vertices only**.
+
+In 3D views, the Vertex Tool selects vertices on direct geometry objects.
 
 ## Selection Modes
 
@@ -18,11 +20,9 @@ It is specifically designed for working with **vertices only**.
 - **Delete Key**: Remove selected vertices.
 - **Escape Key**: Clear the selection.
 
-## 3D Modes
+## 3D Shortcuts
 
-In 3D views, the Vertex tool works in both `GEOM` and `DETAIL`:
-
-- `GEOM`: edits world-space vertices of the map.
-- `DETAIL`: edits vertices in the profile of the active wall, floor, or ceiling surface.
-
-In `DETAIL`, `Shift + Click` adds profile vertices directly onto the selected surface plane.
+- **X**: Split selected geometry edges when the selected vertices form object edges.
+- **F**: Fill a selected vertex boundary with a face.
+- **L**: Expand a selected edge into an edge loop on quad geometry.
+- **[ / ]**: Move selected vertices vertically by one grid step.

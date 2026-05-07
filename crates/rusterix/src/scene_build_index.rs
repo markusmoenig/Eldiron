@@ -1,5 +1,5 @@
 use rustc_hash::{FxHashMap, FxHashSet};
-use scenevm::{Chunk, GeoId, LineStrip2D, Poly2D, Poly3D};
+use scenevm::{Chunk, GeoId, Line3D, LineStrip2D, Poly2D, Poly3D};
 use vek::Vec2;
 
 /// Reverse index from scene owners to streamed chunk origins.
@@ -15,6 +15,7 @@ pub struct SceneBuildIndex {
     chunk_to_polys2d: FxHashMap<(i32, i32), FxHashMap<GeoId, Poly2D>>,
     chunk_to_lines2d_px: FxHashMap<(i32, i32), FxHashMap<GeoId, LineStrip2D>>,
     chunk_to_polys3d: FxHashMap<(i32, i32), FxHashMap<GeoId, Vec<Poly3D>>>,
+    chunk_to_lines3d: FxHashMap<(i32, i32), FxHashMap<GeoId, Vec<Line3D>>>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -23,6 +24,7 @@ pub struct SceneOwnerGeometry {
     pub polys2d: Vec<Poly2D>,
     pub lines2d_px: Vec<LineStrip2D>,
     pub polys3d: Vec<Poly3D>,
+    pub lines3d: Vec<Line3D>,
 }
 
 impl SceneBuildIndex {
@@ -33,6 +35,7 @@ impl SceneBuildIndex {
         self.chunk_to_polys2d.clear();
         self.chunk_to_lines2d_px.clear();
         self.chunk_to_polys3d.clear();
+        self.chunk_to_lines3d.clear();
     }
 
     pub fn index_chunk(&mut self, chunk: &Chunk) {
@@ -54,12 +57,14 @@ impl SceneBuildIndex {
             .insert(origin, chunk.lines2d_px.clone());
         self.chunk_to_polys3d
             .insert(origin, chunk.polys3d_map.clone());
+        self.chunk_to_lines3d.insert(origin, chunk.lines3d.clone());
     }
 
     pub fn remove_chunk_origin(&mut self, origin: (i32, i32)) {
         self.chunk_to_polys2d.remove(&origin);
         self.chunk_to_lines2d_px.remove(&origin);
         self.chunk_to_polys3d.remove(&origin);
+        self.chunk_to_lines3d.remove(&origin);
         self.chunk_cache.remove(&origin);
 
         let Some(owners) = self.chunk_to_owners.remove(&origin) else {
@@ -112,6 +117,7 @@ impl SceneBuildIndex {
             chunk.polys_map.remove(owner);
             chunk.lines2d_px.remove(owner);
             chunk.polys3d_map.remove(owner);
+            chunk.lines3d.remove(owner);
         }
         Some(chunk)
     }
@@ -157,6 +163,18 @@ impl SceneBuildIndex {
             .collect()
     }
 
+    pub fn lines3d_for_owner(&self, owner: GeoId) -> Vec<Line3D> {
+        self.owner_to_chunks
+            .get(&owner)
+            .into_iter()
+            .flat_map(|chunks| chunks.iter())
+            .filter_map(|origin| self.chunk_to_lines3d.get(origin))
+            .filter_map(|lines| lines.get(&owner))
+            .flat_map(|lines| lines.iter())
+            .cloned()
+            .collect()
+    }
+
     pub fn owner_count(&self) -> usize {
         self.owner_to_chunks.len()
     }
@@ -167,6 +185,7 @@ impl SceneBuildIndex {
             polys2d: self.polys2d_for_owner(owner),
             lines2d_px: self.lines2d_px_for_owner(owner),
             polys3d: self.polys3d_for_owner(owner),
+            lines3d: self.lines3d_for_owner(owner),
         }
     }
 
@@ -201,6 +220,9 @@ impl SceneBuildIndex {
                 }
                 if let Some(polys) = generated.polys3d_map.get(owner) {
                     target.polys3d_map.insert(*owner, polys.clone());
+                }
+                if let Some(lines) = generated.lines3d.get(owner) {
+                    target.lines3d.insert(*owner, lines.clone());
                 }
             }
         }

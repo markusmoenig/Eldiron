@@ -1,6 +1,7 @@
 ---
 title: "Builder Graph"
 sidebar_position: 6.1
+draft: true
 ---
 
 **Builder Graph** is Eldiron's text-based procedural authoring system for reusable structures, props, surface details, and placed decorative geometry.

@@ -1,6 +1,7 @@
 ---
 title: "Builder Tool"
-sidebar_position: 6
+sidebar_position: 7
+draft: true
 ---
 
 The **Builder Tool** (keyboard shortcut **`B`**) applies reusable [Builder Graph](/docs/builder_graph) assets to map geometry.
