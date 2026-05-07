@@ -89,7 +89,7 @@ L             Linedef / edge tool
 E             Sector / face tool
 M             Object gizmo: move
 S             Object gizmo: size
-Shift + 1..0  Grid subdivision
+1..0          Grid subdivision
 , / .         Grid size down / up
 Cmd/Ctrl + D  Duplicate selection
 
@@ -150,6 +150,56 @@ Rendering can handle tiled faces in one of three ways:
 3. Bake tile-painted faces into render chunks only after editing stops or when exporting.
 
 For the editor, option 1 or 2 is preferred. The editing experience must stay immediate.
+
+## Organic Surface Detail
+
+The Organic tool should survive in the new 3D path, but it should become a surface detail system instead of another structural mesh builder.
+
+There are two useful layers:
+
+```text
+Surface paint detail
+Surface relief detail
+```
+
+Surface paint detail is cheap visual variation. It can add dirt, moss, cracks, grass, edge wear, color noise, and pixel-art breakup by changing face detail/material data. It must not rebuild the object's structural mesh during live painting.
+
+Surface relief detail creates local visible geometry for things like:
+
+```text
+brick seams
+cobblestone grooves
+wall block cuts
+plank gaps
+cracks
+raised ridges
+small bevel lips
+```
+
+The performance rule is strict:
+
+```text
+The GeometryObject stays simple and directly editable.
+Organic detail is stored per face or surface.
+Generated relief is cached as a local render/detail mesh.
+Dragging and painting update only the affected face/detail data.
+The whole object, terrain, world, or chunk must not rebuild during a brush stroke.
+```
+
+During a stroke, the editor can show an immediate cheap preview. The local cached detail mesh can update incrementally, on mouse-up, or in the background, depending on cost.
+
+Surface relief meshes are not the main editable topology. They are render/collision-optional detail layers unless the user explicitly converts or bakes them later.
+
+Terminology:
+
+```text
+Grooves / seams / mortar cuts: recessed detail lines
+Ridges / lips / bevels: raised detail lines
+Surface relief layer: generated local detail geometry
+Surface paint layer: non-geometric visual detail
+```
+
+This keeps the organic Ultima-like richness without making direct editing slow again.
 
 ## UV Editing
 
@@ -409,6 +459,8 @@ Dragging objects
 Moving vertices / edges / faces
 Extruding and insetting faces
 Painting tiles with the Rect tool
+Painting Organic surface detail
+Previewing local surface relief
 Placing and transforming props
 Camera movement while editing
 ```
@@ -421,6 +473,8 @@ During drag:
 Object transform edits: update transform only
 Face move/extrude: update that object's mesh only
 Tile paint: update face tile data only
+Organic paint: update affected face detail data only
+Surface relief: update local cached detail preview only
 Terrain response: delayed/background
 Procedural rebuild: delayed/manual
 ```
@@ -431,7 +485,7 @@ Slow work is allowed, but only outside the direct manipulation loop:
 
 ```text
 During drag: cheap preview / immediate local object update
-On mouse-up: commit expensive rebuilds
+On mouse-up: commit expensive rebuilds or rebuild affected relief cache
 In background: terrain/procedural/chunk updates
 On export: optional baking/optimization
 ```
@@ -573,6 +627,19 @@ Paint face with Rect tool
 ```
 
 This phase is the proof that Eldiron 3D can feel fast.
+
+### Phase 2.5: Organic Surface Detail
+
+Bring the Organic tool back as a local surface-detail workflow:
+
+```text
+Paint organic surface layers on faces
+Add relief presets for brick/cobble/block/plank/crack patterns
+Cache detail meshes per face
+Keep detail out of the structural mesh until explicit bake/convert
+```
+
+The purpose is to add retro richness and hand-made surface character without slowing object, face, edge, and vertex editing.
 
 ### Phase 3: Props
 
