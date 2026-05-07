@@ -42,6 +42,7 @@ impl ActionList {
             Box::new(crate::actions::duplicate::Duplicate::new()),
             Box::new(crate::actions::duplicate_tile::DuplicateTile::new()),
             Box::new(crate::actions::edit_geometry::EditGeometry::new()),
+            Box::new(crate::actions::face_cut_opening::FaceCutOpening::new()),
             Box::new(crate::actions::face_delete::FaceDelete::new()),
             Box::new(crate::actions::face_extrude::FaceExtrude::new()),
             Box::new(crate::actions::face_inset::FaceInset::new()),

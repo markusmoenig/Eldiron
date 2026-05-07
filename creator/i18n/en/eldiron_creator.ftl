@@ -113,6 +113,8 @@ action_edit_geometry = Edit Geometry
 action_edit_geometry_desc = Edit selected 3D geometry position and size.
 action_face_extrude = Face Extrude
 action_face_extrude_desc = Extrude selected 3D faces by the given amount.
+action_face_cut_opening = Face Cut Opening
+action_face_cut_opening_desc = Cut a rectangular opening through the selected 3D face and its opposite face.
 action_face_inset = Face Inset
 action_face_inset_desc = Inset selected 3D faces by the given amount.
 action_face_delete = Face Delete
@@ -213,7 +215,7 @@ tool_dungeon = Dungeon Tool (U). Paint conceptual dungeon structures.
 tool_linedef = Linedef Tool (L). Create line definitions and sectors.
 tool_object = Object Tool (G). Select and move directly editable 3D objects.
 tool_rect = Rect Tool (R). Click to draw the current tile. Shift-click to delete. Alt/Opt-click to pick from the map.
-tool_sector = Sector Tool (E).
+tool_sector = Sector / Face Tool (E). Select sectors in 2D or faces in 3D.
 tool_vertex = Vertex Tool (V). 'Shift' + Click to create a new vertex.
 tool_entity = Entity Tool (Y). Place, move, select, and delete game entities.
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
@@ -221,6 +223,11 @@ hud_geometry_op_move = MOVE
 hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Object gizmo operation: move (M).
 status_hud_geometry_op_size = Object gizmo operation: resize (S).
+status_geometry_empty_selection = 3D selection: G = Object, E = Face, V = Vertex, L = Edge.
+status_geometry_object_selection = Object selected: M = Move, S = Size, Cmd/Ctrl+D = Duplicate, Delete = Delete.
+status_geometry_face_selection = Face selected: Cmd/Ctrl+E = Extrude, Cmd/Ctrl+U = Subdivide, Cmd/Ctrl+I = Inset, T = Apply Tile, +/- = Push/Pull, [] = Move Up/Down, Delete = Delete.
+status_geometry_vertex_selection = Vertex selected: F = Fill, X = Split Edge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.
+status_geometry_edge_selection = Edge selected: F = Fill, X = Split Edge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.
 organic_dock_title = Organic Brushes
 organic_toggle_active = Active
 organic_toggle_deactive = Deactive

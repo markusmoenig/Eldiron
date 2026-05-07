@@ -40,15 +40,17 @@ Duplicate remembers the last 3D object offset so repeated duplication can be use
 
 The existing map tools become direct geometry sub-object tools in 3D:
 
-- **Sector Tool (`E`)**: Select and edit faces.
+- **Sector / Face Tool (`E`)**: Select and edit faces.
 - **Linedef Tool (`L`)**: Select and edit edges.
 - **Vertex Tool (`V`)**: Select and edit vertices.
 
 Those tools keep their normal 2D behavior when the editor is in 2D view.
 
+The editor status bar updates after each 3D selection change and shows the shortcuts currently available for the selected object, face, edge, or vertex.
+
 See the per-tool pages for the shortcuts owned by those modes:
 
-- [Sector Tool](sector): face selection, extrusion, inset, subdivision, merge/delete, face push/pull, and tile assignment.
+- [Sector / Face Tool](sector): face selection, extrusion, inset, subdivision, merge/delete, face push/pull, and tile assignment.
 - [Linedef Tool](linedef): edge selection, edge splitting, and edge-loop selection.
 - [Vertex Tool](vertex): vertex selection, boundary fill, edge splitting, and vertical vertex movement.
 

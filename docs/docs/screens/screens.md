@@ -7,7 +7,7 @@ sidebar_position: 1
 
 Design screens with the same map tools you already use:
 
-- **Linedef Tool** and **Sector Tool**: carve areas, name sectors to turn them into widgets.
+- **Linedef Tool** and **Sector / Face Tool**: carve areas, name sectors to turn them into widgets.
 - **Rect Tool**: add background decorations.
 
 ![Screen Widgets](screens_widgets.png)

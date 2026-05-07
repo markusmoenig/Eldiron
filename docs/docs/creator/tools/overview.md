@@ -11,7 +11,7 @@ Some tools are specifically designed for **map editing** and display a common **
 - **Object Tool**
 - **Vertex Tool**
 - **Linedef Tool**
-- **Sector Tool**
+- **Sector / Face Tool**
 - **Rect Tool**
 - **Organic Tool**
 
@@ -26,7 +26,7 @@ The tool strip also contains **mode toggles** below the main map tools:
 - **Geometry Objects**: Editable 3D objects made from vertices and faces *(edited via the Object Tool)*.
 - **Vertices**: Points that define the corners of 2D map geometry or 3D objects *(edited via the Vertex Tool)*.
 - **Linedefs**: Lines that connect vertices in 2D, or edges on 3D objects *(edited via the Linedef Tool)*.
-- **Sectors**: Areas enclosed by edges in 2D, or faces on 3D objects *(edited via the Sector Tool)*.
+- **Sectors**: Areas enclosed by edges in 2D, or faces on 3D objects *(edited via the Sector / Face Tool)*.
 
 ### Navigation
 
@@ -90,7 +90,7 @@ In 3D views:
 - **Object Tool** selects whole 3D geometry objects.
 - **Vertex Tool** selects object vertices.
 - **Linedef Tool** selects object edges.
-- **Sector Tool** selects object faces.
+- **Sector / Face Tool** selects object faces.
 
 This keeps the familiar 2D tool vocabulary while changing the 3D behavior to direct object, face, edge, and vertex editing.
 

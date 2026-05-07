@@ -111,6 +111,8 @@ action_edit_geometry = 編輯幾何體
 action_edit_geometry_desc = 編輯所選 3D 幾何體的位置與大小。
 action_face_extrude = 面擠出
 action_face_extrude_desc = 依指定數值擠出所選 3D 面。
+action_face_cut_opening = 切割開口
+action_face_cut_opening_desc = 在所選 3D 面及其相對面上切割一個矩形貫通開口。
 action_face_inset = 面內縮
 action_face_inset_desc = 依指定數值內縮所選 3D 面。
 action_face_delete = 刪除面
@@ -195,7 +197,7 @@ tool_game = 遊戲工具 (A)。伺服器運行時輸入事件會傳送到遊戲
 tool_linedef = 線段工具 (L)。建立線段定義與區域
 tool_object = 物件工具 (G)。選取並移動可直接編輯的 3D 物件。
 tool_rect = 矩形工具 (R)。點擊繪製當前圖塊，按住 Shift 點擊刪除。按住 Alt/Opt 點擊可從地圖拾取圖塊
-tool_sector = 區域工具 (E)
+tool_sector = 區域 / 面工具 (E)。在 2D 中選取區域，在 3D 中選取面。
 tool_vertex = 頂點工具 (V)。按住 'Shift' + 點擊可建立新頂點。
 tool_entity = 實體工具 (Y)。放置、移動、選擇和刪除遊戲實體。
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
@@ -203,6 +205,11 @@ hud_geometry_op_move = MOVE
 hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = 物件 Gizmo 操作：移動 (M)。
 status_hud_geometry_op_size = 物件 Gizmo 操作：調整大小 (S)。
+status_geometry_empty_selection = 3D 選取：G = 物件，E = 面，V = 頂點，L = 邊。
+status_geometry_object_selection = 已選取物件：M = 移動，S = 調整大小，Cmd/Ctrl+D = 複製，Delete = 刪除。
+status_geometry_face_selection = 已選取面：Cmd/Ctrl+E = 擠出，Cmd/Ctrl+U = 細分，Cmd/Ctrl+I = 內插，T = 套用圖塊，+/- = 推/拉，[] = 上/下移動，Delete = 刪除。
+status_geometry_vertex_selection = 已選取頂點：F = 填充，X = 分割邊，L = 邊循環，[] = 上/下移動，Delete = 刪除。
+status_geometry_edge_selection = 已選取邊：F = 填充，X = 分割邊，L = 邊循環，[] = 上/下移動，Delete = 刪除。
 organic_dock_title = 有機筆刷
 organic_toggle_active = 啟用
 organic_toggle_deactive = 停用

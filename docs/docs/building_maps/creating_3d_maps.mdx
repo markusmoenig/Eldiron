@@ -20,7 +20,7 @@ The familiar map tools keep their names, but in a 3D camera they operate on Geom
 - **Object Tool (`G`)**: select, move, resize, create, duplicate, and delete whole objects.
 - **Vertex Tool (`V`)**: select and edit object vertices.
 - **Linedef Tool (`L`)**: select and edit object edges.
-- **Sector Tool (`E`)**: select and edit object faces.
+- **Sector / Face Tool (`E`)**: select and edit object faces.
 
 The 3D workflow is direct and mesh-like while using the same tool vocabulary as the 2D editor.
 
@@ -54,11 +54,12 @@ Use **Shift + 1 ... 0** to change the map subdivision, and **, / .** to decrease
 
 ## Face Editing
 
-Use the **Sector Tool (`E`)** in 3D to select faces.
+Use the **Sector / Face Tool (`E`)** in 3D to select faces.
 
 Useful face shortcuts:
 
 - **Cmd/Ctrl+E** runs the Face Extrude action. Set the extrusion amount in the action parameters.
+- **Face Cut Opening** cuts a rectangular window or doorway through the selected face and its opposite face.
 - **Cmd/Ctrl+U** runs the Face Subdivide action on selected quad faces.
 - **Cmd/Ctrl+I** runs the Face Inset action. Set the inset amount in the action parameters.
 - **Cmd/Ctrl+M** runs the Face Merge action on selected connected faces.
@@ -103,7 +104,7 @@ Vertex editing is the escape hatch for custom shapes: delete a face, move the bo
 - tilegraphs
 - nodegraphs
 
-Select one or more faces with the **Sector Tool** and press **T**, or use the relevant dock apply button.
+Select one or more faces with the **Sector / Face Tool** and press **T**, or use the relevant dock apply button.
 
 Faces can either repeat a tile in 1x1 world units or scale the source across the selected face, depending on the active tile application mode.
 
@@ -111,7 +112,7 @@ Faces can either repeat a tile in 1x1 world units or scale the source across the
 
 1. Use **Create Box** for the first block.
 2. Resize and duplicate boxes with the **Object Tool**.
-3. Select faces with the **Sector Tool** and extrude them to build connected walls, floors, ledges, and rooms.
+3. Select faces with the **Sector / Face Tool** and extrude them to build connected walls, floors, ledges, and rooms.
 4. Subdivide faces with **Cmd/Ctrl+U** or inset them with **Cmd/Ctrl+I** when you need smaller editable regions.
 5. Use **Linedef** and **Vertex** tools for edge loops, cleanup, holes, and custom shapes.
 6. Paint faces with tiles, palette colors, tilegraphs, or nodegraphs.

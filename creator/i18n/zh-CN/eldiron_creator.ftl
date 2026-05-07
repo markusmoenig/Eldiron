@@ -111,6 +111,8 @@ action_edit_geometry = 编辑几何体
 action_edit_geometry_desc = 编辑所选 3D 几何体的位置和大小。
 action_face_extrude = 面挤出
 action_face_extrude_desc = 按指定数值挤出所选 3D 面。
+action_face_cut_opening = 切割开口
+action_face_cut_opening_desc = 在所选 3D 面及其相对面上切割一个矩形贯通开口。
 action_face_inset = 面内缩
 action_face_inset_desc = 按指定数值内缩所选 3D 面。
 action_face_delete = 删除面
@@ -195,7 +197,7 @@ tool_game = 游戏工具 (A)。服务器运行时输入事件会发送到游戏
 tool_linedef = 线段工具 (L)。创建线段定义和区域
 tool_object = 对象工具 (G)。选择并移动可直接编辑的 3D 对象。
 tool_rect = 矩形工具 (R)。点击绘制当前图块，按住 Shift 点击删除。按住 Alt/Opt 点击可从地图拾取图块
-tool_sector = 区域工具 (E)
+tool_sector = 区域 / 面工具 (E)。在 2D 中选择区域，在 3D 中选择面。
 tool_vertex = 顶点工具 (V)。按住 'Shift' + 单击可创建新顶点。
 tool_entity = 实体工具 (Y)。放置、移动、选择和删除游戏实体。
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
@@ -203,6 +205,11 @@ hud_geometry_op_move = MOVE
 hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = 对象 Gizmo 操作：移动 (M)。
 status_hud_geometry_op_size = 对象 Gizmo 操作：调整大小 (S)。
+status_geometry_empty_selection = 3D 选择：G = 对象，E = 面，V = 顶点，L = 边。
+status_geometry_object_selection = 已选择对象：M = 移动，S = 调整大小，Cmd/Ctrl+D = 复制，Delete = 删除。
+status_geometry_face_selection = 已选择面：Cmd/Ctrl+E = 挤出，Cmd/Ctrl+U = 细分，Cmd/Ctrl+I = 内插，T = 应用图块，+/- = 推/拉，[] = 上/下移动，Delete = 删除。
+status_geometry_vertex_selection = 已选择顶点：F = 填充，X = 分割边，L = 边循环，[] = 上/下移动，Delete = 删除。
+status_geometry_edge_selection = 已选择边：F = 填充，X = 分割边，L = 边循环，[] = 上/下移动，Delete = 删除。
 organic_dock_title = 有机笔刷
 organic_toggle_active = 启用
 organic_toggle_deactive = 停用

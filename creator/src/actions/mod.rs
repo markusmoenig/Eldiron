@@ -578,6 +578,7 @@ pub mod editing_slice;
 pub mod export_vcode;
 pub mod extrude_linedef;
 pub mod extrude_sector;
+pub mod face_cut_opening;
 pub mod face_delete;
 pub mod face_extrude;
 pub mod face_inset;

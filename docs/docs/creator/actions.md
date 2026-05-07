@@ -112,7 +112,11 @@ Edit selected direct 3D geometry objects. This action is available in 3D editing
 
 *Shortcut: Ctrl/Cmd + E*
 
-Extrude selected direct 3D geometry faces by the configured amount. Select one or more faces with the Sector Tool, then use the action parameters to set the extrusion distance.
+Extrude selected direct 3D geometry faces by the configured amount. Select one or more faces with the Sector / Face Tool, then use the action parameters to set the extrusion distance.
+
+### Face Cut Opening
+
+Cut a rectangular opening through the selected direct 3D geometry face and its opposite face. This creates front and back opening loops plus reveal faces, so walls and boxes keep real thickness around windows and doors.
 
 ### Face Inset
 

@@ -111,6 +111,8 @@ action_edit_geometry = Editar geometría
 action_edit_geometry_desc = Edita la posición y el tamaño de la geometría 3D seleccionada.
 action_face_extrude = Extruir cara
 action_face_extrude_desc = Extruye las caras 3D seleccionadas por la cantidad indicada.
+action_face_cut_opening = Cortar abertura
+action_face_cut_opening_desc = Corta una abertura rectangular a través de la cara 3D seleccionada y su cara opuesta.
 action_face_inset = Insertar cara
 action_face_inset_desc = Inserta las caras 3D seleccionadas por la cantidad indicada.
 action_face_delete = Eliminar cara
@@ -195,7 +197,7 @@ tool_game = Herramienta de juego (A). Si el servidor está en marcha, los evento
 tool_linedef = Herramienta de linedef (L). Crear definiciones de línea y sectores.
 tool_object = Herramienta de objeto (G). Selecciona y mueve objetos 3D editables directamente.
 tool_rect = Herramienta de rectángulo (R). Clic para dibujar la baldosa actual. Shift-clic para borrar. Alt/Opt-clic para tomarla del mapa.
-tool_sector = Herramienta de sector (E).
+tool_sector = Herramienta de sector / cara (E). Selecciona sectores en 2D o caras en 3D.
 tool_vertex = Herramienta de vértice (V). 'Shift' + clic para crear un nuevo vértice.
 tool_entity = Herramienta de entidad (Y). Coloca, mueve, selecciona y elimina entidades del juego.
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
@@ -203,6 +205,11 @@ hud_geometry_op_move = MOVE
 hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Operación del gizmo de objeto: mover (M).
 status_hud_geometry_op_size = Operación del gizmo de objeto: redimensionar (S).
+status_geometry_empty_selection = Selección 3D: G = Objeto, E = Cara, V = Vértice, L = Arista.
+status_geometry_object_selection = Objeto seleccionado: M = Mover, S = Tamaño, Cmd/Ctrl+D = Duplicar, Delete = Eliminar.
+status_geometry_face_selection = Cara seleccionada: Cmd/Ctrl+E = Extruir, Cmd/Ctrl+U = Subdividir, Cmd/Ctrl+I = Inset, T = Aplicar baldosa, +/- = Empujar/Tirar, [] = Subir/Bajar, Delete = Eliminar.
+status_geometry_vertex_selection = Vértice seleccionado: F = Rellenar, X = Dividir arista, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.
+status_geometry_edge_selection = Arista seleccionada: F = Rellenar, X = Dividir arista, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.
 organic_dock_title = Pinceles orgánicos
 organic_toggle_active = Activo
 organic_toggle_deactive = Desactivo

@@ -111,6 +111,8 @@ action_edit_geometry = Geometrie bearbeiten
 action_edit_geometry_desc = Bearbeitet Position und Größe der ausgewählten 3D-Geometrie.
 action_face_extrude = Flächen extrudieren
 action_face_extrude_desc = Extrudiert ausgewählte 3D-Flächen um den angegebenen Betrag.
+action_face_cut_opening = Öffnung schneiden
+action_face_cut_opening_desc = Schneidet eine rechteckige Öffnung durch die ausgewählte 3D-Fläche und ihre gegenüberliegende Fläche.
 action_face_inset = Flächen-Inset
 action_face_inset_desc = Versetzt ausgewählte 3D-Flächen um den angegebenen Betrag nach innen.
 action_face_delete = Fläche löschen
@@ -195,7 +197,7 @@ tool_game = Spiel-Tool (A). Wenn der Server läuft, werden Eingabeereignisse an 
 tool_linedef = Linedef-Tool (L). Liniendefinitionen und Sektoren erstellen.
 tool_object = Objekt-Tool (G). Direkt bearbeitbare 3D-Objekte auswählen und verschieben.
 tool_rect = Rect-Tool (R). Klicken, um die aktuelle Kachel zu zeichnen. Shift-Klick zum Löschen. Alt/Opt-Klick zum Aufnehmen aus der Karte.
-tool_sector = Sektor-Tool (E).
+tool_sector = Sektor-/Flächen-Tool (E). Wählt Sektoren in 2D oder Flächen in 3D.
 tool_vertex = Vertex-Tool (V). 'Shift' + Klick erstellt einen neuen Vertex.
 tool_entity = Entity-Tool (Y). Spiel-Entitäten platzieren, verschieben, auswählen und löschen.
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
@@ -203,6 +205,11 @@ hud_geometry_op_move = MOVE
 hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Objekt-Gizmo-Operation: Verschieben (M).
 status_hud_geometry_op_size = Objekt-Gizmo-Operation: Größe ändern (S).
+status_geometry_empty_selection = 3D-Auswahl: G = Objekt, E = Fläche, V = Vertex, L = Kante.
+status_geometry_object_selection = Objekt ausgewählt: M = Verschieben, S = Größe, Cmd/Ctrl+D = Duplizieren, Delete = Löschen.
+status_geometry_face_selection = Fläche ausgewählt: Cmd/Ctrl+E = Extrudieren, Cmd/Ctrl+U = Unterteilen, Cmd/Ctrl+I = Inset, T = Kachel anwenden, +/- = Drücken/Ziehen, [] = Hoch/Runter, Delete = Löschen.
+status_geometry_vertex_selection = Vertex ausgewählt: F = Füllen, X = Kante teilen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
+status_geometry_edge_selection = Kante ausgewählt: F = Füllen, X = Kante teilen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
 organic_dock_title = Organische Pinsel
 organic_toggle_active = Aktiv
 organic_toggle_deactive = Deaktiv

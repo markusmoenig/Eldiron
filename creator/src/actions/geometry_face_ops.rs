@@ -288,6 +288,257 @@ fn editing_face_normal(
     face_normal(object, face).map(|normal| -normal)
 }
 
+fn local_face_normal(
+    object: &rusterix::GeometryObject,
+    face: &rusterix::GeometryFace,
+) -> Option<Vec3<f32>> {
+    if face.indices.len() < 3 {
+        return None;
+    }
+    let first = *object.vertices.get(face.indices[0])?;
+    let mut normal = Vec3::<f32>::zero();
+    for index in 1..face.indices.len() - 1 {
+        let a = *object.vertices.get(face.indices[index])? - first;
+        let b = *object.vertices.get(face.indices[index + 1])? - first;
+        normal += a.cross(b);
+    }
+    normal.try_normalized()
+}
+
+fn face_center(
+    object: &rusterix::GeometryObject,
+    face: &rusterix::GeometryFace,
+) -> Option<Vec3<f32>> {
+    if face.indices.is_empty() {
+        return None;
+    }
+    let mut center = Vec3::zero();
+    for index in &face.indices {
+        center += *object.vertices.get(*index)?;
+    }
+    Some(center / face.indices.len() as f32)
+}
+
+fn quad_grid_point(points: &[Vec3<f32>; 4], x: f32, y: f32) -> Vec3<f32> {
+    let bottom = points[0] + (points[1] - points[0]) * x;
+    let top = points[3] + (points[2] - points[3]) * x;
+    bottom + (top - bottom) * y
+}
+
+fn push_geometry_face(
+    object: &mut rusterix::GeometryObject,
+    source: &rusterix::GeometryFace,
+    indices: Vec<usize>,
+) -> usize {
+    let face_index = object.faces.len();
+    object.faces.push(rusterix::GeometryFace {
+        uvs: face_uvs_for_indices(object, &indices),
+        indices,
+        auto_uv: true,
+        tile: source.tile.clone(),
+        tiles: FxHashMap::default(),
+    });
+    face_index
+}
+
+fn append_opening_ring(
+    object: &mut rusterix::GeometryObject,
+    source: &rusterix::GeometryFace,
+    points: [Vec3<f32>; 4],
+    width: f32,
+    height: f32,
+    reverse_faces: bool,
+) -> Option<[usize; 4]> {
+    let u_len = (points[1] - points[0]).magnitude();
+    let v_len = (points[3] - points[0]).magnitude();
+    if u_len <= 1e-4 || v_len <= 1e-4 {
+        return None;
+    }
+
+    let width_ratio = if width.is_finite() && width > 1e-4 {
+        (width / u_len).clamp(0.05, 0.9)
+    } else {
+        0.5
+    };
+    let height_ratio = if height.is_finite() && height > 1e-4 {
+        (height / v_len).clamp(0.05, 0.9)
+    } else {
+        0.5
+    };
+    let x0 = 0.5 - width_ratio * 0.5;
+    let x1 = 0.5 + width_ratio * 0.5;
+    let y0 = 0.5 - height_ratio * 0.5;
+    let y1 = 0.5 + height_ratio * 0.5;
+    let xs = [0.0, x0, x1, 1.0];
+    let ys = [0.0, y0, y1, 1.0];
+
+    let mut grid = [[0usize; 4]; 4];
+    for (y_index, y) in ys.iter().enumerate() {
+        for (x_index, x) in xs.iter().enumerate() {
+            grid[y_index][x_index] = object.vertices.len();
+            object.vertices.push(quad_grid_point(&points, *x, *y));
+        }
+    }
+
+    for y in 0..3 {
+        for x in 0..3 {
+            if x == 1 && y == 1 {
+                continue;
+            }
+            let indices = if reverse_faces {
+                vec![
+                    grid[y][x],
+                    grid[y + 1][x],
+                    grid[y + 1][x + 1],
+                    grid[y][x + 1],
+                ]
+            } else {
+                vec![
+                    grid[y][x],
+                    grid[y][x + 1],
+                    grid[y + 1][x + 1],
+                    grid[y + 1][x],
+                ]
+            };
+            push_geometry_face(object, source, indices);
+        }
+    }
+
+    Some([grid[1][1], grid[1][2], grid[2][2], grid[2][1]])
+}
+
+pub(crate) fn cut_opening_selected_geometry_faces(map: &mut Map, width: f32, height: f32) -> bool {
+    if map.selected_geometry_faces.is_empty() {
+        return false;
+    }
+
+    let selections = map.selected_geometry_faces.clone();
+    let mut new_selected_faces = Vec::new();
+    let mut changed = false;
+
+    for object in &mut map.geometry_objects {
+        let face_indices = selections
+            .iter()
+            .filter_map(|(object_id, face_index)| (*object_id == object.id).then_some(*face_index))
+            .collect::<Vec<_>>();
+        if face_indices.is_empty() {
+            continue;
+        }
+
+        for face_index in face_indices {
+            let snapshot = object.clone();
+            let Some(face) = snapshot.faces.get(face_index).cloned() else {
+                continue;
+            };
+            if face.indices.len() != 4 {
+                continue;
+            }
+            let Some(normal) = local_face_normal(&snapshot, &face) else {
+                continue;
+            };
+            let Some(center) = face_center(&snapshot, &face) else {
+                continue;
+            };
+
+            let mut opposite: Option<(usize, f32)> = None;
+            for (candidate_index, candidate) in snapshot.faces.iter().enumerate() {
+                if candidate_index == face_index || candidate.indices.len() != 4 {
+                    continue;
+                }
+                let Some(candidate_normal) = local_face_normal(&snapshot, candidate) else {
+                    continue;
+                };
+                if normal.dot(candidate_normal) > -0.95 {
+                    continue;
+                }
+                let Some(candidate_center) = face_center(&snapshot, candidate) else {
+                    continue;
+                };
+                let distance = (candidate_center - center).dot(normal).abs();
+                if distance <= 1e-4 {
+                    continue;
+                }
+                if opposite
+                    .as_ref()
+                    .is_none_or(|(_, best_distance)| distance > *best_distance)
+                {
+                    opposite = Some((candidate_index, distance));
+                }
+            }
+            let Some((opposite_index, _)) = opposite else {
+                continue;
+            };
+            let Some(opposite_face) = snapshot.faces.get(opposite_index).cloned() else {
+                continue;
+            };
+            let Some(opposite_center) = face_center(&snapshot, &opposite_face) else {
+                continue;
+            };
+            let depth = (opposite_center - center).dot(normal);
+            if depth.abs() <= 1e-4 {
+                continue;
+            }
+
+            let face_points = [
+                snapshot.vertices[face.indices[0]],
+                snapshot.vertices[face.indices[1]],
+                snapshot.vertices[face.indices[2]],
+                snapshot.vertices[face.indices[3]],
+            ];
+            let opposite_points = [
+                face_points[0] + normal * depth,
+                face_points[1] + normal * depth,
+                face_points[2] + normal * depth,
+                face_points[3] + normal * depth,
+            ];
+
+            let mut retained_faces = Vec::with_capacity(object.faces.len().saturating_sub(2));
+            for (index, existing) in object.faces.iter().cloned().enumerate() {
+                if index != face_index && index != opposite_index {
+                    retained_faces.push(existing);
+                }
+            }
+            object.faces = retained_faces;
+
+            let Some(front_loop) =
+                append_opening_ring(object, &face, face_points, width, height, false)
+            else {
+                *object = snapshot;
+                continue;
+            };
+            let Some(back_loop) =
+                append_opening_ring(object, &opposite_face, opposite_points, width, height, true)
+            else {
+                *object = snapshot;
+                continue;
+            };
+
+            for index in 0..4 {
+                let next = (index + 1) % 4;
+                let reveal_face_index = push_geometry_face(
+                    object,
+                    &face,
+                    vec![
+                        front_loop[index],
+                        front_loop[next],
+                        back_loop[next],
+                        back_loop[index],
+                    ],
+                );
+                new_selected_faces.push((object.id, reveal_face_index));
+            }
+            changed = true;
+        }
+    }
+
+    if changed {
+        map.selected_geometry_faces = new_selected_faces;
+        map.selected_geometry_vertices.clear();
+        sanitize_geometry_selection(map);
+    }
+    changed
+}
+
 pub(crate) fn extrude_selected_geometry_faces(map: &mut Map, amount: f32) -> bool {
     if map.selected_geometry_faces.is_empty() || !amount.is_finite() || amount.abs() <= 1e-5 {
         return false;

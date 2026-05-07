@@ -3,6 +3,35 @@ use crate::prelude::*;
 use rusterix::{D3Camera, Value};
 use vek::Vec2;
 
+fn geometry_selection_status_text(map: &Map, server_ctx: &ServerContext) -> Option<String> {
+    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+        return None;
+    }
+
+    if !map.selected_geometry_faces.is_empty() {
+        return Some(fl!("status_geometry_face_selection"));
+    }
+
+    if !map.selected_geometry_vertices.is_empty() {
+        if map.geometry_selection_mode == 3 {
+            return Some(fl!("status_geometry_edge_selection"));
+        }
+        return Some(fl!("status_geometry_vertex_selection"));
+    }
+
+    if !map.selected_geometry_objects.is_empty() {
+        return Some(fl!("status_geometry_object_selection"));
+    }
+
+    match server_ctx.curr_map_tool_type {
+        MapToolType::Selection
+        | MapToolType::Sector
+        | MapToolType::Vertex
+        | MapToolType::Linedef => Some(fl!("status_geometry_empty_selection")),
+        _ => None,
+    }
+}
+
 pub struct MapEditor {
     curr_tile_uuid: Option<Uuid>,
 
@@ -352,6 +381,12 @@ impl MapEditor {
                 } else if id.name == "Map Selection Changed" {
                     set_code(ui, ctx, project, server_ctx);
                     self.apply_map_settings(ui, ctx, project, server_ctx);
+
+                    if let Some(map) = project.get_map(server_ctx)
+                        && let Some(status) = geometry_selection_status_text(map, server_ctx)
+                    {
+                        ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+                    }
 
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Action List"),

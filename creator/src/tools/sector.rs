@@ -79,7 +79,7 @@ impl Tool for SectorTool {
         Self: Sized,
     {
         Self {
-            id: TheId::named("Sector Tool"),
+            id: TheId::named("Sector / Face Tool"),
             click_pos: Vec2::zero(),
             click_pos_3d: Vec3::zero(),
             click_ray_intersection_3d: None,
