@@ -1155,7 +1155,7 @@ impl Action for BuildProcedural {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.pc.is_region()
+        server_ctx.pc.is_region() && server_ctx.editor_view_mode == EditorViewMode::D2
     }
 
     fn apply_project(

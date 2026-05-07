@@ -48,35 +48,20 @@ impl EditCamera {
         server_ctx: &mut ServerContext,
     ) {
         let mut view_switch = TheGroupButton::new(TheId::named("Editor View Switch"));
-        view_switch.add_text_status("2D".to_string(), "Edit the map in 2D.".to_string());
-        if cfg!(target_os = "macos") {
-            view_switch.add_text_status(
-                    "Orbit".to_string(),
-                    "Edit the map with a 3D orbit camera. Scroll to move. Cmd + Scroll to zoom. Alt + Scroll to rotate.".to_string(),
-                );
+        view_switch.add_text_status("2D".to_string(), fl!("status_camera_2d"));
+        let orbit_status = if cfg!(target_os = "macos") {
+            fl!("status_camera_orbit_macos")
         } else {
-            view_switch.add_text_status(
-                    "Orbit".to_string(),
-                    "Edit the map with a 3D orbit camera. Scroll to move. Ctrl + Scroll to zoom. Alt + Scroll to rotate.".to_string(),
-                );
-        }
-        if cfg!(target_os = "macos") {
-            view_switch.add_text_status(
-                "Iso".to_string(),
-                "Edit the map in 3D isometric view. Scroll to move. Cmd + Scroll to zoom. "
-                    .to_string(),
-            );
+            fl!("status_camera_orbit_other")
+        };
+        let iso_status = if cfg!(target_os = "macos") {
+            fl!("status_camera_iso_macos")
         } else {
-            view_switch.add_text_status(
-                "Iso".to_string(),
-                "Edit the map in 3D isometric view. Scroll to move. Ctrl + Scroll to zoom."
-                    .to_string(),
-            );
-        }
-        view_switch.add_text_status(
-            "FirstP".to_string(),
-            "Edit the map in 3D first person view.".to_string(),
-        );
+            fl!("status_camera_iso_other")
+        };
+        view_switch.add_text_status("Orbit".to_string(), orbit_status);
+        view_switch.add_text_status("Iso".to_string(), iso_status);
+        view_switch.add_text_status("FirstP".to_string(), fl!("status_camera_firstp"));
         view_switch.set_index(server_ctx.editor_view_mode.to_index());
         layout.add_widget(Box::new(view_switch));
         layout.set_reverse_index(Some(1));
@@ -254,6 +239,71 @@ impl EditCamera {
         self.fly_pointer = None;
     }
 
+    pub fn mouse_dragged_orbit(&mut self, coord: &Vec2<i32>) {
+        let curr = *coord;
+        if let Some(prev) = self.last_mouse {
+            let delta = Vec2::new((curr.x - prev.x) as f32, (curr.y - prev.y) as f32);
+            self.orbit_camera.rotate(delta);
+        }
+        self.last_mouse = Some(curr);
+    }
+
+    pub fn mouse_dragged_pan_3d(
+        &mut self,
+        region: &mut Region,
+        server_ctx: &ServerContext,
+        coord: &Vec2<i32>,
+        view_size: Vec2<i32>,
+    ) {
+        let curr = *coord;
+        if let Some(prev) = self.last_mouse {
+            let delta = Vec2::new(curr.x - prev.x, curr.y - prev.y);
+            self.pan_3d_by_delta(region, server_ctx, delta, view_size);
+        }
+        self.last_mouse = Some(curr);
+    }
+
+    pub fn pan_3d_by_delta(
+        &self,
+        region: &mut Region,
+        server_ctx: &ServerContext,
+        delta: Vec2<i32>,
+        view_size: Vec2<i32>,
+    ) {
+        if server_ctx.editor_view_mode == EditorViewMode::Orbit {
+            self.pan_orbit_by_delta(region, delta, view_size);
+        } else if server_ctx.editor_view_mode == EditorViewMode::Iso {
+            self.pan_iso_by_delta(region, delta, view_size);
+        }
+    }
+
+    pub fn nudge_target(
+        &self,
+        region: &mut Region,
+        server_ctx: &ServerContext,
+        direction: Vec2<f32>,
+        amount: f32,
+    ) {
+        let (_forward, right, up) = if server_ctx.editor_view_mode == EditorViewMode::Orbit {
+            self.orbit_camera.basis_vectors()
+        } else {
+            self.iso_camera.basis_vectors()
+        };
+        let right_xz = Vec3::new(right.x, 0.0, right.z);
+        let up_xz = Vec3::new(up.x, 0.0, up.z);
+        let right_xz = if right_xz.magnitude_squared() > 1e-6 {
+            right_xz.normalized()
+        } else {
+            Vec3::unit_x()
+        };
+        let up_xz = if up_xz.magnitude_squared() > 1e-6 {
+            up_xz.normalized()
+        } else {
+            Vec3::unit_z()
+        };
+        region.editing_position_3d += (right_xz * direction.x + up_xz * direction.y) * amount;
+    }
+
     pub fn set_fly_pointer(&mut self, coord: &Vec2<i32>, view_size: Vec2<i32>) {
         self.fly_pointer = Some((*coord, view_size));
     }
@@ -404,6 +454,75 @@ impl EditCamera {
     pub fn rotate(&mut self, delta: Vec2<f32>, server_ctx: &mut ServerContext) {
         if server_ctx.editor_view_mode == EditorViewMode::Orbit {
             self.orbit_camera.rotate(delta);
+        }
+    }
+
+    fn pan_iso_by_delta(&self, region: &mut Region, delta: Vec2<i32>, view_size: Vec2<i32>) {
+        let viewport_h = view_size.y.max(1) as f32;
+        let (_fwd, right, up) = self.iso_camera.basis_vectors();
+        let ortho_h = self.iso_camera.scale();
+        let world_per_pixel = ortho_h / viewport_h;
+
+        let right_xz = Vec3::new(right.x, 0.0, right.z);
+        let up_xz = Vec3::new(up.x, 0.0, up.z);
+        let right_xz = if right_xz.magnitude_squared() > 1e-6 {
+            right_xz.normalized()
+        } else {
+            Vec3::unit_x()
+        };
+        let up_xz = if up_xz.magnitude_squared() > 1e-6 {
+            up_xz.normalized()
+        } else {
+            Vec3::unit_z()
+        };
+
+        region.editing_position_3d +=
+            right_xz * delta.x as f32 * world_per_pixel - up_xz * delta.y as f32 * world_per_pixel;
+    }
+
+    fn pan_orbit_by_delta(&self, region: &mut Region, delta: Vec2<i32>, view_size: Vec2<i32>) {
+        let viewport_w = view_size.x.max(1) as f32;
+        let viewport_h = view_size.y.max(1) as f32;
+        let (fwd, right, up) = self.orbit_camera.basis_vectors();
+        let distance = self.orbit_camera.distance();
+        let fov = self.orbit_camera.fov.to_radians();
+        let aspect = viewport_w / viewport_h;
+        let tan_half_fov = (fov * 0.5).tan();
+        let target = region.editing_position_3d;
+        let cam_pos = target - fwd * distance;
+        let plane_y = target.y;
+        let eps = 1e-6f32;
+
+        let ray_dir = |dx_pixels: f32, dy_pixels: f32| -> Vec3<f32> {
+            let x_ndc = dx_pixels / (viewport_w * 0.5);
+            let y_ndc = -dy_pixels / (viewport_h * 0.5);
+            let sx = x_ndc * tan_half_fov * aspect;
+            let sy = y_ndc * tan_half_fov;
+            (fwd + right * sx + up * sy).normalized()
+        };
+
+        let intersect_plane = |orig: Vec3<f32>, dir: Vec3<f32>| -> Option<Vec3<f32>> {
+            if dir.y.abs() < eps {
+                return None;
+            }
+            let t = (plane_y - orig.y) / dir.y;
+            if t.is_finite() {
+                Some(orig + dir * t)
+            } else {
+                None
+            }
+        };
+
+        let dir0 = ray_dir(0.0, 0.0);
+        let dir1 = ray_dir(delta.x as f32, delta.y as f32);
+        if let (Some(p0), Some(p1)) = (
+            intersect_plane(cam_pos, dir0),
+            intersect_plane(cam_pos, dir1),
+        ) {
+            let delta = p0 - p1;
+            if delta.x.is_finite() && delta.y.is_finite() && delta.z.is_finite() {
+                region.editing_position_3d += delta;
+            }
         }
     }
 }

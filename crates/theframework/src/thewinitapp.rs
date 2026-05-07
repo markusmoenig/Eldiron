@@ -168,6 +168,7 @@ struct TheWinitApp {
     next_frame_time: Instant,
     last_cursor_pos: Option<(f32, f32)>,
     left_mouse_down: bool,
+    right_mouse_down: bool,
     has_changes: bool,
 
     #[cfg(feature = "ui")]
@@ -187,6 +188,7 @@ impl TheWinitApp {
             next_frame_time: Instant::now(),
             last_cursor_pos: None,
             left_mouse_down: false,
+            right_mouse_down: false,
             has_changes: false,
             #[cfg(feature = "ui")]
             ui: TheUI::new(),
@@ -756,7 +758,7 @@ impl ApplicationHandler for TheWinitApp {
                         self.last_cursor_pos = Some((x, y));
 
                         let mut redraw = false;
-                        if self.left_mouse_down {
+                        if self.left_mouse_down || self.right_mouse_down {
                             #[cfg(feature = "ui")]
                             if self.ui.touch_dragged(x, y, &mut ctx.ctx) {
                                 redraw = true;
@@ -919,6 +921,13 @@ impl ApplicationHandler for TheWinitApp {
                                     }
                                 }
                                 (MouseButton::Right, ElementState::Pressed) => {
+                                    self.right_mouse_down = true;
+
+                                    #[cfg(feature = "ui")]
+                                    {
+                                        self.ui.right_mouse_down = true;
+                                    }
+
                                     #[cfg(feature = "ui")]
                                     if self.ui.context(x, y, &mut ctx.ctx) {
                                         redraw = true;
@@ -929,6 +938,13 @@ impl ApplicationHandler for TheWinitApp {
                                     }
                                 }
                                 (MouseButton::Right, ElementState::Released) => {
+                                    self.right_mouse_down = false;
+
+                                    #[cfg(feature = "ui")]
+                                    {
+                                        self.ui.right_mouse_down = false;
+                                    }
+
                                     #[cfg(feature = "ui")]
                                     if self.ui.touch_up(x, y, &mut ctx.ctx) {
                                         redraw = true;

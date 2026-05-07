@@ -30,11 +30,15 @@ Switch to the top-down 2D editing view while remaining in the current region.
 
 Enable the orbitable 3D camera for inspecting and placing geometry in the region.
 
+Controls: mouse wheel zooms, right-drag or `Alt`-drag orbits, `Ctrl/Cmd`-drag pans, `Shift` + mouse wheel pans, and arrow keys move the target position.
+
 ### Iso Camera
 
 *Shortcut: Ctrl/Cmd + 4*
 
 Use the isometric editor camera for layout and readability checks.
+
+Controls: mouse wheel zooms, right-drag, `Alt`-drag, or `Ctrl/Cmd`-drag pans, `Shift` + mouse wheel pans, and arrow keys move the target position.
 
 ### First-Person Camera
 
@@ -42,7 +46,7 @@ Use the isometric editor camera for layout and readability checks.
 
 Jump into a first-person preview of the region. This also clears any active surface-edit overlay so the scene renders cleanly.
 
-In first-person view, press `Space` while the geometry editor has focus to toggle **Fly Navigation**. The status bar shows whether fly navigation is active.
+In first-person view, hold the right mouse button and use `WASD` to fly. Release the right mouse button or press `Escape` to return to normal editing. `Space` still toggles fly navigation as a touchpad-friendly fallback; in that mode the pointer position relative to the center of the view controls looking.
 
 Fly navigation controls:
 
@@ -141,141 +145,6 @@ Merge selected connected direct 3D geometry faces into one editable face.
 *Shortcut: Ctrl/Cmd + U*
 
 Subdivide selected direct 3D quad faces into smaller editable faces.
-
-### Extrude Linedef
-
-*Shortcut: Alt + E*
-
-Extrude selected linedefs by *distance* (how far the wall is pushed out) and *angle* (degrees around the edge axis).  
-Also supports top shaping via a `top` section:
-- *style*: `flat`, `crenelated`, `palisade`, or `random`
-- *segment_size*: shared segment width used by patterned styles
-- *variation*: style intensity (tooth/stake height or random break amount)
-
-This is currently additive (re-applying creates new generated geometry), so use undo or delete old result before re-extruding if needed.
-
-### Create Palisade
-
-Create a non-destructive palisade along selected linedefs. You can re-open the action any time to tweak values.
-
-- `[material].tile_id`: tile used by the palisade.
-- `[layout].spacing`: distance between stakes along the linedef.
-- `[layout].segment_size`: width of each stake along the linedef.
-- `[shape].stake_shape`: `flat`, `square`, or `round`.
-- `[shape].depth`: cross-depth/thickness of the stake.
-- `[shape].round_segments`: radial segment count for round stakes.
-- `[height].base`: main stake height. `0.0` disables generation.
-- `[height].variation`: deterministic per-stake height variation.
-- `[top].mode`: `flat`, `spike`, `bevel`, or `random` (per stake).
-- `[top].height`: extra height used by spike/bevel tops.
-- `[lean].amount`: max lean offset.
-- `[lean].randomness`: 0..1 multiplier for random lean variation.
-- UVs follow the linedef direction (continuous flow along the feature, not world X/Z projection).
-
-### Create Fence
-
-Create a non-destructive fence along selected linedefs.
-
-- `[material].tile_id`: tile used by posts and connectors.
-- `[layout].spacing`: distance between posts.
-- `[posts].shape`: `square` or `round`.
-- `[posts].size`: post thickness.
-- `[posts].height`: post height. `0.0` disables generation.
-- `[posts].round_segments`: radial complexity for round posts.
-- `[connectors].count`: number of horizontal connectors between posts.
-- `[connectors].style`: `plank`, `square`, or `round`.
-- `[connectors].size`: connector thickness.
-- `[connectors].drop`: how far connectors step down from the top.
-- `[lean].amount`: max lean offset.
-- `[lean].randomness`: 0..1 multiplier for random lean variation.
-- UVs follow the linedef direction (continuous flow along the feature, not world X/Z projection).
-
-### Create Stairs
-
-Create non-destructive stairs on selected sectors (3D editor views).
-
-Parameter groups:
-- `[stairs]`: `direction`, `steps`, `total_height`, `fill_sides`
-- `[material]`: `tile_id`, `tread_tile_id`, `riser_tile_id`, `side_tile_id`
-
-Parameter meaning:
-- `[stairs].direction`: stair run direction (`north`, `east`, `south`, `west`).
-- `[stairs].steps`: number of treads (`1..64`).
-- `[stairs].total_height`: total vertical rise of the full staircase (`0..16` world units).
-- `[stairs].fill_sides`: when enabled (default), side geometry is generated so stairs are closed instead of hanging.
-- `[material].tile_id`: default stair tile source if a per-part tile is not set.
-- `[material].tread_tile_id`: optional tread tile source.
-- `[material].riser_tile_id`: optional riser (vertical) tile source.
-- `[material].side_tile_id`: optional side tile source.
-
-Material fallback order:
-- tread: `tread_tile_id` -> `tile_id` -> sector/source fallback
-- riser: `riser_tile_id` -> `tile_id` -> sector/source fallback
-- side: `side_tile_id` -> `tile_id` -> sector/source fallback
-
-Set `[stairs].total_height = 0` to clear stair generation on the sector.
-
-### Create Roof
-
-Create a non-destructive roof on sectors touched by selected linedefs (3D editor views).
-
-Parameter groups:
-- `[roof]`: `name`, `style`, `height`, `overhang`
-- `[material]`: `tile_id`, `side_tile_id`
-
-Parameter meaning:
-- `[roof].name`: logical roof label stored as `roof_name` on target sectors.
-- `[roof].style`: `flat`, `pyramid`, or `gable`.
-- `[roof].height`: roof rise above the sector top surface. `0` clears roof generation.
-- `[roof].overhang`: outward roof extension in world units (applies to top and side eaves).
-- `[material].tile_id`: optional tile source for roof top surfaces.
-- `[material].side_tile_id`: optional tile source for roof side surfaces.
-
-Material fallback order:
-- top: `tile_id` -> sector `cap_source` -> sector `source`
-- side: `side_tile_id` -> top fallback chain
-
-### Create Campfire
-
-Create a non-destructive campfire on selected sectors (3D editor views).
-
-Parameter groups:
-- `[campfire]`
-- `[material]`
-
-### `[campfire]`
-
-- `flame_height`: flame height.
-- `flame_width`: flame width.
-- `log_count`: number of logs arranged in a ring (`3..24`).
-- `log_length`: per-log length.
-- `log_thickness`: per-log thickness.
-- `log_radius`: ring radius from center to log centers.
-- `light_intensity`: point-light intensity.
-- `light_range`: point-light end distance.
-- `light_flicker`: light flicker amount (`0..1`).
-- `light_lift`: extra Y offset added on top of flame center.
-
-### `[material]`
-
-- `flame_tile_id`: flame material source (UUID, tile alias, or palette index).
-- `base_tile_id`: log/ember material source (UUID, tile alias, or palette index).
-
-Notes:
-- Logs are procedural 3D meshes placed in a circle and oriented inward.
-- Flame is billboard-based (crossed center quads).
-- Campfire point-light origin is anchored to flame height (`flame_base_y + flame_height * 0.5 + light_lift`).
-- Set `flame_height = 0` or `light_range = 0` to clear campfire generation on the sector.
-
-### Extrude Sector
-
-*Shortcut: Alt + E*
-
-Push selected sectors along their normal. Params: toggle *surface extrusion* (only when a surface is selected), *depth*, and *open back* to leave the rear uncapped for facades or interiors.
-
-### Add Arch
-
-Bend each selected linedef into a quadratic arch. Params: *height* (bulge) and *segments* (curve resolution).
 
 ### Duplicate
 
@@ -412,7 +281,7 @@ weight = 1
 
 Supported `kind` values are `floor`, `wall`, `entrance`, and `exit`. Use `none` in the editor selector for non-procedural tiles. Gameplay objects such as doors, traps, and potions should be generated as item instances from the region `[procedural.items.*]` settings, not as tile kinds.
 
-Procedural tile metadata is consumed by **Build Procedural**. See [Procedural Map Generation](/docs/building_maps/procedural_generation) for the full workflow and [Region Settings: Procedural](/docs/building_maps/region_settings/#procedural) for the matching region-side settings.
+Procedural tile metadata is consumed by **Build Procedural**, which is available in the 2D editor view. See [Procedural Map Generation](/docs/building_maps/procedural_generation) for the full workflow and [Region Settings: Procedural](/docs/building_maps/region_settings/#procedural) for the matching region-side settings.
 
 ### Set Tile Material
 

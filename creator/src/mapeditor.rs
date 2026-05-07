@@ -1,6 +1,6 @@
 use crate::editor::{EDITCAMERA, RUSTERIX, SIDEBARMODE};
 use crate::prelude::*;
-use rusterix::{D3Camera, Value};
+use rusterix::Value;
 use vek::Vec2;
 
 fn geometry_selection_status_text(map: &Map, server_ctx: &ServerContext) -> Option<String> {
@@ -251,6 +251,23 @@ impl MapEditor {
                                 });
                                 ctx.ui.redraw_all = true;
                                 redraw = true;
+                            } else if matches!(
+                                server_ctx.editor_view_mode,
+                                EditorViewMode::Orbit | EditorViewMode::Iso
+                            ) {
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    let amount = if ui.shift { 5.0 } else { 1.0 };
+                                    EDITCAMERA.write().unwrap().nudge_target(
+                                        region,
+                                        server_ctx,
+                                        Vec2::new(0.0, 1.0),
+                                        amount,
+                                    );
+                                    ctx.ui.redraw_all = true;
+                                    redraw = true;
+                                }
                             }
                         }
                         TheKeyCode::Down => {
@@ -262,6 +279,23 @@ impl MapEditor {
                                 });
                                 ctx.ui.redraw_all = true;
                                 redraw = true;
+                            } else if matches!(
+                                server_ctx.editor_view_mode,
+                                EditorViewMode::Orbit | EditorViewMode::Iso
+                            ) {
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    let amount = if ui.shift { 5.0 } else { 1.0 };
+                                    EDITCAMERA.write().unwrap().nudge_target(
+                                        region,
+                                        server_ctx,
+                                        Vec2::new(0.0, -1.0),
+                                        amount,
+                                    );
+                                    ctx.ui.redraw_all = true;
+                                    redraw = true;
+                                }
                             }
                         }
                         TheKeyCode::Left => {
@@ -270,6 +304,23 @@ impl MapEditor {
                                     Some(CustomMoveAction::Left);
                                 ctx.ui.redraw_all = true;
                                 redraw = true;
+                            } else if matches!(
+                                server_ctx.editor_view_mode,
+                                EditorViewMode::Orbit | EditorViewMode::Iso
+                            ) {
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    let amount = if ui.shift { 5.0 } else { 1.0 };
+                                    EDITCAMERA.write().unwrap().nudge_target(
+                                        region,
+                                        server_ctx,
+                                        Vec2::new(-1.0, 0.0),
+                                        amount,
+                                    );
+                                    ctx.ui.redraw_all = true;
+                                    redraw = true;
+                                }
                             }
                         }
                         TheKeyCode::Right => {
@@ -278,6 +329,23 @@ impl MapEditor {
                                     Some(CustomMoveAction::Right);
                                 ctx.ui.redraw_all = true;
                                 redraw = true;
+                            } else if matches!(
+                                server_ctx.editor_view_mode,
+                                EditorViewMode::Orbit | EditorViewMode::Iso
+                            ) {
+                                if let Some(region) =
+                                    project.get_region_mut(&server_ctx.curr_region)
+                                {
+                                    let amount = if ui.shift { 5.0 } else { 1.0 };
+                                    EDITCAMERA.write().unwrap().nudge_target(
+                                        region,
+                                        server_ctx,
+                                        Vec2::new(1.0, 0.0),
+                                        amount,
+                                    );
+                                    ctx.ui.redraw_all = true;
+                                    redraw = true;
+                                }
                             }
                         }
                         _ => {}
@@ -443,128 +511,34 @@ impl MapEditor {
                             {
                             } else {
                                 if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                    if ui.logo || ui.ctrl {
-                                        EDITCAMERA
-                                            .write()
-                                            .unwrap()
-                                            .scroll_by(coord.y as f32, server_ctx);
+                                    if ui.shift {
+                                        if let Some(region) =
+                                            project.get_region_mut(&server_ctx.curr_region)
+                                        {
+                                            if let Some(render_view) =
+                                                ui.get_render_view("PolyView")
+                                            {
+                                                let dim = *render_view.dim();
+                                                EDITCAMERA.read().unwrap().pan_3d_by_delta(
+                                                    region,
+                                                    server_ctx,
+                                                    *coord,
+                                                    Vec2::new(dim.x, dim.y),
+                                                );
+                                            }
+                                        }
                                     } else if ui.alt {
                                         EDITCAMERA
                                             .write()
                                             .unwrap()
                                             .rotate(coord.map(|v| v as f32), server_ctx);
-                                    } else if let Some(region) =
-                                        project.get_region_mut(&server_ctx.curr_region)
-                                    {
-                                        // Move camera
-                                        if server_ctx.editor_view_mode == EditorViewMode::Orbit {
-                                            // Orbit move — screen-space pan using ray/plane intersections
-                                            if let Some(render_view) =
-                                                ui.get_render_view("PolyView")
-                                            {
-                                                let dim = *render_view.dim();
-                                                let viewport_w = dim.x as f32;
-                                                let viewport_h = dim.y as f32;
-                                                if viewport_w > 0.0 && viewport_h > 0.0 {
-                                                    let orbit =
-                                                        &EDITCAMERA.read().unwrap().orbit_camera;
-
-                                                    // Camera basis and parameters
-                                                    let (fwd, right, up) = orbit.basis_vectors();
-                                                    let distance = orbit.distance();
-                                                    let fov = orbit.fov; // vertical fov (radians)
-                                                    let aspect = viewport_w / viewport_h;
-                                                    let tan_half_fov = (fov * 0.5).tan();
-
-                                                    // Orbit target (pivot) is the editing position
-                                                    let target = region.editing_position_3d;
-                                                    // Reconstruct camera position from target, forward and distance
-                                                    let cam_pos = target - fwd * distance;
-
-                                                    // Ground plane at target.y (y-up world)
-                                                    let plane_y = target.y;
-                                                    let eps = 1e-6f32;
-
-                                                    // Helper: build world-space ray dir from pixel offset relative to screen center
-                                                    let ray_dir = |dx_pixels: f32, dy_pixels: f32| -> vek::Vec3<f32> {
-                                                    // Convert to NDC offsets (center = 0,0). Note: screen y grows downward
-                                                    let x_ndc = (dx_pixels) / (viewport_w * 0.5);
-                                                    let y_ndc = (-dy_pixels) / (viewport_h * 0.5);
-                                                    // Camera-space scale along right/up for given pixel offset
-                                                    let sx = x_ndc * tan_half_fov * aspect;
-                                                    let sy = y_ndc * tan_half_fov;
-                                                    (fwd + right * sx + up * sy).normalized()
-                                                };
-
-                                                    let intersect_plane = |orig: vek::Vec3<f32>, dir: vek::Vec3<f32>| -> Option<vek::Vec3<f32>> {
-                                                    if dir.y.abs() < eps { return None; }
-                                                    let t = (plane_y - orig.y) / dir.y;
-                                                    if t.is_finite() { Some(orig + dir * t) } else { None }
-                                                };
-
-                                                    let dir0 = ray_dir(0.0, 0.0);
-                                                    let dir1 =
-                                                        ray_dir(coord.x as f32, coord.y as f32);
-
-                                                    if let (Some(p0), Some(p1)) = (
-                                                        intersect_plane(cam_pos, dir0),
-                                                        intersect_plane(cam_pos, dir1),
-                                                    ) {
-                                                        let delta = p0 - p1;
-                                                        if delta.x.is_finite()
-                                                            && delta.y.is_finite()
-                                                            && delta.z.is_finite()
-                                                        {
-                                                            region.editing_position_3d += delta;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        if server_ctx.editor_view_mode == EditorViewMode::Iso {
-                                            // Iso move
-                                            if let Some(render_view) =
-                                                ui.get_render_view("PolyView")
-                                            {
-                                                let dim = *render_view.dim();
-                                                let viewport_h = dim.y as f32;
-
-                                                let (_fwd, right, up) = EDITCAMERA
-                                                    .read()
-                                                    .unwrap()
-                                                    .iso_camera
-                                                    .basis_vectors();
-                                                let ortho_h =
-                                                    EDITCAMERA.read().unwrap().iso_camera.scale();
-                                                let world_per_pixel = (ortho_h) / viewport_h;
-
-                                                let right_xz: Vec3<f32> =
-                                                    vek::Vec3::new(right.x, 0.0, right.z)
-                                                        .normalized();
-                                                let up_xz =
-                                                    vek::Vec3::new(up.x, 0.0, up.z).normalized();
-
-                                                let delta =
-                                                    right_xz * coord.x as f32 * world_per_pixel
-                                                        - up_xz * coord.y as f32 * world_per_pixel;
-
-                                                region.editing_position_3d += delta;
-                                            }
-                                        } else {
-                                            // Firstp move
-                                            let firstp = &EDITCAMERA.read().unwrap().firstp_camera;
-                                            let (forward, right, _up) = firstp.basis_vectors();
-
-                                            let speed = 0.1;
-                                            let dx = coord.x as f32;
-                                            let dy = coord.y as f32;
-                                            let delta =
-                                                forward * (dy) * speed + right * (dx) * speed;
-
-                                            region.editing_position_3d += delta;
-                                        }
-                                        redraw = true;
+                                    } else {
+                                        EDITCAMERA
+                                            .write()
+                                            .unwrap()
+                                            .scroll_by(coord.y as f32, server_ctx);
                                     }
+                                    redraw = true;
                                 }
                             }
                             if server_ctx.editor_view_mode != EditorViewMode::D2 {

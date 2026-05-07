@@ -56,7 +56,7 @@ See the per-tool pages for the shortcuts owned by those modes:
 
 ## Grid Shortcuts
 
-- **Shift + 1 ... 0**: Set the current grid subdivision.
+- **1 ... 0**: Set the current grid subdivision.
 - **, / .**: Decrease or increase the 3D grid size.
 
 The grid subdivision is shared with snapping for object movement, face extrusion, vertex moves, and resize handles.

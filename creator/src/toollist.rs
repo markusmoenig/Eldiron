@@ -49,7 +49,7 @@ impl ToolList {
     const TEXT_PLAY_BUTTON_NAME: &'static str = "Text Play";
     const PALETTE_BUTTON_NAME: &'static str = "Palette Mode";
 
-    fn grid_subdivision_from_shift_key(c: char) -> Option<f32> {
+    fn grid_subdivision_from_key(c: char) -> Option<f32> {
         match c {
             '1' | '!' => Some(1.0),
             '2' | '@' => Some(2.0),
@@ -1382,6 +1382,13 @@ impl ToolList {
                 {
                     false
                 }
+                TheEvent::RenderViewContext(id, _)
+                    if id.name == "PolyView"
+                        && server_ctx.editor_view_mode != EditorViewMode::D2
+                        && !server_ctx.game_input_mode =>
+                {
+                    false
+                }
                 TheEvent::RenderViewClicked(id, _)
                 | TheEvent::RenderViewDragged(id, _)
                 | TheEvent::RenderViewUp(id, _)
@@ -1628,9 +1635,7 @@ impl ToolList {
                             } else if *c == '.' {
                                 map.grid_size += 2.0;
                                 return false;
-                            } else if ui.shift
-                                && let Some(subdivision) = Self::grid_subdivision_from_shift_key(*c)
-                            {
+                            } else if let Some(subdivision) = Self::grid_subdivision_from_key(*c) {
                                 map.subdivisions = subdivision;
                                 RUSTERIX.write().unwrap().set_dirty();
                                 return false;
@@ -1905,6 +1910,7 @@ impl ToolList {
                                 return true;
                             }
                             server_ctx.editor_fly_nav_space_down = true;
+                            server_ctx.editor_fly_nav_mouse_down = false;
                             server_ctx.editor_fly_nav_active = !server_ctx.editor_fly_nav_active;
                             crate::editor::EDITCAMERA
                                 .write()
@@ -1916,10 +1922,9 @@ impl ToolList {
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
                                 if server_ctx.editor_fly_nav_active {
-                                    "FirstP fly navigation on. Pointer from center turns/looks, WASD moves, Space exits."
-                                        .to_string()
+                                    fl!("status_firstp_fly_nav_on")
                                 } else {
-                                    "FirstP fly navigation off.".to_string()
+                                    fl!("status_firstp_fly_nav_off")
                                 },
                             ));
                             ctx.ui.redraw_all = true;
@@ -1964,11 +1969,12 @@ impl ToolList {
                             if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                                 if server_ctx.editor_fly_nav_active {
                                     server_ctx.editor_fly_nav_active = false;
+                                    server_ctx.editor_fly_nav_mouse_down = false;
                                     server_ctx.editor_fly_nav_space_down = false;
                                     crate::editor::EDITCAMERA.write().unwrap().move_action = None;
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
-                                        "FirstP fly navigation off.".to_string(),
+                                        fl!("status_firstp_fly_nav_off"),
                                     ));
                                     ctx.ui.redraw_all = true;
                                     return true;
@@ -2169,12 +2175,51 @@ impl ToolList {
                     }
                 }
             }
+            TheEvent::RenderViewContext(id, coord) => {
+                if id.name == "PolyView"
+                    && !server_ctx.game_mode
+                    && !server_ctx.game_input_mode
+                    && server_ctx.editor_view_mode != EditorViewMode::D2
+                {
+                    crate::editor::EDITCAMERA
+                        .write()
+                        .unwrap()
+                        .reset_mouse_tracking();
+
+                    if server_ctx.editor_view_mode == EditorViewMode::FirstP {
+                        server_ctx.editor_fly_nav_active = true;
+                        server_ctx.editor_fly_nav_mouse_down = true;
+                        server_ctx.editor_fly_nav_space_down = false;
+                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                            crate::editor::EDITCAMERA
+                                .write()
+                                .unwrap()
+                                .mouse_dragged_firstp(region, coord);
+                        }
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("status_firstp_fly_nav_rmb_on"),
+                        ));
+                    }
+
+                    crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    ctx.ui.redraw_all = true;
+                    return true;
+                }
+            }
             TheEvent::RenderViewDragged(id, coord) => {
                 if id.name == "PolyView" {
                     if server_ctx.editor_view_mode == EditorViewMode::FirstP
                         && server_ctx.editor_fly_nav_active
                     {
-                        if let Some(view_size) = ui.get_render_view("PolyView").map(|view| {
+                        if server_ctx.editor_fly_nav_mouse_down {
+                            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                                crate::editor::EDITCAMERA
+                                    .write()
+                                    .unwrap()
+                                    .mouse_dragged_firstp(region, coord);
+                            }
+                        } else if let Some(view_size) = ui.get_render_view("PolyView").map(|view| {
                             let dim = *view.dim();
                             Vec2::new(dim.width, dim.height)
                         }) {
@@ -2182,10 +2227,54 @@ impl ToolList {
                                 .write()
                                 .unwrap()
                                 .set_fly_pointer(coord, view_size);
+                        }
+                        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                        ctx.ui.redraw_all = true;
+                        return true;
+                    }
+
+                    if server_ctx.editor_view_mode != EditorViewMode::D2
+                        && !server_ctx.game_mode
+                        && !server_ctx.game_input_mode
+                    {
+                        let orbit_drag = server_ctx.editor_view_mode == EditorViewMode::Orbit
+                            && (ui.right_mouse_down || ui.alt);
+                        let pan_drag = matches!(
+                            server_ctx.editor_view_mode,
+                            EditorViewMode::Orbit | EditorViewMode::Iso
+                        ) && (ui.ctrl
+                            || ui.logo
+                            || (server_ctx.editor_view_mode == EditorViewMode::Iso
+                                && (ui.right_mouse_down || ui.alt)));
+
+                        if orbit_drag {
+                            crate::editor::EDITCAMERA
+                                .write()
+                                .unwrap()
+                                .mouse_dragged_orbit(coord);
                             crate::editor::RUSTERIX.write().unwrap().set_dirty();
                             ctx.ui.redraw_all = true;
+                            return true;
                         }
-                        return true;
+
+                        if pan_drag
+                            && let Some(region) = project.get_region_mut(&server_ctx.curr_region)
+                            && let Some(render_view) = ui.get_render_view("PolyView")
+                        {
+                            let dim = *render_view.dim();
+                            crate::editor::EDITCAMERA
+                                .write()
+                                .unwrap()
+                                .mouse_dragged_pan_3d(
+                                    region,
+                                    server_ctx,
+                                    coord,
+                                    Vec2::new(dim.x, dim.y),
+                                );
+                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            ctx.ui.redraw_all = true;
+                            return true;
+                        }
                     }
 
                     if server_ctx.editor_view_mode == EditorViewMode::D2 {
@@ -2245,7 +2334,29 @@ impl ToolList {
                     if server_ctx.editor_view_mode == EditorViewMode::FirstP
                         && server_ctx.editor_fly_nav_active
                     {
+                        if server_ctx.editor_fly_nav_mouse_down {
+                            server_ctx.editor_fly_nav_active = false;
+                            server_ctx.editor_fly_nav_mouse_down = false;
+                            server_ctx.editor_fly_nav_space_down = false;
+                            crate::editor::EDITCAMERA.write().unwrap().move_action = None;
+                            crate::editor::EDITCAMERA
+                                .write()
+                                .unwrap()
+                                .reset_mouse_tracking();
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                fl!("status_firstp_fly_nav_off"),
+                            ));
+                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            ctx.ui.redraw_all = true;
+                        }
                         return true;
+                    }
+                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                        crate::editor::EDITCAMERA
+                            .write()
+                            .unwrap()
+                            .reset_mouse_tracking();
                     }
 
                     if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
@@ -2317,10 +2428,12 @@ impl ToolList {
                     if server_ctx.editor_view_mode == EditorViewMode::FirstP
                         && server_ctx.editor_fly_nav_active
                     {
-                        if let Some(view_size) = ui.get_render_view("PolyView").map(|view| {
-                            let dim = *view.dim();
-                            Vec2::new(dim.width, dim.height)
-                        }) {
+                        if !server_ctx.editor_fly_nav_mouse_down
+                            && let Some(view_size) = ui.get_render_view("PolyView").map(|view| {
+                                let dim = *view.dim();
+                                Vec2::new(dim.width, dim.height)
+                            })
+                        {
                             crate::editor::EDITCAMERA
                                 .write()
                                 .unwrap()

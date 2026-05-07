@@ -29,7 +29,7 @@ tile_id = "27826750-a9e7-4346-994b-fb318b238452"
 
 ## Procedural
 
-The `[procedural]` section drives the **Build Procedural** action. The first generator is `connected_rooms`, which creates a deterministic 2D room-and-corridor dungeon from the region seed and the procedural tile metadata authored with **Edit Tile Meta**.
+The `[procedural]` section drives the **Build Procedural** action, which is shown in the 2D editor view. The first generator is `connected_rooms`, which creates a deterministic 2D room-and-corridor dungeon from the region seed and the procedural tile metadata authored with **Edit Tile Meta**.
 
 For a full workflow guide, see [Procedural Map Generation](/docs/building_maps/procedural_generation).
 

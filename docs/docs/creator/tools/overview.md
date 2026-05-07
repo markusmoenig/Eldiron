@@ -49,7 +49,7 @@ You can navigate the map using:
 
 ### Keyboard Shortcuts
 
-When the **map view** has focus, you can use **Shift + number keys (1-0)** on your keyboard to quickly switch between subdivisions, instead of clicking on the HUD.
+When the **map view** has focus, you can use **number keys (1-0)** on your keyboard to quickly switch between subdivisions, instead of clicking on the HUD.
 
 In 3D geometry views you can also use:
 

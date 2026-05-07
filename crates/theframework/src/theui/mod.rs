@@ -281,6 +281,7 @@ pub struct TheUI {
 
     // Mouse pos
     pub mouse_coord: Vec2<i32>,
+    pub right_mouse_down: bool,
     mouse_capture_id: Option<TheId>,
 }
 
@@ -316,6 +317,7 @@ impl TheUI {
             logo: false,
 
             mouse_coord: Vec2::zero(),
+            right_mouse_down: false,
             mouse_capture_id: None,
         }
     }

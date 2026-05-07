@@ -11,7 +11,7 @@ Use this workflow when you want a generated dungeon that can be rebuilt after ch
 
 1. Tag the tiles the generator may use with **Edit Tile Meta**.
 2. Add a `[procedural]` section to the region settings.
-3. Run **Build Procedural** from the action list.
+3. Switch to the 2D editor view and run **Build Procedural** from the action list.
 4. Adjust tiles, spawn rules, or the seed and run **Build Procedural** again.
 
 Running **Build Procedural** rebuilds the procedural region as an authored generator output: existing geometry, items, and non-player characters in that region are cleared before the new layout is created. Keep persistent handcrafted content in another region, or spawn it again from script after the rebuild.

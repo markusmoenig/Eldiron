@@ -543,28 +543,16 @@ pub fn clear_nodeui_icon_tile_id(nodeui: &mut TheNodeUI, item_name: &str, index:
     }
 }
 
-pub mod add_arch;
 pub mod apply_tile;
 pub mod build_procedural;
-pub mod build_room;
-pub mod build_shaft;
-pub mod build_stairs;
 pub mod clear_palette;
-pub mod clear_profile;
 pub mod clear_tile;
 pub mod copy_tile_id;
 pub mod copy_vcode;
-pub mod create_campfire;
 pub mod create_center_vertex;
-pub mod create_fence;
 pub mod create_geometry_box;
 pub mod create_linedef;
-pub mod create_palisade;
-pub mod create_prop;
-pub mod create_roof;
 pub mod create_sector;
-pub mod create_stairs;
-pub mod cut_hole;
 pub mod duplicate;
 pub mod duplicate_tile;
 pub mod edit_geometry;
@@ -576,8 +564,6 @@ pub mod edit_vertex;
 pub mod editing_camera;
 pub mod editing_slice;
 pub mod export_vcode;
-pub mod extrude_linedef;
-pub mod extrude_sector;
 pub mod face_cut_opening;
 pub mod face_delete;
 pub mod face_extrude;
@@ -586,7 +572,6 @@ pub mod face_merge;
 pub mod face_subdivide;
 pub mod filter_editing_geo;
 pub mod firstp_camera;
-pub mod gate_door;
 pub mod geometry_face_ops;
 pub mod import_palette;
 pub mod import_vcode;
@@ -596,14 +581,11 @@ pub mod minimize;
 pub mod new_tile;
 pub mod orbit_camera;
 pub mod paste_vcode;
-pub mod recess;
-pub mod relief;
 pub mod remap_tile;
 pub mod set_tile_material;
 pub mod split;
 pub mod toggle_editing_geo;
 pub mod toggle_rect_geo;
-pub mod window;
 
 #[derive(PartialEq)]
 pub enum ActionRole {

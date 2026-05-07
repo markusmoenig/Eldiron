@@ -690,6 +690,8 @@ pub struct ServerContext {
     /// First-person editor fly navigation mode. When enabled, PolyView mouse
     /// movement controls look direction and WASD controls movement.
     pub editor_fly_nav_active: bool,
+    /// True while fly navigation is held by the mouse instead of toggled by Space.
+    pub editor_fly_nav_mouse_down: bool,
     /// Tracks Space key state so OS key repeat does not rapidly toggle fly mode.
     pub editor_fly_nav_space_down: bool,
 
@@ -858,6 +860,7 @@ impl ServerContext {
 
             game_input_mode: false,
             editor_fly_nav_active: false,
+            editor_fly_nav_mouse_down: false,
             editor_fly_nav_space_down: false,
             text_game_mode: false,
             help_mode: false,

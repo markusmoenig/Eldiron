@@ -60,8 +60,11 @@ impl TheWidget for TheRenderView {
                         context_menu.clone(),
                     ));
                 } else {
+                    ctx.ui.set_focus(self.id());
                     ctx.ui
                         .send(TheEvent::RenderViewContext(self.id().clone(), *coord));
+                    self.mouse_is_down = true;
+                    redraw = true;
                 }
             }
             TheEvent::MouseDown(coord) => {
