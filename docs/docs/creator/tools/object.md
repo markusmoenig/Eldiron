@@ -48,7 +48,7 @@ Those tools keep their normal 2D behavior when the editor is in 2D view.
 
 See the per-tool pages for the shortcuts owned by those modes:
 
-- [Sector Tool](sector): face selection, extrusion, subdivision, face push/pull, and tile assignment.
+- [Sector Tool](sector): face selection, extrusion, inset, subdivision, merge/delete, face push/pull, and tile assignment.
 - [Linedef Tool](linedef): edge selection, edge splitting, and edge-loop selection.
 - [Vertex Tool](vertex): vertex selection, boundary fill, edge splitting, and vertical vertex movement.
 

@@ -22,8 +22,10 @@ In 3D views, the Sector Tool selects faces on direct geometry objects.
 
 ## 3D Shortcuts
 
-- **E**: Extrude selected faces by one grid step.
-- **X**: Subdivide selected quad faces.
+- **Cmd/Ctrl+E**: Run the Face Extrude action. Use the action parameters to set the extrusion amount.
+- **Cmd/Ctrl+U**: Run the Face Subdivide action on selected quad faces.
+- **Cmd/Ctrl+I**: Run the Face Inset action. Use the action parameters to set the inset amount.
+- **Cmd/Ctrl+M**: Run the Face Merge action on selected connected faces.
 - **T**: Apply the current tile, color, tilegraph, or nodegraph source.
 - **+ / -**: Push or pull selected faces along their normals.
 - **[ / ]**: Move selected faces vertically by one grid step.
@@ -53,7 +55,7 @@ Use sectors to create logical units, such as a house, and fill them with content
 
 ### 3D
 
-Use the Sector Tool to edit faces on direct geometry objects. Select a face and press **E** to extrude, **X** to subdivide, or **T** to apply the current tile source.
+Use the Sector Tool to edit faces on direct geometry objects. Select a face and press **Cmd/Ctrl+E** to run Face Extrude, **Cmd/Ctrl+U** to run Face Subdivide, **Cmd/Ctrl+I** to run Face Inset, **Cmd/Ctrl+M** to merge connected faces, or **T** to apply the current tile source.
 
 ### 2D and 3D
 

@@ -1,3 +1,4 @@
+use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 pub struct ClearTile {
@@ -67,25 +68,14 @@ impl Action for ClearTile {
         }
 
         for (object_id, face_index) in map.selected_geometry_faces.clone() {
-            let Some(object) = map
-                .geometry_objects
-                .iter_mut()
-                .find(|object| object.id == object_id)
-            else {
-                continue;
-            };
-            let Some(face) = object.faces.get_mut(face_index) else {
-                continue;
-            };
-            if face.tile.is_some() || !face.tiles.is_empty() {
-                face.tile = None;
-                face.tiles.clear();
-                face.auto_uv = true;
-                changed = true;
-            }
+            changed |=
+                crate::utils::clear_surface_source_on_geometry_face(map, object_id, face_index);
         }
 
         if changed {
+            map.update_surfaces();
+            RUSTERIX.write().unwrap().set_dirty();
+            RUSTERIX.write().unwrap().set_overlay_dirty();
             Some(ProjectUndoAtom::MapEdit(
                 server_ctx.pc,
                 Box::new(prev),

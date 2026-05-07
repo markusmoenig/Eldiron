@@ -10,7 +10,7 @@ Eldiron's 3D workflow is based on direct **Geometry Objects**.
 You create and edit 3D objects directly in the scene through object, face, edge, and vertex editing.
 
 <Admonition type="note" title="2D Map Layer">
-The 3D editor currently displays and edits Geometry Objects. A 2D reference overlay for 3D editing is a planned editor feature.
+The 3D editor displays Geometry Objects as the editable 3D world. Existing 2D linedefs are shown as a faint floor-plane reference overlay.
 </Admonition>
 
 ## The 3D Editing Tools
@@ -58,12 +58,14 @@ Use the **Sector Tool (`E`)** in 3D to select faces.
 
 Useful face shortcuts:
 
-- **E** extrudes selected faces by one grid step.
-- **X** subdivides selected quad faces.
+- **Cmd/Ctrl+E** runs the Face Extrude action. Set the extrusion amount in the action parameters.
+- **Cmd/Ctrl+U** runs the Face Subdivide action on selected quad faces.
+- **Cmd/Ctrl+I** runs the Face Inset action. Set the inset amount in the action parameters.
+- **Cmd/Ctrl+M** runs the Face Merge action on selected connected faces.
+- **Delete** removes selected faces and leaves the boundary vertices selected.
 - **T** applies the current tile, palette color, tilegraph, or nodegraph source.
 - **+ / -** push or pull selected faces along their normals.
 - **[ / ]** move selected faces vertically by one grid step.
-- **Delete** removes selected faces and leaves the boundary vertices selected.
 
 After deleting a face, switch to the **Vertex Tool** and press **F** to fill a selected boundary again.
 
@@ -110,7 +112,7 @@ Faces can either repeat a tile in 1x1 world units or scale the source across the
 1. Use **Create Box** for the first block.
 2. Resize and duplicate boxes with the **Object Tool**.
 3. Select faces with the **Sector Tool** and extrude them to build connected walls, floors, ledges, and rooms.
-4. Subdivide faces with **X** when you need smaller editable regions.
+4. Subdivide faces with **Cmd/Ctrl+U** or inset them with **Cmd/Ctrl+I** when you need smaller editable regions.
 5. Use **Linedef** and **Vertex** tools for edge loops, cleanup, holes, and custom shapes.
 6. Paint faces with tiles, palette colors, tilegraphs, or nodegraphs.
 
@@ -120,13 +122,13 @@ This workflow is meant to stay realtime while editing.
 
 Geometry Objects are responsible for the visible 3D world.
 
-The 2D map is still useful as project data for:
+The 2D map is still useful as a top-down reference and as project data for:
 
 - gameplay zones
 - triggers and metadata
 - minimap data
 
-The 3D view does not currently show a dedicated 2D geometry overlay. For visible 3D construction, use Geometry Objects:
+In 3D views, existing 2D linedefs are projected onto the floor plane as a faint reference overlay. For visible 3D construction, use Geometry Objects:
 
 - houses, dungeons, walls, floors, platforms, and props
 - direct face, edge, and vertex editing

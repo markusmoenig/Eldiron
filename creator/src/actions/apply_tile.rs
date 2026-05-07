@@ -1,4 +1,4 @@
-use crate::editor::DOCKMANAGER;
+use crate::editor::{DOCKMANAGER, RUSTERIX};
 use crate::prelude::*;
 use rusterix::PixelSource;
 
@@ -111,6 +111,9 @@ impl Action for ApplyTile {
         }
 
         if changed {
+            map.update_surfaces();
+            RUSTERIX.write().unwrap().set_dirty();
+            RUSTERIX.write().unwrap().set_overlay_dirty();
             Some(ProjectUndoAtom::MapEdit(
                 server_ctx.pc,
                 Box::new(prev),

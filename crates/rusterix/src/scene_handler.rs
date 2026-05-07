@@ -3408,121 +3408,115 @@ impl SceneHandler {
                     }
                 }
             }
+        }
 
-            // Items
-            for item in &map.items {
-                // Skip items that are bound to a profile/host sector; they are rendered as billboards for gates/doors.
-                let is_profile_bound = matches!(
-                    item.attributes.get("profile_host_sector_id"),
-                    Some(Value::UInt(_))
-                ) && matches!(
-                    item.attributes.get("profile_sector_id"),
-                    Some(Value::UInt(_))
-                );
-                if is_profile_bound {
-                    continue;
-                }
+        // Items
+        for item in &map.items {
+            // Skip items that are bound to a profile/host sector; they are rendered as billboards for gates/doors.
+            let is_profile_bound = matches!(
+                item.attributes.get("profile_host_sector_id"),
+                Some(Value::UInt(_))
+            ) && matches!(
+                item.attributes.get("profile_sector_id"),
+                Some(Value::UInt(_))
+            );
+            if is_profile_bound {
+                continue;
+            }
 
-                let show_entity = true; // !(entity.is_player() && camera.id() == "firstp");
+            if let Some(Value::Light(light)) = item.attributes.get("light") {
+                self.vm.execute(Atom::AddLight {
+                    id: GeoId::ItemLight(item.id),
+                    light: Light::new_pointlight(item.position)
+                        .with_color(Vec3::from(light.get_color().map(|c| c.powf(2.2)))) // Convert light to linear
+                        .with_intensity(light.get_intensity())
+                        .with_emitting(light.active)
+                        .with_start_distance(light.get_start_distance())
+                        .with_end_distance(light.get_end_distance())
+                        .with_flicker(light.get_flicker()),
+                });
+            }
 
-                if show_entity {
-                    if let Some(Value::Light(light)) = item.attributes.get("light") {
-                        self.vm.execute(Atom::AddLight {
-                            id: GeoId::ItemLight(item.id),
-                            light: Light::new_pointlight(item.position)
-                                .with_color(Vec3::from(light.get_color().map(|c| c.powf(2.2)))) // Convert light to linear
-                                .with_intensity(light.get_intensity())
-                                .with_emitting(light.active)
-                                .with_start_distance(light.get_start_distance())
-                                .with_end_distance(light.get_end_distance())
-                                .with_flicker(light.get_flicker()),
-                        });
-                    }
+            let size = 1.0;
+            let visible = item.attributes.get_bool_default("visible", false);
+            let pos_xz = item.get_pos_xz();
+            let mut ground_y = map
+                .find_sector_at(pos_xz)
+                .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                .unwrap_or(0.0);
+            if ground_y == 0.0 {
+                let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                ground_y =
+                    crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                        map, pos_xz, &config,
+                    );
+            }
 
-                    let size = 1.0;
-                    let visible = item.attributes.get_bool_default("visible", false);
-                    let pos_xz = item.get_pos_xz();
-                    let mut ground_y = map
-                        .find_sector_at(pos_xz)
-                        .map(|s| s.properties.get_float_default("floor_height", 0.0))
-                        .unwrap_or(0.0);
-                    if ground_y == 0.0 {
-                        let config =
-                            crate::chunkbuilder::terrain_generator::TerrainConfig::default();
-                        ground_y = crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
-                            map, pos_xz, &config,
-                        );
-                    }
-
-                    if visible
-                        && let Some(Value::Source(source)) = item.attributes.get("source")
-                        && let Some(tile) = source.tile_from_tile_list(assets)
-                    {
-                        let alignment = item
-                            .attributes
-                            .get_str_default("billboard_alignment", "upright".into())
-                            .to_ascii_lowercase();
-                        let floor_aligned =
-                            matches!(alignment.as_str(), "floor" | "ground" | "flat");
-                        let (center3, view_right, view_up) = if floor_aligned {
-                            (
-                                Vec3::new(item.position.x, ground_y + 0.01, item.position.z),
-                                Vec3::unit_x(),
-                                Vec3::unit_z(),
-                            )
-                        } else {
-                            let is_spell_like = item.attributes.get_bool_default("is_spell", false)
-                                || item.attributes.get_bool_default("spell_impacting", false);
-                            let y = if is_spell_like {
-                                item.position.y + size * 0.5
-                            } else {
-                                ground_y + size * 0.5
-                            };
-                            (
-                                Vec3::new(item.position.x, y, item.position.z),
-                                basis.1,
-                                basis.2,
-                            )
-                        };
-
-                        let dynamic = DynamicObject::billboard_tile(
-                            GeoId::Item(item.id),
-                            tile.id,
-                            center3,
-                            view_right,
-                            view_up,
-                            size,
-                            size,
-                        )
-                        .with_anim_start_counter({
-                            let geo_id = GeoId::Item(item.id);
-                            let anim_start = self.impact_anim_start_for_item(geo_id, item);
-                            if anim_start.is_some() {
-                                active_impact_geo.insert(geo_id);
-                            }
-                            anim_start
-                        });
-                        self.vm.execute(Atom::AddDynamic { object: dynamic });
+            if visible
+                && let Some(Value::Source(source)) = item.attributes.get("source")
+                && let Some(tile) = source.tile_from_tile_list(assets)
+            {
+                let alignment = item
+                    .attributes
+                    .get_str_default("billboard_alignment", "upright".into())
+                    .to_ascii_lowercase();
+                let floor_aligned = matches!(alignment.as_str(), "floor" | "ground" | "flat");
+                let (center3, view_right, view_up) = if floor_aligned {
+                    (
+                        Vec3::new(item.position.x, ground_y + 0.01, item.position.z),
+                        Vec3::unit_x(),
+                        Vec3::unit_z(),
+                    )
+                } else {
+                    let is_spell_like = item.attributes.get_bool_default("is_spell", false)
+                        || item.attributes.get_bool_default("spell_impacting", false);
+                    let y = if is_spell_like {
+                        item.position.y + size * 0.5
                     } else {
-                        let center3 =
-                            Vec3::new(item.position.x, ground_y + size * 0.5, item.position.z);
-                        let icon = if Some(item.creator_id) == map.selected_entity_item {
-                            self.item_on
-                        } else {
-                            self.item_off
-                        };
-                        let dynamic = DynamicObject::billboard_tile(
-                            GeoId::Item(item.id),
-                            icon,
-                            center3,
-                            basis.1,
-                            basis.2,
-                            size,
-                            size,
-                        );
-                        self.vm.execute(Atom::AddDynamic { object: dynamic });
+                        ground_y + size * 0.5
+                    };
+                    (
+                        Vec3::new(item.position.x, y, item.position.z),
+                        basis.1,
+                        basis.2,
+                    )
+                };
+
+                let dynamic = DynamicObject::billboard_tile(
+                    GeoId::Item(item.id),
+                    tile.id,
+                    center3,
+                    view_right,
+                    view_up,
+                    size,
+                    size,
+                )
+                .with_anim_start_counter({
+                    let geo_id = GeoId::Item(item.id);
+                    let anim_start = self.impact_anim_start_for_item(geo_id, item);
+                    if anim_start.is_some() {
+                        active_impact_geo.insert(geo_id);
                     }
-                }
+                    anim_start
+                });
+                self.vm.execute(Atom::AddDynamic { object: dynamic });
+            } else {
+                let center3 = Vec3::new(item.position.x, ground_y + size * 0.5, item.position.z);
+                let icon = if Some(item.creator_id) == map.selected_entity_item {
+                    self.item_on
+                } else {
+                    self.item_off
+                };
+                let dynamic = DynamicObject::billboard_tile(
+                    GeoId::Item(item.id),
+                    icon,
+                    center3,
+                    basis.1,
+                    basis.2,
+                    size,
+                    size,
+                );
+                self.vm.execute(Atom::AddDynamic { object: dynamic });
             }
         }
 

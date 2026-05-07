@@ -2233,6 +2233,7 @@ impl TheTrait for Editor {
                                 // Keep editor 3D running mode in sync with runtime dynamic
                                 // overlays (characters/items/lights).
                                 let animation_frame = rusterix.client.animation_frame;
+                                rusterix.scene_handler.mark_dynamics_dirty();
                                 rusterix.build_dynamics_3d(&region.map, animation_frame);
                                 Self::apply_editor_geo_filter(
                                     self.server_ctx.editing_geo_filter,
@@ -2240,12 +2241,14 @@ impl TheTrait for Editor {
                                     &region.map,
                                     rusterix,
                                 );
+                                let editor_neutral_background =
+                                    !is_running && !self.server_ctx.game_mode;
                                 rusterix.draw_d3_with_editor_background(
                                     &region.map,
                                     render_view.render_buffer_mut().pixels_mut(),
                                     dim.width as usize,
                                     dim.height as usize,
-                                    !self.server_ctx.game_mode,
+                                    editor_neutral_background,
                                 );
                             }
                         } else

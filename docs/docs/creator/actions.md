@@ -102,6 +102,42 @@ In 2D view (no surface selected), toggle rectangular placement helpers for geome
 > - a tile alias string, or
 > - a palette index (integer, or numeric string like `"2"`).
 
+### Edit Geometry
+
+*Shortcut: G*
+
+Edit selected direct 3D geometry objects. This action is available in 3D editing views when a geometry object is selected.
+
+### Face Extrude
+
+*Shortcut: Ctrl/Cmd + E*
+
+Extrude selected direct 3D geometry faces by the configured amount. Select one or more faces with the Sector Tool, then use the action parameters to set the extrusion distance.
+
+### Face Inset
+
+*Shortcut: Ctrl/Cmd + I*
+
+Inset selected direct 3D geometry faces by the configured amount. This creates a smaller editable face inside the selected face and keeps surrounding ring faces connected.
+
+### Face Delete
+
+*Shortcut: Delete*
+
+Delete selected direct 3D geometry faces. The boundary vertices remain selected so the opening can be filled again from the Vertex Tool.
+
+### Face Merge
+
+*Shortcut: Ctrl/Cmd + M*
+
+Merge selected connected direct 3D geometry faces into one editable face.
+
+### Face Subdivide
+
+*Shortcut: Ctrl/Cmd + U*
+
+Subdivide selected direct 3D quad faces into smaller editable faces.
+
 ### Extrude Linedef
 
 *Shortcut: Alt + E*

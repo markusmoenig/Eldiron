@@ -2795,6 +2795,14 @@ impl ToolList {
         rusterix.scene_handler.clear_overlay();
         // rusterix.scene_handler.vm.set_layer_activity_logging(true);
 
+        if !server_ctx.show_editing_geometry {
+            drop(rusterix);
+            self.update_tool_preview_overlay_3d(project, server_ctx);
+            let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.scene_handler.set_overlay();
+            return;
+        }
+
         // basis_vectors returns (forward, right, up)
         let (cam_forward, cam_right, cam_up) = rusterix.client.camera_d3.basis_vectors();
         let view_right = cam_right;
@@ -2991,6 +2999,58 @@ impl ToolList {
                 [0.15, 0.15, 0.15, 0.42],
                 11,
             );
+
+            if !map.linedefs.is_empty() {
+                let reference_y = grid_y + 0.010;
+                let mut reference_index = 0u32;
+                for linedef in &map.linedefs {
+                    let Some(a) = map.find_vertex(linedef.start_vertex) else {
+                        continue;
+                    };
+                    let Some(b) = map.find_vertex(linedef.end_vertex) else {
+                        continue;
+                    };
+                    let is_selected = map.selected_linedefs.contains(&linedef.id)
+                        || map.sectors.iter().any(|sector| {
+                            map.selected_sectors.contains(&sector.id)
+                                && sector.linedefs.contains(&linedef.id)
+                        });
+                    rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                        GeoId::Unknown(0xE303_0000u32.wrapping_add(reference_index)),
+                        Vec3::new(a.x, reference_y, a.y),
+                        Vec3::new(b.x, reference_y, b.y),
+                        if is_selected {
+                            [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 0.88]
+                        } else {
+                            [0.74, 0.74, 0.74, 0.44]
+                        },
+                        12,
+                    );
+                    reference_index = reference_index.wrapping_add(1);
+                }
+
+                for (vertex_index, vertex) in map.vertices.iter().enumerate() {
+                    if !map.selected_vertices.contains(&vertex.id) {
+                        continue;
+                    }
+                    let center = Vec3::new(vertex.x, reference_y + 0.004, vertex.y);
+                    let half = 0.08;
+                    rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                        GeoId::Unknown(0xE304_0000u32.wrapping_add(vertex_index as u32)),
+                        center - Vec3::new(half, 0.0, 0.0),
+                        center + Vec3::new(half, 0.0, 0.0),
+                        [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 0.88],
+                        13,
+                    );
+                    rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                        GeoId::Unknown(0xE305_0000u32.wrapping_add(vertex_index as u32)),
+                        center - Vec3::new(0.0, 0.0, half),
+                        center + Vec3::new(0.0, 0.0, half),
+                        [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 0.88],
+                        13,
+                    );
+                }
+            }
 
             let direct_geometry_tool = matches!(
                 server_ctx.curr_map_tool_type,
@@ -3457,14 +3517,6 @@ impl ToolList {
             }
 
             if direct_geometry_tool && !map.geometry_objects.is_empty() {
-                drop(rusterix);
-                self.update_tool_preview_overlay_3d(project, server_ctx);
-                let mut rusterix = RUSTERIX.write().unwrap();
-                rusterix.scene_handler.set_overlay();
-                return;
-            }
-
-            if !server_ctx.show_editing_geometry {
                 drop(rusterix);
                 self.update_tool_preview_overlay_3d(project, server_ctx);
                 let mut rusterix = RUSTERIX.write().unwrap();
