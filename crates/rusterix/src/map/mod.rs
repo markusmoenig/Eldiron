@@ -122,6 +122,10 @@ pub struct Map {
     #[serde(skip)]
     pub selected_geometry_faces: Vec<(Uuid, usize)>,
     #[serde(skip)]
+    pub selected_geometry_surface_points: Vec<(Uuid, usize, usize)>,
+    #[serde(skip)]
+    pub selected_geometry_surface_segments: Vec<(Uuid, usize, usize)>,
+    #[serde(skip)]
     pub geometry_selection_mode: u8,
 
     pub selected_entity_item: Option<Uuid>,
@@ -209,6 +213,8 @@ impl Map {
             selected_geometry_objects: vec![],
             selected_geometry_vertices: vec![],
             selected_geometry_faces: vec![],
+            selected_geometry_surface_points: vec![],
+            selected_geometry_surface_segments: vec![],
             geometry_selection_mode: 0,
 
             selected_entity_item: None,
@@ -243,6 +249,8 @@ impl Map {
         self.selected_geometry_objects = vec![];
         self.selected_geometry_vertices = vec![];
         self.selected_geometry_faces = vec![];
+        self.selected_geometry_surface_points = vec![];
+        self.selected_geometry_surface_segments = vec![];
         self.selected_entity_item = None;
     }
 
@@ -1887,6 +1895,8 @@ impl Map {
             selected_geometry_objects: vec![],
             selected_geometry_vertices: vec![],
             selected_geometry_faces: vec![],
+            selected_geometry_surface_points: vec![],
+            selected_geometry_surface_segments: vec![],
             geometry_selection_mode: 0,
 
             selected_entity_item: None,

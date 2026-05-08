@@ -458,6 +458,20 @@ impl Dock for TilesDock {
                                     changed = true;
                                 }
                             }
+                            for object_id in map.selected_geometry_objects.clone() {
+                                if let Some(object) = map
+                                    .geometry_objects
+                                    .iter_mut()
+                                    .find(|object| object.id == object_id)
+                                {
+                                    for face in &mut object.faces {
+                                        if !face.auto_uv {
+                                            face.auto_uv = true;
+                                            changed = true;
+                                        }
+                                    }
+                                }
+                            }
                             for (object_id, face_index) in map.selected_geometry_faces.clone() {
                                 if let Some(object) = map
                                     .geometry_objects
@@ -509,6 +523,20 @@ impl Dock for TilesDock {
                                 {
                                     sector.properties.set("tile_mode", Value::Int(0));
                                     changed = true;
+                                }
+                            }
+                            for object_id in map.selected_geometry_objects.clone() {
+                                if let Some(object) = map
+                                    .geometry_objects
+                                    .iter_mut()
+                                    .find(|object| object.id == object_id)
+                                {
+                                    for face in &mut object.faces {
+                                        if face.auto_uv {
+                                            face.auto_uv = false;
+                                            changed = true;
+                                        }
+                                    }
                                 }
                             }
                             for (object_id, face_index) in map.selected_geometry_faces.clone() {
@@ -706,6 +734,16 @@ impl Dock for TilesDock {
                                 let mut changed = false;
                                 let prev = map.clone();
 
+                                for object_id in map.selected_geometry_objects.clone() {
+                                    changed |=
+                                        crate::utils::apply_surface_source_to_geometry_object(
+                                            map,
+                                            object_id,
+                                            &selected_source,
+                                            Some(self.apply_tile_mode),
+                                        );
+                                }
+
                                 for (object_id, face_index) in map.selected_geometry_faces.clone() {
                                     changed |= crate::utils::apply_surface_source_to_geometry_face(
                                         map,
@@ -810,6 +848,12 @@ impl Dock for TilesDock {
                         if let Some(map) = project.get_map_mut(server_ctx) {
                             let mut changed = false;
                             let prev = map.clone();
+
+                            for object_id in map.selected_geometry_objects.clone() {
+                                changed |= crate::utils::clear_surface_source_on_geometry_object(
+                                    map, object_id,
+                                );
+                            }
 
                             for (object_id, face_index) in map.selected_geometry_faces.clone() {
                                 changed |= crate::utils::clear_surface_source_on_geometry_face(

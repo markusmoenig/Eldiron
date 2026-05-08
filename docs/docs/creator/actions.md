@@ -118,9 +118,21 @@ Edit selected direct 3D geometry objects. This action is available in 3D editing
 
 Extrude selected direct 3D geometry faces by the configured amount. Select one or more faces with the Sector / Face Tool, then use the action parameters to set the extrusion distance.
 
+Extrusion replaces the selected source face with a new cap and connected side faces, so the result stays usable as normal editable geometry instead of leaving an internal duplicate face behind.
+
 ### Face Cut Opening
 
 Cut a rectangular opening through the selected direct 3D geometry face and its opposite face. This creates front and back opening loops plus reveal faces, so walls and boxes keep real thickness around windows and doors.
+
+Use this action when a rectangular window or doorway is enough. For custom drawn shapes, use **Create Cutout** with a closed surface-line loop.
+
+### Create Cutout
+
+Convert a selected closed 3D surface-line loop into an opening through the host geometry object. Draw a loop on a selected face with the Linedef / Edge Tool, select the loop, then run Create Cutout.
+
+Create Cutout uses the actual loop shape, not only its bounding box. It rebuilds the selected front face and the opposite face around the loop, then creates reveal faces through the wall or floor thickness. This is the preferred action for custom windows, holes, vents, floor openings, and non-rectangular cuts.
+
+The host object needs an opposite face in the cut direction. If the object has old duplicate coplanar caps from earlier geometry, the action removes the overlapping cap face while building the cutout.
 
 ### Face Inset
 
@@ -145,6 +157,28 @@ Merge selected connected direct 3D geometry faces into one editable face.
 *Shortcut: Ctrl/Cmd + U*
 
 Subdivide selected direct 3D quad faces into smaller editable faces.
+
+### Create Ridge
+
+Convert selected 3D surface lines into persistent raised ridge geometry. Draw and select surface lines with the Linedef / Edge Tool, then set the ridge shape, width, and height in the action parameters.
+
+Ridges are generated as a separate Geometry Object and are selected after creation. By default they inherit the tile, color, tilegraph, or nodegraph source from the host face, which makes small surface details usable without manually painting each tiny face.
+
+Shapes:
+
+- **Box**: blocky rectangular ridge for lips, raised mortar, and retro tile-like detail.
+- **Triangle**: sharp triangular ridge for bevel-like decoration and carved-looking strokes.
+
+### Create Groove
+
+Convert selected 3D surface lines into persistent recessed groove geometry. It uses the same surface-line selection workflow and the same shape, width, and height parameters as Create Ridge.
+
+Grooves are the inverted version of ridges. They create depressed line detail for carved seams, block patterns, mortar cuts, and similar surface relief. Like ridges, they become persistent Geometry Objects and inherit the host face source by default.
+
+Shapes:
+
+- **Box**: a flat-bottom groove for mortar lines, seams, and block cuts.
+- **Triangle**: a sharp V-shaped groove for carved decoration.
 
 ### Duplicate
 

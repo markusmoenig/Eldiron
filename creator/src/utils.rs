@@ -642,6 +642,26 @@ pub fn apply_surface_source_to_geometry_face(
     }
 }
 
+pub fn apply_surface_source_to_geometry_object(
+    map: &mut Map,
+    object_id: Uuid,
+    source: &SurfaceApplySource,
+    tile_mode: Option<i32>,
+) -> bool {
+    let face_count = map
+        .geometry_objects
+        .iter()
+        .find(|object| object.id == object_id)
+        .map(|object| object.faces.len())
+        .unwrap_or(0);
+    let mut changed = false;
+    for face_index in 0..face_count {
+        changed |=
+            apply_surface_source_to_geometry_face(map, object_id, face_index, source, tile_mode);
+    }
+    changed
+}
+
 pub fn clear_surface_source_on_geometry_face(
     map: &mut Map,
     object_id: Uuid,
@@ -663,6 +683,20 @@ pub fn clear_surface_source_on_geometry_face(
     if changed {
         face.tile = None;
         face.tiles.clear();
+    }
+    changed
+}
+
+pub fn clear_surface_source_on_geometry_object(map: &mut Map, object_id: Uuid) -> bool {
+    let face_count = map
+        .geometry_objects
+        .iter()
+        .find(|object| object.id == object_id)
+        .map(|object| object.faces.len())
+        .unwrap_or(0);
+    let mut changed = false;
+    for face_index in 0..face_count {
+        changed |= clear_surface_source_on_geometry_face(map, object_id, face_index);
     }
     changed
 }

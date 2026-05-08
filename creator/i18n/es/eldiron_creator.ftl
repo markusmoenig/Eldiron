@@ -46,6 +46,7 @@ status_time_slider = Ajustar el tiempo del servidor.
 status_update_button = Actualizar aplicación.
 status_patreon_button = Visita la página de Patreon de Eldiron. Gracias por tu apoyo.
 status_help_button = Haz clic en cualquier elemento de la UI para visitar la Documentación en línea de Eldiron.
+status_create_cutout_failed = Crear recorte necesita al menos tres puntos de línea de superficie seleccionados en una cara 3D.
 ## Sidebar
 status_project_add_button = Añadir al proyecto.
 status_project_remove_button = Eliminar un elemento del proyecto.
@@ -97,6 +98,12 @@ action_create_center_vertex = Crear vértice central
 action_create_center_vertex_desc = Crea un nuevo vértice en el centro de los sectores seleccionados.
 action_create_linedef = Crear linedef
 action_create_linedef_desc = Crea una nueva linedef entre dos vértices.
+action_create_cutout = Crear recorte
+action_create_cutout_desc = Corta una abertura desde el bucle cerrado de líneas de superficie 3D seleccionado a través del objeto.
+action_create_groove = Crear ranura
+action_create_groove_desc = Convierte las líneas de superficie 3D seleccionadas en geometría hundida persistente.
+action_create_ridge = Crear relieve
+action_create_ridge_desc = Convierte las líneas de superficie 3D seleccionadas en geometría elevada persistente.
 action_create_sector = Crear sector
 action_create_sector_desc = Crea un nuevo sector/superficie a partir de los vértices seleccionados. Deben formar un bucle cerrado (lo ordenamos automáticamente).
 action_create_geometry_box = Crear caja
@@ -181,7 +188,7 @@ action_remap_tile_desc = Remapea los colores de la baldosa a la paleta
 
 # Tools
 tool_game = Herramienta de juego (A). Si el servidor está en marcha, los eventos de entrada se envían al juego.
-tool_linedef = Herramienta de linedef (L). Crear definiciones de línea y sectores.
+tool_linedef = Herramienta de linedef / arista (L). Crear definiciones de línea 2D y editar aristas de geometría 3D.
 tool_object = Herramienta de objeto (G). Selecciona y mueve objetos 3D editables directamente.
 tool_rect = Herramienta de rectángulo (R). Clic para dibujar la baldosa actual. Shift-clic para borrar. Alt/Opt-clic para tomarla del mapa.
 tool_sector = Herramienta de sector / cara (E). Selecciona sectores en 2D o caras en 3D.

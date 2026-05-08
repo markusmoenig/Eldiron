@@ -1060,6 +1060,12 @@ impl Editor {
             "Builder" => Some("docs/creator/tools/builder".into()),
             "Palette" => Some("docs/creator/tools/palette".into()),
             "Dungeon" => Some("docs/creator/tools/dungeon".into()),
+            "Object Tool" => Some("docs/creator/tools/object".into()),
+            "Vertex Tool" => Some("docs/creator/tools/vertex".into()),
+            "Linedef Tool" | "Linedef / Edge Tool" => Some("docs/creator/tools/linedef".into()),
+            "Sector Tool" | "Sector / Face Tool" => Some("docs/creator/tools/sector".into()),
+            "Rect Tool" => Some("docs/creator/tools/rect".into()),
+            "Entity Tool" => Some("docs/creator/tools/entity".into()),
             "DockDataEditor" | "DockDataEditorMax" | "Data" => {
                 Some(self.help_url_for_data_context())
             }

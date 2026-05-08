@@ -23,6 +23,298 @@ struct WorldLinedefHostData {
     face_origin: Vec3<f32>,
 }
 
+fn geometry_object_local_point(object: &rusterix::GeometryObject, world: Vec3<f32>) -> Vec3<f32> {
+    let m = object.transform;
+    let translation = Vec3::new(m[3][0], m[3][1], m[3][2]);
+    let rel = world - translation;
+    let axis_x = Vec3::new(m[0][0], m[0][1], m[0][2]);
+    let axis_y = Vec3::new(m[1][0], m[1][1], m[1][2]);
+    let axis_z = Vec3::new(m[2][0], m[2][1], m[2][2]);
+    let project = |axis: Vec3<f32>| {
+        let len_sq = axis.dot(axis);
+        if len_sq > 1e-6 {
+            rel.dot(axis) / len_sq
+        } else {
+            0.0
+        }
+    };
+    Vec3::new(project(axis_x), project(axis_y), project(axis_z))
+}
+
+fn geometry_object_world_vector_to_local(
+    object: &rusterix::GeometryObject,
+    vector: Vec3<f32>,
+) -> Vec3<f32> {
+    let origin = Vec3::zero();
+    geometry_object_local_point(object, origin + vector)
+        - geometry_object_local_point(object, origin)
+}
+
+fn geometry_face_normal(
+    object: &rusterix::GeometryObject,
+    face: &rusterix::GeometryFace,
+) -> Option<Vec3<f32>> {
+    if face.indices.len() < 3 {
+        return None;
+    }
+    let first = object.transform_point(*object.vertices.get(face.indices[0])?);
+    let mut normal = Vec3::<f32>::zero();
+    for index in 1..face.indices.len() - 1 {
+        let a = object.transform_point(*object.vertices.get(face.indices[index])?) - first;
+        let b = object.transform_point(*object.vertices.get(face.indices[index + 1])?) - first;
+        normal += a.cross(b);
+    }
+    normal.try_normalized()
+}
+
+fn ray_plane_hit(
+    ray_origin: Vec3<f32>,
+    ray_dir: Vec3<f32>,
+    plane_origin: Vec3<f32>,
+    plane_normal: Vec3<f32>,
+) -> Option<Vec3<f32>> {
+    let normal = plane_normal.try_normalized()?;
+    let dir = ray_dir.try_normalized()?;
+    let denom = dir.dot(normal);
+    if denom.abs() <= 1e-6 {
+        return None;
+    }
+    let t = (plane_origin - ray_origin).dot(normal) / denom;
+    (t.is_finite() && t >= 0.0).then_some(ray_origin + dir * t)
+}
+
+fn selected_geometry_surface_line_hit(
+    map: &Map,
+    server_ctx: &ServerContext,
+) -> Option<(Uuid, usize, Vec3<f32>)> {
+    let (object_id, face_index) = *map.selected_geometry_faces.first()?;
+    if !matches!(server_ctx.geo_hit, Some(GeoId::GeometryObject(hit_id)) if hit_id == object_id) {
+        return None;
+    }
+    let object = map
+        .geometry_objects
+        .iter()
+        .find(|object| object.id == object_id)?;
+    let face = object.faces.get(face_index)?;
+    let normal = geometry_face_normal(object, face)?;
+    let plane_origin = object.transform_point(*object.vertices.get(*face.indices.first()?)?);
+    let hit = server_ctx
+        .hover_ray_origin_3d
+        .zip(server_ctx.hover_ray_dir_3d)
+        .and_then(|(origin, dir)| ray_plane_hit(origin, dir, plane_origin, normal))
+        .unwrap_or(server_ctx.geo_hit_pos);
+    let snapped = server_ctx.snap_world_point_for_edit(map, hit);
+    let projected = snapped - normal * (snapped - plane_origin).dot(normal);
+    Some((object_id, face_index, projected))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SurfaceLineHit {
+    Point(usize),
+    Segment(usize),
+}
+
+fn distance_to_segment(point: Vec3<f32>, a: Vec3<f32>, b: Vec3<f32>) -> f32 {
+    let ab = b - a;
+    let len_sq = ab.dot(ab);
+    if len_sq <= 1e-6 {
+        return (point - a).magnitude();
+    }
+    let t = ((point - a).dot(ab) / len_sq).clamp(0.0, 1.0);
+    (point - (a + ab * t)).magnitude()
+}
+
+fn selected_geometry_surface_element_hit(
+    map: &Map,
+    server_ctx: &ServerContext,
+) -> Option<(Uuid, usize, Vec3<f32>, SurfaceLineHit)> {
+    let (object_id, face_index, point) = selected_geometry_surface_line_hit(map, server_ctx)?;
+    let object = map
+        .geometry_objects
+        .iter()
+        .find(|object| object.id == object_id)?;
+    let face = object.faces.get(face_index)?;
+    let step = 1.0 / map.subdivisions.max(1.0);
+    let threshold = (step * 0.32).clamp(0.08, 0.22);
+
+    let mut best_point = None;
+    for (point_index, surface_point) in face.surface_points.iter().enumerate() {
+        let world = object.transform_point(surface_point.position);
+        let dist = (world - point).magnitude();
+        if dist <= threshold
+            && best_point
+                .map(|(_, best_dist)| dist < best_dist)
+                .unwrap_or(true)
+        {
+            best_point = Some((point_index, dist));
+        }
+    }
+    if let Some((point_index, _)) = best_point {
+        return Some((
+            object_id,
+            face_index,
+            point,
+            SurfaceLineHit::Point(point_index),
+        ));
+    }
+
+    let mut best_segment = None;
+    for (segment_index, segment) in face.surface_segments.iter().enumerate() {
+        let Some(a) = face
+            .surface_points
+            .get(segment.start)
+            .map(|point| object.transform_point(point.position))
+        else {
+            continue;
+        };
+        let Some(b) = face
+            .surface_points
+            .get(segment.end)
+            .map(|point| object.transform_point(point.position))
+        else {
+            continue;
+        };
+        let dist = distance_to_segment(point, a, b);
+        if dist <= threshold
+            && best_segment
+                .map(|(_, best_dist)| dist < best_dist)
+                .unwrap_or(true)
+        {
+            best_segment = Some((segment_index, dist));
+        }
+    }
+    best_segment.map(|(segment_index, _)| {
+        (
+            object_id,
+            face_index,
+            point,
+            SurfaceLineHit::Segment(segment_index),
+        )
+    })
+}
+
+fn selected_surface_point_indices(map: &Map, object_id: Uuid, face_index: usize) -> Vec<usize> {
+    let mut selected = map
+        .selected_geometry_surface_points
+        .iter()
+        .filter_map(|(id, face, point)| (*id == object_id && *face == face_index).then_some(*point))
+        .collect::<Vec<_>>();
+    if let Some(object) = map
+        .geometry_objects
+        .iter()
+        .find(|object| object.id == object_id)
+        && let Some(face) = object.faces.get(face_index)
+    {
+        for (_, _, segment_index) in map
+            .selected_geometry_surface_segments
+            .iter()
+            .filter(|(id, face, _)| *id == object_id && *face == face_index)
+        {
+            if let Some(segment) = face.surface_segments.get(*segment_index) {
+                selected.push(segment.start);
+                selected.push(segment.end);
+            }
+        }
+    }
+    selected.sort_unstable();
+    selected.dedup();
+    selected
+}
+
+fn delete_selected_surface_lines(map: &mut Map) -> bool {
+    if map.selected_geometry_surface_points.is_empty()
+        && map.selected_geometry_surface_segments.is_empty()
+    {
+        return false;
+    }
+
+    let selections = map
+        .selected_geometry_surface_points
+        .iter()
+        .map(|(object_id, face_index, _)| (*object_id, *face_index))
+        .chain(
+            map.selected_geometry_surface_segments
+                .iter()
+                .map(|(object_id, face_index, _)| (*object_id, *face_index)),
+        )
+        .collect::<Vec<_>>();
+
+    let mut changed = false;
+    for (object_id, face_index) in selections {
+        let selected_points = selected_surface_point_indices(map, object_id, face_index);
+        let selected_segments = map
+            .selected_geometry_surface_segments
+            .iter()
+            .filter_map(|(id, face, segment)| {
+                (*id == object_id && *face == face_index).then_some(*segment)
+            })
+            .collect::<Vec<_>>();
+
+        let Some(object) = map
+            .geometry_objects
+            .iter_mut()
+            .find(|object| object.id == object_id)
+        else {
+            continue;
+        };
+        let Some(face) = object.faces.get_mut(face_index) else {
+            continue;
+        };
+
+        face.surface_segments
+            .retain_with_index(|segment_index, segment| {
+                !selected_segments.contains(&segment_index)
+                    && !selected_points.contains(&segment.start)
+                    && !selected_points.contains(&segment.end)
+            });
+        if !selected_points.is_empty() {
+            let mut remap = vec![usize::MAX; face.surface_points.len()];
+            let mut points = Vec::with_capacity(face.surface_points.len() - selected_points.len());
+            for (point_index, point) in face.surface_points.iter().cloned().enumerate() {
+                if selected_points.contains(&point_index) {
+                    continue;
+                }
+                remap[point_index] = points.len();
+                points.push(point);
+            }
+            for segment in &mut face.surface_segments {
+                if let Some(start) = remap.get(segment.start) {
+                    segment.start = *start;
+                }
+                if let Some(end) = remap.get(segment.end) {
+                    segment.end = *end;
+                }
+            }
+            face.surface_points = points;
+        }
+        changed = true;
+    }
+
+    map.selected_geometry_surface_points.clear();
+    map.selected_geometry_surface_segments.clear();
+    changed
+}
+
+trait RetainWithIndex<T> {
+    fn retain_with_index<F>(&mut self, f: F)
+    where
+        F: FnMut(usize, &T) -> bool;
+}
+
+impl<T> RetainWithIndex<T> for Vec<T> {
+    fn retain_with_index<F>(&mut self, mut f: F)
+    where
+        F: FnMut(usize, &T) -> bool,
+    {
+        let mut index = 0usize;
+        self.retain(|item| {
+            let keep = f(index, item);
+            index += 1;
+            keep
+        });
+    }
+}
+
 fn resolve_creation_surface_side(
     hit_pos: Vec3<f32>,
     surface_normal: Vec3<f32>,
@@ -74,9 +366,22 @@ pub struct LinedefTool {
     rectangle_undo_map: Map,
     rectangle_mode: bool,
     was_clicked: bool,
+    surface_line_start: Option<(Uuid, usize, usize, Vec3<f32>)>,
+    surface_line_drag: Option<SurfaceLineDrag>,
 
     hud: Hud,
     direct_geometry: crate::tools::geometry::GeometryTool,
+}
+
+#[derive(Clone, Debug)]
+struct SurfaceLineDrag {
+    object_id: Uuid,
+    face_index: usize,
+    start_hit: Vec3<f32>,
+    point_indices: Vec<usize>,
+    start_positions: Vec<Vec3<f32>>,
+    undo_map: Map,
+    changed: bool,
 }
 
 impl Tool for LinedefTool {
@@ -85,7 +390,7 @@ impl Tool for LinedefTool {
         Self: Sized,
     {
         Self {
-            id: TheId::named("Linedef Tool"),
+            id: TheId::named("Linedef / Edge Tool"),
             click_pos: Vec2::zero(),
             click_pos_3d: Vec3::zero(),
             click_ray_intersection_3d: None,
@@ -94,6 +399,8 @@ impl Tool for LinedefTool {
             rectangle_undo_map: Map::default(),
             rectangle_mode: false,
             was_clicked: false,
+            surface_line_start: None,
+            surface_line_drag: None,
 
             hud: Hud::new(HudMode::Linedef),
             direct_geometry: crate::tools::geometry::GeometryTool::new(),
@@ -146,6 +453,7 @@ impl Tool for LinedefTool {
                     map.curr_rectangle = None;
                     map.clear_temp();
                 }
+                self.surface_line_start = None;
 
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Map Selection Changed"),
@@ -167,6 +475,8 @@ impl Tool for LinedefTool {
                     region.map.clear_temp();
                 }
                 server_ctx.active_detail_surface = None;
+                self.surface_line_start = None;
+                self.surface_line_drag = None;
                 return true;
             }
             _ => {}
@@ -186,8 +496,359 @@ impl Tool for LinedefTool {
         if server_ctx.editor_view_mode != EditorViewMode::D2 {
             map.geometry_selection_mode = 3;
             map.curr_grid_pos = None;
-            map.curr_grid_pos_3d = None;
             map.clear_temp();
+            if let Some((_, _, _, start_point)) = self.surface_line_start {
+                map.curr_grid_pos_3d = Some(start_point);
+            }
+
+            match map_event {
+                MapDragged(_) => {
+                    let Some(drag) = self.surface_line_drag.as_mut() else {
+                        return self
+                            .direct_geometry
+                            .map_event(map_event, ui, ctx, map, server_ctx);
+                    };
+                    let Some((object_id, face_index, point)) =
+                        selected_geometry_surface_line_hit(map, server_ctx)
+                    else {
+                        return None;
+                    };
+                    if object_id != drag.object_id || face_index != drag.face_index {
+                        return None;
+                    }
+                    let step = 1.0 / map.subdivisions.max(1.0);
+                    let delta = point - drag.start_hit;
+                    let snapped_delta = Vec3::new(
+                        (delta.x / step).round() * step,
+                        (delta.y / step).round() * step,
+                        (delta.z / step).round() * step,
+                    );
+                    if snapped_delta.magnitude_squared() <= 0.0001 {
+                        return None;
+                    }
+                    let Some(object) = map
+                        .geometry_objects
+                        .iter_mut()
+                        .find(|object| object.id == object_id)
+                    else {
+                        return None;
+                    };
+                    let delta_local = geometry_object_world_vector_to_local(object, snapped_delta);
+                    let Some(face) = object.faces.get_mut(face_index) else {
+                        return None;
+                    };
+                    for (offset, point_index) in drag.point_indices.iter().enumerate() {
+                        let Some(surface_point) = face.surface_points.get_mut(*point_index) else {
+                            continue;
+                        };
+                        if let Some(start) = drag.start_positions.get(offset) {
+                            surface_point.position = *start + delta_local;
+                            drag.changed = true;
+                        }
+                    }
+                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    return None;
+                }
+                MapUp(_) => {
+                    let Some(drag) = self.surface_line_drag.take() else {
+                        return self
+                            .direct_geometry
+                            .map_event(map_event, ui, ctx, map, server_ctx);
+                    };
+                    if drag.changed {
+                        RUSTERIX.write().unwrap().set_overlay_dirty();
+                        return Some(ProjectUndoAtom::MapEdit(
+                            server_ctx.pc,
+                            Box::new(drag.undo_map),
+                            Box::new(map.clone()),
+                        ));
+                    }
+                    return None;
+                }
+                MapDelete => {
+                    self.surface_line_start = None;
+                    map.curr_grid_pos_3d = None;
+                    server_ctx.hover_cursor_3d = None;
+                    if !map.selected_geometry_surface_points.is_empty()
+                        || !map.selected_geometry_surface_segments.is_empty()
+                    {
+                        let old_map = map.clone();
+                        if delete_selected_surface_lines(map) {
+                            RUSTERIX.write().unwrap().set_overlay_dirty();
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Map Selection Changed"),
+                                TheValue::Empty,
+                            ));
+                            return Some(ProjectUndoAtom::MapEdit(
+                                server_ctx.pc,
+                                Box::new(old_map),
+                                Box::new(map.clone()),
+                            ));
+                        }
+                    }
+                }
+                MapEscape | MapKey('\u{1b}') => {
+                    self.surface_line_start = None;
+                    self.surface_line_drag = None;
+                    map.curr_grid_pos_3d = None;
+                    server_ctx.hover_cursor_3d = None;
+                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    return None;
+                }
+                _ => {}
+            }
+
+            if let MapClicked(_) = map_event
+                && let Some((object_id, face_index, point)) =
+                    selected_geometry_surface_line_hit(map, server_ctx)
+            {
+                if !ui.alt
+                    && let Some((start_object_id, start_face_index, start_index, _)) =
+                        self.surface_line_start
+                    && start_object_id == object_id
+                    && start_face_index == face_index
+                    && let Some((hit_object_id, hit_face_index, _, SurfaceLineHit::Point(end))) =
+                        selected_geometry_surface_element_hit(map, server_ctx)
+                    && hit_object_id == object_id
+                    && hit_face_index == face_index
+                {
+                    let old_map = map.clone();
+                    let mut added = false;
+                    if let Some(object) = map
+                        .geometry_objects
+                        .iter_mut()
+                        .find(|object| object.id == object_id)
+                    {
+                        let Some(face) = object.faces.get_mut(face_index) else {
+                            return None;
+                        };
+                        let Some(end_point) = face.surface_points.get(end) else {
+                            return None;
+                        };
+                        if start_index < face.surface_points.len()
+                            && end != start_index
+                            && (end_point.position - face.surface_points[start_index].position)
+                                .magnitude_squared()
+                                > 0.0001
+                        {
+                            face.surface_segments
+                                .push(rusterix::GeometrySurfaceSegment {
+                                    start: start_index,
+                                    end,
+                                    mode: rusterix::GeometrySurfaceSegmentMode::Line,
+                                });
+                            let segment_index = face.surface_segments.len().saturating_sub(1);
+                            for point_index in [start_index, end] {
+                                let selection = (object_id, face_index, point_index);
+                                if !map.selected_geometry_surface_points.contains(&selection) {
+                                    map.selected_geometry_surface_points.push(selection);
+                                }
+                            }
+                            let selection = (object_id, face_index, segment_index);
+                            if !map.selected_geometry_surface_segments.contains(&selection) {
+                                map.selected_geometry_surface_segments.push(selection);
+                            }
+                            map.changed = map.changed.wrapping_add(1);
+                            added = true;
+                        }
+                    }
+                    self.surface_line_start = None;
+                    map.curr_grid_pos_3d = None;
+                    server_ctx.hover_cursor_3d = None;
+                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
+                    if added {
+                        return Some(ProjectUndoAtom::MapEdit(
+                            server_ctx.pc,
+                            Box::new(old_map),
+                            Box::new(map.clone()),
+                        ));
+                    }
+                    return None;
+                }
+
+                if let Some((hit_object_id, hit_face_index, _, surface_hit)) =
+                    selected_geometry_surface_element_hit(map, server_ctx)
+                    && hit_object_id == object_id
+                    && hit_face_index == face_index
+                {
+                    match surface_hit {
+                        SurfaceLineHit::Point(point_index) => {
+                            let selection = (object_id, face_index, point_index);
+                            if ui.alt {
+                                map.selected_geometry_surface_points
+                                    .retain(|selected| *selected != selection);
+                            } else if !map.selected_geometry_surface_points.contains(&selection) {
+                                map.selected_geometry_surface_points.push(selection);
+                            }
+                        }
+                        SurfaceLineHit::Segment(segment_index) => {
+                            let selection = (object_id, face_index, segment_index);
+                            if ui.alt {
+                                map.selected_geometry_surface_segments
+                                    .retain(|selected| *selected != selection);
+                            } else if !map.selected_geometry_surface_segments.contains(&selection) {
+                                map.selected_geometry_surface_segments.push(selection);
+                            }
+                        }
+                    }
+                    self.surface_line_start = None;
+                    map.curr_grid_pos_3d = None;
+                    let point_indices = selected_surface_point_indices(map, object_id, face_index);
+                    if let Some(object) = map
+                        .geometry_objects
+                        .iter()
+                        .find(|object| object.id == object_id)
+                        && let Some(face) = object.faces.get(face_index)
+                    {
+                        let start_positions = point_indices
+                            .iter()
+                            .filter_map(|point_index| {
+                                face.surface_points
+                                    .get(*point_index)
+                                    .map(|surface_point| surface_point.position)
+                            })
+                            .collect::<Vec<_>>();
+                        self.surface_line_drag = Some(SurfaceLineDrag {
+                            object_id,
+                            face_index,
+                            start_hit: point,
+                            point_indices,
+                            start_positions,
+                            undo_map: map.clone(),
+                            changed: false,
+                        });
+                    }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
+                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    return None;
+                }
+
+                if ui.shift || ui.alt {
+                    return self
+                        .direct_geometry
+                        .map_event(map_event, ui, ctx, map, server_ctx);
+                }
+
+                if let Some((start_object_id, start_face_index, start_index, _)) =
+                    self.surface_line_start
+                    && start_object_id == object_id
+                    && start_face_index == face_index
+                {
+                    let old_map = map.clone();
+                    if let Some(object) = map
+                        .geometry_objects
+                        .iter_mut()
+                        .find(|object| object.id == object_id)
+                    {
+                        let local_end = geometry_object_local_point(object, point);
+                        let Some(face) = object.faces.get_mut(face_index) else {
+                            return None;
+                        };
+                        let end = face.surface_points.len();
+                        face.surface_points.push(rusterix::GeometrySurfacePoint {
+                            position: local_end,
+                            mode: rusterix::GeometrySurfacePointMode::Corner,
+                        });
+                        face.surface_segments
+                            .push(rusterix::GeometrySurfaceSegment {
+                                start: start_index,
+                                end,
+                                mode: rusterix::GeometrySurfaceSegmentMode::Line,
+                            });
+                        let segment_index = face.surface_segments.len().saturating_sub(1);
+                        for point_index in [start_index, end] {
+                            let selection = (object_id, face_index, point_index);
+                            if !map.selected_geometry_surface_points.contains(&selection) {
+                                map.selected_geometry_surface_points.push(selection);
+                            }
+                        }
+                        let selection = (object_id, face_index, segment_index);
+                        if !map.selected_geometry_surface_segments.contains(&selection) {
+                            map.selected_geometry_surface_segments.push(selection);
+                        }
+                        map.changed = map.changed.wrapping_add(1);
+                    }
+                    let end_point = point;
+                    let end_index = map
+                        .geometry_objects
+                        .iter()
+                        .find(|object| object.id == object_id)
+                        .and_then(|object| object.faces.get(face_index))
+                        .map(|face| face.surface_points.len().saturating_sub(1));
+                    if let Some(end_index) = end_index {
+                        self.surface_line_start =
+                            Some((object_id, face_index, end_index, end_point));
+                    } else {
+                        self.surface_line_start = None;
+                    }
+                    map.curr_grid_pos_3d = Some(point);
+                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    return Some(ProjectUndoAtom::MapEdit(
+                        server_ctx.pc,
+                        Box::new(old_map),
+                        Box::new(map.clone()),
+                    ));
+                }
+
+                let old_map = map.clone();
+                let mut start_index = None;
+                if let Some(object) = map
+                    .geometry_objects
+                    .iter_mut()
+                    .find(|object| object.id == object_id)
+                {
+                    let local_point = geometry_object_local_point(object, point);
+                    if let Some(face) = object.faces.get_mut(face_index) {
+                        let index = face.surface_points.len();
+                        face.surface_points.push(rusterix::GeometrySurfacePoint {
+                            position: local_point,
+                            mode: rusterix::GeometrySurfacePointMode::Corner,
+                        });
+                        let selection = (object_id, face_index, index);
+                        if !map.selected_geometry_surface_points.contains(&selection) {
+                            map.selected_geometry_surface_points.push(selection);
+                        }
+                        map.changed = map.changed.wrapping_add(1);
+                        start_index = Some(index);
+                    }
+                }
+                let Some(start_index) = start_index else {
+                    return None;
+                };
+                self.surface_line_start = Some((object_id, face_index, start_index, point));
+                map.curr_grid_pos_3d = Some(point);
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
+                RUSTERIX.write().unwrap().set_overlay_dirty();
+                return Some(ProjectUndoAtom::MapEdit(
+                    server_ctx.pc,
+                    Box::new(old_map),
+                    Box::new(map.clone()),
+                ));
+            }
+            if matches!(map_event, MapHover(_))
+                && let Some((start_object_id, start_face_index, _, _)) = self.surface_line_start
+            {
+                if let Some((object_id, face_index, point)) =
+                    selected_geometry_surface_line_hit(map, server_ctx)
+                    && object_id == start_object_id
+                    && face_index == start_face_index
+                {
+                    server_ctx.hover_cursor_3d = Some(point);
+                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                } else {
+                    server_ctx.hover_cursor_3d = None;
+                }
+            }
             return self
                 .direct_geometry
                 .map_event(map_event, ui, ctx, map, server_ctx);

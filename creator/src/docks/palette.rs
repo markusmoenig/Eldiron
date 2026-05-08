@@ -457,6 +457,14 @@ impl PaletteDock {
             } else {
                 let mut changed = false;
                 let geometry_source = crate::utils::SurfaceApplySource::Direct(source.clone());
+                for object_id in map.selected_geometry_objects.clone() {
+                    changed |= crate::utils::apply_surface_source_to_geometry_object(
+                        map,
+                        object_id,
+                        &geometry_source,
+                        Some(1),
+                    );
+                }
                 for (object_id, face_index) in map.selected_geometry_faces.clone() {
                     changed |= crate::utils::apply_surface_source_to_geometry_face(
                         map,
@@ -553,6 +561,9 @@ impl PaletteDock {
         if !cleared_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
             let mut changed = false;
             let prev = map.clone();
+            for object_id in map.selected_geometry_objects.clone() {
+                changed |= crate::utils::clear_surface_source_on_geometry_object(map, object_id);
+            }
             for (object_id, face_index) in map.selected_geometry_faces.clone() {
                 changed |=
                     crate::utils::clear_surface_source_on_geometry_face(map, object_id, face_index);

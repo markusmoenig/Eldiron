@@ -154,6 +154,24 @@ public class RMTKView       : MTKView
         renderer.needsUpdate()
     }
 
+    override public func rightMouseDown(with event: NSEvent) {
+        setMousePos(event)
+        _ = rust_right_touch_down(mousePos.x, mousePos.y)
+        renderer.needsUpdate()
+    }
+
+    override public func rightMouseDragged(with event: NSEvent) {
+        setMousePos(event)
+        _ = rust_right_touch_dragged(mousePos.x, mousePos.y)
+        renderer.needsUpdate()
+    }
+
+    override public func rightMouseUp(with event: NSEvent) {
+        setMousePos(event)
+        _ = rust_right_touch_up(mousePos.x, mousePos.y)
+        renderer.needsUpdate()
+    }
+
     override public func flagsChanged(with event: NSEvent) {
         //https://stackoverflow.com/questions/9268045/how-can-i-detect-that-the-shift-key-has-been-pressed
         if event.modifierFlags.contains(.shift) {

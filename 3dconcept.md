@@ -85,7 +85,7 @@ Keep this list updated while the new 3D path is changing quickly.
 ```text
 G             Object Tool
 V             Vertex Tool
-L             Linedef / edge tool
+L             Linedef / Edge Tool
 E             Sector / face tool
 M             Object gizmo: move
 S             Object gizmo: size
@@ -175,6 +175,8 @@ cracks
 raised ridges
 small bevel lips
 ```
+
+Surface line authoring belongs to the Linedef / Edge Tool. A face stores surface-local points plus segments. The first implementation uses straight line segments; later each segment can gain modes such as line, arc, or curve. Organic and modeling actions can then consume those segments to create ridges, grooves, cuts, arches, or other detail without reintroducing one-off builder tools.
 
 The performance rule is strict:
 

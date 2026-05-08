@@ -184,7 +184,22 @@ mod ffi {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn rust_right_touch_down(x: f32, y: f32) -> bool {
+        let mut ui = UI.lock().unwrap();
+        let mut ctx = CTX.lock().unwrap();
+        ui.right_mouse_down = true;
+        ui.context(x, y, &mut ctx)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn rust_touch_dragged(x: f32, y: f32) -> bool {
+        UI.lock()
+            .unwrap()
+            .touch_dragged(x, y, &mut CTX.lock().unwrap())
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_right_touch_dragged(x: f32, y: f32) -> bool {
         UI.lock()
             .unwrap()
             .touch_dragged(x, y, &mut CTX.lock().unwrap())
@@ -193,6 +208,13 @@ mod ffi {
     #[unsafe(no_mangle)]
     pub extern "C" fn rust_touch_up(x: f32, y: f32) -> bool {
         UI.lock().unwrap().touch_up(x, y, &mut CTX.lock().unwrap())
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_right_touch_up(x: f32, y: f32) -> bool {
+        let mut ui = UI.lock().unwrap();
+        ui.right_mouse_down = false;
+        ui.touch_up(x, y, &mut CTX.lock().unwrap())
     }
 
     #[unsafe(no_mangle)]

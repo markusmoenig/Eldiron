@@ -3174,6 +3174,23 @@ impl ToolList {
             );
             let selected_tile = rusterix.scene_handler.selected;
             let white_tile = rusterix.scene_handler.white;
+            let push_cube_marker = |rusterix: &mut rusterix::Rusterix,
+                                    marker_id: GeoId,
+                                    selected: bool,
+                                    center: Vec3<f32>,
+                                    size: f32,
+                                    opacity: f32,
+                                    layer: i32| {
+                let mut cube = scenevm::Poly3D::cube(
+                    marker_id,
+                    if selected { selected_tile } else { white_tile },
+                    center,
+                    size,
+                )
+                .with_opacity(opacity);
+                cube.layer = layer;
+                rusterix.scene_handler.overlay_3d.add_3d(cube);
+            };
             let push_handle_rect = |rusterix: &mut rusterix::Rusterix,
                                     outline_id_base: u32,
                                     hit_id: GeoId,
@@ -3441,28 +3458,22 @@ impl ToolList {
                         let is_selected = map
                             .selected_geometry_vertices
                             .contains(&(object.id, vertex_index));
-                        push_handle_rect(
+                        push_cube_marker(
                             &mut rusterix,
-                            0xE365_0000u32
-                                .wrapping_add(id_salt)
-                                .wrapping_add((vertex_index as u32) << 3),
                             GeoId::GeometryObject(object.id),
                             is_selected,
                             object.transform_point(*vertex) + view_nudge + cam_forward * -0.01,
-                            if is_selected { 0.28 } else { 0.18 },
-                            if is_selected {
-                                [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
-                            } else {
-                                [1.0, 1.0, 1.0, 0.86]
-                            },
-                            if is_selected { 0.92 } else { 0.62 },
+                            if is_selected { 0.16 } else { 0.11 },
+                            if is_selected { 0.94 } else { 0.66 },
+                            39,
                         );
                     }
                 }
 
                 if server_ctx.curr_map_tool_type == MapToolType::Linedef {
                     let mut edge_index = 0u32;
-                    for face in &object.faces {
+                    let mut surface_line_index = 0u32;
+                    for (face_index, face) in object.faces.iter().enumerate() {
                         for index in 0..face.indices.len() {
                             let Some(a) = object.vertices.get(face.indices[index]) else {
                                 continue;
@@ -3497,6 +3508,124 @@ impl ToolList {
                                 20,
                             );
                             edge_index = edge_index.wrapping_add(1);
+                        }
+
+                        let face_selected = map
+                            .selected_geometry_faces
+                            .contains(&(object.id, face_index));
+                        let normal = if face.indices.len() >= 3 {
+                            let first = object.transform_point(
+                                *object
+                                    .vertices
+                                    .get(face.indices[0])
+                                    .unwrap_or(&Vec3::zero()),
+                            );
+                            let mut normal = Vec3::<f32>::zero();
+                            for index in 1..face.indices.len().saturating_sub(1) {
+                                let Some(a) = object.vertices.get(face.indices[index]) else {
+                                    continue;
+                                };
+                                let Some(b) = object.vertices.get(face.indices[index + 1]) else {
+                                    continue;
+                                };
+                                normal += (object.transform_point(*a) - first)
+                                    .cross(object.transform_point(*b) - first);
+                            }
+                            normal.try_normalized().unwrap_or(cam_forward)
+                        } else {
+                            cam_forward
+                        };
+                        let mut drawn_surface_points = FxHashSet::default();
+                        for (segment_index, segment) in face.surface_segments.iter().enumerate() {
+                            let Some(a) = face
+                                .surface_points
+                                .get(segment.start)
+                                .map(|point| object.transform_point(point.position))
+                            else {
+                                continue;
+                            };
+                            let Some(b) = face
+                                .surface_points
+                                .get(segment.end)
+                                .map(|point| object.transform_point(point.position))
+                            else {
+                                continue;
+                            };
+                            let segment_selected = map
+                                .selected_geometry_surface_segments
+                                .contains(&(object.id, face_index, segment_index))
+                                || map.selected_geometry_surface_points.contains(&(
+                                    object.id,
+                                    face_index,
+                                    segment.start,
+                                ))
+                                || map.selected_geometry_surface_points.contains(&(
+                                    object.id,
+                                    face_index,
+                                    segment.end,
+                                ));
+                            let line_color = if segment_selected {
+                                [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0]
+                            } else {
+                                [1.0, 1.0, 1.0, 0.95]
+                            };
+                            let a = a + view_nudge + normal * 0.014;
+                            let b = b + view_nudge + normal * 0.014;
+                            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                GeoId::Unknown(
+                                    0xE390_0000u32
+                                        .wrapping_add(id_salt)
+                                        .wrapping_add((face_index as u32) << 10)
+                                        .wrapping_add(surface_line_index),
+                                ),
+                                a,
+                                b,
+                                line_color,
+                                24,
+                            );
+                            if face_selected {
+                                for (point_index, point) in [(segment.start, a), (segment.end, b)] {
+                                    drawn_surface_points.insert(point_index);
+                                    let point_selected = map
+                                        .selected_geometry_surface_points
+                                        .contains(&(object.id, face_index, point_index))
+                                        || segment_selected;
+                                    push_cube_marker(
+                                        &mut rusterix,
+                                        GeoId::GeometryObject(object.id),
+                                        point_selected,
+                                        point,
+                                        0.11,
+                                        if point_selected { 0.9 } else { 0.62 },
+                                        39,
+                                    );
+                                }
+                            }
+                            surface_line_index = surface_line_index.wrapping_add(1);
+                        }
+                        if face_selected {
+                            for (point_index, surface_point) in
+                                face.surface_points.iter().enumerate()
+                            {
+                                if drawn_surface_points.contains(&point_index) {
+                                    continue;
+                                }
+                                let point = object.transform_point(surface_point.position)
+                                    + view_nudge
+                                    + normal * 0.014;
+                                let point_selected = map
+                                    .selected_geometry_surface_points
+                                    .contains(&(object.id, face_index, point_index));
+                                push_cube_marker(
+                                    &mut rusterix,
+                                    GeoId::GeometryObject(object.id),
+                                    point_selected,
+                                    point,
+                                    0.11,
+                                    if point_selected { 0.9 } else { 0.62 },
+                                    39,
+                                );
+                            }
                         }
                     }
                 }
@@ -3604,26 +3733,22 @@ impl ToolList {
                         }
                     }
 
-                    for (selection_index, (_, vertex_index)) in map
+                    for (_, vertex_index) in map
                         .selected_geometry_vertices
                         .iter()
                         .filter(|(id, _)| *id == object.id)
-                        .enumerate()
                     {
                         let Some(vertex) = object.vertices.get(*vertex_index) else {
                             continue;
                         };
-                        push_handle_rect(
+                        push_cube_marker(
                             &mut rusterix,
-                            0xE360_0000u32
-                                .wrapping_add(id_salt)
-                                .wrapping_add((selection_index as u32) << 3),
                             GeoId::GeometryObject(object.id),
                             true,
                             object.transform_point(*vertex) + view_nudge + cam_forward * -0.012,
-                            0.24,
-                            [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0],
+                            0.16,
                             0.94,
+                            39,
                         );
                     }
                 }
@@ -4047,6 +4172,22 @@ impl ToolList {
                             index += 1;
                         }
                     }
+                }
+            }
+        } else if server_ctx.curr_map_tool_type == MapToolType::Linedef {
+            if let Some(start) = map.curr_grid_pos_3d {
+                let target = server_ctx.hover_cursor_3d.or_else(|| {
+                    matches!(server_ctx.geo_hit, Some(GeoId::GeometryObject(_)))
+                        .then_some(server_ctx.geo_hit_pos)
+                });
+                if let Some(target) = target {
+                    rusterix.scene_handler.tool_overlay_3d.add_hardware_line_3d(
+                        GeoId::Unknown(0xE3C0_0000),
+                        start + view_nudge + cam_forward * -0.012,
+                        target + view_nudge + cam_forward * -0.012,
+                        [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0],
+                        100,
+                    );
                 }
             }
         } else if DOCKMANAGER.read().unwrap().dock == "Organic" {

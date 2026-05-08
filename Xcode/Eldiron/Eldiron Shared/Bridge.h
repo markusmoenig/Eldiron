@@ -44,9 +44,15 @@ bool rust_hover(float x, float y);
 
 bool rust_touch_down(float x, float y);
 
+bool rust_right_touch_down(float x, float y);
+
 bool rust_touch_dragged(float x, float y);
 
+bool rust_right_touch_dragged(float x, float y);
+
 bool rust_touch_up(float x, float y);
+
+bool rust_right_touch_up(float x, float y);
 
 bool rust_touch_wheel(float x, float y);
 

@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use earcutr::earcut;
 use rusterix::prelude::*;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -237,6 +238,8 @@ pub(crate) fn fill_selected_geometry_vertices(map: &mut Map) -> bool {
             auto_uv: true,
             tile: None,
             tiles: FxHashMap::default(),
+            surface_points: Vec::new(),
+            surface_segments: Vec::new(),
         });
         new_selected_faces.push((object.id, face_index));
         changed = true;
@@ -337,6 +340,8 @@ fn push_geometry_face(
         auto_uv: true,
         tile: source.tile.clone(),
         tiles: FxHashMap::default(),
+        surface_points: Vec::new(),
+        surface_segments: Vec::new(),
     });
     face_index
 }
@@ -405,6 +410,572 @@ fn append_opening_ring(
     }
 
     Some([grid[1][1], grid[1][2], grid[2][2], grid[2][1]])
+}
+
+fn push_geometry_face_with_normal(
+    object: &mut rusterix::GeometryObject,
+    source: &rusterix::GeometryFace,
+    mut indices: Vec<usize>,
+    desired_normal: Vec3<f32>,
+) -> usize {
+    if indices.len() >= 3 {
+        let first = object.vertices[indices[0]];
+        let mut normal = Vec3::<f32>::zero();
+        for index in 1..indices.len() - 1 {
+            normal += (object.vertices[indices[index]] - first)
+                .cross(object.vertices[indices[index + 1]] - first);
+        }
+        if normal.dot(desired_normal) < 0.0 {
+            indices.reverse();
+        }
+    }
+    push_geometry_face(object, source, indices)
+}
+
+fn face_on_cut_plane(
+    object: &rusterix::GeometryObject,
+    face: &rusterix::GeometryFace,
+    plane_center: Vec3<f32>,
+    plane_normal: Vec3<f32>,
+) -> bool {
+    const PLANE_EPS: f32 = 0.0001;
+    let Some(face_center) = face_center(object, face) else {
+        return false;
+    };
+    if (face_center - plane_center).dot(plane_normal).abs() > PLANE_EPS {
+        return false;
+    }
+    let Some(face_normal) = local_face_normal(object, face) else {
+        return false;
+    };
+    face_normal.dot(plane_normal).abs() > 0.95
+}
+
+struct OpeningRing {
+    loop_indices: Vec<usize>,
+    loop_points: Vec<Vec3<f32>>,
+    loop_uvs: Vec<Vec2<f32>>,
+}
+
+fn polygon_area_2d(points: &[Vec2<f32>]) -> f32 {
+    let mut area = 0.0;
+    for index in 0..points.len() {
+        let current = points[index];
+        let next = points[(index + 1) % points.len()];
+        area += current.x * next.y - next.x * current.y;
+    }
+    area * 0.5
+}
+
+fn append_selected_cutout_ring(
+    object: &mut rusterix::GeometryObject,
+    source: &rusterix::GeometryFace,
+    outer_points: [Vec3<f32>; 4],
+    inner_points: &[Vec3<f32>],
+    desired_normal: Vec3<f32>,
+) -> Option<OpeningRing> {
+    if inner_points.len() < 3 {
+        return None;
+    }
+
+    let u = outer_points[1] - outer_points[0];
+    let v = outer_points[3] - outer_points[0];
+    let u_len_sq = u.magnitude_squared();
+    let v_len_sq = v.magnitude_squared();
+    if u_len_sq <= 1e-6 || v_len_sq <= 1e-6 {
+        return None;
+    }
+    let to_uv = |point: Vec3<f32>| -> Vec2<f32> {
+        let local = point - outer_points[0];
+        Vec2::new(local.dot(u) / u_len_sq, local.dot(v) / v_len_sq)
+    };
+
+    let outer_uv = vec![
+        Vec2::new(0.0, 0.0),
+        Vec2::new(1.0, 0.0),
+        Vec2::new(1.0, 1.0),
+        Vec2::new(0.0, 1.0),
+    ];
+    let outer_world = outer_points.to_vec();
+
+    let mut inner_uv = inner_points
+        .iter()
+        .map(|point| to_uv(*point))
+        .collect::<Vec<_>>();
+    let mut inner_world = inner_points.to_vec();
+    if polygon_area_2d(&inner_uv) > 0.0 {
+        inner_uv.reverse();
+        inner_world.reverse();
+    }
+
+    let mut all_uv = outer_uv;
+    all_uv.extend(inner_uv.iter().copied());
+    let mut all_world = outer_world;
+    all_world.extend(inner_world.iter().copied());
+
+    let flat = all_uv
+        .iter()
+        .flat_map(|point| [point.x as f64, point.y as f64])
+        .collect::<Vec<_>>();
+    let triangles = earcut(&flat, &[4], 2).ok()?;
+    if triangles.is_empty() {
+        return None;
+    }
+
+    let base = object.vertices.len();
+    object.vertices.extend(all_world);
+    let vertex_indices = (0..all_uv.len())
+        .map(|index| base + index)
+        .collect::<Vec<_>>();
+    for triangle in triangles.chunks_exact(3) {
+        push_geometry_face_with_normal(
+            object,
+            source,
+            vec![
+                vertex_indices[triangle[0]],
+                vertex_indices[triangle[1]],
+                vertex_indices[triangle[2]],
+            ],
+            desired_normal,
+        );
+    }
+
+    Some(OpeningRing {
+        loop_indices: vertex_indices[4..].to_vec(),
+        loop_points: inner_world,
+        loop_uvs: inner_uv,
+    })
+}
+
+fn edge_on_same_outer_boundary(a: Vec2<f32>, b: Vec2<f32>) -> bool {
+    const EPS: f32 = 0.08;
+    (a.x <= EPS && b.x <= EPS)
+        || (a.x >= 1.0 - EPS && b.x >= 1.0 - EPS)
+        || (a.y <= EPS && b.y <= EPS)
+        || (a.y >= 1.0 - EPS && b.y >= 1.0 - EPS)
+}
+
+fn snap_cutout_loop_to_boundary(
+    points: &mut [Vec3<f32>],
+    face_points: [Vec3<f32>; 4],
+) -> Option<Vec<Vec2<f32>>> {
+    const SNAP_EPS: f32 = 0.08;
+    let face_u = face_points[1] - face_points[0];
+    let face_v = face_points[3] - face_points[0];
+    let face_u_len_sq = face_u.magnitude_squared();
+    let face_v_len_sq = face_v.magnitude_squared();
+    if face_u_len_sq <= 1e-6 || face_v_len_sq <= 1e-6 {
+        return None;
+    }
+
+    let to_uv = |point: Vec3<f32>| -> Vec2<f32> {
+        let local = point - face_points[0];
+        Vec2::new(
+            local.dot(face_u) / face_u_len_sq,
+            local.dot(face_v) / face_v_len_sq,
+        )
+    };
+    let from_uv = |uv: Vec2<f32>| -> Vec3<f32> { face_points[0] + face_u * uv.x + face_v * uv.y };
+
+    let mut uvs = points.iter().map(|point| to_uv(*point)).collect::<Vec<_>>();
+    let mut min = Vec2::new(f32::INFINITY, f32::INFINITY);
+    let mut max = Vec2::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
+    for uv in &uvs {
+        min.x = min.x.min(uv.x);
+        min.y = min.y.min(uv.y);
+        max.x = max.x.max(uv.x);
+        max.y = max.y.max(uv.y);
+    }
+
+    let snap_min_x = min.x.abs() <= SNAP_EPS;
+    let snap_max_x = (1.0 - max.x).abs() <= SNAP_EPS;
+    let snap_min_y = min.y.abs() <= SNAP_EPS;
+    let snap_max_y = (1.0 - max.y).abs() <= SNAP_EPS;
+
+    for (index, uv) in uvs.iter_mut().enumerate() {
+        if snap_min_x && uv.x <= SNAP_EPS {
+            uv.x = 0.0;
+        }
+        if snap_max_x && uv.x >= 1.0 - SNAP_EPS {
+            uv.x = 1.0;
+        }
+        if snap_min_y && uv.y <= SNAP_EPS {
+            uv.y = 0.0;
+        }
+        if snap_max_y && uv.y >= 1.0 - SNAP_EPS {
+            uv.y = 1.0;
+        }
+        uv.x = uv.x.clamp(0.0, 1.0);
+        uv.y = uv.y.clamp(0.0, 1.0);
+        points[index] = from_uv(*uv);
+    }
+
+    Some(uvs)
+}
+
+fn selected_surface_segments_for_face(
+    selected_segments: &[(Uuid, usize, usize)],
+    selected_points: &[(Uuid, usize, usize)],
+    object_id: Uuid,
+    face_index: usize,
+    face: &rusterix::GeometryFace,
+) -> BTreeSet<usize> {
+    let mut segments = selected_segments
+        .iter()
+        .filter_map(|(selected_object_id, selected_face_index, segment_index)| {
+            (*selected_object_id == object_id && *selected_face_index == face_index)
+                .then_some(*segment_index)
+        })
+        .collect::<BTreeSet<_>>();
+
+    let point_selection = selected_points
+        .iter()
+        .filter_map(|(selected_object_id, selected_face_index, point_index)| {
+            (*selected_object_id == object_id && *selected_face_index == face_index)
+                .then_some(*point_index)
+        })
+        .collect::<BTreeSet<_>>();
+    if !point_selection.is_empty() {
+        for (segment_index, segment) in face.surface_segments.iter().enumerate() {
+            if point_selection.contains(&segment.start) || point_selection.contains(&segment.end) {
+                segments.insert(segment_index);
+            }
+        }
+    }
+
+    segments
+}
+
+fn selected_surface_point_indices_for_face(
+    selected_points: &[(Uuid, usize, usize)],
+    selected_segments: &[(Uuid, usize, usize)],
+    object_id: Uuid,
+    face_index: usize,
+    face: &rusterix::GeometryFace,
+) -> BTreeSet<usize> {
+    let mut points = selected_points
+        .iter()
+        .filter_map(|(selected_object_id, selected_face_index, point_index)| {
+            (*selected_object_id == object_id && *selected_face_index == face_index)
+                .then_some(*point_index)
+        })
+        .collect::<BTreeSet<_>>();
+    for (selected_object_id, selected_face_index, segment_index) in selected_segments {
+        if *selected_object_id != object_id || *selected_face_index != face_index {
+            continue;
+        }
+        if let Some(segment) = face.surface_segments.get(*segment_index) {
+            points.insert(segment.start);
+            points.insert(segment.end);
+        }
+    }
+    points
+}
+
+fn ordered_surface_loop_points(
+    face: &rusterix::GeometryFace,
+    segment_indices: &BTreeSet<usize>,
+) -> Option<Vec<Vec3<f32>>> {
+    if segment_indices.len() < 3 {
+        return None;
+    }
+
+    let mut nodes: Vec<Vec3<f32>> = Vec::new();
+    let mut edges: Vec<(usize, usize)> = Vec::new();
+    let node_for = |nodes: &mut Vec<Vec3<f32>>, point: Vec3<f32>| -> usize {
+        const EPS_SQ: f32 = 0.0001;
+        if let Some(index) = nodes
+            .iter()
+            .position(|existing| (*existing - point).magnitude_squared() <= EPS_SQ)
+        {
+            index
+        } else {
+            nodes.push(point);
+            nodes.len() - 1
+        }
+    };
+
+    for segment_index in segment_indices {
+        let segment = face.surface_segments.get(*segment_index)?;
+        if segment.start == segment.end {
+            continue;
+        }
+        let start = face.surface_points.get(segment.start)?.position;
+        let end = face.surface_points.get(segment.end)?.position;
+        let start_index = node_for(&mut nodes, start);
+        let end_index = node_for(&mut nodes, end);
+        if start_index != end_index {
+            edges.push((start_index, end_index));
+        }
+    }
+
+    let mut adjacency: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    for (a, b) in &edges {
+        adjacency.entry(*a).or_default().push(*b);
+        adjacency.entry(*b).or_default().push(*a);
+    }
+    if adjacency.len() < 3 || adjacency.values().any(|neighbors| neighbors.len() != 2) {
+        return None;
+    }
+
+    let start = *adjacency.keys().next()?;
+    let mut ordered = vec![start];
+    let mut previous = start;
+    let mut current = adjacency.get(&start)?.first().copied()?;
+    while current != start {
+        if ordered.contains(&current) {
+            return None;
+        }
+        ordered.push(current);
+        let neighbors = adjacency.get(&current)?;
+        let next = neighbors
+            .iter()
+            .copied()
+            .find(|neighbor| *neighbor != previous)?;
+        previous = current;
+        current = next;
+        if ordered.len() > adjacency.len() {
+            return None;
+        }
+    }
+    if ordered.len() != adjacency.len() {
+        return None;
+    }
+
+    let mut points = ordered
+        .iter()
+        .filter_map(|point_index| nodes.get(*point_index).copied())
+        .collect::<Vec<_>>();
+    points.dedup_by(|a, b| (*a - *b).magnitude_squared() <= 0.0001);
+    if points.len() < 3 {
+        return None;
+    }
+    Some(points)
+}
+
+fn ordered_surface_points_by_angle(
+    face: &rusterix::GeometryFace,
+    point_indices: &BTreeSet<usize>,
+    face_points: [Vec3<f32>; 4],
+) -> Option<Vec<Vec3<f32>>> {
+    if point_indices.len() < 3 {
+        return None;
+    }
+    let u = (face_points[1] - face_points[0]).try_normalized()?;
+    let normal = (face_points[1] - face_points[0])
+        .cross(face_points[3] - face_points[0])
+        .try_normalized()?;
+    let v = normal.cross(u).try_normalized()?;
+
+    let mut projected = Vec::new();
+    let mut center = Vec2::zero();
+    for point_index in point_indices {
+        let point = face.surface_points.get(*point_index)?.position;
+        let local = point - face_points[0];
+        let uv = Vec2::new(local.dot(u), local.dot(v));
+        center += uv;
+        projected.push((*point_index, point, uv));
+    }
+    center /= projected.len() as f32;
+    projected.sort_by(|a, b| {
+        let aa = (a.2.y - center.y).atan2(a.2.x - center.x);
+        let bb = (b.2.y - center.y).atan2(b.2.x - center.x);
+        aa.partial_cmp(&bb).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let points = projected
+        .iter()
+        .map(|(_, point, _)| *point)
+        .collect::<Vec<_>>();
+    (points.len() >= 3).then_some(points)
+}
+
+pub(crate) fn cutout_selected_surface_loop(map: &mut Map) -> bool {
+    if map.selected_geometry_surface_segments.is_empty()
+        && map.selected_geometry_surface_points.is_empty()
+    {
+        return false;
+    }
+
+    let selected_segments = map.selected_geometry_surface_segments.clone();
+    let selected_points = map.selected_geometry_surface_points.clone();
+    let mut new_selected_faces = Vec::new();
+    let mut changed = false;
+
+    for object in &mut map.geometry_objects {
+        let snapshot = object.clone();
+        for (face_index, face) in snapshot.faces.iter().enumerate() {
+            if face.indices.len() != 4 {
+                continue;
+            }
+            let segment_indices = selected_surface_segments_for_face(
+                &selected_segments,
+                &selected_points,
+                snapshot.id,
+                face_index,
+                face,
+            );
+            if segment_indices.is_empty() {
+                continue;
+            }
+            let mut loop_segments = selected_segments
+                .iter()
+                .filter_map(|(selected_object_id, selected_face_index, segment_index)| {
+                    (*selected_object_id == snapshot.id && *selected_face_index == face_index)
+                        .then_some(*segment_index)
+                })
+                .collect::<BTreeSet<_>>();
+            let mut inner_front = ordered_surface_loop_points(face, &loop_segments);
+            if inner_front.is_none() {
+                loop_segments = segment_indices.clone();
+                inner_front = ordered_surface_loop_points(face, &loop_segments);
+            }
+            let face_points = [
+                snapshot.vertices[face.indices[0]],
+                snapshot.vertices[face.indices[1]],
+                snapshot.vertices[face.indices[2]],
+                snapshot.vertices[face.indices[3]],
+            ];
+            if inner_front.is_none() && loop_segments.is_empty() {
+                let point_indices = selected_surface_point_indices_for_face(
+                    &selected_points,
+                    &selected_segments,
+                    snapshot.id,
+                    face_index,
+                    face,
+                );
+                inner_front = ordered_surface_points_by_angle(face, &point_indices, face_points);
+            }
+            let Some(mut inner_front) = inner_front else {
+                continue;
+            };
+            let Some(_) = snap_cutout_loop_to_boundary(&mut inner_front, face_points) else {
+                continue;
+            };
+
+            let Some(normal) = local_face_normal(&snapshot, face) else {
+                continue;
+            };
+            let Some(center) = face_center(&snapshot, face) else {
+                continue;
+            };
+
+            let mut opposite: Option<(usize, f32)> = None;
+            for (candidate_index, candidate) in snapshot.faces.iter().enumerate() {
+                if candidate_index == face_index || candidate.indices.len() != 4 {
+                    continue;
+                }
+                let Some(candidate_normal) = local_face_normal(&snapshot, candidate) else {
+                    continue;
+                };
+                if normal.dot(candidate_normal) > -0.95 {
+                    continue;
+                }
+                let Some(candidate_center) = face_center(&snapshot, candidate) else {
+                    continue;
+                };
+                let distance = (candidate_center - center).dot(normal).abs();
+                if distance <= 1e-4 {
+                    continue;
+                }
+                if opposite
+                    .as_ref()
+                    .is_none_or(|(_, best_distance)| distance > *best_distance)
+                {
+                    opposite = Some((candidate_index, distance));
+                }
+            }
+            let Some((opposite_index, _)) = opposite else {
+                continue;
+            };
+            let Some(opposite_face) = snapshot.faces.get(opposite_index).cloned() else {
+                continue;
+            };
+            let Some(opposite_center) = face_center(&snapshot, &opposite_face) else {
+                continue;
+            };
+            let depth = (opposite_center - center).dot(normal);
+            if depth.abs() <= 1e-4 {
+                continue;
+            }
+
+            let mut retained_faces = Vec::with_capacity(object.faces.len().saturating_sub(2));
+            for (index, existing) in object.faces.iter().cloned().enumerate() {
+                let remove = index == face_index
+                    || index == opposite_index
+                    || face_on_cut_plane(&snapshot, &existing, center, normal)
+                    || face_on_cut_plane(&snapshot, &existing, opposite_center, normal);
+                if !remove {
+                    retained_faces.push(existing);
+                }
+            }
+            object.faces = retained_faces;
+
+            let Some(front_ring) =
+                append_selected_cutout_ring(object, face, face_points, &inner_front, normal)
+            else {
+                *object = snapshot.clone();
+                continue;
+            };
+            let back_points = [
+                face_points[0] + normal * depth,
+                face_points[1] + normal * depth,
+                face_points[2] + normal * depth,
+                face_points[3] + normal * depth,
+            ];
+            let back_inner = front_ring
+                .loop_points
+                .iter()
+                .map(|point| *point + normal * depth)
+                .collect::<Vec<_>>();
+            let Some(back_ring) = append_selected_cutout_ring(
+                object,
+                &opposite_face,
+                back_points,
+                &back_inner,
+                -normal,
+            ) else {
+                *object = snapshot.clone();
+                continue;
+            };
+
+            for index in 0..front_ring.loop_indices.len() {
+                let next = (index + 1) % front_ring.loop_indices.len();
+                if edge_on_same_outer_boundary(
+                    front_ring.loop_uvs[index],
+                    front_ring.loop_uvs[next],
+                ) {
+                    continue;
+                }
+                let reveal_face_index = push_geometry_face_with_normal(
+                    object,
+                    face,
+                    vec![
+                        front_ring.loop_indices[index],
+                        front_ring.loop_indices[next],
+                        back_ring.loop_indices[next],
+                        back_ring.loop_indices[index],
+                    ],
+                    (front_ring.loop_points[next] - front_ring.loop_points[index])
+                        .cross(normal * depth)
+                        .try_normalized()
+                        .unwrap_or(normal),
+                );
+                new_selected_faces.push((object.id, reveal_face_index));
+            }
+            changed = true;
+            break;
+        }
+    }
+
+    if changed {
+        map.selected_geometry_faces = new_selected_faces;
+        map.selected_geometry_vertices.clear();
+        map.selected_geometry_surface_points.clear();
+        map.selected_geometry_surface_segments.clear();
+        sanitize_geometry_selection(map);
+    }
+    changed
 }
 
 pub(crate) fn cut_opening_selected_geometry_faces(map: &mut Map, width: f32, height: f32) -> bool {
@@ -558,6 +1129,9 @@ pub(crate) fn extrude_selected_geometry_faces(map: &mut Map, amount: f32) -> boo
         }
 
         let snapshot = object.clone();
+        let mut processed_faces = BTreeSet::new();
+        let mut added_faces = Vec::new();
+        let mut cap_added_indices = Vec::new();
         for face_index in face_indices {
             let Some(face) = snapshot.faces.get(face_index) else {
                 continue;
@@ -580,13 +1154,12 @@ pub(crate) fn extrude_selected_geometry_faces(map: &mut Map, amount: f32) -> boo
                 continue;
             }
 
-            let cap_face_index = object.faces.len();
             let mut cap_face = face.clone();
             cap_face.indices = cap_indices.clone();
             cap_face.uvs = face_uvs_for_indices(object, &cap_face.indices);
             cap_face.auto_uv = true;
-            object.faces.push(cap_face);
-            new_selected_faces.push((object.id, cap_face_index));
+            cap_added_indices.push(added_faces.len());
+            added_faces.push(cap_face);
 
             for index in 0..face.indices.len() {
                 let next = (index + 1) % face.indices.len();
@@ -602,9 +1175,30 @@ pub(crate) fn extrude_selected_geometry_faces(map: &mut Map, amount: f32) -> boo
                     auto_uv: true,
                     tile: face.tile.clone(),
                     tiles: FxHashMap::default(),
+                    surface_points: Vec::new(),
+                    surface_segments: Vec::new(),
                 });
             }
+            processed_faces.insert(face_index);
             changed = true;
+        }
+
+        if !added_faces.is_empty() {
+            let mut retained_faces = snapshot
+                .faces
+                .iter()
+                .cloned()
+                .enumerate()
+                .filter_map(|(index, face)| (!processed_faces.contains(&index)).then_some(face))
+                .collect::<Vec<_>>();
+            let retained_count = retained_faces.len();
+            new_selected_faces.extend(
+                cap_added_indices
+                    .iter()
+                    .map(|added_index| (object.id, retained_count + *added_index)),
+            );
+            retained_faces.extend(added_faces);
+            object.faces = retained_faces;
         }
     }
 
@@ -776,6 +1370,8 @@ pub(crate) fn inset_selected_geometry_faces(map: &mut Map, amount: f32) -> bool 
                     auto_uv: true,
                     tile: face.tile.clone(),
                     tiles: FxHashMap::default(),
+                    surface_points: Vec::new(),
+                    surface_segments: Vec::new(),
                 });
             }
             changed = true;

@@ -21,7 +21,7 @@ You can apply tiles **only** to sectors, for example via the **Apply Tile** butt
 
 To create a sector we use the [Linedef](creator/tools/linedef) tool.
 
-![Linedef Tool](linedef_tool.png)
+![Linedef / Edge Tool](linedef_tool.png)
 
 When you click on grid positions, the [Linedef](creator/tools/linedef) tool automatically creates new vertices and linedefs between those points. Clicking the starting vertex again closes the polygon.
 
@@ -55,12 +55,14 @@ The same tool names are reused, but they operate on the selected 3D object:
 
 - The **Object Tool** selects and transforms whole objects.
 - The **Vertex Tool** selects and edits object vertices.
-- The **Linedef Tool** selects and edits object edges.
+- The **Linedef / Edge Tool** selects and edits object edges, and draws surface lines on selected faces.
 - The **Sector / Face Tool** selects and edits object faces.
 
 This keeps the 2D editor vocabulary intact while giving the 3D path direct object, face, edge, and vertex editing.
 
 The 3D editor works with Geometry Objects. Existing 2D linedefs are shown as a faint floor-plane reference overlay, and the 2D map data can still be used for gameplay zones, triggers, and minimaps.
+
+Surface lines are the 3D path for drawn detail. Draw them on a selected face with the **Linedef / Edge Tool**, then use actions such as **Create Ridge**, **Create Groove**, or **Create Cutout** to turn those lines into persistent geometry or through-object openings.
 
 Press **Delete** to remove the currently selected geometry.
 

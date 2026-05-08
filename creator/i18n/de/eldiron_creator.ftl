@@ -46,6 +46,7 @@ status_time_slider = Die Serverzeit anpassen.
 status_update_button = Anwendung aktualisieren.
 status_patreon_button = Die Eldiron-Patreon-Seite besuchen. Danke für die Unterstützung.
 status_help_button = Auf ein beliebiges UI-Element klicken, um die Eldiron-Online-Dokumentation zu öffnen.
+status_create_cutout_failed = Ausschnitt erstellen benötigt mindestens drei ausgewählte Oberflächenlinien-Punkte auf einer 3D-Fläche.
 ## Sidebar
 status_project_add_button = Zum Projekt hinzufügen.
 status_project_remove_button = Ein Element aus dem Projekt entfernen.
@@ -97,6 +98,12 @@ action_create_center_vertex = Zentralen Vertex erzeugen
 action_create_center_vertex_desc = Erstellt einen neuen Vertex in der Mitte der ausgewählten Sektoren.
 action_create_linedef = Linedef erstellen
 action_create_linedef_desc = Erstellt eine neue Linedef zwischen zwei Vertices.
+action_create_cutout = Ausschnitt erstellen
+action_create_cutout_desc = Schneidet aus dem ausgewählten geschlossenen 3D-Oberflächenlinien-Loop eine Öffnung durch das Objekt.
+action_create_groove = Rille erstellen
+action_create_groove_desc = Wandelt ausgewählte 3D-Oberflächenlinien in dauerhaft vertiefte Rillen-Geometrie um.
+action_create_ridge = Grat erstellen
+action_create_ridge_desc = Wandelt ausgewählte 3D-Oberflächenlinien in dauerhaft erhöhte Grat-Geometrie um.
 action_create_sector = Sektor erstellen
 action_create_sector_desc = Erstellt einen neuen Sektor / eine neue Fläche aus den ausgewählten Vertices. Die Vertices müssen einen geschlossenen Loop bilden (wird automatisch sortiert).
 action_create_geometry_box = Box erstellen
@@ -181,7 +188,7 @@ action_remap_tile_desc = Ordnet die Farben der Kachel der Palette zu
 
 # Tools
 tool_game = Spiel-Tool (A). Wenn der Server läuft, werden Eingabeereignisse an das Spiel gesendet.
-tool_linedef = Linedef-Tool (L). Liniendefinitionen und Sektoren erstellen.
+tool_linedef = Linedef- / Kanten-Tool (L). 2D-Liniendefinitionen erstellen und 3D-Geometriekanten bearbeiten.
 tool_object = Objekt-Tool (G). Direkt bearbeitbare 3D-Objekte auswählen und verschieben.
 tool_rect = Rect-Tool (R). Klicken, um die aktuelle Kachel zu zeichnen. Shift-Klick zum Löschen. Alt/Opt-Klick zum Aufnehmen aus der Karte.
 tool_sector = Sektor-/Flächen-Tool (E). Wählt Sektoren in 2D oder Flächen in 3D.

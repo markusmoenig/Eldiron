@@ -10,7 +10,7 @@ This chapter and its sub-sections describe the tools available in **Eldiron Crea
 Some tools are specifically designed for **map editing** and display a common **HUD**. These include:
 - **Object Tool**
 - **Vertex Tool**
-- **Linedef Tool**
+- **Linedef / Edge Tool**
 - **Sector / Face Tool**
 - **Rect Tool**
 - **Organic Tool**
@@ -25,7 +25,7 @@ The tool strip also contains **mode toggles** below the main map tools:
 
 - **Geometry Objects**: Editable 3D objects made from vertices and faces *(edited via the Object Tool)*.
 - **Vertices**: Points that define the corners of 2D map geometry or 3D objects *(edited via the Vertex Tool)*.
-- **Linedefs**: Lines that connect vertices in 2D, or edges on 3D objects *(edited via the Linedef Tool)*.
+- **Linedefs / Edges**: Lines that connect vertices in 2D, edges on 3D objects, or face-local 3D surface lines for detail/cutout actions *(edited via the Linedef / Edge Tool)*.
 - **Sectors**: Areas enclosed by edges in 2D, or faces on 3D objects *(edited via the Sector / Face Tool)*.
 
 ### Navigation
@@ -55,7 +55,7 @@ In 3D geometry views you can also use:
 
 - `G`: Object Tool
 - `V`: Vertex Tool
-- `L`: Linedef / edge tool
+- `L`: Linedef / Edge Tool
 - `E`: Sector / face tool
 - `M`: Move object gizmo
 - `S`: Size object gizmo
@@ -89,7 +89,7 @@ In 3D views:
 
 - **Object Tool** selects whole 3D geometry objects.
 - **Vertex Tool** selects object vertices.
-- **Linedef Tool** selects object edges.
+- **Linedef / Edge Tool** selects object edges and draws face-local surface lines for ridges, grooves, and cutouts.
 - **Sector / Face Tool** selects object faces.
 
 This keeps the familiar 2D tool vocabulary while changing the 3D behavior to direct object, face, edge, and vertex editing.

@@ -49,7 +49,9 @@ impl Action for ApplyTile {
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        (!map.selected_sectors.is_empty() || !map.selected_geometry_faces.is_empty())
+        (!map.selected_sectors.is_empty()
+            || !map.selected_geometry_faces.is_empty()
+            || !map.selected_geometry_objects.is_empty())
             && DOCKMANAGER.read().unwrap().dock == "Tiles"
             && (server_ctx.curr_tile_source.is_some() || server_ctx.curr_tile_id.is_some())
     }
@@ -99,6 +101,14 @@ impl Action for ApplyTile {
                 .map(PixelSource::TileId)
                 .unwrap_or_else(|| source_value.clone());
             let geometry_source = crate::utils::SurfaceApplySource::Direct(geometry_source);
+            for object_id in map.selected_geometry_objects.clone() {
+                changed |= crate::utils::apply_surface_source_to_geometry_object(
+                    map,
+                    object_id,
+                    &geometry_source,
+                    Some(mode),
+                );
+            }
             for (object_id, face_index) in selected_geometry_faces {
                 changed |= crate::utils::apply_surface_source_to_geometry_face(
                     map,

@@ -19,7 +19,7 @@ The familiar map tools keep their names, but in a 3D camera they operate on Geom
 
 - **Object Tool (`G`)**: select, move, resize, create, duplicate, and delete whole objects.
 - **Vertex Tool (`V`)**: select and edit object vertices.
-- **Linedef Tool (`L`)**: select and edit object edges.
+- **Linedef / Edge Tool (`L`)**: select and edit object edges, and draw face-local surface lines for cutouts, ridges, and grooves.
 - **Sector / Face Tool (`E`)**: select and edit object faces.
 
 The 3D workflow is direct and mesh-like while using the same tool vocabulary as the 2D editor.
@@ -60,6 +60,7 @@ Useful face shortcuts:
 
 - **Cmd/Ctrl+E** runs the Face Extrude action. Set the extrusion amount in the action parameters.
 - **Face Cut Opening** cuts a rectangular window or doorway through the selected face and its opposite face.
+- **Create Cutout** cuts a selected closed surface-line loop through the host object.
 - **Cmd/Ctrl+U** runs the Face Subdivide action on selected quad faces.
 - **Cmd/Ctrl+I** runs the Face Inset action. Set the inset amount in the action parameters.
 - **Cmd/Ctrl+M** runs the Face Merge action on selected connected faces.
@@ -72,7 +73,7 @@ After deleting a face, switch to the **Vertex Tool** and press **F** to fill a s
 
 ## Edge Editing
 
-Use the **Linedef Tool (`L`)** in 3D to select edges.
+Use the **Linedef / Edge Tool (`L`)** in 3D to select edges.
 
 Useful edge shortcuts:
 
@@ -81,6 +82,22 @@ Useful edge shortcuts:
 - **[ / ]** moves selected edge vertices vertically by one grid step.
 
 Edge loops are most useful after subdividing quad faces, because they let you select a continuous row or column of edges quickly.
+
+The **Linedef / Edge Tool** can also draw surface-local line segments on a selected face. Select a face with the **Sector / Face Tool**, switch to **Linedef / Edge**, then click points on the face. The first click creates the first visible surface-line point, further clicks continue the polyline, clicking the first point closes the loop, and **Escape** ends the current polyline.
+
+Surface lines are editable guides until an action turns them into geometry. Select surface-line points or segments, drag them to adjust the shape on the face, and press **Delete** to remove them.
+
+## Surface Details And Cutouts
+
+Surface lines are the shared workflow for custom relief and holes:
+
+- **Create Ridge** turns selected surface lines into raised box-shaped or triangular strokes.
+- **Create Groove** turns selected surface lines into recessed box-shaped or triangular strokes.
+- **Create Cutout** turns a selected closed loop into an opening through the host object.
+
+Ridges and grooves become persistent Geometry Objects, are selected after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default. This makes small details like mortar lines, brick seams, carved floor patterns, and raised borders immediately visible without selecting and painting each tiny face.
+
+Create Cutout uses the actual closed loop shape. It rebuilds the front face and the opposite face around the opening, then creates reveal faces through the object thickness. Use it for custom windows, vents, floor holes, and non-rectangular openings.
 
 ## Vertex Editing
 
@@ -114,8 +131,9 @@ Faces can either repeat a tile in 1x1 world units or scale the source across the
 2. Resize and duplicate boxes with the **Object Tool**.
 3. Select faces with the **Sector / Face Tool** and extrude them to build connected walls, floors, ledges, and rooms.
 4. Subdivide faces with **Cmd/Ctrl+U** or inset them with **Cmd/Ctrl+I** when you need smaller editable regions.
-5. Use **Linedef** and **Vertex** tools for edge loops, cleanup, holes, and custom shapes.
-6. Paint faces with tiles, palette colors, tilegraphs, or nodegraphs.
+5. Use **Linedef / Edge** surface lines for ridges, grooves, custom cutouts, and surface relief.
+6. Use **Vertex** tools for boundary fill, cleanup, and custom shapes.
+7. Paint faces with tiles, palette colors, tilegraphs, or nodegraphs.
 
 This workflow is meant to stay realtime while editing.
 

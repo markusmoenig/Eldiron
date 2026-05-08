@@ -552,6 +552,7 @@ pub mod copy_vcode;
 pub mod create_center_vertex;
 pub mod create_geometry_box;
 pub mod create_linedef;
+pub mod create_ridge;
 pub mod create_sector;
 pub mod duplicate;
 pub mod duplicate_tile;

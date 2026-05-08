@@ -46,6 +46,7 @@ status_time_slider = 调整服务器时间
 status_update_button = 更新应用程序
 status_patreon_button = 访问 Eldiron 的 Patreon 页面，感谢支持。
 status_help_button = 点击任意 UI 元素以访问 Eldiron 在线文档。
+status_create_cutout_failed = 创建开口需要在同一个 3D 面上至少选择三个表面线点。
 ## Sidebar
 status_project_add_button = 添加到项目
 status_project_remove_button = 从项目中移除条目
@@ -97,6 +98,12 @@ action_create_center_vertex = 创建中心顶点
 action_create_center_vertex_desc = 在选中区域的中心创建一个新顶点。
 action_create_linedef = 创建线段
 action_create_linedef_desc = 在两个顶点之间创建一条新线段。
+action_create_cutout = 创建开口
+action_create_cutout_desc = 从选中的闭合 3D 表面线环切出贯穿对象的开口。
+action_create_groove = 创建凹槽
+action_create_groove_desc = 将选中的 3D 表面线转换为持久的凹陷几何体。
+action_create_ridge = 创建凸棱
+action_create_ridge_desc = 将选中的 3D 表面线转换为持久的凸起几何体。
 action_create_sector = 创建区域
 action_create_sector_desc = 从选中的顶点创建新的区域 / 表面。顶点必须构成闭合回路（我们会自动排序）。
 action_create_geometry_box = 创建盒体
@@ -181,7 +188,7 @@ action_remap_tile_desc = 将图块的颜色映射到调色板
 
 # Tools
 tool_game = 游戏工具 (A)。服务器运行时输入事件会发送到游戏
-tool_linedef = 线段工具 (L)。创建线段定义和区域
+tool_linedef = 线段 / 边工具 (L)。创建 2D 线段定义并编辑 3D 几何边
 tool_object = 对象工具 (G)。选择并移动可直接编辑的 3D 对象。
 tool_rect = 矩形工具 (R)。点击绘制当前图块，按住 Shift 点击删除。按住 Alt/Opt 点击可从地图拾取图块
 tool_sector = 区域 / 面工具 (E)。在 2D 中选择区域，在 3D 中选择面。

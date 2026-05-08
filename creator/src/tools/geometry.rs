@@ -846,6 +846,8 @@ fn fill_selected_geometry_vertices(map: &mut Map) -> bool {
             auto_uv: true,
             tile: None,
             tiles: FxHashMap::default(),
+            surface_points: Vec::new(),
+            surface_segments: Vec::new(),
         });
         new_selected_faces.push((object.id, face_index));
         changed = true;

@@ -28,6 +28,47 @@ pub struct GeometryFace {
     pub tile: Option<PixelSource>,
     #[serde(default)]
     pub tiles: FxHashMap<(i32, i32), PixelSource>,
+    #[serde(default)]
+    pub surface_points: Vec<GeometrySurfacePoint>,
+    #[serde(default)]
+    pub surface_segments: Vec<GeometrySurfaceSegment>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GeometrySurfacePointMode {
+    Corner,
+}
+
+impl Default for GeometrySurfacePointMode {
+    fn default() -> Self {
+        Self::Corner
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GeometrySurfaceSegmentMode {
+    Line,
+}
+
+impl Default for GeometrySurfaceSegmentMode {
+    fn default() -> Self {
+        Self::Line
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct GeometrySurfacePoint {
+    pub position: Vec3<f32>,
+    #[serde(default)]
+    pub mode: GeometrySurfacePointMode,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct GeometrySurfaceSegment {
+    pub start: usize,
+    pub end: usize,
+    #[serde(default)]
+    pub mode: GeometrySurfaceSegmentMode,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -160,6 +201,8 @@ fn face(indices: Vec<usize>) -> GeometryFace {
         auto_uv: true,
         tile: None,
         tiles: FxHashMap::default(),
+        surface_points: Vec::new(),
+        surface_segments: Vec::new(),
     }
 }
 

@@ -1178,6 +1178,7 @@ version = "0.9.8"
 dependencies = [
  "arboard",
  "codegridfx",
+ "earcutr",
  "eldiron-shared",
  "fontdue",
  "i18n-embed",

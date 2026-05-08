@@ -5,7 +5,7 @@ sidebar_position: 5
 
 The **Sector / Face Tool** (keyboard shortcut **'E'**) selects and edits sectors in 2D views and direct geometry faces in 3D views.
 
-In 2D, it is specifically designed for working with **sectors only**. Unlike the **Linedef Tool**, it does not include a creation mode, as sectors are automatically formed when a closed shape is created.
+In 2D, it is specifically designed for working with **sectors only**. Unlike the **Linedef / Edge Tool**, it does not include a creation mode, as sectors are automatically formed when a closed shape is created.
 
 In 3D, it selects faces on direct geometry objects.
 
@@ -24,6 +24,7 @@ In 3D, it selects faces on direct geometry objects.
 
 - **Cmd/Ctrl+E**: Run the Face Extrude action. Use the action parameters to set the extrusion amount.
 - **Face Cut Opening action**: Cut a rectangular opening through the selected face and its opposite face.
+- **Create Cutout action**: Cut a selected closed surface-line loop through the host object.
 - **Cmd/Ctrl+U**: Run the Face Subdivide action on selected quad faces.
 - **Cmd/Ctrl+I**: Run the Face Inset action. Use the action parameters to set the inset amount.
 - **Cmd/Ctrl+M**: Run the Face Merge action on selected connected faces.
@@ -57,6 +58,8 @@ Use sectors to create logical units, such as a house, and fill them with content
 ### 3D
 
 Use the Sector / Face Tool to edit faces on direct geometry objects. Select a face and press **Cmd/Ctrl+E** to run Face Extrude, **Cmd/Ctrl+U** to run Face Subdivide, **Cmd/Ctrl+I** to run Face Inset, **Cmd/Ctrl+M** to merge connected faces, or **T** to apply the current tile source.
+
+For custom surface details, select the host face first, then switch to the **Linedef / Edge Tool** to draw surface lines. Closed surface-line loops can become cutouts, while open or closed selected surface lines can become ridges or grooves.
 
 ### 2D and 3D
 

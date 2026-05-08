@@ -154,7 +154,10 @@ pub use crate::{
         dungeon::{
             DungeonCell, DungeonLayer, DungeonMap, DungeonTileKind, rebuild_generated_geometry,
         },
-        geometry_object::{GeometryFace, GeometryObject, GeometryObjectKind},
+        geometry_object::{
+            GeometryFace, GeometryObject, GeometryObjectKind, GeometrySurfacePoint,
+            GeometrySurfacePointMode, GeometrySurfaceSegment, GeometrySurfaceSegmentMode,
+        },
         light::CompiledLight,
         light::Light,
         light::LightType,

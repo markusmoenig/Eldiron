@@ -46,6 +46,7 @@ status_time_slider = 調整伺服器時間
 status_update_button = 更新應用程式
 status_patreon_button = 造訪 Eldiron 的 Patreon 頁面，感謝您的支持。
 status_help_button = 點擊任何 UI 元素以造訪 Eldiron 線上文件。
+status_create_cutout_failed = 建立開口需要在同一個 3D 面上至少選取三個表面線點。
 ## Sidebar
 status_project_add_button = 加入到專案
 status_project_remove_button = 從專案中移除項目
@@ -97,6 +98,12 @@ action_create_center_vertex = 建立中心頂點
 action_create_center_vertex_desc = 在所選區域的中心建立新頂點。
 action_create_linedef = 建立線段
 action_create_linedef_desc = 在兩個頂點之間建立新的線段。
+action_create_cutout = 建立開口
+action_create_cutout_desc = 從選取的閉合 3D 表面線環切出貫穿物件的開口。
+action_create_groove = 建立凹槽
+action_create_groove_desc = 將所選 3D 表面線轉換為持久的凹陷幾何體。
+action_create_ridge = 建立凸棱
+action_create_ridge_desc = 將所選 3D 表面線轉換為持久的凸起幾何體。
 action_create_sector = 建立區域
 action_create_sector_desc = 使用所選頂點建立新的區域／表面。頂點必須形成封閉迴圈（會自動排序）。
 action_create_geometry_box = 建立盒體
@@ -181,7 +188,7 @@ action_remap_tile_desc = 將圖塊的顏色對應到調色盤
 
 # Tools
 tool_game = 遊戲工具 (A)。伺服器運行時輸入事件會傳送到遊戲
-tool_linedef = 線段工具 (L)。建立線段定義與區域
+tool_linedef = 線段 / 邊工具 (L)。建立 2D 線段定義並編輯 3D 幾何邊
 tool_object = 物件工具 (G)。選取並移動可直接編輯的 3D 物件。
 tool_rect = 矩形工具 (R)。點擊繪製當前圖塊，按住 Shift 點擊刪除。按住 Alt/Opt 點擊可從地圖拾取圖塊
 tool_sector = 區域 / 面工具 (E)。在 2D 中選取區域，在 3D 中選取面。

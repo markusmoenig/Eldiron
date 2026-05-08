@@ -1,29 +1,50 @@
 ---
-title: "Linedef Tool"
+title: "Linedef / Edge Tool"
 sidebar_position: 4
 ---
 
-The **Linedef Tool** (keyboard shortcut **'L'**) allows you to **select, edit, and create linedefs** in the map.
+The **Linedef / Edge Tool** (keyboard shortcut **'L'**) allows you to **select, edit, and create linedefs** in 2D maps and **select/edit edges** on direct 3D geometry objects.
 
-It is specifically designed for working with **linedefs only**. It also includes **creation modes** for quickly building map geometry (sectors).
+In 2D views it works with **linedefs** and includes **creation modes** for quickly building map geometry (sectors).
 
-In 3D views, the Linedef Tool selects edges on direct geometry objects.
+In 3D views, the same tool becomes the edge/surface-line editing tool for direct geometry objects. It selects existing edges and can draw surface-local line segments on a selected face. These drawn lines are stored as editable points plus segments, so later actions can turn them into cuts, ridges, grooves, or other edge-based surface detail.
 
 ## Selection Modes
 
-- **Click**: Select a linedef.
-- **Shift + Click**: Select multiple linedefs.
-- **Alt (Mac: Option) + Click**: Remove linedefs from the selection.
-- **Click + Drag**: Move selected linedefs.
-- **Click + Drag (Empty Area)**: Select a rectangular area of linedefs.
-- **Delete Key**: Remove selected linedefs.
-- **Escape Key**: Clear the selection.
+- **Click**: Select a linedef in 2D or an edge in 3D.
+- **Shift + Click**: Add linedefs/edges to the selection.
+- **Alt (Mac: Option) + Click**: Remove linedefs/edges from the selection.
+- **Click + Drag**: Move selected linedefs in 2D.
+- **Click + Drag (Empty Area)**: Select a rectangular area of linedefs in 2D.
+- **Delete Key**: Remove selected linedefs in 2D.
+- **Escape Key**: Clear the selection in 2D/edge selection, or end the current 3D surface-line polyline while drawing.
 
 ## 3D Shortcuts
 
 - **X**: Split selected geometry edges.
 - **L**: Expand a selected edge into an edge loop on quad geometry.
 - **[ / ]**: Move selected edge vertices vertically by one grid step.
+
+## 3D Surface Lines
+
+To draw a surface line, select a face with the **Sector / Face Tool**, switch to the **Linedef / Edge Tool**, then click points on that face.
+
+- The first click starts a new polyline and immediately creates the first visible surface-line point.
+- Each next click creates a straight segment from the previous point.
+- Clicking the first point closes the loop and creates the final closing segment.
+- Press **Escape** to end the current polyline without clearing the surface-line selection.
+
+Click an existing surface-line point or segment to select it. Drag selected surface-line points or segments to move them on the selected face. Press **Delete** to remove the selected surface-line points or segments.
+
+Surface lines are editor geometry attached to the face. They do not cut or deform the mesh by themselves. Use actions to commit selected lines into real geometry:
+
+- **Create Cutout** converts a selected closed loop into an opening through the host object. The action uses the loop shape, rebuilds the front and opposite faces around it, and creates reveal faces through the thickness.
+- **Create Ridge** converts selected surface lines into persistent raised geometry.
+- **Create Groove** converts selected surface lines into persistent recessed geometry.
+
+Ridge and Groove can create box-shaped or triangular strokes. They generate a separate Geometry Object, select it after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default.
+
+Use surface lines for custom detail that should be drawn directly on a face: mortar lines, stone blocks, floor seams, decorative raised trim, grooves, vents, custom window cuts, or other geometry-first surface relief.
 
 ## Creation Mode (Manual)
 
