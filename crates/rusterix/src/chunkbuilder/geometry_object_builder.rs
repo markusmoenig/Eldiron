@@ -5,6 +5,7 @@ use uuid::Uuid;
 use vek::{Vec2, Vec3};
 
 const DEFAULT_GEOMETRY_TILE_ID: &str = "27826750-a9e7-4346-994b-fb318b238452";
+const TILED_FACE_RENDER_NUDGE: f32 = 0.0015;
 
 #[derive(Clone)]
 pub struct GeometryObjectBuilder;
@@ -95,6 +96,32 @@ impl GeometryObjectBuilder {
         None
     }
 
+    fn face_render_nudge(world_points: &[Vec3<f32>], object_center: Vec3<f32>) -> Vec3<f32> {
+        if world_points.len() < 3 {
+            return Vec3::zero();
+        }
+
+        let mut normal = Vec3::<f32>::zero();
+        let mut face_center = Vec3::<f32>::zero();
+        for point in world_points {
+            face_center += *point;
+        }
+        face_center /= world_points.len() as f32;
+
+        for index in 1..world_points.len() - 1 {
+            normal += (world_points[index] - world_points[0])
+                .cross(world_points[index + 1] - world_points[0]);
+        }
+        let Some(mut normal) = normal.try_normalized() else {
+            return Vec3::zero();
+        };
+
+        if normal.dot(face_center - object_center) < 0.0 {
+            normal = -normal;
+        }
+        normal * TILED_FACE_RENDER_NUDGE
+    }
+
     fn add_tiled_face(
         face: &crate::GeometryFace,
         assets: &Assets,
@@ -102,6 +129,7 @@ impl GeometryObjectBuilder {
         object_id: Uuid,
         face_uvs: &[Vec2<f32>],
         world_points: &[Vec3<f32>],
+        object_center: Vec3<f32>,
     ) -> bool {
         if face_uvs.len() < 3 || face_uvs.len() != world_points.len() {
             return false;
@@ -125,6 +153,7 @@ impl GeometryObjectBuilder {
             return false;
         }
 
+        let render_nudge = Self::face_render_nudge(world_points, object_center);
         let cells_x = (max_uv.x - min_uv.x).ceil().max(1.0) as i32;
         let cells_y = (max_uv.y - min_uv.y).ceil().max(1.0) as i32;
         for ty in 0..cells_y {
@@ -149,6 +178,7 @@ impl GeometryObjectBuilder {
                         vertices.clear();
                         break;
                     };
+                    let world = world + render_nudge;
                     vertices.push([world.x, world.y, world.z, 1.0]);
                 }
                 if vertices.len() != 4 {
@@ -192,6 +222,22 @@ impl ChunkBuilder for GeometryObjectBuilder {
             if !bbox.intersects(&chunk.bbox) || !chunk.bbox.contains(bbox.center()) {
                 continue;
             }
+            let object_center = {
+                let center = bbox.center();
+                let mut min_y = f32::INFINITY;
+                let mut max_y = f32::NEG_INFINITY;
+                for vertex in &object.vertices {
+                    let world = object.transform_point(*vertex);
+                    min_y = min_y.min(world.y);
+                    max_y = max_y.max(world.y);
+                }
+                let center_y = if min_y.is_finite() && max_y.is_finite() {
+                    (min_y + max_y) * 0.5
+                } else {
+                    0.0
+                };
+                Vec3::new(center.x, center_y, center.y)
+            };
 
             for face in &object.faces {
                 if face.indices.len() < 3 {
@@ -242,6 +288,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
                         object.id,
                         &face_uvs,
                         &world_points,
+                        object_center,
                     ) {
                         continue;
                     }

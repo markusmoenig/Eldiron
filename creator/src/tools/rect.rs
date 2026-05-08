@@ -16,7 +16,7 @@ pub struct RectTool {
     mode: i32,
     hud: Hud,
 
-    processed: FxHashSet<Vec2<i32>>,
+    processed: FxHashSet<RectPaintKey>,
 
     stroke_active: bool,
     stroke_changed: bool,
@@ -27,6 +27,14 @@ pub struct RectTool {
     line_axis_horizontal: Option<bool>,
     last_live_scene_sync_at: Option<Instant>,
     stroke_dirty_chunks: FxHashSet<(i32, i32)>,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+enum RectPaintKey {
+    Cell(i32, i32),
+    Terrain(i32, i32),
+    Sector(u32, i32, i32),
+    Geometry(Uuid, usize, i32, i32),
 }
 
 impl Tool for RectTool {
@@ -373,17 +381,18 @@ impl Tool for RectTool {
                                     false,
                                 );
                             }
-                            self.processed.insert(k);
+                            self.processed.insert(RectPaintKey::Cell(k.x, k.y));
                             self.last_2d_cell = Some(k);
                         }
                     }
                 } else {
                     self.compute_3d_tile(coord, map, ui, server_ctx);
                     self.begin_stroke_if_needed(map);
-                    if let Some(work_map) = self.stroke_work_map.as_mut()
-                        && let Some(key) =
-                            Self::apply_3d_paint_at_current_target(work_map, ui, server_ctx)
+                    if let Some(key) = Self::current_3d_paint_key(server_ctx)
                         && !self.processed.contains(&key)
+                        && let Some(work_map) = self.stroke_work_map.as_mut()
+                        && Self::apply_3d_paint_at_current_target(work_map, ui, server_ctx)
+                            .is_some()
                     {
                         self.stroke_changed = true;
                         Self::sync_live_stroke_throttled(
@@ -446,7 +455,8 @@ impl Tool for RectTool {
                             let step = 1.0;
                             let between = Self::cells_between(from, to);
                             for cell in between.iter().copied() {
-                                if self.processed.contains(&cell) {
+                                let paint_key = RectPaintKey::Cell(cell.x, cell.y);
+                                if self.processed.contains(&paint_key) {
                                     continue;
                                 }
                                 let changed = if use_terrain_paint {
@@ -475,7 +485,7 @@ impl Tool for RectTool {
                                         false,
                                     );
                                 }
-                                self.processed.insert(cell);
+                                self.processed.insert(paint_key);
                             }
                             self.last_2d_cell = Some(to);
                         }
@@ -483,10 +493,11 @@ impl Tool for RectTool {
                 } else {
                     self.compute_3d_tile(coord, map, ui, server_ctx);
                     self.begin_stroke_if_needed(map);
-                    if let Some(work_map) = self.stroke_work_map.as_mut()
-                        && let Some(key) =
-                            Self::apply_3d_paint_at_current_target(work_map, ui, server_ctx)
+                    if let Some(key) = Self::current_3d_paint_key(server_ctx)
                         && !self.processed.contains(&key)
+                        && let Some(work_map) = self.stroke_work_map.as_mut()
+                        && Self::apply_3d_paint_at_current_target(work_map, ui, server_ctx)
+                            .is_some()
                     {
                         self.stroke_changed = true;
                         Self::sync_live_stroke_throttled(
@@ -506,7 +517,13 @@ impl Tool for RectTool {
                         && let (Some(prev), Some(new_map)) =
                             (self.stroke_prev_map.take(), self.stroke_work_map.take())
                     {
-                        Self::sync_live_stroke(&new_map, server_ctx);
+                        Self::sync_live_stroke_throttled(
+                            &new_map,
+                            server_ctx,
+                            &mut self.last_live_scene_sync_at,
+                            &mut self.stroke_dirty_chunks,
+                            true,
+                        );
                         *map = new_map;
                         undo_atom = Some(ProjectUndoAtom::MapEdit(
                             server_ctx.pc,
@@ -1044,13 +1061,6 @@ impl RectTool {
         dirty_chunks
     }
 
-    fn sync_live_stroke(work_map: &Map, server_ctx: &ServerContext) {
-        let dirty_chunks = Self::live_stroke_dirty_chunks(work_map, server_ctx);
-        if !dirty_chunks.is_empty() {
-            crate::utils::editor_scene_incremental_map_update(work_map.clone(), dirty_chunks);
-        }
-    }
-
     fn sync_live_stroke_throttled(
         work_map: &Map,
         server_ctx: &ServerContext,
@@ -1121,12 +1131,27 @@ impl RectTool {
         out
     }
 
+    fn current_3d_paint_key(server_ctx: &ServerContext) -> Option<RectPaintKey> {
+        if let Some((x, z)) = server_ctx.rect_terrain_id {
+            return Some(RectPaintKey::Terrain(x, z));
+        }
+        if let Some((object_id, face_index)) = server_ctx.rect_geometry_face_3d {
+            let (x, y) = server_ctx.rect_tile_id_3d;
+            return Some(RectPaintKey::Geometry(object_id, face_index, x, y));
+        }
+        if let Some(sector_id) = server_ctx.rect_sector_id_3d {
+            let (x, y) = server_ctx.rect_tile_id_3d;
+            return Some(RectPaintKey::Sector(sector_id, x, y));
+        }
+        None
+    }
+
     fn apply_3d_paint_at_current_target(
         map: &mut Map,
-        ui: &TheUI,
+        ui: &mut TheUI,
         server_ctx: &ServerContext,
     ) -> Option<Vec2<i32>> {
-        let curr_tile_id = server_ctx.curr_tile_id;
+        let source = crate::utils::get_source(ui, server_ctx);
 
         if let Some((x, z)) = server_ctx.rect_terrain_id {
             let mut tiles = match map.properties.get("tiles") {
@@ -1142,15 +1167,12 @@ impl RectTool {
             if ui.shift {
                 tiles.remove(&(x, z));
                 blend_tiles.remove(&(x, z));
-            } else if let Some(tile_id) = curr_tile_id {
+            } else if let Some(source) = source.clone() {
                 if server_ctx.rect_blend_preset == VertexBlendPreset::Solid {
-                    tiles.insert((x, z), PixelSource::TileId(tile_id));
+                    tiles.insert((x, z), source);
                     blend_tiles.remove(&(x, z));
                 } else {
-                    blend_tiles.insert(
-                        (x, z),
-                        (server_ctx.rect_blend_preset, PixelSource::TileId(tile_id)),
-                    );
+                    blend_tiles.insert((x, z), (server_ctx.rect_blend_preset, source));
                     tiles.remove(&(x, z));
                 }
             } else {
@@ -1182,8 +1204,8 @@ impl RectTool {
 
             if ui.shift {
                 face.tiles.remove(&key);
-            } else if let Some(tile_id) = curr_tile_id {
-                face.tiles.insert(key, PixelSource::TileId(tile_id));
+            } else if let Some(source) = source.clone() {
+                face.tiles.insert(key, source);
             } else {
                 return None;
             }
@@ -1208,14 +1230,14 @@ impl RectTool {
             if ui.shift {
                 tiles.remove(&server_ctx.rect_tile_id_3d);
                 blend_tiles.remove(&server_ctx.rect_tile_id_3d);
-            } else if let Some(tile_id) = curr_tile_id {
+            } else if let Some(source) = source {
                 if server_ctx.rect_blend_preset == VertexBlendPreset::Solid {
-                    tiles.insert(server_ctx.rect_tile_id_3d, PixelSource::TileId(tile_id));
+                    tiles.insert(server_ctx.rect_tile_id_3d, source);
                     blend_tiles.remove(&server_ctx.rect_tile_id_3d);
                 } else {
                     blend_tiles.insert(
                         server_ctx.rect_tile_id_3d,
-                        (server_ctx.rect_blend_preset, PixelSource::TileId(tile_id)),
+                        (server_ctx.rect_blend_preset, source),
                     );
                     tiles.remove(&server_ctx.rect_tile_id_3d);
                 }

@@ -4,9 +4,24 @@
 
 ### Creator
 
-- Added the first topology-backed live 3D editing path, allowing vertex, linedef, and sector edits to update affected scene geometry directly instead of forcing full scene-manager rebuilds during normal drag editing.
+- Added the new direct 3D geometry editing path for Regions, centered on editable **Geometry Objects** instead of the older generated/procedural 3D authoring workflow.
+- New projects and newly-created Regions now start with a centered starter box so 3D editing has an immediate object to select, resize, subdivide, paint, and cut.
+- Added 3D object, face, edge, and vertex editing through the existing tool vocabulary:
+  - **Object Tool** selects and moves whole Geometry Objects.
+  - **Sector / Face Tool** selects and edits geometry faces.
+  - **Linedef / Edge Tool** selects geometry edges and draws face-local surface lines.
+  - **Vertex Tool** selects and edits geometry vertices.
+- Added direct 3D face actions for creating and editing blockout geometry, including Create Box, Face Extrude, Face Subdivide, Face Inset, Face Merge, Face Delete, and Cut Opening.
+- Added face-local surface detail drawing with persistent point/segment data, including line previews, Escape-to-finish behavior, cube-style point handles, selectable segments, and closed-loop support.
+- Added **Create Ridge** and **Create Groove** actions that convert selected surface lines into persistent raised or recessed geometry, with box and triangle stroke profiles and inherited host-surface material sources.
+- Added polygon cutouts from closed surface-line loops, allowing window/door-style openings through Geometry Objects without relying on hardcoded arch/window actions.
+- Added direct 3D tile and color application for Geometry Objects, including object-wide material assignment, face material assignment, Rect Tool face painting, palette-color sources, and support for tile/color/tilegraph/nodegraph sources through the same tile-source path.
+- Added 3D Rect Tool hover previews and live painting on geometry faces, with nudged render geometry to avoid z-fighting against the host surface.
+- Added 3D editing HUD updates for the current selection, including localized status text that shows the available object, face, edge, vertex, and surface-detail shortcuts.
+- Added dedicated 3D HUD slots for object **MOVE / SIZE** modes instead of reusing tile/material icon slots.
+- Added 3D camera shortcut and control cleanup for Iso, Orbit, and FirstP editing views, including arrow-key target panning in 3D editing cameras.
 - Added FirstP fly navigation for the Creator: `Space` toggles fly mode, pointer position controls looking/turning, `WASD` moves through the level, and `Escape` exits back to normal editing.
-- Added live Rect Tool painting previews in 2D/3D so tile strokes appear while dragging instead of only after mouse release.
+- Added live Rect Tool painting previews in 2D and the new direct 3D path so tile/color strokes appear while dragging instead of only after mouse release.
 <!--- Added the first 2D procedural dungeon builder via the new **Build Procedural** action and `[procedural]` region settings, starting with the `connected_rooms` generator.-->
 - Added procedural tile metadata in **Edit Tile Meta**, allowing tiles to be tagged by style, kind, and weight for generated maps.
 - Added procedural generation support for entrance/exit marker tiles, weighted item spawns such as doors, and weighted character spawns such as dungeon monsters.
@@ -23,8 +38,8 @@
 
 ### Creator
 
-- Improved 3D editor responsiveness in dense scenes by coalescing redundant hover/drag events, processing only the newest queued geometry drag, and throttling expensive overlay refreshes.
-- Improved Rect Tool and Organic Tool responsiveness by using topology-aware dirty updates and avoiding full geometry overlay rebuilds during common paint drags.
+- Improved direct 3D editor responsiveness by coalescing redundant hover/drag events, processing only the newest queued geometry drag, and throttling expensive overlay refreshes.
+- Improved Rect Tool and Organic Tool responsiveness by using dirty chunk updates and avoiding full geometry overlay rebuilds during common paint drags.
 - Improved tile-paint commits so tile-only strokes dirty affected scene chunks instead of forcing a full scene-manager rebuild.
 
 ### Client
@@ -33,6 +48,8 @@
 
 ## Documentation
 
+- Rewrote the 3D editing documentation around the new direct Geometry Object workflow, including object, face, edge, vertex, surface-line, ridge/groove, cutout, Rect painting, camera, and shortcut behavior.
+- Renamed the 3D-facing tool documentation to match the new shared terminology, including **Sector / Face Tool** and **Linedef / Edge Tool**.
 - Added documentation for the new 2D procedural dungeon workflow, including **Build Procedural**, `[procedural]` region settings, procedural tile metadata, door/item generation, character generation, and regeneration behavior.
 
 ## Bug Fixes
@@ -40,7 +57,11 @@
 ### Creator
 
 - Fixed Rect Tool and Organic Tool previews so they remain visible when editing geometry is hidden, without forcing the rest of the editing geometry overlay back on.
-- Fixed the 3D Rect Tool paint preview so the preview rectangle follows drag painting again while still using throttled overlay updates.
+- Fixed the direct 3D Rect Tool paint preview so the preview rectangle follows drag painting again while still using throttled overlay updates.
+- Fixed 3D Rect Tool side-face painting so painted tiles are visible without z-fighting against the selected Geometry Object face.
+- Fixed face editing so moving and resizing faces preserves visible UV/checker material feedback after the edit commits.
+- Fixed direct 3D selection transitions so switching into face editing with no selected face no longer leaves a stale broken gizmo/object-move state.
+- Fixed cutout generation so closed surface-line loops create real through-openings instead of capped recesses.
 - Fixed Organic Tool terrain painting undo so terrain brush strokes can be reverted like surface strokes.
 
 ---

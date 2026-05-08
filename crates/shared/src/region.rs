@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use codegridfx::Module;
+use rusterix::GeometryObject;
 pub use rusterix::map::*;
 use theframework::prelude::*;
 
@@ -66,11 +67,13 @@ impl PartialEq for Region {
 
 impl Region {
     pub fn new() -> Self {
+        let map = Self::starter_map();
+
         Self {
             id: Uuid::new_v4(),
             name: "New Region".to_string(),
 
-            map: Map::default(),
+            map,
             config: String::new(),
             module: default_region_module(),
             source: String::new(),
@@ -90,6 +93,16 @@ impl Region {
             editing_iso_scale: None,
             editing_orbit_distance: None,
         }
+    }
+
+    fn starter_map() -> Map {
+        let mut map = Map::default();
+        map.geometry_objects.push(GeometryObject::box_from_bounds(
+            "Starter Box",
+            Vec3::new(-1.0, 0.0, -1.0),
+            Vec3::new(1.0, 1.0, 1.0),
+        ));
+        map
     }
 
     /// Create a region from json.

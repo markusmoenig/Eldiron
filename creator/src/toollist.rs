@@ -4173,6 +4173,84 @@ impl ToolList {
                         }
                     }
                 }
+            } else if let Some((object_id, face_index)) = server_ctx.rect_geometry_face_3d
+                && let Some(object) = map
+                    .geometry_objects
+                    .iter()
+                    .find(|object| object.id == object_id)
+                && let Some(face) = object.faces.get(face_index)
+                && face.indices.len() >= 3
+            {
+                let points = face
+                    .indices
+                    .iter()
+                    .filter_map(|vertex_index| object.vertices.get(*vertex_index).copied())
+                    .collect::<Vec<_>>();
+                if points.len() == face.indices.len() {
+                    let first = points[0];
+                    let mut normal = Vec3::<f32>::zero();
+                    for index in 1..points.len().saturating_sub(1) {
+                        normal += (points[index] - first).cross(points[index + 1] - first);
+                    }
+                    if let Some(local_normal) = normal.try_normalized() {
+                        let abs = Vec3::new(
+                            local_normal.x.abs(),
+                            local_normal.y.abs(),
+                            local_normal.z.abs(),
+                        );
+                        let to_uv = |point: Vec3<f32>| {
+                            if abs.y >= abs.x && abs.y >= abs.z {
+                                Vec2::new(point.x, point.z)
+                            } else if abs.x >= abs.z {
+                                Vec2::new(point.z, point.y)
+                            } else {
+                                Vec2::new(point.x, point.y)
+                            }
+                        };
+                        let from_uv = |uv: Vec2<f32>| {
+                            if abs.y >= abs.x && abs.y >= abs.z {
+                                Vec3::new(uv.x, first.y, uv.y)
+                            } else if abs.x >= abs.z {
+                                Vec3::new(first.x, uv.y, uv.x)
+                            } else {
+                                Vec3::new(uv.x, uv.y, first.z)
+                            }
+                        };
+                        let min_uv = points
+                            .iter()
+                            .map(|point| to_uv(*point))
+                            .fold(Vec2::broadcast(f32::INFINITY), |acc, uv| {
+                                Vec2::new(acc.x.min(uv.x), acc.y.min(uv.y))
+                            });
+                        let tile = server_ctx.rect_tile_id_3d;
+                        let tile_min = min_uv + Vec2::new(tile.0 as f32, tile.1 as f32);
+                        let local_corners = [
+                            from_uv(tile_min),
+                            from_uv(tile_min + Vec2::new(1.0, 0.0)),
+                            from_uv(tile_min + Vec2::new(1.0, 1.0)),
+                            from_uv(tile_min + Vec2::new(0.0, 1.0)),
+                        ];
+                        let world_corners =
+                            local_corners.map(|point| object.transform_point(point) + view_nudge);
+                        let world_normal = {
+                            let origin = object.transform_point(Vec3::zero());
+                            (object.transform_point(local_normal) - origin)
+                                .try_normalized()
+                                .unwrap_or(local_normal)
+                        };
+                        for i in 0..4 {
+                            rusterix.scene_handler.tool_overlay_3d.add_line_3d(
+                                GeoId::Unknown(0xE3D0_0000u32.wrapping_add(i as u32)),
+                                white,
+                                world_corners[i],
+                                world_corners[(i + 1) % 4],
+                                thickness,
+                                world_normal,
+                                100,
+                            );
+                        }
+                    }
+                }
             }
         } else if server_ctx.curr_map_tool_type == MapToolType::Linedef {
             if let Some(start) = map.curr_grid_pos_3d {

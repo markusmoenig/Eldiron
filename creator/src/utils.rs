@@ -1,4 +1,4 @@
-use crate::editor::{CONFIGEDITOR, PALETTE, RUSTERIX, SCENEMANAGER};
+use crate::editor::{CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER};
 use crate::prelude::*;
 use codegridfx::{Module, ModuleType};
 use rusteria::{RenderBuffer, Rusteria};
@@ -203,6 +203,13 @@ pub fn set_code(
 
 /// Returns the currently active source
 pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<PixelSource> {
+    if DOCKMANAGER.read().unwrap().dock == "Palette" {
+        let palette = PALETTE.read().unwrap();
+        if palette.get_current_color().is_some() {
+            return Some(PixelSource::PaletteIndex(palette.current_index));
+        }
+    }
+
     if let Some(source) = server_ctx.curr_tile_source {
         return Some(match source {
             TileSource::SingleTile(id) => PixelSource::TileId(id),
