@@ -85,7 +85,7 @@ Edge loops are most useful after subdividing quad faces, because they let you se
 
 The **Linedef / Edge Tool** can also draw surface-local line segments on a selected face. Select a face with the **Sector / Face Tool**, switch to **Linedef / Edge**, then click points on the face. The first click creates the first visible surface-line point, further clicks continue the polyline, clicking the first point closes the loop, and **Escape** ends the current polyline.
 
-Surface lines are editable guides until an action turns them into geometry. Select surface-line points or segments, drag them to adjust the shape on the face, and press **Delete** to remove them.
+Surface lines are editable guides until an action turns them into geometry. Click a surface-line point or segment to select the whole connected shape, use **Shift** to add shapes, use **Alt/Option** to remove shapes, drag the selection to adjust it on the face, and press **Delete** to remove it.
 
 ## Surface Details And Cutouts
 
@@ -93,11 +93,14 @@ Surface lines are the shared workflow for custom relief and holes:
 
 - **Create Ridge** turns selected surface lines into raised box-shaped or triangular strokes.
 - **Create Groove** turns selected surface lines into recessed box-shaped or triangular strokes.
-- **Create Cutout** turns a selected closed loop into an opening through the host object.
+- **Create Cutout** turns selected closed loops into openings through the host object.
+- **Duplicate Surface Detail** repeats the selected guide shape on the same face using face-local offsets.
 
 Ridges and grooves become persistent Geometry Objects, are selected after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default. This makes small details like mortar lines, brick seams, carved floor patterns, and raised borders immediately visible without selecting and painting each tiny face.
 
-Create Cutout uses the actual closed loop shape. It rebuilds the front face and the opposite face around the opening, then creates reveal faces through the object thickness. Use it for custom windows, vents, floor holes, and non-rectangular openings.
+Create Cutout uses the actual closed loop shapes. It rebuilds the front face and the opposite face around the openings, then creates reveal faces through the object thickness. The guide loops remain selected after the cutout, so they can be moved, duplicated, reused, or deleted explicitly. Surface guides can also be reselected on the rebuilt surface ring, which makes repeated custom windows, vents, floor holes, and non-rectangular openings possible without redrawing the original shape.
+
+The status bar follows the current 3D selection. When a surface detail is selected it lists the available relief actions, and when the selected detail is a closed loop it also lists Create Cutout.
 
 ## Vertex Editing
 

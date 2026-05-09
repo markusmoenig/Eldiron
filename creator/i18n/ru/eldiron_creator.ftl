@@ -47,6 +47,8 @@ status_update_button = Обновить приложение.
 status_patreon_button = Посетить страницу Eldiron на Patreon. Спасибо за поддержку.
 status_help_button = Нажмите любой элемент интерфейса, чтобы открыть онлайн-документацию Eldiron.
 status_create_cutout_failed = Для выреза нужно выбрать минимум три точки линии поверхности на одной 3D-грани.
+status_create_cutout_open_loop = Для выреза нужны замкнутые контуры линий поверхности. Сначала завершите или замкните выбранную направляющую.
+status_create_cutout_multiple_faces = Для выреза пока нужны все выбранные направляющие контуры на одной базовой поверхности.
 ## Sidebar
 status_project_add_button = Добавить в проект.
 status_project_remove_button = Удалить элемент из проекта.
@@ -110,6 +112,8 @@ action_create_geometry_box = Создать коробку
 action_create_geometry_box_desc = Создает напрямую редактируемый 3D-объект-коробку.
 action_duplicate_tile = Дублировать тайл
 action_duplicate_tile_desc = Дублирует выбранный тайл.
+action_duplicate_surface_detail = Дублировать деталь поверхности
+action_duplicate_surface_detail_desc = Дублирует выбранные направляющие 3D-линий поверхности на исходной грани.
 action_edit_geometry = Редактировать геометрию
 action_edit_geometry_desc = Изменить позицию и размер выбранной 3D-геометрии.
 action_face_extrude = Выдавить грань
@@ -204,6 +208,8 @@ status_geometry_object_selection = Объект выбран: M = перемес
 status_geometry_face_selection = Грань выбрана: Cmd/Ctrl+E = экструдировать, Cmd/Ctrl+U = подразделить, Cmd/Ctrl+I = inset, T = применить тайл, +/- = выдавить/вдавить, [] = вверх/вниз, Delete = удалить.
 status_geometry_vertex_selection = Вершина выбрана: F = заполнить, X = разделить ребро, L = петля ребер, [] = вверх/вниз, Delete = удалить.
 status_geometry_edge_selection = Ребро выбрано: F = заполнить, X = разделить ребро, L = петля ребер, [] = вверх/вниз, Delete = удалить.
+status_geometry_surface_selection = Деталь поверхности выбрана: Create Ridge/Groove, Cmd/Ctrl+Shift+D = дублировать, перетащить = переместить, Delete = удалить, Esc = закончить рисование.
+status_geometry_surface_loop_selection = Замкнутая деталь поверхности выбрана: Create Cutout, Create Ridge/Groove, Cmd/Ctrl+Shift+D = дублировать, перетащить = переместить, Delete = удалить.
 organic_dock_title = Органические кисти
 organic_toggle_active = Активно
 organic_toggle_deactive = Неактивно

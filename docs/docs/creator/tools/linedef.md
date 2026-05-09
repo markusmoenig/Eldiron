@@ -34,15 +34,18 @@ To draw a surface line, select a face with the **Sector / Face Tool**, switch to
 - Clicking the first point closes the loop and creates the final closing segment.
 - Press **Escape** to end the current polyline without clearing the surface-line selection.
 
-Click an existing surface-line point or segment to select it. Drag selected surface-line points or segments to move them on the selected face. Press **Delete** to remove the selected surface-line points or segments.
+Click an existing surface-line point or segment to select the whole connected surface-detail shape. This also works on rebuilt cutout surface rings, so a guide from an earlier opening can be selected again even after choosing another face on the same object. Surface guide points remain visible in the Linedef / Edge Tool even when their host face is not the active face. Use **Shift + Click** to add another connected shape to the selection, or **Alt/Option + Click** to remove one. Drag the selected shape to move it on the selected face. Press **Delete** to remove the selected surface-line points or segments.
+
+When the selected shape is a closed loop, the status bar shows that **Create Cutout** is available. Open or closed selected shapes can be used for **Create Ridge** and **Create Groove**.
 
 Surface lines are editor geometry attached to the face. They do not cut or deform the mesh by themselves. Use actions to commit selected lines into real geometry:
 
-- **Create Cutout** converts a selected closed loop into an opening through the host object. The action uses the loop shape, rebuilds the front and opposite faces around it, and creates reveal faces through the thickness.
+- **Create Cutout** converts selected closed loops into openings through the host object. The action uses the loop shapes, rebuilds the front and opposite faces around them, and creates reveal faces through the thickness.
 - **Create Ridge** converts selected surface lines into persistent raised geometry.
 - **Create Groove** converts selected surface lines into persistent recessed geometry.
+- **Duplicate Surface Detail** duplicates the selected guide shape on the same face with face-local offsets.
 
-Ridge and Groove can create box-shaped or triangular strokes. They generate a separate Geometry Object, select it after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default.
+Create Cutout keeps the guide loops selected after openings are created, so shapes can be reused or duplicated instead of redrawn. The guides remain selectable on the rebuilt ring, which supports several matching cutouts on one object. Ridge and Groove can create box-shaped or triangular strokes. They generate a separate Geometry Object, select it after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default.
 
 Use surface lines for custom detail that should be drawn directly on a face: mortar lines, stone blocks, floor seams, decorative raised trim, grooves, vents, custom window cuts, or other geometry-first surface relief.
 

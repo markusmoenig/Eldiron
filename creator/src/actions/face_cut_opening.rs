@@ -1,5 +1,6 @@
 use crate::actions::geometry_face_ops::{
-    cut_opening_selected_geometry_faces, cutout_selected_surface_loop,
+    CutoutLoopValidation, cut_opening_selected_geometry_faces, cutout_selected_surface_loop,
+    validate_selected_cutout_loops,
 };
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
@@ -57,6 +58,33 @@ impl Action for CreateCutout {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        match validate_selected_cutout_loops(map) {
+            CutoutLoopValidation::Valid { loops } => {
+                let _ = loops;
+            }
+            CutoutLoopValidation::Empty => {
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    fl!("status_create_cutout_failed"),
+                ));
+                return None;
+            }
+            CutoutLoopValidation::MultipleFaces => {
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    fl!("status_create_cutout_multiple_faces"),
+                ));
+                return None;
+            }
+            CutoutLoopValidation::OpenLoop => {
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    fl!("status_create_cutout_open_loop"),
+                ));
+                return None;
+            }
+        }
+
         let prev = map.clone();
         if !cutout_selected_surface_loop(map) {
             ctx.ui.send(TheEvent::SetStatusText(

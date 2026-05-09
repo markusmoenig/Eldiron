@@ -47,6 +47,8 @@ status_update_button = Update application.
 status_patreon_button = Visit the Eldiron Patreon page. Thanks for your support.
 status_help_button = Click on any UI element to visit the Eldiron Online Documentation.
 status_create_cutout_failed = Create Cutout needs at least three selected surface-line points on one 3D face.
+status_create_cutout_open_loop = Create Cutout needs closed surface-line loops. Finish or close the selected guide first.
+status_create_cutout_multiple_faces = Create Cutout currently needs all selected guide loops on one host surface.
 ## Sidebar
 status_project_add_button = Add to the project.
 status_project_remove_button = Remove an item from the project.
@@ -112,6 +114,8 @@ action_create_geometry_box = Create Box
 action_create_geometry_box_desc = Create a directly editable 3D box object.
 action_duplicate_tile = Duplicate Tile
 action_duplicate_tile_desc = Duplicates the currently selected tile.
+action_duplicate_surface_detail = Duplicate Surface Detail
+action_duplicate_surface_detail_desc = Duplicates selected 3D surface-line guide geometry on the host face.
 action_edit_geometry = Edit Geometry
 action_edit_geometry_desc = Edit selected 3D geometry position and size.
 action_face_extrude = Face Extrude
@@ -220,6 +224,8 @@ status_geometry_object_selection = Object selected: M = Move, S = Size, Cmd/Ctrl
 status_geometry_face_selection = Face selected: Cmd/Ctrl+E = Extrude, Cmd/Ctrl+U = Subdivide, Cmd/Ctrl+I = Inset, T = Apply Tile, +/- = Push/Pull, [] = Move Up/Down, Delete = Delete.
 status_geometry_vertex_selection = Vertex selected: F = Fill, X = Split Edge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.
 status_geometry_edge_selection = Edge selected: F = Fill, X = Split Edge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.
+status_geometry_surface_selection = Surface detail selected: Create Ridge/Groove, Cmd/Ctrl+Shift+D = Duplicate, drag = Move, Delete = Delete, Esc = Finish Drawing.
+status_geometry_surface_loop_selection = Closed surface detail selected: Create Cutout, Create Ridge/Groove, Cmd/Ctrl+Shift+D = Duplicate, drag = Move, Delete = Delete.
 organic_dock_title = Organic Brushes
 organic_toggle_active = Active
 organic_toggle_deactive = Deactive

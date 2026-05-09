@@ -47,6 +47,8 @@ status_update_button = Anwendung aktualisieren.
 status_patreon_button = Die Eldiron-Patreon-Seite besuchen. Danke für die Unterstützung.
 status_help_button = Auf ein beliebiges UI-Element klicken, um die Eldiron-Online-Dokumentation zu öffnen.
 status_create_cutout_failed = Ausschnitt erstellen benötigt mindestens drei ausgewählte Oberflächenlinien-Punkte auf einer 3D-Fläche.
+status_create_cutout_open_loop = Ausschnitt erstellen benötigt geschlossene Oberflächenlinien-Loops. Die ausgewählte Hilfslinie zuerst beenden oder schließen.
+status_create_cutout_multiple_faces = Ausschnitt erstellen benötigt derzeit alle ausgewählten Hilfslinien-Loops auf einer Host-Oberfläche.
 ## Sidebar
 status_project_add_button = Zum Projekt hinzufügen.
 status_project_remove_button = Ein Element aus dem Projekt entfernen.
@@ -110,6 +112,8 @@ action_create_geometry_box = Box erstellen
 action_create_geometry_box_desc = Erstellt ein direkt bearbeitbares 3D-Box-Objekt.
 action_duplicate_tile = Kachel duplizieren
 action_duplicate_tile_desc = Dupliziert die aktuell ausgewählte Kachel.
+action_duplicate_surface_detail = Oberflächendetail duplizieren
+action_duplicate_surface_detail_desc = Dupliziert ausgewählte 3D-Oberflächenlinien-Guides auf der Trägerfläche.
 action_edit_geometry = Geometrie bearbeiten
 action_edit_geometry_desc = Bearbeitet Position und Größe der ausgewählten 3D-Geometrie.
 action_face_extrude = Flächen extrudieren
@@ -204,6 +208,8 @@ status_geometry_object_selection = Objekt ausgewählt: M = Verschieben, S = Grö
 status_geometry_face_selection = Fläche ausgewählt: Cmd/Ctrl+E = Extrudieren, Cmd/Ctrl+U = Unterteilen, Cmd/Ctrl+I = Inset, T = Kachel anwenden, +/- = Drücken/Ziehen, [] = Hoch/Runter, Delete = Löschen.
 status_geometry_vertex_selection = Vertex ausgewählt: F = Füllen, X = Kante teilen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
 status_geometry_edge_selection = Kante ausgewählt: F = Füllen, X = Kante teilen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
+status_geometry_surface_selection = Oberflächendetail ausgewählt: Ridge/Groove erstellen, Cmd/Ctrl+Shift+D = Duplizieren, Ziehen = Verschieben, Delete = Löschen, Esc = Zeichnen beenden.
+status_geometry_surface_loop_selection = Geschlossenes Oberflächendetail ausgewählt: Cutout erstellen, Ridge/Groove erstellen, Cmd/Ctrl+Shift+D = Duplizieren, Ziehen = Verschieben, Delete = Löschen.
 organic_dock_title = Organische Pinsel
 organic_toggle_active = Aktiv
 organic_toggle_deactive = Deaktiv

@@ -8,6 +8,15 @@ fn geometry_selection_status_text(map: &Map, server_ctx: &ServerContext) -> Opti
         return None;
     }
 
+    if !map.selected_geometry_surface_points.is_empty()
+        || !map.selected_geometry_surface_segments.is_empty()
+    {
+        if selected_surface_detail_is_closed_loop(map) {
+            return Some(fl!("status_geometry_surface_loop_selection"));
+        }
+        return Some(fl!("status_geometry_surface_selection"));
+    }
+
     if !map.selected_geometry_faces.is_empty() {
         return Some(fl!("status_geometry_face_selection"));
     }
@@ -30,6 +39,46 @@ fn geometry_selection_status_text(map: &Map, server_ctx: &ServerContext) -> Opti
         | MapToolType::Linedef => Some(fl!("status_geometry_empty_selection")),
         _ => None,
     }
+}
+
+fn selected_surface_detail_is_closed_loop(map: &Map) -> bool {
+    if map.selected_geometry_surface_segments.len() < 3 {
+        return false;
+    }
+
+    let (object_id, face_index, _) = match map.selected_geometry_surface_segments.first() {
+        Some(selection) => *selection,
+        None => return false,
+    };
+    if !map
+        .selected_geometry_surface_segments
+        .iter()
+        .all(|(id, face, _)| *id == object_id && *face == face_index)
+    {
+        return false;
+    }
+
+    let Some(object) = map
+        .geometry_objects
+        .iter()
+        .find(|object| object.id == object_id)
+    else {
+        return false;
+    };
+    let Some(face) = object.faces.get(face_index) else {
+        return false;
+    };
+
+    let mut degrees: FxHashMap<usize, usize> = FxHashMap::default();
+    for (_, _, segment_index) in &map.selected_geometry_surface_segments {
+        let Some(segment) = face.surface_segments.get(*segment_index) else {
+            return false;
+        };
+        *degrees.entry(segment.start).or_insert(0) += 1;
+        *degrees.entry(segment.end).or_insert(0) += 1;
+    }
+
+    degrees.len() >= 3 && degrees.values().all(|degree| *degree == 2)
 }
 
 pub struct MapEditor {

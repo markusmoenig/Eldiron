@@ -128,11 +128,19 @@ Use this action when a rectangular window or doorway is enough. For custom drawn
 
 ### Create Cutout
 
-Convert a selected closed 3D surface-line loop into an opening through the host geometry object. Draw a loop on a selected face with the Linedef / Edge Tool, select the loop, then run Create Cutout.
+Convert one or more selected closed 3D surface-line loops into openings through the host geometry object. Draw loops on a selected face with the Linedef / Edge Tool, click any point or segment on a loop to select the connected shape, use **Shift** to add more loops, then run Create Cutout.
 
-Create Cutout uses the actual loop shape, not only its bounding box. It rebuilds the selected front face and the opposite face around the loop, then creates reveal faces through the wall or floor thickness. This is the preferred action for custom windows, holes, vents, floor openings, and non-rectangular cuts.
+Create Cutout uses the actual loop shapes, not only their bounding boxes. It rebuilds the selected front face and the opposite face around the loops, then creates reveal faces through the wall or floor thickness. This is the preferred action for custom windows, holes, vents, floor openings, and non-rectangular cuts.
 
 The host object needs an opposite face in the cut direction. If the object has old duplicate coplanar caps from earlier geometry, the action removes the overlapping cap face while building the cutout.
+
+Create Cutout validates the selection before editing the object. All selected guide components must be closed loops on one host surface. Create Cutout keeps the selected surface-line loops as reusable guide geometry after the openings are created. The Linedef / Edge Tool can reselect those guides on the rebuilt surface ring, so the same host object can receive additional cutouts later. Delete the guides explicitly when they are no longer needed.
+
+### Duplicate Surface Detail
+
+*Shortcut: Ctrl/Cmd + Shift + D*
+
+Duplicate the selected 3D surface-line guide geometry on its host face. The action uses face-local `U` and `V` offsets, so one drawn window, arch, groove guide, or ridge guide can be repeated across the same wall or floor before committing selected loops into real geometry. After a cutout, duplicate a reselected guide to place another matching opening.
 
 ### Face Inset
 
@@ -160,7 +168,7 @@ Subdivide selected direct 3D quad faces into smaller editable faces.
 
 ### Create Ridge
 
-Convert selected 3D surface lines into persistent raised ridge geometry. Draw and select surface lines with the Linedef / Edge Tool, then set the ridge shape, width, and height in the action parameters.
+Convert selected 3D surface lines into persistent raised ridge geometry. Draw surface lines with the Linedef / Edge Tool, click a point or segment to select the connected shape, then set the ridge shape, width, and height in the action parameters.
 
 Ridges are generated as a separate Geometry Object and are selected after creation. By default they inherit the tile, color, tilegraph, or nodegraph source from the host face, which makes small surface details usable without manually painting each tiny face.
 
@@ -171,7 +179,7 @@ Shapes:
 
 ### Create Groove
 
-Convert selected 3D surface lines into persistent recessed groove geometry. It uses the same surface-line selection workflow and the same shape, width, and height parameters as Create Ridge.
+Convert selected 3D surface lines into persistent recessed groove geometry. It uses the same connected surface-line selection workflow and the same shape, width, and height parameters as Create Ridge.
 
 Grooves are the inverted version of ridges. They create depressed line detail for carved seams, block patterns, mortar cuts, and similar surface relief. Like ridges, they become persistent Geometry Objects and inherit the host face source by default.
 
