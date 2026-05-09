@@ -548,8 +548,11 @@ impl D3Builder {
                         let size = 1.0;
                         let pos_xz = item.get_pos_xz();
                         let mut ground_y = map
-                            .find_sector_at(pos_xz)
-                            .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                            .geometry_floor_height_at(pos_xz)
+                            .or_else(|| {
+                                map.find_sector_at(pos_xz)
+                                    .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                            })
                             .unwrap_or(0.0);
                         if ground_y == 0.0 {
                             let config =
@@ -615,8 +618,11 @@ impl D3Builder {
                     let size = 1.0;
                     let pos_xz = item.get_pos_xz();
                     let mut ground_y = map
-                        .find_sector_at(pos_xz)
-                        .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                        .geometry_floor_height_at(pos_xz)
+                        .or_else(|| {
+                            map.find_sector_at(pos_xz)
+                                .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                        })
                         .unwrap_or(0.0);
                     if ground_y == 0.0 {
                         let config =

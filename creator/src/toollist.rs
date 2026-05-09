@@ -1,5 +1,6 @@
 use crate::editor::{DOCKMANAGER, RUSTERIX, SCENEMANAGER, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
+use crate::actions::geometry_face_ops::surface_segment_points;
 use crate::sidebar::SidebarMode;
 pub use crate::tools::rect::RectTool;
 use rusterix::Assets;
@@ -3534,89 +3535,61 @@ impl ToolList {
                         };
                         let mut drawn_surface_points = FxHashSet::default();
                         for (segment_index, segment) in face.surface_segments.iter().enumerate() {
-                            let Some(a) = face
-                                .surface_points
-                                .get(segment.start)
-                                .map(|point| object.transform_point(point.position))
-                            else {
-                                continue;
-                            };
-                            let Some(b) = face
-                                .surface_points
-                                .get(segment.end)
-                                .map(|point| object.transform_point(point.position))
+                            let Some(points) = surface_segment_points(face, segment, normal, 8)
                             else {
                                 continue;
                             };
                             let segment_selected = map
                                 .selected_geometry_surface_segments
-                                .contains(&(object.id, face_index, segment_index))
-                                || map.selected_geometry_surface_points.contains(&(
-                                    object.id,
-                                    face_index,
-                                    segment.start,
-                                ))
-                                || map.selected_geometry_surface_points.contains(&(
-                                    object.id,
-                                    face_index,
-                                    segment.end,
-                                ));
-                            let a = a + view_nudge + normal * 0.014;
-                            let b = b + view_nudge + normal * 0.014;
-                            let dir = (b - a).try_normalized().unwrap_or(Vec3::unit_x());
-                            let side = normal.cross(dir).try_normalized().unwrap_or_else(|| {
-                                cam_right.try_normalized().unwrap_or(Vec3::unit_x())
-                            });
+                                .contains(&(object.id, face_index, segment_index));
+                            let world_points = points
+                                .iter()
+                                .map(|point| object.transform_point(*point) + view_nudge + normal * 0.014)
+                                .collect::<Vec<_>>();
+                            let side = world_points
+                                .windows(2)
+                                .find_map(|points| {
+                                    let dir = (points[1] - points[0]).try_normalized()?;
+                                    normal.cross(dir).try_normalized()
+                                })
+                                .unwrap_or_else(|| cam_right.try_normalized().unwrap_or(Vec3::unit_x()));
                             let line_offset = 0.018;
                             let base_id = 0xE390_0000u32
                                 .wrapping_add(id_salt)
                                 .wrapping_add((face_index as u32) << 11)
-                                .wrapping_add(surface_line_index.wrapping_mul(4));
+                                .wrapping_add(surface_line_index.wrapping_mul(128));
                             let strokes = if segment_selected {
                                 [
-                                    (
-                                        a - side * line_offset,
-                                        b - side * line_offset,
-                                        [0.30, 0.12, 0.43, 0.88],
-                                        23,
-                                    ),
-                                    (a, b, [0.98, 0.72, 1.0, 1.0], 24),
-                                    (
-                                        a + side * line_offset,
-                                        b + side * line_offset,
-                                        [1.0, 0.92, 1.0, 0.86],
-                                        25,
-                                    ),
+                                    (-line_offset, [0.30, 0.12, 0.43, 0.88], 23),
+                                    (0.0, [0.98, 0.72, 1.0, 1.0], 24),
+                                    (line_offset, [1.0, 0.92, 1.0, 0.86], 25),
                                 ]
                             } else {
                                 [
-                                    (
-                                        a - side * line_offset,
-                                        b - side * line_offset,
-                                        [0.03, 0.03, 0.03, 0.62],
-                                        23,
-                                    ),
-                                    (a, b, [1.0, 1.0, 1.0, 0.98], 24),
-                                    (
-                                        a + side * line_offset,
-                                        b + side * line_offset,
-                                        [0.44, 0.78, 1.0, 0.72],
-                                        25,
-                                    ),
+                                    (-line_offset, [0.03, 0.03, 0.03, 0.62], 23),
+                                    (0.0, [1.0, 1.0, 1.0, 0.98], 24),
+                                    (line_offset, [0.44, 0.78, 1.0, 0.72], 25),
                                 ]
                             };
-                            for (stroke_index, (stroke_a, stroke_b, color, layer)) in
+                            for (stroke_index, (offset, color, layer)) in
                                 strokes.into_iter().enumerate()
                             {
-                                rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
-                                    GeoId::Unknown(base_id.wrapping_add(stroke_index as u32)),
-                                    stroke_a,
-                                    stroke_b,
-                                    color,
-                                    layer,
-                                );
+                                let delta = side * offset;
+                                for (piece_index, piece) in world_points.windows(2).enumerate() {
+                                    let offset_id = stroke_index as u32 * 32 + piece_index as u32;
+                                    rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                        GeoId::Unknown(base_id.wrapping_add(offset_id)),
+                                        piece[0] + delta,
+                                        piece[1] + delta,
+                                        color,
+                                        layer,
+                                    );
+                                }
                             }
-                            for (point_index, point) in [(segment.start, a), (segment.end, b)] {
+                            for (point_index, point) in [
+                                (segment.start, world_points[0]),
+                                (segment.end, *world_points.last().unwrap_or(&world_points[0])),
+                            ] {
                                 drawn_surface_points.insert(point_index);
                                 let point_selected = map
                                     .selected_geometry_surface_points

@@ -182,16 +182,33 @@ impl Tool for EntityTool {
                     if state.changed {
                         match state.target {
                             DragTarget::Entity(id) => {
+                                let snapped = map
+                                    .entities
+                                    .iter()
+                                    .find(|e| e.creator_id == id)
+                                    .map(|entity| {
+                                        Self::snap_to_grid(
+                                            Vec2::new(entity.position.x, entity.position.z),
+                                            map.subdivisions,
+                                        )
+                                    });
+                                let floor_height = snapped.and_then(|pos| {
+                                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                        map.geometry_floor_height_at(pos)
+                                    } else {
+                                        None
+                                    }
+                                });
                                 if let Some(entity) =
                                     map.entities.iter_mut().find(|e| e.creator_id == id)
                                 {
-                                    // Snap based on final dragged position, not pointer
-                                    let snapped = Self::snap_to_grid(
-                                        Vec2::new(entity.position.x, entity.position.z),
-                                        map.subdivisions,
-                                    );
-                                    entity.position.x = snapped.x;
-                                    entity.position.z = snapped.y;
+                                    if let Some(snapped) = snapped {
+                                        entity.position.x = snapped.x;
+                                        entity.position.z = snapped.y;
+                                    }
+                                    if let Some(height) = floor_height {
+                                        entity.position.y = height;
+                                    }
                                     server_ctx
                                         .moved_entities
                                         .entry(id)
@@ -200,15 +217,33 @@ impl Tool for EntityTool {
                                 }
                             }
                             DragTarget::Item(id) => {
+                                let snapped = map
+                                    .items
+                                    .iter()
+                                    .find(|i| i.creator_id == id)
+                                    .map(|item| {
+                                        Self::snap_to_grid(
+                                            Vec2::new(item.position.x, item.position.z),
+                                            map.subdivisions,
+                                        )
+                                    });
+                                let floor_height = snapped.and_then(|pos| {
+                                    if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                        map.geometry_floor_height_at(pos)
+                                    } else {
+                                        None
+                                    }
+                                });
                                 if let Some(item) =
                                     map.items.iter_mut().find(|i| i.creator_id == id)
                                 {
-                                    let snapped = Self::snap_to_grid(
-                                        Vec2::new(item.position.x, item.position.z),
-                                        map.subdivisions,
-                                    );
-                                    item.position.x = snapped.x;
-                                    item.position.z = snapped.y;
+                                    if let Some(snapped) = snapped {
+                                        item.position.x = snapped.x;
+                                        item.position.z = snapped.y;
+                                    }
+                                    if let Some(height) = floor_height {
+                                        item.position.y = height;
+                                    }
                                     server_ctx
                                         .moved_items
                                         .entry(id)
@@ -240,12 +275,22 @@ impl Tool for EntityTool {
 
                         match state.target {
                             DragTarget::Entity(id) => {
+                                let floor_height = if moved
+                                    && server_ctx.editor_view_mode != EditorViewMode::D2
+                                {
+                                    map.geometry_floor_height_at(drag_pos)
+                                } else {
+                                    None
+                                };
                                 if let Some(entity) =
                                     map.entities.iter_mut().find(|e| e.creator_id == id)
                                 {
                                     if moved {
                                         entity.position.x = drag_pos.x;
                                         entity.position.z = drag_pos.y;
+                                        if let Some(height) = floor_height {
+                                            entity.position.y = height;
+                                        }
                                         state.changed = true;
                                     }
 
@@ -257,12 +302,22 @@ impl Tool for EntityTool {
                                 }
                             }
                             DragTarget::Item(id) => {
+                                let floor_height = if moved
+                                    && server_ctx.editor_view_mode != EditorViewMode::D2
+                                {
+                                    map.geometry_floor_height_at(drag_pos)
+                                } else {
+                                    None
+                                };
                                 if let Some(item) =
                                     map.items.iter_mut().find(|i| i.creator_id == id)
                                 {
                                     if moved {
                                         item.position.x = drag_pos.x;
                                         item.position.z = drag_pos.y;
+                                        if let Some(height) = floor_height {
+                                            item.position.y = height;
+                                        }
                                         state.changed = true;
                                     }
 

@@ -22,7 +22,7 @@ In 3D views, the same tool becomes the edge/surface-line editing tool for direct
 ## 3D Shortcuts
 
 - **X**: Split selected geometry edges.
-- **L**: Expand a selected edge into an edge loop on quad geometry.
+- **L**: Expand a selected edge into an edge loop on quad geometry, or expand a selected surface-line point/segment to its connected guide shape.
 - **[ / ]**: Move selected edge vertices vertically by one grid step.
 
 ## 3D Surface Lines
@@ -34,7 +34,9 @@ To draw a surface line, select a face with the **Sector / Face Tool**, switch to
 - Clicking the first point closes the loop and creates the final closing segment.
 - Press **Escape** to end the current polyline without clearing the surface-line selection.
 
-Click an existing surface-line point or segment to select the whole connected surface-detail shape. This also works on rebuilt cutout surface rings, so a guide from an earlier opening can be selected again even after choosing another face on the same object. Surface guide points remain visible in the Linedef / Edge Tool even when their host face is not the active face. Use **Shift + Click** to add another connected shape to the selection, or **Alt/Option + Click** to remove one. Drag the selected shape to move it on the selected face. Press **Delete** to remove the selected surface-line points or segments.
+Click an existing surface-line point or segment to select just that point or segment. Use **Shift + Click** to add more individual points or segments, or **Alt/Option + Click** to remove them from the selection. Press **L** to expand the current point/segment selection to the whole connected surface-detail shape for cutouts, duplication, and reusable guide workflows. This also works on rebuilt cutout surface rings, so a guide from an earlier opening can be selected again even after choosing another face on the same object. Surface guide points remain visible in the Linedef / Edge Tool even when their host face is not the active face. Drag the selected points or guide shape to move it on the selected face. Press **Delete** to remove the selected surface-line points or segments.
+
+Press **Cmd/Ctrl + Shift + C** with surface-line segments selected to set them to straight lines or configurable arcs. You can also select two points on the same connected guide to curve the shortest path between them, which makes arch and rounded-detail guides possible without adding one-off arch tools. Positive and negative amounts bend the arc in opposite directions.
 
 When the selected shape is a closed loop, the status bar shows that **Create Cutout** is available. Open or closed selected shapes can be used for **Create Ridge** and **Create Groove**.
 
@@ -44,8 +46,11 @@ Surface lines are editor geometry attached to the face. They do not cut or defor
 - **Create Ridge** converts selected surface lines into persistent raised geometry.
 - **Create Groove** converts selected surface lines into persistent recessed geometry.
 - **Duplicate Surface Detail** duplicates the selected guide shape on the same face with face-local offsets.
+- **Surface Curve** sets selected guide segments, or the shortest path between selected points, to straight lines or configurable arcs.
 
-Create Cutout keeps the guide loops selected after openings are created, so shapes can be reused or duplicated instead of redrawn. The guides remain selectable on the rebuilt ring, which supports several matching cutouts on one object. Ridge and Groove can create box-shaped or triangular strokes. They generate a separate Geometry Object, select it after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default.
+Create Cutout keeps the guide loops selected after openings are created, so shapes can be reused or duplicated instead of redrawn. The guides remain selectable on the rebuilt ring, which supports several matching cutouts on one object. Curved guide segments are tessellated into the resulting cutout, ridge, or groove geometry. Ridge and Groove can create box-shaped or triangular strokes. They generate a separate Geometry Object, select it after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default.
+
+The same closed guide-loop concept is intended to support future surface-region actions: cutting through, carving/chipping the inside, raising the inside, splitting the region into new paintable faces, or assigning different tiles/colors to generated interior regions.
 
 Use surface lines for custom detail that should be drawn directly on a face: mortar lines, stone blocks, floor seams, decorative raised trim, grooves, vents, custom window cuts, or other geometry-first surface relief.
 

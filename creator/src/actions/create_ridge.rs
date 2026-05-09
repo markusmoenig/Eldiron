@@ -1,4 +1,4 @@
-use crate::actions::geometry_face_ops::face_uvs_for_indices;
+use crate::actions::geometry_face_ops::{face_uvs_for_indices, surface_segment_points};
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
 use rusterix::PixelSource;
@@ -302,27 +302,15 @@ fn create_surface_relief_geometry(
         let Some(segment) = face.surface_segments.get(segment_index) else {
             continue;
         };
-        let Some(a) = face
-            .surface_points
-            .get(segment.start)
-            .map(|point| source_object.transform_point(point.position))
-        else {
-            continue;
-        };
-        let Some(b) = face
-            .surface_points
-            .get(segment.end)
-            .map(|point| source_object.transform_point(point.position))
-        else {
-            continue;
-        };
         let Some(normal) = face_normal(source_object, face).map(|normal| -normal) else {
             continue;
         };
-        let Some(direction) = (b - a).try_normalized() else {
-            continue;
-        };
-        let Some(side) = normal.cross(direction).try_normalized() else {
+        let Some(points) = surface_segment_points(face, segment, normal, 8).map(|points| {
+            points
+                .into_iter()
+                .map(|point| source_object.transform_point(point))
+                .collect::<Vec<_>>()
+        }) else {
             continue;
         };
         let half_width = width * 0.5;
@@ -330,19 +318,29 @@ fn create_surface_relief_geometry(
         let nudge = normal * 0.002;
 
         let tile = host_face_tile(face);
-        match (kind, shape) {
-            (SurfaceReliefKind::Ridge, RidgeShape::Box) => {
-                push_box_ridge_segment(&mut ridge, a, b, side, lift, nudge, half_width, tile)
+        for window in points.windows(2) {
+            let a = window[0];
+            let b = window[1];
+            let Some(direction) = (b - a).try_normalized() else {
+                continue;
+            };
+            let Some(side) = normal.cross(direction).try_normalized() else {
+                continue;
+            };
+            match (kind, shape) {
+                (SurfaceReliefKind::Ridge, RidgeShape::Box) => {
+                    push_box_ridge_segment(&mut ridge, a, b, side, lift, nudge, half_width, tile.clone())
+                }
+                (SurfaceReliefKind::Ridge, RidgeShape::Triangle) => {
+                    push_triangle_ridge_segment(&mut ridge, a, b, side, lift, nudge, half_width, tile.clone())
+                }
+                (SurfaceReliefKind::Groove, RidgeShape::Box) => push_box_groove_segment(
+                    &mut ridge, a, b, side, normal, nudge, half_width, height, tile.clone(),
+                ),
+                (SurfaceReliefKind::Groove, RidgeShape::Triangle) => push_triangle_groove_segment(
+                    &mut ridge, a, b, side, normal, nudge, half_width, height, tile.clone(),
+                ),
             }
-            (SurfaceReliefKind::Ridge, RidgeShape::Triangle) => {
-                push_triangle_ridge_segment(&mut ridge, a, b, side, lift, nudge, half_width, tile)
-            }
-            (SurfaceReliefKind::Groove, RidgeShape::Box) => push_box_groove_segment(
-                &mut ridge, a, b, side, normal, nudge, half_width, height, tile,
-            ),
-            (SurfaceReliefKind::Groove, RidgeShape::Triangle) => push_triangle_groove_segment(
-                &mut ridge, a, b, side, normal, nudge, half_width, height, tile,
-            ),
         }
         changed = true;
     }

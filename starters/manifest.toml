@@ -5,3 +5,11 @@ dimension = "2D"
 description = "A compact 2D starter featuring 2D & text play, combat, item use, gate unlocking, and a merchant."
 project_path = "starters/projects/Hideout2D.eldiron"
 image = "starters/images/logo.png"
+
+[[starter]]
+id = "starter-3d"
+title = "3D Starter"
+dimension = "3D"
+description = "A compact 3D starter scene with editable geometry, a floor, wall, and player."
+project_path = "starters/projects/3DStarter.eldiron"
+image = "starters/images/logo.png"

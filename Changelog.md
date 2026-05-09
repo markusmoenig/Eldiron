@@ -22,6 +22,7 @@
 - Added 3D camera shortcut and control cleanup for Iso, Orbit, and FirstP editing views, including arrow-key target panning in 3D editing cameras.
 - Added FirstP fly navigation for the Creator: `Space` toggles fly mode, pointer position controls looking/turning, `WASD` moves through the level, and `Escape` exits back to normal editing.
 - Added live Rect Tool painting previews in 2D and the new direct 3D path so tile/color strokes appear while dragging instead of only after mouse release.
+- Added mesh-collision feeding from direct 3D Geometry Objects, so edited floors, walls, and cutouts participate in 3D movement collision instead of relying on the old procedural 3D path.
 <!--- Added the first 2D procedural dungeon builder via the new **Build Procedural** action and `[procedural]` region settings, starting with the `connected_rooms` generator.-->
 - Added procedural tile metadata in **Edit Tile Meta**, allowing tiles to be tagged by style, kind, and weight for generated maps.
 - Added procedural generation support for entrance/exit marker tiles, weighted item spawns such as doors, and weighted character spawns such as dungeon monsters.
@@ -62,6 +63,8 @@
 - Fixed face editing so moving and resizing faces preserves visible UV/checker material feedback after the edit commits.
 - Fixed direct 3D selection transitions so switching into face editing with no selected face no longer leaves a stale broken gizmo/object-move state.
 - Fixed cutout generation so closed surface-line loops create real through-openings instead of capped recesses.
+- Fixed renamed/older 3D starter projects with Rect-painted geometry faces failing to load by accepting both legacy face tile-cell maps and the new vectorized tuple-key format.
+- Fixed 3D entity and item editor previews so dragged or placed instances snap to edited geometry floor height instead of flickering between world zero and the floor.
 - Fixed Organic Tool terrain painting undo so terrain brush strokes can be reverted like surface strokes.
 
 ---

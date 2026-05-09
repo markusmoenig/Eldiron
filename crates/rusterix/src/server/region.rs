@@ -128,6 +128,17 @@ fn map_spawn_height(map: &Map, pos: Vec2<f32>, preferred_y: Option<f32>) -> f32 
     crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(map, pos, &config)
 }
 
+fn ctx_spawn_height(ctx: &RegionCtx, pos: Vec2<f32>, preferred_y: Option<f32>) -> f32 {
+    if ctx.collision_world.has_collision_data() {
+        let reference_y = preferred_y.unwrap_or(0.0);
+        if let Some(height) = ctx.collision_world.get_floor_height_nearest(pos, reference_y) {
+            return height;
+        }
+    }
+
+    map_spawn_height(&ctx.map, pos, preferred_y)
+}
+
 fn sector_floor_height_below_or_nearest(
     map: &Map,
     pos: Vec2<f32>,
@@ -1453,14 +1464,8 @@ impl RegionInstance {
                             entity.position.y = end_pos.y;
                             !arrived
                         } else {
-                            let start_pos =
-                                vek::Vec3::new(position.x, entity.position.y, position.y);
-                            let move_vec_3d = vek::Vec3::new(move_vec.x, 0.0, move_vec.y);
-                            let (collision_pos, blocked) =
-                                ctx.collision_world
-                                    .move_distance(start_pos, move_vec_3d, radius);
-                            entity.set_pos_xz(vek::Vec2::new(collision_pos.x, collision_pos.z));
-                            blocked
+                            entity.set_pos_xz(position);
+                            true
                         }
                     } else {
                         false
@@ -1476,20 +1481,19 @@ impl RegionInstance {
         };
 
         let final_pos = entity.get_pos_xz();
-        let mut base_y = None;
-        if self.collision_mode == CollisionMode::Mesh && ctx.collision_world.has_collision_data() {
-            base_y =
-                ctx.collision_world
-                    .get_floor_height_reachable(final_pos, entity.position.y, 1.0);
-        }
-        if base_y.is_none() {
+        let base_y = if self.collision_mode == CollisionMode::Mesh
+            && ctx.collision_world.has_collision_data()
+        {
+            ctx.collision_world
+                .get_floor_height_reachable(final_pos, entity.position.y, 1.0)
+        } else {
             let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
-            base_y = Some(
+            Some(
                 crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
                     &ctx.map, final_pos, &config,
                 ),
-            );
-        }
+            )
+        };
 
         if let Some(y) = base_y {
             entity.position.y = y;
@@ -1980,7 +1984,7 @@ impl RegionInstance {
 
         // Calculate chunk bounds from full map extents, not only surfaces.
         // Feature collisions (e.g. palisade/fence on linedefs) can extend beyond sector surfaces.
-        let world_bbox = if ctx.map.vertices.is_empty() {
+        let world_bbox = if ctx.map.vertices.is_empty() && ctx.map.geometry_objects.is_empty() {
             None
         } else {
             Some(ctx.map.bbox())
@@ -2034,7 +2038,12 @@ impl RegionInstance {
             if mode == "always" { 1 } else { 0 }
         };
         self.collision_mode = {
-            let mode = get_config_string_default(&ctx, "game", "collision_mode", "tile");
+            let default_mode = if ctx.map.geometry_objects.is_empty() {
+                "tile"
+            } else {
+                "mesh"
+            };
+            let mode = get_config_string_default(&ctx, "game", "collision_mode", default_mode);
             if mode.eq_ignore_ascii_case("mesh") {
                 CollisionMode::Mesh
             } else {
@@ -2050,8 +2059,7 @@ impl RegionInstance {
         for entity in entities.iter() {
             if let Some(class_name) = entity.get_attr_string("class_name") {
                 if let Some(data) = ctx.entity_class_data.get(&class_name) {
-                    let ground_y =
-                        map_spawn_height(&ctx.map, entity.get_pos_xz(), Some(entity.position.y));
+                    let ground_y = ctx_spawn_height(&ctx, entity.get_pos_xz(), Some(entity.position.y));
                     let mut spawn_entity_id: Option<u32> = None;
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
@@ -5955,8 +5963,7 @@ impl RegionInstance {
 
                 // Setting the data for the entity
                 if let Some(data) = ctx.entity_class_data.get(&class_name) {
-                    let ground_y =
-                        map_spawn_height(&ctx.map, entity.get_pos_xz(), Some(entity.position.y));
+                    let ground_y = ctx_spawn_height(&ctx, entity.get_pos_xz(), Some(entity.position.y));
                     let mut spawn_entity_id: Option<u32> = None;
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
@@ -6583,8 +6590,7 @@ pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name:
 
     if let Some(new_pos) = new_pos {
         entity.set_pos_xz(new_pos);
-        entity.position.y =
-            map_spawn_height(&ctx.map, entity.get_pos_xz(), Some(entity.position.y));
+        entity.position.y = ctx_spawn_height(ctx, entity.get_pos_xz(), Some(entity.position.y));
     }
 
     if let Some(class_name) = entity.get_attr_string("class_name") {
@@ -11603,8 +11609,7 @@ pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name:
 
     if let Some(new_pos) = new_pos {
         entity.set_pos_xz(new_pos);
-        entity.position.y =
-            map_spawn_height(&ctx.map, entity.get_pos_xz(), Some(entity.position.y));
+        entity.position.y = ctx_spawn_height(ctx, entity.get_pos_xz(), Some(entity.position.y));
     }
 
     if let Some(class_name) = entity.get_attr_string("class_name") {

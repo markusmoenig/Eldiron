@@ -1,4 +1,5 @@
 use crate::actions::edit_linedef::EDIT_LINEDEF_ACTION_ID;
+use crate::actions::geometry_face_ops::surface_segment_points;
 use crate::editor::RUSTERIX;
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
@@ -159,22 +160,26 @@ fn selected_geometry_surface_element_hit(
     }
 
     let mut best_segment = None;
+    let Some(normal) = geometry_face_normal(object, face) else {
+        return None;
+    };
+    let local_normal = geometry_object_world_vector_to_local(object, normal)
+        .try_normalized()
+        .unwrap_or(normal);
     for (segment_index, segment) in face.surface_segments.iter().enumerate() {
-        let Some(a) = face
-            .surface_points
-            .get(segment.start)
-            .map(|point| object.transform_point(point.position))
-        else {
+        let Some(segment_points) = surface_segment_points(face, segment, local_normal, 8) else {
             continue;
         };
-        let Some(b) = face
-            .surface_points
-            .get(segment.end)
-            .map(|point| object.transform_point(point.position))
-        else {
-            continue;
-        };
-        let dist = distance_to_segment(point, a, b);
+        let dist = segment_points
+            .windows(2)
+            .map(|points| {
+                distance_to_segment(
+                    point,
+                    object.transform_point(points[0]),
+                    object.transform_point(points[1]),
+                )
+            })
+            .fold(f32::INFINITY, f32::min);
         if dist <= threshold
             && best_segment
                 .map(|(_, best_dist)| dist < best_dist)
@@ -251,21 +256,23 @@ fn geometry_surface_element_hit(
                 }
             }
             for (segment_index, segment) in face.surface_segments.iter().enumerate() {
-                let Some(a) = face
-                    .surface_points
-                    .get(segment.start)
-                    .map(|point| object.transform_point(point.position))
+                let local_normal = geometry_object_world_vector_to_local(object, normal)
+                    .try_normalized()
+                    .unwrap_or(normal);
+                let Some(segment_points) = surface_segment_points(face, segment, local_normal, 8)
                 else {
                     continue;
                 };
-                let Some(b) = face
-                    .surface_points
-                    .get(segment.end)
-                    .map(|point| object.transform_point(point.position))
-                else {
-                    continue;
-                };
-                let dist = distance_to_segment(point, a, b);
+                let dist = segment_points
+                    .windows(2)
+                    .map(|points| {
+                        distance_to_segment(
+                            point,
+                            object.transform_point(points[0]),
+                            object.transform_point(points[1]),
+                        )
+                    })
+                    .fold(f32::INFINITY, f32::min);
                 if dist <= threshold && best.as_ref().is_none_or(|(_, _, _, _, best)| dist < *best)
                 {
                     best = Some((
@@ -357,6 +364,79 @@ fn connected_surface_component(
     segments.sort_unstable();
     segments.dedup();
     (points, segments)
+}
+
+fn expand_selected_surface_components(map: &mut Map) -> bool {
+    if map.selected_geometry_surface_points.is_empty()
+        && map.selected_geometry_surface_segments.is_empty()
+    {
+        return false;
+    }
+
+    let mut point_selections = map.selected_geometry_surface_points.clone();
+    point_selections.sort_unstable();
+    point_selections.dedup();
+    let mut segment_selections = map.selected_geometry_surface_segments.clone();
+    segment_selections.sort_unstable();
+    segment_selections.dedup();
+
+    let mut expanded_points = point_selections.clone();
+    let mut expanded_segments = segment_selections.clone();
+
+    for (object_id, face_index, point_index) in point_selections {
+        let Some((points, segments)) = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)
+            .and_then(|object| object.faces.get(face_index))
+            .map(|face| connected_surface_component(face, SurfaceLineHit::Point(point_index)))
+        else {
+            continue;
+        };
+        expanded_points.extend(
+            points
+                .into_iter()
+                .map(|point| (object_id, face_index, point)),
+        );
+        expanded_segments.extend(
+            segments
+                .into_iter()
+                .map(|segment| (object_id, face_index, segment)),
+        );
+    }
+
+    for (object_id, face_index, segment_index) in segment_selections {
+        let Some((points, segments)) = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)
+            .and_then(|object| object.faces.get(face_index))
+            .map(|face| connected_surface_component(face, SurfaceLineHit::Segment(segment_index)))
+        else {
+            continue;
+        };
+        expanded_points.extend(
+            points
+                .into_iter()
+                .map(|point| (object_id, face_index, point)),
+        );
+        expanded_segments.extend(
+            segments
+                .into_iter()
+                .map(|segment| (object_id, face_index, segment)),
+        );
+    }
+
+    expanded_points.sort_unstable();
+    expanded_points.dedup();
+    expanded_segments.sort_unstable();
+    expanded_segments.dedup();
+
+    let changed = expanded_points != map.selected_geometry_surface_points
+        || expanded_segments != map.selected_geometry_surface_segments;
+    map.selected_geometry_surface_points = expanded_points;
+    map.selected_geometry_surface_segments = expanded_segments;
+    changed
 }
 
 fn delete_selected_surface_lines(map: &mut Map) -> bool {
@@ -727,6 +807,19 @@ impl Tool for LinedefTool {
                         }
                     }
                 }
+                MapKey('l') | MapKey('L') => {
+                    self.surface_line_start = None;
+                    map.curr_grid_pos_3d = None;
+                    server_ctx.hover_cursor_3d = None;
+                    if expand_selected_surface_components(map) {
+                        RUSTERIX.write().unwrap().set_overlay_dirty();
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                        return None;
+                    }
+                }
                 MapEscape | MapKey('\u{1b}') => {
                     self.surface_line_start = None;
                     self.surface_line_drag = None;
@@ -776,6 +869,7 @@ impl Tool for LinedefTool {
                                     start: start_index,
                                     end,
                                     mode: rusterix::GeometrySurfaceSegmentMode::Line,
+                                    curve_amount: 0.35,
                                 });
                             let segment_index = face.surface_segments.len().saturating_sub(1);
                             for point_index in [start_index, end] {
@@ -813,14 +907,11 @@ impl Tool for LinedefTool {
                 if let Some((hit_object_id, hit_face_index, hit_point, surface_hit)) =
                     geometry_surface_element_hit(map, server_ctx)
                 {
-                    let Some((component_points, component_segments)) = map
-                        .geometry_objects
-                        .iter()
-                        .find(|object| object.id == hit_object_id)
-                        .and_then(|object| object.faces.get(hit_face_index))
-                        .map(|face| connected_surface_component(face, surface_hit))
-                    else {
-                        return None;
+                    let (selected_points, selected_segments) = match surface_hit {
+                        SurfaceLineHit::Point(point_index) => (vec![point_index], Vec::new()),
+                        SurfaceLineHit::Segment(segment_index) => {
+                            (Vec::new(), vec![segment_index])
+                        }
                     };
                     if !ui.shift && !ui.alt {
                         map.selected_geometry_faces.clear();
@@ -835,7 +926,7 @@ impl Tool for LinedefTool {
                         map.selected_geometry_faces
                             .push((hit_object_id, hit_face_index));
                     }
-                    for point_index in component_points {
+                    for point_index in selected_points {
                         let selection = (hit_object_id, hit_face_index, point_index);
                         if ui.alt {
                             map.selected_geometry_surface_points
@@ -844,7 +935,7 @@ impl Tool for LinedefTool {
                             map.selected_geometry_surface_points.push(selection);
                         }
                     }
-                    for segment_index in component_segments {
+                    for segment_index in selected_segments {
                         let selection = (hit_object_id, hit_face_index, segment_index);
                         if ui.alt {
                             map.selected_geometry_surface_segments
@@ -923,6 +1014,7 @@ impl Tool for LinedefTool {
                                 start: start_index,
                                 end,
                                 mode: rusterix::GeometrySurfaceSegmentMode::Line,
+                                curve_amount: 0.35,
                             });
                         let segment_index = face.surface_segments.len().saturating_sub(1);
                         for point_index in [start_index, end] {

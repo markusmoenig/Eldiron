@@ -26,7 +26,7 @@ pub struct GeometryFace {
     pub auto_uv: bool,
     #[serde(default)]
     pub tile: Option<PixelSource>,
-    #[serde(default)]
+    #[serde(default, with = "geometry_face_tiles")]
     pub tiles: FxHashMap<(i32, i32), PixelSource>,
     #[serde(default)]
     pub surface_points: Vec<GeometrySurfacePoint>,
@@ -48,6 +48,7 @@ impl Default for GeometrySurfacePointMode {
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GeometrySurfaceSegmentMode {
     Line,
+    Arc,
 }
 
 impl Default for GeometrySurfaceSegmentMode {
@@ -69,6 +70,8 @@ pub struct GeometrySurfaceSegment {
     pub end: usize,
     #[serde(default)]
     pub mode: GeometrySurfaceSegmentMode,
+    #[serde(default = "default_surface_curve_amount")]
+    pub curve_amount: f32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -208,4 +211,124 @@ fn face(indices: Vec<usize>) -> GeometryFace {
 
 fn default_auto_uv() -> bool {
     true
+}
+
+fn default_surface_curve_amount() -> f32 {
+    0.35
+}
+
+mod geometry_face_tiles {
+    use super::*;
+    use serde::{Deserialize, Deserializer, Serializer, de::Error};
+
+    pub fn serialize<S>(
+        tiles: &FxHashMap<(i32, i32), PixelSource>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        vectorize::serialize(tiles, serializer)
+    }
+
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<FxHashMap<(i32, i32), PixelSource>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum TileCells {
+            Vector(Vec<((i32, i32), PixelSource)>),
+            LegacyMap(FxHashMap<String, PixelSource>),
+        }
+
+        match TileCells::deserialize(deserializer)? {
+            TileCells::Vector(entries) => Ok(entries.into_iter().collect()),
+            TileCells::LegacyMap(entries) => {
+                let mut tiles = FxHashMap::default();
+                for (key, source) in entries {
+                    let Some(coord) = parse_legacy_key(&key) else {
+                        return Err(D::Error::custom(format!(
+                            "invalid geometry face tile cell key `{key}`"
+                        )));
+                    };
+                    tiles.insert(coord, source);
+                }
+                Ok(tiles)
+            }
+        }
+    }
+
+    fn parse_legacy_key(key: &str) -> Option<(i32, i32)> {
+        let trimmed = key
+            .trim()
+            .trim_start_matches('(')
+            .trim_start_matches('[')
+            .trim_end_matches(')')
+            .trim_end_matches(']');
+        let (x, y) = trimmed.split_once(',')?;
+        Some((x.trim().parse().ok()?, y.trim().parse().ok()?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn geometry_face_tile_cells_serialize_to_toml() {
+        let tile_id = Uuid::new_v4();
+        let mut face = face(vec![0, 1, 2, 3]);
+        face.tiles
+            .insert((2, -1), PixelSource::TileId(tile_id));
+
+        let serialized = toml::to_string(&face).expect("face tile overrides serialize");
+        let restored: GeometryFace =
+            toml::from_str(&serialized).expect("face tile overrides deserialize");
+
+        assert_eq!(restored.tiles.get(&(2, -1)), Some(&PixelSource::TileId(tile_id)));
+    }
+
+    #[test]
+    fn geometry_face_legacy_empty_tile_cells_deserialize_from_json() {
+        let json = r#"{
+            "indices": [0, 1, 2, 3],
+            "uvs": [],
+            "auto_uv": true,
+            "tile": null,
+            "tiles": {},
+            "surface_points": [],
+            "surface_segments": []
+        }"#;
+
+        let restored: GeometryFace =
+            serde_json::from_str(json).expect("legacy empty tile map deserializes");
+
+        assert!(restored.tiles.is_empty());
+    }
+
+    #[test]
+    fn geometry_face_legacy_string_tile_cells_deserialize_from_json() {
+        let tile_id = Uuid::new_v4();
+        let json = format!(
+            r#"{{
+                "indices": [0, 1, 2, 3],
+                "uvs": [],
+                "auto_uv": true,
+                "tile": null,
+                "tiles": {{
+                    "(2, -1)": {{ "TileId": "{tile_id}" }}
+                }},
+                "surface_points": [],
+                "surface_segments": []
+            }}"#
+        );
+
+        let restored: GeometryFace =
+            serde_json::from_str(&json).expect("legacy string tile map deserializes");
+
+        assert_eq!(restored.tiles.get(&(2, -1)), Some(&PixelSource::TileId(tile_id)));
+    }
 }

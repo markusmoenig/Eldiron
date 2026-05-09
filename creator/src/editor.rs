@@ -3055,6 +3055,12 @@ impl TheTrait for Editor {
                                 spawn_y = h;
                             }
                         }
+
+                        if use_3d_hit
+                            && let Some(height) = map.geometry_floor_height_at(grid_pos)
+                        {
+                            spawn_y = height;
+                        }
                     }
 
                     if drop.id.name.starts_with("Character") {

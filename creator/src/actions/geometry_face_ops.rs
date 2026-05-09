@@ -509,6 +509,233 @@ fn polygon_area_2d(points: &[Vec2<f32>]) -> f32 {
     area * 0.5
 }
 
+pub(crate) fn surface_segment_points(
+    face: &rusterix::GeometryFace,
+    segment: &rusterix::GeometrySurfaceSegment,
+    normal: Vec3<f32>,
+    resolution: usize,
+) -> Option<Vec<Vec3<f32>>> {
+    let a = face.surface_points.get(segment.start)?.position;
+    let b = face.surface_points.get(segment.end)?.position;
+    if segment.mode == rusterix::GeometrySurfaceSegmentMode::Line {
+        return Some(vec![a, b]);
+    }
+
+    let direction = b - a;
+    let length = direction.magnitude();
+    if length <= 1e-5 {
+        return Some(vec![a, b]);
+    }
+    let dir = direction / length;
+    let side = surface_segment_arc_side(face, segment, normal, a, b)
+        .or_else(|| normal.cross(dir).try_normalized())
+        .unwrap_or(Vec3::zero());
+    let control = (a + b) * 0.5 + side * length * segment.curve_amount;
+    let steps = resolution.max(4);
+    Some(
+        (0..=steps)
+            .map(|index| {
+                let t = index as f32 / steps as f32;
+                let omt = 1.0 - t;
+                a * (omt * omt) + control * (2.0 * omt * t) + b * (t * t)
+            })
+            .collect(),
+    )
+}
+
+fn surface_segment_arc_side(
+    face: &rusterix::GeometryFace,
+    segment: &rusterix::GeometrySurfaceSegment,
+    normal: Vec3<f32>,
+    a: Vec3<f32>,
+    b: Vec3<f32>,
+) -> Option<Vec3<f32>> {
+    let mut connected_points = BTreeSet::new();
+    let mut pending = vec![segment.start, segment.end];
+    while let Some(point_index) = pending.pop() {
+        if !connected_points.insert(point_index) {
+            continue;
+        }
+        for other in &face.surface_segments {
+            if other.start == point_index && !connected_points.contains(&other.end) {
+                pending.push(other.end);
+            }
+            if other.end == point_index && !connected_points.contains(&other.start) {
+                pending.push(other.start);
+            }
+        }
+    }
+
+    if connected_points.len() < 3 {
+        return None;
+    }
+
+    let mut centroid = Vec3::zero();
+    let mut count = 0;
+    for point_index in connected_points {
+        let point = face.surface_points.get(point_index)?.position;
+        centroid += point;
+        count += 1;
+    }
+    if count < 3 {
+        return None;
+    }
+
+    centroid /= count as f32;
+    let mid = (a + b) * 0.5;
+    let outward = mid - centroid;
+    let planar = outward - normal * outward.dot(normal);
+    planar.try_normalized()
+}
+
+pub(crate) fn selected_surface_curve_segment_ids(map: &Map) -> BTreeSet<(Uuid, usize, usize)> {
+    let mut selected_segments = map
+        .selected_geometry_surface_segments
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+
+    let mut selected_points_by_face: BTreeMap<(Uuid, usize), BTreeSet<usize>> = BTreeMap::new();
+    for (object_id, face_index, point_index) in &map.selected_geometry_surface_points {
+        selected_points_by_face
+            .entry((*object_id, *face_index))
+            .or_default()
+            .insert(*point_index);
+    }
+
+    for ((object_id, face_index), selected_points) in selected_points_by_face {
+        if selected_points.len() < 2 {
+            continue;
+        }
+        let Some(object) = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)
+        else {
+            continue;
+        };
+        let Some(face) = object.faces.get(face_index) else {
+            continue;
+        };
+        let segment_count_before = selected_segments.len();
+        for (segment_index, segment) in face.surface_segments.iter().enumerate() {
+            if selected_points.contains(&segment.start) && selected_points.contains(&segment.end) {
+                selected_segments.insert((object_id, face_index, segment_index));
+            }
+        }
+        if selected_points.len() == 2 && selected_segments.len() == segment_count_before {
+            let point_pair = selected_points.iter().copied().collect::<Vec<_>>();
+            if let Some(path) =
+                shortest_surface_segment_path(face, point_pair[0], point_pair[1])
+            {
+                for segment_index in path {
+                    selected_segments.insert((object_id, face_index, segment_index));
+                }
+            }
+        }
+    }
+
+    selected_segments
+}
+
+fn shortest_surface_segment_path(
+    face: &rusterix::GeometryFace,
+    start: usize,
+    end: usize,
+) -> Option<Vec<usize>> {
+    let mut distances: BTreeMap<usize, f32> = BTreeMap::new();
+    let mut previous: BTreeMap<usize, (usize, usize)> = BTreeMap::new();
+    let mut visited = BTreeSet::new();
+    distances.insert(start, 0.0);
+
+    loop {
+        let Some((&current, &current_distance)) = distances
+            .iter()
+            .filter(|(point, _)| !visited.contains(*point))
+            .min_by(|(_, a), (_, b)| a.total_cmp(b))
+        else {
+            break;
+        };
+        if current == end {
+            break;
+        }
+        visited.insert(current);
+
+        for (segment_index, segment) in face.surface_segments.iter().enumerate() {
+            let neighbor = if segment.start == current {
+                segment.end
+            } else if segment.end == current {
+                segment.start
+            } else {
+                continue;
+            };
+            if visited.contains(&neighbor) {
+                continue;
+            }
+            let a = face.surface_points.get(current)?.position;
+            let b = face.surface_points.get(neighbor)?.position;
+            let distance = current_distance + (b - a).magnitude();
+            if distances
+                .get(&neighbor)
+                .is_none_or(|existing| distance < *existing)
+            {
+                distances.insert(neighbor, distance);
+                previous.insert(neighbor, (current, segment_index));
+            }
+        }
+    }
+
+    if !distances.contains_key(&end) {
+        return None;
+    }
+
+    let mut current = end;
+    let mut path = Vec::new();
+    while current != start {
+        let (prev, segment_index) = *previous.get(&current)?;
+        path.push(segment_index);
+        current = prev;
+    }
+    path.reverse();
+    (!path.is_empty()).then_some(path)
+}
+
+pub(crate) fn set_selected_surface_detail_curve(
+    map: &mut Map,
+    mode: rusterix::GeometrySurfaceSegmentMode,
+    curve_amount: f32,
+) -> bool {
+    let selected_segments = selected_surface_curve_segment_ids(map);
+    if selected_segments.is_empty() {
+        return false;
+    }
+
+    let mut changed = false;
+    for (object_id, face_index, segment_index) in selected_segments {
+        let Some(object) = map
+            .geometry_objects
+            .iter_mut()
+            .find(|object| object.id == object_id)
+        else {
+            continue;
+        };
+        let Some(face) = object.faces.get_mut(face_index) else {
+            continue;
+        };
+        let Some(segment) = face.surface_segments.get_mut(segment_index) else {
+            continue;
+        };
+        segment.mode = mode;
+        segment.curve_amount = curve_amount;
+        changed = true;
+    }
+
+    if changed {
+        map.changed = map.changed.wrapping_add(1);
+    }
+    changed
+}
+
 fn append_selected_cutout_ring(
     object: &mut rusterix::GeometryObject,
     source: &rusterix::GeometryFace,
@@ -1296,6 +1523,7 @@ fn reattach_surface_loop_to_face(
                 start,
                 end,
                 mode: rusterix::GeometrySurfaceSegmentMode::Line,
+                curve_amount: 0.35,
             });
         selected_segments.push((
             object_id,
@@ -1391,6 +1619,7 @@ pub(crate) fn duplicate_selected_surface_detail(
                         start: *start,
                         end: *end,
                         mode: segment.mode,
+                        curve_amount: segment.curve_amount,
                     });
                 new_selected_segments.push((
                     object.id,
@@ -1544,7 +1773,7 @@ fn ordered_surface_loop_points(
     }
 
     let mut nodes: Vec<Vec3<f32>> = Vec::new();
-    let mut edges: Vec<(usize, usize)> = Vec::new();
+    let mut edges: Vec<(usize, usize, usize)> = Vec::new();
     let node_for = |nodes: &mut Vec<Vec3<f32>>, point: Vec3<f32>| -> usize {
         const EPS_SQ: f32 = 0.0001;
         if let Some(index) = nodes
@@ -1568,47 +1797,77 @@ fn ordered_surface_loop_points(
         let start_index = node_for(&mut nodes, start);
         let end_index = node_for(&mut nodes, end);
         if start_index != end_index {
-            edges.push((start_index, end_index));
+            edges.push((start_index, end_index, *segment_index));
         }
     }
 
-    let mut adjacency: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-    for (a, b) in &edges {
-        adjacency.entry(*a).or_default().push(*b);
-        adjacency.entry(*b).or_default().push(*a);
+    let mut adjacency: BTreeMap<usize, Vec<(usize, usize)>> = BTreeMap::new();
+    for (a, b, segment_index) in &edges {
+        adjacency.entry(*a).or_default().push((*b, *segment_index));
+        adjacency.entry(*b).or_default().push((*a, *segment_index));
     }
     if adjacency.len() < 3 || adjacency.values().any(|neighbors| neighbors.len() != 2) {
         return None;
     }
 
     let start = *adjacency.keys().next()?;
-    let mut ordered = vec![start];
+    let mut ordered_nodes = vec![start];
+    let mut ordered_segments = Vec::new();
     let mut previous = start;
-    let mut current = adjacency.get(&start)?.first().copied()?;
+    let (mut current, first_segment) = adjacency.get(&start)?.first().copied()?;
+    ordered_segments.push(first_segment);
     while current != start {
-        if ordered.contains(&current) {
+        if ordered_nodes.contains(&current) {
             return None;
         }
-        ordered.push(current);
+        ordered_nodes.push(current);
         let neighbors = adjacency.get(&current)?;
-        let next = neighbors
+        let (next, segment_index) = neighbors
             .iter()
             .copied()
-            .find(|neighbor| *neighbor != previous)?;
+            .find(|(neighbor, _)| *neighbor != previous)?;
+        ordered_segments.push(segment_index);
         previous = current;
         current = next;
-        if ordered.len() > adjacency.len() {
+        if ordered_nodes.len() > adjacency.len() {
             return None;
         }
     }
-    if ordered.len() != adjacency.len() {
+    if ordered_nodes.len() != adjacency.len() || ordered_segments.len() != ordered_nodes.len() {
         return None;
     }
 
-    let mut points = ordered
-        .iter()
-        .filter_map(|point_index| nodes.get(*point_index).copied())
-        .collect::<Vec<_>>();
+    let mut normal = Vec3::<f32>::zero();
+    for index in 0..ordered_nodes.len() {
+        let a = *nodes.get(ordered_nodes[index])?;
+        let b = *nodes.get(ordered_nodes[(index + 1) % ordered_nodes.len()])?;
+        normal += a.cross(b);
+    }
+    let normal = normal.try_normalized()?;
+
+    let mut points = Vec::new();
+    for (edge_index, segment_index) in ordered_segments.iter().enumerate() {
+        let a_node = ordered_nodes[edge_index];
+        let b_node = ordered_nodes[(edge_index + 1) % ordered_nodes.len()];
+        let segment = face.surface_segments.get(*segment_index)?;
+        let mut segment_points = surface_segment_points(face, segment, normal, 8)?;
+        if face
+            .surface_points
+            .get(segment.start)
+            .is_some_and(|start| (start.position - nodes[a_node]).magnitude_squared() > 0.0001)
+        {
+            segment_points.reverse();
+        }
+        if !points.is_empty() {
+            segment_points.remove(0);
+        }
+        if nodes.get(b_node).is_some_and(|node| {
+            (segment_points.last().copied().unwrap_or(*node) - *node).magnitude_squared() > 0.01
+        }) {
+            return None;
+        }
+        points.extend(segment_points);
+    }
     points.dedup_by(|a, b| (*a - *b).magnitude_squared() <= 0.0001);
     if points.len() < 3 {
         return None;

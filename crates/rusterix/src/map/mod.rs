@@ -254,6 +254,116 @@ impl Map {
         self.selected_entity_item = None;
     }
 
+    fn point_in_geometry_polygon_xz(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> bool {
+        if polygon.len() < 3 {
+            return false;
+        }
+
+        let mut inside = false;
+        let mut prev = polygon.len() - 1;
+        for curr in 0..polygon.len() {
+            let a = polygon[curr];
+            let b = polygon[prev];
+            let crosses = (a.y > point.y) != (b.y > point.y);
+            if crosses {
+                let denom = b.y - a.y;
+                if denom.abs() <= f32::EPSILON {
+                    prev = curr;
+                    continue;
+                }
+                let x_at_y = (b.x - a.x) * (point.y - a.y) / denom + a.x;
+                if point.x < x_at_y {
+                    inside = !inside;
+                }
+            }
+            prev = curr;
+        }
+        inside
+    }
+
+    fn geometry_face_normal(
+        world_points: &[Vec3<f32>],
+        object_center: Vec3<f32>,
+    ) -> Option<Vec3<f32>> {
+        if world_points.len() < 3 {
+            return None;
+        }
+
+        let mut normal = Vec3::<f32>::zero();
+        let mut face_center = Vec3::<f32>::zero();
+        for point in world_points {
+            face_center += *point;
+        }
+        face_center /= world_points.len() as f32;
+
+        for index in 1..world_points.len() - 1 {
+            normal += (world_points[index] - world_points[0])
+                .cross(world_points[index + 1] - world_points[0]);
+        }
+        let mut normal = normal.try_normalized()?;
+        if normal.dot(face_center - object_center) < 0.0 {
+            normal = -normal;
+        }
+        Some(normal)
+    }
+
+    pub fn geometry_floor_height_at(&self, position: Vec2<f32>) -> Option<f32> {
+        let mut best_height: Option<f32> = None;
+
+        for object in &self.geometry_objects {
+            let Some(bbox) = object.bbox() else {
+                continue;
+            };
+            if position.x < bbox.min.x
+                || position.x > bbox.max.x
+                || position.y < bbox.min.y
+                || position.y > bbox.max.y
+            {
+                continue;
+            }
+
+            let mut min_y = f32::INFINITY;
+            let mut max_y = f32::NEG_INFINITY;
+            for vertex in &object.vertices {
+                let world = object.transform_point(*vertex);
+                min_y = min_y.min(world.y);
+                max_y = max_y.max(world.y);
+            }
+            let object_center = Vec3::new(bbox.center().x, (min_y + max_y) * 0.5, bbox.center().y);
+
+            for face in &object.faces {
+                let mut world_points = Vec::with_capacity(face.indices.len());
+                for index in &face.indices {
+                    let Some(vertex) = object.vertices.get(*index) else {
+                        world_points.clear();
+                        break;
+                    };
+                    world_points.push(object.transform_point(*vertex));
+                }
+                if world_points.len() < 3 {
+                    continue;
+                }
+                let Some(normal) = Self::geometry_face_normal(&world_points, object_center) else {
+                    continue;
+                };
+                if normal.y < 0.55 {
+                    continue;
+                }
+                let polygon = world_points
+                    .iter()
+                    .map(|point| Vec2::new(point.x, point.z))
+                    .collect::<Vec<_>>();
+                if Self::point_in_geometry_polygon_xz(position, &polygon) {
+                    let height = world_points.iter().map(|point| point.y).sum::<f32>()
+                        / world_points.len() as f32;
+                    best_height = Some(best_height.map_or(height, |best| best.max(height)));
+                }
+            }
+        }
+
+        best_height
+    }
+
     /// Returns the surface for the given sector_id
     pub fn get_surface_for_sector_id(&self, sector_id: u32) -> Option<&Surface> {
         self.surfaces

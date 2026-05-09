@@ -114,6 +114,8 @@ action_duplicate_tile = Дублировать тайл
 action_duplicate_tile_desc = Дублирует выбранный тайл.
 action_duplicate_surface_detail = Дублировать деталь поверхности
 action_duplicate_surface_detail_desc = Дублирует выбранные направляющие 3D-линий поверхности на исходной грани.
+action_toggle_surface_curve = Кривая поверхности
+action_toggle_surface_curve_desc = Задает выбранные 3D-сегменты поверхности или сегменты между выбранными точками как линии или настраиваемые дуги.
 action_edit_geometry = Редактировать геометрию
 action_edit_geometry_desc = Изменить позицию и размер выбранной 3D-геометрии.
 action_face_extrude = Выдавить грань
@@ -205,11 +207,11 @@ status_hud_geometry_op_move = Операция гизмо объекта: пер
 status_hud_geometry_op_size = Операция гизмо объекта: изменение размера (S).
 status_geometry_empty_selection = 3D-выбор: G = объект, E = грань, V = вершина, L = ребро.
 status_geometry_object_selection = Объект выбран: M = переместить, S = размер, Cmd/Ctrl+D = дублировать, Delete = удалить.
-status_geometry_face_selection = Грань выбрана: Cmd/Ctrl+E = экструдировать, Cmd/Ctrl+U = подразделить, Cmd/Ctrl+I = inset, T = применить тайл, +/- = выдавить/вдавить, [] = вверх/вниз, Delete = удалить.
+status_geometry_face_selection = Грань выбрана: +/- = выдавить/вдавить, [] = вверх/вниз, Delete = удалить.
 status_geometry_vertex_selection = Вершина выбрана: F = заполнить, X = разделить ребро, L = петля ребер, [] = вверх/вниз, Delete = удалить.
 status_geometry_edge_selection = Ребро выбрано: F = заполнить, X = разделить ребро, L = петля ребер, [] = вверх/вниз, Delete = удалить.
-status_geometry_surface_selection = Деталь поверхности выбрана: Create Ridge/Groove, Cmd/Ctrl+Shift+D = дублировать, перетащить = переместить, Delete = удалить, Esc = закончить рисование.
-status_geometry_surface_loop_selection = Замкнутая деталь поверхности выбрана: Create Cutout, Create Ridge/Groove, Cmd/Ctrl+Shift+D = дублировать, перетащить = переместить, Delete = удалить.
+status_geometry_surface_selection = Деталь поверхности выбрана: Shift = добавить, Alt = убрать, L = связанный контур.
+status_geometry_surface_loop_selection = Замкнутая деталь поверхности выбрана: Shift = добавить, Alt = убрать, L = связанный контур.
 organic_dock_title = Органические кисти
 organic_toggle_active = Активно
 organic_toggle_deactive = Неактивно

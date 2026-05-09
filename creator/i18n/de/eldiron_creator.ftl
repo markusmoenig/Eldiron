@@ -114,6 +114,8 @@ action_duplicate_tile = Kachel duplizieren
 action_duplicate_tile_desc = Dupliziert die aktuell ausgewählte Kachel.
 action_duplicate_surface_detail = Oberflächendetail duplizieren
 action_duplicate_surface_detail_desc = Dupliziert ausgewählte 3D-Oberflächenlinien-Guides auf der Trägerfläche.
+action_toggle_surface_curve = Oberflächenkurve
+action_toggle_surface_curve_desc = Setzt ausgewählte 3D-Oberflächenlinien oder Segmente zwischen ausgewählten Punkten auf Linien oder konfigurierbare Bögen.
 action_edit_geometry = Geometrie bearbeiten
 action_edit_geometry_desc = Bearbeitet Position und Größe der ausgewählten 3D-Geometrie.
 action_face_extrude = Flächen extrudieren
@@ -205,11 +207,11 @@ status_hud_geometry_op_move = Objekt-Gizmo-Operation: Verschieben (M).
 status_hud_geometry_op_size = Objekt-Gizmo-Operation: Größe ändern (S).
 status_geometry_empty_selection = 3D-Auswahl: G = Objekt, E = Fläche, V = Vertex, L = Kante.
 status_geometry_object_selection = Objekt ausgewählt: M = Verschieben, S = Größe, Cmd/Ctrl+D = Duplizieren, Delete = Löschen.
-status_geometry_face_selection = Fläche ausgewählt: Cmd/Ctrl+E = Extrudieren, Cmd/Ctrl+U = Unterteilen, Cmd/Ctrl+I = Inset, T = Kachel anwenden, +/- = Drücken/Ziehen, [] = Hoch/Runter, Delete = Löschen.
+status_geometry_face_selection = Fläche ausgewählt: +/- = Drücken/Ziehen, [] = Hoch/Runter, Delete = Löschen.
 status_geometry_vertex_selection = Vertex ausgewählt: F = Füllen, X = Kante teilen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
 status_geometry_edge_selection = Kante ausgewählt: F = Füllen, X = Kante teilen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
-status_geometry_surface_selection = Oberflächendetail ausgewählt: Ridge/Groove erstellen, Cmd/Ctrl+Shift+D = Duplizieren, Ziehen = Verschieben, Delete = Löschen, Esc = Zeichnen beenden.
-status_geometry_surface_loop_selection = Geschlossenes Oberflächendetail ausgewählt: Cutout erstellen, Ridge/Groove erstellen, Cmd/Ctrl+Shift+D = Duplizieren, Ziehen = Verschieben, Delete = Löschen.
+status_geometry_surface_selection = Oberflächendetail ausgewählt: Shift = Hinzufügen, Alt = Entfernen, L = verbundener Guide.
+status_geometry_surface_loop_selection = Geschlossenes Oberflächendetail ausgewählt: Shift = Hinzufügen, Alt = Entfernen, L = verbundener Guide.
 organic_dock_title = Organische Pinsel
 organic_toggle_active = Aktiv
 organic_toggle_deactive = Deaktiv

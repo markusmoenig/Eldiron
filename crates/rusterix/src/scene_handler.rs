@@ -3323,8 +3323,11 @@ impl SceneHandler {
                 let size = entity.attributes.get_float_default("size", 2.0).max(0.01);
                 let pos_xz = entity.get_pos_xz();
                 let mut ground_y = map
-                    .find_sector_at(pos_xz)
-                    .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                    .geometry_floor_height_at(pos_xz)
+                    .or_else(|| {
+                        map.find_sector_at(pos_xz)
+                            .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                    })
                     .unwrap_or(0.0);
                 if ground_y == 0.0 {
                     let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
@@ -3441,8 +3444,11 @@ impl SceneHandler {
             let visible = item.attributes.get_bool_default("visible", false);
             let pos_xz = item.get_pos_xz();
             let mut ground_y = map
-                .find_sector_at(pos_xz)
-                .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                .geometry_floor_height_at(pos_xz)
+                .or_else(|| {
+                    map.find_sector_at(pos_xz)
+                        .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                })
                 .unwrap_or(0.0);
             if ground_y == 0.0 {
                 let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();

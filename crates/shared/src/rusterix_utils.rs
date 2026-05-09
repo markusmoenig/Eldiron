@@ -121,11 +121,12 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
             .assets
             .region_sources
             .insert(region.map.id, region_source);
+        let region_config = crate::project::merge_config_toml(&project.config, &region.config);
         rusterix.server.create_region_instance(
             region.name.clone(),
             region.map.clone(),
             &rusterix.assets,
-            region.config.clone(),
+            region_config,
         );
     }
 

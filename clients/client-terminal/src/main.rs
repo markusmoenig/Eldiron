@@ -197,11 +197,13 @@ impl TerminalApp {
                     region.source.clone()
                 },
             );
+            let region_config =
+                shared::project::merge_config_toml(&self.project.config, &region.config);
             self.server.create_region_instance(
                 region.name.clone(),
                 region.map.clone(),
                 &self.assets,
-                region.config.clone(),
+                region_config,
             );
         }
 

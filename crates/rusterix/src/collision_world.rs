@@ -109,6 +109,13 @@ impl ChunkCollision {
             walkable_floors: Vec::new(),
         }
     }
+
+    pub fn extend(&mut self, other: ChunkCollision) {
+        self.static_volumes.extend(other.static_volumes);
+        self.static_barriers.extend(other.static_barriers);
+        self.dynamic_openings.extend(other.dynamic_openings);
+        self.walkable_floors.extend(other.walkable_floors);
+    }
 }
 
 impl Default for CollisionWorld {
@@ -667,24 +674,25 @@ impl CollisionWorld {
                 .get_floor_height_reachable(current_2d, current.y, max_step_height)
                 .unwrap_or(current.y);
             let probe_2d = current_2d + Vec2::new(delta.x, delta.z);
-            let mut move_height = current_floor;
-            if let Some(next_floor) =
+            let Some(mut move_height) =
                 self.get_floor_height_reachable(probe_2d, current_floor, max_step_height)
-            {
-                if (next_floor - current_floor).abs() <= max_step_height + 1e-3 {
-                    move_height = next_floor;
-                }
+            else {
+                break;
+            };
+            if (move_height - current_floor).abs() > max_step_height + 1e-3 {
+                move_height = current_floor;
             }
             current.y = move_height;
 
             let (mut next, blocked) = self.move_distance(current, delta, radius);
             let next_2d = Vec2::new(next.x, next.z);
-            if let Some(next_floor) =
+            let Some(next_floor) =
                 self.get_floor_height_reachable(next_2d, current.y, max_step_height)
-            {
-                if (next_floor - current_floor).abs() <= max_step_height + 1e-3 {
-                    next.y = next_floor;
-                }
+            else {
+                break;
+            };
+            if (next_floor - current_floor).abs() <= max_step_height + 1e-3 {
+                next.y = next_floor;
             }
             let moved = Vec2::new(next.x - current.x, next.z - current.z).magnitude();
             current = next;

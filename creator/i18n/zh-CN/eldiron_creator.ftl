@@ -114,6 +114,8 @@ action_duplicate_tile = 复制图块
 action_duplicate_tile_desc = 复制当前选中的图块。
 action_duplicate_surface_detail = 复制表面细节
 action_duplicate_surface_detail_desc = 在宿主面上复制选中的 3D 表面线引导几何。
+action_toggle_surface_curve = 表面曲线
+action_toggle_surface_curve_desc = 将选中的 3D 表面线段或选中点之间的线段设为直线或可配置弧线。
 action_edit_geometry = 编辑几何体
 action_edit_geometry_desc = 编辑所选 3D 几何体的位置和大小。
 action_face_extrude = 面挤出
@@ -205,11 +207,11 @@ status_hud_geometry_op_move = 对象 Gizmo 操作：移动 (M)。
 status_hud_geometry_op_size = 对象 Gizmo 操作：调整大小 (S)。
 status_geometry_empty_selection = 3D 选择：G = 对象，E = 面，V = 顶点，L = 边。
 status_geometry_object_selection = 已选择对象：M = 移动，S = 调整大小，Cmd/Ctrl+D = 复制，Delete = 删除。
-status_geometry_face_selection = 已选择面：Cmd/Ctrl+E = 挤出，Cmd/Ctrl+U = 细分，Cmd/Ctrl+I = 内插，T = 应用图块，+/- = 推/拉，[] = 上/下移动，Delete = 删除。
+status_geometry_face_selection = 已选择面：+/- = 推/拉，[] = 上/下移动，Delete = 删除。
 status_geometry_vertex_selection = 已选择顶点：F = 填充，X = 分割边，L = 边循环，[] = 上/下移动，Delete = 删除。
 status_geometry_edge_selection = 已选择边：F = 填充，X = 分割边，L = 边循环，[] = 上/下移动，Delete = 删除。
-status_geometry_surface_selection = 已选择表面细节：创建 Ridge/Groove，Cmd/Ctrl+Shift+D = 复制，拖动 = 移动，Delete = 删除，Esc = 结束绘制。
-status_geometry_surface_loop_selection = 已选择闭合表面细节：创建 Cutout，创建 Ridge/Groove，Cmd/Ctrl+Shift+D = 复制，拖动 = 移动，Delete = 删除。
+status_geometry_surface_selection = 已选择表面细节：Shift = 添加，Alt = 移除，L = 连接导线。
+status_geometry_surface_loop_selection = 已选择闭合表面细节：Shift = 添加，Alt = 移除，L = 连接导线。
 organic_dock_title = 有机笔刷
 organic_toggle_active = 启用
 organic_toggle_deactive = 停用

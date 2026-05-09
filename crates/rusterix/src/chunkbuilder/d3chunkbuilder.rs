@@ -1,4 +1,5 @@
 use crate::chunkbuilder::action::{ControlPoint, MeshTopology, SectorMeshDescriptor};
+use crate::chunkbuilder::geometry_object_builder::GeometryObjectBuilder;
 use crate::chunkbuilder::surface_mesh_builder::{
     GeneratedMesh, SurfaceMeshBuilder, fix_winding as mesh_fix_winding,
 };
@@ -3137,6 +3138,9 @@ impl ChunkBuilder for D3ChunkBuilder {
         add_generated_feature_collision(map, &chunk_bbox, &mut collision);
         add_linedef_feature_collision(map, &chunk_bbox, &mut collision);
         add_dungeon_door_collision(map, &chunk_bbox, &mut collision);
+
+        let mut geometry_builder = GeometryObjectBuilder::new();
+        collision.extend(geometry_builder.build_collision(map, assets, chunk_origin, chunk_size));
 
         collision
     }

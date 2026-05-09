@@ -142,6 +142,12 @@ Create Cutout validates the selection before editing the object. All selected gu
 
 Duplicate the selected 3D surface-line guide geometry on its host face. The action uses face-local `U` and `V` offsets, so one drawn window, arch, groove guide, or ridge guide can be repeated across the same wall or floor before committing selected loops into real geometry. After a cutout, duplicate a reselected guide to place another matching opening.
 
+### Surface Curve
+
+*Shortcut: Ctrl/Cmd + Shift + C*
+
+Set selected 3D surface-line segments to straight lines or configurable arcs. You can also select two points on the same connected guide to curve the shortest path between them, which keeps the rest of a closed opening shape intact. Positive and negative amounts bend the arc in opposite directions. Curved segments stay editable as surface guides, and Create Cutout, Create Ridge, and Create Groove tessellate them into the resulting geometry.
+
 ### Face Inset
 
 *Shortcut: Ctrl/Cmd + I*

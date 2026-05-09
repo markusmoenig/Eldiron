@@ -95,10 +95,13 @@ Surface lines are the shared workflow for custom relief and holes:
 - **Create Groove** turns selected surface lines into recessed box-shaped or triangular strokes.
 - **Create Cutout** turns selected closed loops into openings through the host object.
 - **Duplicate Surface Detail** repeats the selected guide shape on the same face using face-local offsets.
+- **Surface Curve** sets selected guide segments, or the shortest path between two selected guide points, to straight lines or configurable arcs. Positive and negative amounts bend the arc in opposite directions, so the same drawn loop can become a plain cutout, an arched opening, or a decorative curved pattern.
 
 Ridges and grooves become persistent Geometry Objects, are selected after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default. This makes small details like mortar lines, brick seams, carved floor patterns, and raised borders immediately visible without selecting and painting each tiny face.
 
-Create Cutout uses the actual closed loop shapes. It rebuilds the front face and the opposite face around the openings, then creates reveal faces through the object thickness. The guide loops remain selected after the cutout, so they can be moved, duplicated, reused, or deleted explicitly. Surface guides can also be reselected on the rebuilt surface ring, which makes repeated custom windows, vents, floor holes, and non-rectangular openings possible without redrawing the original shape.
+Create Cutout uses the actual closed loop shapes, including curved arc segments. It rebuilds the front face and the opposite face around the openings, then creates reveal faces through the object thickness. The guide loops remain selected after the cutout, so they can be moved, duplicated, reused, or deleted explicitly. Surface guides can also be reselected on the rebuilt surface ring, which makes repeated custom windows, vents, floor holes, arched openings, and non-rectangular cuts possible without redrawing the original shape.
+
+Planned surface-region actions build on the same guide loops. A closed guide should eventually be usable not only for cutting through, but also for carving or chipping away the interior, raising the interior as relief, splitting the interior into new paintable faces, or creating decorative color/tile regions such as flower leaves, mosaics, and carved panels. The guide remains the authored shape; the selected action decides how that region becomes geometry or material assignment.
 
 The status bar follows the current 3D selection. When a surface detail is selected it lists the available relief actions, and when the selected detail is a closed loop it also lists Create Cutout.
 
@@ -139,6 +142,12 @@ Faces can either repeat a tile in 1x1 world units or scale the source across the
 7. Paint faces with tiles, palette colors, tilegraphs, or nodegraphs.
 
 This workflow is meant to stay realtime while editing.
+
+## Collision And Placement
+
+When a project uses mesh collision, direct Geometry Objects feed the runtime collision world. Floors, walls, extruded faces, and cutout reveals are taken from the edited mesh, so the player can walk on authored floors and collide with authored walls.
+
+Character and item placement in 3D editor views snaps previews to the visible geometry floor height when possible. This keeps placed entities on the edited mesh instead of at world zero.
 
 ## 2D Map Reference
 

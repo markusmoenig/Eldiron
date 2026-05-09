@@ -56,6 +56,38 @@ fn default_palette_material_slots() -> Vec<PaletteMaterial> {
     vec![PaletteMaterial::default(); 256]
 }
 
+fn merge_toml_tables(base: &mut toml::Table, overlay: toml::Table) {
+    for (key, value) in overlay {
+        match (base.get_mut(&key), value) {
+            (Some(toml::Value::Table(base_table)), toml::Value::Table(overlay_table)) => {
+                merge_toml_tables(base_table, overlay_table);
+            }
+            (_, value) => {
+                base.insert(key, value);
+            }
+        }
+    }
+}
+
+pub fn merge_config_toml(project_config: &str, region_config: &str) -> String {
+    if project_config.trim().is_empty() {
+        return region_config.to_string();
+    }
+    if region_config.trim().is_empty() {
+        return project_config.to_string();
+    }
+
+    let Ok(mut merged) = project_config.parse::<toml::Table>() else {
+        return region_config.to_string();
+    };
+    let Ok(region) = region_config.parse::<toml::Table>() else {
+        return project_config.to_string();
+    };
+
+    merge_toml_tables(&mut merged, region);
+    toml::Value::Table(merged).to_string()
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct PaletteMaterial {
     #[serde(default = "default_palette_roughness")]
@@ -1085,5 +1117,28 @@ impl Project {
         }
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn project_can_load_3d_starter_fixture() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../test_projects/3DStarter.eldiron");
+        if !path.exists() {
+            return;
+        }
+
+        let contents = std::fs::read_to_string(path).expect("read 3D starter fixture");
+        let project: Project =
+            serde_json::from_str(&contents).expect("3D starter fixture deserializes");
+
+        assert!(
+            !project.regions.is_empty(),
+            "3D starter fixture should contain at least one region"
+        );
     }
 }

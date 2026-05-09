@@ -55,7 +55,7 @@ fn rebuild_runtime_navigation(ctx: &mut RegionCtx) {
     let mut chunk_builder = D3ChunkBuilder::new();
     let chunk_size = 10;
 
-    if ctx.map.vertices.is_empty() {
+    if ctx.map.vertices.is_empty() && ctx.map.geometry_objects.is_empty() {
         return;
     }
 

@@ -32,6 +32,7 @@ impl ActionList {
             Box::new(crate::actions::clear_palette::ClearPalette::new()),
             Box::new(crate::actions::duplicate::Duplicate::new()),
             Box::new(crate::actions::duplicate_surface_detail::DuplicateSurfaceDetail::new()),
+            Box::new(crate::actions::toggle_surface_curve::ToggleSurfaceCurve::new()),
             Box::new(crate::actions::duplicate_tile::DuplicateTile::new()),
             Box::new(crate::actions::edit_geometry::EditGeometry::new()),
             Box::new(crate::actions::face_cut_opening::FaceCutOpening::new()),

@@ -1,4 +1,4 @@
-use crate::collision_world::ChunkCollision;
+use crate::collision_world::{ChunkCollision, StaticBarrier, WalkableFloor};
 use crate::{Assets, Chunk, ChunkBuilder, Map, PixelSource};
 use scenevm::GeoId;
 use uuid::Uuid;
@@ -122,6 +122,125 @@ impl GeometryObjectBuilder {
         normal * TILED_FACE_RENDER_NUDGE
     }
 
+    fn face_normal(world_points: &[Vec3<f32>], object_center: Vec3<f32>) -> Option<Vec3<f32>> {
+        if world_points.len() < 3 {
+            return None;
+        }
+
+        let mut normal = Vec3::<f32>::zero();
+        let mut face_center = Vec3::<f32>::zero();
+        for point in world_points {
+            face_center += *point;
+        }
+        face_center /= world_points.len() as f32;
+
+        for index in 1..world_points.len() - 1 {
+            normal += (world_points[index] - world_points[0])
+                .cross(world_points[index + 1] - world_points[0]);
+        }
+        let mut normal = normal.try_normalized()?;
+        if normal.dot(face_center - object_center) < 0.0 {
+            normal = -normal;
+        }
+        Some(normal)
+    }
+
+    fn object_center(object: &crate::GeometryObject, bbox: crate::BBox) -> Vec3<f32> {
+        let center = bbox.center();
+        let mut min_y = f32::INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        for vertex in &object.vertices {
+            let world = object.transform_point(*vertex);
+            min_y = min_y.min(world.y);
+            max_y = max_y.max(world.y);
+        }
+        let center_y = if min_y.is_finite() && max_y.is_finite() {
+            (min_y + max_y) * 0.5
+        } else {
+            0.0
+        };
+        Vec3::new(center.x, center_y, center.y)
+    }
+
+    fn points_bbox(points: &[Vec3<f32>]) -> Option<crate::BBox> {
+        let mut min = Vec2::new(f32::INFINITY, f32::INFINITY);
+        let mut max = Vec2::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
+        let mut found = false;
+        for point in points {
+            if !point.x.is_finite() || !point.z.is_finite() {
+                continue;
+            }
+            min.x = min.x.min(point.x);
+            min.y = min.y.min(point.z);
+            max.x = max.x.max(point.x);
+            max.y = max.y.max(point.z);
+            found = true;
+        }
+        found.then(|| crate::BBox::new(min, max))
+    }
+
+    fn face_world_points(
+        object: &crate::GeometryObject,
+        face: &crate::GeometryFace,
+    ) -> Option<Vec<Vec3<f32>>> {
+        if face.indices.len() < 3 {
+            return None;
+        }
+        let mut points = Vec::with_capacity(face.indices.len());
+        for object_vertex_index in &face.indices {
+            let vertex = object.vertices.get(*object_vertex_index)?;
+            points.push(object.transform_point(*vertex));
+        }
+        Some(points)
+    }
+
+    fn add_face_barriers(
+        collision: &mut ChunkCollision,
+        object_id: Uuid,
+        world_points: &[Vec3<f32>],
+    ) {
+        let min_y = world_points
+            .iter()
+            .fold(f32::INFINITY, |acc, point| acc.min(point.y));
+        let max_y = world_points
+            .iter()
+            .fold(f32::NEG_INFINITY, |acc, point| acc.max(point.y));
+        if !min_y.is_finite() || !max_y.is_finite() || max_y - min_y <= 0.05 {
+            return;
+        }
+
+        let mut segments: Vec<(Vec2<f32>, Vec2<f32>)> = Vec::new();
+        for index in 0..world_points.len() {
+            let a = world_points[index];
+            let b = world_points[(index + 1) % world_points.len()];
+            let start = Vec2::new(a.x, a.z);
+            let end = Vec2::new(b.x, b.z);
+            if (end - start).magnitude_squared() <= 1e-6 {
+                continue;
+            }
+            let duplicate = segments.iter().any(|(existing_start, existing_end)| {
+                ((*existing_start - start).magnitude_squared() <= 1e-6
+                    && (*existing_end - end).magnitude_squared() <= 1e-6)
+                    || ((*existing_start - end).magnitude_squared() <= 1e-6
+                        && (*existing_end - start).magnitude_squared() <= 1e-6)
+            });
+            if duplicate {
+                continue;
+            }
+            segments.push((start, end));
+        }
+
+        for (start, end) in segments {
+            collision.static_barriers.push(StaticBarrier {
+                geo_id: GeoId::GeometryObject(object_id),
+                start,
+                end,
+                min_y,
+                max_y,
+            });
+        }
+    }
+
     fn add_tiled_face(
         face: &crate::GeometryFace,
         assets: &Assets,
@@ -222,22 +341,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
             if !bbox.intersects(&chunk.bbox) || !chunk.bbox.contains(bbox.center()) {
                 continue;
             }
-            let object_center = {
-                let center = bbox.center();
-                let mut min_y = f32::INFINITY;
-                let mut max_y = f32::NEG_INFINITY;
-                for vertex in &object.vertices {
-                    let world = object.transform_point(*vertex);
-                    min_y = min_y.min(world.y);
-                    max_y = max_y.max(world.y);
-                }
-                let center_y = if min_y.is_finite() && max_y.is_finite() {
-                    (min_y + max_y) * 0.5
-                } else {
-                    0.0
-                };
-                Vec3::new(center.x, center_y, center.y)
-            };
+            let object_center = Self::object_center(object, bbox);
 
             for face in &object.faces {
                 if face.indices.len() < 3 {
@@ -314,12 +418,59 @@ impl ChunkBuilder for GeometryObjectBuilder {
 
     fn build_collision(
         &mut self,
-        _map: &Map,
+        map: &Map,
         _assets: &Assets,
-        _chunk_origin: Vec2<i32>,
-        _chunk_size: i32,
+        chunk_origin: Vec2<i32>,
+        chunk_size: i32,
     ) -> ChunkCollision {
-        ChunkCollision::new()
+        let mut collision = ChunkCollision::new();
+        let chunk_bbox = crate::BBox::from_pos_size(
+            chunk_origin.map(|v| v as f32) * chunk_size as f32,
+            Vec2::broadcast(chunk_size as f32),
+        );
+
+        for object in &map.geometry_objects {
+            let Some(object_bbox) = object.bbox() else {
+                continue;
+            };
+            if !object_bbox.intersects(&chunk_bbox) {
+                continue;
+            }
+
+            let object_center = Self::object_center(object, object_bbox);
+            for face in &object.faces {
+                let Some(world_points) = Self::face_world_points(object, face) else {
+                    continue;
+                };
+                let Some(face_bbox) = Self::points_bbox(&world_points) else {
+                    continue;
+                };
+                if !face_bbox.intersects(&chunk_bbox) {
+                    continue;
+                }
+                let Some(normal) = Self::face_normal(&world_points, object_center) else {
+                    continue;
+                };
+
+                if normal.y >= 0.55 {
+                    let height = world_points.iter().map(|point| point.y).sum::<f32>()
+                        / world_points.len() as f32;
+                    let polygon_2d = world_points
+                        .iter()
+                        .map(|point| Vec2::new(point.x, point.z))
+                        .collect::<Vec<_>>();
+                    collision.walkable_floors.push(WalkableFloor {
+                        geo_id: GeoId::GeometryObject(object.id),
+                        height,
+                        polygon_2d,
+                    });
+                } else if normal.y.abs() < 0.75 {
+                    Self::add_face_barriers(&mut collision, object.id, &world_points);
+                }
+            }
+        }
+
+        collision
     }
 
     fn boxed_clone(&self) -> Box<dyn ChunkBuilder> {
