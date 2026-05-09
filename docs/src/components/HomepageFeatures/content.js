@@ -17,9 +17,9 @@ export const homepageContent = {
       },
     ],
     screenshot: {
-      label: "New turn based simulation",
+      label: "A fresh start in 3D with a block-editing style workflow.",
       version: "Eldiron v0.9.9",
-      image: "/img/screenshots/Eldiron_v0.9.7_TB.png",
+      image: "/img/screenshots/Eldiron_v0.9.9.png",
       alt: "Eldiron turn-based simulation screenshot",
     },
   },
