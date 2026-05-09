@@ -993,7 +993,6 @@ impl ToolList {
             Box::new(SectorTool::new()),
             Box::new(GeometryTool::new()),
             Box::new(RectTool::new()),
-            Box::new(crate::tools::organic::OrganicTool::new()),
             Box::new(crate::tools::entity::EntityTool::new()),
             // Box::new(RenderTool::new()),
             // Box::new(TerrainTool::new()),

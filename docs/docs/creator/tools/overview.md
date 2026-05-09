@@ -13,7 +13,6 @@ Some tools are specifically designed for **map editing** and display a common **
 - **Linedef / Edge Tool**
 - **Sector / Face Tool**
 - **Rect Tool**
-- **Organic Tool**
 
 The tool strip also contains **mode toggles** below the main map tools:
 
@@ -66,20 +65,11 @@ For direct 3D geometry editing shortcuts, see [Object Tool](object).
 
 The **icons in the upper-right corner** of the HUD are **tool-specific** and allow you to **assign tiles** to the selected geometry using the **Apply** and **Remove** buttons.
 
-With the [Organic Tool](organic), the lower picker area shows the **Organic** dock instead:
-
-- a live brush preview
-- visual brush-shape presets
-- a compact brush inspector for `Base`, `Border`, `Noise`, `Brush Size`, `Border Size`, `Noise Amount`, and `Opacity`
-- toolbar controls for `Free / Locked`, `Clear`, and `Active / Deactive`
-
 With the [Palette Tool](palette), the lower picker area shows the **Palette** dock instead:
 
 - a palette board for selecting and reordering palette entries
 - a material inspector for roughness, metallic, opacity, and emissive
 - `Apply Color` and `Clear` actions for palette-based assignment
-
-In 3D, the Organic tool also replaces the normal yellow hover marker with a brush-footprint preview so you can see the current paint radius directly on the target surface.
 
 ## Direct 3D Geometry Editing
 

@@ -40,7 +40,7 @@
 ### Creator
 
 - Improved direct 3D editor responsiveness by coalescing redundant hover/drag events, processing only the newest queued geometry drag, and throttling expensive overlay refreshes.
-- Improved Rect Tool and Organic Tool responsiveness by using dirty chunk updates and avoiding full geometry overlay rebuilds during common paint drags.
+- Improved Rect Tool responsiveness by using dirty chunk updates and avoiding full geometry overlay rebuilds during common paint drags.
 - Improved tile-paint commits so tile-only strokes dirty affected scene chunks instead of forcing a full scene-manager rebuild.
 
 ### Client
@@ -57,7 +57,7 @@
 
 ### Creator
 
-- Fixed Rect Tool and Organic Tool previews so they remain visible when editing geometry is hidden, without forcing the rest of the editing geometry overlay back on.
+- Fixed Rect Tool previews so they remain visible when editing geometry is hidden, without forcing the rest of the editing geometry overlay back on.
 - Fixed the direct 3D Rect Tool paint preview so the preview rectangle follows drag painting again while still using throttled overlay updates.
 - Fixed 3D Rect Tool side-face painting so painted tiles are visible without z-fighting against the selected Geometry Object face.
 - Fixed face editing so moving and resizing faces preserves visible UV/checker material feedback after the edit commits.
@@ -65,7 +65,6 @@
 - Fixed cutout generation so closed surface-line loops create real through-openings instead of capped recesses.
 - Fixed renamed/older 3D starter projects with Rect-painted geometry faces failing to load by accepting both legacy face tile-cell maps and the new vectorized tuple-key format.
 - Fixed 3D entity and item editor previews so dragged or placed instances snap to edited geometry floor height instead of flickering between world zero and the floor.
-- Fixed Organic Tool terrain painting undo so terrain brush strokes can be reverted like surface strokes.
 
 ---
 
