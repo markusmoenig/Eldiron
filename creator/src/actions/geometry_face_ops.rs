@@ -2764,9 +2764,15 @@ pub(crate) fn subdivide_selected_geometry_faces(map: &mut Map) -> bool {
 
             object.faces[face_index] = first_face;
             new_selected_faces.push((object.id, face_index));
+            let second_face_index = object.faces.len();
             object.faces.push(second_face);
+            new_selected_faces.push((object.id, second_face_index));
+            let third_face_index = object.faces.len();
             object.faces.push(third_face);
+            new_selected_faces.push((object.id, third_face_index));
+            let fourth_face_index = object.faces.len();
             object.faces.push(fourth_face);
+            new_selected_faces.push((object.id, fourth_face_index));
 
             changed = true;
         }
@@ -2953,6 +2959,38 @@ mod tests {
                 .collect::<Vec<_>>();
             polygons_overlap_2d(&face_xz, &hole_xz)
         })
+    }
+
+    #[test]
+    fn subdivide_keeps_all_child_faces_selected() {
+        let mut map = Map::new();
+        let object = rusterix::GeometryObject::box_from_bounds(
+            "floor",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.5, 4.0),
+        );
+        let object_id = object.id;
+        let top_face_index = object
+            .faces
+            .iter()
+            .position(|face| {
+                local_face_normal(&object, face)
+                    .map(|normal| normal.y > 0.9)
+                    .unwrap_or(false)
+            })
+            .expect("box should have a top face");
+        map.geometry_objects.push(object);
+        map.selected_geometry_faces
+            .push((object_id, top_face_index));
+
+        assert!(subdivide_selected_geometry_faces(&mut map));
+
+        let selected = map
+            .selected_geometry_faces
+            .iter()
+            .filter(|(selected_object_id, _)| *selected_object_id == object_id)
+            .count();
+        assert_eq!(selected, 4);
     }
 
     #[test]

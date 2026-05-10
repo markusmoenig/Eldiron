@@ -1,4 +1,4 @@
-# Eldiron v0.9.10 (Unreleased)
+# Eldiron v0.9.10
 
 ## Improvements
 
@@ -9,6 +9,7 @@
 - Extended the same captured right-mouse camera movement path to the Xcode / macOS FFI build.
 - Improved direct 3D Create Box behavior so newly-created boxes switch to the Object Tool immediately and remain selected for object-level editing.
 - Improved 3D tool switching so stale object, face, edge, vertex, and surface-detail selections no longer keep driving shortcuts after changing tools.
+- Improved 3D tool switching so selected objects convert into all faces, edges, or vertices when switching to the Face, Edge, or Vertex tools, and selected faces convert into editable vertices when switching to Vertex.
 - Improved 3D Face Fill so selected vertices are ordered around their plane before creating the face, avoiding twisted faces from unlucky selection order.
 - Improved 3D Edge Tool feedback so newly-created split vertices are visible immediately after splitting selected edges.
 - Improved 3D vertex `X` splitting so two selected non-neighboring vertices on one face split that face along the diagonal instead of leaving an invalid polygon.
@@ -17,9 +18,12 @@
 - Improved 3D topology cleanup after edge split, merge, fill, drag, and vertex delete operations by dropping degenerate faces, triangulating concave/non-planar faces, and refreshing affected UVs.
 - Improved 3D grid HUD feedback by keeping the compact `1` ... `0` shortcut slots and showing the active snap step beside them.
 - Improved the 3D grid overlay so visible subdivision lines now match the active `1` ... `0` snap step used by geometry movement, resizing, extrusion, duplication, and surface-detail editing.
+- Improved 3D Face Subdivide so all newly-created child faces stay selected, making repeated subdivision work immediately.
+- Shortened the 3D object-selection status text so the footer focuses on hidden HUD mode shortcuts instead of repeating visible action shortcuts.
 - Fixed the 3D `,` / `.` grid-size shortcuts so they redraw immediately and stay clamped to valid grid sizes.
 - Fixed camera shortcuts such as `Cmd/Ctrl+3` so they no longer also trigger the plain grid snap shortcuts.
 - Improved the 3D HUD coordinate readout so selected geometry continues to show a useful position even when the cursor is no longer hovering the object.
+- Improved the 3D HUD coordinate readout so it falls back to the ground plane when no object is hovered.
 - Improved 3D object gizmo sizing so handles stay closer to large selected objects instead of scaling far off-screen.
 - Added object-mode `R` / `Shift+R` rotation for 90-degree vertical-axis turns on selected Geometry Objects.
 - Added object-wide `T` tile/color application for selected Geometry Objects, matching the face-level material shortcut while applying the current tile source to every face.
@@ -35,6 +39,10 @@
 
 - Fixed the 3D HUD position readout so the displayed `Y` value uses the actual hovered surface height instead of snapping to the edit grid, avoiding flicker between floor levels.
 - Fixed mesh collision movement so actors can step onto low raised Geometry Object floor edges within the allowed step height instead of being blocked by the cap's vertical side.
+
+### Server
+
+- Fixed character lifecycle ordering so instance `setup` scripts run before `startup` and `entered` events for loaded and spawned characters.
 
 ---
 

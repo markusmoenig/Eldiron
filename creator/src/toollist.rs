@@ -39,6 +39,15 @@ struct GeometryOwnerReplacementPlan {
     include_terrain: bool,
 }
 
+#[derive(Clone, Default)]
+struct GeometrySelectionSnapshot {
+    objects: Vec<Uuid>,
+    vertices: Vec<(Uuid, usize)>,
+    faces: Vec<(Uuid, usize)>,
+    surface_points: Vec<(Uuid, usize, usize)>,
+    surface_segments: Vec<(Uuid, usize, usize)>,
+}
+
 impl Default for ToolList {
     fn default() -> Self {
         Self::new()
@@ -86,6 +95,200 @@ impl ToolList {
                 .map(|region| &mut region.map)
         } else {
             project.get_map_mut(server_ctx)
+        }
+    }
+
+    fn geometry_selection_snapshot(map: &Map) -> GeometrySelectionSnapshot {
+        GeometrySelectionSnapshot {
+            objects: map.selected_geometry_objects.clone(),
+            vertices: map.selected_geometry_vertices.clone(),
+            faces: map.selected_geometry_faces.clone(),
+            surface_points: map.selected_geometry_surface_points.clone(),
+            surface_segments: map.selected_geometry_surface_segments.clone(),
+        }
+    }
+
+    fn push_unique_uuid(ids: &mut Vec<Uuid>, id: Uuid) {
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+
+    fn push_unique_vertex(vertices: &mut Vec<(Uuid, usize)>, selection: (Uuid, usize)) {
+        if !vertices.contains(&selection) {
+            vertices.push(selection);
+        }
+    }
+
+    fn push_unique_face(faces: &mut Vec<(Uuid, usize)>, selection: (Uuid, usize)) {
+        if !faces.contains(&selection) {
+            faces.push(selection);
+        }
+    }
+
+    fn valid_geometry_object_ids(
+        map: &Map,
+        snapshot: &GeometrySelectionSnapshot,
+    ) -> Vec<Uuid> {
+        let mut ids = Vec::new();
+        for id in &snapshot.objects {
+            if map.geometry_objects.iter().any(|object| object.id == *id) {
+                Self::push_unique_uuid(&mut ids, *id);
+            }
+        }
+        for (id, _) in &snapshot.faces {
+            if map.geometry_objects.iter().any(|object| object.id == *id) {
+                Self::push_unique_uuid(&mut ids, *id);
+            }
+        }
+        for (id, _) in &snapshot.vertices {
+            if map.geometry_objects.iter().any(|object| object.id == *id) {
+                Self::push_unique_uuid(&mut ids, *id);
+            }
+        }
+        for (id, _, _) in &snapshot.surface_points {
+            if map.geometry_objects.iter().any(|object| object.id == *id) {
+                Self::push_unique_uuid(&mut ids, *id);
+            }
+        }
+        for (id, _, _) in &snapshot.surface_segments {
+            if map.geometry_objects.iter().any(|object| object.id == *id) {
+                Self::push_unique_uuid(&mut ids, *id);
+            }
+        }
+        ids
+    }
+
+    fn geometry_faces_from_snapshot(
+        map: &Map,
+        snapshot: &GeometrySelectionSnapshot,
+        object_ids: &[Uuid],
+    ) -> Vec<(Uuid, usize)> {
+        let mut faces = Vec::new();
+        for (object_id, face_index) in &snapshot.faces {
+            if let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *object_id)
+                && *face_index < object.faces.len()
+            {
+                Self::push_unique_face(&mut faces, (*object_id, *face_index));
+            }
+        }
+        if faces.is_empty() {
+            for object_id in object_ids {
+                if let Some(object) = map
+                    .geometry_objects
+                    .iter()
+                    .find(|object| object.id == *object_id)
+                {
+                    for face_index in 0..object.faces.len() {
+                        Self::push_unique_face(&mut faces, (*object_id, face_index));
+                    }
+                }
+            }
+        }
+        faces
+    }
+
+    fn geometry_vertices_from_snapshot(
+        map: &Map,
+        snapshot: &GeometrySelectionSnapshot,
+        object_ids: &[Uuid],
+    ) -> Vec<(Uuid, usize)> {
+        let mut vertices = Vec::new();
+        for (object_id, vertex_index) in &snapshot.vertices {
+            if let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *object_id)
+                && *vertex_index < object.vertices.len()
+            {
+                Self::push_unique_vertex(&mut vertices, (*object_id, *vertex_index));
+            }
+        }
+        if vertices.is_empty() {
+            for (object_id, face_index) in &snapshot.faces {
+                if let Some(object) = map
+                    .geometry_objects
+                    .iter()
+                    .find(|object| object.id == *object_id)
+                    && let Some(face) = object.faces.get(*face_index)
+                {
+                    for vertex_index in &face.indices {
+                        if *vertex_index < object.vertices.len() {
+                            Self::push_unique_vertex(
+                                &mut vertices,
+                                (*object_id, *vertex_index),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        if vertices.is_empty() {
+            for object_id in object_ids {
+                if let Some(object) = map
+                    .geometry_objects
+                    .iter()
+                    .find(|object| object.id == *object_id)
+                {
+                    for vertex_index in 0..object.vertices.len() {
+                        Self::push_unique_vertex(&mut vertices, (*object_id, vertex_index));
+                    }
+                }
+            }
+        }
+        vertices
+    }
+
+    fn apply_geometry_tool_selection_carryover(
+        map: &mut Map,
+        target_tool: MapToolType,
+        snapshot: &GeometrySelectionSnapshot,
+    ) -> bool {
+        let object_ids = Self::valid_geometry_object_ids(map, snapshot);
+        if object_ids.is_empty() {
+            return false;
+        }
+
+        match target_tool {
+            MapToolType::Selection => {
+                map.geometry_selection_mode = 0;
+                map.selected_geometry_objects = object_ids;
+                map.selected_geometry_faces.clear();
+                map.selected_geometry_vertices.clear();
+                map.selected_geometry_surface_points.clear();
+                map.selected_geometry_surface_segments.clear();
+                true
+            }
+            MapToolType::Sector => {
+                let faces = Self::geometry_faces_from_snapshot(map, snapshot, &object_ids);
+                if faces.is_empty() {
+                    return false;
+                }
+                map.geometry_selection_mode = 1;
+                map.selected_geometry_objects = object_ids;
+                map.selected_geometry_faces = faces;
+                map.selected_geometry_vertices.clear();
+                map.selected_geometry_surface_points.clear();
+                map.selected_geometry_surface_segments.clear();
+                true
+            }
+            MapToolType::Vertex | MapToolType::Linedef => {
+                let vertices = Self::geometry_vertices_from_snapshot(map, snapshot, &object_ids);
+                if vertices.is_empty() {
+                    return false;
+                }
+                map.geometry_selection_mode = if target_tool == MapToolType::Vertex { 2 } else { 3 };
+                map.selected_geometry_objects = object_ids;
+                map.selected_geometry_vertices = vertices;
+                map.selected_geometry_faces.clear();
+                map.selected_geometry_surface_points.clear();
+                map.selected_geometry_surface_segments.clear();
+                true
+            }
+            _ => false,
         }
     }
 
@@ -2792,6 +2995,15 @@ impl ToolList {
         let mut switched_tool = false;
         let layout_name = "Game Tool Params";
         let mut old_tool_index = 0;
+        let previous_geometry_selection = if !self.editor_mode
+            && server_ctx.editor_view_mode != EditorViewMode::D2
+        {
+            project
+                .get_region(&server_ctx.curr_region)
+                .map(|region| Self::geometry_selection_snapshot(&region.map))
+        } else {
+            None
+        };
 
         if self.editor_mode {
             // Handle editor tool switching
@@ -2871,6 +3083,28 @@ impl ToolList {
 
             self.get_current_tool()
                 .tool_event(ToolEvent::Activate, ui, ctx, project, server_ctx);
+
+            let preserve_surface_detail_host = server_ctx.curr_map_tool_type == MapToolType::Linedef
+                && previous_geometry_selection
+                    .as_ref()
+                    .is_some_and(|snapshot| !snapshot.faces.is_empty());
+            if switched_tool
+                && server_ctx.editor_view_mode != EditorViewMode::D2
+                && !preserve_surface_detail_host
+                && let Some(snapshot) = previous_geometry_selection.as_ref()
+                && let Some(region) = project.get_region_mut(&server_ctx.curr_region)
+                && Self::apply_geometry_tool_selection_carryover(
+                    &mut region.map,
+                    server_ctx.curr_map_tool_type,
+                    snapshot,
+                )
+            {
+                RUSTERIX.write().unwrap().set_overlay_dirty();
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
+            }
 
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Tool Changed"),
@@ -4565,6 +4799,16 @@ impl ToolList {
         rc
     }*/
 
+    fn ground_plane_hover(server_ctx: &ServerContext) -> Option<Vec3<f32>> {
+        let ray_origin = server_ctx.hover_ray_origin_3d?;
+        let ray_dir = server_ctx.hover_ray_dir_3d?;
+        if ray_dir.y.abs() <= 1e-6 {
+            return None;
+        }
+        let t = -ray_origin.y / ray_dir.y;
+        (t >= 0.0).then_some(ray_origin + ray_dir * t)
+    }
+
     /// Get the geometry hit at the given screen position.
     fn get_geometry_hit(
         &mut self,
@@ -4685,6 +4929,14 @@ impl ToolList {
 
         rusterix.scene_handler.vm.set_active_vm(0);
 
-        rc.map(|(geo_id, pos, _)| (geo_id, pos))
+        if let Some((geo_id, pos, _)) = rc {
+            return Some((geo_id, pos));
+        }
+
+        if let Some(ground_hit) = Self::ground_plane_hover(server_ctx) {
+            server_ctx.hover_cursor_3d = Some(ground_hit);
+        }
+
+        None
     }
 }

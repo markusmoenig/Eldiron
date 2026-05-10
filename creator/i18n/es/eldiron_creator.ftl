@@ -208,7 +208,7 @@ hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Operación del gizmo de objeto: mover (M).
 status_hud_geometry_op_size = Operación del gizmo de objeto: redimensionar (S).
 status_geometry_empty_selection = Selección 3D: G = Objeto, E = Cara, V = Vértice, L = Arista.
-status_geometry_object_selection = Objeto seleccionado: M = Mover, S = Tamaño, R = Rotar 90°, T = Aplicar tile, Cmd/Ctrl+D = Duplicar, Delete = Eliminar.
+status_geometry_object_selection = Objeto seleccionado: M = Mover, S = Tamaño.
 status_geometry_face_selection = Cara seleccionada: +/- = Empujar/Tirar, [] = Subir/Bajar, Delete = Eliminar.
 status_geometry_vertex_selection = Vértice seleccionado: F = Rellenar, X = Dividir arista, M = Fusionar, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.
 status_geometry_edge_selection = Arista seleccionada: F = Rellenar, X = Dividir arista, M = Fusionar, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.

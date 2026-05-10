@@ -50,6 +50,8 @@ The existing map tools become direct geometry sub-object tools in 3D:
 
 Those tools keep their normal 2D behavior when the editor is in 2D view.
 
+In 3D, switching tools carries the current selection into the new selection mode. Selected objects become all faces, edges, or vertices on those objects. Selected faces become their boundary vertices when switching to the Vertex Tool. Switching a selected face to the Linedef / Edge Tool keeps the face as the surface-line drawing host. Switching back to the Object Tool keeps the owning objects selected.
+
 The editor status bar updates after each 3D selection change and shows the shortcuts currently available for the selected object, face, edge, or vertex.
 
 See the per-tool pages for the shortcuts owned by those modes:

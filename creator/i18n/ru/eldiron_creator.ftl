@@ -208,7 +208,7 @@ hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Операция гизмо объекта: перемещение (M).
 status_hud_geometry_op_size = Операция гизмо объекта: изменение размера (S).
 status_geometry_empty_selection = 3D-выбор: G = объект, E = грань, V = вершина, L = ребро.
-status_geometry_object_selection = Объект выбран: M = переместить, S = размер, R = повернуть на 90°, T = применить тайл, Cmd/Ctrl+D = дублировать, Delete = удалить.
+status_geometry_object_selection = Объект выбран: M = переместить, S = размер.
 status_geometry_face_selection = Грань выбрана: +/- = выдавить/вдавить, [] = вверх/вниз, Delete = удалить.
 status_geometry_vertex_selection = Вершина выбрана: F = заполнить, X = разделить ребро, M = объединить, L = петля ребер, [] = вверх/вниз, Delete = удалить.
 status_geometry_edge_selection = Ребро выбрано: F = заполнить, X = разделить ребро, M = объединить, L = петля ребер, [] = вверх/вниз, Delete = удалить.

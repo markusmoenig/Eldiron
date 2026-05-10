@@ -208,7 +208,7 @@ hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = 对象 Gizmo 操作：移动 (M)。
 status_hud_geometry_op_size = 对象 Gizmo 操作：调整大小 (S)。
 status_geometry_empty_selection = 3D 选择：G = 对象，E = 面，V = 顶点，L = 边。
-status_geometry_object_selection = 已选择对象：M = 移动，S = 调整大小，R = 旋转 90°，T = 应用图块，Cmd/Ctrl+D = 复制，Delete = 删除。
+status_geometry_object_selection = 已选择对象：M = 移动，S = 调整大小。
 status_geometry_face_selection = 已选择面：+/- = 推/拉，[] = 上/下移动，Delete = 删除。
 status_geometry_vertex_selection = 已选择顶点：F = 填充，X = 分割边，M = 合并，L = 边循环，[] = 上/下移动，Delete = 删除。
 status_geometry_edge_selection = 已选择边：F = 填充，X = 分割边，M = 合并，L = 边循环，[] = 上/下移动，Delete = 删除。
