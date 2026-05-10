@@ -42,7 +42,7 @@
 
 ### Server
 
-- Fixed character lifecycle ordering so instance `setup` scripts run before `startup` and `entered` events for loaded and spawned characters.
+- Fixed character lifecycle ordering so the `startup` event is sent before the initial `entered` event for loaded and spawned characters.
 
 ---
 

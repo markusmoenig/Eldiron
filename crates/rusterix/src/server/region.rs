@@ -2095,17 +2095,7 @@ impl RegionInstance {
         let mut entities = vec![];
         with_regionctx(self.id, |ctx: &mut RegionCtx| {
             entities = ctx.map.entities.clone();
-            for entity in entities.iter() {
-                if let Some(class_name) = entity.get_attr_string("class_name") {
-                    ctx.entity_classes.insert(entity.id, class_name);
-                }
-            }
         });
-
-        // Instance setup must run before entity lifecycle events such as startup/entered.
-        for entity in entities.iter() {
-            self.run_entity_instance_setup(entity, &name, "for instance");
-        }
 
         with_regionctx(self.id, |ctx: &mut RegionCtx| {
             let args = [VMValue::from_string("startup"), VMValue::zero()];
@@ -2125,6 +2115,7 @@ impl RegionInstance {
             if let Some(class_name) = entity.get_attr_string("class_name") {
                 // let cmd = format!("{}.event(\"startup\", \"\")", class_name);
                 with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                    ctx.entity_classes.insert(entity.id, class_name.clone());
                     ctx.curr_entity_id = entity.id;
 
                     if let Some(program) = ctx.entity_programs.get(&class_name).cloned() {
@@ -2215,6 +2206,11 @@ impl RegionInstance {
         with_regionctx(self.id, |ctx| {
             ctx.curr_item_id = None;
         });*/
+
+        // Running the character setup scripts for the class instances
+        for entity in entities.iter() {
+            self.run_entity_instance_setup(entity, &name, "for instance");
+        }
 
         // Running the item setup scripts for the class instances
         let mut items = vec![];
@@ -6018,15 +6014,6 @@ impl RegionInstance {
                 ctx.entity_classes.insert(entity.id, class_name.clone());
             });
 
-            let mut setup_entity = entity.clone();
-            with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                if let Some(current) = ctx.map.entities.iter().find(|e| e.id == entity.id) {
-                    setup_entity = current.clone();
-                }
-            });
-            let region_name = self.name.clone();
-            self.run_entity_instance_setup(&setup_entity, &region_name, "for spawned instance");
-
             // Send "startup" event
             // let cmd = format!("{}.event(\"startup\", \"\")", class_name);
             // if let Err(err) = self.execute(&cmd) {
@@ -6088,6 +6075,9 @@ impl RegionInstance {
             //     _ = self.execute(&cmd);
             // }
         }
+
+        let region_name = self.name.clone();
+        self.run_entity_instance_setup(&entity, &region_name, "for spawned instance");
 
         send_log_message(
             self.id,
