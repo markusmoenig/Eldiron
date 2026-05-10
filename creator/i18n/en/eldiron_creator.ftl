@@ -118,8 +118,10 @@ action_duplicate_surface_detail = Duplicate Surface Detail
 action_duplicate_surface_detail_desc = Duplicates selected 3D surface-line guide geometry on the host face.
 action_toggle_surface_curve = Surface Curve
 action_toggle_surface_curve_desc = Sets selected 3D surface-line segments, or segments between selected points, to straight lines or configurable arcs.
+action_edit_face_texture = Edit Face Texture
+action_edit_face_texture_desc = Edit per-face 3D texture offset, scale, and rotation for selected faces or whole selected Geometry Objects.
 action_edit_geometry = Edit Geometry
-action_edit_geometry_desc = Edit selected 3D geometry position and size.
+action_edit_geometry_desc = Edit selected 3D geometry position, size, visibility, solidity, and group.
 action_face_extrude = Face Extrude
 action_face_extrude_desc = Extrude selected 3D faces by the given amount.
 action_face_cut_opening = Face Cut Opening
@@ -206,7 +208,7 @@ action_remap_tile = Remap Tile
 action_remap_tile_desc = Remaps the colors of the tile to the palette.
 
 # Tools
-tool_game = Game Tool (A). Play the game!
+tool_game = Game Tool (K). Play the game!
 tool_builder = Builder Tool (B). Select reusable prop and assembly assets from the builder picker.
 tool_palette = Palette Tool (P). Edit palette entries and apply palette colors.
 tool_dungeon = Dungeon Tool (U). Paint conceptual dungeon structures.
@@ -222,7 +224,7 @@ hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Object gizmo operation: move (M).
 status_hud_geometry_op_size = Object gizmo operation: resize (S).
 status_geometry_empty_selection = 3D selection: G = Object, E = Face, V = Vertex, L = Edge.
-status_geometry_object_selection = Object selected: M = Move, S = Size, Cmd/Ctrl+D = Duplicate, Delete = Delete.
+status_geometry_object_selection = Object selected: M = Move, S = Size, R = Rotate 90°, T = Apply Tile, Cmd/Ctrl+D = Duplicate, Delete = Delete.
 status_geometry_face_selection = Face selected: +/- = Push/Pull, [] = Move Up/Down, Delete = Delete.
 status_geometry_vertex_selection = Vertex selected: F = Fill, X = Split Edge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.
 status_geometry_edge_selection = Edge selected: F = Fill, X = Split Edge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.

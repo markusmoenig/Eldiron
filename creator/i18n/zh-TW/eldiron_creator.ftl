@@ -116,8 +116,10 @@ action_duplicate_surface_detail = 複製表面細節
 action_duplicate_surface_detail_desc = 在宿主面上複製所選的 3D 表面線引導幾何。
 action_toggle_surface_curve = 表面曲線
 action_toggle_surface_curve_desc = 將所選的 3D 表面線段或所選點之間的線段設為直線或可設定弧線。
+action_edit_face_texture = 編輯面紋理
+action_edit_face_texture_desc = 編輯所選面或整個所選幾何物件的逐面 3D 紋理偏移、縮放與旋轉。
 action_edit_geometry = 編輯幾何體
-action_edit_geometry_desc = 編輯所選 3D 幾何體的位置與大小。
+action_edit_geometry_desc = 編輯所選 3D 幾何體的位置、大小、可見性、實體碰撞與群組。
 action_face_extrude = 面擠出
 action_face_extrude_desc = 依指定數值擠出所選 3D 面。
 action_face_cut_opening = 切割開口
@@ -193,7 +195,7 @@ action_remap_tile = 重新對應圖塊
 action_remap_tile_desc = 將圖塊的顏色對應到調色盤
 
 # Tools
-tool_game = 遊戲工具 (A)。伺服器運行時輸入事件會傳送到遊戲
+tool_game = 遊戲工具 (K)。伺服器運行時輸入事件會傳送到遊戲
 tool_linedef = 線段 / 邊工具 (L)。建立 2D 線段定義並編輯 3D 幾何邊
 tool_object = 物件工具 (G)。選取並移動可直接編輯的 3D 物件。
 tool_rect = 矩形工具 (R)。點擊繪製當前圖塊，按住 Shift 點擊刪除。按住 Alt/Opt 點擊可從地圖拾取圖塊
@@ -206,7 +208,7 @@ hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = 物件 Gizmo 操作：移動 (M)。
 status_hud_geometry_op_size = 物件 Gizmo 操作：調整大小 (S)。
 status_geometry_empty_selection = 3D 選取：G = 物件，E = 面，V = 頂點，L = 邊。
-status_geometry_object_selection = 已選取物件：M = 移動，S = 調整大小，Cmd/Ctrl+D = 複製，Delete = 刪除。
+status_geometry_object_selection = 已選取物件：M = 移動，S = 調整大小，R = 旋轉 90°，T = 套用圖塊，Cmd/Ctrl+D = 複製，Delete = 刪除。
 status_geometry_face_selection = 已選取面：+/- = 推/拉，[] = 上/下移動，Delete = 刪除。
 status_geometry_vertex_selection = 已選取頂點：F = 填充，X = 分割邊，L = 邊循環，[] = 上/下移動，Delete = 刪除。
 status_geometry_edge_selection = 已選取邊：F = 填充，X = 分割邊，L = 邊循環，[] = 上/下移動，Delete = 刪除。
@@ -303,7 +305,7 @@ authoring_target_sector = 扇區
 authoring_target_linedef = Linedef
 authoring_target_character = 角色
 authoring_target_item = 物品
-tool_game = Game Tool (A)。開始遊玩！
+tool_game = Game Tool (K)。開始遊玩！
 tool_builder = Builder Tool (B)。在 Builder 選擇器中選取可重複使用的道具與組裝資產。
 tool_palette = 調色盤工具 (P)。編輯調色盤項目並套用調色盤顏色。
 tool_dungeon = 地城工具 (U)。繪製概念性的地城結構。

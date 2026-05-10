@@ -116,8 +116,10 @@ action_duplicate_surface_detail = Duplicar detalle de superficie
 action_duplicate_surface_detail_desc = Duplica las guías de líneas de superficie 3D seleccionadas sobre la cara anfitriona.
 action_toggle_surface_curve = Curva de superficie
 action_toggle_surface_curve_desc = Define segmentos de superficie 3D seleccionados, o segmentos entre puntos seleccionados, como líneas o arcos configurables.
+action_edit_face_texture = Editar textura de cara
+action_edit_face_texture_desc = Edita el desplazamiento, la escala y la rotación de textura por cara para caras seleccionadas u objetos de geometría completos.
 action_edit_geometry = Editar geometría
-action_edit_geometry_desc = Edita la posición y el tamaño de la geometría 3D seleccionada.
+action_edit_geometry_desc = Edita posición, tamaño, visibilidad, solidez y grupo de la geometría 3D seleccionada.
 action_face_extrude = Extruir cara
 action_face_extrude_desc = Extruye las caras 3D seleccionadas por la cantidad indicada.
 action_face_cut_opening = Cortar abertura
@@ -193,7 +195,7 @@ action_remap_tile = Remapear baldosa
 action_remap_tile_desc = Remapea los colores de la baldosa a la paleta
 
 # Tools
-tool_game = Herramienta de juego (A). Si el servidor está en marcha, los eventos de entrada se envían al juego.
+tool_game = Herramienta de juego (K). Si el servidor está en marcha, los eventos de entrada se envían al juego.
 tool_linedef = Herramienta de linedef / arista (L). Crear definiciones de línea 2D y editar aristas de geometría 3D.
 tool_object = Herramienta de objeto (G). Selecciona y mueve objetos 3D editables directamente.
 tool_rect = Herramienta de rectángulo (R). Clic para dibujar la baldosa actual. Shift-clic para borrar. Alt/Opt-clic para tomarla del mapa.
@@ -206,7 +208,7 @@ hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Operación del gizmo de objeto: mover (M).
 status_hud_geometry_op_size = Operación del gizmo de objeto: redimensionar (S).
 status_geometry_empty_selection = Selección 3D: G = Objeto, E = Cara, V = Vértice, L = Arista.
-status_geometry_object_selection = Objeto seleccionado: M = Mover, S = Tamaño, Cmd/Ctrl+D = Duplicar, Delete = Eliminar.
+status_geometry_object_selection = Objeto seleccionado: M = Mover, S = Tamaño, R = Rotar 90°, T = Aplicar tile, Cmd/Ctrl+D = Duplicar, Delete = Eliminar.
 status_geometry_face_selection = Cara seleccionada: +/- = Empujar/Tirar, [] = Subir/Bajar, Delete = Eliminar.
 status_geometry_vertex_selection = Vértice seleccionado: F = Rellenar, X = Dividir arista, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.
 status_geometry_edge_selection = Arista seleccionada: F = Rellenar, X = Dividir arista, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.
@@ -303,7 +305,7 @@ authoring_target_sector = Sector
 authoring_target_linedef = Linedef
 authoring_target_character = Personaje
 authoring_target_item = Objeto
-tool_game = Game Tool (A). ¡Juega!
+tool_game = Game Tool (K). ¡Juega!
 tool_builder = Builder Tool (B). Selecciona recursos reutilizables de utilería y ensamblaje en el selector del constructor.
 tool_palette = Herramienta de paleta (P). Edita entradas de la paleta y aplica colores de la paleta.
 tool_dungeon = Herramienta de mazmorras (U). Pinta estructuras conceptuales de mazmorras.

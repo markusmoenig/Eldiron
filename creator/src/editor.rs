@@ -4029,6 +4029,49 @@ impl TheTrait for Editor {
         redraw
     }
 
+    fn mouse_motion(&mut self, delta_x: f32, delta_y: f32, ctx: &mut TheContext) -> bool {
+        if self.server_ctx.game_input_mode
+            || self.server_ctx.editor_view_mode == EditorViewMode::D2
+            || self.server_ctx.curr_map_tool_type == MapToolType::Game
+        {
+            return false;
+        }
+
+        let Some(region) = self.project.get_region_mut(&self.server_ctx.curr_region) else {
+            return false;
+        };
+
+        let delta = Vec2::new(delta_x, delta_y);
+        let mut handled = false;
+        if self.server_ctx.editor_view_mode == EditorViewMode::FirstP
+            && self.server_ctx.editor_fly_nav_active
+            && self.server_ctx.editor_fly_nav_mouse_down
+        {
+            EDITCAMERA
+                .write()
+                .unwrap()
+                .mouse_delta_firstp(region, delta);
+            handled = true;
+        } else if self.server_ctx.editor_view_mode == EditorViewMode::Orbit {
+            EDITCAMERA.write().unwrap().mouse_delta_orbit(delta);
+            handled = true;
+        } else if self.server_ctx.editor_view_mode == EditorViewMode::Iso {
+            EDITCAMERA.write().unwrap().pan_3d_by_delta(
+                region,
+                &self.server_ctx,
+                Vec2::new(delta_x.round() as i32, delta_y.round() as i32),
+                Vec2::new(ctx.width as i32, ctx.height as i32),
+            );
+            handled = true;
+        }
+
+        if handled {
+            RUSTERIX.write().unwrap().set_dirty();
+            ctx.ui.redraw_all = true;
+        }
+        handled
+    }
+
     /// Returns true if there are changes
     fn has_changes(&self) -> bool {
         if self.active_session_has_changes() {

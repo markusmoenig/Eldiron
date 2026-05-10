@@ -69,20 +69,6 @@ This manual mode creates sectors by keeping a history of vertex clicks. You can 
 
 This mode fails if you have a grid of existing geometry created by the [Rect Tool](rect).
 
-## Terrain (Region Maps)
-
-In Region map context, **Edit Linedef** includes a **terrain** section for roads/paths:
-
-- `terrain_smooth`: enable terrain smoothing along the linedef.
-- `terrain_source`: optional road tile override for this linedef corridor.
-- `terrain_width`: full influence width.
-- `terrain_falloff_distance`: additional blend distance beyond the width.
-- `terrain_falloff_steepness`: falloff curve sharpness.
-- `terrain_tile_falloff`: texture fade distance for smoothed roads (default `1.0`).
-- `terrain_road_organic`: organic road mask amount (`0.0` = straight/uniform, `1.0` = stronger center wobble, width variation, noisy edges, and breakup).
-
-The target road height is interpolated from the start/end vertex `z` values.
-
 ## Authoring
 
 With **Authoring** mode enabled, the lower dock shows the Authoring editor instead of the tile picker for selected linedefs.

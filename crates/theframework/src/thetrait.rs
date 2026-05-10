@@ -64,6 +64,10 @@ pub trait TheTrait {
         false
     }
 
+    fn mouse_motion(&mut self, delta_x: f32, delta_y: f32, ctx: &mut TheContext) -> bool {
+        false
+    }
+
     fn touch_up(&mut self, x: f32, y: f32, ctx: &mut TheContext) -> bool {
         false
     }

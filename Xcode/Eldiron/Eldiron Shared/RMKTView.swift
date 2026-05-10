@@ -55,6 +55,11 @@ public class RMTKView       : MTKView
     {
     }
 
+    func setRightMouseCapture(_ active: Bool)
+    {
+        _ = CGAssociateMouseAndMouseCursorPosition(boolean_t(active ? 0 : 1))
+    }
+
     func setMousePos(_ event: NSEvent)
     {
         var location = event.locationInWindow
@@ -157,16 +162,23 @@ public class RMTKView       : MTKView
     override public func rightMouseDown(with event: NSEvent) {
         setMousePos(event)
         _ = rust_right_touch_down(mousePos.x, mousePos.y)
+        setRightMouseCapture(true)
         renderer.needsUpdate()
     }
 
     override public func rightMouseDragged(with event: NSEvent) {
+        if rust_mouse_motion(Float(event.deltaX), Float(event.deltaY)) {
+            renderer.needsUpdate()
+            return
+        }
+
         setMousePos(event)
         _ = rust_right_touch_dragged(mousePos.x, mousePos.y)
         renderer.needsUpdate()
     }
 
     override public func rightMouseUp(with event: NSEvent) {
+        setRightMouseCapture(false)
         setMousePos(event)
         _ = rust_right_touch_up(mousePos.x, mousePos.y)
         renderer.needsUpdate()

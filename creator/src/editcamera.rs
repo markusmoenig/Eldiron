@@ -243,9 +243,13 @@ impl EditCamera {
         let curr = *coord;
         if let Some(prev) = self.last_mouse {
             let delta = Vec2::new((curr.x - prev.x) as f32, (curr.y - prev.y) as f32);
-            self.orbit_camera.rotate(delta);
+            self.mouse_delta_orbit(delta);
         }
         self.last_mouse = Some(curr);
+    }
+
+    pub fn mouse_delta_orbit(&mut self, delta: Vec2<f32>) {
+        self.orbit_camera.rotate(delta);
     }
 
     pub fn mouse_dragged_pan_3d(
@@ -309,34 +313,37 @@ impl EditCamera {
     }
 
     pub fn mouse_dragged_firstp(&mut self, region: &mut Region, coord: &Vec2<i32>) {
-        let sens_yaw = 0.05; // deg per pixel horizontally
-        let sens_pitch = 0.05; // deg per pixel vertically
-        let max_pitch = 85.0; // do not let the camera flip
-
         let curr = *coord;
 
         if let Some(prev) = self.last_mouse {
             let dx = (curr.x - prev.x) as f32;
             let dy = (curr.y - prev.y) as f32;
-
-            if dx.abs() > 0.0 {
-                region.editing_look_at_3d = self.rotate_camera_y(
-                    region.editing_position_3d,
-                    region.editing_look_at_3d,
-                    -dx * sens_yaw,
-                );
-            }
-            if dy.abs() > 0.0 {
-                let look = self.rotate_camera_pitch(
-                    region.editing_position_3d,
-                    region.editing_look_at_3d,
-                    -dy * sens_pitch,
-                );
-                region.editing_look_at_3d =
-                    self.clamp_pitch(region.editing_position_3d, look, max_pitch);
-            }
+            self.mouse_delta_firstp(region, Vec2::new(dx, dy));
         }
         self.last_mouse = Some(curr);
+    }
+
+    pub fn mouse_delta_firstp(&mut self, region: &mut Region, delta: Vec2<f32>) {
+        let sens_yaw = 0.05; // deg per pixel horizontally
+        let sens_pitch = 0.05; // deg per pixel vertically
+        let max_pitch = 85.0; // do not let the camera flip
+
+        if delta.x.abs() > 0.0 {
+            region.editing_look_at_3d = self.rotate_camera_y(
+                region.editing_position_3d,
+                region.editing_look_at_3d,
+                -delta.x * sens_yaw,
+            );
+        }
+        if delta.y.abs() > 0.0 {
+            let look = self.rotate_camera_pitch(
+                region.editing_position_3d,
+                region.editing_look_at_3d,
+                -delta.y * sens_pitch,
+            );
+            region.editing_look_at_3d =
+                self.clamp_pitch(region.editing_position_3d, look, max_pitch);
+        }
     }
 
     fn update_fly_pointer_look(&mut self, region: &mut Region, dt: f32) {

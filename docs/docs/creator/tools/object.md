@@ -21,6 +21,9 @@ The 3D HUD shows `MOVE` and `SIZE` controls when the Object Tool is active.
 
 - **M**: Switch the object gizmo to move mode.
 - **S**: Switch the object gizmo to size mode.
+- **R**: Rotate selected objects 90 degrees around the vertical axis.
+- **Shift + R**: Rotate selected objects 90 degrees in the opposite direction.
+- **T**: Apply the current tile, palette color, tilegraph, or nodegraph source to every face on the selected objects.
 - **Drag axis handle**: Move or resize along that axis.
 - **+ / -**: Resize selected objects on the horizontal axes.
 - **[ / ]**: Resize selected objects vertically.
@@ -31,6 +34,7 @@ Object movement and resizing use the current grid subdivision for snapping.
 
 - **Create Box**: Creates a new geometry box.
 - **Create Box with a selected face**: Attaches a box to that face. The new box matches the face size on the in-plane axes and uses the action's remaining size parameter as thickness.
+- **Edit Geometry**: Sets exact object bounds, object visibility, mesh-collision solidity, and an optional group label.
 - **Duplicate**: Duplicate the current object selection with XYZ offsets.
 - **Cmd / Ctrl + D**: Duplicate the current selection.
 

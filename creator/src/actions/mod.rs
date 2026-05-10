@@ -557,6 +557,7 @@ pub mod create_sector;
 pub mod duplicate;
 pub mod duplicate_surface_detail;
 pub mod duplicate_tile;
+pub mod edit_face_texture;
 pub mod edit_geometry;
 pub mod edit_linedef;
 pub mod edit_maximize;

@@ -50,6 +50,8 @@ bool rust_touch_dragged(float x, float y);
 
 bool rust_right_touch_dragged(float x, float y);
 
+bool rust_mouse_motion(float delta_x, float delta_y);
+
 bool rust_touch_up(float x, float y);
 
 bool rust_right_touch_up(float x, float y);

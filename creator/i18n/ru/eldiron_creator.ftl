@@ -116,8 +116,10 @@ action_duplicate_surface_detail = Дублировать деталь повер
 action_duplicate_surface_detail_desc = Дублирует выбранные направляющие 3D-линий поверхности на исходной грани.
 action_toggle_surface_curve = Кривая поверхности
 action_toggle_surface_curve_desc = Задает выбранные 3D-сегменты поверхности или сегменты между выбранными точками как линии или настраиваемые дуги.
+action_edit_face_texture = Редактировать текстуру грани
+action_edit_face_texture_desc = Редактирует смещение, масштаб и поворот 3D-текстуры по граням для выбранных граней или целых выбранных геометрических объектов.
 action_edit_geometry = Редактировать геометрию
-action_edit_geometry_desc = Изменить позицию и размер выбранной 3D-геометрии.
+action_edit_geometry_desc = Изменяет позицию, размер, видимость, твердость и группу выбранной 3D-геометрии.
 action_face_extrude = Выдавить грань
 action_face_extrude_desc = Выдавить выбранные 3D-грани на заданную величину.
 action_face_cut_opening = Вырезать проем
@@ -193,7 +195,7 @@ action_remap_tile = Перекодировать тайл
 action_remap_tile_desc = Перекодирует цвета тайла согласно палитре.
 
 # Tools
-tool_game = Инструмент игры (A). Если сервер запущен, события ввода отправляются в игру.
+tool_game = Инструмент игры (K). Если сервер запущен, события ввода отправляются в игру.
 tool_linedef = Инструмент линедефов / ребер (L). Создание 2D-линий и редактирование ребер 3D-геометрии.
 tool_object = Инструмент объектов (G). Выбирайте и перемещайте напрямую редактируемые 3D-объекты.
 tool_rect = Инструмент прямоугольников (R). Клик — рисует текущий тайл. Shift-клик — удаляет. Alt/Opt-клик — взять тайл с карты.
@@ -206,7 +208,7 @@ hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Операция гизмо объекта: перемещение (M).
 status_hud_geometry_op_size = Операция гизмо объекта: изменение размера (S).
 status_geometry_empty_selection = 3D-выбор: G = объект, E = грань, V = вершина, L = ребро.
-status_geometry_object_selection = Объект выбран: M = переместить, S = размер, Cmd/Ctrl+D = дублировать, Delete = удалить.
+status_geometry_object_selection = Объект выбран: M = переместить, S = размер, R = повернуть на 90°, T = применить тайл, Cmd/Ctrl+D = дублировать, Delete = удалить.
 status_geometry_face_selection = Грань выбрана: +/- = выдавить/вдавить, [] = вверх/вниз, Delete = удалить.
 status_geometry_vertex_selection = Вершина выбрана: F = заполнить, X = разделить ребро, L = петля ребер, [] = вверх/вниз, Delete = удалить.
 status_geometry_edge_selection = Ребро выбрано: F = заполнить, X = разделить ребро, L = петля ребер, [] = вверх/вниз, Delete = удалить.
@@ -304,7 +306,7 @@ authoring_target_sector = Сектор
 authoring_target_linedef = Linedef
 authoring_target_character = Персонаж
 authoring_target_item = Предмет
-tool_game = Game Tool (A). Играть!
+tool_game = Game Tool (K). Играть!
 tool_builder = Builder Tool (B). Выбирайте переиспользуемые ассеты реквизита и сборок в палитре Builder.
 tool_palette = Инструмент палитры (P). Редактируйте элементы палитры и применяйте цвета палитры.
 tool_dungeon = Инструмент подземелий (U). Рисуйте концептуальные структуры подземелий.

@@ -122,6 +122,58 @@ impl GeometryObjectBuilder {
         normal * TILED_FACE_RENDER_NUDGE
     }
 
+    fn transformed_face_uvs(face: &crate::GeometryFace, uvs: &[[f32; 2]]) -> Vec<[f32; 2]> {
+        if uvs.is_empty() {
+            return Vec::new();
+        }
+
+        let min_uv = uvs
+            .iter()
+            .fold(Vec2::broadcast(f32::INFINITY), |acc, uv| {
+                Vec2::new(acc.x.min(uv[0]), acc.y.min(uv[1]))
+            });
+        let max_uv = uvs
+            .iter()
+            .fold(Vec2::broadcast(f32::NEG_INFINITY), |acc, uv| {
+                Vec2::new(acc.x.max(uv[0]), acc.y.max(uv[1]))
+            });
+        if !min_uv.x.is_finite()
+            || !min_uv.y.is_finite()
+            || !max_uv.x.is_finite()
+            || !max_uv.y.is_finite()
+        {
+            return uvs.to_vec();
+        }
+
+        let center = (min_uv + max_uv) * 0.5;
+        let scale = Vec2::new(
+            if face.texture_scale.x.abs() <= 1e-5 {
+                1.0
+            } else {
+                face.texture_scale.x
+            },
+            if face.texture_scale.y.abs() <= 1e-5 {
+                1.0
+            } else {
+                face.texture_scale.y
+            },
+        );
+        let radians = face.texture_rotation.to_radians();
+        let (sin, cos) = radians.sin_cos();
+
+        uvs.iter()
+            .map(|uv| {
+                let mut p = Vec2::new(uv[0], uv[1]) - center;
+                p = Vec2::new(p.x / scale.x, p.y / scale.y);
+                if radians.abs() > 1e-5 {
+                    p = Vec2::new(p.x * cos - p.y * sin, p.x * sin + p.y * cos);
+                }
+                p += center + face.texture_offset;
+                [p.x, p.y]
+            })
+            .collect()
+    }
+
     fn face_normal(world_points: &[Vec3<f32>], object_center: Vec3<f32>) -> Option<Vec3<f32>> {
         if world_points.len() < 3 {
             return None;
@@ -306,11 +358,15 @@ impl GeometryObjectBuilder {
 
                 let source = face.tiles.get(&(tx, ty)).or(face.tile.as_ref());
                 let tile_id = Self::face_tile_id(source, assets);
+                let uvs = Self::transformed_face_uvs(
+                    face,
+                    &[[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]],
+                );
                 vmchunk.add_poly_3d(
                     GeoId::GeometryObject(object_id),
                     tile_id,
                     vertices,
-                    vec![[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]],
+                    uvs,
                     vec![(0, 1, 2), (0, 2, 3)],
                     0,
                     true,
@@ -335,6 +391,9 @@ impl ChunkBuilder for GeometryObjectBuilder {
         vmchunk: &mut scenevm::Chunk,
     ) {
         for object in &map.geometry_objects {
+            if !object.visible {
+                continue;
+            }
             let Some(bbox) = object.bbox() else {
                 continue;
             };
@@ -402,6 +461,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 for index in 1..vertices.len() - 1 {
                     indices.push((0, index, index + 1));
                 }
+                let uvs = Self::transformed_face_uvs(face, &uvs);
 
                 vmchunk.add_poly_3d(
                     GeoId::GeometryObject(object.id),
@@ -430,6 +490,9 @@ impl ChunkBuilder for GeometryObjectBuilder {
         );
 
         for object in &map.geometry_objects {
+            if !object.solid {
+                continue;
+            }
             let Some(object_bbox) = object.bbox() else {
                 continue;
             };

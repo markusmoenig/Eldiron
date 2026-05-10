@@ -1,3 +1,26 @@
+# Eldiron v0.9.10 (Unreleased)
+
+## Improvements
+
+### Creator
+
+- Changed the Game Tool shortcut from `A` to `K` so right-mouse 3D camera movement no longer conflicts with `WASD` navigation.
+- Improved right-mouse 3D camera movement by grabbing the cursor and feeding raw mouse-motion deltas into the editing cameras while dragging.
+- Extended the same captured right-mouse camera movement path to the Xcode / macOS FFI build.
+- Improved direct 3D Create Box behavior so newly-created boxes switch to the Object Tool immediately and remain selected for object-level editing.
+- Improved 3D tool switching so stale object, face, edge, vertex, and surface-detail selections no longer keep driving shortcuts after changing tools.
+- Improved 3D Face Fill so selected vertices are ordered around their plane before creating the face, avoiding twisted faces from unlucky selection order.
+- Improved 3D Edge Tool feedback so newly-created split vertices are visible immediately after splitting selected edges.
+- Improved 3D vertex `X` splitting so two selected non-neighboring vertices on one face split that face along the diagonal instead of leaving an invalid polygon.
+- Improved 3D object gizmo sizing so handles stay closer to large selected objects instead of scaling far off-screen.
+- Added object-mode `R` / `Shift+R` rotation for 90-degree vertical-axis turns on selected Geometry Objects.
+- Added object-wide `T` tile/color application for selected Geometry Objects, matching the face-level material shortcut while applying the current tile source to every face.
+- Added per-face 3D texture placement controls for selected faces or selected Geometry Objects, including UV offset, scale, and rotation.
+- Added direct Geometry Object visibility, solidity, and group-label properties as the foundation for helper geometry, trigger/water volumes, and grouped level pieces.
+- Removed legacy terrain/procedural parameter groups from Edit Vertex, Edit Linedef, and Edit Sector; these 2D actions now expose only current map-edit metadata.
+
+---
+
 # Eldiron v0.9.9
 
 ## New Features

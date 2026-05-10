@@ -116,8 +116,10 @@ action_duplicate_surface_detail = Oberflächendetail duplizieren
 action_duplicate_surface_detail_desc = Dupliziert ausgewählte 3D-Oberflächenlinien-Guides auf der Trägerfläche.
 action_toggle_surface_curve = Oberflächenkurve
 action_toggle_surface_curve_desc = Setzt ausgewählte 3D-Oberflächenlinien oder Segmente zwischen ausgewählten Punkten auf Linien oder konfigurierbare Bögen.
+action_edit_face_texture = Flächentextur bearbeiten
+action_edit_face_texture_desc = Bearbeitet 3D-Texturversatz, Skalierung und Rotation pro Fläche für ausgewählte Flächen oder ganze ausgewählte Geometrieobjekte.
 action_edit_geometry = Geometrie bearbeiten
-action_edit_geometry_desc = Bearbeitet Position und Größe der ausgewählten 3D-Geometrie.
+action_edit_geometry_desc = Bearbeitet Position, Größe, Sichtbarkeit, Kollisionskörper und Gruppe der ausgewählten 3D-Geometrie.
 action_face_extrude = Flächen extrudieren
 action_face_extrude_desc = Extrudiert ausgewählte 3D-Flächen um den angegebenen Betrag.
 action_face_cut_opening = Öffnung schneiden
@@ -193,7 +195,7 @@ action_remap_tile = Kachel neu zuordnen
 action_remap_tile_desc = Ordnet die Farben der Kachel der Palette zu
 
 # Tools
-tool_game = Spiel-Tool (A). Wenn der Server läuft, werden Eingabeereignisse an das Spiel gesendet.
+tool_game = Spiel-Tool (K). Wenn der Server läuft, werden Eingabeereignisse an das Spiel gesendet.
 tool_linedef = Linedef- / Kanten-Tool (L). 2D-Liniendefinitionen erstellen und 3D-Geometriekanten bearbeiten.
 tool_object = Objekt-Tool (G). Direkt bearbeitbare 3D-Objekte auswählen und verschieben.
 tool_rect = Rect-Tool (R). Klicken, um die aktuelle Kachel zu zeichnen. Shift-Klick zum Löschen. Alt/Opt-Klick zum Aufnehmen aus der Karte.
@@ -206,7 +208,7 @@ hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Objekt-Gizmo-Operation: Verschieben (M).
 status_hud_geometry_op_size = Objekt-Gizmo-Operation: Größe ändern (S).
 status_geometry_empty_selection = 3D-Auswahl: G = Objekt, E = Fläche, V = Vertex, L = Kante.
-status_geometry_object_selection = Objekt ausgewählt: M = Verschieben, S = Größe, Cmd/Ctrl+D = Duplizieren, Delete = Löschen.
+status_geometry_object_selection = Objekt ausgewählt: M = Verschieben, S = Größe, R = 90° drehen, T = Kachel anwenden, Cmd/Ctrl+D = Duplizieren, Delete = Löschen.
 status_geometry_face_selection = Fläche ausgewählt: +/- = Drücken/Ziehen, [] = Hoch/Runter, Delete = Löschen.
 status_geometry_vertex_selection = Vertex ausgewählt: F = Füllen, X = Kante teilen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
 status_geometry_edge_selection = Kante ausgewählt: F = Füllen, X = Kante teilen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
@@ -303,7 +305,7 @@ authoring_target_sector = Sektor
 authoring_target_linedef = Linedef
 authoring_target_character = Charakter
 authoring_target_item = Gegenstand
-tool_game = Game Tool (A). Spiel spielen!
+tool_game = Game Tool (K). Spiel spielen!
 tool_builder = Builder Tool (B). Wähle wiederverwendbare Requisiten- und Montage-Assets im Builder-Picker aus.
 tool_palette = Palettenwerkzeug (P). Bearbeite Paletteneinträge und wende Palettenfarben an.
 tool_dungeon = Dungeon-Werkzeug (U). Konzeptionelle Dungeon-Strukturen malen.

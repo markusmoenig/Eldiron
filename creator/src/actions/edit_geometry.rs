@@ -1,3 +1,4 @@
+use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
 pub struct EditGeometry {
@@ -60,6 +61,26 @@ impl Action for EditGeometry {
             "".into(),
             None,
             false,
+        ));
+        nodeui.add_item(TheNodeUIItem::Text(
+            "actionGeometryGroup".into(),
+            "Group".into(),
+            "".into(),
+            "".into(),
+            None,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "actionGeometryVisible".into(),
+            "Visible".into(),
+            "Render this geometry object in the scene.".into(),
+            true,
+        ));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "actionGeometrySolid".into(),
+            "Solid".into(),
+            "Include this geometry object in mesh collision.".into(),
+            true,
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
             "actionGeometryX".into(),
@@ -148,6 +169,12 @@ impl Action for EditGeometry {
         self.nodeui
             .set_text_value("actionGeometryName", object.name.clone());
         self.nodeui
+            .set_text_value("actionGeometryGroup", object.group.clone());
+        self.nodeui
+            .set_bool_value("actionGeometryVisible", object.visible);
+        self.nodeui
+            .set_bool_value("actionGeometrySolid", object.solid);
+        self.nodeui
             .set_f32_value("actionGeometryX", bounds.center.x);
         self.nodeui
             .set_f32_value("actionGeometryY", bounds.center.y);
@@ -206,10 +233,27 @@ impl Action for EditGeometry {
             .nodeui
             .get_text_value("actionGeometryName")
             .unwrap_or_else(|| object.name.clone());
+        let group = self
+            .nodeui
+            .get_text_value("actionGeometryGroup")
+            .unwrap_or_else(|| object.group.clone())
+            .trim()
+            .to_string();
+        let visible = self
+            .nodeui
+            .get_bool_value("actionGeometryVisible")
+            .unwrap_or(object.visible);
+        let solid = self
+            .nodeui
+            .get_bool_value("actionGeometrySolid")
+            .unwrap_or(object.solid);
 
         if (to.center - from.center).magnitude_squared() <= 0.000001
             && (to.size - from.size).magnitude_squared() <= 0.000001
             && name == object.name
+            && group == object.group
+            && visible == object.visible
+            && solid == object.solid
         {
             return None;
         }
@@ -220,8 +264,14 @@ impl Action for EditGeometry {
             .iter_mut()
             .find(|object| object.id == id)?;
         object.name = name;
+        object.group = group;
+        object.visible = visible;
+        object.solid = solid;
         Self::refit_vertices(&mut object.vertices, from, to);
 
+        map.update_surfaces();
+        RUSTERIX.write().unwrap().set_dirty();
+        RUSTERIX.write().unwrap().set_overlay_dirty();
         Some(ProjectUndoAtom::MapEdit(
             server_ctx.pc,
             Box::new(prev),

@@ -206,6 +206,13 @@ mod ffi {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn rust_mouse_motion(delta_x: f32, delta_y: f32) -> bool {
+        APP.lock()
+            .unwrap()
+            .mouse_motion(delta_x, delta_y, &mut CTX.lock().unwrap())
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn rust_touch_up(x: f32, y: f32) -> bool {
         UI.lock().unwrap().touch_up(x, y, &mut CTX.lock().unwrap())
     }

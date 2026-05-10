@@ -3320,7 +3320,7 @@ impl ToolList {
                     let gizmo_min = if gizmo_found { gizmo_min } else { min };
                     let gizmo_max = if gizmo_found { gizmo_max } else { max };
                     let center = (gizmo_min + gizmo_max) * 0.5;
-                    let axis_len = ((gizmo_max - gizmo_min).magnitude() * 0.35).max(0.75);
+                    let axis_len = ((gizmo_max - gizmo_min).magnitude() * 0.35).clamp(0.75, 1.75);
                     if selected && has_mode_selection {
                         let show_move_gizmo = server_ctx.curr_map_tool_type
                             != MapToolType::Selection
@@ -3473,6 +3473,7 @@ impl ToolList {
                 if server_ctx.curr_map_tool_type == MapToolType::Linedef {
                     let mut edge_index = 0u32;
                     let mut surface_line_index = 0u32;
+                    let mut drawn_geometry_vertices = FxHashSet::default();
                     for (face_index, face) in object.faces.iter().enumerate() {
                         for index in 0..face.indices.len() {
                             let Some(a) = object.vertices.get(face.indices[index]) else {
@@ -3507,6 +3508,30 @@ impl ToolList {
                                 },
                                 20,
                             );
+                            for (vertex_index, vertex, is_selected) in [
+                                (face.indices[index], a, a_selected),
+                                (
+                                    face.indices[(index + 1) % face.indices.len()],
+                                    b,
+                                    b_selected,
+                                ),
+                            ] {
+                                if is_selected
+                                    && drawn_geometry_vertices.insert(vertex_index)
+                                {
+                                    push_cube_marker(
+                                        &mut rusterix,
+                                        GeoId::GeometryObject(object.id),
+                                        true,
+                                        object.transform_point(*vertex)
+                                            + view_nudge
+                                            + cam_forward * -0.01,
+                                        0.13,
+                                        0.92,
+                                        39,
+                                    );
+                                }
+                            }
                             edge_index = edge_index.wrapping_add(1);
                         }
 

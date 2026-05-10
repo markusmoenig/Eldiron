@@ -12,21 +12,6 @@ Runtime logic for a region is edited separately from this TOML file:
 
 Use the region scripts for dynamic runtime overrides such as local fog, palette remap, or post changes. Use **Region Settings** for authored/static map settings.
 
-## Terrain
-
-Enable terrain rendering for the region and define the default terrain tile:
-
-```toml
-[terrain]
-enabled = true
-tile_id = "27826750-a9e7-4346-994b-fb318b238452"
-```
-
-- `enabled`: turns terrain on/off for the region.
-- `tile_id`: default tile used for terrain rendering.
-  - accepts UUID, tile alias, or palette index.
-  - examples: `tile_id = "27826750-a9e7-4346-994b-fb318b238452"`, `tile_id = "grass_default"`, `tile_id = 2`, `tile_id = "2"`.
-
 ## Procedural
 
 The `[procedural]` section drives the **Build Procedural** action, which is shown in the 2D editor view. The first generator is `connected_rooms`, which creates a deterministic 2D room-and-corridor dungeon from the region seed and the procedural tile metadata authored with **Edit Tile Meta**.

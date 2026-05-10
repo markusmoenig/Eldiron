@@ -20,7 +20,7 @@ use winit::{
     },
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, KeyCode, ModifiersState, NamedKey},
-    window::{Icon, Window, WindowAttributes, WindowId},
+    window::{CursorGrabMode, Icon, Window, WindowAttributes, WindowId},
 };
 
 // Platform-aware accelerator modifiers (AltGr-safe)
@@ -922,6 +922,11 @@ impl ApplicationHandler for TheWinitApp {
                                 }
                                 (MouseButton::Right, ElementState::Pressed) => {
                                     self.right_mouse_down = true;
+                                    if ctx.window.set_cursor_grab(CursorGrabMode::Locked).is_err()
+                                    {
+                                        let _ =
+                                            ctx.window.set_cursor_grab(CursorGrabMode::Confined);
+                                    }
 
                                     #[cfg(feature = "ui")]
                                     {
@@ -939,6 +944,7 @@ impl ApplicationHandler for TheWinitApp {
                                 }
                                 (MouseButton::Right, ElementState::Released) => {
                                     self.right_mouse_down = false;
+                                    let _ = ctx.window.set_cursor_grab(CursorGrabMode::None);
 
                                     #[cfg(feature = "ui")]
                                     {
@@ -1060,7 +1066,20 @@ impl ApplicationHandler for TheWinitApp {
         }
     }
 
-    fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, _: DeviceEvent) {}
+    fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
+        let Some(ctx) = &mut self.ctx else {
+            return;
+        };
+        if let DeviceEvent::MouseMotion { delta } = event
+            && self.right_mouse_down
+            && self
+                .app
+                .mouse_motion(delta.0 as f32, delta.1 as f32, &mut ctx.ctx)
+        {
+            self.next_frame_time = Instant::now();
+            ctx.window.request_redraw();
+        }
+    }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let now = Instant::now();

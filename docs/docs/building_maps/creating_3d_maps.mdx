@@ -43,12 +43,16 @@ With the **Object Tool (`G`)** active:
 
 - **M** switches the object gizmo to move mode.
 - **S** switches the object gizmo to size mode.
+- **R / Shift + R** rotates selected objects in 90-degree steps around the vertical axis.
 - **Drag a handle** to move or resize on that axis.
 - **+ / -** resize selected objects horizontally.
 - **[ / ]** resize selected objects vertically.
+- **T** applies the current tile, palette color, tilegraph, or nodegraph source to every face on the selected objects.
 - **Delete** removes the selected objects.
 
 Movement and resizing snap to the current grid size.
+
+Use **Edit Geometry** to set exact object position and size. The same action also exposes object visibility, mesh-collision solidity, and a lightweight group label. Invisible objects are skipped by 3D rendering, and non-solid objects are skipped by mesh collision, which is the foundation for later trigger volumes, water volumes, helper shapes, and grouped moving pieces.
 
 Use **1 ... 0** to change the map subdivision, and **, / .** to decrease or increase the 3D grid size.
 
@@ -78,6 +82,7 @@ Use the **Linedef / Edge Tool (`L`)** in 3D to select edges.
 Useful edge shortcuts:
 
 - **X** splits selected geometry edges.
+- With two non-neighboring vertices selected on the same face, **X** splits that face along the selected diagonal.
 - **L** expands a selected edge into an edge loop on quad geometry.
 - **[ / ]** moves selected edge vertices vertically by one grid step.
 
@@ -130,6 +135,8 @@ Vertex editing is the escape hatch for custom shapes: delete a face, move the bo
 Select one or more faces with the **Sector / Face Tool** and press **T**, or use the relevant dock apply button.
 
 Faces can either repeat a tile in 1x1 world units or scale the source across the selected face, depending on the active tile application mode.
+
+Use **Edit Face Texture** on selected faces, or on a selected object, to adjust texture offset, scale, and rotation. Texture scale follows the old 3D path convention: larger scale values make the source cover a larger area, while smaller values repeat it more tightly.
 
 ## Suggested Blockout Workflow
 

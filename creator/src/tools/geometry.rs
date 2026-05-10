@@ -239,6 +239,41 @@ fn add_bbox_dirty_chunks(bbox: rusterix::BBox, chunks: &mut FxHashSet<(i32, i32)
     }
 }
 
+fn refresh_geometry_topology_edit(old_map: Option<&Map>, map: &Map, ctx: &mut TheContext) {
+    let mut dirty_chunks = FxHashSet::default();
+    if let Some(old_map) = old_map {
+        for object in &old_map.geometry_objects {
+            if let Some(bbox) = object.bbox() {
+                add_bbox_dirty_chunks(bbox, &mut dirty_chunks);
+            }
+        }
+    }
+    for object in &map.geometry_objects {
+        if let Some(bbox) = object.bbox() {
+            add_bbox_dirty_chunks(bbox, &mut dirty_chunks);
+        }
+    }
+
+    if !dirty_chunks.is_empty() {
+        crate::utils::editor_scene_replace_incremental_map_update(
+            map.clone(),
+            dirty_chunks.into_iter().collect(),
+        );
+    } else {
+        RUSTERIX.write().unwrap().set_dirty();
+    }
+    RUSTERIX.write().unwrap().set_overlay_dirty();
+    ctx.ui.redraw_all = true;
+    ctx.ui.send(TheEvent::Custom(
+        TheId::named("Update Geometry Overlay 3D"),
+        TheValue::Empty,
+    ));
+    ctx.ui.send(TheEvent::Custom(
+        TheId::named("Map Selection Changed"),
+        TheValue::Empty,
+    ));
+}
+
 fn geometry_bounds(vertices: &[Vec3<f32>]) -> Option<(Vec3<f32>, Vec3<f32>)> {
     let mut min = Vec3::broadcast(f32::INFINITY);
     let mut max = Vec3::broadcast(f32::NEG_INFINITY);
@@ -302,6 +337,47 @@ fn resize_selected_geometry(map: &mut Map, delta_size: Vec3<f32>) -> bool {
         for vertex in &mut object.vertices {
             let local = (*vertex - center) / safe_size;
             *vertex = target_center + local * target_size;
+        }
+        changed = true;
+    }
+    changed
+}
+
+fn rotate_selected_geometry_objects_y(map: &mut Map, quarter_turns: i32) -> bool {
+    if map.selected_geometry_objects.is_empty() {
+        return false;
+    }
+
+    let selected = map.selected_geometry_objects.clone();
+    let angle = quarter_turns as f32 * std::f32::consts::FRAC_PI_2;
+    let cos = angle.cos().round();
+    let sin = angle.sin().round();
+    let rotate = |point: Vec3<f32>, center: Vec3<f32>| {
+        let local = point - center;
+        center
+            + Vec3::new(
+                local.x * cos - local.z * sin,
+                local.y,
+                local.x * sin + local.z * cos,
+            )
+    };
+
+    let mut changed = false;
+    for object in &mut map.geometry_objects {
+        if !selected.contains(&object.id) {
+            continue;
+        }
+        let Some((min, max)) = geometry_bounds(&object.vertices) else {
+            continue;
+        };
+        let center = (min + max) * 0.5;
+        for vertex in &mut object.vertices {
+            *vertex = rotate(*vertex, center);
+        }
+        for face in &mut object.faces {
+            for point in &mut face.surface_points {
+                point.position = rotate(point.position, center);
+            }
         }
         changed = true;
     }
@@ -637,12 +713,22 @@ fn move_selected_geometry_faces_along_normals(map: &mut Map, amount: f32) -> boo
 }
 
 fn apply_tile_to_selected_geometry_faces(map: &mut Map, source: PixelSource) -> bool {
-    if map.selected_geometry_faces.is_empty() {
+    if map.selected_geometry_faces.is_empty() && map.selected_geometry_objects.is_empty() {
         return false;
     }
 
+    let selected_objects = map.selected_geometry_objects.clone();
     let selected = map.selected_geometry_faces.clone();
+    let geometry_source = crate::utils::SurfaceApplySource::Direct(source.clone());
     let mut changed = false;
+    for object_id in selected_objects {
+        changed |= crate::utils::apply_surface_source_to_geometry_object(
+            map,
+            object_id,
+            &geometry_source,
+            None,
+        );
+    }
     for object in &mut map.geometry_objects {
         for (_, face_index) in selected.iter().filter(|(id, _)| *id == object.id) {
             let Some(face) = object.faces.get_mut(*face_index) else {
@@ -698,6 +784,84 @@ fn ordered_boundary_vertices(edges: &[(usize, usize)]) -> Vec<usize> {
             break;
         }
     }
+    ordered
+}
+
+fn ordered_fill_vertices(object: &rusterix::GeometryObject, indices: &[usize]) -> Vec<usize> {
+    if indices.len() < 3 {
+        return indices.to_vec();
+    }
+
+    let points = indices
+        .iter()
+        .filter_map(|index| object.vertices.get(*index).copied())
+        .collect::<Vec<_>>();
+    if points.len() != indices.len() {
+        return indices.to_vec();
+    }
+
+    let center = points
+        .iter()
+        .copied()
+        .fold(Vec3::zero(), |sum, point| sum + point)
+        / points.len() as f32;
+
+    let mut normal = Vec3::zero();
+    'find_normal: for i in 0..points.len() {
+        for j in i + 1..points.len() {
+            for k in j + 1..points.len() {
+                let candidate = (points[j] - points[i]).cross(points[k] - points[i]);
+                if candidate.magnitude_squared() > 1e-8 {
+                    normal = candidate.normalized();
+                    break 'find_normal;
+                }
+            }
+        }
+    }
+    if normal.magnitude_squared() <= 1e-8 {
+        return indices.to_vec();
+    }
+
+    let tangent = points
+        .iter()
+        .map(|point| *point - center)
+        .max_by(|a, b| {
+            a.magnitude_squared()
+                .partial_cmp(&b.magnitude_squared())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .and_then(|axis| axis.try_normalized())
+        .unwrap_or(Vec3::unit_x());
+    let bitangent = normal
+        .cross(tangent)
+        .try_normalized()
+        .unwrap_or(Vec3::unit_z());
+
+    let mut ordered = indices.to_vec();
+    ordered.sort_by(|a, b| {
+        let pa = object.vertices[*a] - center;
+        let pb = object.vertices[*b] - center;
+        let aa = pa.dot(bitangent).atan2(pa.dot(tangent));
+        let ab = pb.dot(bitangent).atan2(pb.dot(tangent));
+        aa.partial_cmp(&ab).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let sorted_points = ordered
+        .iter()
+        .filter_map(|index| object.vertices.get(*index).copied())
+        .collect::<Vec<_>>();
+    let mut sorted_normal = Vec3::zero();
+    for index in 0..sorted_points.len() {
+        let current = sorted_points[index];
+        let next = sorted_points[(index + 1) % sorted_points.len()];
+        sorted_normal.x += (current.y - next.y) * (current.z + next.z);
+        sorted_normal.y += (current.z - next.z) * (current.x + next.x);
+        sorted_normal.z += (current.x - next.x) * (current.y + next.y);
+    }
+    if sorted_normal.dot(normal) < 0.0 {
+        ordered.reverse();
+    }
+
     ordered
 }
 
@@ -838,12 +1002,16 @@ fn fill_selected_geometry_vertices(map: &mut Map) -> bool {
             continue;
         }
 
+        let indices = ordered_fill_vertices(object, &indices);
         let face_index = object.faces.len();
         let uvs = face_uvs_for_indices(object, &indices);
         object.faces.push(rusterix::GeometryFace {
             indices,
             uvs,
             auto_uv: true,
+            texture_offset: Vec2::zero(),
+            texture_scale: Vec2::broadcast(1.0),
+            texture_rotation: 0.0,
             tile: None,
             tiles: FxHashMap::default(),
             surface_points: Vec::new(),
@@ -866,6 +1034,84 @@ fn split_selected_geometry_edges(map: &mut Map) -> bool {
     }
 
     let selected = map.selected_geometry_vertices.clone();
+    let mut split_faces = false;
+
+    for object in &mut map.geometry_objects {
+        let selected_vertices = selected
+            .iter()
+            .filter_map(|(object_id, vertex_index)| {
+                (*object_id == object.id && *vertex_index < object.vertices.len())
+                    .then_some(*vertex_index)
+            })
+            .collect::<Vec<_>>();
+        if selected_vertices.len() != 2 {
+            continue;
+        }
+
+        let a = selected_vertices[0];
+        let b = selected_vertices[1];
+        let original_face_count = object.faces.len();
+        for face_index in 0..original_face_count {
+            let old_face = object.faces[face_index].clone();
+            let Some(pos_a) = old_face.indices.iter().position(|index| *index == a) else {
+                continue;
+            };
+            let Some(pos_b) = old_face.indices.iter().position(|index| *index == b) else {
+                continue;
+            };
+            let len = old_face.indices.len();
+            if len < 4 {
+                continue;
+            }
+            let delta = pos_a.abs_diff(pos_b);
+            if delta == 1 || delta == len - 1 {
+                continue;
+            }
+
+            let collect_loop = |start: usize, end: usize| {
+                let mut out = Vec::new();
+                let mut index = start;
+                loop {
+                    out.push(old_face.indices[index]);
+                    if index == end {
+                        break;
+                    }
+                    index = (index + 1) % len;
+                }
+                out
+            };
+            let first_indices = collect_loop(pos_a, pos_b);
+            let second_indices = collect_loop(pos_b, pos_a);
+            if first_indices.len() < 3 || second_indices.len() < 3 {
+                continue;
+            }
+
+            let mut first_face = old_face.clone();
+            first_face.indices = first_indices;
+            first_face.uvs = face_uvs_for_indices(object, &first_face.indices);
+            first_face.auto_uv = true;
+            first_face.surface_points.clear();
+            first_face.surface_segments.clear();
+
+            let mut second_face = old_face;
+            second_face.indices = second_indices;
+            second_face.uvs = face_uvs_for_indices(object, &second_face.indices);
+            second_face.auto_uv = true;
+            second_face.surface_points.clear();
+            second_face.surface_segments.clear();
+
+            object.faces[face_index] = first_face;
+            object.faces.push(second_face);
+            split_faces = true;
+        }
+    }
+
+    if split_faces {
+        map.selected_geometry_faces.clear();
+        map.selected_geometry_vertices = selected;
+        return true;
+    }
+
     let mut new_selected_vertices = Vec::new();
     let mut changed = false;
 
@@ -1224,6 +1470,10 @@ impl Tool for GeometryTool {
                     map.selected_linedefs.clear();
                     map.selected_sectors.clear();
                     map.selected_entity_item = None;
+                    map.selected_geometry_vertices.clear();
+                    map.selected_geometry_faces.clear();
+                    map.selected_geometry_surface_points.clear();
+                    map.selected_geometry_surface_segments.clear();
                 }
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Map Selection Changed"),
@@ -1635,11 +1885,7 @@ impl Tool for GeometryTool {
 
                 if delete_selected_geometry_faces(map) || delete_selected_geometry_vertices(map) {
                     sanitize_geometry_selection(map);
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Map Selection Changed"),
-                        TheValue::Empty,
-                    ));
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -1653,10 +1899,7 @@ impl Tool for GeometryTool {
                 map.selected_geometry_objects.clear();
                 map.selected_geometry_vertices.clear();
                 map.selected_geometry_faces.clear();
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Map Selection Changed"),
-                    TheValue::Empty,
-                ));
+                refresh_geometry_topology_edit(Some(&old_map), map, ctx);
                 Some(ProjectUndoAtom::MapEdit(
                     server_ctx.pc,
                     Box::new(old_map),
@@ -1665,18 +1908,33 @@ impl Tool for GeometryTool {
             }
             MapKey(key) => {
                 let step = 1.0 / map.subdivisions.max(1.0);
+                if matches!(key, 'r' | 'R')
+                    && !map.selected_geometry_objects.is_empty()
+                    && map.selected_geometry_faces.is_empty()
+                    && map.selected_geometry_vertices.is_empty()
+                    && map.selected_geometry_surface_points.is_empty()
+                    && map.selected_geometry_surface_segments.is_empty()
+                {
+                    let old_map = map.clone();
+                    let quarter_turns = if key == 'R' { -1 } else { 1 };
+                    if !rotate_selected_geometry_objects_y(map, quarter_turns) {
+                        return None;
+                    }
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx);
+                    return Some(ProjectUndoAtom::MapEdit(
+                        server_ctx.pc,
+                        Box::new(old_map),
+                        Box::new(map.clone()),
+                    ));
+                }
+
                 if matches!(key, 'x' | 'X') && !map.selected_geometry_vertices.is_empty() {
                     let old_map = map.clone();
                     if !split_selected_geometry_edges(map) {
                         return None;
                     }
                     sanitize_geometry_selection(map);
-                    RUSTERIX.write().unwrap().set_dirty();
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Map Selection Changed"),
-                        TheValue::Empty,
-                    ));
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -1690,12 +1948,7 @@ impl Tool for GeometryTool {
                         return None;
                     }
                     sanitize_geometry_selection(map);
-                    RUSTERIX.write().unwrap().set_dirty();
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Map Selection Changed"),
-                        TheValue::Empty,
-                    ));
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -1708,11 +1961,7 @@ impl Tool for GeometryTool {
                     if !select_geometry_edge_loops(map) {
                         return None;
                     }
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Map Selection Changed"),
-                        TheValue::Empty,
-                    ));
+                    refresh_geometry_topology_edit(None, map, ctx);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -1720,7 +1969,10 @@ impl Tool for GeometryTool {
                     ));
                 }
 
-                if matches!(key, 't' | 'T') && !map.selected_geometry_faces.is_empty() {
+                if matches!(key, 't' | 'T')
+                    && (!map.selected_geometry_faces.is_empty()
+                        || !map.selected_geometry_objects.is_empty())
+                {
                     let source = server_ctx
                         .curr_tile_id
                         .map(PixelSource::TileId)

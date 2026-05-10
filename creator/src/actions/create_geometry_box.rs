@@ -299,6 +299,10 @@ impl Action for CreateGeometryBox {
         map.selected_geometry_objects.push(id);
         server_ctx.curr_map_tool_type = MapToolType::Selection;
         _ctx.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("Object Tool".into()),
+        ));
+        _ctx.ui.send(TheEvent::Custom(
             TheId::named("Map Selection Changed"),
             TheValue::Empty,
         ));

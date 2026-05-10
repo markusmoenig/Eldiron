@@ -30,7 +30,7 @@ Switch to the top-down 2D editing view while remaining in the current region.
 
 Enable the orbitable 3D camera for inspecting and placing geometry in the region.
 
-Controls: mouse wheel zooms, right-drag or `Alt`-drag orbits, `Ctrl/Cmd`-drag pans, `Shift` + mouse wheel pans, and arrow keys move the target position.
+Controls: mouse wheel zooms, right-drag or `Alt`-drag orbits, `Ctrl/Cmd`-drag pans, `Shift` + mouse wheel pans, and arrow keys move the target position. Right-drag uses captured raw mouse motion in the desktop and Xcode/macOS builds so the pointer cannot hit the screen edge while orbiting.
 
 ### Iso Camera
 
@@ -46,7 +46,7 @@ Controls: mouse wheel zooms, right-drag, `Alt`-drag, or `Ctrl/Cmd`-drag pans, `S
 
 Jump into a first-person preview of the region. This also clears any active surface-edit overlay so the scene renders cleanly.
 
-In first-person view, hold the right mouse button and use `WASD` to fly. Release the right mouse button or press `Escape` to return to normal editing. `Space` still toggles fly navigation as a touchpad-friendly fallback; in that mode the pointer position relative to the center of the view controls looking.
+In first-person view, hold the right mouse button and use `WASD` to fly. Release the right mouse button or press `Escape` to return to normal editing. Right-drag uses captured raw mouse motion in the desktop and Xcode/macOS builds so turning is not limited by the screen edge. `Space` still toggles fly navigation as a touchpad-friendly fallback; in that mode the pointer position relative to the center of the view controls looking.
 
 Fly navigation controls:
 
@@ -95,6 +95,8 @@ Add a vertex at the centroid of each selected sector—handy for arches, props, 
 
 If a linedef is selected, split it at midpoint. If two vertices are selected, insert a linedef between them.
 
+In direct 3D geometry, `X` splits selected geometry edges at their midpoint. If two non-neighboring vertices on the same face are selected, `X` splits that face along the selected diagonal.
+
 ### Toggle Rect Geometry
 
 In 2D view (no surface selected), toggle rectangular placement helpers for geometry edits. The dock state is left unchanged.
@@ -111,6 +113,18 @@ In 2D view (no surface selected), toggle rectangular placement helpers for geome
 *Shortcut: G*
 
 Edit selected direct 3D geometry objects. This action is available in 3D editing views when a geometry object is selected.
+
+Parameters include object name, optional group label, visibility, mesh-collision solidity, and exact object bounds. Turning **Visible** off skips the object in the rendered scene. Turning **Solid** off skips it in mesh collision while keeping it editable in the creator.
+
+### Edit Face Texture
+
+Edit texture placement on selected direct 3D geometry faces, or on every face of selected Geometry Objects.
+
+Parameters:
+
+- `offset_x` / `offset_y`: slide the source across the face UVs.
+- `scale_x` / `scale_y`: scale the source. Larger values cover more surface area; smaller values repeat more tightly.
+- `rotation`: rotate the source in degrees around the face UV center.
 
 ### Face Extrude
 
@@ -208,62 +222,42 @@ For direct 3D geometry objects, Duplicate remembers the last used geometry offse
 
 ### Edit Vertex
 
-Single-vertex editor with three parameter groups:
+2D-only action.
+
+Single-vertex editor with two parameter groups:
 - `[action]`: `name`, `x`, `y`, `z`
-- `[terrain]`: `terrain`, `smoothness`, `tile_id`, `tile_falloff`
 - `[billboard]`: `tile_id`, `size`
 
 Parameter meaning:
 - `[action].name`: display name for the vertex.
 - `[action].x`, `[action].z`: planar map position.
 - `[action].y`: vertex elevation (height).
-- `[terrain].terrain`: marks this vertex as a terrain control point.
-- `[terrain].smoothness`: influence radius of this control point (higher = broader hill/valley).
-- `[terrain].tile_id`: optional terrain tile override centered on this control point.
-- `[terrain].tile_falloff`: blend distance outside the control-point radius for terrain texturing.
 - `[billboard].tile_id`: optional sprite/billboard tile attached to the vertex.
 - `[billboard].size`: billboard size scale.
 
-This writes to vertex properties `terrain_control`, `smoothness`, `terrain_source`, `terrain_tile_falloff`, `source`, and `source_size`.
+This writes to vertex position/name plus billboard properties `source` and `source_size`.
 
 ### Edit Linedef
 
+2D-only action.
+
 Single/multi-linedef editor:
 - `[action]`: `name`
-- `[terrain]`: `smooth`, `width`, `falloff_distance`, `falloff_steepness`, `tile_id`, `tile_falloff`, `road_organic`
 
 Parameter meaning:
 - `[action].name`: linedef name.
-- `[terrain].smooth`: enables terrain smoothing/deformation along the linedef corridor.
-- `[terrain].width`: full-effect corridor width around the linedef.
-- `[terrain].falloff_distance`: distance beyond width where deformation fades out.
-- `[terrain].falloff_steepness`: falloff curve sharpness (higher = harder edge).
-- `[terrain].tile_id`: optional road tile for this corridor.
-- `[terrain].tile_falloff`: texture blend distance from road tile into surrounding terrain.
-- `[terrain].road_organic`: organic road mask amount. Higher values add deterministic center wobble, width variation, noisy edges, and patchy breakup while keeping the linedef itself straight.
 
 ### Edit Sector
 
+2D-only action.
+
 Single-sector editor:
 - `[action]`: `name`, `item`, `visible`
-- `[terrain]`: `terrain`, `ridge_height`, `ridge_plateau`, `ridge_falloff`, `ridge_subdiv`, `tile_id`, `tile_falloff`, `ridge_water_enabled`, `ridge_water_level`, `ridge_water_tile_id`
-- `[iso]`: `hide_on_enter` pattern list
 
 Parameter meaning:
 - `[action].name`: sector name.
 - `[action].item`: optional item/source reference associated with the sector.
 - `[action].visible`: editor/runtime visibility flag.
-- `[terrain].terrain`: terrain mode (`None`, `Exclude`, `Ridge`).
-- `[terrain].ridge_height`: ridge elevation above base terrain.
-- `[terrain].ridge_plateau`: flat top width of the ridge before falloff starts.
-- `[terrain].ridge_falloff`: distance over which ridge height fades to surrounding terrain.
-- `[terrain].ridge_subdiv`: terrain tessellation quality for ridge areas (`1..8`, higher = smoother ridge geometry, higher cost).
-- `[terrain].tile_id`: optional tile used for ridge terrain texturing.
-- `[terrain].tile_falloff`: blend distance from ridge tile into neighboring terrain tiles.
-- `[terrain].ridge_water_enabled`: enables generation of a water surface for this ridge sector.
-- `[terrain].ridge_water_level`: relative water height offset added to `ridge_height` for the generated water surface.
-- `[terrain].ridge_water_tile_id`: tile used to render the generated ridge water surface.
-- `[iso].hide_on_enter`: wildcard sector-name patterns to hide while the player is inside this sector in iso gameplay preview.
 
 ---
 

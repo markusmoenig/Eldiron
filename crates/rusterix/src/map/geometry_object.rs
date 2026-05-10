@@ -24,6 +24,12 @@ pub struct GeometryFace {
     pub uvs: Vec<Vec2<f32>>,
     #[serde(default = "default_auto_uv")]
     pub auto_uv: bool,
+    #[serde(default = "default_texture_offset")]
+    pub texture_offset: Vec2<f32>,
+    #[serde(default = "default_texture_scale")]
+    pub texture_scale: Vec2<f32>,
+    #[serde(default)]
+    pub texture_rotation: f32,
     #[serde(default)]
     pub tile: Option<PixelSource>,
     #[serde(default, with = "geometry_face_tiles")]
@@ -86,6 +92,12 @@ pub struct GeometryObject {
     pub faces: Vec<GeometryFace>,
     #[serde(default = "identity_transform")]
     pub transform: [[f32; 4]; 4],
+    #[serde(default = "default_geometry_object_visible")]
+    pub visible: bool,
+    #[serde(default = "default_geometry_object_solid")]
+    pub solid: bool,
+    #[serde(default)]
+    pub group: String,
     #[serde(default)]
     pub tags: Vec<String>,
 }
@@ -99,6 +111,9 @@ impl GeometryObject {
             vertices: Vec::new(),
             faces: Vec::new(),
             transform: identity_transform(),
+            visible: true,
+            solid: true,
+            group: String::new(),
             tags: Vec::new(),
         }
     }
@@ -202,6 +217,9 @@ fn face(indices: Vec<usize>) -> GeometryFace {
             Vec2::new(0.0, 1.0),
         ],
         auto_uv: true,
+        texture_offset: default_texture_offset(),
+        texture_scale: default_texture_scale(),
+        texture_rotation: 0.0,
         tile: None,
         tiles: FxHashMap::default(),
         surface_points: Vec::new(),
@@ -210,6 +228,22 @@ fn face(indices: Vec<usize>) -> GeometryFace {
 }
 
 fn default_auto_uv() -> bool {
+    true
+}
+
+fn default_texture_offset() -> Vec2<f32> {
+    Vec2::zero()
+}
+
+fn default_texture_scale() -> Vec2<f32> {
+    Vec2::broadcast(1.0)
+}
+
+fn default_geometry_object_visible() -> bool {
+    true
+}
+
+fn default_geometry_object_solid() -> bool {
     true
 }
 

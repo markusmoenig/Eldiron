@@ -674,6 +674,16 @@ impl Tool for LinedefTool {
                     map.clear_temp();
                 }
                 self.surface_line_start = None;
+                if server_ctx.editor_view_mode != EditorViewMode::D2
+                    && let Some(map) = project.get_map_mut(server_ctx)
+                {
+                    map.geometry_selection_mode = 3;
+                    map.selected_geometry_objects.clear();
+                    map.selected_geometry_vertices.clear();
+                    map.selected_geometry_faces.clear();
+                    map.selected_geometry_surface_points.clear();
+                    map.selected_geometry_surface_segments.clear();
+                }
 
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Map Selection Changed"),

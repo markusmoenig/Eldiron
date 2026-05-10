@@ -136,6 +136,11 @@ impl Tool for SectorTool {
                 if let Some(map) = project.get_map_mut(server_ctx) {
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
                         map.geometry_selection_mode = 1;
+                        map.selected_geometry_objects.clear();
+                        map.selected_geometry_vertices.clear();
+                        map.selected_geometry_faces.clear();
+                        map.selected_geometry_surface_points.clear();
+                        map.selected_geometry_surface_segments.clear();
                     }
                     map.selected_vertices.clear();
                     map.selected_linedefs.clear();

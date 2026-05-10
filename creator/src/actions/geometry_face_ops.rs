@@ -149,6 +149,84 @@ fn ordered_boundary_vertices(edges: &[(usize, usize)]) -> Vec<usize> {
     ordered
 }
 
+fn ordered_fill_vertices(object: &rusterix::GeometryObject, indices: &[usize]) -> Vec<usize> {
+    if indices.len() < 3 {
+        return indices.to_vec();
+    }
+
+    let points = indices
+        .iter()
+        .filter_map(|index| object.vertices.get(*index).copied())
+        .collect::<Vec<_>>();
+    if points.len() != indices.len() {
+        return indices.to_vec();
+    }
+
+    let center = points
+        .iter()
+        .copied()
+        .fold(Vec3::zero(), |sum, point| sum + point)
+        / points.len() as f32;
+
+    let mut normal = Vec3::zero();
+    'find_normal: for i in 0..points.len() {
+        for j in i + 1..points.len() {
+            for k in j + 1..points.len() {
+                let candidate = (points[j] - points[i]).cross(points[k] - points[i]);
+                if candidate.magnitude_squared() > 1e-8 {
+                    normal = candidate.normalized();
+                    break 'find_normal;
+                }
+            }
+        }
+    }
+    if normal.magnitude_squared() <= 1e-8 {
+        return indices.to_vec();
+    }
+
+    let tangent = points
+        .iter()
+        .map(|point| *point - center)
+        .max_by(|a, b| {
+            a.magnitude_squared()
+                .partial_cmp(&b.magnitude_squared())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .and_then(|axis| axis.try_normalized())
+        .unwrap_or(Vec3::unit_x());
+    let bitangent = normal
+        .cross(tangent)
+        .try_normalized()
+        .unwrap_or(Vec3::unit_z());
+
+    let mut ordered = indices.to_vec();
+    ordered.sort_by(|a, b| {
+        let pa = object.vertices[*a] - center;
+        let pb = object.vertices[*b] - center;
+        let aa = pa.dot(bitangent).atan2(pa.dot(tangent));
+        let ab = pb.dot(bitangent).atan2(pb.dot(tangent));
+        aa.partial_cmp(&ab).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let sorted_points = ordered
+        .iter()
+        .filter_map(|index| object.vertices.get(*index).copied())
+        .collect::<Vec<_>>();
+    let mut sorted_normal = Vec3::zero();
+    for index in 0..sorted_points.len() {
+        let current = sorted_points[index];
+        let next = sorted_points[(index + 1) % sorted_points.len()];
+        sorted_normal.x += (current.y - next.y) * (current.z + next.z);
+        sorted_normal.y += (current.z - next.z) * (current.x + next.x);
+        sorted_normal.z += (current.x - next.x) * (current.y + next.y);
+    }
+    if sorted_normal.dot(normal) < 0.0 {
+        ordered.reverse();
+    }
+
+    ordered
+}
+
 pub(crate) fn delete_selected_geometry_faces(map: &mut Map) -> bool {
     if map.selected_geometry_faces.is_empty() {
         return false;
@@ -230,12 +308,16 @@ pub(crate) fn fill_selected_geometry_vertices(map: &mut Map) -> bool {
             continue;
         }
 
+        let indices = ordered_fill_vertices(object, &indices);
         let face_index = object.faces.len();
         let uvs = face_uvs_for_indices(object, &indices);
         object.faces.push(rusterix::GeometryFace {
             indices,
             uvs,
             auto_uv: true,
+            texture_offset: Vec2::zero(),
+            texture_scale: Vec2::broadcast(1.0),
+            texture_rotation: 0.0,
             tile: None,
             tiles: FxHashMap::default(),
             surface_points: Vec::new(),
@@ -338,6 +420,9 @@ fn push_geometry_face(
         uvs: face_uvs_for_indices(object, &indices),
         indices,
         auto_uv: true,
+        texture_offset: source.texture_offset,
+        texture_scale: source.texture_scale,
+        texture_rotation: source.texture_rotation,
         tile: source.tile.clone(),
         tiles: FxHashMap::default(),
         surface_points: Vec::new(),
@@ -2495,6 +2580,9 @@ pub(crate) fn extrude_selected_geometry_faces(map: &mut Map, amount: f32) -> boo
                     uvs: face_uvs_for_indices(object, &side_indices),
                     indices: side_indices,
                     auto_uv: true,
+                    texture_offset: face.texture_offset,
+                    texture_scale: face.texture_scale,
+                    texture_rotation: face.texture_rotation,
                     tile: face.tile.clone(),
                     tiles: FxHashMap::default(),
                     surface_points: Vec::new(),
@@ -2690,6 +2778,9 @@ pub(crate) fn inset_selected_geometry_faces(map: &mut Map, amount: f32) -> bool 
                     uvs: face_uvs_for_indices(object, &ring_indices),
                     indices: ring_indices,
                     auto_uv: true,
+                    texture_offset: face.texture_offset,
+                    texture_scale: face.texture_scale,
+                    texture_rotation: face.texture_rotation,
                     tile: face.tile.clone(),
                     tiles: FxHashMap::default(),
                     surface_points: Vec::new(),
