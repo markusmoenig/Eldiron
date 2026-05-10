@@ -16,6 +16,7 @@ In 3D views, the Vertex Tool selects vertices on direct geometry objects.
 - **Shift + Click**: Select multiple vertices.
 - **Alt (Mac: Option) + Click**: Remove vertices from the selection.
 - **Click + Drag**: Move selected vertices.
+- **Click + Drag onto another vertex**: Auto-merge moved 3D vertices when they land on the same grid position.
 - **Click + Drag (Empty Area)**: Select a rectangular area of vertices.
 - **Delete Key**: Remove selected vertices.
 - **Escape Key**: Clear the selection.
@@ -23,6 +24,9 @@ In 3D views, the Vertex Tool selects vertices on direct geometry objects.
 ## 3D Shortcuts
 
 - **X**: Split selected geometry edges when the selected vertices form object edges.
+- **M**: Merge selected vertices to their center and rebuild affected faces.
 - **F**: Fill a selected vertex boundary with a face.
 - **L**: Expand a selected edge into an edge loop on quad geometry.
 - **[ / ]**: Move selected vertices vertically by one grid step.
+
+When moving or merging vertices creates a concave or non-planar face, Eldiron automatically resolves the affected face into triangles so the mesh remains valid.

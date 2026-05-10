@@ -61,7 +61,7 @@ status_dock_action_auto = 自動套用操作
 ## Effect Picker
 status_effect_picker_filter_edit = 顯示包含指定文字的圖塊
 ## Map Editor
-status_map_editor_grid_sub_div = 網格的細分等級
+status_map_editor_grid_sub_div = 網格細分 / 吸附步長
 ## Node Editor
 status_node_editor_graph_id = 地圖中圖形的 ID
 status_node_editor_create_button = 將來源套用到選取的幾何體
@@ -210,8 +210,8 @@ status_hud_geometry_op_size = 物件 Gizmo 操作：調整大小 (S)。
 status_geometry_empty_selection = 3D 選取：G = 物件，E = 面，V = 頂點，L = 邊。
 status_geometry_object_selection = 已選取物件：M = 移動，S = 調整大小，R = 旋轉 90°，T = 套用圖塊，Cmd/Ctrl+D = 複製，Delete = 刪除。
 status_geometry_face_selection = 已選取面：+/- = 推/拉，[] = 上/下移動，Delete = 刪除。
-status_geometry_vertex_selection = 已選取頂點：F = 填充，X = 分割邊，L = 邊循環，[] = 上/下移動，Delete = 刪除。
-status_geometry_edge_selection = 已選取邊：F = 填充，X = 分割邊，L = 邊循環，[] = 上/下移動，Delete = 刪除。
+status_geometry_vertex_selection = 已選取頂點：F = 填充，X = 分割邊，M = 合併，L = 邊循環，[] = 上/下移動，Delete = 刪除。
+status_geometry_edge_selection = 已選取邊：F = 填充，X = 分割邊，M = 合併，L = 邊循環，[] = 上/下移動，Delete = 刪除。
 status_geometry_surface_selection = 已選取表面細節：Shift = 加入，Alt = 移除，L = 連接導線。
 status_geometry_surface_loop_selection = 已選取閉合表面細節：Shift = 加入，Alt = 移除，L = 連接導線。
 organic_dock_title = 有機筆刷

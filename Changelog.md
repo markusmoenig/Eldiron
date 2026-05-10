@@ -12,12 +12,29 @@
 - Improved 3D Face Fill so selected vertices are ordered around their plane before creating the face, avoiding twisted faces from unlucky selection order.
 - Improved 3D Edge Tool feedback so newly-created split vertices are visible immediately after splitting selected edges.
 - Improved 3D vertex `X` splitting so two selected non-neighboring vertices on one face split that face along the diagonal instead of leaving an invalid polygon.
+- Added 3D vertex/edge `M` merging so selected geometry vertices or edges collapse to their center and affected faces are rebuilt.
+- Added 3D vertex/edge auto-merge while dragging, so moved vertices collapse into existing vertices when they land on the same grid position.
+- Improved 3D topology cleanup after edge split, merge, fill, drag, and vertex delete operations by dropping degenerate faces, triangulating concave/non-planar faces, and refreshing affected UVs.
+- Improved 3D grid HUD feedback by keeping the compact `1` ... `0` shortcut slots and showing the active snap step beside them.
+- Improved the 3D grid overlay so visible subdivision lines now match the active `1` ... `0` snap step used by geometry movement, resizing, extrusion, duplication, and surface-detail editing.
+- Fixed the 3D `,` / `.` grid-size shortcuts so they redraw immediately and stay clamped to valid grid sizes.
+- Fixed camera shortcuts such as `Cmd/Ctrl+3` so they no longer also trigger the plain grid snap shortcuts.
+- Improved the 3D HUD coordinate readout so selected geometry continues to show a useful position even when the cursor is no longer hovering the object.
 - Improved 3D object gizmo sizing so handles stay closer to large selected objects instead of scaling far off-screen.
 - Added object-mode `R` / `Shift+R` rotation for 90-degree vertical-axis turns on selected Geometry Objects.
 - Added object-wide `T` tile/color application for selected Geometry Objects, matching the face-level material shortcut while applying the current tile source to every face.
 - Added per-face 3D texture placement controls for selected faces or selected Geometry Objects, including UV offset, scale, and rotation.
+- Improved 3D face texture editing so offset, scale, and rotation parameter changes update the viewport immediately.
 - Added direct Geometry Object visibility, solidity, and group-label properties as the foundation for helper geometry, trigger/water volumes, and grouped level pieces.
+- Improved mesh collision for direct 3D geometry so walkable faces sample their actual face plane instead of an averaged height, with more robust floor lookup around chunk boundaries.
 - Removed legacy terrain/procedural parameter groups from Edit Vertex, Edit Linedef, and Edit Sector; these 2D actions now expose only current map-edit metadata.
+
+## Bug Fixes
+
+### Creator
+
+- Fixed the 3D HUD position readout so the displayed `Y` value uses the actual hovered surface height instead of snapping to the edit grid, avoiding flicker between floor levels.
+- Fixed mesh collision movement so actors can step onto low raised Geometry Object floor edges within the allowed step height instead of being blocked by the cap's vertical side.
 
 ---
 

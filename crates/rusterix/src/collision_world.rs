@@ -76,6 +76,8 @@ pub struct WalkableFloor {
     pub geo_id: GeoId,
     pub height: f32,
     pub polygon_2d: Vec<Vec2<f32>>,
+    pub plane_normal: Vec3<f32>,
+    pub plane_d: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -115,6 +117,45 @@ impl ChunkCollision {
         self.static_barriers.extend(other.static_barriers);
         self.dynamic_openings.extend(other.dynamic_openings);
         self.walkable_floors.extend(other.walkable_floors);
+    }
+}
+
+impl WalkableFloor {
+    pub fn flat(geo_id: GeoId, height: f32, polygon_2d: Vec<Vec2<f32>>) -> Self {
+        Self {
+            geo_id,
+            height,
+            polygon_2d,
+            plane_normal: Vec3::unit_y(),
+            plane_d: height,
+        }
+    }
+
+    pub fn planar(
+        geo_id: GeoId,
+        height: f32,
+        polygon_2d: Vec<Vec2<f32>>,
+        plane_normal: Vec3<f32>,
+        plane_point: Vec3<f32>,
+    ) -> Self {
+        let normal = plane_normal
+            .try_normalized()
+            .unwrap_or_else(Vec3::unit_y);
+        Self {
+            geo_id,
+            height,
+            polygon_2d,
+            plane_normal: normal,
+            plane_d: normal.dot(plane_point),
+        }
+    }
+
+    pub fn height_at(&self, position: Vec2<f32>) -> f32 {
+        if self.plane_normal.y.abs() <= 1e-5 {
+            return self.height;
+        }
+        (self.plane_d - self.plane_normal.x * position.x - self.plane_normal.z * position.y)
+            / self.plane_normal.y
     }
 }
 
@@ -174,6 +215,16 @@ impl CollisionWorld {
         move_vector: Vec3<f32>,
         radius: f32,
     ) -> (Vec3<f32>, bool) {
+        self.move_distance_with_step_clearance(start_pos, move_vector, radius, None)
+    }
+
+    fn move_distance_with_step_clearance(
+        &self,
+        start_pos: Vec3<f32>,
+        move_vector: Vec3<f32>,
+        radius: f32,
+        step_clearance_y: Option<f32>,
+    ) -> (Vec3<f32>, bool) {
         const MAX_ITERATIONS: usize = 3;
         const EPSILON: f32 = 0.001;
 
@@ -195,7 +246,7 @@ impl CollisionWorld {
         let mut blocked = false;
         let mut iterations = 0;
 
-        let segments = self.collect_blocking_segments(start_pos, radius);
+        let segments = self.collect_blocking_segments(start_pos, radius, step_clearance_y);
 
         while remaining.magnitude_squared() > EPSILON * EPSILON && iterations < MAX_ITERATIONS {
             iterations += 1;
@@ -393,23 +444,21 @@ impl CollisionWorld {
     /// Find floor height at position (for gravity/walking)
     pub fn get_floor_height(&self, position: Vec2<f32>) -> Option<f32> {
         let chunk_coords = self.world_to_chunk(position);
+        let mut best_height: Option<f32> = None;
 
-        if let Some(chunk_collision) = self.chunks.get(&chunk_coords) {
-            let mut best_height: Option<f32> = None;
+        for chunk_collision in self.neighbor_chunks(chunk_coords) {
             for floor in &chunk_collision.walkable_floors {
                 if self.point_in_polygon_2d(position, &floor.polygon_2d, 0.0) {
+                    let height = floor.height_at(position);
                     best_height = Some(match best_height {
-                        Some(curr) => curr.max(floor.height),
-                        None => floor.height,
+                        Some(curr) => curr.max(height),
+                        None => height,
                     });
                 }
             }
-            if best_height.is_some() {
-                return best_height;
-            }
         }
 
-        None
+        best_height
     }
 
     /// Find floor height at position, preferring floors at or below `reference_y`.
@@ -417,39 +466,37 @@ impl CollisionWorld {
     /// If no floor exists at/below reference, falls back to the nearest above.
     pub fn get_floor_height_nearest(&self, position: Vec2<f32>, reference_y: f32) -> Option<f32> {
         let chunk_coords = self.world_to_chunk(position);
+        const FLOOR_EPS: f32 = 0.05;
+        let mut best_below: Option<f32> = None;
+        let mut best_above: Option<f32> = None;
+        let mut best_above_dist = f32::INFINITY;
 
-        if let Some(chunk_collision) = self.chunks.get(&chunk_coords) {
-            const FLOOR_EPS: f32 = 0.05;
-            let mut best_below: Option<f32> = None;
-            let mut best_above: Option<f32> = None;
-            let mut best_above_dist = f32::INFINITY;
+        for chunk_collision in self.neighbor_chunks(chunk_coords) {
             for floor in &chunk_collision.walkable_floors {
                 if self.point_in_polygon_2d(position, &floor.polygon_2d, 0.0) {
-                    if floor.height <= reference_y + FLOOR_EPS {
+                    let height = floor.height_at(position);
+                    if height <= reference_y + FLOOR_EPS {
                         best_below = Some(match best_below {
-                            Some(curr) => curr.max(floor.height),
-                            None => floor.height,
+                            Some(curr) => curr.max(height),
+                            None => height,
                         });
                     } else {
-                        let d = floor.height - reference_y;
+                        let d = height - reference_y;
                         if d < best_above_dist {
                             best_above_dist = d;
-                            best_above = Some(floor.height);
+                            best_above = Some(height);
                         } else if (d - best_above_dist).abs() < 1e-4
-                            && floor.height < best_above.unwrap_or(f32::INFINITY)
+                            && height < best_above.unwrap_or(f32::INFINITY)
                         {
                             // Stable tie-breaker for above floors: prefer lower one.
-                            best_above = Some(floor.height);
+                            best_above = Some(height);
                         }
                     }
                 }
             }
-            if best_below.is_some() || best_above.is_some() {
-                return best_below.or(best_above);
-            }
         }
 
-        None
+        best_below.or(best_above)
     }
 
     /// Find the best floor reachable from `reference_y` within `max_step_height`.
@@ -461,50 +508,46 @@ impl CollisionWorld {
         max_step_height: f32,
     ) -> Option<f32> {
         let chunk_coords = self.world_to_chunk(position);
+        const SAME_LEVEL_EPS: f32 = 0.05;
+        let mut best_up: Option<f32> = None;
+        let mut best_up_delta = f32::INFINITY;
+        let mut best_same: Option<f32> = None;
+        let mut best_down: Option<f32> = None;
+        let mut best_down_delta = f32::INFINITY;
 
-        if let Some(chunk_collision) = self.chunks.get(&chunk_coords) {
-            const SAME_LEVEL_EPS: f32 = 0.05;
-            let mut best_up: Option<f32> = None;
-            let mut best_up_delta = f32::INFINITY;
-            let mut best_same: Option<f32> = None;
-            let mut best_down: Option<f32> = None;
-            let mut best_down_delta = f32::INFINITY;
-            let mut candidates: Vec<f32> = Vec::new();
-
+        for chunk_collision in self.neighbor_chunks(chunk_coords) {
             for floor in &chunk_collision.walkable_floors {
                 if !self.point_in_polygon_2d(position, &floor.polygon_2d, 0.0) {
                     continue;
                 }
-                candidates.push(floor.height);
-                let delta = floor.height - reference_y;
+                let height = floor.height_at(position);
+                let delta = height - reference_y;
                 if delta > SAME_LEVEL_EPS && delta <= max_step_height + 1e-3 {
                     if delta < best_up_delta {
                         best_up_delta = delta;
-                        best_up = Some(floor.height);
+                        best_up = Some(height);
                     } else if (delta - best_up_delta).abs() < 1e-4
-                        && floor.height > best_up.unwrap_or(f32::NEG_INFINITY)
+                        && height > best_up.unwrap_or(f32::NEG_INFINITY)
                     {
-                        best_up = Some(floor.height);
+                        best_up = Some(height);
                     }
                 } else if delta >= -SAME_LEVEL_EPS && delta <= SAME_LEVEL_EPS {
-                    best_same = Some(floor.height);
+                    best_same = Some(height);
                 } else if delta < -SAME_LEVEL_EPS && delta.abs() <= max_step_height + 1e-3 {
                     let down_delta = delta.abs();
                     if down_delta < best_down_delta {
                         best_down_delta = down_delta;
-                        best_down = Some(floor.height);
+                        best_down = Some(height);
                     } else if (down_delta - best_down_delta).abs() < 1e-4
-                        && floor.height > best_down.unwrap_or(f32::NEG_INFINITY)
+                        && height > best_down.unwrap_or(f32::NEG_INFINITY)
                     {
-                        best_down = Some(floor.height);
+                        best_down = Some(height);
                     }
                 }
             }
-
-            return best_up.or(best_same).or(best_down);
         }
 
-        None
+        best_up.or(best_same).or(best_down)
     }
 
     /// 3D-aware movement on walkable floors.
@@ -684,7 +727,12 @@ impl CollisionWorld {
             }
             current.y = move_height;
 
-            let (mut next, blocked) = self.move_distance(current, delta, radius);
+            let (mut next, blocked) = self.move_distance_with_step_clearance(
+                current,
+                delta,
+                radius,
+                Some(current_floor + max_step_height + 1e-3),
+            );
             let next_2d = Vec2::new(next.x, next.z);
             let Some(next_floor) =
                 self.get_floor_height_reachable(next_2d, current.y, max_step_height)
@@ -710,7 +758,12 @@ impl CollisionWorld {
         (current, arrived)
     }
 
-    fn collect_blocking_segments(&self, position: Vec3<f32>, radius: f32) -> Vec<CollisionSegment> {
+    fn collect_blocking_segments(
+        &self,
+        position: Vec3<f32>,
+        radius: f32,
+        step_clearance_y: Option<f32>,
+    ) -> Vec<CollisionSegment> {
         let chunk_coords = self.world_to_chunk(Vec2::new(position.x, position.z));
         let mut segments = Vec::new();
 
@@ -719,6 +772,9 @@ impl CollisionWorld {
                 let check_chunk = Vec2::new(chunk_coords.x + dx, chunk_coords.y + dy);
                 if let Some(chunk_collision) = self.chunks.get(&check_chunk) {
                     for barrier in &chunk_collision.static_barriers {
+                        if step_clearance_y.is_some_and(|clearance| barrier.max_y <= clearance) {
+                            continue;
+                        }
                         if self.barrier_blocks_horizontal_motion(position, barrier) {
                             segments.push(CollisionSegment {
                                 geo_id: barrier.geo_id,
@@ -859,6 +915,19 @@ impl CollisionWorld {
             (world_pos.x / self.chunk_size as f32).floor() as i32,
             (world_pos.y / self.chunk_size as f32).floor() as i32,
         )
+    }
+
+    fn neighbor_chunks(&self, chunk_coords: Vec2<i32>) -> Vec<&ChunkCollision> {
+        let mut chunks = Vec::new();
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                let check_chunk = Vec2::new(chunk_coords.x + dx, chunk_coords.y + dy);
+                if let Some(chunk_collision) = self.chunks.get(&check_chunk) {
+                    chunks.push(chunk_collision);
+                }
+            }
+        }
+        chunks
     }
 
     fn collides_with_aabb(
@@ -1315,5 +1384,56 @@ mod tests {
         assert!(blocked);
         assert!(end.x < 0.6);
         assert!(end.z > 0.7);
+    }
+
+    #[test]
+    fn test_floor_movement_steps_over_low_floor_edge() {
+        let mut world = CollisionWorld::new(10);
+        let mut chunk = ChunkCollision::new();
+        let geo_id = GeoId::Sector(1);
+
+        chunk.walkable_floors.push(WalkableFloor::flat(
+            geo_id,
+            0.5,
+            vec![
+                Vec2::new(0.0, 0.0),
+                Vec2::new(7.0, 0.0),
+                Vec2::new(7.0, 5.0),
+                Vec2::new(0.0, 5.0),
+            ],
+        ));
+        chunk.walkable_floors.push(WalkableFloor::flat(
+            geo_id,
+            1.0,
+            vec![
+                Vec2::new(0.0, 5.0),
+                Vec2::new(7.0, 5.0),
+                Vec2::new(7.0, 6.0),
+                Vec2::new(0.0, 6.0),
+            ],
+        ));
+        chunk.static_barriers.push(StaticBarrier {
+            geo_id,
+            start: Vec2::new(0.0, 5.0),
+            end: Vec2::new(7.0, 5.0),
+            min_y: 0.0,
+            max_y: 1.0,
+        });
+        world.update_chunk(Vec2::new(0, 0), chunk);
+
+        let (end, arrived) = world
+            .move_towards_on_floors_direct(
+                Vec2::new(3.5, 4.4),
+                Vec2::new(3.5, 5.6),
+                1.2,
+                0.5,
+                1.0,
+                0.5,
+            )
+            .unwrap();
+
+        assert!(arrived);
+        assert!(end.z > 5.5);
+        assert!((end.y - 1.0).abs() < 1e-4);
     }
 }

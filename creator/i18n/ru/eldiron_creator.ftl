@@ -61,7 +61,7 @@ status_dock_action_auto = Автоприменение действий.
 ## Effect Picker
 status_effect_picker_filter_edit = Показать тайлы, содержащие заданный текст.
 ## Map Editor
-status_map_editor_grid_sub_div = Уровень разбиения сетки.
+status_map_editor_grid_sub_div = Разбиение сетки / шаг привязки.
 ## Node Editor
 status_node_editor_graph_id = ID графа внутри карты.
 status_node_editor_create_button = Применить источник к выбранной геометрии.
@@ -210,8 +210,8 @@ status_hud_geometry_op_size = Операция гизмо объекта: изм
 status_geometry_empty_selection = 3D-выбор: G = объект, E = грань, V = вершина, L = ребро.
 status_geometry_object_selection = Объект выбран: M = переместить, S = размер, R = повернуть на 90°, T = применить тайл, Cmd/Ctrl+D = дублировать, Delete = удалить.
 status_geometry_face_selection = Грань выбрана: +/- = выдавить/вдавить, [] = вверх/вниз, Delete = удалить.
-status_geometry_vertex_selection = Вершина выбрана: F = заполнить, X = разделить ребро, L = петля ребер, [] = вверх/вниз, Delete = удалить.
-status_geometry_edge_selection = Ребро выбрано: F = заполнить, X = разделить ребро, L = петля ребер, [] = вверх/вниз, Delete = удалить.
+status_geometry_vertex_selection = Вершина выбрана: F = заполнить, X = разделить ребро, M = объединить, L = петля ребер, [] = вверх/вниз, Delete = удалить.
+status_geometry_edge_selection = Ребро выбрано: F = заполнить, X = разделить ребро, M = объединить, L = петля ребер, [] = вверх/вниз, Delete = удалить.
 status_geometry_surface_selection = Деталь поверхности выбрана: Shift = добавить, Alt = убрать, L = связанный контур.
 status_geometry_surface_loop_selection = Замкнутая деталь поверхности выбрана: Shift = добавить, Alt = убрать, L = связанный контур.
 organic_dock_title = Органические кисти

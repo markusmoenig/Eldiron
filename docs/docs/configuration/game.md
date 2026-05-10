@@ -122,6 +122,7 @@ avatar_skin_auto_shading = false
   - Selects which collision/pathfinding mode movement actions use (`move`, `goto`, `close_in`).
   - `"tile"` → Use tile/linedef-based collision and pathing.
   - `"mesh"` → Use 3D mesh/chunk-based collision and pathing.
+  - In direct 3D projects, mesh collision is fed from solid Geometry Objects. Walkable faces use the actual face plane, so ramps and edited sloped floors can drive entity height instead of being flattened to one averaged level.
   - Default: `"tile"`.
   - Recommendation: use `"tile"` for 2D games and `"mesh"` for 3D games.
 
@@ -198,12 +199,6 @@ avatar_skin_auto_shading = false
 - The actual translation tables are edited separately in **Game / Locales**.
 
 ---
-
-## Say Presentation
-
-Speech bubble styling belongs to **game widgets**, because it is presentation-specific.
-Configure it with a `[say]` section in the game widget data. See
-[Game Widgets](/docs/screens/widgets/#say-section).
 
 ### **Using In-Game Time for Events**
 

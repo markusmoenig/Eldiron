@@ -135,7 +135,7 @@ fn selected_geometry_surface_element_hit(
         .iter()
         .find(|object| object.id == object_id)?;
     let face = object.faces.get(face_index)?;
-    let step = 1.0 / map.subdivisions.max(1.0);
+    let step = ServerContext::edit_grid_step(map.subdivisions);
     let threshold = (step * 0.32).clamp(0.08, 0.22);
 
     let mut best_point = None;
@@ -209,7 +209,7 @@ fn geometry_surface_element_hit(
         Some(GeoId::GeometryObject(object_id)) => Some(object_id),
         _ => None,
     };
-    let step = 1.0 / map.subdivisions.max(1.0);
+    let step = ServerContext::edit_grid_step(map.subdivisions);
     let threshold = (step * 0.32).clamp(0.08, 0.22);
     let mut best: Option<(Uuid, usize, Vec3<f32>, SurfaceLineHit, f32)> = None;
 
@@ -680,7 +680,7 @@ impl Tool for LinedefTool {
                     map.geometry_selection_mode = 3;
                     map.selected_geometry_objects.clear();
                     map.selected_geometry_vertices.clear();
-                    map.selected_geometry_faces.clear();
+                    // Keep the current face as the host surface for 3D surface-detail drawing.
                     map.selected_geometry_surface_points.clear();
                     map.selected_geometry_surface_segments.clear();
                 }
@@ -746,7 +746,7 @@ impl Tool for LinedefTool {
                     if object_id != drag.object_id || face_index != drag.face_index {
                         return None;
                     }
-                    let step = 1.0 / map.subdivisions.max(1.0);
+                    let step = ServerContext::edit_grid_step(map.subdivisions);
                     let delta = point - drag.start_hit;
                     let snapped_delta = Vec3::new(
                         (delta.x / step).round() * step,
@@ -1363,12 +1363,23 @@ impl Tool for LinedefTool {
 
         match map_event {
             MapKey(c) => {
-                match c {
-                    '1'..='9' => map.subdivisions = (c as u8 - b'0') as f32,
-                    '0' => map.subdivisions = 10.0,
-                    _ => {}
+                if matches!(c, '0'..='9') {
+                    match c {
+                        '1'..='9' => map.subdivisions = (c as u8 - b'0') as f32,
+                        '0' => map.subdivisions = 10.0,
+                        _ => {}
+                    }
+                    {
+                        let mut rusterix = RUSTERIX.write().unwrap();
+                        rusterix.set_dirty();
+                        rusterix.set_overlay_dirty();
+                    }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Tool Changed"),
+                        TheValue::Empty,
+                    ));
+                    ctx.ui.redraw_all = true;
                 }
-                RUSTERIX.write().unwrap().set_dirty();
             }
             MapClicked(coord) => {
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
@@ -2232,7 +2243,7 @@ impl Tool for LinedefTool {
                                     let start_uv = surface.world_to_uv(click_intersection);
                                     let current_uv = surface.world_to_uv(current_pos);
                                     let drag_delta_uv = current_uv - start_uv;
-                                    let step = 1.0 / map.subdivisions.max(1.0);
+                                    let step = ServerContext::edit_grid_step(map.subdivisions);
 
                                     let mut selected_vertices = vec![];
                                     for line_id in self.rectangle_undo_map.selected_linedefs.iter()
@@ -2379,7 +2390,8 @@ impl Tool for LinedefTool {
                                             let new_z = original_vertex.z + drag_delta.y;
 
                                             // Snap to grid
-                                            let subdivisions = 1.0 / map.subdivisions;
+                                            let subdivisions =
+                                                ServerContext::edit_grid_step(map.subdivisions);
                                             let snapped_x =
                                                 (new_x / subdivisions).round() * subdivisions;
                                             let snapped_y =

@@ -99,6 +99,103 @@ impl Hud {
         if v.abs() < 0.0005 { 0.0 } else { v }
     }
 
+    fn grid_step_label(subdivision: usize) -> String {
+        if subdivision <= 1 {
+            "1".to_string()
+        } else {
+            format!("1/{subdivision}")
+        }
+    }
+
+    fn grid_key_label(subdivision: usize) -> String {
+        if subdivision == 10 {
+            "0".to_string()
+        } else {
+            subdivision.to_string()
+        }
+    }
+
+    fn selected_geometry_coord(map: &Map) -> Option<Vec3<f32>> {
+        let mut sum = Vec3::zero();
+        let mut count = 0usize;
+
+        let mut add_point = |point: Vec3<f32>| {
+            if point.x.is_finite() && point.y.is_finite() && point.z.is_finite() {
+                sum += point;
+                count += 1;
+            }
+        };
+
+        for (object_id, face_index, point_index) in &map.selected_geometry_surface_points {
+            if let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *object_id)
+                && let Some(face) = object.faces.get(*face_index)
+                && let Some(point) = face.surface_points.get(*point_index)
+            {
+                add_point(object.transform_point(point.position));
+            }
+        }
+
+        for (object_id, face_index, segment_index) in &map.selected_geometry_surface_segments {
+            if let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *object_id)
+                && let Some(face) = object.faces.get(*face_index)
+                && let Some(segment) = face.surface_segments.get(*segment_index)
+            {
+                if let Some(point) = face.surface_points.get(segment.start) {
+                    add_point(object.transform_point(point.position));
+                }
+                if let Some(point) = face.surface_points.get(segment.end) {
+                    add_point(object.transform_point(point.position));
+                }
+            }
+        }
+
+        for (object_id, vertex_index) in &map.selected_geometry_vertices {
+            if let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *object_id)
+                && let Some(vertex) = object.vertices.get(*vertex_index)
+            {
+                add_point(object.transform_point(*vertex));
+            }
+        }
+
+        for (object_id, face_index) in &map.selected_geometry_faces {
+            if let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *object_id)
+                && let Some(face) = object.faces.get(*face_index)
+            {
+                for index in &face.indices {
+                    if let Some(vertex) = object.vertices.get(*index) {
+                        add_point(object.transform_point(*vertex));
+                    }
+                }
+            }
+        }
+
+        for object_id in &map.selected_geometry_objects {
+            if let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *object_id)
+            {
+                for vertex in &object.vertices {
+                    add_point(object.transform_point(*vertex));
+                }
+            }
+        }
+
+        (count > 0).then(|| sum / count as f32)
+    }
+
     pub fn new(mode: HudMode) -> Self {
         Self {
             mode,
@@ -176,8 +273,15 @@ impl Hud {
                     &bg_color,
                 );
             }
-        } else if let Some(v) = server_ctx.hover_cursor_3d {
-            let snapped = server_ctx.snap_world_point_for_edit(map, v);
+        } else if let Some(snapped) = server_ctx
+            .hover_cursor_3d
+            .map(|v| {
+                let mut snapped = server_ctx.snap_world_point_for_edit(map, v);
+                snapped.y = v.y;
+                snapped
+            })
+            .or_else(|| Self::selected_geometry_coord(map))
+        {
             ctx.draw
                 .rect(buffer.pixels_mut(), &(8, 2, 175, 16), stride, &panel_color);
             ctx.draw.text(
@@ -391,11 +495,13 @@ impl Hud {
                 }
 
                 let r = rect.to_buffer_utuple();
+                let subdivision = (i + 1) as usize;
+                let label = Self::grid_key_label(subdivision);
                 ctx.draw.text_rect(
                     buffer.pixels_mut(),
                     &(r.0, 1, r.2, 19),
                     stride,
-                    &(i + 1).to_string(),
+                    &label,
                     TheFontSettings {
                         size: 12.5,
                         ..Default::default()
@@ -411,6 +517,28 @@ impl Hud {
                 );
                 self.subdiv_rects.push(rect);
             }
+
+            if server_ctx.editor_view_mode != EditorViewMode::D2
+                && server_ctx.get_map_context() == MapContext::Region
+            {
+                let rect = TheDim::rect(x + (10 * size) + 6, 2, 52, 16);
+                ctx.draw
+                    .rect(buffer.pixels_mut(), &rect.to_buffer_utuple(), stride, &panel_color);
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &rect.to_buffer_utuple(),
+                    stride,
+                    &Self::grid_step_label(map.subdivisions.round().clamp(1.0, 10.0) as usize),
+                    TheFontSettings {
+                        size: 11.0,
+                        ..Default::default()
+                    },
+                    &sel_text_color,
+                    &bg_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
+            }
         }
 
         self.edit_mode_rects.clear();
@@ -420,7 +548,7 @@ impl Hud {
         {
             let labels = [fl!("hud_geometry_op_move"), fl!("hud_geometry_op_size")];
             let modes = [GeometryGizmoOp::Move, GeometryGizmoOp::Resize];
-            let start_x = 390;
+            let start_x = 432;
             let button_w = 52;
 
             for i in 0..2 {
@@ -589,6 +717,16 @@ impl Hud {
             for (i, rect) in self.subdiv_rects.iter().enumerate() {
                 if rect.contains(Vec2::new(x, y)) {
                     map.subdivisions = (i + 1) as f32;
+                    {
+                        let mut rusterix = RUSTERIX.write().unwrap();
+                        rusterix.set_dirty();
+                        rusterix.set_overlay_dirty();
+                    }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Tool Changed"),
+                        TheValue::Empty,
+                    ));
+                    ctx.ui.redraw_all = true;
                     return true;
                 }
             }

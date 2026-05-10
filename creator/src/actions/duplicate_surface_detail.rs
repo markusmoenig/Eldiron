@@ -67,7 +67,7 @@ impl Action for DuplicateSurfaceDetail {
     }
 
     fn load_params(&mut self, map: &Map) {
-        let step = 1.0 / map.subdivisions.max(1.0);
+        let step = ServerContext::edit_grid_step(map.subdivisions);
         self.nodeui
             .set_f32_value("actionDuplicateSurfaceDetailU", step);
         self.nodeui
@@ -84,7 +84,7 @@ impl Action for DuplicateSurfaceDetail {
         let offset_u = self
             .nodeui
             .get_f32_value("actionDuplicateSurfaceDetailU")
-            .unwrap_or_else(|| 1.0 / map.subdivisions.max(1.0));
+            .unwrap_or_else(|| ServerContext::edit_grid_step(map.subdivisions));
         let offset_v = self
             .nodeui
             .get_f32_value("actionDuplicateSurfaceDetailV")

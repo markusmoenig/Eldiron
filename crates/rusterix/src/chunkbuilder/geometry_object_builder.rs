@@ -522,11 +522,13 @@ impl ChunkBuilder for GeometryObjectBuilder {
                         .iter()
                         .map(|point| Vec2::new(point.x, point.z))
                         .collect::<Vec<_>>();
-                    collision.walkable_floors.push(WalkableFloor {
-                        geo_id: GeoId::GeometryObject(object.id),
+                    collision.walkable_floors.push(WalkableFloor::planar(
+                        GeoId::GeometryObject(object.id),
                         height,
                         polygon_2d,
-                    });
+                        normal,
+                        world_points[0],
+                    ));
                 } else if normal.y.abs() < 0.75 {
                     Self::add_face_barriers(&mut collision, object.id, &world_points);
                 }

@@ -237,12 +237,23 @@ impl Tool for VertexTool {
 
         match map_event {
             MapKey(c) => {
-                match c {
-                    '1'..='9' => map.subdivisions = (c as u8 - b'0') as f32,
-                    '0' => map.subdivisions = 10.0,
-                    _ => {}
+                if matches!(c, '0'..='9') {
+                    match c {
+                        '1'..='9' => map.subdivisions = (c as u8 - b'0') as f32,
+                        '0' => map.subdivisions = 10.0,
+                        _ => {}
+                    }
+                    {
+                        let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                        rusterix.set_dirty();
+                        rusterix.set_overlay_dirty();
+                    }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Tool Changed"),
+                        TheValue::Empty,
+                    ));
+                    ctx.ui.redraw_all = true;
                 }
-                crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
             MapClicked(coord) => {
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
@@ -660,7 +671,7 @@ impl Tool for VertexTool {
                                         original_vertex.x - drag_delta.x,
                                         original_vertex.y - drag_delta.y,
                                     );
-                                    let grid_step = 1.0 / map.subdivisions.max(1.0);
+                                    let grid_step = ServerContext::edit_grid_step(map.subdivisions);
                                     let snapped_pos = Vec2::new(
                                         (new_pos.x / grid_step).round() * grid_step,
                                         (new_pos.y / grid_step).round() * grid_step,
@@ -719,7 +730,7 @@ impl Tool for VertexTool {
                                         let start_uv = surface.world_to_uv(click_intersection);
                                         let current_uv = surface.world_to_uv(current_pos);
                                         let drag_delta_uv = current_uv - start_uv;
-                                        let step = 1.0 / map.subdivisions.max(1.0);
+                                        let step = ServerContext::edit_grid_step(map.subdivisions);
 
                                         for vertex_id in
                                             &self.rectangle_undo_map.selected_vertices.clone()
@@ -845,7 +856,8 @@ impl Tool for VertexTool {
                                                 let new_z = original_vertex.z + drag_delta.y;
 
                                                 // Snap to grid
-                                                let subdivisions = 1.0 / map.subdivisions;
+                                                let subdivisions =
+                                                    ServerContext::edit_grid_step(map.subdivisions);
                                                 let snapped_x =
                                                     (new_x / subdivisions).round() * subdivisions;
                                                 let snapped_y =

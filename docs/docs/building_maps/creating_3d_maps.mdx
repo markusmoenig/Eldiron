@@ -54,7 +54,7 @@ Movement and resizing snap to the current grid size.
 
 Use **Edit Geometry** to set exact object position and size. The same action also exposes object visibility, mesh-collision solidity, and a lightweight group label. Invisible objects are skipped by 3D rendering, and non-solid objects are skipped by mesh collision, which is the foundation for later trigger volumes, water volumes, helper shapes, and grouped moving pieces.
 
-Use **1 ... 0** to change the map subdivision, and **, / .** to decrease or increase the 3D grid size.
+Use **1 ... 0** to change the grid snap step. The 3D HUD keeps the compact shortcut slots and shows the active snap step beside them, and the visible 3D grid subdivision lines follow the same snap step. Use **, / .** to decrease or increase the 3D grid size.
 
 ## Face Editing
 
@@ -136,7 +136,7 @@ Select one or more faces with the **Sector / Face Tool** and press **T**, or use
 
 Faces can either repeat a tile in 1x1 world units or scale the source across the selected face, depending on the active tile application mode.
 
-Use **Edit Face Texture** on selected faces, or on a selected object, to adjust texture offset, scale, and rotation. Texture scale follows the old 3D path convention: larger scale values make the source cover a larger area, while smaller values repeat it more tightly.
+Use **Edit Face Texture** on selected faces, or on a selected object, to adjust texture offset, scale, and rotation. Parameter changes update the 3D view immediately. Texture scale follows the old 3D path convention: larger scale values make the source cover a larger area, while smaller values repeat it more tightly.
 
 ## Suggested Blockout Workflow
 

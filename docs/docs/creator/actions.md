@@ -119,6 +119,7 @@ Parameters include object name, optional group label, visibility, mesh-collision
 ### Edit Face Texture
 
 Edit texture placement on selected direct 3D geometry faces, or on every face of selected Geometry Objects.
+Parameter changes update the selected geometry in the 3D view immediately, so texture adjustments can be judged while editing.
 
 Parameters:
 

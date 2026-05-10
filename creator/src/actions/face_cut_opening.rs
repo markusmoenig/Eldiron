@@ -175,7 +175,7 @@ impl Action for FaceCutOpening {
     }
 
     fn load_params(&mut self, map: &Map) {
-        let step = 1.0 / map.subdivisions.max(1.0);
+        let step = ServerContext::edit_grid_step(map.subdivisions);
         self.nodeui
             .set_f32_value("actionFaceCutOpeningWidth", (step * 2.0).max(0.01));
         self.nodeui
@@ -192,12 +192,12 @@ impl Action for FaceCutOpening {
         let width = self
             .nodeui
             .get_f32_value("actionFaceCutOpeningWidth")
-            .unwrap_or_else(|| 1.0 / map.subdivisions.max(1.0) * 2.0)
+            .unwrap_or_else(|| ServerContext::edit_grid_step(map.subdivisions) * 2.0)
             .max(0.01);
         let height = self
             .nodeui
             .get_f32_value("actionFaceCutOpeningHeight")
-            .unwrap_or_else(|| 1.0 / map.subdivisions.max(1.0) * 2.0)
+            .unwrap_or_else(|| ServerContext::edit_grid_step(map.subdivisions) * 2.0)
             .max(0.01);
         let prev = map.clone();
         if !cut_opening_selected_geometry_faces(map, width, height) {

@@ -61,7 +61,7 @@ status_dock_action_auto = Aplicar acciones automáticamente.
 ## Effect Picker
 status_effect_picker_filter_edit = Mostrar baldosas que contengan el texto dado.
 ## Map Editor
-status_map_editor_grid_sub_div = Nivel de subdivisión de la cuadrícula.
+status_map_editor_grid_sub_div = Subdivisión de cuadrícula / paso de ajuste.
 ## Node Editor
 status_node_editor_graph_id = ID del grafo dentro del mapa.
 status_node_editor_create_button = Aplicar la fuente a la geometría seleccionada.
@@ -210,8 +210,8 @@ status_hud_geometry_op_size = Operación del gizmo de objeto: redimensionar (S).
 status_geometry_empty_selection = Selección 3D: G = Objeto, E = Cara, V = Vértice, L = Arista.
 status_geometry_object_selection = Objeto seleccionado: M = Mover, S = Tamaño, R = Rotar 90°, T = Aplicar tile, Cmd/Ctrl+D = Duplicar, Delete = Eliminar.
 status_geometry_face_selection = Cara seleccionada: +/- = Empujar/Tirar, [] = Subir/Bajar, Delete = Eliminar.
-status_geometry_vertex_selection = Vértice seleccionado: F = Rellenar, X = Dividir arista, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.
-status_geometry_edge_selection = Arista seleccionada: F = Rellenar, X = Dividir arista, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.
+status_geometry_vertex_selection = Vértice seleccionado: F = Rellenar, X = Dividir arista, M = Fusionar, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.
+status_geometry_edge_selection = Arista seleccionada: F = Rellenar, X = Dividir arista, M = Fusionar, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.
 status_geometry_surface_selection = Detalle de superficie seleccionado: Shift = añadir, Alt = quitar, L = guía conectada.
 status_geometry_surface_loop_selection = Detalle de superficie cerrado seleccionado: Shift = añadir, Alt = quitar, L = guía conectada.
 organic_dock_title = Pinceles orgánicos

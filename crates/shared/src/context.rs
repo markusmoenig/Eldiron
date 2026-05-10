@@ -1009,8 +1009,12 @@ impl ServerContext {
     }
 
     fn snap_scalar(value: f32, subdivisions: f32) -> f32 {
-        let step = 1.0 / subdivisions.max(1.0);
+        let step = Self::edit_grid_step(subdivisions);
         (value / step).round() * step
+    }
+
+    pub fn edit_grid_step(subdivisions: f32) -> f32 {
+        1.0 / subdivisions.round().clamp(1.0, 10.0)
     }
 
     pub fn snap_world_point_for_edit(&self, map: &Map, point: Vec3<f32>) -> Vec3<f32> {
@@ -1384,5 +1388,20 @@ impl ServerContext {
                 self.interactions.insert(interaction.to, vec![interaction]);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ServerContext;
+
+    #[test]
+    fn edit_grid_step_rounds_and_clamps_subdivisions() {
+        assert_eq!(ServerContext::edit_grid_step(1.0), 1.0);
+        assert_eq!(ServerContext::edit_grid_step(4.0), 0.25);
+        assert_eq!(ServerContext::edit_grid_step(10.0), 0.1);
+        assert_eq!(ServerContext::edit_grid_step(0.0), 1.0);
+        assert_eq!(ServerContext::edit_grid_step(99.0), 0.1);
+        assert_eq!(ServerContext::edit_grid_step(3.6), 0.25);
     }
 }

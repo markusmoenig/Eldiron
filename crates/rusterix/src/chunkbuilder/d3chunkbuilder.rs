@@ -2660,11 +2660,11 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 floor_polygon.clone()
                             };
 
-                            collision.walkable_floors.push(WalkableFloor {
-                                geo_id: GeoId::Sector(sector.id),
-                                height: base_y,
-                                polygon_2d: floor_polygon,
-                            });
+                            collision.walkable_floors.push(WalkableFloor::flat(
+                                GeoId::Sector(sector.id),
+                                base_y,
+                                floor_polygon,
+                            ));
                         }
                     } else {
                         // Non-extruded surface - thin wall
@@ -2729,11 +2729,11 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 floor_polygon.clone()
                             };
 
-                            collision.walkable_floors.push(WalkableFloor {
-                                geo_id: GeoId::Sector(sector.id),
-                                height: base_y,
-                                polygon_2d: floor_polygon,
-                            });
+                            collision.walkable_floors.push(WalkableFloor::flat(
+                                GeoId::Sector(sector.id),
+                                base_y,
+                                floor_polygon,
+                            ));
                         }
                     }
                 }
@@ -3114,11 +3114,11 @@ impl ChunkBuilder for D3ChunkBuilder {
                         && !sector_is_ridge
                     {
                         // Horizontal floor - add as walkable
-                        collision.walkable_floors.push(WalkableFloor {
-                            geo_id: GeoId::Sector(sector.id),
-                            height: base_y,
-                            polygon_2d: sector_points,
-                        });
+                        collision.walkable_floors.push(WalkableFloor::flat(
+                            GeoId::Sector(sector.id),
+                            base_y,
+                            sector_points,
+                        ));
                     }
                 }
             }
@@ -3291,15 +3291,17 @@ fn add_terrain_collision(
             if !chunk_bbox.contains(center) {
                 continue;
             }
-            collision.walkable_floors.push(WalkableFloor {
-                geo_id: GeoId::Terrain(center.x.floor() as i32, center.y.floor() as i32),
-                height: (p0.y + p1.y + p2.y) / 3.0,
-                polygon_2d: vec![
+            collision.walkable_floors.push(WalkableFloor::planar(
+                GeoId::Terrain(center.x.floor() as i32, center.y.floor() as i32),
+                (p0.y + p1.y + p2.y) / 3.0,
+                vec![
                     Vec2::new(p0.x, p0.z),
                     Vec2::new(p1.x, p1.z),
                     Vec2::new(p2.x, p2.z),
                 ],
-            });
+                (p1 - p0).cross(p2 - p0),
+                p0,
+            ));
         }
     }
 }
@@ -3799,10 +3801,10 @@ fn add_built_stairs_collision(
             ceiling_height: top_y + 2.5,
             opening_type: OpeningType::Passage,
         });
-        collision.walkable_floors.push(WalkableFloor {
-            geo_id: GeoId::Sector(sector.id),
-            height: top_y,
-            polygon_2d: inflate_walkable_polygon(
+        collision.walkable_floors.push(WalkableFloor::flat(
+            GeoId::Sector(sector.id),
+            top_y,
+            inflate_walkable_polygon(
                 &[
                     Vec2::new(open_left_inner.x, open_left_inner.z),
                     Vec2::new(open_right_inner.x, open_right_inner.z),
@@ -3811,7 +3813,7 @@ fn add_built_stairs_collision(
                 ],
                 0.12,
             ),
-        });
+        ));
 
         // Do not create a special low-end passage strip.
         // The first tread already reaches the low edge of the stair run.
@@ -3847,10 +3849,10 @@ fn add_built_stairs_collision(
             let riser_left = lerp3(b0, t0, riser_t);
             let riser_right = lerp3(b1, t1, riser_t);
 
-            collision.walkable_floors.push(WalkableFloor {
-                geo_id: GeoId::Sector(sector.id),
-                height: tread_y,
-                polygon_2d: inflate_walkable_polygon(
+            collision.walkable_floors.push(WalkableFloor::flat(
+                GeoId::Sector(sector.id),
+                tread_y,
+                inflate_walkable_polygon(
                     &[
                         Vec2::new(front_left.x, front_left.z),
                         Vec2::new(front_right.x, front_right.z),
@@ -3859,7 +3861,7 @@ fn add_built_stairs_collision(
                     ],
                     0.04,
                 ),
-            });
+            ));
 
             // Reintroduce physical riser blockers so actors approaching from the
             // low end cannot walk underneath the stair run. Use a single front-face
@@ -4062,16 +4064,18 @@ fn add_stairs_feature_collision(
                 let w2 = surface.uv_to_world(uv_c) + normal * h1;
                 let w3 = surface.uv_to_world(uv_d) + normal * h1;
 
-                collision.walkable_floors.push(WalkableFloor {
-                    geo_id: GeoId::Sector(sector.id),
-                    height: (w0.y + w1.y + w2.y + w3.y) * 0.25,
-                    polygon_2d: vec![
+                collision.walkable_floors.push(WalkableFloor::planar(
+                    GeoId::Sector(sector.id),
+                    (w0.y + w1.y + w2.y + w3.y) * 0.25,
+                    vec![
                         Vec2::new(w0.x, w0.z),
                         Vec2::new(w1.x, w1.z),
                         Vec2::new(w2.x, w2.z),
                         Vec2::new(w3.x, w3.z),
                     ],
-                });
+                    (w1 - w0).cross(w2 - w0),
+                    w0,
+                ));
             }
         }
     }

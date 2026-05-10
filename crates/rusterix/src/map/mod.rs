@@ -354,8 +354,13 @@ impl Map {
                     .map(|point| Vec2::new(point.x, point.z))
                     .collect::<Vec<_>>();
                 if Self::point_in_geometry_polygon_xz(position, &polygon) {
-                    let height = world_points.iter().map(|point| point.y).sum::<f32>()
-                        / world_points.len() as f32;
+                    let height = if normal.y.abs() > 1e-5 {
+                        let plane_d = normal.dot(world_points[0]);
+                        (plane_d - normal.x * position.x - normal.z * position.y) / normal.y
+                    } else {
+                        world_points.iter().map(|point| point.y).sum::<f32>()
+                            / world_points.len() as f32
+                    };
                     best_height = Some(best_height.map_or(height, |best| best.max(height)));
                 }
             }

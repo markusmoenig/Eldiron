@@ -61,7 +61,7 @@ status_dock_action_auto = Aktionen automatisch anwenden.
 ## Effect Picker
 status_effect_picker_filter_edit = Kacheln anzeigen, die den angegebenen Text enthalten.
 ## Map Editor
-status_map_editor_grid_sub_div = Der Unterteilungsgrad des Gitters.
+status_map_editor_grid_sub_div = Gitterunterteilung / Raster-Schrittweite.
 ## Node Editor
 status_node_editor_graph_id = Die ID des Graphen innerhalb der Karte.
 status_node_editor_create_button = Die Quelle auf die ausgewählte Geometrie anwenden.
@@ -210,8 +210,8 @@ status_hud_geometry_op_size = Objekt-Gizmo-Operation: Größe ändern (S).
 status_geometry_empty_selection = 3D-Auswahl: G = Objekt, E = Fläche, V = Vertex, L = Kante.
 status_geometry_object_selection = Objekt ausgewählt: M = Verschieben, S = Größe, R = 90° drehen, T = Kachel anwenden, Cmd/Ctrl+D = Duplizieren, Delete = Löschen.
 status_geometry_face_selection = Fläche ausgewählt: +/- = Drücken/Ziehen, [] = Hoch/Runter, Delete = Löschen.
-status_geometry_vertex_selection = Vertex ausgewählt: F = Füllen, X = Kante teilen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
-status_geometry_edge_selection = Kante ausgewählt: F = Füllen, X = Kante teilen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
+status_geometry_vertex_selection = Vertex ausgewählt: F = Füllen, X = Kante teilen, M = Zusammenführen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
+status_geometry_edge_selection = Kante ausgewählt: F = Füllen, X = Kante teilen, M = Zusammenführen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
 status_geometry_surface_selection = Oberflächendetail ausgewählt: Shift = Hinzufügen, Alt = Entfernen, L = verbundener Guide.
 status_geometry_surface_loop_selection = Geschlossenes Oberflächendetail ausgewählt: Shift = Hinzufügen, Alt = Entfernen, L = verbundener Guide.
 organic_dock_title = Organische Pinsel

@@ -390,6 +390,23 @@ fn local_face_normal(
     normal.try_normalized()
 }
 
+fn face_normal_from_vertices(
+    vertices: &[Vec3<f32>],
+    face: &rusterix::GeometryFace,
+) -> Option<Vec3<f32>> {
+    if face.indices.len() < 3 {
+        return None;
+    }
+    let first = *vertices.get(face.indices[0])?;
+    let mut normal = Vec3::<f32>::zero();
+    for index in 1..face.indices.len() - 1 {
+        let a = *vertices.get(face.indices[index])? - first;
+        let b = *vertices.get(face.indices[index + 1])? - first;
+        normal += a.cross(b);
+    }
+    normal.try_normalized()
+}
+
 fn face_center(
     object: &rusterix::GeometryObject,
     face: &rusterix::GeometryFace,
@@ -1293,6 +1310,58 @@ fn point_strictly_in_polygon_2d(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> bool
     inside
 }
 
+fn segment_intersects_segment_2d(a0: Vec2<f32>, a1: Vec2<f32>, b0: Vec2<f32>, b1: Vec2<f32>) -> bool {
+    const EPS: f32 = 1e-5;
+    let cross = |a: Vec2<f32>, b: Vec2<f32>| a.x * b.y - a.y * b.x;
+    let orient = |a: Vec2<f32>, b: Vec2<f32>, c: Vec2<f32>| cross(b - a, c - a);
+
+    let o1 = orient(a0, a1, b0);
+    let o2 = orient(a0, a1, b1);
+    let o3 = orient(b0, b1, a0);
+    let o4 = orient(b0, b1, a1);
+
+    (o1 > EPS && o2 < -EPS || o1 < -EPS && o2 > EPS)
+        && (o3 > EPS && o4 < -EPS || o3 < -EPS && o4 > EPS)
+}
+
+fn polygons_overlap_2d(face: &[Vec2<f32>], hole: &[Vec2<f32>]) -> bool {
+    if face.len() < 3 || hole.len() < 3 {
+        return false;
+    }
+    let face_center = face.iter().copied().fold(Vec2::zero(), |sum, point| sum + point)
+        / face.len() as f32;
+    if point_strictly_in_polygon_2d(face_center, hole) {
+        return true;
+    }
+    if face
+        .iter()
+        .any(|point| point_strictly_in_polygon_2d(*point, hole))
+    {
+        return true;
+    }
+    if hole
+        .iter()
+        .any(|point| point_strictly_in_polygon_2d(*point, face))
+    {
+        return true;
+    }
+    for face_index in 0..face.len() {
+        let face_a = face[face_index];
+        let face_b = face[(face_index + 1) % face.len()];
+        for hole_index in 0..hole.len() {
+            if segment_intersects_segment_2d(
+                face_a,
+                face_b,
+                hole[hole_index],
+                hole[(hole_index + 1) % hole.len()],
+            ) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn prune_cutout_internal_caps(
     object: &mut rusterix::GeometryObject,
     outer_points: &[Vec3<f32>],
@@ -1308,6 +1377,7 @@ fn prune_cutout_internal_caps(
     if u_len_sq <= 1e-6 || v_len_sq <= 1e-6 {
         return;
     }
+    let cut_normal = u.cross(v).try_normalized().unwrap_or(Vec3::unit_y());
     let to_uv = |point: Vec3<f32>| -> Vec2<f32> {
         let local = point - outer_points[0];
         Vec2::new(local.dot(u) / u_len_sq, local.dot(v) / v_len_sq)
@@ -1333,12 +1403,20 @@ fn prune_cutout_internal_caps(
         if face.indices.is_empty() {
             return true;
         }
+        let Some(face_normal) = face_normal_from_vertices(&vertices, face) else {
+            return true;
+        };
+        if face_normal.dot(cut_normal).abs() < 0.95 {
+            return true;
+        }
         let mut center = Vec3::zero();
+        let mut face_uvs = Vec::with_capacity(face.indices.len());
         for index in &face.indices {
             let Some(vertex) = vertices.get(*index) else {
                 return true;
             };
             center += *vertex;
+            face_uvs.push(to_uv(*vertex));
         }
         let center = center / face.indices.len() as f32;
         if !center.x.is_finite() || !center.y.is_finite() || !center.z.is_finite() {
@@ -1347,7 +1425,7 @@ fn prune_cutout_internal_caps(
         let uv = to_uv(center);
         !hole_uvs
             .iter()
-            .any(|hole| point_strictly_in_polygon_2d(uv, hole))
+            .any(|hole| point_strictly_in_polygon_2d(uv, hole) || polygons_overlap_2d(&face_uvs, hole))
     });
 }
 
@@ -2797,4 +2875,117 @@ pub(crate) fn inset_selected_geometry_faces(map: &mut Map, amount: f32) -> bool 
         sanitize_geometry_selection(map);
     }
     changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn add_surface_loop(
+        map: &mut Map,
+        object_index: usize,
+        face_index: usize,
+        points: &[Vec3<f32>],
+    ) {
+        let object_id = map.geometry_objects[object_index].id;
+        let face = &mut map.geometry_objects[object_index].faces[face_index];
+        let start = face.surface_points.len();
+        for point in points {
+            face.surface_points.push(rusterix::GeometrySurfacePoint {
+                position: *point,
+                mode: rusterix::GeometrySurfacePointMode::Corner,
+            });
+        }
+
+        map.selected_geometry_surface_points.clear();
+        map.selected_geometry_surface_segments.clear();
+        for offset in 0..points.len() {
+            let segment_index = face.surface_segments.len();
+            face.surface_segments
+                .push(rusterix::GeometrySurfaceSegment {
+                    start: start + offset,
+                    end: start + ((offset + 1) % points.len()),
+                    mode: rusterix::GeometrySurfaceSegmentMode::Line,
+                    curve_amount: 0.35,
+                });
+            map.selected_geometry_surface_segments
+                .push((object_id, face_index, segment_index));
+        }
+    }
+
+    fn selected_face_index(map: &Map, object_id: Uuid) -> usize {
+        map.selected_geometry_faces
+            .iter()
+            .find_map(|(selected_object_id, face_index)| {
+                (*selected_object_id == object_id).then_some(*face_index)
+            })
+            .expect("cutout should leave a guide face selected")
+    }
+
+    fn bottom_cap_overlaps(object: &rusterix::GeometryObject, hole: &[Vec3<f32>]) -> bool {
+        let hole_xz = hole
+            .iter()
+            .map(|point| Vec2::new(point.x, point.z))
+            .collect::<Vec<_>>();
+
+        object.faces.iter().any(|face| {
+            let Some(normal) = local_face_normal(object, face) else {
+                return false;
+            };
+            if normal.y.abs() < 0.95 {
+                return false;
+            }
+            let points = face
+                .indices
+                .iter()
+                .filter_map(|index| object.vertices.get(*index).copied())
+                .collect::<Vec<_>>();
+            if points.len() != face.indices.len()
+                || points
+                    .iter()
+                    .any(|point| (point.y - 0.0).abs() > 0.0001)
+            {
+                return false;
+            }
+            let face_xz = points
+                .iter()
+                .map(|point| Vec2::new(point.x, point.z))
+                .collect::<Vec<_>>();
+            polygons_overlap_2d(&face_xz, &hole_xz)
+        })
+    }
+
+    #[test]
+    fn cutout_rebuilds_bottom_without_caps_after_repeated_surface_loops() {
+        let mut map = Map::new();
+        let object = rusterix::GeometryObject::box_from_bounds(
+            "floor",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(8.0, 0.5, 6.0),
+        );
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+
+        let first_hole = vec![
+            Vec3::new(1.0, 0.5, 1.0),
+            Vec3::new(2.5, 0.5, 1.0),
+            Vec3::new(2.5, 0.5, 2.5),
+            Vec3::new(1.0, 0.5, 2.5),
+        ];
+        add_surface_loop(&mut map, 0, 4, &first_hole);
+        assert!(cutout_selected_surface_loop(&mut map));
+        assert!(!bottom_cap_overlaps(&map.geometry_objects[0], &first_hole));
+
+        let second_face = selected_face_index(&map, object_id);
+        let second_hole = vec![
+            Vec3::new(4.0, 0.5, 1.0),
+            Vec3::new(5.5, 0.5, 1.2),
+            Vec3::new(5.2, 0.5, 2.6),
+            Vec3::new(3.8, 0.5, 2.4),
+        ];
+        add_surface_loop(&mut map, 0, second_face, &second_hole);
+        assert!(cutout_selected_surface_loop(&mut map));
+        assert!(!bottom_cap_overlaps(&map.geometry_objects[0], &first_hole));
+        assert!(!bottom_cap_overlaps(&map.geometry_objects[0], &second_hole));
+    }
 }

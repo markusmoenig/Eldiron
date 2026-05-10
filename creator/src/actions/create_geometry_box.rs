@@ -246,7 +246,7 @@ impl Action for CreateGeometryBox {
     }
 
     fn load_params(&mut self, map: &Map) {
-        let step = 1.0 / map.subdivisions.max(1.0);
+        let step = ServerContext::edit_grid_step(map.subdivisions);
         let size = Self::size_for_params(map, step);
         self.nodeui.set_f32_value("actionGeometryWidth", size.x);
         self.nodeui.set_f32_value("actionGeometryHeight", size.y);
@@ -261,7 +261,7 @@ impl Action for CreateGeometryBox {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         let prev = map.clone();
-        let step = 1.0 / map.subdivisions.max(1.0);
+        let step = ServerContext::edit_grid_step(map.subdivisions);
         let size = Vec3::new(
             self.nodeui
                 .get_f32_value("actionGeometryWidth")

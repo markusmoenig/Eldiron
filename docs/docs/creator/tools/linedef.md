@@ -15,6 +15,7 @@ In 3D views, the same tool becomes the edge/surface-line editing tool for direct
 - **Shift + Click**: Add linedefs/edges to the selection.
 - **Alt (Mac: Option) + Click**: Remove linedefs/edges from the selection.
 - **Click + Drag**: Move selected linedefs in 2D.
+- **Click + Drag onto another edge/vertex**: Auto-merge moved 3D edge vertices when they land on existing vertices.
 - **Click + Drag (Empty Area)**: Select a rectangular area of linedefs in 2D.
 - **Delete Key**: Remove selected linedefs in 2D.
 - **Escape Key**: Clear the selection in 2D/edge selection, or end the current 3D surface-line polyline while drawing.
@@ -22,8 +23,11 @@ In 3D views, the same tool becomes the edge/surface-line editing tool for direct
 ## 3D Shortcuts
 
 - **X**: Split selected geometry edges.
+- **M**: Merge selected edge vertices to their center and rebuild affected faces.
 - **L**: Expand a selected edge into an edge loop on quad geometry, or expand a selected surface-line point/segment to its connected guide shape.
 - **[ / ]**: Move selected edge vertices vertically by one grid step.
+
+When edge or vertex edits create a concave or non-planar face, Eldiron automatically resolves the affected face into triangles so the mesh remains valid.
 
 ## 3D Surface Lines
 

@@ -39,16 +39,18 @@ You can navigate the map using:
 
 ![HUD](/img/docs/hud.png)
 
-- The **upper-left corner** of the HUD shows the **current map position**.
-- The numbers **1, 2, ..., 0** represent **subdivisions** of the map:
-  - **1** = Largest subdivision (for broad layouts)
-  - **10** = Smallest subdivision (for fine details)
-- Larger subdivisions help create **detailed** maps, while smaller subdivisions are useful for **general layouts**.
+- The **upper-left corner** of the HUD shows the **current map position**. In 3D views it falls back to the selected geometry position when the cursor is not hovering geometry.
+- The numbers **1, 2, ..., 0** represent **grid snap steps**:
+  - **1** = one world unit
+  - **2** = half a world unit
+  - **0** = one tenth of a world unit
+- In 3D views, the HUD keeps these shortcut labels compact and shows the active snap step beside them.
+- Smaller snap steps help create **detailed** maps, while larger snap steps are useful for **general layouts**.
 - In 3D Object mode, the HUD also contains `MOVE / SIZE` controls for the active object gizmo.
 
 ### Keyboard Shortcuts
 
-When the **map view** has focus, you can use **number keys (1-0)** on your keyboard to quickly switch between subdivisions, instead of clicking on the HUD.
+When the **map view** has focus, you can use **number keys (1-0)** on your keyboard to quickly switch between grid snap steps, instead of clicking on the HUD.
 
 In 3D geometry views you can also use:
 

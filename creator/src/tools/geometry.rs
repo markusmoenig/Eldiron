@@ -3,6 +3,7 @@ use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
+use earcutr::earcut;
 use rusterix::prelude::*;
 use scenevm::GeoId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -299,7 +300,7 @@ fn resize_selected_geometry(map: &mut Map, delta_size: Vec3<f32>) -> bool {
     }
 
     let selected = map.selected_geometry_objects.clone();
-    let min_size = (1.0 / map.subdivisions.max(1.0)).max(0.05);
+    let min_size = ServerContext::edit_grid_step(map.subdivisions).max(0.05);
     let snap = |value: f32| (value / min_size).round() * min_size;
     let mut changed = false;
     for object in &mut map.geometry_objects {
@@ -922,6 +923,214 @@ fn face_uvs_for_indices(object: &rusterix::GeometryObject, indices: &[usize]) ->
         .collect()
 }
 
+fn face_normal_for_points(points: &[Vec3<f32>]) -> Option<Vec3<f32>> {
+    if points.len() < 3 {
+        return None;
+    }
+    let mut normal = Vec3::zero();
+    for index in 0..points.len() {
+        let current = points[index];
+        let next = points[(index + 1) % points.len()];
+        normal.x += (current.y - next.y) * (current.z + next.z);
+        normal.y += (current.z - next.z) * (current.x + next.x);
+        normal.z += (current.x - next.x) * (current.y + next.y);
+    }
+    normal.try_normalized()
+}
+
+fn face_projection_basis(points: &[Vec3<f32>], normal: Vec3<f32>) -> Option<(Vec3<f32>, Vec3<f32>)> {
+    let origin = points.first().copied()?;
+    let tangent = points
+        .iter()
+        .skip(1)
+        .find_map(|point| (*point - origin).try_normalized())?;
+    let bitangent = normal.cross(tangent).try_normalized()?;
+    Some((tangent, bitangent))
+}
+
+fn project_face_points(points: &[Vec3<f32>], normal: Vec3<f32>) -> Option<Vec<Vec2<f32>>> {
+    let origin = points.first().copied()?;
+    let (tangent, bitangent) = face_projection_basis(points, normal)?;
+    Some(
+        points
+            .iter()
+            .map(|point| {
+                let local = *point - origin;
+                Vec2::new(local.dot(tangent), local.dot(bitangent))
+            })
+            .collect(),
+    )
+}
+
+fn polygon_area_2d(points: &[Vec2<f32>]) -> f32 {
+    if points.len() < 3 {
+        return 0.0;
+    }
+    let mut area = 0.0;
+    for index in 0..points.len() {
+        let current = points[index];
+        let next = points[(index + 1) % points.len()];
+        area += current.x * next.y - next.x * current.y;
+    }
+    area * 0.5
+}
+
+fn face_is_planar(points: &[Vec3<f32>], normal: Vec3<f32>, epsilon: f32) -> bool {
+    let Some(origin) = points.first().copied() else {
+        return false;
+    };
+    points
+        .iter()
+        .all(|point| (*point - origin).dot(normal).abs() <= epsilon)
+}
+
+fn polygon_is_convex_2d(points: &[Vec2<f32>]) -> bool {
+    if points.len() <= 3 {
+        return true;
+    }
+    let winding = polygon_area_2d(points).signum();
+    if winding == 0.0 {
+        return false;
+    }
+    for index in 0..points.len() {
+        let a = points[index];
+        let b = points[(index + 1) % points.len()];
+        let c = points[(index + 2) % points.len()];
+        let ab = b - a;
+        let bc = c - b;
+        let cross = ab.x * bc.y - ab.y * bc.x;
+        if cross.abs() <= 1e-5 {
+            continue;
+        }
+        if cross.signum() != winding {
+            return false;
+        }
+    }
+    true
+}
+
+fn face_needs_triangulation(
+    object: &rusterix::GeometryObject,
+    face: &rusterix::GeometryFace,
+    epsilon: f32,
+) -> bool {
+    if face.indices.len() <= 3 {
+        return false;
+    }
+    let points = face
+        .indices
+        .iter()
+        .filter_map(|index| object.vertices.get(*index).copied())
+        .collect::<Vec<_>>();
+    if points.len() != face.indices.len() {
+        return false;
+    }
+    let Some(normal) = face_normal_for_points(&points) else {
+        return false;
+    };
+    if !face_is_planar(&points, normal, epsilon) {
+        return true;
+    }
+    let Some(projected) = project_face_points(&points, normal) else {
+        return false;
+    };
+    !polygon_is_convex_2d(&projected)
+}
+
+fn triangulate_geometry_face(
+    object: &rusterix::GeometryObject,
+    face: &rusterix::GeometryFace,
+) -> Option<Vec<rusterix::GeometryFace>> {
+    let points = face
+        .indices
+        .iter()
+        .filter_map(|index| object.vertices.get(*index).copied())
+        .collect::<Vec<_>>();
+    if points.len() != face.indices.len() || points.len() <= 3 {
+        return None;
+    }
+    let normal = face_normal_for_points(&points)?;
+    let projected = project_face_points(&points, normal)?;
+    if projected.len() != points.len() || polygon_area_2d(&projected).abs() <= 1e-6 {
+        return None;
+    }
+
+    let flat = projected
+        .iter()
+        .flat_map(|point| [point.x as f64, point.y as f64])
+        .collect::<Vec<_>>();
+    let triangles = earcut(&flat, &[], 2).ok()?;
+    if triangles.is_empty() {
+        return None;
+    }
+
+    let mut faces = Vec::with_capacity(triangles.len() / 3);
+    for triangle in triangles.chunks_exact(3) {
+        let mut indices = vec![
+            face.indices[triangle[0]],
+            face.indices[triangle[1]],
+            face.indices[triangle[2]],
+        ];
+        let tri_points = indices
+            .iter()
+            .filter_map(|index| object.vertices.get(*index).copied())
+            .collect::<Vec<_>>();
+        if let Some(tri_normal) = face_normal_for_points(&tri_points)
+            && tri_normal.dot(normal) < 0.0
+        {
+            indices.swap(1, 2);
+        }
+        let mut triangle_face = face.clone();
+        triangle_face.indices = indices;
+        triangle_face.uvs = face_uvs_for_indices(object, &triangle_face.indices);
+        triangle_face.auto_uv = true;
+        triangle_face.surface_points.clear();
+        triangle_face.surface_segments.clear();
+        faces.push(triangle_face);
+    }
+    Some(faces)
+}
+
+fn normalize_geometry_faces_for_object(map: &mut Map, object_id: Uuid) -> bool {
+    let Some(object) = map
+        .geometry_objects
+        .iter_mut()
+        .find(|object| object.id == object_id)
+    else {
+        return false;
+    };
+
+    let epsilon = ServerContext::edit_grid_step(map.subdivisions) * 0.001;
+    let old_faces = object.faces.clone();
+    let mut faces = Vec::with_capacity(old_faces.len());
+    let mut changed = false;
+    for face in old_faces {
+        if face_needs_triangulation(object, &face, epsilon)
+            && let Some(triangles) = triangulate_geometry_face(object, &face)
+        {
+            faces.extend(triangles);
+            changed = true;
+        } else {
+            faces.push(face);
+        }
+    }
+
+    if changed {
+        object.faces = faces;
+        map.selected_geometry_faces.clear();
+    }
+    changed
+}
+
+fn normalize_selected_geometry_object_faces(map: &mut Map) -> bool {
+    let object_ids = map.selected_geometry_objects.clone();
+    let mut changed = false;
+    for object_id in object_ids {
+        changed |= normalize_geometry_faces_for_object(map, object_id);
+    }
+    changed
+}
+
 fn delete_selected_geometry_faces(map: &mut Map) -> bool {
     if map.selected_geometry_faces.is_empty() {
         return false;
@@ -1024,6 +1233,294 @@ fn fill_selected_geometry_vertices(map: &mut Map) -> bool {
     if changed {
         map.selected_geometry_faces = new_selected_faces;
         map.selected_geometry_vertices.clear();
+    }
+    changed
+}
+
+fn compact_merged_face_indices(indices: Vec<usize>) -> Option<Vec<usize>> {
+    let mut compact = Vec::with_capacity(indices.len());
+    for index in indices {
+        if compact.last().copied() != Some(index) {
+            compact.push(index);
+        }
+    }
+    if compact.len() > 1 && compact.first() == compact.last() {
+        compact.pop();
+    }
+
+    let mut unique = BTreeSet::new();
+    if compact.len() < 3 || compact.iter().any(|index| !unique.insert(*index)) {
+        return None;
+    }
+    Some(compact)
+}
+
+fn resolve_vertex_merge_target(targets: &BTreeMap<usize, usize>, index: usize) -> usize {
+    let mut current = index;
+    let mut seen = BTreeSet::new();
+    while let Some(next) = targets.get(&current).copied() {
+        if next == current || !seen.insert(current) {
+            break;
+        }
+        current = next;
+    }
+    current
+}
+
+fn rebuild_geometry_object_after_vertex_merge(
+    object: &mut rusterix::GeometryObject,
+    targets: &BTreeMap<usize, usize>,
+) -> Option<BTreeMap<usize, usize>> {
+    if targets.is_empty() {
+        return None;
+    }
+
+    let old_faces = object.faces.clone();
+    let mut removed_vertices = BTreeSet::new();
+    for old_index in targets.keys().copied() {
+        let target = resolve_vertex_merge_target(targets, old_index);
+        if target != old_index {
+            removed_vertices.insert(old_index);
+        }
+    }
+    if removed_vertices.is_empty() {
+        return None;
+    }
+
+    let mut remap = vec![None; object.vertices.len()];
+    let mut vertices = Vec::with_capacity(object.vertices.len() - removed_vertices.len());
+    for (old_index, vertex) in object.vertices.iter().copied().enumerate() {
+        if removed_vertices.contains(&old_index) {
+            continue;
+        }
+        remap[old_index] = Some(vertices.len());
+        vertices.push(vertex);
+    }
+
+    for old_index in &removed_vertices {
+        let target = resolve_vertex_merge_target(targets, *old_index);
+        let Some(Some(new_target)) = remap.get(target) else {
+            continue;
+        };
+        remap[*old_index] = Some(*new_target);
+    }
+
+    object.vertices = vertices;
+    let mut faces = Vec::with_capacity(old_faces.len());
+    for face in old_faces {
+        let mut indices = Vec::with_capacity(face.indices.len());
+        let mut valid = true;
+        let mut face_changed = false;
+        for old_index in &face.indices {
+            let Some(Some(new_index)) = remap.get(*old_index) else {
+                valid = false;
+                break;
+            };
+            face_changed |= *new_index != *old_index;
+            indices.push(*new_index);
+        }
+        let Some(indices) = valid.then(|| compact_merged_face_indices(indices)).flatten() else {
+            continue;
+        };
+
+        let mut face = face;
+        if face_changed || face.indices.len() != indices.len() {
+            face.indices = indices;
+            face.uvs = face_uvs_for_indices(object, &face.indices);
+            face.auto_uv = true;
+            face.surface_points.clear();
+            face.surface_segments.clear();
+        }
+        faces.push(face);
+    }
+    object.faces = faces;
+
+    let mut old_to_new = BTreeMap::new();
+    for (old_index, new_index) in remap.into_iter().enumerate() {
+        if let Some(new_index) = new_index {
+            old_to_new.insert(old_index, new_index);
+        }
+    }
+    Some(old_to_new)
+}
+
+fn merge_selected_geometry_vertices(map: &mut Map) -> bool {
+    if map.selected_geometry_vertices.len() < 2 {
+        return false;
+    }
+
+    let selected = map.selected_geometry_vertices.clone();
+    let mut new_selected_vertices = Vec::new();
+    let mut changed = false;
+
+    for object in &mut map.geometry_objects {
+        let selected_vertices = selected
+            .iter()
+            .filter_map(|(object_id, vertex_index)| {
+                (*object_id == object.id && *vertex_index < object.vertices.len())
+                    .then_some(*vertex_index)
+            })
+            .collect::<BTreeSet<_>>();
+        if selected_vertices.len() < 2 {
+            continue;
+        }
+
+        let Some(target_old_index) = selected_vertices.iter().next().copied() else {
+            continue;
+        };
+        let center = selected_vertices
+            .iter()
+            .filter_map(|index| object.vertices.get(*index).copied())
+            .fold(Vec3::zero(), |sum, vertex| sum + vertex)
+            / selected_vertices.len() as f32;
+
+        let old_faces = object.faces.clone();
+        let mut remap = vec![None; object.vertices.len()];
+        let mut vertices = Vec::with_capacity(object.vertices.len() - selected_vertices.len() + 1);
+        let mut target_new_index = None;
+
+        for (old_index, vertex) in object.vertices.iter().copied().enumerate() {
+            if old_index == target_old_index {
+                target_new_index = Some(vertices.len());
+                remap[old_index] = target_new_index;
+                vertices.push(center);
+            } else if selected_vertices.contains(&old_index) {
+                continue;
+            } else {
+                remap[old_index] = Some(vertices.len());
+                vertices.push(vertex);
+            }
+        }
+
+        let Some(target_new_index) = target_new_index else {
+            continue;
+        };
+        for old_index in &selected_vertices {
+            remap[*old_index] = Some(target_new_index);
+        }
+
+        object.vertices = vertices;
+        let mut faces = Vec::with_capacity(old_faces.len());
+        for face in old_faces {
+            let mut indices = Vec::with_capacity(face.indices.len());
+            let mut valid = true;
+            for old_index in &face.indices {
+                let Some(Some(new_index)) = remap.get(*old_index) else {
+                    valid = false;
+                    break;
+                };
+                indices.push(*new_index);
+            }
+            let Some(indices) = valid.then(|| compact_merged_face_indices(indices)).flatten()
+            else {
+                continue;
+            };
+
+            let mut face = face;
+            face.indices = indices;
+            face.uvs = face_uvs_for_indices(object, &face.indices);
+            face.auto_uv = true;
+            face.surface_points.clear();
+            face.surface_segments.clear();
+            faces.push(face);
+        }
+        object.faces = faces;
+        new_selected_vertices.push((object.id, target_new_index));
+        changed = true;
+    }
+
+    if changed {
+        map.selected_geometry_faces.clear();
+        map.selected_geometry_vertices = new_selected_vertices;
+    }
+    changed
+}
+
+fn auto_merge_overlapping_selected_geometry_vertices(map: &mut Map, epsilon: f32) -> bool {
+    if map.selected_geometry_vertices.is_empty() {
+        return false;
+    }
+
+    let epsilon_sq = epsilon * epsilon;
+    let selected = map.selected_geometry_vertices.clone();
+    let mut new_selected_vertices = Vec::new();
+    let mut changed = false;
+
+    for object in &mut map.geometry_objects {
+        let selected_vertices = selected
+            .iter()
+            .filter_map(|(object_id, vertex_index)| {
+                (*object_id == object.id && *vertex_index < object.vertices.len())
+                    .then_some(*vertex_index)
+            })
+            .collect::<BTreeSet<_>>();
+        if selected_vertices.is_empty() {
+            continue;
+        }
+
+        let mut targets = BTreeMap::new();
+        for selected_index in &selected_vertices {
+            let Some(position) = object.vertices.get(*selected_index).copied() else {
+                continue;
+            };
+
+            let mut best: Option<(usize, f32)> = None;
+            for (candidate_index, candidate) in object.vertices.iter().copied().enumerate() {
+                if candidate_index == *selected_index || selected_vertices.contains(&candidate_index)
+                {
+                    continue;
+                }
+                let distance_sq = (candidate - position).magnitude_squared();
+                if distance_sq <= epsilon_sq
+                    && best
+                        .map(|(_, best_distance_sq)| distance_sq < best_distance_sq)
+                        .unwrap_or(true)
+                {
+                    best = Some((candidate_index, distance_sq));
+                }
+            }
+
+            if best.is_none() {
+                for candidate_index in selected_vertices.iter().copied() {
+                    if candidate_index >= *selected_index {
+                        continue;
+                    }
+                    let Some(candidate) = object.vertices.get(candidate_index).copied() else {
+                        continue;
+                    };
+                    let distance_sq = (candidate - position).magnitude_squared();
+                    if distance_sq <= epsilon_sq
+                        && best
+                            .map(|(_, best_distance_sq)| distance_sq < best_distance_sq)
+                            .unwrap_or(true)
+                    {
+                        best = Some((candidate_index, distance_sq));
+                    }
+                }
+            }
+
+            if let Some((target_index, _)) = best {
+                targets.insert(*selected_index, target_index);
+            }
+        }
+
+        let Some(old_to_new) = rebuild_geometry_object_after_vertex_merge(object, &targets) else {
+            continue;
+        };
+        let mut selected_after_merge = BTreeSet::new();
+        for old_index in selected_vertices {
+            let target = resolve_vertex_merge_target(&targets, old_index);
+            if let Some(new_index) = old_to_new.get(&target).copied() {
+                selected_after_merge.insert((object.id, new_index));
+            }
+        }
+        new_selected_vertices.extend(selected_after_merge.into_iter());
+        changed = true;
+    }
+
+    if changed {
+        map.selected_geometry_faces.clear();
+        map.selected_geometry_vertices = new_selected_vertices;
     }
     changed
 }
@@ -1163,6 +1660,8 @@ fn split_selected_geometry_edges(map: &mut Map) -> bool {
                 object.faces[face_index].indices = indices;
                 object.faces[face_index].uvs = uvs;
                 object.faces[face_index].auto_uv = true;
+                object.faces[face_index].surface_points.clear();
+                object.faces[face_index].surface_segments.clear();
                 changed = true;
             }
         }
@@ -1193,6 +1692,8 @@ fn delete_selected_geometry_vertices(map: &mut Map) -> bool {
             continue;
         }
 
+        let old_vertex_len = object.vertices.len();
+        let old_face_len = object.faces.len();
         let mut remap = vec![None; object.vertices.len()];
         let mut vertices = Vec::with_capacity(object.vertices.len());
         for (old_index, vertex) in object.vertices.iter().copied().enumerate() {
@@ -1203,8 +1704,11 @@ fn delete_selected_geometry_vertices(map: &mut Map) -> bool {
             vertices.push(vertex);
         }
 
-        let mut faces = Vec::with_capacity(object.faces.len());
-        for face in &object.faces {
+        let old_faces = object.faces.clone();
+        object.vertices = vertices;
+
+        let mut faces = Vec::with_capacity(old_faces.len());
+        for face in old_faces {
             let mut indices = Vec::with_capacity(face.indices.len());
             let mut valid = true;
             for old_index in &face.indices {
@@ -1214,18 +1718,22 @@ fn delete_selected_geometry_vertices(map: &mut Map) -> bool {
                 };
                 indices.push(*new_index);
             }
-            if valid && indices.len() >= 3 {
-                let mut face = face.clone();
-                face.indices = indices;
-                faces.push(face);
-            }
+            let Some(indices) = valid.then(|| compact_merged_face_indices(indices)).flatten()
+            else {
+                continue;
+            };
+            let mut face = face;
+            face.indices = indices;
+            face.uvs = face_uvs_for_indices(object, &face.indices);
+            face.auto_uv = true;
+            face.surface_points.clear();
+            face.surface_segments.clear();
+            faces.push(face);
         }
 
-        if vertices.len() != object.vertices.len() || faces.len() != object.faces.len() {
-            object.vertices = vertices;
-            object.faces = faces;
-            changed = true;
-        }
+        let object_changed = object.vertices.len() != old_vertex_len || faces.len() != old_face_len;
+        object.faces = faces;
+        changed |= object_changed;
     }
     if changed {
         map.selected_geometry_vertices.clear();
@@ -1527,7 +2035,7 @@ impl Tool for GeometryTool {
                     else {
                         return None;
                     };
-                    let step = 1.0 / map.subdivisions.max(1.0);
+                    let step = ServerContext::edit_grid_step(map.subdivisions);
                     let bounds = geometry_bounds(&object.vertices);
                     let selected_indices = match gizmo_kind {
                         GizmoDragKind::Move => {
@@ -1766,7 +2274,7 @@ impl Tool for GeometryTool {
                         return None;
                     };
                     let raw_amount = (hit - anchor).dot(axis);
-                    let step = 1.0 / map.subdivisions.max(1.0);
+                    let step = ServerContext::edit_grid_step(map.subdivisions);
                     let amount = snap_drag_step(raw_amount, step);
                     if amount.abs() > 0.0 {
                         next_axis_anchor = Some(anchor + axis * amount);
@@ -1791,7 +2299,7 @@ impl Tool for GeometryTool {
                     return None;
                 };
 
-                let step = 1.0 / map.subdivisions.max(1.0);
+                let step = ServerContext::edit_grid_step(map.subdivisions);
                 let snapped_delta = if drag.axis.is_some() {
                     delta
                 } else {
@@ -1862,6 +2370,21 @@ impl Tool for GeometryTool {
                 if drag.changed
                     && let Some(old_map) = undo_map
                 {
+                    if drag.vertex_indices.is_some()
+                        && drag.axis.is_none()
+                        && drag.gizmo_kind.is_none()
+                    {
+                        let step = ServerContext::edit_grid_step(map.subdivisions);
+                        let mut topology_changed = auto_merge_overlapping_selected_geometry_vertices(
+                            map,
+                            (step * 0.01).max(0.0001),
+                        );
+                        topology_changed |= normalize_geometry_faces_for_object(map, drag.object_id);
+                        if topology_changed {
+                            sanitize_geometry_selection(map);
+                            refresh_geometry_topology_edit(Some(&old_map), map, ctx);
+                        }
+                    }
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),
@@ -1907,7 +2430,7 @@ impl Tool for GeometryTool {
                 ))
             }
             MapKey(key) => {
-                let step = 1.0 / map.subdivisions.max(1.0);
+                let step = ServerContext::edit_grid_step(map.subdivisions);
                 if matches!(key, 'r' | 'R')
                     && !map.selected_geometry_objects.is_empty()
                     && map.selected_geometry_faces.is_empty()
@@ -1942,11 +2465,27 @@ impl Tool for GeometryTool {
                     ));
                 }
 
+                if matches!(key, 'm' | 'M') && !map.selected_geometry_vertices.is_empty() {
+                    let old_map = map.clone();
+                    if !merge_selected_geometry_vertices(map) {
+                        return None;
+                    }
+                    normalize_selected_geometry_object_faces(map);
+                    sanitize_geometry_selection(map);
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx);
+                    return Some(ProjectUndoAtom::MapEdit(
+                        server_ctx.pc,
+                        Box::new(old_map),
+                        Box::new(map.clone()),
+                    ));
+                }
+
                 if matches!(key, 'f' | 'F') && !map.selected_geometry_vertices.is_empty() {
                     let old_map = map.clone();
                     if !fill_selected_geometry_vertices(map) {
                         return None;
                     }
+                    normalize_selected_geometry_object_faces(map);
                     sanitize_geometry_selection(map);
                     refresh_geometry_topology_edit(Some(&old_map), map, ctx);
                     return Some(ProjectUndoAtom::MapEdit(
@@ -2011,8 +2550,9 @@ impl Tool for GeometryTool {
                     if !move_selected_geometry_vertices(map, delta) {
                         return None;
                     }
+                    normalize_selected_geometry_object_faces(map);
                     sanitize_geometry_selection(map);
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    refresh_geometry_topology_edit(Some(&old_map), map, ctx);
                     return Some(ProjectUndoAtom::MapEdit(
                         server_ctx.pc,
                         Box::new(old_map),

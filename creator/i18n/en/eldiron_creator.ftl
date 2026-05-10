@@ -61,7 +61,7 @@ status_dock_action_auto = Auto apply actions.
 ## Effect Picker
 status_effect_picker_filter_edit = Show tiles containing the given text.
 ## Map Editor
-status_map_editor_grid_sub_div = The subdivision level of the grid.
+status_map_editor_grid_sub_div = The grid subdivision / snap step.
 ## Node Editor
 status_node_editor_graph_id = The Id of the graph inside the map.
 status_node_editor_create_button = Apply the source to the selected geometry.
@@ -226,8 +226,8 @@ status_hud_geometry_op_size = Object gizmo operation: resize (S).
 status_geometry_empty_selection = 3D selection: G = Object, E = Face, V = Vertex, L = Edge.
 status_geometry_object_selection = Object selected: M = Move, S = Size, R = Rotate 90°, T = Apply Tile, Cmd/Ctrl+D = Duplicate, Delete = Delete.
 status_geometry_face_selection = Face selected: +/- = Push/Pull, [] = Move Up/Down, Delete = Delete.
-status_geometry_vertex_selection = Vertex selected: F = Fill, X = Split Edge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.
-status_geometry_edge_selection = Edge selected: F = Fill, X = Split Edge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.
+status_geometry_vertex_selection = Vertex selected: F = Fill, X = Split Edge, M = Merge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.
+status_geometry_edge_selection = Edge selected: F = Fill, X = Split Edge, M = Merge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.
 status_geometry_surface_selection = Surface detail selected: Shift = add, Alt = remove, L = connected guide.
 status_geometry_surface_loop_selection = Closed surface detail selected: Shift = add, Alt = remove, L = connected guide.
 organic_dock_title = Organic Brushes

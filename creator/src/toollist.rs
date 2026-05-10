@@ -1607,6 +1607,60 @@ impl ToolList {
                 }
             }
             TheEvent::KeyDown(TheValue::Char(c)) => {
+                let polyview_focused = ctx
+                    .ui
+                    .focus
+                    .as_ref()
+                    .is_some_and(|id| id.name == "PolyView");
+                let text_input_focused =
+                    ui.focus_widget_supports_text_input(ctx) && !polyview_focused;
+                let plain_key = !ui.ctrl && !ui.logo && !ui.alt;
+
+                if plain_key
+                    && !text_input_focused
+                    && !server_ctx.game_input_mode
+                    && !server_ctx.text_game_mode
+                {
+                    let mut tool_uuid = None;
+                    if self.editor_mode {
+                        for tool in self.editor_tools.iter() {
+                            if let Some(acc) = tool.accel()
+                                && acc.to_ascii_lowercase() == c.to_ascii_lowercase()
+                            {
+                                tool_uuid = Some(tool.id().uuid);
+                                ctx.ui.set_widget_state(
+                                    self.editor_tools[self.curr_editor_tool].id().name,
+                                    TheWidgetState::None,
+                                );
+                                ctx.ui
+                                    .set_widget_state(tool.id().name, TheWidgetState::Selected);
+                                break;
+                            }
+                        }
+                    } else if self.get_current_tool().id().name != "Game Tool"
+                        && !server_ctx.game_mode
+                    {
+                        for tool in self.game_tools.iter() {
+                            if let Some(acc) = tool.accel()
+                                && acc.to_ascii_lowercase() == c.to_ascii_lowercase()
+                            {
+                                tool_uuid = Some(tool.id().uuid);
+                                ctx.ui.set_widget_state(
+                                    self.game_tools[self.curr_game_tool].id().name,
+                                    TheWidgetState::None,
+                                );
+                                ctx.ui
+                                    .set_widget_state(tool.id().name, TheWidgetState::Selected);
+                                break;
+                            }
+                        }
+                    }
+
+                    if let Some(uuid) = tool_uuid {
+                        return self.set_tool(uuid, ui, ctx, project, server_ctx);
+                    }
+                }
+
                 if let Some(id) = &ctx.ui.focus {
                     if id.name == "PolyView" {
                         if server_ctx.editor_view_mode == EditorViewMode::FirstP
@@ -1629,17 +1683,32 @@ impl ToolList {
                         }
 
                         if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
-                            if *c == ',' {
-                                map.grid_size -= 2.0;
-                                return false;
-                            } else if *c == '.' {
-                                map.grid_size += 2.0;
-                                return false;
-                            } else if let Some(subdivision) = Self::grid_subdivision_from_key(*c) {
-                                map.subdivisions = subdivision;
+                            let plain_grid_shortcut = plain_key;
+                            if plain_grid_shortcut
+                                && (*c == ',' || *c == '.')
+                                && server_ctx.editor_view_mode != EditorViewMode::D2
+                            {
+                                let delta = if *c == ',' { -2.0 } else { 2.0 };
+                                map.grid_size = (map.grid_size + delta).clamp(5.0, 100.0);
                                 RUSTERIX.write().unwrap().set_dirty();
+                                ctx.ui.redraw_all = true;
+                                return true;
+                            } else if plain_grid_shortcut && (*c == ',' || *c == '.') {
                                 return false;
-                            } else if Self::is_grid_subdivision_key(*c)
+                            } else if plain_grid_shortcut
+                                && let Some(subdivision) = Self::grid_subdivision_from_key(*c)
+                            {
+                                map.subdivisions = subdivision;
+                                {
+                                    let mut rusterix = RUSTERIX.write().unwrap();
+                                    rusterix.set_dirty();
+                                    rusterix.set_overlay_dirty();
+                                }
+                                self.update_geometry_overlay_3d(project, server_ctx);
+                                ctx.ui.redraw_all = true;
+                                return true;
+                            } else if plain_grid_shortcut
+                                && Self::is_grid_subdivision_key(*c)
                                 && server_ctx.curr_map_tool_type != MapToolType::Selection
                             {
                                 return false;
@@ -1713,7 +1782,7 @@ impl ToolList {
                     }
                 }
 
-                let mut acc = !ui.focus_widget_supports_text_input(ctx);
+                let mut acc = !text_input_focused;
                 if self.get_current_tool().id().name == "Game Tool"
                     || ui.ctrl
                     || ui.logo
@@ -3053,45 +3122,60 @@ impl ToolList {
             };
 
             let grid_bbox = map.bbox().expanded(Vec2::new(16.0, 16.0));
-            let min_x = grid_bbox.min.x.floor().min(-8.0) as i32;
-            let max_x = grid_bbox.max.x.ceil().max(8.0) as i32;
-            let min_z = grid_bbox.min.y.floor().min(-8.0) as i32;
-            let max_z = grid_bbox.max.y.ceil().max(8.0) as i32;
+            let grid_step = ServerContext::edit_grid_step(map.subdivisions);
+            let min_x_step = (grid_bbox.min.x.min(-8.0) / grid_step).floor() as i32;
+            let max_x_step = (grid_bbox.max.x.max(8.0) / grid_step).ceil() as i32;
+            let min_z_step = (grid_bbox.min.y.min(-8.0) / grid_step).floor() as i32;
+            let max_z_step = (grid_bbox.max.y.max(8.0) / grid_step).ceil() as i32;
+            let min_x = min_x_step as f32 * grid_step;
+            let max_x = max_x_step as f32 * grid_step;
+            let min_z = min_z_step as f32 * grid_step;
+            let max_z = max_z_step as f32 * grid_step;
             let grid_y = 0.012;
             let mut grid_index = 0u32;
 
-            for x in min_x..=max_x {
-                if x == 0 {
+            for x_step in min_x_step..=max_x_step {
+                let x = x_step as f32 * grid_step;
+                if x.abs() <= 0.0001 {
                     continue;
                 }
-                let is_major = x % 4 == 0;
+                let whole_unit = x.round() as i32;
+                let is_whole = (x - whole_unit as f32).abs() <= 0.0001;
+                let is_major = is_whole && whole_unit % 4 == 0;
                 rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
                     GeoId::Unknown(0xE300_0000u32.wrapping_add(grid_index)),
-                    Vec3::new(x as f32, grid_y, min_z as f32),
-                    Vec3::new(x as f32, grid_y, max_z as f32),
+                    Vec3::new(x, grid_y, min_z),
+                    Vec3::new(x, grid_y, max_z),
                     if is_major {
                         [0.15, 0.15, 0.15, 0.36]
-                    } else {
+                    } else if is_whole {
                         [0.11, 0.11, 0.11, 0.28]
+                    } else {
+                        [0.09, 0.09, 0.09, 0.18]
                     },
                     10,
                 );
                 grid_index = grid_index.wrapping_add(1);
             }
 
-            for z in min_z..=max_z {
-                if z == 0 {
+            for z_step in min_z_step..=max_z_step {
+                let z = z_step as f32 * grid_step;
+                if z.abs() <= 0.0001 {
                     continue;
                 }
-                let is_major = z % 4 == 0;
+                let whole_unit = z.round() as i32;
+                let is_whole = (z - whole_unit as f32).abs() <= 0.0001;
+                let is_major = is_whole && whole_unit % 4 == 0;
                 rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
                     GeoId::Unknown(0xE301_0000u32.wrapping_add(grid_index)),
-                    Vec3::new(min_x as f32, grid_y, z as f32),
-                    Vec3::new(max_x as f32, grid_y, z as f32),
+                    Vec3::new(min_x, grid_y, z),
+                    Vec3::new(max_x, grid_y, z),
                     if is_major {
                         [0.15, 0.15, 0.15, 0.36]
-                    } else {
+                    } else if is_whole {
                         [0.11, 0.11, 0.11, 0.28]
+                    } else {
+                        [0.09, 0.09, 0.09, 0.18]
                     },
                     10,
                 );
@@ -3100,15 +3184,15 @@ impl ToolList {
 
             rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
                 GeoId::Unknown(0xE302_0000),
-                Vec3::new(min_x as f32, grid_y + 0.004, 0.0),
-                Vec3::new(max_x as f32, grid_y + 0.004, 0.0),
+                Vec3::new(min_x, grid_y + 0.004, 0.0),
+                Vec3::new(max_x, grid_y + 0.004, 0.0),
                 [0.15, 0.15, 0.15, 0.42],
                 11,
             );
             rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
                 GeoId::Unknown(0xE302_0001),
-                Vec3::new(0.0, grid_y + 0.004, min_z as f32),
-                Vec3::new(0.0, grid_y + 0.004, max_z as f32),
+                Vec3::new(0.0, grid_y + 0.004, min_z),
+                Vec3::new(0.0, grid_y + 0.004, max_z),
                 [0.15, 0.15, 0.15, 0.42],
                 11,
             );

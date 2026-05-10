@@ -14,6 +14,33 @@ pub struct EditFaceTexture {
 }
 
 impl EditFaceTexture {
+    fn texture_param_id(id: &TheId) -> bool {
+        matches!(
+            id.name.as_str(),
+            OFFSET_X_ID | OFFSET_Y_ID | SCALE_X_ID | SCALE_Y_ID | ROTATION_ID
+        )
+    }
+
+    fn texture_values(&self) -> (Vec2<f32>, Vec2<f32>, f32) {
+        let offset = Vec2::new(
+            self.nodeui.get_f32_value(OFFSET_X_ID).unwrap_or(0.0),
+            self.nodeui.get_f32_value(OFFSET_Y_ID).unwrap_or(0.0),
+        );
+        let scale = Vec2::new(
+            self.nodeui
+                .get_f32_value(SCALE_X_ID)
+                .unwrap_or(1.0)
+                .max(0.05),
+            self.nodeui
+                .get_f32_value(SCALE_Y_ID)
+                .unwrap_or(1.0)
+                .max(0.05),
+        );
+        let rotation = self.nodeui.get_f32_value(ROTATION_ID).unwrap_or(0.0);
+
+        (offset, scale, rotation)
+    }
+
     fn selected_faces(map: &Map) -> Vec<(usize, usize)> {
         let mut faces = Vec::new();
         for object_id in &map.selected_geometry_objects {
@@ -45,6 +72,44 @@ impl EditFaceTexture {
 
         faces
     }
+
+    fn apply_values(
+        map: &mut Map,
+        offset: Vec2<f32>,
+        scale: Vec2<f32>,
+        rotation: f32,
+    ) -> bool {
+        let selected_faces = Self::selected_faces(map);
+        if selected_faces.is_empty() {
+            return false;
+        }
+
+        let mut changed = false;
+        for (object_index, face_index) in selected_faces {
+            let Some(face) = map
+                .geometry_objects
+                .get_mut(object_index)
+                .and_then(|object| object.faces.get_mut(face_index))
+            else {
+                continue;
+            };
+
+            if (face.texture_offset - offset).magnitude_squared() > 0.000001 {
+                face.texture_offset = offset;
+                changed = true;
+            }
+            if (face.texture_scale - scale).magnitude_squared() > 0.000001 {
+                face.texture_scale = scale;
+                changed = true;
+            }
+            if (face.texture_rotation - rotation).abs() > 0.0001 {
+                face.texture_rotation = rotation;
+                changed = true;
+            }
+        }
+
+        changed
+    }
 }
 
 impl Action for EditFaceTexture {
@@ -63,7 +128,7 @@ impl Action for EditFaceTexture {
             "".into(),
             0.0,
             -64.0..=64.0,
-            false,
+            true,
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
             OFFSET_Y_ID.into(),
@@ -71,7 +136,7 @@ impl Action for EditFaceTexture {
             "".into(),
             0.0,
             -64.0..=64.0,
-            false,
+            true,
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
             SCALE_X_ID.into(),
@@ -79,7 +144,7 @@ impl Action for EditFaceTexture {
             "".into(),
             1.0,
             0.05..=64.0,
-            false,
+            true,
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
             SCALE_Y_ID.into(),
@@ -87,7 +152,7 @@ impl Action for EditFaceTexture {
             "".into(),
             1.0,
             0.05..=64.0,
-            false,
+            true,
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
             ROTATION_ID.into(),
@@ -95,7 +160,7 @@ impl Action for EditFaceTexture {
             "".into(),
             0.0,
             -360.0..=360.0,
-            false,
+            true,
         ));
 
         Self {
@@ -153,62 +218,14 @@ impl Action for EditFaceTexture {
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        let offset = Vec2::new(
-            self.nodeui.get_f32_value(OFFSET_X_ID).unwrap_or(0.0),
-            self.nodeui.get_f32_value(OFFSET_Y_ID).unwrap_or(0.0),
-        );
-        let scale = Vec2::new(
-            self.nodeui
-                .get_f32_value(SCALE_X_ID)
-                .unwrap_or(1.0)
-                .max(0.05),
-            self.nodeui
-                .get_f32_value(SCALE_Y_ID)
-                .unwrap_or(1.0)
-                .max(0.05),
-        );
-        let rotation = self.nodeui.get_f32_value(ROTATION_ID).unwrap_or(0.0);
-        let selected_faces = Self::selected_faces(map);
-        if selected_faces.is_empty() {
-            return None;
-        }
-
-        let mut changed = false;
-        for (object_index, face_index) in &selected_faces {
-            let Some(face) = map
-                .geometry_objects
-                .get(*object_index)
-                .and_then(|object| object.faces.get(*face_index))
-            else {
-                continue;
-            };
-            if (face.texture_offset - offset).magnitude_squared() > 0.000001
-                || (face.texture_scale - scale).magnitude_squared() > 0.000001
-                || (face.texture_rotation - rotation).abs() > 0.0001
-            {
-                changed = true;
-                break;
-            }
-        }
-        if !changed {
-            return None;
-        }
-
+        let (offset, scale, rotation) = self.texture_values();
         let prev = map.clone();
-        for (object_index, face_index) in selected_faces {
-            let Some(face) = map
-                .geometry_objects
-                .get_mut(object_index)
-                .and_then(|object| object.faces.get_mut(face_index))
-            else {
-                continue;
-            };
-            face.texture_offset = offset;
-            face.texture_scale = scale;
-            face.texture_rotation = rotation;
+        if !Self::apply_values(map, offset, scale, rotation) {
+            return None;
         }
 
         map.update_surfaces();
+        map.changed += 1;
         RUSTERIX.write().unwrap().set_dirty();
         RUSTERIX.write().unwrap().set_overlay_dirty();
         Some(ProjectUndoAtom::MapEdit(
@@ -225,11 +242,35 @@ impl Action for EditFaceTexture {
     fn handle_event(
         &mut self,
         event: &TheEvent,
-        _project: &mut Project,
+        project: &mut Project,
         _ui: &mut TheUI,
-        _ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
     ) -> bool {
-        self.nodeui.handle_event(event)
+        let changed = self.nodeui.handle_event(event);
+        if !changed {
+            return false;
+        }
+
+        let TheEvent::ValueChanged(id, _) = event else {
+            return true;
+        };
+        if !Self::texture_param_id(id) {
+            return true;
+        }
+
+        let (offset, scale, rotation) = self.texture_values();
+        let Some(map) = project.get_map_mut(server_ctx) else {
+            return true;
+        };
+        if Self::apply_values(map, offset, scale, rotation) {
+            map.update_surfaces();
+            map.changed += 1;
+            RUSTERIX.write().unwrap().set_dirty();
+            RUSTERIX.write().unwrap().set_overlay_dirty();
+            ctx.ui.redraw_all = true;
+        }
+
+        true
     }
 }

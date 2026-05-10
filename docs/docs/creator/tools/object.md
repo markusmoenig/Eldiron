@@ -28,13 +28,13 @@ The 3D HUD shows `MOVE` and `SIZE` controls when the Object Tool is active.
 - **+ / -**: Resize selected objects on the horizontal axes.
 - **[ / ]**: Resize selected objects vertically.
 
-Object movement and resizing use the current grid subdivision for snapping.
+Object movement and resizing use the current grid snap step.
 
 ## Creating And Duplicating
 
 - **Create Box**: Creates a new geometry box.
 - **Create Box with a selected face**: Attaches a box to that face. The new box matches the face size on the in-plane axes and uses the action's remaining size parameter as thickness.
-- **Edit Geometry**: Sets exact object bounds, object visibility, mesh-collision solidity, and an optional group label.
+- **Edit Geometry**: Sets exact object bounds, object visibility, mesh-collision solidity, and an optional group label. Solid objects feed their walkable face planes and vertical side barriers into mesh collision.
 - **Duplicate**: Duplicate the current object selection with XYZ offsets.
 - **Cmd / Ctrl + D**: Duplicate the current selection.
 
@@ -55,12 +55,12 @@ The editor status bar updates after each 3D selection change and shows the short
 See the per-tool pages for the shortcuts owned by those modes:
 
 - [Sector / Face Tool](sector): face selection, extrusion, inset, subdivision, merge/delete, face push/pull, and tile assignment.
-- [Linedef / Edge Tool](linedef): edge selection, edge splitting, edge-loop selection, surface-line drawing, ridges, grooves, and cutouts.
-- [Vertex Tool](vertex): vertex selection, boundary fill, edge splitting, and vertical vertex movement.
+- [Linedef / Edge Tool](linedef): edge selection, edge splitting/merging, edge-loop selection, surface-line drawing, ridges, grooves, and cutouts.
+- [Vertex Tool](vertex): vertex selection, boundary fill, edge splitting/merging, and vertical vertex movement.
 
 ## Grid Shortcuts
 
-- **1 ... 0**: Set the current grid subdivision.
+- **1 ... 0**: Set the current grid snap step. In 3D the shortcut slots stay compact, and the active snap step is shown beside them.
 - **, / .**: Decrease or increase the 3D grid size.
 
-The grid subdivision is shared with snapping for object movement, face extrusion, vertex moves, and resize handles.
+The grid snap step is shared by object movement, face extrusion, vertex moves, resize handles, duplication offsets, and surface-detail editing. In 3D views the visible grid subdivision lines match this same snap step.
