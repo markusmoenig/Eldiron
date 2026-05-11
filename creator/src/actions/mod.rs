@@ -588,6 +588,7 @@ pub mod remap_tile;
 pub mod set_tile_material;
 pub mod split;
 pub mod toggle_editing_geo;
+pub mod toggle_editor_preview_render;
 pub mod toggle_rect_geo;
 pub mod toggle_surface_curve;
 

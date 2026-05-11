@@ -17,6 +17,9 @@
 - Improved the 3D HUD coordinate readout to show three decimal places normally, with five decimal places only at the `1/32` grid step.
 - Improved 3D Object Tool multi-selection movement so dragging a selected object or its move gizmo moves the selected objects together.
 - Improved 3D character and item placement so entity drops and moves can choose the floor below overhead Geometry Object roofs instead of snapping onto the roof surface.
+- Improved 3D Edit Face Texture selection handling so explicit face selections edit only those faces, while object selections still edit all faces when no individual faces are selected.
+- Extended Edit Vertex to single selected 3D Geometry Object vertices, allowing exact world-coordinate edits for precise vertex placement.
+- Added editor-only 3D preview actions for toggling post-processing and lighting while editing without changing project render settings.
 
 ## Bug Fixes
 

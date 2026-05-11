@@ -43,17 +43,6 @@ impl EditFaceTexture {
 
     fn selected_faces(map: &Map) -> Vec<(usize, usize)> {
         let mut faces = Vec::new();
-        for object_id in &map.selected_geometry_objects {
-            if let Some(object_index) = map
-                .geometry_objects
-                .iter()
-                .position(|object| object.id == *object_id)
-            {
-                for face_index in 0..map.geometry_objects[object_index].faces.len() {
-                    faces.push((object_index, face_index));
-                }
-            }
-        }
 
         for (object_id, face_index) in &map.selected_geometry_faces {
             if let Some(object_index) = map
@@ -66,6 +55,22 @@ impl EditFaceTexture {
                     && *face_index < map.geometry_objects[object_index].faces.len()
                 {
                     faces.push(face);
+                }
+            }
+        }
+
+        if !faces.is_empty() {
+            return faces;
+        }
+
+        for object_id in &map.selected_geometry_objects {
+            if let Some(object_index) = map
+                .geometry_objects
+                .iter()
+                .position(|object| object.id == *object_id)
+            {
+                for face_index in 0..map.geometry_objects[object_index].faces.len() {
+                    faces.push((object_index, face_index));
                 }
             }
         }
@@ -268,5 +273,69 @@ impl Action for EditFaceTexture {
         }
 
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn face_texture_edit_prefers_explicit_face_selection_over_object_selection() {
+        let mut map = Map::default();
+        let object = rusterix::GeometryObject::box_from_bounds(
+            "Box",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 1.0),
+        );
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+        map.selected_geometry_objects.push(object_id);
+        map.selected_geometry_faces.push((object_id, 2));
+
+        assert!(EditFaceTexture::apply_values(
+            &mut map,
+            Vec2::new(0.25, 0.5),
+            Vec2::new(2.0, 3.0),
+            45.0,
+        ));
+
+        for (index, face) in map.geometry_objects[0].faces.iter().enumerate() {
+            if index == 2 {
+                assert_eq!(face.texture_offset, Vec2::new(0.25, 0.5));
+                assert_eq!(face.texture_scale, Vec2::new(2.0, 3.0));
+                assert_eq!(face.texture_rotation, 45.0);
+            } else {
+                assert_eq!(face.texture_offset, Vec2::zero());
+                assert_eq!(face.texture_scale, Vec2::broadcast(1.0));
+                assert_eq!(face.texture_rotation, 0.0);
+            }
+        }
+    }
+
+    #[test]
+    fn face_texture_edit_uses_all_object_faces_without_face_selection() {
+        let mut map = Map::default();
+        let object = rusterix::GeometryObject::box_from_bounds(
+            "Box",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 1.0),
+        );
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+        map.selected_geometry_objects.push(object_id);
+
+        assert!(EditFaceTexture::apply_values(
+            &mut map,
+            Vec2::new(0.25, 0.5),
+            Vec2::new(2.0, 3.0),
+            45.0,
+        ));
+
+        for face in &map.geometry_objects[0].faces {
+            assert_eq!(face.texture_offset, Vec2::new(0.25, 0.5));
+            assert_eq!(face.texture_scale, Vec2::new(2.0, 3.0));
+            assert_eq!(face.texture_rotation, 45.0);
+        }
     }
 }

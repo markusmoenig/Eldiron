@@ -60,6 +60,10 @@ impl ActionList {
             Box::new(crate::actions::set_tile_material::SetTileMaterial::new()),
             Box::new(crate::actions::split::Split::new()),
             Box::new(crate::actions::toggle_editing_geo::ToggleEditingGeo::new()),
+            Box::new(crate::actions::toggle_editor_preview_render::ToggleEditorPreviewPost::new()),
+            Box::new(
+                crate::actions::toggle_editor_preview_render::ToggleEditorPreviewLighting::new(),
+            ),
             Box::new(crate::actions::toggle_rect_geo::ToggleRectGeo::new()),
         ];
         Self { actions }

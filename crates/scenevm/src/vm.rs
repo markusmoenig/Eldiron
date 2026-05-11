@@ -6023,7 +6023,10 @@ impl VM {
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
                     depth_write_enabled: false,
-                    depth_compare: wgpu::CompareFunction::Always,
+                    // Transparent surfaces still blend without writing depth, but they
+                    // must respect opaque depth so water/glass volumes do not draw over
+                    // bridge posts or other opaque geometry inside/behind the volume.
+                    depth_compare: wgpu::CompareFunction::LessEqual,
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),

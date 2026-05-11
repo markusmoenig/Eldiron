@@ -56,6 +56,8 @@ Use **Edit Geometry** to set exact object position and size. The same action als
 
 Use **1 ... 6** to change the grid snap step: `1`, `1/2`, `1/4`, `1/8`, `1/16`, or `1/32` world units. The 3D HUD keeps the compact shortcut slots and shows the active snap step beside them, and the visible 3D grid subdivision lines follow the same snap step. Use **, / .** to decrease or increase the 3D grid snap subdivision.
 
+Use **Toggle Editor Post** and **Toggle Editor Lighting** when you want a cleaner viewport while editing. These actions only affect the editor preview and do not change the project's render settings.
+
 ## Face Editing
 
 Use the **Sector / Face Tool (`E`)** in 3D to select faces.
@@ -129,6 +131,8 @@ Vertex editing is the escape hatch for custom shapes: delete a face, move the bo
 
 Moved vertices snap to absolute grid positions. Auto-merge can run after drag or gizmo movement when moved vertices land on existing vertices.
 
+Use **Edit Vertex** with one selected 3D vertex to enter exact world coordinates for that vertex.
+
 ## Applying Tiles And Colors
 
 3D faces can use the same visual sources as the rest of Eldiron:
@@ -142,7 +146,7 @@ Select one or more faces with the **Sector / Face Tool** and press **T**, or use
 
 Faces can either repeat a tile in 1x1 world units or scale the source across the selected face, depending on the active tile application mode.
 
-Use **Edit Face Texture** on selected faces, or on a selected object, to adjust texture offset, scale, and rotation. Parameter changes update the 3D view immediately. Texture scale follows the old 3D path convention: larger scale values make the source cover a larger area, while smaller values repeat it more tightly.
+Use **Edit Face Texture** on selected faces, or on a selected object, to adjust texture offset, scale, and rotation. Explicit face selections take priority, so selecting one face on an object edits only that face; selecting the object edits every face. Parameter changes update the 3D view immediately. Texture scale follows the old 3D path convention: larger scale values make the source cover a larger area, while smaller values repeat it more tightly.
 
 ## Suggested Blockout Workflow
 

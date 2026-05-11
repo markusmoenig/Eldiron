@@ -65,6 +65,51 @@ impl BillboardAnimState {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::message::RuntimeRenderState;
+
+    #[test]
+    fn runtime_render_state_resets_sparse_overrides_to_base_settings() {
+        let mut handler = SceneHandler::default();
+        handler.sync_base_render_settings(
+            "[render]\nsun_enabled = true\nshadow_enabled = true\nambient_strength = 0.3\n[post]\nenabled = true\n",
+        );
+
+        handler
+            .runtime_render_state
+            .render
+            .set("sun_enabled", Value::Bool(false));
+        handler
+            .runtime_render_state
+            .render
+            .set("shadow_enabled", Value::Bool(false));
+        handler
+            .runtime_render_state
+            .render
+            .set("ambient_strength", Value::Float(1.0));
+        handler
+            .runtime_render_state
+            .post
+            .set("enabled", Value::Bool(false));
+        handler.apply_runtime_render_state_settings();
+
+        assert!(!handler.settings.sun_enabled);
+        assert!(!handler.settings.raster_shadow_enabled);
+        assert_eq!(handler.settings.ambient_strength, 1.0);
+        assert!(!handler.settings.post_enabled);
+
+        handler.runtime_render_state = RuntimeRenderState::default();
+        handler.apply_runtime_render_state_settings();
+
+        assert!(handler.settings.sun_enabled);
+        assert!(handler.settings.raster_shadow_enabled);
+        assert_eq!(handler.settings.ambient_strength, 0.3);
+        assert!(handler.settings.post_enabled);
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct DoorAnimState {
     start_open: f32,
@@ -277,6 +322,7 @@ impl SceneHandler {
     }
 
     pub fn apply_runtime_render_state_settings(&mut self) {
+        self.settings = self.base_settings.clone();
         let _ = self
             .settings
             .apply_render_values(&self.runtime_render_state.render);

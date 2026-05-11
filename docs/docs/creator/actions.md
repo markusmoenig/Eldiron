@@ -118,7 +118,7 @@ Parameters include object name, optional group label, visibility, mesh-collision
 
 ### Edit Face Texture
 
-Edit texture placement on selected direct 3D geometry faces, or on every face of selected Geometry Objects.
+Edit texture placement on selected direct 3D geometry faces, or on every face of selected Geometry Objects. Explicit face selections take priority, so selecting one face on an object edits only that face.
 Parameter changes update the selected geometry in the 3D view immediately, so texture adjustments can be judged while editing.
 
 Parameters:
@@ -221,11 +221,19 @@ For direct 3D geometry objects, Duplicate remembers the last used geometry offse
 - `z`: depth offset on the map Z axis.
 - `[sector].connect`: when duplicating sectors, auto-create connector sectors between old and new boundaries (useful for walls/bridges between levels).
 
+### Toggle Editor Post
+
+Toggle editor-only 3D post-processing preview. This affects the editor viewport only and does not change project render settings.
+
+### Toggle Editor Lighting
+
+Toggle editor-only 3D lighting preview. When off, the editor viewport disables sun and shadow overrides and uses full ambient light for cleaner geometry editing. This affects the editor viewport only and does not change project render settings.
+
 ### Edit Vertex
 
-2D-only action.
+Edit one selected 2D map vertex or one selected 3D Geometry Object vertex.
 
-Single-vertex editor with two parameter groups:
+For 2D vertices, the action includes two parameter groups:
 - `[action]`: `name`, `x`, `y`, `z`
 - `[billboard]`: `tile_id`, `size`
 
@@ -235,6 +243,8 @@ Parameter meaning:
 - `[action].y`: vertex elevation (height).
 - `[billboard].tile_id`: optional sprite/billboard tile attached to the vertex.
 - `[billboard].size`: billboard size scale.
+
+For 3D Geometry Object vertices, the same position fields edit the selected vertex in world coordinates. This is useful for exact placement when grid snapping is not precise enough.
 
 This writes to vertex position/name plus billboard properties `source` and `source_size`.
 

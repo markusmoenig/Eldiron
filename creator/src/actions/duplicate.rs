@@ -474,3 +474,42 @@ impl Action for Duplicate {
         self.nodeui.handle_event(event)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn duplicate_geometry_object_returns_restorable_map_edit() {
+        let mut map = Map::default();
+        let object = rusterix::GeometryObject::box_("Box", Vec3::zero(), Vec3::new(1.0, 1.0, 1.0));
+        let original_id = object.id;
+        map.geometry_objects.push(object);
+        map.selected_geometry_objects.push(original_id);
+
+        let action = Duplicate::new();
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+
+        let Some(ProjectUndoAtom::MapEdit(_, old_map, new_map)) =
+            action.apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
+        else {
+            panic!("duplicate should return a MapEdit undo atom");
+        };
+
+        assert_eq!(old_map.geometry_objects.len(), 1);
+        assert_eq!(new_map.geometry_objects.len(), 2);
+        assert_eq!(map.geometry_objects.len(), 2);
+        assert_eq!(old_map.selected_geometry_objects, vec![original_id]);
+        assert_eq!(new_map.selected_geometry_objects.len(), 1);
+        assert_ne!(new_map.selected_geometry_objects[0], original_id);
+        assert!(
+            new_map
+                .geometry_objects
+                .iter()
+                .any(|object| object.id == new_map.selected_geometry_objects[0])
+        );
+    }
+}
