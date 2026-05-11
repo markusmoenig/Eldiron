@@ -5,7 +5,7 @@ use MapEvent::*;
 use ToolEvent::*;
 use earcutr::earcut;
 use rusterix::prelude::*;
-use scenevm::GeoId;
+use scenevm::{Camera3D, CameraKind, GeoId};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 const GIZMO_AXIS_X: u32 = 1;
@@ -23,6 +23,9 @@ pub struct GeometryTool {
     hud: Hud,
     undo_map: Option<Map>,
     drag: Option<GeometryDrag>,
+    rectangle_start: Option<Vec2<f32>>,
+    rectangle_undo_map: Option<Map>,
+    rectangle_mode: bool,
 }
 
 struct GeometryDrag {
@@ -56,6 +59,14 @@ enum GeometrySelectionMode {
     Face,
     Vertex,
     Edge,
+}
+
+#[derive(Default)]
+struct GeometryRectangleSelection {
+    objects: Vec<Uuid>,
+    faces: Vec<(Uuid, usize)>,
+    vertices: Vec<(Uuid, usize)>,
+    edges: Vec<(Uuid, usize, usize)>,
 }
 
 fn geometry_selection_mode(map: &Map) -> GeometrySelectionMode {
@@ -1790,44 +1801,38 @@ fn split_selected_geometry_edges(map: &mut Map) -> bool {
 
         let mut edge_midpoints = BTreeMap::new();
         for face_index in 0..object.faces.len() {
-            let old_indices = object.faces[face_index].indices.clone();
-            let mut indices = Vec::with_capacity(old_indices.len() + 1);
-            let mut face_changed = false;
-            for index in 0..old_indices.len() {
-                let a = old_indices[index];
-                let b = old_indices[(index + 1) % old_indices.len()];
-                indices.push(a);
-                if selected_vertices.contains(&a) && selected_vertices.contains(&b) {
-                    let edge = normalized_edge(a, b);
-                    let midpoint_index = if let Some(midpoint_index) = edge_midpoints.get(&edge) {
-                        *midpoint_index
-                    } else {
-                        let Some(pa) = object.vertices.get(a).copied() else {
-                            continue;
-                        };
-                        let Some(pb) = object.vertices.get(b).copied() else {
-                            continue;
-                        };
-                        let midpoint_index = object.vertices.len();
-                        object.vertices.push((pa + pb) * 0.5);
-                        edge_midpoints.insert(edge, midpoint_index);
-                        new_selected_vertices.push((object.id, midpoint_index));
-                        midpoint_index
-                    };
-                    indices.push(midpoint_index);
-                    face_changed = true;
-                }
-            }
+            let old_face = object.faces[face_index].clone();
+            let Some((edge_position, edge)) =
+                selected_edge_position_in_face(&old_face.indices, &selected_vertices)
+            else {
+                continue;
+            };
 
-            if face_changed {
-                let uvs = face_uvs_for_indices(object, &indices);
-                object.faces[face_index].indices = indices;
-                object.faces[face_index].uvs = uvs;
-                object.faces[face_index].auto_uv = true;
-                object.faces[face_index].surface_points.clear();
-                object.faces[face_index].surface_segments.clear();
-                changed = true;
-            }
+            let midpoint_index = if let Some(midpoint_index) = edge_midpoints.get(&edge) {
+                *midpoint_index
+            } else {
+                let Some(pa) = object.vertices.get(edge.0).copied() else {
+                    continue;
+                };
+                let Some(pb) = object.vertices.get(edge.1).copied() else {
+                    continue;
+                };
+                let midpoint_index = object.vertices.len();
+                object.vertices.push((pa + pb) * 0.5);
+                edge_midpoints.insert(edge, midpoint_index);
+                new_selected_vertices.push((object.id, midpoint_index));
+                midpoint_index
+            };
+
+            let Some((first_face, second_face)) =
+                split_face_at_edge_midpoint(object, &old_face, edge_position, midpoint_index)
+            else {
+                continue;
+            };
+
+            object.faces[face_index] = first_face;
+            object.faces.push(second_face);
+            changed = true;
         }
     }
 
@@ -1836,6 +1841,78 @@ fn split_selected_geometry_edges(map: &mut Map) -> bool {
         map.selected_geometry_vertices = new_selected_vertices;
     }
     changed
+}
+
+fn selected_edge_position_in_face(
+    indices: &[usize],
+    selected_vertices: &BTreeSet<usize>,
+) -> Option<(usize, (usize, usize))> {
+    for index in 0..indices.len() {
+        let a = indices[index];
+        let b = indices[(index + 1) % indices.len()];
+        if selected_vertices.contains(&a) && selected_vertices.contains(&b) {
+            return Some((index, normalized_edge(a, b)));
+        }
+    }
+    None
+}
+
+fn split_face_at_edge_midpoint(
+    object: &rusterix::GeometryObject,
+    face: &rusterix::GeometryFace,
+    edge_position: usize,
+    midpoint_index: usize,
+) -> Option<(rusterix::GeometryFace, rusterix::GeometryFace)> {
+    let len = face.indices.len();
+    if len < 3 || edge_position >= len {
+        return None;
+    }
+
+    let opposite_position = (edge_position + ((len + 1) / 2)) % len;
+    if opposite_position == edge_position || opposite_position == (edge_position + 1) % len {
+        return None;
+    }
+
+    let mut first_indices = vec![midpoint_index];
+    let mut index = (edge_position + 1) % len;
+    loop {
+        first_indices.push(face.indices[index]);
+        if index == opposite_position {
+            break;
+        }
+        index = (index + 1) % len;
+    }
+
+    let mut second_indices = vec![face.indices[opposite_position]];
+    index = (opposite_position + 1) % len;
+    loop {
+        second_indices.push(face.indices[index]);
+        if index == edge_position {
+            break;
+        }
+        index = (index + 1) % len;
+    }
+    second_indices.push(midpoint_index);
+
+    if first_indices.len() < 3 || second_indices.len() < 3 {
+        return None;
+    }
+
+    let mut first_face = face.clone();
+    first_face.indices = first_indices;
+    first_face.uvs = face_uvs_for_indices(object, &first_face.indices);
+    first_face.auto_uv = true;
+    first_face.surface_points.clear();
+    first_face.surface_segments.clear();
+
+    let mut second_face = face.clone();
+    second_face.indices = second_indices;
+    second_face.uvs = face_uvs_for_indices(object, &second_face.indices);
+    second_face.auto_uv = true;
+    second_face.surface_points.clear();
+    second_face.surface_segments.clear();
+
+    Some((first_face, second_face))
 }
 
 fn delete_selected_geometry_vertices(map: &mut Map) -> bool {
@@ -2004,6 +2081,227 @@ fn remove_geometry_edge_selection(map: &mut Map, object_id: Uuid, a_index: usize
         .retain(|selected| *selected != (object_id, a_index) && *selected != (object_id, b_index));
 }
 
+fn point_in_screen_rect(point: Vec2<f32>, top_left: Vec2<f32>, bottom_right: Vec2<f32>) -> bool {
+    point.x >= top_left.x
+        && point.x <= bottom_right.x
+        && point.y >= top_left.y
+        && point.y <= bottom_right.y
+}
+
+fn project_geometry_point_to_screen(
+    camera: &Camera3D,
+    point: Vec3<f32>,
+    width: f32,
+    height: f32,
+) -> Option<Vec2<f32>> {
+    if width <= 0.0 || height <= 0.0 {
+        return None;
+    }
+
+    let local = point - camera.pos;
+    let aspect = width / height;
+    let (ndc_x, ndc_y) = match camera.kind {
+        CameraKind::OrthoIso => {
+            let half_h = camera.ortho_half_h.max(1e-6);
+            let half_w = half_h * aspect;
+            (
+                local.dot(camera.right) / half_w,
+                local.dot(camera.up) / half_h,
+            )
+        }
+        CameraKind::OrbitPersp | CameraKind::FirstPersonPersp => {
+            let depth = local.dot(camera.forward);
+            if depth <= camera.near || depth >= camera.far {
+                return None;
+            }
+            let tan_half = (camera.vfov_deg.to_radians() * 0.5).tan().max(1e-6);
+            (
+                local.dot(camera.right) / (depth * tan_half * aspect),
+                local.dot(camera.up) / (depth * tan_half),
+            )
+        }
+    };
+
+    Some(Vec2::new(
+        (ndc_x + 1.0) * 0.5 * width,
+        (1.0 - ndc_y) * 0.5 * height,
+    ))
+}
+
+fn projected_points_in_rect(
+    points: impl IntoIterator<Item = Vec3<f32>>,
+    camera: &Camera3D,
+    width: f32,
+    height: f32,
+    top_left: Vec2<f32>,
+    bottom_right: Vec2<f32>,
+) -> bool {
+    points.into_iter().any(|point| {
+        project_geometry_point_to_screen(camera, point, width, height)
+            .is_some_and(|screen| point_in_screen_rect(screen, top_left, bottom_right))
+    })
+}
+
+fn geometry_rectangle_selection(
+    map: &Map,
+    camera: &Camera3D,
+    width: f32,
+    height: f32,
+    top_left: Vec2<f32>,
+    bottom_right: Vec2<f32>,
+) -> GeometryRectangleSelection {
+    let mut selection = GeometryRectangleSelection::default();
+    let mode = geometry_selection_mode(map);
+
+    for object in &map.geometry_objects {
+        match mode {
+            GeometrySelectionMode::Object => {
+                let center = if let Some((min, max)) = geometry_bounds(&object.vertices) {
+                    object.transform_point((min + max) * 0.5)
+                } else {
+                    continue;
+                };
+                let world_vertices = object
+                    .vertices
+                    .iter()
+                    .map(|vertex| object.transform_point(*vertex))
+                    .chain(std::iter::once(center));
+                if projected_points_in_rect(
+                    world_vertices,
+                    camera,
+                    width,
+                    height,
+                    top_left,
+                    bottom_right,
+                ) {
+                    selection.objects.push(object.id);
+                }
+            }
+            GeometrySelectionMode::Face => {
+                for (face_index, face) in object.faces.iter().enumerate() {
+                    let center = face
+                        .indices
+                        .iter()
+                        .filter_map(|index| object.vertices.get(*index).copied())
+                        .fold(Vec3::zero(), |sum, vertex| sum + vertex)
+                        / face.indices.len().max(1) as f32;
+                    let world_points = face
+                        .indices
+                        .iter()
+                        .filter_map(|index| object.vertices.get(*index).copied())
+                        .map(|vertex| object.transform_point(vertex))
+                        .chain(std::iter::once(object.transform_point(center)));
+                    if projected_points_in_rect(
+                        world_points,
+                        camera,
+                        width,
+                        height,
+                        top_left,
+                        bottom_right,
+                    ) {
+                        selection.faces.push((object.id, face_index));
+                    }
+                }
+            }
+            GeometrySelectionMode::Vertex => {
+                for (vertex_index, vertex) in object.vertices.iter().copied().enumerate() {
+                    if project_geometry_point_to_screen(
+                        camera,
+                        object.transform_point(vertex),
+                        width,
+                        height,
+                    )
+                    .is_some_and(|screen| point_in_screen_rect(screen, top_left, bottom_right))
+                    {
+                        selection.vertices.push((object.id, vertex_index));
+                    }
+                }
+            }
+            GeometrySelectionMode::Edge => {
+                let mut seen_edges = BTreeSet::new();
+                for face in &object.faces {
+                    for index in 0..face.indices.len() {
+                        let a = face.indices[index];
+                        let b = face.indices[(index + 1) % face.indices.len()];
+                        if !seen_edges.insert(normalized_edge(a, b)) {
+                            continue;
+                        }
+                        let Some(pa) = object.vertices.get(a).copied() else {
+                            continue;
+                        };
+                        let Some(pb) = object.vertices.get(b).copied() else {
+                            continue;
+                        };
+                        let midpoint = object.transform_point((pa + pb) * 0.5);
+                        if project_geometry_point_to_screen(camera, midpoint, width, height)
+                            .is_some_and(|screen| {
+                                point_in_screen_rect(screen, top_left, bottom_right)
+                            })
+                        {
+                            selection.edges.push((object.id, a, b));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    selection
+}
+
+fn apply_geometry_rectangle_selection(
+    map: &mut Map,
+    selection: &GeometryRectangleSelection,
+    mode: GeometrySelectionMode,
+    add: bool,
+    remove: bool,
+) {
+    if !add && !remove {
+        map.clear_selection();
+    }
+
+    match mode {
+        GeometrySelectionMode::Object => {
+            for object_id in &selection.objects {
+                if remove {
+                    remove_geometry_object_selection(map, *object_id);
+                } else {
+                    ensure_geometry_object_selected(map, *object_id);
+                }
+            }
+        }
+        GeometrySelectionMode::Face => {
+            for (object_id, face_index) in &selection.faces {
+                if remove {
+                    remove_geometry_face_selection(map, *object_id, *face_index);
+                } else {
+                    add_geometry_face_selection(map, *object_id, *face_index);
+                }
+            }
+        }
+        GeometrySelectionMode::Vertex => {
+            for (object_id, vertex_index) in &selection.vertices {
+                if remove {
+                    remove_geometry_vertex_selection(map, *object_id, *vertex_index);
+                } else {
+                    add_geometry_vertex_selection(map, *object_id, *vertex_index);
+                }
+            }
+        }
+        GeometrySelectionMode::Edge => {
+            for (object_id, a_index, b_index) in &selection.edges {
+                if remove {
+                    remove_geometry_edge_selection(map, *object_id, *a_index, *b_index);
+                } else {
+                    add_geometry_edge_selection(map, *object_id, *a_index, *b_index);
+                }
+            }
+        }
+    }
+
+    sanitize_geometry_selection(map);
+}
+
 fn face_edge_position(face: &rusterix::GeometryFace, edge: (usize, usize)) -> Option<usize> {
     if face.indices.len() < 2 {
         return None;
@@ -2107,6 +2405,9 @@ impl Tool for GeometryTool {
             hud: Hud::new(HudMode::Selection),
             undo_map: None,
             drag: None,
+            rectangle_start: None,
+            rectangle_undo_map: None,
+            rectangle_mode: false,
         }
     }
 
@@ -2161,6 +2462,9 @@ impl Tool for GeometryTool {
                 server_ctx.hover_cursor_3d = None;
                 self.undo_map = None;
                 self.drag = None;
+                self.rectangle_start = None;
+                self.rectangle_undo_map = None;
+                self.rectangle_mode = false;
                 true
             }
             _ => false,
@@ -2186,6 +2490,9 @@ impl Tool for GeometryTool {
 
                 self.undo_map = None;
                 self.drag = None;
+                self.rectangle_start = None;
+                self.rectangle_undo_map = None;
+                self.rectangle_mode = false;
 
                 if let Some((axis, gizmo_kind)) = server_ctx.geo_hit.and_then(|hit| match hit {
                     GeoId::Gizmo(axis_id) => gizmo_axis(axis_id).zip(gizmo_kind(axis_id)),
@@ -2266,6 +2573,9 @@ impl Tool for GeometryTool {
                 }
 
                 let Some(GeoId::GeometryObject(object_id)) = server_ctx.geo_hit else {
+                    self.rectangle_start = Some(Vec2::new(coord.x as f32, coord.y as f32));
+                    self.rectangle_undo_map = Some(map.clone());
+                    self.rectangle_mode = false;
                     if !_ui.shift && !_ui.alt {
                         map.selected_geometry_objects.clear();
                         map.selected_geometry_vertices.clear();
@@ -2430,6 +2740,53 @@ impl Tool for GeometryTool {
             }
             MapDragged(_coord) => {
                 let Some(drag) = self.drag.as_mut() else {
+                    if let Some(start) = self.rectangle_start {
+                        let current = Vec2::new(_coord.x as f32, _coord.y as f32);
+                        if !self.rectangle_mode && (current - start).magnitude() < 3.0 {
+                            return None;
+                        }
+                        self.rectangle_mode = true;
+
+                        let Some(base_map) = self.rectangle_undo_map.clone() else {
+                            return None;
+                        };
+                        let Some(render_view) = _ui.get_render_view("PolyView") else {
+                            return None;
+                        };
+                        let dim = *render_view.dim();
+                        let top_left = Vec2::new(start.x.min(current.x), start.y.min(current.y));
+                        let bottom_right =
+                            Vec2::new(start.x.max(current.x), start.y.max(current.y));
+
+                        let camera = {
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            let previous_vm = rusterix.scene_handler.vm.active_vm_index();
+                            rusterix.scene_handler.vm.set_active_vm(2);
+                            let camera = rusterix.scene_handler.vm.active_vm().camera3d;
+                            rusterix.scene_handler.vm.set_active_vm(previous_vm);
+                            camera
+                        };
+
+                        let selection = geometry_rectangle_selection(
+                            &base_map,
+                            &camera,
+                            dim.width as f32,
+                            dim.height as f32,
+                            top_left,
+                            bottom_right,
+                        );
+                        let mode = geometry_selection_mode(&base_map);
+                        *map = base_map;
+                        map.curr_rectangle = Some((start, current));
+                        apply_geometry_rectangle_selection(
+                            map, &selection, mode, _ui.shift, _ui.alt,
+                        );
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                        RUSTERIX.write().unwrap().set_overlay_dirty();
+                    }
                     return None;
                 };
                 let object_id = drag.object_id;
@@ -2628,6 +2985,18 @@ impl Tool for GeometryTool {
             }
             MapUp(_) => {
                 let Some(drag) = self.drag.take() else {
+                    if self.rectangle_start.take().is_some() {
+                        if self.rectangle_mode {
+                            map.curr_rectangle = None;
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Map Selection Changed"),
+                                TheValue::Empty,
+                            ));
+                            RUSTERIX.write().unwrap().set_overlay_dirty();
+                        }
+                        self.rectangle_undo_map = None;
+                        self.rectangle_mode = false;
+                    }
                     self.undo_map = None;
                     return None;
                 };
@@ -2662,8 +3031,12 @@ impl Tool for GeometryTool {
             MapEscape => {
                 if let Some(old_map) = self.undo_map.take() {
                     *map = old_map;
+                } else if let Some(old_map) = self.rectangle_undo_map.take() {
+                    *map = old_map;
                 }
                 self.drag = None;
+                self.rectangle_start = None;
+                self.rectangle_mode = false;
                 None
             }
             MapDelete => {
@@ -2878,6 +3251,12 @@ impl Tool for GeometryTool {
         server_ctx: &mut ServerContext,
         assets: &Assets,
     ) {
+        if server_ctx.editor_view_mode != EditorViewMode::D2
+            && let Some(rect) = map.curr_rectangle
+        {
+            crate::tools::draw_screen_rectangle_preview(buffer, rect);
+        }
+
         let id = map
             .selected_geometry_objects
             .first()
@@ -2949,5 +3328,139 @@ mod tests {
         assert_eq!(map.selected_geometry_vertices.len(), 1);
         let (_, midpoint_index) = map.selected_geometry_vertices[0];
         assert_eq!(object.vertices[midpoint_index], Vec3::new(1.0, 2.0, 0.0));
+    }
+
+    #[test]
+    fn split_selected_edge_divides_triangle_face() {
+        let (mut map, object_id) = box_map();
+        {
+            let object = &mut map.geometry_objects[0];
+            let mut face = object.faces[0].clone();
+            face.indices = vec![0, 1, 2];
+            face.uvs = face_uvs_for_indices(object, &face.indices);
+            object.faces = vec![face];
+        }
+        map.selected_geometry_vertices = vec![(object_id, 0), (object_id, 1)];
+
+        assert!(split_selected_geometry_edges(&mut map));
+
+        let object = &map.geometry_objects[0];
+        assert_eq!(object.faces.len(), 2);
+        assert!(object.faces.iter().all(|face| face.indices.len() == 3));
+        assert!(
+            object
+                .faces
+                .iter()
+                .all(|face| face.uvs.len() == face.indices.len())
+        );
+        assert_eq!(map.selected_geometry_vertices.len(), 1);
+        let (_, midpoint_index) = map.selected_geometry_vertices[0];
+        assert_eq!(object.vertices[midpoint_index], Vec3::new(1.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn split_selected_edge_divides_odd_polygon_face() {
+        let (mut map, object_id) = box_map();
+        {
+            let object = &mut map.geometry_objects[0];
+            object.vertices = vec![
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(2.0, 0.0, 0.0),
+                Vec3::new(2.5, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 2.0),
+                Vec3::new(-0.5, 0.0, 1.0),
+            ];
+            let mut face = object.faces[0].clone();
+            face.indices = vec![0, 1, 2, 3, 4];
+            face.uvs = face_uvs_for_indices(object, &face.indices);
+            object.faces = vec![face];
+        }
+        map.selected_geometry_vertices = vec![(object_id, 0), (object_id, 1)];
+
+        assert!(split_selected_geometry_edges(&mut map));
+
+        let object = &map.geometry_objects[0];
+        assert_eq!(object.faces.len(), 2);
+        assert!(object.faces.iter().all(|face| face.indices.len() == 4));
+        assert!(
+            object
+                .faces
+                .iter()
+                .all(|face| face.uvs.len() == face.indices.len())
+        );
+        assert_eq!(map.selected_geometry_vertices.len(), 1);
+        let (_, midpoint_index) = map.selected_geometry_vertices[0];
+        assert_eq!(object.vertices[midpoint_index], Vec3::new(1.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn rectangle_selection_selects_geometry_by_mode() {
+        let (mut map, object_id) = box_map();
+        {
+            let object = &mut map.geometry_objects[0];
+            object.vertices = object
+                .vertices
+                .iter()
+                .map(|vertex| *vertex - Vec3::new(1.0, 1.0, 0.0))
+                .collect();
+        }
+        let camera = Camera3D::default();
+        let top_left = Vec2::new(0.0, 0.0);
+        let bottom_right = Vec2::new(200.0, 200.0);
+
+        map.geometry_selection_mode = 0;
+        let selection =
+            geometry_rectangle_selection(&map, &camera, 200.0, 200.0, top_left, bottom_right);
+        assert_eq!(selection.objects, vec![object_id]);
+
+        map.geometry_selection_mode = 1;
+        let selection =
+            geometry_rectangle_selection(&map, &camera, 200.0, 200.0, top_left, bottom_right);
+        assert_eq!(selection.faces.len(), 6);
+
+        map.geometry_selection_mode = 2;
+        let selection =
+            geometry_rectangle_selection(&map, &camera, 200.0, 200.0, top_left, bottom_right);
+        assert_eq!(selection.vertices.len(), 8);
+
+        map.geometry_selection_mode = 3;
+        let selection =
+            geometry_rectangle_selection(&map, &camera, 200.0, 200.0, top_left, bottom_right);
+        assert_eq!(selection.edges.len(), 12);
+    }
+
+    #[test]
+    fn rectangle_selection_apply_adds_and_removes_geometry_edges() {
+        let (mut map, object_id) = box_map();
+        let selection = GeometryRectangleSelection {
+            edges: vec![(object_id, 0, 1), (object_id, 1, 2)],
+            ..Default::default()
+        };
+
+        apply_geometry_rectangle_selection(
+            &mut map,
+            &selection,
+            GeometrySelectionMode::Edge,
+            false,
+            false,
+        );
+        assert_eq!(map.selected_geometry_objects, vec![object_id]);
+        assert_eq!(
+            map.selected_geometry_vertices,
+            vec![(object_id, 0), (object_id, 1), (object_id, 2)]
+        );
+
+        let selection = GeometryRectangleSelection {
+            edges: vec![(object_id, 0, 1)],
+            ..Default::default()
+        };
+        apply_geometry_rectangle_selection(
+            &mut map,
+            &selection,
+            GeometrySelectionMode::Edge,
+            false,
+            true,
+        );
+        assert_eq!(map.selected_geometry_vertices, vec![(object_id, 2)]);
     }
 }

@@ -723,68 +723,86 @@ impl Tool for LinedefTool {
         map: &mut Map,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
+            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
         if server_ctx.editor_view_mode != EditorViewMode::D2 {
             map.geometry_selection_mode = 3;
+            if !detail_mode_3d {
+                return self
+                    .direct_geometry
+                    .map_event(map_event, ui, ctx, map, server_ctx);
+            }
+
             map.curr_grid_pos = None;
-            map.clear_temp();
-            if let Some((_, _, _, start_point)) = self.surface_line_start {
-                map.curr_grid_pos_3d = Some(start_point);
+            let rectangle_drag_in_progress = map.curr_rectangle.is_some()
+                || self.rectangle_mode
+                || (self.was_clicked && !self.click_selected);
+            if !rectangle_drag_in_progress {
+                map.clear_temp();
+                if let Some((_, _, _, start_point)) = self.surface_line_start {
+                    map.curr_grid_pos_3d = Some(start_point);
+                }
             }
 
             match map_event {
                 MapDragged(_) => {
-                    let Some(drag) = self.surface_line_drag.as_mut() else {
-                        return self
-                            .direct_geometry
-                            .map_event(map_event, ui, ctx, map, server_ctx);
-                    };
-                    let Some((object_id, face_index, point)) =
-                        selected_geometry_surface_line_hit(map, server_ctx)
-                    else {
-                        return None;
-                    };
-                    if object_id != drag.object_id || face_index != drag.face_index {
-                        return None;
-                    }
-                    let step = ServerContext::edit_grid_step(map.subdivisions);
-                    let delta = point - drag.start_hit;
-                    let snapped_delta = Vec3::new(
-                        (delta.x / step).round() * step,
-                        (delta.y / step).round() * step,
-                        (delta.z / step).round() * step,
-                    );
-                    if snapped_delta.magnitude_squared() <= 0.0001 {
-                        return None;
-                    }
-                    let Some(object) = map
-                        .geometry_objects
-                        .iter_mut()
-                        .find(|object| object.id == object_id)
-                    else {
-                        return None;
-                    };
-                    let delta_local = geometry_object_world_vector_to_local(object, snapped_delta);
-                    let Some(face) = object.faces.get_mut(face_index) else {
-                        return None;
-                    };
-                    for (offset, point_index) in drag.point_indices.iter().enumerate() {
-                        let Some(surface_point) = face.surface_points.get_mut(*point_index) else {
-                            continue;
-                        };
-                        if let Some(start) = drag.start_positions.get(offset) {
-                            surface_point.position = *start + delta_local;
-                            drag.changed = true;
+                    if self.surface_line_drag.is_none() {
+                        if !rectangle_drag_in_progress
+                            && (matches!(server_ctx.geo_hit, Some(GeoId::GeometryObject(_)))
+                                || !map.selected_geometry_objects.is_empty())
+                        {
+                            return self
+                                .direct_geometry
+                                .map_event(map_event, ui, ctx, map, server_ctx);
                         }
+                    } else {
+                        let drag = self.surface_line_drag.as_mut()?;
+                        let Some((object_id, face_index, point)) =
+                            selected_geometry_surface_line_hit(map, server_ctx)
+                        else {
+                            return None;
+                        };
+                        if object_id != drag.object_id || face_index != drag.face_index {
+                            return None;
+                        }
+                        let step = ServerContext::edit_grid_step(map.subdivisions);
+                        let delta = point - drag.start_hit;
+                        let snapped_delta = Vec3::new(
+                            (delta.x / step).round() * step,
+                            (delta.y / step).round() * step,
+                            (delta.z / step).round() * step,
+                        );
+                        if snapped_delta.magnitude_squared() <= 0.0001 {
+                            return None;
+                        }
+                        let Some(object) = map
+                            .geometry_objects
+                            .iter_mut()
+                            .find(|object| object.id == object_id)
+                        else {
+                            return None;
+                        };
+                        let delta_local =
+                            geometry_object_world_vector_to_local(object, snapped_delta);
+                        let Some(face) = object.faces.get_mut(face_index) else {
+                            return None;
+                        };
+                        for (offset, point_index) in drag.point_indices.iter().enumerate() {
+                            let Some(surface_point) = face.surface_points.get_mut(*point_index)
+                            else {
+                                continue;
+                            };
+                            if let Some(start) = drag.start_positions.get(offset) {
+                                surface_point.position = *start + delta_local;
+                                drag.changed = true;
+                            }
+                        }
+                        RUSTERIX.write().unwrap().set_overlay_dirty();
+                        return None;
                     }
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
-                    return None;
                 }
-                MapUp(_) => {
-                    let Some(drag) = self.surface_line_drag.take() else {
-                        return self
-                            .direct_geometry
-                            .map_event(map_event, ui, ctx, map, server_ctx);
-                    };
+                MapUp(_) if self.surface_line_drag.is_some() => {
+                    let drag = self.surface_line_drag.take()?;
                     if drag.changed {
                         RUSTERIX.write().unwrap().set_overlay_dirty();
                         return Some(ProjectUndoAtom::MapEdit(
@@ -794,6 +812,15 @@ impl Tool for LinedefTool {
                         ));
                     }
                     return None;
+                }
+                MapUp(_) => {
+                    if rectangle_drag_in_progress {
+                        // Keep the original line tool in charge until it clears the rectangle.
+                    } else {
+                        return self
+                            .direct_geometry
+                            .map_event(map_event, ui, ctx, map, server_ctx);
+                    }
                 }
                 MapDelete => {
                     self.surface_line_start = None;
@@ -1355,9 +1382,6 @@ impl Tool for LinedefTool {
             }
             best_surface.map(|(surface, _)| surface)
         }
-
-        let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
-            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
 
         match map_event {
             MapKey(c) => {
@@ -2504,9 +2528,16 @@ impl Tool for LinedefTool {
                                 selection
                             };
 
+                            let preview_rectangle =
+                                if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                                    (click_pos, drag_pos)
+                                } else {
+                                    (self.click_pos, Vec2::new(coord.x as f32, coord.y as f32))
+                                };
+
                             *map = self.rectangle_undo_map.clone();
                             map.curr_grid_pos = None;
-                            map.curr_rectangle = Some((click_pos, drag_pos));
+                            map.curr_rectangle = Some(preview_rectangle);
 
                             if ui.shift {
                                 // Add
@@ -2805,6 +2836,12 @@ impl Tool for LinedefTool {
         server_ctx: &mut ServerContext,
         assets: &Assets,
     ) {
+        if server_ctx.editor_view_mode != EditorViewMode::D2
+            && let Some(rect) = map.curr_rectangle
+        {
+            crate::tools::draw_screen_rectangle_preview(buffer, rect);
+        }
+
         let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
             && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
         let id = if detail_mode_3d

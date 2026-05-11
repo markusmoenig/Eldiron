@@ -25,6 +25,35 @@ pub enum PanelIndices {
     ShadeGridFx,
 }
 
+pub fn draw_screen_rectangle_preview(buffer: &mut TheRGBABuffer, rect: (Vec2<f32>, Vec2<f32>)) {
+    let min_x = rect.0.x.min(rect.1.x).round().max(0.0) as i32;
+    let min_y = rect.0.y.min(rect.1.y).round().max(0.0) as i32;
+    let max_x = rect
+        .0
+        .x
+        .max(rect.1.x)
+        .round()
+        .min((buffer.dim().width - 1).max(0) as f32) as i32;
+    let max_y = rect
+        .0
+        .y
+        .max(rect.1.y)
+        .round()
+        .min((buffer.dim().height - 1).max(0) as f32) as i32;
+
+    if max_x < min_x || max_y < min_y {
+        return;
+    }
+
+    let dim = TheDim::new(
+        min_x,
+        min_y,
+        (max_x - min_x).max(1) + 1,
+        (max_y - min_y).max(1) + 1,
+    );
+    buffer.draw_rect_outline(&dim, &[255, 255, 255, 255]);
+}
+
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub enum ToolEvent {
     Activate,

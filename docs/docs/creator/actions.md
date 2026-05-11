@@ -215,7 +215,7 @@ Shapes:
 
 Duplicate the current selection with XYZ offsets.
 
-For direct 3D geometry objects, Duplicate remembers the last used geometry offset so repeated duplication can quickly build rows of objects.
+For direct 3D geometry objects, Duplicate remembers the last used geometry offset so repeated duplication can quickly build rows of objects. The duplicated objects become the active object-level selection so they can be moved together immediately and undone as one map edit.
 - `x`: horizontal world offset on the map X axis.
 - `y`: vertical offset (applied to vertex height / elevation).
 - `z`: depth offset on the map Z axis.

@@ -11,11 +11,13 @@
 - Improved 3D vertex dragging so moved vertices snap onto absolute grid positions instead of preserving their previous off-grid offset.
 - Improved 3D vertex/edge auto-merge so it also runs after gizmo-based vertex movement.
 - Improved 3D edge splitting so splitting a selected edge on quad geometry performs a connected quad loop-cut instead of leaving larger unsplit faces.
+- Improved 3D edge splitting on triangle and odd-polygon faces so selected-edge splits divide the touched face instead of only inserting an extra midpoint into the same polygon.
 - Improved 3D Face Subdivide so neighboring faces share the new boundary midpoint vertices, preventing detached T-junctions around subdivided faces.
 - Improved 3D cutouts on split faces so surface-detail loops that span multiple coplanar face pieces rebuild the full coplanar surface instead of cutting only the small host quad.
 - Improved 3D gizmo and vertex/surface marker sizing so handles scale from camera distance instead of selected object size, keeping handles closer to large objects and less overwhelming on tiny details.
 - Improved the 3D HUD coordinate readout to show three decimal places normally, with five decimal places only at the `1/32` grid step.
 - Improved 3D Object Tool multi-selection movement so dragging a selected object or its move gizmo moves the selected objects together.
+- Added 3D rectangle selection for Geometry Objects, faces, edges, and vertices, with Shift adding to the selection and Alt/Option removing from it.
 - Improved 3D character and item placement so entity drops and moves can choose the floor below overhead Geometry Object roofs instead of snapping onto the roof surface.
 - Improved 3D Edit Face Texture selection handling so explicit face selections edit only those faces, while object selections still edit all faces when no individual faces are selected.
 - Extended Edit Vertex to single selected 3D Geometry Object vertices, allowing exact world-coordinate edits for precise vertex placement.
@@ -27,7 +29,11 @@
 
 - Fixed object-mode `R` / `Shift+R` rotation being intercepted by the Rect Tool shortcut before selected Geometry Objects could rotate.
 - Fixed the grid-subdivision HUD buttons painting over the bottom HUD separator line.
-- Fixed duplicated multi-object selections showing a separate movement gizmo for every selected Geometry Object in Object mode.
+- Fixed duplicated Geometry Object selections so duplication is undoable and leaves only the duplicated objects selected at object level, giving multi-object duplicates one group-move selection instead of stale sub-object selections.
+
+### Renderer
+
+- Fixed transparent water/glass volumes hiding opaque geometry inside or behind them, such as bridge elements disappearing inside water areas.
 
 ---
 

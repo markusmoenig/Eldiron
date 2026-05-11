@@ -38,7 +38,7 @@ Object movement and resizing use the current grid snap step. When multiple objec
 - **Duplicate**: Duplicate the current object selection with XYZ offsets.
 - **Cmd / Ctrl + D**: Duplicate the current selection.
 
-Duplicate remembers the last 3D object offset so repeated duplication can be used for quick blockout placement.
+Duplicate remembers the last 3D object offset so repeated duplication can be used for quick blockout placement. After duplicating Geometry Objects, the duplicated objects become the active object-level selection so they can be moved together immediately and undone as one map edit.
 
 ## 3D Tool Switching
 

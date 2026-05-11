@@ -168,11 +168,11 @@ impl Tool for SectorTool {
         map: &mut Map,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
+            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
         if server_ctx.editor_view_mode != EditorViewMode::D2 {
             map.geometry_selection_mode = 1;
-            if matches!(server_ctx.geo_hit, Some(GeoId::GeometryObject(_)))
-                || !map.selected_geometry_objects.is_empty()
-            {
+            if !detail_mode_3d {
                 return self
                     .direct_geometry
                     .map_event(map_event, ui, ctx, map, server_ctx);
@@ -180,8 +180,6 @@ impl Tool for SectorTool {
         }
 
         let mut undo_atom: Option<ProjectUndoAtom> = None;
-        let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
-            && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
         fn hovered_detail_surface(server_ctx: &ServerContext) -> Option<Surface> {
             server_ctx
                 .hover_surface
@@ -1139,8 +1137,14 @@ impl Tool for SectorTool {
                         selection
                     };
 
+                    let preview_rectangle = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                        (click_pos, drag_pos)
+                    } else {
+                        (self.click_pos, Vec2::new(coord.x as f32, coord.y as f32))
+                    };
+
                     *map = self.rectangle_undo_map.clone();
-                    map.curr_rectangle = Some((click_pos, drag_pos));
+                    map.curr_rectangle = Some(preview_rectangle);
 
                     if ui.shift {
                         // Add
@@ -1367,6 +1371,12 @@ impl Tool for SectorTool {
         server_ctx: &mut ServerContext,
         assets: &Assets,
     ) {
+        if server_ctx.editor_view_mode != EditorViewMode::D2
+            && let Some(rect) = map.curr_rectangle
+        {
+            crate::tools::draw_screen_rectangle_preview(buffer, rect);
+        }
+
         let detail_mode_3d = server_ctx.editor_view_mode != EditorViewMode::D2
             && server_ctx.geometry_edit_mode == GeometryEditMode::Detail;
         let id = if detail_mode_3d

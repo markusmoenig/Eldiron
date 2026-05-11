@@ -449,8 +449,16 @@ impl Action for Duplicate {
             .iter()
             .map(|object| object.id)
             .collect();
+        if duplicate_geometry {
+            map.geometry_selection_mode = 0;
+            map.selected_vertices.clear();
+            map.selected_linedefs.clear();
+            map.selected_sectors.clear();
+        }
         map.selected_geometry_faces.clear();
         map.selected_geometry_vertices.clear();
+        map.selected_geometry_surface_points.clear();
+        map.selected_geometry_surface_segments.clear();
 
         Some(ProjectUndoAtom::MapEdit(
             server_ctx.pc,
@@ -511,5 +519,53 @@ mod tests {
                 .iter()
                 .any(|object| object.id == new_map.selected_geometry_objects[0])
         );
+    }
+
+    #[test]
+    fn duplicate_multiple_geometry_objects_selects_only_new_objects_for_group_move() {
+        let mut map = Map::default();
+        let object_a = rusterix::GeometryObject::box_("A", Vec3::zero(), Vec3::new(1.0, 1.0, 1.0));
+        let object_b =
+            rusterix::GeometryObject::box_("B", Vec3::new(2.0, 0.0, 0.0), Vec3::new(3.0, 1.0, 1.0));
+        let original_a = object_a.id;
+        let original_b = object_b.id;
+        map.geometry_objects.push(object_a);
+        map.geometry_objects.push(object_b);
+        map.selected_geometry_objects = vec![original_a, original_b];
+        map.selected_geometry_faces.push((original_a, 0));
+        map.selected_geometry_vertices.push((original_b, 0));
+        map.selected_geometry_surface_points
+            .push((original_a, 0, 0));
+        map.geometry_selection_mode = 2;
+
+        let action = Duplicate::new();
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+
+        let Some(ProjectUndoAtom::MapEdit(_, old_map, new_map)) =
+            action.apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
+        else {
+            panic!("duplicate should return a MapEdit undo atom");
+        };
+
+        assert_eq!(old_map.geometry_objects.len(), 2);
+        assert_eq!(new_map.geometry_objects.len(), 4);
+        assert_eq!(map.geometry_objects.len(), 4);
+        assert_eq!(map.selected_geometry_objects.len(), 2);
+        assert!(
+            map.selected_geometry_objects
+                .iter()
+                .all(|id| *id != original_a && *id != original_b)
+        );
+        assert_eq!(map.geometry_selection_mode, 0);
+        assert!(map.selected_vertices.is_empty());
+        assert!(map.selected_linedefs.is_empty());
+        assert!(map.selected_sectors.is_empty());
+        assert!(map.selected_geometry_faces.is_empty());
+        assert!(map.selected_geometry_vertices.is_empty());
+        assert!(map.selected_geometry_surface_points.is_empty());
+        assert!(map.selected_geometry_surface_segments.is_empty());
     }
 }
