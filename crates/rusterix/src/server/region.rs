@@ -131,7 +131,10 @@ fn map_spawn_height(map: &Map, pos: Vec2<f32>, preferred_y: Option<f32>) -> f32 
 fn ctx_spawn_height(ctx: &RegionCtx, pos: Vec2<f32>, preferred_y: Option<f32>) -> f32 {
     if ctx.collision_world.has_collision_data() {
         let reference_y = preferred_y.unwrap_or(0.0);
-        if let Some(height) = ctx.collision_world.get_floor_height_nearest(pos, reference_y) {
+        if let Some(height) = ctx
+            .collision_world
+            .get_floor_height_nearest(pos, reference_y)
+        {
             return height;
         }
     }
@@ -2059,7 +2062,8 @@ impl RegionInstance {
         for entity in entities.iter() {
             if let Some(class_name) = entity.get_attr_string("class_name") {
                 if let Some(data) = ctx.entity_class_data.get(&class_name) {
-                    let ground_y = ctx_spawn_height(&ctx, entity.get_pos_xz(), Some(entity.position.y));
+                    let ground_y =
+                        ctx_spawn_height(&ctx, entity.get_pos_xz(), Some(entity.position.y));
                     let mut spawn_entity_id: Option<u32> = None;
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
@@ -5968,7 +5972,8 @@ impl RegionInstance {
 
                 // Setting the data for the entity
                 if let Some(data) = ctx.entity_class_data.get(&class_name) {
-                    let ground_y = ctx_spawn_height(&ctx, entity.get_pos_xz(), Some(entity.position.y));
+                    let ground_y =
+                        ctx_spawn_height(&ctx, entity.get_pos_xz(), Some(entity.position.y));
                     let mut spawn_entity_id: Option<u32> = None;
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {

@@ -7,6 +7,8 @@ The **Entity Tool** (keyboard shortcut **'Y'**) allows you to **select, move, an
 
 Click to select, click-drag to move and the **delete** key for deleting the currently selected character or item instance.
 
+In 3D editor views, dropped and moved instances snap to the geometry floor under the cursor. When the cursor hits overhead geometry such as a roof awning, placement prefers the floor below that surface so entities can be placed under cover.
+
 For selected **character instances**, you can rotate facing in 90° steps with:
 
 - **Q**: rotate left

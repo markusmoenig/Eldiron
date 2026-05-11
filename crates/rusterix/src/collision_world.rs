@@ -138,9 +138,7 @@ impl WalkableFloor {
         plane_normal: Vec3<f32>,
         plane_point: Vec3<f32>,
     ) -> Self {
-        let normal = plane_normal
-            .try_normalized()
-            .unwrap_or_else(Vec3::unit_y);
+        let normal = plane_normal.try_normalized().unwrap_or_else(Vec3::unit_y);
         Self {
             geo_id,
             height,

@@ -331,17 +331,47 @@ fn create_surface_relief_geometry(
                 continue;
             };
             match (kind, shape) {
-                (SurfaceReliefKind::Ridge, RidgeShape::Box) => {
-                    push_box_ridge_segment(&mut ridge, a, b, side, lift, nudge, half_width, tile.clone())
-                }
-                (SurfaceReliefKind::Ridge, RidgeShape::Triangle) => {
-                    push_triangle_ridge_segment(&mut ridge, a, b, side, lift, nudge, half_width, tile.clone())
-                }
+                (SurfaceReliefKind::Ridge, RidgeShape::Box) => push_box_ridge_segment(
+                    &mut ridge,
+                    a,
+                    b,
+                    side,
+                    lift,
+                    nudge,
+                    half_width,
+                    tile.clone(),
+                ),
+                (SurfaceReliefKind::Ridge, RidgeShape::Triangle) => push_triangle_ridge_segment(
+                    &mut ridge,
+                    a,
+                    b,
+                    side,
+                    lift,
+                    nudge,
+                    half_width,
+                    tile.clone(),
+                ),
                 (SurfaceReliefKind::Groove, RidgeShape::Box) => push_box_groove_segment(
-                    &mut ridge, a, b, side, normal, nudge, half_width, height, tile.clone(),
+                    &mut ridge,
+                    a,
+                    b,
+                    side,
+                    normal,
+                    nudge,
+                    half_width,
+                    height,
+                    tile.clone(),
                 ),
                 (SurfaceReliefKind::Groove, RidgeShape::Triangle) => push_triangle_groove_segment(
-                    &mut ridge, a, b, side, normal, nudge, half_width, height, tile.clone(),
+                    &mut ridge,
+                    a,
+                    b,
+                    side,
+                    normal,
+                    nudge,
+                    half_width,
+                    height,
+                    tile.clone(),
                 ),
             }
         }

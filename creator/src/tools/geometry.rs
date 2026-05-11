@@ -6,7 +6,7 @@ use ToolEvent::*;
 use earcutr::earcut;
 use rusterix::prelude::*;
 use scenevm::GeoId;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 const GIZMO_AXIS_X: u32 = 1;
 const GIZMO_AXIS_Y: u32 = 2;
@@ -30,6 +30,7 @@ struct GeometryDrag {
     start_hit: Vec3<f32>,
     start_vertices: Vec<Vec3<f32>>,
     start_transform: [[f32; 4]; 4],
+    start_object_transforms: Vec<(Uuid, [[f32; 4]; 4])>,
     vertex_indices: Option<Vec<usize>>,
     axis: Option<Vec3<f32>>,
     gizmo_kind: Option<GizmoDragKind>,
@@ -173,6 +174,40 @@ fn snap_drag_step(amount: f32, step: f32) -> f32 {
         return 0.0;
     }
     amount.signum() * step
+}
+
+fn snap_vertex_drag_target(
+    start: Vec3<f32>,
+    delta: Vec3<f32>,
+    axis: Option<Vec3<f32>>,
+    subdivisions: f32,
+) -> Vec3<f32> {
+    let target = start + delta;
+    if let Some(axis) = axis {
+        Vec3::new(
+            if axis.x.abs() > 0.5 {
+                ServerContext::snap_scalar(target.x, subdivisions)
+            } else {
+                start.x
+            },
+            if axis.y.abs() > 0.5 {
+                ServerContext::snap_scalar(target.y, subdivisions)
+            } else {
+                start.y
+            },
+            if axis.z.abs() > 0.5 {
+                ServerContext::snap_scalar(target.z, subdivisions)
+            } else {
+                start.z
+            },
+        )
+    } else {
+        Vec3::new(
+            ServerContext::snap_scalar(target.x, subdivisions),
+            start.y,
+            ServerContext::snap_scalar(target.z, subdivisions),
+        )
+    }
 }
 
 fn translated_transform(mut transform: [[f32; 4]; 4], delta: Vec3<f32>) -> [[f32; 4]; 4] {
@@ -631,6 +666,15 @@ fn selected_geometry_vertex_indices(map: &Map, object_id: Uuid) -> Vec<usize> {
     indices.into_iter().collect()
 }
 
+fn selected_geometry_object_transforms(map: &Map) -> Vec<(Uuid, [[f32; 4]; 4])> {
+    let selected: FxHashSet<Uuid> = map.selected_geometry_objects.iter().copied().collect();
+    map.geometry_objects
+        .iter()
+        .filter(|object| selected.contains(&object.id))
+        .map(|object| (object.id, object.transform))
+        .collect()
+}
+
 fn move_selected_geometry_vertices(map: &mut Map, delta: Vec3<f32>) -> bool {
     let selected_objects = map.selected_geometry_objects.clone();
     let mut changed = false;
@@ -938,7 +982,10 @@ fn face_normal_for_points(points: &[Vec3<f32>]) -> Option<Vec3<f32>> {
     normal.try_normalized()
 }
 
-fn face_projection_basis(points: &[Vec3<f32>], normal: Vec3<f32>) -> Option<(Vec3<f32>, Vec3<f32>)> {
+fn face_projection_basis(
+    points: &[Vec3<f32>],
+    normal: Vec3<f32>,
+) -> Option<(Vec3<f32>, Vec3<f32>)> {
     let origin = points.first().copied()?;
     let tangent = points
         .iter()
@@ -1319,7 +1366,10 @@ fn rebuild_geometry_object_after_vertex_merge(
             face_changed |= *new_index != *old_index;
             indices.push(*new_index);
         }
-        let Some(indices) = valid.then(|| compact_merged_face_indices(indices)).flatten() else {
+        let Some(indices) = valid
+            .then(|| compact_merged_face_indices(indices))
+            .flatten()
+        else {
             continue;
         };
 
@@ -1411,7 +1461,9 @@ fn merge_selected_geometry_vertices(map: &mut Map) -> bool {
                 };
                 indices.push(*new_index);
             }
-            let Some(indices) = valid.then(|| compact_merged_face_indices(indices)).flatten()
+            let Some(indices) = valid
+                .then(|| compact_merged_face_indices(indices))
+                .flatten()
             else {
                 continue;
             };
@@ -1466,7 +1518,8 @@ fn auto_merge_overlapping_selected_geometry_vertices(map: &mut Map, epsilon: f32
 
             let mut best: Option<(usize, f32)> = None;
             for (candidate_index, candidate) in object.vertices.iter().copied().enumerate() {
-                if candidate_index == *selected_index || selected_vertices.contains(&candidate_index)
+                if candidate_index == *selected_index
+                    || selected_vertices.contains(&candidate_index)
                 {
                     continue;
                 }
@@ -1609,6 +1662,117 @@ fn split_selected_geometry_edges(map: &mut Map) -> bool {
         return true;
     }
 
+    let mut changed = false;
+    let mut new_selected_vertices = Vec::new();
+
+    for object in &mut map.geometry_objects {
+        let selected_vertices = selected
+            .iter()
+            .filter_map(|(object_id, vertex_index)| {
+                (*object_id == object.id && *vertex_index < object.vertices.len())
+                    .then_some(*vertex_index)
+            })
+            .collect::<BTreeSet<_>>();
+        if selected_vertices.len() < 2 {
+            continue;
+        }
+
+        let mut selected_edges = BTreeSet::new();
+        for face in &object.faces {
+            for index in 0..face.indices.len() {
+                let a = face.indices[index];
+                let b = face.indices[(index + 1) % face.indices.len()];
+                if selected_vertices.contains(&a) && selected_vertices.contains(&b) {
+                    selected_edges.insert(normalized_edge(a, b));
+                }
+            }
+        }
+
+        let mut edge_midpoints = BTreeMap::new();
+        let mut queue = selected_edges.iter().copied().collect::<VecDeque<_>>();
+        let mut processed_edges = BTreeSet::new();
+        while let Some(edge) = queue.pop_front() {
+            if !processed_edges.insert(edge) {
+                continue;
+            }
+
+            let mut face_index = 0;
+            while face_index < object.faces.len() {
+                let old_face = object.faces[face_index].clone();
+                if old_face.indices.len() != 4 {
+                    face_index += 1;
+                    continue;
+                }
+
+                let Some(edge_position) =
+                    old_face.indices.iter().enumerate().find_map(|(index, a)| {
+                        let b = old_face.indices[(index + 1) % old_face.indices.len()];
+                        (normalized_edge(*a, b) == edge).then_some(index)
+                    })
+                else {
+                    face_index += 1;
+                    continue;
+                };
+
+                let a = old_face.indices[edge_position];
+                let b = old_face.indices[(edge_position + 1) % 4];
+                let c = old_face.indices[(edge_position + 2) % 4];
+                let d = old_face.indices[(edge_position + 3) % 4];
+                let opposite_edge = normalized_edge(c, d);
+
+                let mut midpoint_for_edge =
+                    |object: &mut rusterix::GeometryObject,
+                     edge: (usize, usize),
+                     new_selected_vertices: &mut Vec<(Uuid, usize)>| {
+                        if let Some(midpoint_index) = edge_midpoints.get(&edge).copied() {
+                            return midpoint_index;
+                        }
+                        let pa = object.vertices[edge.0];
+                        let pb = object.vertices[edge.1];
+                        let midpoint_index = object.vertices.len();
+                        object.vertices.push((pa + pb) * 0.5);
+                        edge_midpoints.insert(edge, midpoint_index);
+                        if selected_edges.contains(&edge) {
+                            new_selected_vertices.push((object.id, midpoint_index));
+                        }
+                        midpoint_index
+                    };
+
+                let mid_ab =
+                    midpoint_for_edge(object, normalized_edge(a, b), &mut new_selected_vertices);
+                let mid_cd = midpoint_for_edge(object, opposite_edge, &mut new_selected_vertices);
+
+                let mut first_face = old_face.clone();
+                first_face.indices = vec![a, mid_ab, mid_cd, d];
+                first_face.uvs = face_uvs_for_indices(object, &first_face.indices);
+                first_face.auto_uv = true;
+                first_face.surface_points.clear();
+                first_face.surface_segments.clear();
+
+                let mut second_face = old_face;
+                second_face.indices = vec![mid_ab, b, c, mid_cd];
+                second_face.uvs = face_uvs_for_indices(object, &second_face.indices);
+                second_face.auto_uv = true;
+                second_face.surface_points.clear();
+                second_face.surface_segments.clear();
+
+                object.faces[face_index] = first_face;
+                object.faces.push(second_face);
+                if !processed_edges.contains(&opposite_edge) {
+                    queue.push_back(opposite_edge);
+                }
+                changed = true;
+                face_index += 1;
+            }
+        }
+    }
+
+    if changed {
+        map.selected_geometry_faces.clear();
+        map.selected_geometry_vertices = new_selected_vertices;
+        return true;
+    }
+
     let mut new_selected_vertices = Vec::new();
     let mut changed = false;
 
@@ -1718,7 +1882,9 @@ fn delete_selected_geometry_vertices(map: &mut Map) -> bool {
                 };
                 indices.push(*new_index);
             }
-            let Some(indices) = valid.then(|| compact_merged_face_indices(indices)).flatten()
+            let Some(indices) = valid
+                .then(|| compact_merged_face_indices(indices))
+                .flatten()
             else {
                 continue;
             };
@@ -2082,6 +2248,14 @@ impl Tool for GeometryTool {
                         start_hit,
                         start_vertices: object.vertices.clone(),
                         start_transform: object.transform,
+                        start_object_transforms: if geometry_selection_mode(map)
+                            == GeometrySelectionMode::Object
+                            && matches!(gizmo_kind, GizmoDragKind::Move)
+                        {
+                            selected_geometry_object_transforms(map)
+                        } else {
+                            Vec::new()
+                        },
                         vertex_indices,
                         axis: Some(axis),
                         gizmo_kind: Some(gizmo_kind),
@@ -2202,9 +2376,14 @@ impl Tool for GeometryTool {
                     ));
                     RUSTERIX.write().unwrap().set_overlay_dirty();
                     return None;
-                } else if selection_mode == GeometrySelectionMode::Object
-                    || vertex_indices.is_none()
-                {
+                } else if selection_mode == GeometrySelectionMode::Object {
+                    let keep_multi_selection = map.selected_geometry_objects.len() > 1
+                        && map.selected_geometry_objects.contains(&object_id);
+                    if !keep_multi_selection {
+                        map.clear_selection();
+                        map.selected_geometry_objects.push(object_id);
+                    }
+                } else if vertex_indices.is_none() {
                     map.clear_selection();
                     map.selected_geometry_objects.push(object_id);
                 } else {
@@ -2229,6 +2408,12 @@ impl Tool for GeometryTool {
                         start_hit: server_ctx.geo_hit_pos,
                         start_vertices,
                         start_transform,
+                        start_object_transforms: if selection_mode == GeometrySelectionMode::Object
+                        {
+                            selected_geometry_object_transforms(map)
+                        } else {
+                            Vec::new()
+                        },
                         vertex_indices: vertex_indices.clone(),
                         axis: None,
                         gizmo_kind: None,
@@ -2290,13 +2475,22 @@ impl Tool for GeometryTool {
                     return None;
                 }
 
-                let old_bbox = bbox_for_vertices(&drag.start_vertices, drag.start_transform);
-                let Some(object) = map
-                    .geometry_objects
-                    .iter_mut()
-                    .find(|object| object.id == object_id)
-                else {
-                    return None;
+                let old_bboxes = if drag.vertex_indices.is_none()
+                    && !drag.start_object_transforms.is_empty()
+                {
+                    drag.start_object_transforms
+                        .iter()
+                        .filter_map(|(id, transform)| {
+                            map.geometry_objects
+                                .iter()
+                                .find(|object| object.id == *id)
+                                .and_then(|object| bbox_for_vertices(&object.vertices, *transform))
+                        })
+                        .collect::<Vec<_>>()
+                } else {
+                    bbox_for_vertices(&drag.start_vertices, drag.start_transform)
+                        .into_iter()
+                        .collect()
                 };
 
                 let step = ServerContext::edit_grid_step(map.subdivisions);
@@ -2326,6 +2520,13 @@ impl Tool for GeometryTool {
                     }
                 }
                 if let Some(indices) = &drag.vertex_indices {
+                    let Some(object) = map
+                        .geometry_objects
+                        .iter_mut()
+                        .find(|object| object.id == object_id)
+                    else {
+                        return None;
+                    };
                     for vertex_index in indices {
                         let Some(vertex) = object.vertices.get_mut(*vertex_index) else {
                             continue;
@@ -2333,23 +2534,87 @@ impl Tool for GeometryTool {
                         let Some(start) = drag.start_vertices.get(*vertex_index) else {
                             continue;
                         };
-                        *vertex = *start + snapped_delta;
+                        *vertex = snap_vertex_drag_target(
+                            *start,
+                            snapped_delta,
+                            drag.axis,
+                            map.subdivisions,
+                        );
+                    }
+                    if let Some(anchor) = next_axis_anchor {
+                        drag.start_plane_hit = Some(anchor);
+                        drag.start_vertices = object.vertices.clone();
+                        drag.start_transform = object.transform;
                     }
                 } else {
-                    object.transform = translated_transform(drag.start_transform, snapped_delta);
-                }
-                let new_bbox = object.bbox();
-                if let Some(anchor) = next_axis_anchor {
-                    drag.start_plane_hit = Some(anchor);
-                    drag.start_vertices = object.vertices.clone();
-                    drag.start_transform = object.transform;
+                    if drag.start_object_transforms.is_empty() {
+                        let Some(object) = map
+                            .geometry_objects
+                            .iter_mut()
+                            .find(|object| object.id == object_id)
+                        else {
+                            return None;
+                        };
+                        object.transform =
+                            translated_transform(drag.start_transform, snapped_delta);
+                    } else {
+                        for (selected_id, start_transform) in &drag.start_object_transforms {
+                            if let Some(object) = map
+                                .geometry_objects
+                                .iter_mut()
+                                .find(|object| object.id == *selected_id)
+                            {
+                                object.transform =
+                                    translated_transform(*start_transform, snapped_delta);
+                            }
+                        }
+                    }
+                    if let Some(anchor) = next_axis_anchor {
+                        drag.start_plane_hit = Some(anchor);
+                        if drag.start_object_transforms.is_empty() {
+                            if let Some(object) = map
+                                .geometry_objects
+                                .iter()
+                                .find(|object| object.id == object_id)
+                            {
+                                drag.start_transform = object.transform;
+                            }
+                        } else {
+                            drag.start_object_transforms = drag
+                                .start_object_transforms
+                                .iter()
+                                .filter_map(|(selected_id, _)| {
+                                    map.geometry_objects
+                                        .iter()
+                                        .find(|object| object.id == *selected_id)
+                                        .map(|object| (*selected_id, object.transform))
+                                })
+                                .collect();
+                        }
+                    }
                 }
                 drag.changed = true;
                 let mut dirty_chunks = FxHashSet::default();
-                if let Some(bbox) = old_bbox {
+                for bbox in old_bboxes {
                     add_bbox_dirty_chunks(bbox, &mut dirty_chunks);
                 }
-                if let Some(bbox) = new_bbox {
+                if drag.vertex_indices.is_none() && !drag.start_object_transforms.is_empty() {
+                    for (selected_id, _) in &drag.start_object_transforms {
+                        if let Some(object) = map
+                            .geometry_objects
+                            .iter()
+                            .find(|object| object.id == *selected_id)
+                            && let Some(bbox) = object.bbox()
+                        {
+                            add_bbox_dirty_chunks(bbox, &mut dirty_chunks);
+                        }
+                    }
+                } else if let Some(object) = map
+                    .geometry_objects
+                    .iter()
+                    .find(|object| object.id == object_id)
+                    && let Some(bbox) = object.bbox()
+                {
                     add_bbox_dirty_chunks(bbox, &mut dirty_chunks);
                 }
                 if !dirty_chunks.is_empty() {
@@ -2371,15 +2636,16 @@ impl Tool for GeometryTool {
                     && let Some(old_map) = undo_map
                 {
                     if drag.vertex_indices.is_some()
-                        && drag.axis.is_none()
-                        && drag.gizmo_kind.is_none()
+                        && !matches!(drag.gizmo_kind, Some(GizmoDragKind::Resize { .. }))
                     {
                         let step = ServerContext::edit_grid_step(map.subdivisions);
-                        let mut topology_changed = auto_merge_overlapping_selected_geometry_vertices(
-                            map,
-                            (step * 0.01).max(0.0001),
-                        );
-                        topology_changed |= normalize_geometry_faces_for_object(map, drag.object_id);
+                        let mut topology_changed =
+                            auto_merge_overlapping_selected_geometry_vertices(
+                                map,
+                                (step * 0.01).max(0.0001),
+                            );
+                        topology_changed |=
+                            normalize_geometry_faces_for_object(map, drag.object_id);
                         if topology_changed {
                             sanitize_geometry_selection(map);
                             refresh_geometry_topology_edit(Some(&old_map), map, ctx);
@@ -2617,5 +2883,71 @@ impl Tool for GeometryTool {
             .first()
             .map(|id| id.as_u128() as u32);
         self.hud.draw(buffer, map, ctx, server_ctx, id, assets);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn box_map() -> (Map, Uuid) {
+        let mut map = Map::new();
+        let object = rusterix::GeometryObject::box_from_bounds(
+            "box",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(2.0, 2.0, 2.0),
+        );
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+        map.selected_geometry_objects.push(object_id);
+        (map, object_id)
+    }
+
+    #[test]
+    fn split_diagonal_vertices_splits_quad_face() {
+        let (mut map, object_id) = box_map();
+        map.selected_geometry_vertices = vec![(object_id, 0), (object_id, 2)];
+
+        assert!(split_selected_geometry_edges(&mut map));
+
+        let object = &map.geometry_objects[0];
+        assert_eq!(object.faces.len(), 7);
+        assert!(
+            object
+                .faces
+                .iter()
+                .any(|face| face.indices == vec![0, 1, 2])
+        );
+        assert!(
+            object
+                .faces
+                .iter()
+                .any(|face| face.indices == vec![2, 3, 0])
+        );
+        assert_eq!(
+            map.selected_geometry_vertices,
+            vec![(object_id, 0), (object_id, 2)]
+        );
+    }
+
+    #[test]
+    fn split_selected_edge_loop_cuts_connected_quads() {
+        let (mut map, object_id) = box_map();
+        map.selected_geometry_vertices = vec![(object_id, 3), (object_id, 2)];
+
+        assert!(split_selected_geometry_edges(&mut map));
+
+        let object = &map.geometry_objects[0];
+        assert_eq!(object.faces.len(), 10);
+        assert!(object.faces.iter().all(|face| face.indices.len() == 4));
+        assert!(
+            object
+                .faces
+                .iter()
+                .all(|face| face.uvs.len() == face.indices.len())
+        );
+        assert_eq!(map.selected_geometry_vertices.len(), 1);
+        let (_, midpoint_index) = map.selected_geometry_vertices[0];
+        assert_eq!(object.vertices[midpoint_index], Vec3::new(1.0, 2.0, 0.0));
     }
 }

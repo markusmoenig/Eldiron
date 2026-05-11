@@ -28,7 +28,7 @@ The 3D HUD shows `MOVE` and `SIZE` controls when the Object Tool is active.
 - **+ / -**: Resize selected objects on the horizontal axes.
 - **[ / ]**: Resize selected objects vertically.
 
-Object movement and resizing use the current grid snap step.
+Object movement and resizing use the current grid snap step. When multiple objects are selected, dragging a selected object or its move gizmo moves the selection together. Gizmo handles are sized from the current camera view, so they stay usable on both small details and large objects.
 
 ## Creating And Duplicating
 
@@ -62,7 +62,7 @@ See the per-tool pages for the shortcuts owned by those modes:
 
 ## Grid Shortcuts
 
-- **1 ... 0**: Set the current grid snap step. In 3D the shortcut slots stay compact, and the active snap step is shown beside them.
-- **, / .**: Decrease or increase the 3D grid size.
+- **1 ... 6**: Set the current grid snap step to `1`, `1/2`, `1/4`, `1/8`, `1/16`, or `1/32` world units.
+- **, / .**: Decrease or increase the 3D grid snap subdivision.
 
 The grid snap step is shared by object movement, face extrusion, vertex moves, resize handles, duplication offsets, and surface-detail editing. In 3D views the visible grid subdivision lines match this same snap step.

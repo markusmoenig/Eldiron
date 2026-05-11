@@ -22,12 +22,14 @@ In 3D views, the same tool becomes the edge/surface-line editing tool for direct
 
 ## 3D Shortcuts
 
-- **X**: Split selected geometry edges.
+- **X**: Split selected geometry edges. On connected quad geometry this performs a loop-cut through the quad strip.
 - **M**: Merge selected edge vertices to their center and rebuild affected faces.
 - **L**: Expand a selected edge into an edge loop on quad geometry, or expand a selected surface-line point/segment to its connected guide shape.
 - **[ / ]**: Move selected edge vertices vertically by one grid step.
 
 When edge or vertex edits create a concave or non-planar face, Eldiron automatically resolves the affected face into triangles so the mesh remains valid.
+
+The shared HUD grid shortcuts **1 ... 6** set 3D edge snapping to `1`, `1/2`, `1/4`, `1/8`, `1/16`, or `1/32` world units. Moved edge vertices snap to absolute grid positions, and auto-merge can run after both drag and gizmo movement when vertices land together.
 
 ## 3D Surface Lines
 

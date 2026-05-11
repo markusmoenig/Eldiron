@@ -127,11 +127,9 @@ impl GeometryObjectBuilder {
             return Vec::new();
         }
 
-        let min_uv = uvs
-            .iter()
-            .fold(Vec2::broadcast(f32::INFINITY), |acc, uv| {
-                Vec2::new(acc.x.min(uv[0]), acc.y.min(uv[1]))
-            });
+        let min_uv = uvs.iter().fold(Vec2::broadcast(f32::INFINITY), |acc, uv| {
+            Vec2::new(acc.x.min(uv[0]), acc.y.min(uv[1]))
+        });
         let max_uv = uvs
             .iter()
             .fold(Vec2::broadcast(f32::NEG_INFINITY), |acc, uv| {

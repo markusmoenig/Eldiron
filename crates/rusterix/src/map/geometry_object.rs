@@ -315,14 +315,16 @@ mod tests {
     fn geometry_face_tile_cells_serialize_to_toml() {
         let tile_id = Uuid::new_v4();
         let mut face = face(vec![0, 1, 2, 3]);
-        face.tiles
-            .insert((2, -1), PixelSource::TileId(tile_id));
+        face.tiles.insert((2, -1), PixelSource::TileId(tile_id));
 
         let serialized = toml::to_string(&face).expect("face tile overrides serialize");
         let restored: GeometryFace =
             toml::from_str(&serialized).expect("face tile overrides deserialize");
 
-        assert_eq!(restored.tiles.get(&(2, -1)), Some(&PixelSource::TileId(tile_id)));
+        assert_eq!(
+            restored.tiles.get(&(2, -1)),
+            Some(&PixelSource::TileId(tile_id))
+        );
     }
 
     #[test]
@@ -363,6 +365,9 @@ mod tests {
         let restored: GeometryFace =
             serde_json::from_str(&json).expect("legacy string tile map deserializes");
 
-        assert_eq!(restored.tiles.get(&(2, -1)), Some(&PixelSource::TileId(tile_id)));
+        assert_eq!(
+            restored.tiles.get(&(2, -1)),
+            Some(&PixelSource::TileId(tile_id))
+        );
     }
 }

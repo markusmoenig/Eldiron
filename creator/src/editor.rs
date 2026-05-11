@@ -2980,6 +2980,7 @@ impl TheTrait for Editor {
 
                     let mut grid_pos = Vec2::zero();
                     let mut spawn_y = 0.0;
+                    let mut placement_hit_y: Option<f32> = None;
                     let use_3d_hit = self.server_ctx.editor_view_mode != EditorViewMode::D2;
 
                     if let Some(map) = self.project.get_map(&self.server_ctx) {
@@ -3001,6 +3002,7 @@ impl TheTrait for Editor {
                             ) {
                                 grid_pos = Vec2::new(raw.1.x, raw.1.z);
                                 spawn_y = raw.1.y;
+                                placement_hit_y = Some(raw.1.y);
                             } else {
                                 grid_pos = self.server_ctx.local_to_map_cell(
                                     Vec2::new(dim.width as f32, dim.height as f32),
@@ -3056,10 +3058,16 @@ impl TheTrait for Editor {
                             }
                         }
 
-                        if use_3d_hit
-                            && let Some(height) = map.geometry_floor_height_at(grid_pos)
-                        {
-                            spawn_y = height;
+                        if use_3d_hit {
+                            const ROOF_CLEARANCE: f32 = 0.1;
+                            let floor_height = if let Some(hit_y) = placement_hit_y {
+                                map.geometry_floor_height_nearest(grid_pos, hit_y - ROOF_CLEARANCE)
+                            } else {
+                                map.geometry_floor_height_at(grid_pos)
+                            };
+                            if let Some(height) = floor_height {
+                                spawn_y = height;
+                            }
                         }
                     }
 

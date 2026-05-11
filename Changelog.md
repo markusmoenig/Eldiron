@@ -1,3 +1,33 @@
+# Eldiron v0.9.11
+
+## Improvements
+
+### Creator
+
+- Improved 3D grid snapping to use power-of-two edit subdivisions from `1` through `1/32`, matching practical mapping increments for precise mesh work.
+- Updated the 3D grid HUD and shortcut slots so `1` through `6` select `1`, `1/2`, `1/4`, `1/8`, `1/16`, and `1/32` snap steps.
+- Changed the 3D `,` / `.` shortcuts to step through edit snap subdivisions instead of changing the 2D pixel-grid zoom.
+- Improved 2D grid-subdivision button and fallback shortcut handling so the same `1` through `6` snap slots are used consistently across Vertex, Linedef, and Sector tools.
+- Improved 3D vertex dragging so moved vertices snap onto absolute grid positions instead of preserving their previous off-grid offset.
+- Improved 3D vertex/edge auto-merge so it also runs after gizmo-based vertex movement.
+- Improved 3D edge splitting so splitting a selected edge on quad geometry performs a connected quad loop-cut instead of leaving larger unsplit faces.
+- Improved 3D Face Subdivide so neighboring faces share the new boundary midpoint vertices, preventing detached T-junctions around subdivided faces.
+- Improved 3D cutouts on split faces so surface-detail loops that span multiple coplanar face pieces rebuild the full coplanar surface instead of cutting only the small host quad.
+- Improved 3D gizmo and vertex/surface marker sizing so handles scale from camera distance instead of selected object size, keeping handles closer to large objects and less overwhelming on tiny details.
+- Improved the 3D HUD coordinate readout to show three decimal places normally, with five decimal places only at the `1/32` grid step.
+- Improved 3D Object Tool multi-selection movement so dragging a selected object or its move gizmo moves the selected objects together.
+- Improved 3D character and item placement so entity drops and moves can choose the floor below overhead Geometry Object roofs instead of snapping onto the roof surface.
+
+## Bug Fixes
+
+### Creator
+
+- Fixed object-mode `R` / `Shift+R` rotation being intercepted by the Rect Tool shortcut before selected Geometry Objects could rotate.
+- Fixed the grid-subdivision HUD buttons painting over the bottom HUD separator line.
+- Fixed duplicated multi-object selections showing a separate movement gizmo for every selected Geometry Object in Object mode.
+
+---
+
 # Eldiron v0.9.10
 
 ## Improvements

@@ -50,11 +50,11 @@ With the **Object Tool (`G`)** active:
 - **T** applies the current tile, palette color, tilegraph, or nodegraph source to every face on the selected objects.
 - **Delete** removes the selected objects.
 
-Movement and resizing snap to the current grid size.
+Movement and resizing snap to the current grid size. When multiple objects are selected, dragging a selected object or its move gizmo moves the selection together. Gizmo handles are sized from the current camera view, so they stay usable on both small details and large objects.
 
 Use **Edit Geometry** to set exact object position and size. The same action also exposes object visibility, mesh-collision solidity, and a lightweight group label. Invisible objects are skipped by 3D rendering, and non-solid objects are skipped by mesh collision, which is the foundation for later trigger volumes, water volumes, helper shapes, and grouped moving pieces.
 
-Use **1 ... 0** to change the grid snap step. The 3D HUD keeps the compact shortcut slots and shows the active snap step beside them, and the visible 3D grid subdivision lines follow the same snap step. Use **, / .** to decrease or increase the 3D grid size.
+Use **1 ... 6** to change the grid snap step: `1`, `1/2`, `1/4`, `1/8`, `1/16`, or `1/32` world units. The 3D HUD keeps the compact shortcut slots and shows the active snap step beside them, and the visible 3D grid subdivision lines follow the same snap step. Use **, / .** to decrease or increase the 3D grid snap subdivision.
 
 ## Face Editing
 
@@ -75,18 +75,22 @@ Useful face shortcuts:
 
 After deleting a face, switch to the **Vertex Tool** and press **F** to fill a selected boundary again.
 
+Face Subdivide keeps the newly created child faces selected. When a selected quad shares an edge with an unselected face, the subdivision adds matching midpoint vertices to the neighboring face boundary so the mesh stays attached.
+
 ## Edge Editing
 
 Use the **Linedef / Edge Tool (`L`)** in 3D to select edges.
 
 Useful edge shortcuts:
 
-- **X** splits selected geometry edges.
+- **X** splits selected geometry edges. On connected quad geometry this performs a loop-cut through the quad strip.
 - With two non-neighboring vertices selected on the same face, **X** splits that face along the selected diagonal.
 - **L** expands a selected edge into an edge loop on quad geometry.
 - **[ / ]** moves selected edge vertices vertically by one grid step.
 
 Edge loops are most useful after subdividing quad faces, because they let you select a continuous row or column of edges quickly.
+
+Moved edge vertices snap to absolute grid positions. Auto-merge can run after drag or gizmo movement when moved vertices land on existing vertices.
 
 The **Linedef / Edge Tool** can also draw surface-local line segments on a selected face. Select a face with the **Sector / Face Tool**, switch to **Linedef / Edge**, then click points on the face. The first click creates the first visible surface-line point, further clicks continue the polyline, clicking the first point closes the loop, and **Escape** ends the current polyline.
 
@@ -104,7 +108,7 @@ Surface lines are the shared workflow for custom relief and holes:
 
 Ridges and grooves become persistent Geometry Objects, are selected after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default. This makes small details like mortar lines, brick seams, carved floor patterns, and raised borders immediately visible without selecting and painting each tiny face.
 
-Create Cutout uses the actual closed loop shapes, including curved arc segments. It rebuilds the front face and the opposite face around the openings, then creates reveal faces through the object thickness. The guide loops remain selected after the cutout, so they can be moved, duplicated, reused, or deleted explicitly. Surface guides can also be reselected on the rebuilt surface ring, which makes repeated custom windows, vents, floor holes, arched openings, and non-rectangular cuts possible without redrawing the original shape.
+Create Cutout uses the actual closed loop shapes, including curved arc segments. It rebuilds the front face and the opposite face around the openings, then creates reveal faces through the object thickness. If the guide loop spans a face that has been split into coplanar pieces, the cutout rebuilds the full coplanar surface island instead of only the small host quad. The guide loops remain selected after the cutout, so they can be moved, duplicated, reused, or deleted explicitly. Surface guides can also be reselected on the rebuilt surface ring, which makes repeated custom windows, vents, floor holes, arched openings, and non-rectangular cuts possible without redrawing the original shape.
 
 Planned surface-region actions build on the same guide loops. A closed guide should eventually be usable not only for cutting through, but also for carving or chipping away the interior, raising the interior as relief, splitting the interior into new paintable faces, or creating decorative color/tile regions such as flower leaves, mosaics, and carved panels. The guide remains the authored shape; the selected action decides how that region becomes geometry or material assignment.
 
@@ -122,6 +126,8 @@ Useful vertex shortcuts:
 - **[ / ]** moves selected vertices vertically by one grid step.
 
 Vertex editing is the escape hatch for custom shapes: delete a face, move the boundary vertices, and fill it again when the shape is ready.
+
+Moved vertices snap to absolute grid positions. Auto-merge can run after drag or gizmo movement when moved vertices land on existing vertices.
 
 ## Applying Tiles And Colors
 
@@ -154,7 +160,7 @@ This workflow is meant to stay realtime while editing.
 
 When a project uses mesh collision, direct Geometry Objects feed the runtime collision world. Floors, walls, extruded faces, and cutout reveals are taken from the edited mesh, so the player can walk on authored floors and collide with authored walls.
 
-Character and item placement in 3D editor views snaps previews to the visible geometry floor height when possible. This keeps placed entities on the edited mesh instead of at world zero.
+Character and item placement in 3D editor views snaps previews to the geometry floor height when possible. If the cursor hits overhead geometry such as a roof awning, placement prefers the floor below that surface so entities can be placed under cover instead of on top of the roof.
 
 ## 2D Map Reference
 

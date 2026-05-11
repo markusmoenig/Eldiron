@@ -174,6 +174,58 @@ impl Default for Map {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_close(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 1e-4,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn geometry_floor_height_nearest_can_place_below_roof() {
+        let mut map = Map::default();
+        map.geometry_objects.push(GeometryObject::box_(
+            "floor",
+            Vec3::new(0.0, -0.05, 0.0),
+            Vec3::new(4.0, 0.1, 4.0),
+        ));
+        map.geometry_objects.push(GeometryObject::box_(
+            "roof",
+            Vec3::new(0.0, 2.05, 0.0),
+            Vec3::new(4.0, 0.1, 4.0),
+        ));
+
+        let pos = Vec2::new(0.0, 0.0);
+        assert_close(map.geometry_floor_height_at(pos).unwrap(), 2.1);
+        assert_close(map.geometry_floor_height_nearest(pos, 2.0).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn geometry_floor_height_nearest_falls_back_to_closest_above() {
+        let mut map = Map::default();
+        map.geometry_objects.push(GeometryObject::box_(
+            "floor",
+            Vec3::new(0.0, -0.05, 0.0),
+            Vec3::new(4.0, 0.1, 4.0),
+        ));
+        map.geometry_objects.push(GeometryObject::box_(
+            "roof",
+            Vec3::new(0.0, 2.05, 0.0),
+            Vec3::new(4.0, 0.1, 4.0),
+        ));
+
+        assert_close(
+            map.geometry_floor_height_nearest(Vec2::new(0.0, 0.0), -1.0)
+                .unwrap(),
+            0.0,
+        );
+    }
+}
+
 impl Map {
     pub fn new() -> Self {
         Self {
@@ -367,6 +419,92 @@ impl Map {
         }
 
         best_height
+    }
+
+    /// Find a geometry floor at `position`, preferring the highest floor at or below
+    /// `reference_y`. This is useful for editor placement through overhead geometry,
+    /// such as placing entities below roof awnings.
+    pub fn geometry_floor_height_nearest(
+        &self,
+        position: Vec2<f32>,
+        reference_y: f32,
+    ) -> Option<f32> {
+        const FLOOR_EPS: f32 = 0.05;
+
+        let mut best_below: Option<f32> = None;
+        let mut best_above: Option<f32> = None;
+        let mut best_above_dist = f32::INFINITY;
+
+        for object in &self.geometry_objects {
+            let Some(bbox) = object.bbox() else {
+                continue;
+            };
+            if position.x < bbox.min.x
+                || position.x > bbox.max.x
+                || position.y < bbox.min.y
+                || position.y > bbox.max.y
+            {
+                continue;
+            }
+
+            let mut min_y = f32::INFINITY;
+            let mut max_y = f32::NEG_INFINITY;
+            for vertex in &object.vertices {
+                let world = object.transform_point(*vertex);
+                min_y = min_y.min(world.y);
+                max_y = max_y.max(world.y);
+            }
+            let object_center = Vec3::new(bbox.center().x, (min_y + max_y) * 0.5, bbox.center().y);
+
+            for face in &object.faces {
+                let mut world_points = Vec::with_capacity(face.indices.len());
+                for index in &face.indices {
+                    let Some(vertex) = object.vertices.get(*index) else {
+                        world_points.clear();
+                        break;
+                    };
+                    world_points.push(object.transform_point(*vertex));
+                }
+                if world_points.len() < 3 {
+                    continue;
+                }
+                let Some(normal) = Self::geometry_face_normal(&world_points, object_center) else {
+                    continue;
+                };
+                if normal.y < 0.55 {
+                    continue;
+                }
+                let polygon = world_points
+                    .iter()
+                    .map(|point| Vec2::new(point.x, point.z))
+                    .collect::<Vec<_>>();
+                if !Self::point_in_geometry_polygon_xz(position, &polygon) {
+                    continue;
+                }
+
+                let height = if normal.y.abs() > 1e-5 {
+                    let plane_d = normal.dot(world_points[0]);
+                    (plane_d - normal.x * position.x - normal.z * position.y) / normal.y
+                } else {
+                    world_points.iter().map(|point| point.y).sum::<f32>()
+                        / world_points.len() as f32
+                };
+
+                if height <= reference_y + FLOOR_EPS {
+                    best_below = Some(best_below.map_or(height, |best| best.max(height)));
+                } else {
+                    let dist = height - reference_y;
+                    if dist < best_above_dist {
+                        best_above_dist = dist;
+                        best_above = Some(height);
+                    } else if (dist - best_above_dist).abs() < 1e-4 {
+                        best_above = Some(best_above.map_or(height, |best| best.min(height)));
+                    }
+                }
+            }
+        }
+
+        best_below.or(best_above)
     }
 
     /// Returns the surface for the given sector_id

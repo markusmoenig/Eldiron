@@ -73,12 +73,7 @@ impl EditFaceTexture {
         faces
     }
 
-    fn apply_values(
-        map: &mut Map,
-        offset: Vec2<f32>,
-        scale: Vec2<f32>,
-        rotation: f32,
-    ) -> bool {
+    fn apply_values(map: &mut Map, offset: Vec2<f32>, scale: Vec2<f32>, rotation: f32) -> bool {
         let selected_faces = Self::selected_faces(map);
         if selected_faces.is_empty() {
             return false;
@@ -184,7 +179,8 @@ impl Action for EditFaceTexture {
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
         server_ctx.get_map_context() == MapContext::Region
             && server_ctx.editor_view_mode != EditorViewMode::D2
-            && (!map.selected_geometry_faces.is_empty() || !map.selected_geometry_objects.is_empty())
+            && (!map.selected_geometry_faces.is_empty()
+                || !map.selected_geometry_objects.is_empty())
     }
 
     fn load_params(&mut self, map: &Map) {

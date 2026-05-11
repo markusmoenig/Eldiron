@@ -59,6 +59,8 @@ Use sectors to create logical units, such as a house, and fill them with content
 
 Use the Sector / Face Tool to edit faces on direct geometry objects. Select a face and press **Cmd/Ctrl+E** to run Face Extrude, **Cmd/Ctrl+U** to run Face Subdivide, **Cmd/Ctrl+I** to run Face Inset, **Cmd/Ctrl+M** to merge connected faces, or **T** to apply the current tile source.
 
+Face Subdivide keeps the newly created child faces selected. When a selected quad shares an edge with an unselected face, the subdivision adds matching midpoint vertices to the neighboring face boundary so the mesh stays attached.
+
 For custom surface details, select the host face first, then switch to the **Linedef / Edge Tool** to draw surface lines. Closed surface-line loops can become cutouts, while open or closed selected surface lines can become ridges or grooves.
 
 ### 2D and 3D

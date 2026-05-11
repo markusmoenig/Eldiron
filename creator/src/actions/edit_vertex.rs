@@ -125,13 +125,13 @@ impl Action for EditVertex {
                 vertex.properties.get_float_default("source_size", 1.0),
             );
 
-            let billboard_tile_id =
-                if let Some(Value::Source(PixelSource::TileId(id))) = vertex.properties.get("source")
-                {
-                    *id
-                } else {
-                    Uuid::nil()
-                };
+            let billboard_tile_id = if let Some(Value::Source(PixelSource::TileId(id))) =
+                vertex.properties.get("source")
+            {
+                *id
+            } else {
+                Uuid::nil()
+            };
             self.nodeui.set_text_value(
                 "actionTileId",
                 if billboard_tile_id == Uuid::nil() {

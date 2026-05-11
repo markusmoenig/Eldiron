@@ -182,19 +182,17 @@ impl Tool for EntityTool {
                     if state.changed {
                         match state.target {
                             DragTarget::Entity(id) => {
-                                let snapped = map
-                                    .entities
-                                    .iter()
-                                    .find(|e| e.creator_id == id)
-                                    .map(|entity| {
+                                let snapped = map.entities.iter().find(|e| e.creator_id == id).map(
+                                    |entity| {
                                         Self::snap_to_grid(
                                             Vec2::new(entity.position.x, entity.position.z),
                                             map.subdivisions,
                                         )
-                                    });
+                                    },
+                                );
                                 let floor_height = snapped.and_then(|pos| {
                                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                        map.geometry_floor_height_at(pos)
+                                        Self::placement_floor_height(map, server_ctx, pos)
                                     } else {
                                         None
                                     }
@@ -217,11 +215,8 @@ impl Tool for EntityTool {
                                 }
                             }
                             DragTarget::Item(id) => {
-                                let snapped = map
-                                    .items
-                                    .iter()
-                                    .find(|i| i.creator_id == id)
-                                    .map(|item| {
+                                let snapped =
+                                    map.items.iter().find(|i| i.creator_id == id).map(|item| {
                                         Self::snap_to_grid(
                                             Vec2::new(item.position.x, item.position.z),
                                             map.subdivisions,
@@ -229,7 +224,7 @@ impl Tool for EntityTool {
                                     });
                                 let floor_height = snapped.and_then(|pos| {
                                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                        map.geometry_floor_height_at(pos)
+                                        Self::placement_floor_height(map, server_ctx, pos)
                                     } else {
                                         None
                                     }
@@ -275,13 +270,12 @@ impl Tool for EntityTool {
 
                         match state.target {
                             DragTarget::Entity(id) => {
-                                let floor_height = if moved
-                                    && server_ctx.editor_view_mode != EditorViewMode::D2
-                                {
-                                    map.geometry_floor_height_at(drag_pos)
-                                } else {
-                                    None
-                                };
+                                let floor_height =
+                                    if moved && server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                        Self::placement_floor_height(map, server_ctx, drag_pos)
+                                    } else {
+                                        None
+                                    };
                                 if let Some(entity) =
                                     map.entities.iter_mut().find(|e| e.creator_id == id)
                                 {
@@ -302,13 +296,12 @@ impl Tool for EntityTool {
                                 }
                             }
                             DragTarget::Item(id) => {
-                                let floor_height = if moved
-                                    && server_ctx.editor_view_mode != EditorViewMode::D2
-                                {
-                                    map.geometry_floor_height_at(drag_pos)
-                                } else {
-                                    None
-                                };
+                                let floor_height =
+                                    if moved && server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                        Self::placement_floor_height(map, server_ctx, drag_pos)
+                                    } else {
+                                        None
+                                    };
                                 if let Some(item) =
                                     map.items.iter_mut().find(|i| i.creator_id == id)
                                 {
@@ -524,6 +517,20 @@ impl EntityTool {
             )
         } else {
             Vec2::new(pos.x.round(), pos.y.round())
+        }
+    }
+
+    fn placement_floor_height(
+        map: &Map,
+        server_ctx: &ServerContext,
+        pos: Vec2<f32>,
+    ) -> Option<f32> {
+        const ROOF_CLEARANCE: f32 = 0.1;
+
+        if let Some(hit) = server_ctx.hover_cursor_3d {
+            map.geometry_floor_height_nearest(pos, hit.y - ROOF_CLEARANCE)
+        } else {
+            map.geometry_floor_height_at(pos)
         }
     }
 

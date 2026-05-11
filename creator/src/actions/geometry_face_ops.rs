@@ -727,9 +727,7 @@ pub(crate) fn selected_surface_curve_segment_ids(map: &Map) -> BTreeSet<(Uuid, u
         }
         if selected_points.len() == 2 && selected_segments.len() == segment_count_before {
             let point_pair = selected_points.iter().copied().collect::<Vec<_>>();
-            if let Some(path) =
-                shortest_surface_segment_path(face, point_pair[0], point_pair[1])
-            {
+            if let Some(path) = shortest_surface_segment_path(face, point_pair[0], point_pair[1]) {
                 for segment_index in path {
                     selected_segments.insert((object_id, face_index, segment_index));
                 }
@@ -1129,6 +1127,42 @@ fn loop_area_for_indices(
     Some(polygon_area_2d(&points))
 }
 
+fn simplify_collinear_loop_indices(
+    object: &rusterix::GeometryObject,
+    loop_indices: Vec<usize>,
+) -> Vec<usize> {
+    if loop_indices.len() <= 4 {
+        return loop_indices;
+    }
+
+    let mut simplified = Vec::with_capacity(loop_indices.len());
+    for index in 0..loop_indices.len() {
+        let prev_index = loop_indices[(index + loop_indices.len() - 1) % loop_indices.len()];
+        let curr_index = loop_indices[index];
+        let next_index = loop_indices[(index + 1) % loop_indices.len()];
+        let (Some(prev), Some(curr), Some(next)) = (
+            object.vertices.get(prev_index).copied(),
+            object.vertices.get(curr_index).copied(),
+            object.vertices.get(next_index).copied(),
+        ) else {
+            simplified.push(curr_index);
+            continue;
+        };
+        let a = curr - prev;
+        let b = next - curr;
+        let collinear = a.cross(b).magnitude_squared() <= 1e-8 && a.dot(b) >= 0.0;
+        if !collinear {
+            simplified.push(curr_index);
+        }
+    }
+
+    if simplified.len() >= 3 {
+        simplified
+    } else {
+        loop_indices
+    }
+}
+
 fn split_rect_outer_and_hole_loops(
     object: &rusterix::GeometryObject,
     face_indices: &BTreeSet<usize>,
@@ -1147,7 +1181,7 @@ fn split_rect_outer_and_hole_loops(
         })
         .collect::<Vec<_>>();
     ranked.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-    let outer = ranked.first()?.1.clone();
+    let outer = simplify_collinear_loop_indices(object, ranked.first()?.1.clone());
     if outer.len() != 4 {
         return None;
     }
@@ -1183,6 +1217,31 @@ fn project_loops_to_plane(
             (projected.len() >= 3).then_some(projected)
         })
         .collect()
+}
+
+fn loop_fits_within_quad(loop_points: &[Vec3<f32>], face_points: [Vec3<f32>; 4]) -> bool {
+    if loop_points.is_empty() {
+        return false;
+    }
+    let u = face_points[1] - face_points[0];
+    let v = face_points[3] - face_points[0];
+    let u_len_sq = u.magnitude_squared();
+    let v_len_sq = v.magnitude_squared();
+    if u_len_sq <= 1e-6 || v_len_sq <= 1e-6 {
+        return false;
+    }
+    const EPS: f32 = 0.001;
+    loop_points.iter().all(|point| {
+        let local = *point - face_points[0];
+        let uv = Vec2::new(local.dot(u) / u_len_sq, local.dot(v) / v_len_sq);
+        uv.x >= -EPS && uv.x <= 1.0 + EPS && uv.y >= -EPS && uv.y <= 1.0 + EPS
+    })
+}
+
+fn any_loop_extends_beyond_quad(loops: &[Vec<Vec3<f32>>], face_points: [Vec3<f32>; 4]) -> bool {
+    loops
+        .iter()
+        .any(|loop_points| !loop_fits_within_quad(loop_points, face_points))
 }
 
 fn hole_boundary_edges_for_faces(
@@ -1310,7 +1369,12 @@ fn point_strictly_in_polygon_2d(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> bool
     inside
 }
 
-fn segment_intersects_segment_2d(a0: Vec2<f32>, a1: Vec2<f32>, b0: Vec2<f32>, b1: Vec2<f32>) -> bool {
+fn segment_intersects_segment_2d(
+    a0: Vec2<f32>,
+    a1: Vec2<f32>,
+    b0: Vec2<f32>,
+    b1: Vec2<f32>,
+) -> bool {
     const EPS: f32 = 1e-5;
     let cross = |a: Vec2<f32>, b: Vec2<f32>| a.x * b.y - a.y * b.x;
     let orient = |a: Vec2<f32>, b: Vec2<f32>, c: Vec2<f32>| cross(b - a, c - a);
@@ -1328,7 +1392,10 @@ fn polygons_overlap_2d(face: &[Vec2<f32>], hole: &[Vec2<f32>]) -> bool {
     if face.len() < 3 || hole.len() < 3 {
         return false;
     }
-    let face_center = face.iter().copied().fold(Vec2::zero(), |sum, point| sum + point)
+    let face_center = face
+        .iter()
+        .copied()
+        .fold(Vec2::zero(), |sum, point| sum + point)
         / face.len() as f32;
     if point_strictly_in_polygon_2d(face_center, hole) {
         return true;
@@ -1423,9 +1490,9 @@ fn prune_cutout_internal_caps(
             return true;
         }
         let uv = to_uv(center);
-        !hole_uvs
-            .iter()
-            .any(|hole| point_strictly_in_polygon_2d(uv, hole) || polygons_overlap_2d(&face_uvs, hole))
+        !hole_uvs.iter().any(|hole| {
+            point_strictly_in_polygon_2d(uv, hole) || polygons_overlap_2d(&face_uvs, hole)
+        })
     });
 }
 
@@ -2300,6 +2367,25 @@ pub(crate) fn cutout_selected_surface_loop(map: &mut Map) -> bool {
             if inner_loops.is_empty() {
                 continue;
             }
+            if any_loop_extends_beyond_quad(&inner_loops, face_points) {
+                if let Some((guide_faces, guide_points, guide_segments)) =
+                    cutout_existing_surface_ring(
+                        object,
+                        &snapshot,
+                        face_index,
+                        face,
+                        inner_loops,
+                        &mut new_selected_faces,
+                    )
+                {
+                    map.selected_geometry_faces = guide_faces;
+                    map.selected_geometry_surface_points = guide_points;
+                    map.selected_geometry_surface_segments = guide_segments;
+                    changed = true;
+                    break;
+                }
+                continue;
+            }
             let mut snapped_loops = Vec::new();
             for mut inner_front in inner_loops {
                 if snap_cutout_loop_to_boundary(&mut inner_front, face_points).is_some() {
@@ -2716,8 +2802,13 @@ pub(crate) fn subdivide_selected_geometry_faces(map: &mut Map) -> bool {
             continue;
         }
 
-        for face_index in face_indices {
-            let Some(face) = object.faces.get(face_index).cloned() else {
+        let selected_faces = face_indices.into_iter().collect::<BTreeSet<_>>();
+        let snapshot = object.clone();
+        let mut edge_midpoints = BTreeMap::new();
+        let mut replacements: BTreeMap<usize, Vec<rusterix::GeometryFace>> = BTreeMap::new();
+
+        for face_index in selected_faces.iter().copied() {
+            let Some(face) = snapshot.faces.get(face_index).cloned() else {
                 continue;
             };
             if face.indices.len() != 4 {
@@ -2730,22 +2821,29 @@ pub(crate) fn subdivide_selected_geometry_faces(map: &mut Map) -> bool {
                 face.indices[3],
             ];
             let (Some(pa), Some(pb), Some(pc), Some(pd)) = (
-                object.vertices.get(a).copied(),
-                object.vertices.get(b).copied(),
-                object.vertices.get(c).copied(),
-                object.vertices.get(d).copied(),
+                snapshot.vertices.get(a).copied(),
+                snapshot.vertices.get(b).copied(),
+                snapshot.vertices.get(c).copied(),
+                snapshot.vertices.get(d).copied(),
             ) else {
                 continue;
             };
 
-            let ab = object.vertices.len();
-            object.vertices.push((pa + pb) * 0.5);
-            let bc = object.vertices.len();
-            object.vertices.push((pb + pc) * 0.5);
-            let cd = object.vertices.len();
-            object.vertices.push((pc + pd) * 0.5);
-            let da = object.vertices.len();
-            object.vertices.push((pd + pa) * 0.5);
+            let mut midpoint = |edge: (usize, usize), pos: Vec3<f32>| {
+                if let Some(index) = edge_midpoints.get(&normalized_edge(edge.0, edge.1)) {
+                    *index
+                } else {
+                    let index = object.vertices.len();
+                    object.vertices.push(pos);
+                    edge_midpoints.insert(normalized_edge(edge.0, edge.1), index);
+                    index
+                }
+            };
+
+            let ab = midpoint((a, b), (pa + pb) * 0.5);
+            let bc = midpoint((b, c), (pb + pc) * 0.5);
+            let cd = midpoint((c, d), (pc + pd) * 0.5);
+            let da = midpoint((d, a), (pd + pa) * 0.5);
             let center = object.vertices.len();
             object.vertices.push((pa + pb + pc + pd) * 0.25);
 
@@ -2754,27 +2852,61 @@ pub(crate) fn subdivide_selected_geometry_faces(map: &mut Map) -> bool {
                 new_face.indices = indices;
                 new_face.uvs = face_uvs_for_indices(object, &new_face.indices);
                 new_face.auto_uv = true;
+                new_face.surface_points.clear();
+                new_face.surface_segments.clear();
                 new_face
             };
 
-            let first_face = make_face(vec![a, ab, center, da]);
-            let second_face = make_face(vec![ab, b, bc, center]);
-            let third_face = make_face(vec![center, bc, c, cd]);
-            let fourth_face = make_face(vec![da, center, cd, d]);
-
-            object.faces[face_index] = first_face;
-            new_selected_faces.push((object.id, face_index));
-            let second_face_index = object.faces.len();
-            object.faces.push(second_face);
-            new_selected_faces.push((object.id, second_face_index));
-            let third_face_index = object.faces.len();
-            object.faces.push(third_face);
-            new_selected_faces.push((object.id, third_face_index));
-            let fourth_face_index = object.faces.len();
-            object.faces.push(fourth_face);
-            new_selected_faces.push((object.id, fourth_face_index));
+            replacements.insert(
+                face_index,
+                vec![
+                    make_face(vec![a, ab, center, da]),
+                    make_face(vec![ab, b, bc, center]),
+                    make_face(vec![center, bc, c, cd]),
+                    make_face(vec![da, center, cd, d]),
+                ],
+            );
 
             changed = true;
+        }
+
+        if !replacements.is_empty() {
+            let mut rebuilt_faces =
+                Vec::with_capacity(snapshot.faces.len() + replacements.len() * 3);
+            for (face_index, face) in snapshot.faces.iter().cloned().enumerate() {
+                if let Some(replacement_faces) = replacements.get(&face_index) {
+                    for face in replacement_faces {
+                        new_selected_faces.push((object.id, rebuilt_faces.len()));
+                        rebuilt_faces.push(face.clone());
+                    }
+                    continue;
+                }
+
+                let mut indices = Vec::with_capacity(face.indices.len() + face.indices.len());
+                let mut inserted = false;
+                for index in 0..face.indices.len() {
+                    let a = face.indices[index];
+                    let b = face.indices[(index + 1) % face.indices.len()];
+                    indices.push(a);
+                    if let Some(midpoint) = edge_midpoints.get(&normalized_edge(a, b)).copied() {
+                        if !selected_faces.contains(&face_index) {
+                            indices.push(midpoint);
+                            inserted = true;
+                        }
+                    }
+                }
+
+                if inserted {
+                    let mut face = face;
+                    face.indices = indices;
+                    face.uvs = face_uvs_for_indices(object, &face.indices);
+                    face.auto_uv = true;
+                    rebuilt_faces.push(face);
+                } else {
+                    rebuilt_faces.push(face);
+                }
+            }
+            object.faces = rebuilt_faces;
         }
     }
 
@@ -2929,6 +3061,10 @@ mod tests {
     }
 
     fn bottom_cap_overlaps(object: &rusterix::GeometryObject, hole: &[Vec3<f32>]) -> bool {
+        cap_overlaps_at_y(object, hole, 0.0)
+    }
+
+    fn cap_overlaps_at_y(object: &rusterix::GeometryObject, hole: &[Vec3<f32>], y: f32) -> bool {
         let hole_xz = hole
             .iter()
             .map(|point| Vec2::new(point.x, point.z))
@@ -2947,9 +3083,7 @@ mod tests {
                 .filter_map(|index| object.vertices.get(*index).copied())
                 .collect::<Vec<_>>();
             if points.len() != face.indices.len()
-                || points
-                    .iter()
-                    .any(|point| (point.y - 0.0).abs() > 0.0001)
+                || points.iter().any(|point| (point.y - y).abs() > 0.0001)
             {
                 return false;
             }
@@ -2994,6 +3128,65 @@ mod tests {
     }
 
     #[test]
+    fn subdivide_splits_neighbor_faces_on_shared_edges() {
+        let mut map = Map::new();
+        let object = rusterix::GeometryObject::box_from_bounds(
+            "floor",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.5, 4.0),
+        );
+        let object_id = object.id;
+        let top_face_index = object
+            .faces
+            .iter()
+            .position(|face| {
+                local_face_normal(&object, face)
+                    .map(|normal| normal.y > 0.9)
+                    .unwrap_or(false)
+            })
+            .expect("box should have a top face");
+        let top_edges = object.faces[top_face_index]
+            .indices
+            .iter()
+            .enumerate()
+            .map(|(index, a)| {
+                normalized_edge(
+                    *a,
+                    object.faces[top_face_index].indices
+                        [(index + 1) % object.faces[top_face_index].indices.len()],
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        map.geometry_objects.push(object);
+        map.selected_geometry_faces
+            .push((object_id, top_face_index));
+
+        assert!(subdivide_selected_geometry_faces(&mut map));
+
+        let object = &map.geometry_objects[0];
+        for edge in top_edges {
+            let midpoint = object
+                .vertices
+                .iter()
+                .enumerate()
+                .find_map(|(index, point)| {
+                    let expected = (object.vertices[edge.0] + object.vertices[edge.1]) * 0.5;
+                    ((*point - expected).magnitude_squared() <= 0.000001).then_some(index)
+                })
+                .expect("subdivide should create a midpoint for each selected boundary edge");
+            let containing_faces = object
+                .faces
+                .iter()
+                .filter(|face| face.indices.contains(&midpoint))
+                .count();
+            assert!(
+                containing_faces >= 3,
+                "boundary midpoint should be shared by child faces and the neighboring side face"
+            );
+        }
+    }
+
+    #[test]
     fn cutout_rebuilds_bottom_without_caps_after_repeated_surface_loops() {
         let mut map = Map::new();
         let object = rusterix::GeometryObject::box_from_bounds(
@@ -3025,5 +3218,60 @@ mod tests {
         assert!(cutout_selected_surface_loop(&mut map));
         assert!(!bottom_cap_overlaps(&map.geometry_objects[0], &first_hole));
         assert!(!bottom_cap_overlaps(&map.geometry_objects[0], &second_hole));
+    }
+
+    #[test]
+    fn cutout_uses_coplanar_surface_when_guide_spans_split_face() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../test_projects/CutoutSeveralFaces1.eldiron");
+        let contents = std::fs::read_to_string(path)
+            .expect("CutoutSeveralFaces1 fixture should be available for tests");
+        let mut project: Project =
+            serde_json::from_str(&contents).expect("CutoutSeveralFaces1 fixture deserializes");
+        let map = &mut project.regions[0].map;
+        let (object_id, face_index, segment_count, guide_loop) = map
+            .geometry_objects
+            .iter()
+            .find_map(|object| {
+                object
+                    .faces
+                    .iter()
+                    .enumerate()
+                    .find_map(|(face_index, face)| {
+                        (!face.surface_segments.is_empty()).then(|| {
+                            let guide_loop = face
+                                .surface_points
+                                .iter()
+                                .map(|point| point.position)
+                                .collect::<Vec<_>>();
+                            (
+                                object.id,
+                                face_index,
+                                face.surface_segments.len(),
+                                guide_loop,
+                            )
+                        })
+                    })
+            })
+            .expect("fixture should contain surface detail");
+        map.selected_geometry_surface_segments = (0..segment_count)
+            .map(|segment_index| (object_id, face_index, segment_index))
+            .collect();
+
+        assert!(cutout_selected_surface_loop(map));
+
+        let object = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)
+            .expect("cutout should keep the source object");
+        assert!(!cap_overlaps_at_y(object, &guide_loop, 0.5));
+        assert!(!cap_overlaps_at_y(object, &guide_loop, 0.0));
+        assert!(
+            object
+                .faces
+                .iter()
+                .all(|face| face.indices.len() >= 3 && face.uvs.len() == face.indices.len())
+        );
     }
 }

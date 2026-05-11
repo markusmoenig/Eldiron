@@ -193,7 +193,7 @@ impl MapEditor {
         grid_sub_div.set_value(TheValue::Float(1.0));
         // opacity.set_default_value(TheValue::Float(1.0));
         grid_sub_div.set_info_text(Some("Subdiv".to_string()));
-        grid_sub_div.set_range(TheValue::RangeI32(1..=10));
+        grid_sub_div.set_range(TheValue::RangeI32(1..=32));
         grid_sub_div.set_continuous(true);
         grid_sub_div.limiter_mut().set_max_width(150);
         grid_sub_div.set_status_text(&fl!("status_map_editor_grid_sub_div"));
@@ -617,7 +617,8 @@ impl MapEditor {
                 if id.name == "Grid Subdiv" {
                     if let Some(value) = value.to_i32() {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            region.map.subdivisions = value as f32;
+                            region.map.subdivisions =
+                                (1.0 / ServerContext::edit_grid_step(value as f32)).round();
                         }
                     }
                 }

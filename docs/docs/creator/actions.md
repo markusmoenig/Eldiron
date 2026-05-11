@@ -185,7 +185,7 @@ Merge selected connected direct 3D geometry faces into one editable face.
 
 *Shortcut: Ctrl/Cmd + U*
 
-Subdivide selected direct 3D quad faces into smaller editable faces.
+Subdivide selected direct 3D quad faces into smaller editable faces. Newly created child faces stay selected so the action can be repeated quickly. Shared boundary edges also add matching midpoint vertices to neighboring faces, keeping subdivided faces attached to the surrounding mesh.
 
 ### Create Ridge
 

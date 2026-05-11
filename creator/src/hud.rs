@@ -33,6 +33,8 @@ pub struct Hud {
 }
 
 impl Hud {
+    const GRID_SUBDIVISIONS: [usize; 6] = [1, 2, 4, 8, 16, 32];
+
     fn active_action_material_slots(
         &self,
         map: &Map,
@@ -96,7 +98,7 @@ impl Hud {
     }
 
     fn clean_coord(v: f32) -> f32 {
-        if v.abs() < 0.0005 { 0.0 } else { v }
+        if v.abs() < 0.000005 { 0.0 } else { v }
     }
 
     fn grid_step_label(subdivision: usize) -> String {
@@ -107,12 +109,25 @@ impl Hud {
         }
     }
 
-    fn grid_key_label(subdivision: usize) -> String {
-        if subdivision == 10 {
-            "0".to_string()
+    fn grid_key_label(index: usize) -> String {
+        (index + 1).to_string()
+    }
+
+    fn active_grid_subdivision(subdivisions: f32) -> usize {
+        let step = ServerContext::edit_grid_step(subdivisions);
+        ((1.0 / step).round() as usize).clamp(1, 32)
+    }
+
+    fn coord_precision(subdivisions: f32) -> usize {
+        if Self::active_grid_subdivision(subdivisions) >= 32 {
+            5
         } else {
-            subdivision.to_string()
+            3
         }
+    }
+
+    fn format_coord(v: f32, precision: usize) -> String {
+        format!("{:.*}", precision, Self::clean_coord(v))
     }
 
     fn selected_geometry_coord(map: &Map) -> Option<Vec3<f32>> {
@@ -282,20 +297,26 @@ impl Hud {
             })
             .or_else(|| Self::selected_geometry_coord(map))
         {
-            ctx.draw
-                .rect(buffer.pixels_mut(), &(8, 2, 175, 16), stride, &panel_color);
+            let precision = Self::coord_precision(map.subdivisions);
+            let panel_width = if precision >= 5 { 250 } else { 200 };
+            ctx.draw.rect(
+                buffer.pixels_mut(),
+                &(8, 2, panel_width, 16),
+                stride,
+                &panel_color,
+            );
             ctx.draw.text(
                 buffer.pixels_mut(),
                 &(10, 2),
                 stride,
                 &format!(
-                    "{:.2}, {:.2}, {:.2}",
-                    Self::clean_coord(snapped.x),
-                    Self::clean_coord(snapped.y),
-                    Self::clean_coord(snapped.z)
+                    "{}, {}, {}",
+                    Self::format_coord(snapped.x, precision),
+                    Self::format_coord(snapped.y, precision),
+                    Self::format_coord(snapped.z, precision)
                 ),
                 TheFontSettings {
-                    size: 13.0,
+                    size: if precision >= 5 { 12.0 } else { 13.0 },
                     ..Default::default()
                 },
                 &text_color,
@@ -449,11 +470,17 @@ impl Hud {
             && self.mode != HudMode::Dungeon
             && self.mode != HudMode::Rect
         {
-            let x = 170;
-            let size = 20;
-            for i in 0..10 {
-                let rect = TheDim::rect(x + (i * size), 0, size, size);
-                let active = (i + 1) as f32 == map.subdivisions;
+            let x = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                170
+            } else {
+                200
+            };
+            let size = 20i32;
+            let button_height = info_height as i32 - 1;
+            let active_subdivision = Self::active_grid_subdivision(map.subdivisions);
+            for (i, subdivision) in Self::GRID_SUBDIVISIONS.iter().copied().enumerate() {
+                let rect = TheDim::rect(x + (i as i32 * size), 0, size, button_height);
+                let active = active_subdivision == subdivision;
                 let hovered = rect.contains(self.mouse_pos);
                 let inner = if active {
                     [68, 68, 72, 255]
@@ -475,7 +502,7 @@ impl Hud {
                         rect.x as usize + 1,
                         rect.y as usize + 2,
                         rect.width as usize - 2,
-                        rect.height as usize - 4,
+                        rect.height as usize - 3,
                     ),
                     stride,
                     &inner,
@@ -485,7 +512,7 @@ impl Hud {
                         buffer.pixels_mut(),
                         &(
                             rect.x as usize + 3,
-                            rect.y as usize + 16,
+                            rect.y as usize + rect.height as usize - 4,
                             rect.width as usize - 6,
                             2,
                         ),
@@ -495,11 +522,10 @@ impl Hud {
                 }
 
                 let r = rect.to_buffer_utuple();
-                let subdivision = (i + 1) as usize;
-                let label = Self::grid_key_label(subdivision);
+                let label = Self::grid_key_label(i);
                 ctx.draw.text_rect(
                     buffer.pixels_mut(),
-                    &(r.0, 1, r.2, 19),
+                    &(r.0, 1, r.2, rect.height as usize - 1),
                     stride,
                     &label,
                     TheFontSettings {
@@ -521,14 +547,23 @@ impl Hud {
             if server_ctx.editor_view_mode != EditorViewMode::D2
                 && server_ctx.get_map_context() == MapContext::Region
             {
-                let rect = TheDim::rect(x + (10 * size) + 6, 2, 52, 16);
-                ctx.draw
-                    .rect(buffer.pixels_mut(), &rect.to_buffer_utuple(), stride, &panel_color);
+                let rect = TheDim::rect(
+                    x + (Self::GRID_SUBDIVISIONS.len() as i32 * size) + 6,
+                    2,
+                    52,
+                    16,
+                );
+                ctx.draw.rect(
+                    buffer.pixels_mut(),
+                    &rect.to_buffer_utuple(),
+                    stride,
+                    &panel_color,
+                );
                 ctx.draw.text_rect(
                     buffer.pixels_mut(),
                     &rect.to_buffer_utuple(),
                     stride,
-                    &Self::grid_step_label(map.subdivisions.round().clamp(1.0, 10.0) as usize),
+                    &Self::grid_step_label(active_subdivision),
                     TheFontSettings {
                         size: 11.0,
                         ..Default::default()
@@ -716,7 +751,9 @@ impl Hud {
         if self.mode != HudMode::Rect {
             for (i, rect) in self.subdiv_rects.iter().enumerate() {
                 if rect.contains(Vec2::new(x, y)) {
-                    map.subdivisions = (i + 1) as f32;
+                    if let Some(subdivision) = Self::GRID_SUBDIVISIONS.get(i) {
+                        map.subdivisions = *subdivision as f32;
+                    }
                     {
                         let mut rusterix = RUSTERIX.write().unwrap();
                         rusterix.set_dirty();

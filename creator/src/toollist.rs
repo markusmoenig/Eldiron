@@ -1,6 +1,6 @@
+use crate::actions::geometry_face_ops::surface_segment_points;
 use crate::editor::{DOCKMANAGER, RUSTERIX, SCENEMANAGER, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
-use crate::actions::geometry_face_ops::surface_segment_points;
 use crate::sidebar::SidebarMode;
 pub use crate::tools::rect::RectTool;
 use rusterix::Assets;
@@ -58,28 +58,34 @@ impl ToolList {
     const AUTHORING_BUTTON_NAME: &'static str = "Authoring";
     const TEXT_PLAY_BUTTON_NAME: &'static str = "Text Play";
     const PALETTE_BUTTON_NAME: &'static str = "Palette Mode";
+    const GRID_SUBDIVISIONS: [f32; 6] = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0];
 
     fn grid_subdivision_from_key(c: char) -> Option<f32> {
         match c {
             '1' | '!' => Some(1.0),
             '2' | '@' => Some(2.0),
-            '3' | '#' => Some(3.0),
-            '4' | '$' => Some(4.0),
-            '5' | '%' => Some(5.0),
-            '6' | '^' => Some(6.0),
-            '7' | '&' => Some(7.0),
-            '8' | '*' => Some(8.0),
-            '9' | '(' => Some(9.0),
-            '0' | ')' => Some(10.0),
+            '3' | '#' => Some(4.0),
+            '4' | '$' => Some(8.0),
+            '5' | '%' => Some(16.0),
+            '6' | '^' => Some(32.0),
             _ => None,
         }
     }
 
     fn is_grid_subdivision_key(c: char) -> bool {
-        matches!(
-            c,
-            '0'..='9' | '!' | '@' | '#' | '$' | '%' | '^' | '&' | '*' | '(' | ')'
-        )
+        matches!(c, '1'..='6' | '!' | '@' | '#' | '$' | '%' | '^')
+    }
+
+    fn step_grid_subdivision(current: f32, delta: i32) -> f32 {
+        let current_index = Self::GRID_SUBDIVISIONS
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| ((*a - current).abs()).total_cmp(&((*b - current).abs())))
+            .map(|(index, _)| index as i32)
+            .unwrap_or(0);
+        let next_index =
+            (current_index + delta).clamp(0, Self::GRID_SUBDIVISIONS.len() as i32 - 1) as usize;
+        Self::GRID_SUBDIVISIONS[next_index]
     }
 
     fn get_tool_map_mut<'a>(
@@ -126,10 +132,7 @@ impl ToolList {
         }
     }
 
-    fn valid_geometry_object_ids(
-        map: &Map,
-        snapshot: &GeometrySelectionSnapshot,
-    ) -> Vec<Uuid> {
+    fn valid_geometry_object_ids(map: &Map, snapshot: &GeometrySelectionSnapshot) -> Vec<Uuid> {
         let mut ids = Vec::new();
         for id in &snapshot.objects {
             if map.geometry_objects.iter().any(|object| object.id == *id) {
@@ -217,10 +220,7 @@ impl ToolList {
                 {
                     for vertex_index in &face.indices {
                         if *vertex_index < object.vertices.len() {
-                            Self::push_unique_vertex(
-                                &mut vertices,
-                                (*object_id, *vertex_index),
-                            );
+                            Self::push_unique_vertex(&mut vertices, (*object_id, *vertex_index));
                         }
                     }
                 }
@@ -280,7 +280,11 @@ impl ToolList {
                 if vertices.is_empty() {
                     return false;
                 }
-                map.geometry_selection_mode = if target_tool == MapToolType::Vertex { 2 } else { 3 };
+                map.geometry_selection_mode = if target_tool == MapToolType::Vertex {
+                    2
+                } else {
+                    3
+                };
                 map.selected_geometry_objects = object_ids;
                 map.selected_geometry_vertices = vertices;
                 map.selected_geometry_faces.clear();
@@ -1819,10 +1823,20 @@ impl ToolList {
                     ui.focus_widget_supports_text_input(ctx) && !polyview_focused;
                 let plain_key = !ui.ctrl && !ui.logo && !ui.alt;
 
+                let preserve_geometry_object_shortcut = plain_key
+                    && polyview_focused
+                    && server_ctx.editor_view_mode != EditorViewMode::D2
+                    && server_ctx.curr_map_tool_type == MapToolType::Selection
+                    && matches!(c, 'r' | 'R')
+                    && project
+                        .get_map(server_ctx)
+                        .is_some_and(|map| !map.selected_geometry_objects.is_empty());
+
                 if plain_key
                     && !text_input_focused
                     && !server_ctx.game_input_mode
                     && !server_ctx.text_game_mode
+                    && !preserve_geometry_object_shortcut
                 {
                     let mut tool_uuid = None;
                     if self.editor_mode {
@@ -1891,9 +1905,15 @@ impl ToolList {
                                 && (*c == ',' || *c == '.')
                                 && server_ctx.editor_view_mode != EditorViewMode::D2
                             {
-                                let delta = if *c == ',' { -2.0 } else { 2.0 };
-                                map.grid_size = (map.grid_size + delta).clamp(5.0, 100.0);
-                                RUSTERIX.write().unwrap().set_dirty();
+                                let delta = if *c == ',' { -1 } else { 1 };
+                                map.subdivisions =
+                                    Self::step_grid_subdivision(map.subdivisions, delta);
+                                {
+                                    let mut rusterix = RUSTERIX.write().unwrap();
+                                    rusterix.set_dirty();
+                                    rusterix.set_overlay_dirty();
+                                }
+                                self.update_geometry_overlay_3d(project, server_ctx);
                                 ctx.ui.redraw_all = true;
                                 return true;
                             } else if plain_grid_shortcut && (*c == ',' || *c == '.') {
@@ -2995,15 +3015,14 @@ impl ToolList {
         let mut switched_tool = false;
         let layout_name = "Game Tool Params";
         let mut old_tool_index = 0;
-        let previous_geometry_selection = if !self.editor_mode
-            && server_ctx.editor_view_mode != EditorViewMode::D2
-        {
-            project
-                .get_region(&server_ctx.curr_region)
-                .map(|region| Self::geometry_selection_snapshot(&region.map))
-        } else {
-            None
-        };
+        let previous_geometry_selection =
+            if !self.editor_mode && server_ctx.editor_view_mode != EditorViewMode::D2 {
+                project
+                    .get_region(&server_ctx.curr_region)
+                    .map(|region| Self::geometry_selection_snapshot(&region.map))
+            } else {
+                None
+            };
 
         if self.editor_mode {
             // Handle editor tool switching
@@ -3084,7 +3103,8 @@ impl ToolList {
             self.get_current_tool()
                 .tool_event(ToolEvent::Activate, ui, ctx, project, server_ctx);
 
-            let preserve_surface_detail_host = server_ctx.curr_map_tool_type == MapToolType::Linedef
+            let preserve_surface_detail_host = server_ctx.curr_map_tool_type
+                == MapToolType::Linedef
                 && previous_geometry_selection
                     .as_ref()
                     .is_some_and(|snapshot| !snapshot.faces.is_empty());
@@ -3224,6 +3244,17 @@ impl ToolList {
         let view_right = cam_right;
         let view_up = cam_up;
         let view_nudge = cam_forward * -0.002; // small toward-camera nudge to avoid z-fighting
+        let camera_position = rusterix.client.camera_d3.position();
+        let camera_scale = rusterix.client.camera_d3.scale();
+        let camera_fov = rusterix.client.camera_d3.fov().to_radians();
+        let overlay_world_size = |point: Vec3<f32>| -> f32 {
+            if server_ctx.editor_view_mode == EditorViewMode::Iso {
+                (camera_scale * 0.035).clamp(0.055, 0.28)
+            } else {
+                let distance = (point - camera_position).magnitude().max(0.1);
+                (distance * (camera_fov * 0.5).tan() * 0.045).clamp(0.055, 0.28)
+            }
+        };
         rusterix.client.scene.d3_overlay.clear();
         let thickness = 0.15;
 
@@ -3638,8 +3669,18 @@ impl ToolList {
                     let gizmo_min = if gizmo_found { gizmo_min } else { min };
                     let gizmo_max = if gizmo_found { gizmo_max } else { max };
                     let center = (gizmo_min + gizmo_max) * 0.5;
-                    let axis_len = ((gizmo_max - gizmo_min).magnitude() * 0.35).clamp(0.75, 1.75);
-                    if selected && has_mode_selection {
+                    let base_overlay_size = overlay_world_size(center);
+                    let axis_len = (base_overlay_size * 7.0).clamp(0.38, 1.75);
+                    let move_handle_size = (base_overlay_size * 1.15).clamp(0.08, 0.22);
+                    let resize_handle_size = (base_overlay_size * 0.95).clamp(0.07, 0.18);
+                    let draw_selection_gizmo = server_ctx.curr_map_tool_type
+                        != MapToolType::Selection
+                        || map.selected_geometry_objects.len() <= 1
+                        || map
+                            .selected_geometry_objects
+                            .first()
+                            .is_some_and(|selected_id| *selected_id == object.id);
+                    if selected && has_mode_selection && draw_selection_gizmo {
                         let show_move_gizmo = server_ctx.curr_map_tool_type
                             != MapToolType::Selection
                             || server_ctx.geometry_gizmo_op == GeometryGizmoOp::Move;
@@ -3670,7 +3711,7 @@ impl ToolList {
                                     GeoId::Gizmo(axis_id),
                                     false,
                                     handle_center + cam_forward * -0.012,
-                                    0.22,
+                                    move_handle_size,
                                     color,
                                     0.88,
                                 );
@@ -3717,7 +3758,7 @@ impl ToolList {
                                     GeoId::Gizmo(axis_id),
                                     false,
                                     handle_center + view_nudge + cam_forward * -0.014,
-                                    0.18,
+                                    resize_handle_size,
                                     color,
                                     0.72,
                                 );
@@ -3781,7 +3822,8 @@ impl ToolList {
                             GeoId::GeometryObject(object.id),
                             is_selected,
                             object.transform_point(*vertex) + view_nudge + cam_forward * -0.01,
-                            if is_selected { 0.16 } else { 0.11 },
+                            overlay_world_size(object.transform_point(*vertex))
+                                * if is_selected { 0.88 } else { 0.62 },
                             if is_selected { 0.94 } else { 0.66 },
                             39,
                         );
@@ -3834,9 +3876,7 @@ impl ToolList {
                                     b_selected,
                                 ),
                             ] {
-                                if is_selected
-                                    && drawn_geometry_vertices.insert(vertex_index)
-                                {
+                                if is_selected && drawn_geometry_vertices.insert(vertex_index) {
                                     push_cube_marker(
                                         &mut rusterix,
                                         GeoId::GeometryObject(object.id),
@@ -3844,7 +3884,7 @@ impl ToolList {
                                         object.transform_point(*vertex)
                                             + view_nudge
                                             + cam_forward * -0.01,
-                                        0.13,
+                                        overlay_world_size(object.transform_point(*vertex)) * 0.72,
                                         0.92,
                                         39,
                                     );
@@ -3886,7 +3926,9 @@ impl ToolList {
                                 .contains(&(object.id, face_index, segment_index));
                             let world_points = points
                                 .iter()
-                                .map(|point| object.transform_point(*point) + view_nudge + normal * 0.014)
+                                .map(|point| {
+                                    object.transform_point(*point) + view_nudge + normal * 0.014
+                                })
                                 .collect::<Vec<_>>();
                             let side = world_points
                                 .windows(2)
@@ -3894,7 +3936,9 @@ impl ToolList {
                                     let dir = (points[1] - points[0]).try_normalized()?;
                                     normal.cross(dir).try_normalized()
                                 })
-                                .unwrap_or_else(|| cam_right.try_normalized().unwrap_or(Vec3::unit_x()));
+                                .unwrap_or_else(|| {
+                                    cam_right.try_normalized().unwrap_or(Vec3::unit_x())
+                                });
                             let line_offset = 0.018;
                             let base_id = 0xE390_0000u32
                                 .wrapping_add(id_salt)
@@ -3930,7 +3974,10 @@ impl ToolList {
                             }
                             for (point_index, point) in [
                                 (segment.start, world_points[0]),
-                                (segment.end, *world_points.last().unwrap_or(&world_points[0])),
+                                (
+                                    segment.end,
+                                    *world_points.last().unwrap_or(&world_points[0]),
+                                ),
                             ] {
                                 drawn_surface_points.insert(point_index);
                                 let point_selected = map
@@ -3942,7 +3989,8 @@ impl ToolList {
                                     GeoId::GeometryObject(object.id),
                                     point_selected,
                                     point,
-                                    if point_selected { 0.11 } else { 0.085 },
+                                    overlay_world_size(point)
+                                        * if point_selected { 0.66 } else { 0.50 },
                                     if point_selected { 0.9 } else { 0.48 },
                                     39,
                                 );
@@ -3966,7 +4014,8 @@ impl ToolList {
                                 GeoId::GeometryObject(object.id),
                                 point_selected,
                                 point,
-                                if point_selected { 0.11 } else { 0.085 },
+                                overlay_world_size(point)
+                                    * if point_selected { 0.66 } else { 0.50 },
                                 if point_selected { 0.9 } else { 0.48 },
                                 39,
                             );
@@ -4090,7 +4139,7 @@ impl ToolList {
                             GeoId::GeometryObject(object.id),
                             true,
                             object.transform_point(*vertex) + view_nudge + cam_forward * -0.012,
-                            0.16,
+                            overlay_world_size(object.transform_point(*vertex)) * 0.88,
                             0.94,
                             39,
                         );

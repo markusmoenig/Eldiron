@@ -922,8 +922,7 @@ impl ApplicationHandler for TheWinitApp {
                                 }
                                 (MouseButton::Right, ElementState::Pressed) => {
                                     self.right_mouse_down = true;
-                                    if ctx.window.set_cursor_grab(CursorGrabMode::Locked).is_err()
-                                    {
+                                    if ctx.window.set_cursor_grab(CursorGrabMode::Locked).is_err() {
                                         let _ =
                                             ctx.window.set_cursor_grab(CursorGrabMode::Confined);
                                     }

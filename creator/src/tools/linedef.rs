@@ -919,9 +919,7 @@ impl Tool for LinedefTool {
                 {
                     let (selected_points, selected_segments) = match surface_hit {
                         SurfaceLineHit::Point(point_index) => (vec![point_index], Vec::new()),
-                        SurfaceLineHit::Segment(segment_index) => {
-                            (Vec::new(), vec![segment_index])
-                        }
+                        SurfaceLineHit::Segment(segment_index) => (Vec::new(), vec![segment_index]),
                     };
                     if !ui.shift && !ui.alt {
                         map.selected_geometry_faces.clear();
@@ -1363,10 +1361,14 @@ impl Tool for LinedefTool {
 
         match map_event {
             MapKey(c) => {
-                if matches!(c, '0'..='9') {
+                if matches!(c, '1'..='6') {
                     match c {
-                        '1'..='9' => map.subdivisions = (c as u8 - b'0') as f32,
-                        '0' => map.subdivisions = 10.0,
+                        '1' => map.subdivisions = 1.0,
+                        '2' => map.subdivisions = 2.0,
+                        '3' => map.subdivisions = 4.0,
+                        '4' => map.subdivisions = 8.0,
+                        '5' => map.subdivisions = 16.0,
+                        '6' => map.subdivisions = 32.0,
                         _ => {}
                     }
                     {
