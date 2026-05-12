@@ -101,22 +101,25 @@ impl Action for ApplyTile {
                 .map(PixelSource::TileId)
                 .unwrap_or_else(|| source_value.clone());
             let geometry_source = crate::utils::SurfaceApplySource::Direct(geometry_source);
-            for object_id in map.selected_geometry_objects.clone() {
-                changed |= crate::utils::apply_surface_source_to_geometry_object(
-                    map,
-                    object_id,
-                    &geometry_source,
-                    Some(mode),
-                );
-            }
-            for (object_id, face_index) in selected_geometry_faces {
-                changed |= crate::utils::apply_surface_source_to_geometry_face(
-                    map,
-                    object_id,
-                    face_index,
-                    &geometry_source,
-                    Some(mode),
-                );
+            if selected_geometry_faces.is_empty() {
+                for object_id in map.selected_geometry_objects.clone() {
+                    changed |= crate::utils::apply_surface_source_to_geometry_object(
+                        map,
+                        object_id,
+                        &geometry_source,
+                        Some(mode),
+                    );
+                }
+            } else {
+                for (object_id, face_index) in selected_geometry_faces {
+                    changed |= crate::utils::apply_surface_source_to_geometry_face(
+                        map,
+                        object_id,
+                        face_index,
+                        &geometry_source,
+                        Some(mode),
+                    );
+                }
             }
         }
 
@@ -147,5 +150,51 @@ impl Action for ApplyTile {
         _server_ctx: &mut ServerContext,
     ) -> bool {
         self.nodeui.handle_event(event)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_tile_prefers_explicit_geometry_face_selection_over_object_selection() {
+        let mut map = Map::default();
+        let object = rusterix::GeometryObject::box_from_bounds(
+            "Box",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 1.0),
+        );
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+        map.selected_geometry_objects.push(object_id);
+        map.selected_geometry_faces.push((object_id, 2));
+
+        let action = ApplyTile::new();
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        server_ctx.curr_tile_id = Some(Uuid::new_v4());
+
+        let Some(ProjectUndoAtom::MapEdit(_, old_map, new_map)) =
+            action.apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
+        else {
+            panic!("apply tile should return a MapEdit undo atom");
+        };
+
+        assert!(
+            old_map.geometry_objects[0]
+                .faces
+                .iter()
+                .all(|face| face.tile.is_none())
+        );
+        for (index, face) in new_map.geometry_objects[0].faces.iter().enumerate() {
+            if index == 2 {
+                assert_eq!(face.tile, server_ctx.curr_tile_id.map(PixelSource::TileId));
+            } else {
+                assert_eq!(face.tile, None);
+            }
+        }
     }
 }

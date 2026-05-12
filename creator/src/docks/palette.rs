@@ -457,22 +457,26 @@ impl PaletteDock {
             } else {
                 let mut changed = false;
                 let geometry_source = crate::utils::SurfaceApplySource::Direct(source.clone());
-                for object_id in map.selected_geometry_objects.clone() {
-                    changed |= crate::utils::apply_surface_source_to_geometry_object(
-                        map,
-                        object_id,
-                        &geometry_source,
-                        Some(1),
-                    );
-                }
-                for (object_id, face_index) in map.selected_geometry_faces.clone() {
-                    changed |= crate::utils::apply_surface_source_to_geometry_face(
-                        map,
-                        object_id,
-                        face_index,
-                        &geometry_source,
-                        Some(1),
-                    );
+                let selected_geometry_faces = map.selected_geometry_faces.clone();
+                if selected_geometry_faces.is_empty() {
+                    for object_id in map.selected_geometry_objects.clone() {
+                        changed |= crate::utils::apply_surface_source_to_geometry_object(
+                            map,
+                            object_id,
+                            &geometry_source,
+                            Some(1),
+                        );
+                    }
+                } else {
+                    for (object_id, face_index) in selected_geometry_faces {
+                        changed |= crate::utils::apply_surface_source_to_geometry_face(
+                            map,
+                            object_id,
+                            face_index,
+                            &geometry_source,
+                            Some(1),
+                        );
+                    }
                 }
                 for sector_id in map.selected_sectors.clone() {
                     let mut source_key = "source";
@@ -543,14 +547,30 @@ impl PaletteDock {
             }
         }
 
-        if !cleared_action_slot
-            && server_ctx.get_map_context() == MapContext::Region
-            && let Some(map) = project.get_map(server_ctx)
-            && let Some(action_id) = server_ctx.curr_action_id
-            && let Some(action) = ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
-            && action.hud_material_slots(map, server_ctx).is_some()
-            && action.clear_hud_material_slot(map, server_ctx, server_ctx.selected_hud_icon_index)
-        {
+        let cleared_action_material_slot =
+            if !cleared_action_slot && server_ctx.get_map_context() == MapContext::Region {
+                if let Some(map) = project.get_map(server_ctx)
+                    && let Some(action_id) = server_ctx.curr_action_id
+                {
+                    ACTIONLIST
+                        .write()
+                        .unwrap()
+                        .get_action_by_id_mut(action_id)
+                        .is_some_and(|action| {
+                            action.hud_material_slots(map, server_ctx).is_some()
+                                && action.clear_hud_material_slot(
+                                    map,
+                                    server_ctx,
+                                    server_ctx.selected_hud_icon_index,
+                                )
+                        })
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+        if cleared_action_material_slot {
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Refresh Action Parameters"),
                 TheValue::Empty,
@@ -561,12 +581,18 @@ impl PaletteDock {
         if !cleared_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
             let mut changed = false;
             let prev = map.clone();
-            for object_id in map.selected_geometry_objects.clone() {
-                changed |= crate::utils::clear_surface_source_on_geometry_object(map, object_id);
-            }
-            for (object_id, face_index) in map.selected_geometry_faces.clone() {
-                changed |=
-                    crate::utils::clear_surface_source_on_geometry_face(map, object_id, face_index);
+            let selected_geometry_faces = map.selected_geometry_faces.clone();
+            if selected_geometry_faces.is_empty() {
+                for object_id in map.selected_geometry_objects.clone() {
+                    changed |=
+                        crate::utils::clear_surface_source_on_geometry_object(map, object_id);
+                }
+            } else {
+                for (object_id, face_index) in selected_geometry_faces {
+                    changed |= crate::utils::clear_surface_source_on_geometry_face(
+                        map, object_id, face_index,
+                    );
+                }
             }
             for sector_id in map.selected_sectors.clone() {
                 let mut source_key = "source";

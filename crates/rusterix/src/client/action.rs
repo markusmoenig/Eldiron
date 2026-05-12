@@ -18,6 +18,7 @@ pub struct ClientAction {
     right_down: bool,
     strafe_left_down: bool,
     strafe_right_down: bool,
+    last_cardinal_action: EntityAction,
 }
 
 impl Default for ClientAction {
@@ -37,6 +38,7 @@ impl ClientAction {
             right_down: false,
             strafe_left_down: false,
             strafe_right_down: false,
+            last_cardinal_action: EntityAction::Off,
         }
     }
 
@@ -49,6 +51,7 @@ impl ClientAction {
         self.right_down = false;
         self.strafe_left_down = false;
         self.strafe_right_down = false;
+        self.last_cardinal_action = EntityAction::Off;
         self.class_name = class_name;
 
         if let Some((_, entity_data)) = assets.entities.get(&self.class_name) {
@@ -150,10 +153,22 @@ impl ClientAction {
 
     fn set_movement_key(&mut self, action: EntityAction, is_down: bool) {
         match action {
-            EntityAction::Forward => self.forward_down = is_down,
-            EntityAction::Backward => self.backward_down = is_down,
-            EntityAction::Left => self.left_down = is_down,
-            EntityAction::Right => self.right_down = is_down,
+            EntityAction::Forward => {
+                self.forward_down = is_down;
+                self.update_last_cardinal_action(EntityAction::Forward, is_down);
+            }
+            EntityAction::Backward => {
+                self.backward_down = is_down;
+                self.update_last_cardinal_action(EntityAction::Backward, is_down);
+            }
+            EntityAction::Left => {
+                self.left_down = is_down;
+                self.update_last_cardinal_action(EntityAction::Left, is_down);
+            }
+            EntityAction::Right => {
+                self.right_down = is_down;
+                self.update_last_cardinal_action(EntityAction::Right, is_down);
+            }
             EntityAction::StrafeLeft => self.strafe_left_down = is_down,
             EntityAction::StrafeRight => self.strafe_right_down = is_down,
             EntityAction::Off => {
@@ -164,38 +179,79 @@ impl ClientAction {
                     self.right_down = false;
                     self.strafe_left_down = false;
                     self.strafe_right_down = false;
+                    self.last_cardinal_action = EntityAction::Off;
                 }
             }
             _ => {}
         }
     }
 
-    fn current_movement_action(&self) -> EntityAction {
-        let vertical = match (self.forward_down, self.backward_down) {
-            (true, false) => 1,
-            (false, true) => -1,
-            _ => 0,
-        };
-        let horizontal = match (self.right_down, self.left_down) {
-            (true, false) => 1,
-            (false, true) => -1,
-            _ => 0,
-        };
+    fn update_last_cardinal_action(&mut self, action: EntityAction, is_down: bool) {
+        if is_down {
+            self.last_cardinal_action = action;
+        } else if self.last_cardinal_action == action {
+            self.last_cardinal_action = self.first_held_cardinal_action();
+        }
+    }
 
-        match (vertical, horizontal) {
-            (1, 0) => EntityAction::Forward,
-            (-1, 0) => EntityAction::Backward,
-            (0, 1) => EntityAction::Right,
-            (0, -1) => EntityAction::Left,
-            (1, 1) => EntityAction::ForwardRight,
-            (1, -1) => EntityAction::ForwardLeft,
-            (-1, 1) => EntityAction::BackwardRight,
-            (-1, -1) => EntityAction::BackwardLeft,
-            _ => match (self.strafe_left_down, self.strafe_right_down) {
+    fn first_held_cardinal_action(&self) -> EntityAction {
+        if self.forward_down {
+            EntityAction::Forward
+        } else if self.backward_down {
+            EntityAction::Backward
+        } else if self.left_down {
+            EntityAction::Left
+        } else if self.right_down {
+            EntityAction::Right
+        } else {
+            EntityAction::Off
+        }
+    }
+
+    fn current_movement_action(&self) -> EntityAction {
+        if self.last_cardinal_action != EntityAction::Off {
+            self.last_cardinal_action.clone()
+        } else {
+            match (self.strafe_left_down, self.strafe_right_down) {
                 (true, false) => EntityAction::StrafeLeft,
                 (false, true) => EntityAction::StrafeRight,
                 _ => EntityAction::Off,
-            },
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn press(action: &mut ClientAction, entity_action: EntityAction) -> EntityAction {
+        action.handle_key_down(InputCommand::Action(entity_action))
+    }
+
+    fn release(action: &mut ClientAction, entity_action: EntityAction) -> EntityAction {
+        action.handle_key_up(InputCommand::Action(entity_action))
+    }
+
+    #[test]
+    fn simultaneous_cardinal_keys_do_not_create_diagonal_actions() {
+        let mut action = ClientAction::new();
+
+        assert_eq!(
+            press(&mut action, EntityAction::Forward),
+            EntityAction::Forward
+        );
+        assert_eq!(press(&mut action, EntityAction::Right), EntityAction::Right);
+        assert_eq!(
+            release(&mut action, EntityAction::Right),
+            EntityAction::Forward
+        );
+
+        assert_eq!(press(&mut action, EntityAction::Left), EntityAction::Left);
+        assert_eq!(
+            release(&mut action, EntityAction::Forward),
+            EntityAction::Left
+        );
+        assert_eq!(release(&mut action, EntityAction::Left), EntityAction::Off);
     }
 }

@@ -9069,7 +9069,9 @@ impl VM {
         let m = self.transform3d;
 
         let cached_static_tri_count = self.cached_static_i3.len() / 3;
-        if cached_static_tri_count > 0
+        if !self.accel_dirty
+            && !self.geometry3d_dirty
+            && cached_static_tri_count > 0
             && self.cached_static_tri_geo_ids.len() >= cached_static_tri_count
         {
             let cached_static_i3 = &self.cached_static_i3;

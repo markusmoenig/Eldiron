@@ -2011,6 +2011,7 @@ impl ToolList {
                     || ui.logo
                     || ui.alt
                     || server_ctx.game_input_mode
+                    || preserve_geometry_object_shortcut
                 {
                     acc = false;
                 }

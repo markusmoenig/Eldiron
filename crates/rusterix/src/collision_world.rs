@@ -713,10 +713,26 @@ impl CollisionWorld {
             let current_2d = Vec2::new(current.x, current.z);
             let current_floor = self
                 .get_floor_height_reachable(current_2d, current.y, max_step_height)
+                .or_else(|| {
+                    self.sample_reachable_floor_height(
+                        current_2d,
+                        radius * 0.5,
+                        current.y,
+                        max_step_height,
+                    )
+                })
                 .unwrap_or(current.y);
             let probe_2d = current_2d + Vec2::new(delta.x, delta.z);
-            let Some(mut move_height) =
-                self.get_floor_height_reachable(probe_2d, current_floor, max_step_height)
+            let Some(mut move_height) = self
+                .get_floor_height_reachable(probe_2d, current_floor, max_step_height)
+                .or_else(|| {
+                    self.sample_reachable_floor_height(
+                        probe_2d,
+                        radius * 0.5,
+                        current_floor,
+                        max_step_height,
+                    )
+                })
             else {
                 break;
             };
@@ -732,8 +748,16 @@ impl CollisionWorld {
                 Some(current_floor + max_step_height + 1e-3),
             );
             let next_2d = Vec2::new(next.x, next.z);
-            let Some(next_floor) =
-                self.get_floor_height_reachable(next_2d, current.y, max_step_height)
+            let Some(next_floor) = self
+                .get_floor_height_reachable(next_2d, current.y, max_step_height)
+                .or_else(|| {
+                    self.sample_reachable_floor_height(
+                        next_2d,
+                        radius * 0.5,
+                        current.y,
+                        max_step_height,
+                    )
+                })
             else {
                 break;
             };
@@ -1216,6 +1240,38 @@ impl CollisionWorld {
         None
     }
 
+    fn sample_reachable_floor_height(
+        &self,
+        position: Vec2<f32>,
+        probe: f32,
+        reference_y: f32,
+        max_step_height: f32,
+    ) -> Option<f32> {
+        if let Some(h) = self.get_floor_height_reachable(position, reference_y, max_step_height) {
+            return Some(h);
+        }
+
+        let d = probe.max(0.05);
+        let offsets = [
+            Vec2::new(-d, 0.0),
+            Vec2::new(d, 0.0),
+            Vec2::new(0.0, -d),
+            Vec2::new(0.0, d),
+            Vec2::new(-d, -d),
+            Vec2::new(-d, d),
+            Vec2::new(d, -d),
+            Vec2::new(d, d),
+        ];
+        for off in offsets {
+            if let Some(h) =
+                self.get_floor_height_reachable(position + off, reference_y, max_step_height)
+            {
+                return Some(h);
+            }
+        }
+        None
+    }
+
     fn navgrid_next_waypoint(
         &self,
         from: Vec2<f32>,
@@ -1433,5 +1489,62 @@ mod tests {
         assert!(arrived);
         assert!(end.z > 5.5);
         assert!((end.y - 1.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_floor_movement_bridges_tiny_floor_gap_both_directions() {
+        let mut world = CollisionWorld::new(10);
+        let mut chunk = ChunkCollision::new();
+        let geo_id = GeoId::GeometryObject(uuid::Uuid::nil());
+
+        chunk.walkable_floors.push(WalkableFloor::flat(
+            geo_id,
+            0.5,
+            vec![
+                Vec2::new(0.0, 0.0),
+                Vec2::new(3.0, 0.0),
+                Vec2::new(3.0, 5.0),
+                Vec2::new(0.0, 5.0),
+            ],
+        ));
+        chunk.walkable_floors.push(WalkableFloor::flat(
+            geo_id,
+            0.5,
+            vec![
+                Vec2::new(3.02, 0.0),
+                Vec2::new(6.0, 0.0),
+                Vec2::new(6.0, 5.0),
+                Vec2::new(3.02, 5.0),
+            ],
+        ));
+        world.update_chunk(Vec2::new(0, 0), chunk);
+
+        let (forward, forward_arrived) = world
+            .move_towards_on_floors_direct(
+                Vec2::new(2.8, 2.5),
+                Vec2::new(3.3, 2.5),
+                0.5,
+                0.5,
+                1.0,
+                0.5,
+            )
+            .unwrap();
+        assert!(forward_arrived);
+        assert!(forward.x > 3.25);
+        assert!((forward.y - 0.5).abs() < 1e-4);
+
+        let (backward, backward_arrived) = world
+            .move_towards_on_floors_direct(
+                Vec2::new(3.3, 2.5),
+                Vec2::new(2.8, 2.5),
+                0.5,
+                0.5,
+                1.0,
+                0.5,
+            )
+            .unwrap();
+        assert!(backward_arrived);
+        assert!(backward.x < 2.85);
+        assert!((backward.y - 0.5).abs() < 1e-4);
     }
 }

@@ -224,6 +224,33 @@ mod tests {
             0.0,
         );
     }
+
+    #[test]
+    fn geometry_floor_hit_from_ray_continues_past_roof() {
+        let mut map = Map::default();
+        map.geometry_objects.push(GeometryObject::box_(
+            "floor",
+            Vec3::new(0.0, -0.05, 0.0),
+            Vec3::new(6.0, 0.1, 6.0),
+        ));
+        map.geometry_objects.push(GeometryObject::box_(
+            "roof",
+            Vec3::new(0.0, 2.05, 0.0),
+            Vec3::new(2.0, 0.1, 2.0),
+        ));
+
+        let ray_origin = Vec3::new(0.0, 4.0, -1.0);
+        let ray_dir = Vec3::new(0.0, -1.0, 0.5).normalized();
+        let hit = map
+            .geometry_floor_hit_from_ray(ray_origin, ray_dir, Some(2.0))
+            .unwrap();
+
+        assert_close(hit.y, 0.0);
+        assert!(
+            hit.z > 0.9,
+            "expected the ray to continue past the roof hit"
+        );
+    }
 }
 
 impl Map {
@@ -505,6 +532,121 @@ impl Map {
         }
 
         best_below.or(best_above)
+    }
+
+    fn ray_triangle_hit(
+        ray_origin: Vec3<f32>,
+        ray_dir: Vec3<f32>,
+        a: Vec3<f32>,
+        b: Vec3<f32>,
+        c: Vec3<f32>,
+    ) -> Option<f32> {
+        let edge_1 = b - a;
+        let edge_2 = c - a;
+        let h = ray_dir.cross(edge_2);
+        let det = edge_1.dot(h);
+        if det.abs() <= 1e-6 {
+            return None;
+        }
+        let inv_det = 1.0 / det;
+        let s = ray_origin - a;
+        let u = inv_det * s.dot(h);
+        if !(0.0..=1.0).contains(&u) {
+            return None;
+        }
+        let q = s.cross(edge_1);
+        let v = inv_det * ray_dir.dot(q);
+        if v < 0.0 || u + v > 1.0 {
+            return None;
+        }
+        let t = inv_det * edge_2.dot(q);
+        (t > 1e-5).then_some(t)
+    }
+
+    /// Find the first walkable geometry-floor hit along a screen ray, optionally
+    /// constrained below a previously hit roof/ceiling height. This keeps editor
+    /// entity placement under roofs aligned to the floor point along the ray,
+    /// not the X/Z of the roof surface that was hit first.
+    pub fn geometry_floor_hit_from_ray(
+        &self,
+        ray_origin: Vec3<f32>,
+        ray_dir: Vec3<f32>,
+        max_y: Option<f32>,
+    ) -> Option<Vec3<f32>> {
+        let ray_dir = ray_dir.try_normalized()?;
+        let mut best_t = f32::INFINITY;
+        let mut best_hit: Option<Vec3<f32>> = None;
+
+        for object in &self.geometry_objects {
+            let Some(bbox) = object.bbox() else {
+                continue;
+            };
+
+            let mut min_y = f32::INFINITY;
+            let mut max_object_y = f32::NEG_INFINITY;
+            for vertex in &object.vertices {
+                let world = object.transform_point(*vertex);
+                min_y = min_y.min(world.y);
+                max_object_y = max_object_y.max(world.y);
+            }
+            let object_center = Vec3::new(
+                bbox.center().x,
+                (min_y + max_object_y) * 0.5,
+                bbox.center().y,
+            );
+
+            for face in &object.faces {
+                if face.indices.len() < 3 {
+                    continue;
+                }
+
+                let mut world_points = Vec::with_capacity(face.indices.len());
+                for index in &face.indices {
+                    let Some(vertex) = object.vertices.get(*index) else {
+                        world_points.clear();
+                        break;
+                    };
+                    world_points.push(object.transform_point(*vertex));
+                }
+                if world_points.len() < 3 {
+                    continue;
+                }
+
+                let Some(normal) = Self::geometry_face_normal(&world_points, object_center) else {
+                    continue;
+                };
+                if normal.y < 0.55 {
+                    continue;
+                }
+
+                for index in 1..world_points.len() - 1 {
+                    let Some(t) = Self::ray_triangle_hit(
+                        ray_origin,
+                        ray_dir,
+                        world_points[0],
+                        world_points[index],
+                        world_points[index + 1],
+                    ) else {
+                        continue;
+                    };
+                    if t >= best_t {
+                        continue;
+                    }
+
+                    let hit = ray_origin + ray_dir * t;
+                    if let Some(max_y) = max_y
+                        && hit.y > max_y + 0.05
+                    {
+                        continue;
+                    }
+
+                    best_t = t;
+                    best_hit = Some(hit);
+                }
+            }
+        }
+
+        best_hit
     }
 
     /// Returns the surface for the given sector_id

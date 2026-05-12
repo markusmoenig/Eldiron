@@ -232,7 +232,7 @@ hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Object gizmo operation: move (M).
 status_hud_geometry_op_size = Object gizmo operation: resize (S).
 status_geometry_empty_selection = 3D selection: G = Object, E = Face, V = Vertex, L = Edge.
-status_geometry_object_selection = Object selected: M = Move, S = Size.
+status_geometry_object_selection = Object selected: M = Move, S = Size, R = rotate Y, Shift+R = rotate Z.
 status_geometry_face_selection = Face selected: +/- = Push/Pull, [] = Move Up/Down, Delete = Delete.
 status_geometry_vertex_selection = Vertex selected: F = Fill, X = Split Edge, M = Merge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.
 status_geometry_edge_selection = Edge selected: F = Fill, X = Split Edge, M = Merge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.

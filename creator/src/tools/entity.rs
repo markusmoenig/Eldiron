@@ -491,6 +491,14 @@ impl EntityTool {
                 false,
                 true,
             ) {
+                if let Some((ray_origin, ray_dir)) = server_ctx
+                    .hover_ray_origin_3d
+                    .zip(server_ctx.hover_ray_dir_3d)
+                    && let Some(floor_hit) =
+                        map.geometry_floor_hit_from_ray(ray_origin, ray_dir, Some(hit.y - 0.1))
+                {
+                    return Some(Vec2::new(floor_hit.x, floor_hit.z));
+                }
                 return Some(Vec2::new(hit.x, hit.z));
             }
             if let Some(hit) = server_ctx.hover_cursor_3d {

@@ -38,7 +38,10 @@ impl Action for ClearTile {
     }
 
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, _server_ctx: &ServerContext) -> bool {
-        if map.selected_sectors.is_empty() && map.selected_geometry_faces.is_empty() {
+        if map.selected_sectors.is_empty()
+            && map.selected_geometry_faces.is_empty()
+            && map.selected_geometry_objects.is_empty()
+        {
             return false;
         }
         // match server_ctx.editor_view_mode {
@@ -67,9 +70,16 @@ impl Action for ClearTile {
             }
         }
 
-        for (object_id, face_index) in map.selected_geometry_faces.clone() {
-            changed |=
-                crate::utils::clear_surface_source_on_geometry_face(map, object_id, face_index);
+        let selected_geometry_faces = map.selected_geometry_faces.clone();
+        if selected_geometry_faces.is_empty() {
+            for object_id in map.selected_geometry_objects.clone() {
+                changed |= crate::utils::clear_surface_source_on_geometry_object(map, object_id);
+            }
+        } else {
+            for (object_id, face_index) in selected_geometry_faces {
+                changed |=
+                    crate::utils::clear_surface_source_on_geometry_face(map, object_id, face_index);
+            }
         }
 
         if changed {

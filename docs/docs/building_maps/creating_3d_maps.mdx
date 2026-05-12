@@ -45,7 +45,8 @@ With the **Object Tool (`G`)** active:
 
 - **M** switches the object gizmo to move mode.
 - **S** switches the object gizmo to size mode.
-- **R / Shift + R** rotates selected objects in 90-degree steps around the vertical axis.
+- **R** rotates selected objects in 90-degree steps around the vertical Y axis.
+- **Shift + R** rotates selected objects in 90-degree steps around the Z axis, useful for standing floors up into walls.
 - **Drag a handle** to move or resize on that axis.
 - **+ / -** resize selected objects horizontally.
 - **[ / ]** resize selected objects vertically.
@@ -57,6 +58,8 @@ Movement and resizing snap to the current grid size. When multiple objects are s
 Use **Edit Geometry** to set exact object position and size. The same action also exposes object visibility, mesh-collision solidity, and a lightweight group label. Invisible objects are skipped by 3D rendering, and non-solid objects are skipped by mesh collision, which is the foundation for later trigger volumes, water volumes, helper shapes, and grouped moving pieces.
 
 Use **1 ... 6** to change the grid snap step: `1`, `1/2`, `1/4`, `1/8`, `1/16`, or `1/32` world units. The 3D HUD keeps the compact shortcut slots and shows the active snap step beside them, and the visible 3D grid subdivision lines follow the same snap step. Use **, / .** to decrease or increase the 3D grid snap subdivision.
+
+When a 3D edge or surface-detail segment is selected, the HUD shows its length. While drawing a new surface line on a face, the HUD shows the current segment length from the start point to the hover point.
 
 Use **Toggle Editor Post** and **Toggle Editor Lighting** when you want a cleaner viewport while editing. These actions only affect the editor preview and do not change the project's render settings.
 
@@ -73,7 +76,7 @@ Useful face shortcuts:
 - **Cmd/Ctrl+I** runs the Face Inset action. Set the inset amount in the action parameters.
 - **Cmd/Ctrl+M** runs the Face Merge action on selected connected faces.
 - **Delete** removes selected faces and leaves the boundary vertices selected.
-- **T** applies the current tile, palette color, tilegraph, or nodegraph source.
+- **T** applies the current tile, palette color, tilegraph, or nodegraph source. Explicit face selections take priority over object selections, so painting selected faces on an object affects only those faces.
 - **+ / -** push or pull selected faces along their normals.
 - **[ / ]** move selected faces vertically by one grid step.
 
@@ -146,7 +149,7 @@ Use **Edit Vertex** with one selected 3D vertex to enter exact world coordinates
 
 Select one or more faces with the **Sector / Face Tool** and press **T**, or use the relevant dock apply button.
 
-Faces can either repeat a tile in 1x1 world units or scale the source across the selected face, depending on the active tile application mode.
+Faces can either repeat a tile in 1x1 world units or scale the source across the selected face, depending on the active tile application mode. Applying or clearing tile and palette sources uses selected faces first; if no individual faces are selected, selected objects apply to all of their faces.
 
 Use **Edit Face Texture** on selected faces, or on a selected object, to adjust texture offset, scale, and rotation. Explicit face selections take priority, so selecting one face on an object edits only that face; selecting the object edits every face. Parameter changes update the 3D view immediately. Texture scale follows the old 3D path convention: larger scale values make the source cover a larger area, while smaller values repeat it more tightly.
 
@@ -166,7 +169,7 @@ This workflow is meant to stay realtime while editing.
 
 When a project uses mesh collision, direct Geometry Objects feed the runtime collision world. Floors, walls, extruded faces, and cutout reveals are taken from the edited mesh, so the player can walk on authored floors and collide with authored walls.
 
-Character and item placement in 3D editor views snaps previews to the geometry floor height when possible. If the cursor hits overhead geometry such as a roof awning, placement prefers the floor below that surface so entities can be placed under cover instead of on top of the roof.
+Character and item placement in 3D editor views snaps previews to the geometry floor height when possible. If the cursor hits overhead geometry such as a roof awning, placement prefers the floor below that surface so entities can be placed and rendered under cover instead of on the highest overlapping surface.
 
 ## 2D Map Reference
 

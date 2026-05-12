@@ -177,14 +177,29 @@ fn closest_point_on_axis_to_ray(
     (ray_t.is_finite() && ray_t >= 0.0 && axis_t.is_finite()).then_some(axis_origin + axis * axis_t)
 }
 
-fn snap_drag_step(amount: f32, step: f32) -> f32 {
+fn ray_plane_hit(
+    ray_origin: Vec3<f32>,
+    ray_dir: Vec3<f32>,
+    plane_origin: Vec3<f32>,
+    plane_normal: Vec3<f32>,
+) -> Option<Vec3<f32>> {
+    let normal = plane_normal.try_normalized()?;
+    let denom = ray_dir.dot(normal);
+    if denom.abs() <= 1e-6 {
+        return None;
+    }
+    let t = (plane_origin - ray_origin).dot(normal) / denom;
+    (t.is_finite() && t >= 0.0).then_some(ray_origin + ray_dir * t)
+}
+
+fn snap_drag_amount(amount: f32, step: f32) -> f32 {
     if step <= 0.0 || !amount.is_finite() {
         return 0.0;
     }
     if amount.abs() + 1e-4 < step {
         return 0.0;
     }
-    amount.signum() * step
+    (amount / step).round() * step
 }
 
 fn snap_vertex_drag_target(
@@ -225,6 +240,16 @@ fn translated_transform(mut transform: [[f32; 4]; 4], delta: Vec3<f32>) -> [[f32
     transform[3][0] += delta.x;
     transform[3][1] += delta.y;
     transform[3][2] += delta.z;
+    transform
+}
+
+fn snap_translated_transform_target(
+    mut transform: [[f32; 4]; 4],
+    delta: Vec3<f32>,
+    subdivisions: f32,
+) -> [[f32; 4]; 4] {
+    transform[3][0] = ServerContext::snap_scalar(transform[3][0] + delta.x, subdivisions);
+    transform[3][2] = ServerContext::snap_scalar(transform[3][2] + delta.z, subdivisions);
     transform
 }
 
@@ -390,7 +415,7 @@ fn resize_selected_geometry(map: &mut Map, delta_size: Vec3<f32>) -> bool {
     changed
 }
 
-fn rotate_selected_geometry_objects_y(map: &mut Map, quarter_turns: i32) -> bool {
+fn rotate_selected_geometry_objects(map: &mut Map, axis: Vec3<f32>, quarter_turns: i32) -> bool {
     if map.selected_geometry_objects.is_empty() {
         return false;
     }
@@ -402,11 +427,25 @@ fn rotate_selected_geometry_objects_y(map: &mut Map, quarter_turns: i32) -> bool
     let rotate = |point: Vec3<f32>, center: Vec3<f32>| {
         let local = point - center;
         center
-            + Vec3::new(
-                local.x * cos - local.z * sin,
-                local.y,
-                local.x * sin + local.z * cos,
-            )
+            + if axis.x.abs() > 0.5 {
+                Vec3::new(
+                    local.x,
+                    local.y * cos - local.z * sin,
+                    local.y * sin + local.z * cos,
+                )
+            } else if axis.z.abs() > 0.5 {
+                Vec3::new(
+                    local.x * cos - local.y * sin,
+                    local.x * sin + local.y * cos,
+                    local.z,
+                )
+            } else {
+                Vec3::new(
+                    local.x * cos - local.z * sin,
+                    local.y,
+                    local.x * sin + local.z * cos,
+                )
+            }
     };
 
     let mut changed = false;
@@ -773,27 +812,27 @@ fn apply_tile_to_selected_geometry_faces(map: &mut Map, source: PixelSource) -> 
         return false;
     }
 
-    let selected_objects = map.selected_geometry_objects.clone();
     let selected = map.selected_geometry_faces.clone();
     let geometry_source = crate::utils::SurfaceApplySource::Direct(source.clone());
     let mut changed = false;
-    for object_id in selected_objects {
-        changed |= crate::utils::apply_surface_source_to_geometry_object(
-            map,
-            object_id,
-            &geometry_source,
-            None,
-        );
-    }
-    for object in &mut map.geometry_objects {
-        for (_, face_index) in selected.iter().filter(|(id, _)| *id == object.id) {
-            let Some(face) = object.faces.get_mut(*face_index) else {
-                continue;
-            };
-            face.tile = Some(source.clone());
-            face.tiles.clear();
-            face.auto_uv = true;
-            changed = true;
+    if selected.is_empty() {
+        for object_id in map.selected_geometry_objects.clone() {
+            changed |= crate::utils::apply_surface_source_to_geometry_object(
+                map,
+                object_id,
+                &geometry_source,
+                None,
+            );
+        }
+    } else {
+        for (object_id, face_index) in selected {
+            changed |= crate::utils::apply_surface_source_to_geometry_face(
+                map,
+                object_id,
+                face_index,
+                &geometry_source,
+                None,
+            );
         }
     }
     changed
@@ -2817,16 +2856,23 @@ impl Tool for GeometryTool {
                     };
                     let raw_amount = (hit - anchor).dot(axis);
                     let step = ServerContext::edit_grid_step(map.subdivisions);
-                    let amount = snap_drag_step(raw_amount, step);
+                    let amount = snap_drag_amount(raw_amount, step);
                     if amount.abs() > 0.0 {
                         next_axis_anchor = Some(anchor + axis * amount);
                     }
                     axis * amount
                 } else {
-                    if server_ctx.geo_hit.is_none() {
+                    let hit = server_ctx
+                        .hover_ray_origin_3d
+                        .zip(server_ctx.hover_ray_dir_3d)
+                        .and_then(|(ray_origin, ray_dir)| {
+                            ray_plane_hit(ray_origin, ray_dir, drag.start_hit, Vec3::unit_y())
+                        })
+                        .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos));
+                    let Some(hit) = hit else {
                         return None;
-                    }
-                    server_ctx.geo_hit_pos - drag.start_hit
+                    };
+                    hit - drag.start_hit
                 };
                 if delta.magnitude_squared() <= 0.0001 {
                     return None;
@@ -2851,22 +2897,14 @@ impl Tool for GeometryTool {
                 };
 
                 let step = ServerContext::edit_grid_step(map.subdivisions);
-                let snapped_delta = if drag.axis.is_some() {
-                    delta
-                } else {
-                    Vec3::new(
-                        (delta.x / step).round() * step,
-                        0.0,
-                        (delta.z / step).round() * step,
-                    )
-                };
+                let drag_delta = delta;
                 if let Some(GizmoDragKind::Resize { component, .. }) = drag.gizmo_kind {
                     let Some((min, max)) = geometry_bounds(&drag.start_vertices) else {
                         return None;
                     };
                     let size = vec_component(max - min, component);
-                    let amount = vec_component(snapped_delta, component).abs();
-                    let expands = vec_component(snapped_delta, component)
+                    let amount = vec_component(drag_delta, component).abs();
+                    let expands = vec_component(drag_delta, component)
                         * drag
                             .axis
                             .map(|axis| vec_component(axis, component))
@@ -2893,7 +2931,7 @@ impl Tool for GeometryTool {
                         };
                         *vertex = snap_vertex_drag_target(
                             *start,
-                            snapped_delta,
+                            drag_delta,
                             drag.axis,
                             map.subdivisions,
                         );
@@ -2912,8 +2950,15 @@ impl Tool for GeometryTool {
                         else {
                             return None;
                         };
-                        object.transform =
-                            translated_transform(drag.start_transform, snapped_delta);
+                        object.transform = if drag.axis.is_some() {
+                            translated_transform(drag.start_transform, drag_delta)
+                        } else {
+                            snap_translated_transform_target(
+                                drag.start_transform,
+                                drag_delta,
+                                map.subdivisions,
+                            )
+                        };
                     } else {
                         for (selected_id, start_transform) in &drag.start_object_transforms {
                             if let Some(object) = map
@@ -2921,8 +2966,15 @@ impl Tool for GeometryTool {
                                 .iter_mut()
                                 .find(|object| object.id == *selected_id)
                             {
-                                object.transform =
-                                    translated_transform(*start_transform, snapped_delta);
+                                object.transform = if drag.axis.is_some() {
+                                    translated_transform(*start_transform, drag_delta)
+                                } else {
+                                    snap_translated_transform_target(
+                                        *start_transform,
+                                        drag_delta,
+                                        map.subdivisions,
+                                    )
+                                };
                             }
                         }
                     }
@@ -3078,8 +3130,12 @@ impl Tool for GeometryTool {
                     && map.selected_geometry_surface_segments.is_empty()
                 {
                     let old_map = map.clone();
-                    let quarter_turns = if key == 'R' { -1 } else { 1 };
-                    if !rotate_selected_geometry_objects_y(map, quarter_turns) {
+                    let axis = if key == 'R' {
+                        Vec3::unit_z()
+                    } else {
+                        Vec3::unit_y()
+                    };
+                    if !rotate_selected_geometry_objects(map, axis, 1) {
                         return None;
                     }
                     refresh_geometry_topology_edit(Some(&old_map), map, ctx);
@@ -3394,6 +3450,38 @@ mod tests {
     }
 
     #[test]
+    fn rotate_selected_geometry_objects_y_turns_around_vertical_axis() {
+        let (mut map, _object_id) = box_map();
+
+        assert!(rotate_selected_geometry_objects(
+            &mut map,
+            Vec3::unit_y(),
+            1
+        ));
+
+        assert_eq!(
+            map.geometry_objects[0].vertices[1],
+            Vec3::new(2.0, 0.0, 2.0)
+        );
+    }
+
+    #[test]
+    fn rotate_selected_geometry_objects_z_stands_object_on_end() {
+        let (mut map, _object_id) = box_map();
+
+        assert!(rotate_selected_geometry_objects(
+            &mut map,
+            Vec3::unit_z(),
+            1
+        ));
+
+        assert_eq!(
+            map.geometry_objects[0].vertices[1],
+            Vec3::new(2.0, 2.0, 0.0)
+        );
+    }
+
+    #[test]
     fn rectangle_selection_selects_geometry_by_mode() {
         let (mut map, object_id) = box_map();
         {
@@ -3462,5 +3550,55 @@ mod tests {
             true,
         );
         assert_eq!(map.selected_geometry_vertices, vec![(object_id, 2)]);
+    }
+
+    #[test]
+    fn free_drag_snaps_vertex_target_to_grid() {
+        let target = snap_vertex_drag_target(
+            Vec3::new(0.24, 1.0, 0.24),
+            Vec3::new(0.02, 0.0, 0.02),
+            None,
+            4.0,
+        );
+
+        assert_eq!(target, Vec3::new(0.25, 1.0, 0.25));
+    }
+
+    #[test]
+    fn free_drag_snaps_object_translation_target_to_grid() {
+        let mut transform = [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.24, 2.0, 0.24, 1.0],
+        ];
+
+        transform = snap_translated_transform_target(transform, Vec3::new(0.02, 9.0, 0.02), 4.0);
+
+        assert_eq!(transform[3][0], 0.25);
+        assert_eq!(transform[3][1], 2.0);
+        assert_eq!(transform[3][2], 0.25);
+    }
+
+    #[test]
+    fn axis_drag_snaps_to_nearest_grid_multiple() {
+        assert_eq!(snap_drag_amount(0.02, 0.25), 0.0);
+        assert_eq!(snap_drag_amount(0.82, 0.25), 0.75);
+        assert_eq!(snap_drag_amount(-0.82, 0.25), -0.75);
+    }
+
+    #[test]
+    fn free_drag_uses_stable_horizontal_drag_plane() {
+        let hit = ray_plane_hit(
+            Vec3::new(0.0, 10.0, 0.0),
+            Vec3::new(0.5, -1.0, 0.25),
+            Vec3::new(0.0, 2.0, 0.0),
+            Vec3::unit_y(),
+        )
+        .unwrap();
+
+        assert!((hit.y - 2.0).abs() < 0.0001);
+        assert!((hit.x - 4.0).abs() < 0.0001);
+        assert!((hit.z - 2.0).abs() < 0.0001);
     }
 }

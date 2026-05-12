@@ -458,30 +458,34 @@ impl Dock for TilesDock {
                                     changed = true;
                                 }
                             }
-                            for object_id in map.selected_geometry_objects.clone() {
-                                if let Some(object) = map
-                                    .geometry_objects
-                                    .iter_mut()
-                                    .find(|object| object.id == object_id)
-                                {
-                                    for face in &mut object.faces {
-                                        if !face.auto_uv {
-                                            face.auto_uv = true;
-                                            changed = true;
+                            let selected_geometry_faces = map.selected_geometry_faces.clone();
+                            if selected_geometry_faces.is_empty() {
+                                for object_id in map.selected_geometry_objects.clone() {
+                                    if let Some(object) = map
+                                        .geometry_objects
+                                        .iter_mut()
+                                        .find(|object| object.id == object_id)
+                                    {
+                                        for face in &mut object.faces {
+                                            if !face.auto_uv {
+                                                face.auto_uv = true;
+                                                changed = true;
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            for (object_id, face_index) in map.selected_geometry_faces.clone() {
-                                if let Some(object) = map
-                                    .geometry_objects
-                                    .iter_mut()
-                                    .find(|object| object.id == object_id)
-                                    && let Some(face) = object.faces.get_mut(face_index)
-                                    && !face.auto_uv
-                                {
-                                    face.auto_uv = true;
-                                    changed = true;
+                            } else {
+                                for (object_id, face_index) in selected_geometry_faces {
+                                    if let Some(object) = map
+                                        .geometry_objects
+                                        .iter_mut()
+                                        .find(|object| object.id == object_id)
+                                        && let Some(face) = object.faces.get_mut(face_index)
+                                        && !face.auto_uv
+                                    {
+                                        face.auto_uv = true;
+                                        changed = true;
+                                    }
                                 }
                             }
                             if changed {
@@ -525,30 +529,34 @@ impl Dock for TilesDock {
                                     changed = true;
                                 }
                             }
-                            for object_id in map.selected_geometry_objects.clone() {
-                                if let Some(object) = map
-                                    .geometry_objects
-                                    .iter_mut()
-                                    .find(|object| object.id == object_id)
-                                {
-                                    for face in &mut object.faces {
-                                        if face.auto_uv {
-                                            face.auto_uv = false;
-                                            changed = true;
+                            let selected_geometry_faces = map.selected_geometry_faces.clone();
+                            if selected_geometry_faces.is_empty() {
+                                for object_id in map.selected_geometry_objects.clone() {
+                                    if let Some(object) = map
+                                        .geometry_objects
+                                        .iter_mut()
+                                        .find(|object| object.id == object_id)
+                                    {
+                                        for face in &mut object.faces {
+                                            if face.auto_uv {
+                                                face.auto_uv = false;
+                                                changed = true;
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            for (object_id, face_index) in map.selected_geometry_faces.clone() {
-                                if let Some(object) = map
-                                    .geometry_objects
-                                    .iter_mut()
-                                    .find(|object| object.id == object_id)
-                                    && let Some(face) = object.faces.get_mut(face_index)
-                                    && face.auto_uv
-                                {
-                                    face.auto_uv = false;
-                                    changed = true;
+                            } else {
+                                for (object_id, face_index) in selected_geometry_faces {
+                                    if let Some(object) = map
+                                        .geometry_objects
+                                        .iter_mut()
+                                        .find(|object| object.id == object_id)
+                                        && let Some(face) = object.faces.get_mut(face_index)
+                                        && face.auto_uv
+                                    {
+                                        face.auto_uv = false;
+                                        changed = true;
+                                    }
                                 }
                             }
                             if changed {
@@ -672,10 +680,15 @@ impl Dock for TilesDock {
                         }
                         return true;
                     }
-                    let builder_selected_source = crate::utils::get_source(ui, server_ctx);
                     let selected_source =
                         crate::utils::get_surface_apply_source(project, server_ctx);
                     if let Some(selected_source) = selected_source {
+                        let builder_selected_source = match &selected_source {
+                            crate::utils::SurfaceApplySource::Direct(source) => {
+                                Some(source.clone())
+                            }
+                            crate::utils::SurfaceApplySource::TileGroup { .. } => None,
+                        };
                         let mut applied_to_action = false;
                         let mut undo_atom: Option<ProjectUndoAtom> = None;
                         let mut needs_scene_redraw = false;
@@ -705,23 +718,35 @@ impl Dock for TilesDock {
                             }
                         }
 
-                        if !applied_to_action
+                        let applied_to_action_slot = if !applied_to_action
                             && server_ctx.get_map_context() == MapContext::Region
-                            && let Some(map) = project.get_map(server_ctx)
-                            && let Some(action_id) = server_ctx.curr_action_id
-                            && let Some(action) =
-                                ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
-                            && action.hud_material_slots(map, server_ctx).is_some()
-                            && let crate::utils::SurfaceApplySource::Direct(PixelSource::TileId(
-                                tile_id,
-                            )) = &selected_source
-                            && action.set_hud_material_from_tile(
-                                map,
-                                server_ctx,
-                                server_ctx.selected_hud_icon_index,
-                                *tile_id,
-                            )
                         {
+                            if let Some(map) = project.get_map(server_ctx)
+                                && let Some(action_id) = server_ctx.curr_action_id
+                                && let crate::utils::SurfaceApplySource::Direct(
+                                    PixelSource::TileId(tile_id),
+                                ) = &selected_source
+                            {
+                                ACTIONLIST
+                                    .write()
+                                    .unwrap()
+                                    .get_action_by_id_mut(action_id)
+                                    .is_some_and(|action| {
+                                        action.hud_material_slots(map, server_ctx).is_some()
+                                            && action.set_hud_material_from_tile(
+                                                map,
+                                                server_ctx,
+                                                server_ctx.selected_hud_icon_index,
+                                                *tile_id,
+                                            )
+                                    })
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+                        if applied_to_action_slot {
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Refresh Action Parameters"),
                                 TheValue::Empty,
@@ -734,24 +759,28 @@ impl Dock for TilesDock {
                                 let mut changed = false;
                                 let prev = map.clone();
 
-                                for object_id in map.selected_geometry_objects.clone() {
-                                    changed |=
-                                        crate::utils::apply_surface_source_to_geometry_object(
-                                            map,
-                                            object_id,
-                                            &selected_source,
-                                            Some(self.apply_tile_mode),
-                                        );
-                                }
-
-                                for (object_id, face_index) in map.selected_geometry_faces.clone() {
-                                    changed |= crate::utils::apply_surface_source_to_geometry_face(
-                                        map,
-                                        object_id,
-                                        face_index,
-                                        &selected_source,
-                                        Some(self.apply_tile_mode),
-                                    );
+                                let selected_geometry_faces = map.selected_geometry_faces.clone();
+                                if selected_geometry_faces.is_empty() {
+                                    for object_id in map.selected_geometry_objects.clone() {
+                                        changed |=
+                                            crate::utils::apply_surface_source_to_geometry_object(
+                                                map,
+                                                object_id,
+                                                &selected_source,
+                                                Some(self.apply_tile_mode),
+                                            );
+                                    }
+                                } else {
+                                    for (object_id, face_index) in selected_geometry_faces {
+                                        changed |=
+                                            crate::utils::apply_surface_source_to_geometry_face(
+                                                map,
+                                                object_id,
+                                                face_index,
+                                                &selected_source,
+                                                Some(self.apply_tile_mode),
+                                            );
+                                    }
                                 }
 
                                 for sector_id in map.selected_sectors.clone() {
@@ -824,19 +853,31 @@ impl Dock for TilesDock {
                         }
                     }
 
-                    if !cleared_action_slot
+                    let cleared_action_material_slot = if !cleared_action_slot
                         && server_ctx.get_map_context() == MapContext::Region
-                        && let Some(map) = project.get_map(server_ctx)
-                        && let Some(action_id) = server_ctx.curr_action_id
-                        && let Some(action) =
-                            ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
-                        && action.hud_material_slots(map, server_ctx).is_some()
-                        && action.clear_hud_material_slot(
-                            map,
-                            server_ctx,
-                            server_ctx.selected_hud_icon_index,
-                        )
                     {
+                        if let Some(map) = project.get_map(server_ctx)
+                            && let Some(action_id) = server_ctx.curr_action_id
+                        {
+                            ACTIONLIST
+                                .write()
+                                .unwrap()
+                                .get_action_by_id_mut(action_id)
+                                .is_some_and(|action| {
+                                    action.hud_material_slots(map, server_ctx).is_some()
+                                        && action.clear_hud_material_slot(
+                                            map,
+                                            server_ctx,
+                                            server_ctx.selected_hud_icon_index,
+                                        )
+                                })
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+                    if cleared_action_material_slot {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Refresh Action Parameters"),
                             TheValue::Empty,
@@ -849,16 +890,20 @@ impl Dock for TilesDock {
                             let mut changed = false;
                             let prev = map.clone();
 
-                            for object_id in map.selected_geometry_objects.clone() {
-                                changed |= crate::utils::clear_surface_source_on_geometry_object(
-                                    map, object_id,
-                                );
-                            }
-
-                            for (object_id, face_index) in map.selected_geometry_faces.clone() {
-                                changed |= crate::utils::clear_surface_source_on_geometry_face(
-                                    map, object_id, face_index,
-                                );
+                            let selected_geometry_faces = map.selected_geometry_faces.clone();
+                            if selected_geometry_faces.is_empty() {
+                                for object_id in map.selected_geometry_objects.clone() {
+                                    changed |=
+                                        crate::utils::clear_surface_source_on_geometry_object(
+                                            map, object_id,
+                                        );
+                                }
+                            } else {
+                                for (object_id, face_index) in selected_geometry_faces {
+                                    changed |= crate::utils::clear_surface_source_on_geometry_face(
+                                        map, object_id, face_index,
+                                    );
+                                }
                             }
 
                             for sector_id in map.selected_sectors.clone() {

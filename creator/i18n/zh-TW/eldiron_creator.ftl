@@ -216,7 +216,7 @@ hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = 物件 Gizmo 操作：移動 (M)。
 status_hud_geometry_op_size = 物件 Gizmo 操作：調整大小 (S)。
 status_geometry_empty_selection = 3D 選取：G = 物件，E = 面，V = 頂點，L = 邊。
-status_geometry_object_selection = 已選取物件：M = 移動，S = 調整大小。
+status_geometry_object_selection = 已選取物件：M = 移動，S = 調整大小，R = 旋轉 Y，Shift+R = 旋轉 Z。
 status_geometry_face_selection = 已選取面：+/- = 推/拉，[] = 上/下移動，Delete = 刪除。
 status_geometry_vertex_selection = 已選取頂點：F = 填充，X = 分割邊，M = 合併，L = 邊循環，[] = 上/下移動，Delete = 刪除。
 status_geometry_edge_selection = 已選取邊：F = 填充，X = 分割邊，M = 合併，L = 邊循環，[] = 上/下移動，Delete = 刪除。

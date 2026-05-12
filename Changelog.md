@@ -15,11 +15,19 @@
 - Improved 3D Face Subdivide so neighboring faces share the new boundary midpoint vertices, preventing detached T-junctions around subdivided faces.
 - Improved 3D cutouts on split faces so surface-detail loops that span multiple coplanar face pieces rebuild the full coplanar surface instead of cutting only the small host quad.
 - Improved 3D gizmo and vertex/surface marker sizing so handles scale from camera distance instead of selected object size, keeping handles closer to large objects and less overwhelming on tiny details.
-- Improved the 3D HUD coordinate readout to show three decimal places normally, with five decimal places only at the `1/32` grid step.
+- Improved the 3D HUD coordinate readout to show three decimal places normally, four decimal places at `1/16`, and five decimal places only at the `1/32` grid step.
+- Improved the 3D HUD coordinate readout so selected Geometry Object, face, edge, vertex, and surface-detail positions stay locked while hovering or dragging over other 3D objects.
 - Improved 3D Object Tool multi-selection movement so dragging a selected object or its move gizmo moves the selected objects together.
+- Improved 3D geometry dragging on small grid steps so free vertex, edge, face, and object movement uses a stable drag plane, and gizmo movement can skip across multiple snap points to keep up with the cursor.
+- Improved 3D Object Tool rotation so `R` rotates selected Geometry Objects around Y, while `Shift+R` rotates around Z for standing objects on end.
+- Added a 3D-only HUD length readout for selected Geometry Object edges, selected surface-detail segments, and the active surface-line drawing segment.
 - Added 3D rectangle selection for Geometry Objects, faces, edges, and vertices, with Shift adding to the selection and Alt/Option removing from it.
-- Improved 3D character and item placement so entity drops and moves can choose the floor below overhead Geometry Object roofs instead of snapping onto the roof surface.
+- Improved 3D character and item placement so entity drops and moves can choose and render on the floor below overhead Geometry Object roofs instead of snapping onto the highest overlapping surface.
+- Improved mesh character movement so tiny seams between adjacent walkable Geometry Object floors do not block traversal in either direction.
+- Improved 2D/isometric movement input so simultaneous cardinal keys stay cardinal-only, using the most recently pressed direction instead of emitting diagonal movement actions.
 - Improved 3D Edit Face Texture selection handling so explicit face selections edit only those faces, while object selections still edit all faces when no individual faces are selected.
+- Improved 3D Edit Face Texture live updates so UV offset, scale, and rotation changes refresh the editor scene immediately without needing to start or stop the game server.
+- Improved 3D face painting so applying or clearing tile and palette sources respects explicit face selections before falling back to whole-object application.
 - Extended Edit Vertex to single selected 3D Geometry Object vertices, allowing exact world-coordinate edits for precise vertex placement.
 - Added editor-only 3D preview actions for toggling post-processing and lighting while editing without changing project render settings.
 

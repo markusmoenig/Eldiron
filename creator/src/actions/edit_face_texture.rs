@@ -261,13 +261,20 @@ impl Action for EditFaceTexture {
         }
 
         let (offset, scale, rotation) = self.texture_values();
-        let Some(map) = project.get_map_mut(server_ctx) else {
-            return true;
+        let changed = {
+            let Some(map) = project.get_map_mut(server_ctx) else {
+                return true;
+            };
+            let changed = Self::apply_values(map, offset, scale, rotation);
+            if changed {
+                map.update_surfaces();
+                map.changed += 1;
+            }
+            changed
         };
-        if Self::apply_values(map, offset, scale, rotation) {
-            map.update_surfaces();
-            map.changed += 1;
-            RUSTERIX.write().unwrap().set_dirty();
+
+        if changed {
+            crate::utils::editor_scene_full_rebuild(project, server_ctx);
             RUSTERIX.write().unwrap().set_overlay_dirty();
             ctx.ui.redraw_all = true;
         }

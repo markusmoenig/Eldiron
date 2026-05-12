@@ -548,7 +548,7 @@ impl D3Builder {
                         let size = 1.0;
                         let pos_xz = item.get_pos_xz();
                         let mut ground_y = map
-                            .geometry_floor_height_at(pos_xz)
+                            .geometry_floor_height_nearest(pos_xz, item.position.y)
                             .or_else(|| {
                                 map.find_sector_at(pos_xz)
                                     .map(|s| s.properties.get_float_default("floor_height", 0.0))
@@ -618,7 +618,7 @@ impl D3Builder {
                     let size = 1.0;
                     let pos_xz = item.get_pos_xz();
                     let mut ground_y = map
-                        .geometry_floor_height_at(pos_xz)
+                        .geometry_floor_height_nearest(pos_xz, item.position.y)
                         .or_else(|| {
                             map.find_sector_at(pos_xz)
                                 .map(|s| s.properties.get_float_default("floor_height", 0.0))

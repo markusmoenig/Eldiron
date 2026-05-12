@@ -2980,7 +2980,7 @@ impl TheTrait for Editor {
 
                     let mut grid_pos = Vec2::zero();
                     let mut spawn_y = 0.0;
-                    let mut placement_hit_y: Option<f32> = None;
+                    let mut placement_reference_y: Option<f32> = None;
                     let use_3d_hit = self.server_ctx.editor_view_mode != EditorViewMode::D2;
 
                     if let Some(map) = self.project.get_map(&self.server_ctx) {
@@ -2992,6 +2992,11 @@ impl TheTrait for Editor {
                             ];
                             let mut rusterix = RUSTERIX.write().unwrap();
                             rusterix.scene_handler.vm.set_active_vm(0);
+                            let ray = rusterix.scene_handler.vm.ray_from_uv_with_size(
+                                dim.width as u32,
+                                dim.height as u32,
+                                screen_uv,
+                            );
 
                             if let Some(raw) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
                                 dim.width as u32,
@@ -3000,9 +3005,21 @@ impl TheTrait for Editor {
                                 false,
                                 false,
                             ) {
-                                grid_pos = Vec2::new(raw.1.x, raw.1.z);
-                                spawn_y = raw.1.y;
-                                placement_hit_y = Some(raw.1.y);
+                                if let Some((ray_origin, ray_dir)) = ray
+                                    && let Some(floor_hit) = map.geometry_floor_hit_from_ray(
+                                        ray_origin,
+                                        ray_dir,
+                                        Some(raw.1.y - 0.1),
+                                    )
+                                {
+                                    grid_pos = Vec2::new(floor_hit.x, floor_hit.z);
+                                    spawn_y = floor_hit.y;
+                                    placement_reference_y = Some(raw.1.y - 0.1);
+                                } else {
+                                    grid_pos = Vec2::new(raw.1.x, raw.1.z);
+                                    spawn_y = raw.1.y;
+                                    placement_reference_y = Some(raw.1.y);
+                                }
                             } else {
                                 grid_pos = self.server_ctx.local_to_map_cell(
                                     Vec2::new(dim.width as f32, dim.height as f32),
@@ -3059,9 +3076,8 @@ impl TheTrait for Editor {
                         }
 
                         if use_3d_hit {
-                            const ROOF_CLEARANCE: f32 = 0.1;
-                            let floor_height = if let Some(hit_y) = placement_hit_y {
-                                map.geometry_floor_height_nearest(grid_pos, hit_y - ROOF_CLEARANCE)
+                            let floor_height = if let Some(reference_y) = placement_reference_y {
+                                map.geometry_floor_height_nearest(grid_pos, reference_y)
                             } else {
                                 map.geometry_floor_height_at(grid_pos)
                             };

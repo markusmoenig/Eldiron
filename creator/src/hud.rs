@@ -119,10 +119,10 @@ impl Hud {
     }
 
     fn coord_precision(subdivisions: f32) -> usize {
-        if Self::active_grid_subdivision(subdivisions) >= 32 {
-            5
-        } else {
-            3
+        match Self::active_grid_subdivision(subdivisions) {
+            subdivision if subdivision >= 32 => 5,
+            subdivision if subdivision >= 16 => 4,
+            _ => 3,
         }
     }
 
@@ -211,6 +211,84 @@ impl Hud {
         (count > 0).then(|| sum / count as f32)
     }
 
+    fn geometry_edge_length(map: &Map) -> Option<f32> {
+        let mut edges = std::collections::BTreeSet::new();
+        for object in &map.geometry_objects {
+            let selected = map
+                .selected_geometry_vertices
+                .iter()
+                .filter_map(|(object_id, vertex_index)| {
+                    (*object_id == object.id).then_some(*vertex_index)
+                })
+                .collect::<std::collections::BTreeSet<_>>();
+            if selected.len() < 2 {
+                continue;
+            }
+            for face in &object.faces {
+                if face.indices.len() < 2 {
+                    continue;
+                }
+                for index in 0..face.indices.len() {
+                    let a = face.indices[index];
+                    let b = face.indices[(index + 1) % face.indices.len()];
+                    if selected.contains(&a) && selected.contains(&b) {
+                        edges.insert((object.id, a.min(b), a.max(b)));
+                    }
+                }
+            }
+        }
+
+        let mut length = 0.0f32;
+        for (object_id, a_index, b_index) in edges {
+            if let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == object_id)
+                && let Some(a) = object.vertices.get(a_index)
+                && let Some(b) = object.vertices.get(b_index)
+            {
+                length += (object.transform_point(*b) - object.transform_point(*a)).magnitude();
+            }
+        }
+        (length > 0.0).then_some(length)
+    }
+
+    fn surface_segment_length(map: &Map) -> Option<f32> {
+        let mut length = 0.0f32;
+        for (object_id, face_index, segment_index) in &map.selected_geometry_surface_segments {
+            if let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *object_id)
+                && let Some(face) = object.faces.get(*face_index)
+                && let Some(segment) = face.surface_segments.get(*segment_index)
+                && let Some(start) = face.surface_points.get(segment.start)
+                && let Some(end) = face.surface_points.get(segment.end)
+            {
+                length += (object.transform_point(end.position)
+                    - object.transform_point(start.position))
+                .magnitude();
+            }
+        }
+        (length > 0.0).then_some(length)
+    }
+
+    fn geometry_length_readout(map: &Map, server_ctx: &ServerContext) -> Option<f32> {
+        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+            return None;
+        }
+        if server_ctx.curr_map_tool_type == MapToolType::Linedef
+            && let Some(start) = map.curr_grid_pos_3d
+            && let Some(end) = server_ctx.hover_cursor_3d
+        {
+            let length = (end - start).magnitude();
+            if length > 0.0 {
+                return Some(length);
+            }
+        }
+        Self::surface_segment_length(map).or_else(|| Self::geometry_edge_length(map))
+    }
+
     pub fn new(mode: HudMode) -> Self {
         Self {
             mode,
@@ -288,40 +366,73 @@ impl Hud {
                     &bg_color,
                 );
             }
-        } else if let Some(snapped) = server_ctx
-            .hover_cursor_3d
-            .map(|v| {
-                let mut snapped = server_ctx.snap_world_point_for_edit(map, v);
-                snapped.y = v.y;
-                snapped
-            })
-            .or_else(|| Self::selected_geometry_coord(map))
-        {
-            let precision = Self::coord_precision(map.subdivisions);
-            let panel_width = if precision >= 5 { 250 } else { 200 };
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &(8, 2, panel_width, 16),
-                stride,
-                &panel_color,
-            );
-            ctx.draw.text(
-                buffer.pixels_mut(),
-                &(10, 2),
-                stride,
-                &format!(
-                    "{}, {}, {}",
-                    Self::format_coord(snapped.x, precision),
-                    Self::format_coord(snapped.y, precision),
-                    Self::format_coord(snapped.z, precision)
-                ),
-                TheFontSettings {
-                    size: if precision >= 5 { 12.0 } else { 13.0 },
-                    ..Default::default()
-                },
-                &text_color,
-                &bg_color,
-            );
+        } else {
+            if let Some((snapped, coord_color)) = Self::selected_geometry_coord(map)
+                .map(|coord| (coord, sel_text_color))
+                .or_else(|| {
+                    server_ctx.hover_cursor_3d.map(|v| {
+                        let mut snapped = server_ctx.snap_world_point_for_edit(map, v);
+                        snapped.y = v.y;
+                        (snapped, text_color)
+                    })
+                })
+            {
+                let precision = Self::coord_precision(map.subdivisions);
+                let panel_width = if precision >= 5 {
+                    250
+                } else if precision >= 4 {
+                    225
+                } else {
+                    200
+                };
+                ctx.draw.rect(
+                    buffer.pixels_mut(),
+                    &(8, 2, panel_width, 16),
+                    stride,
+                    &panel_color,
+                );
+                ctx.draw.text(
+                    buffer.pixels_mut(),
+                    &(10, 2),
+                    stride,
+                    &format!(
+                        "{}, {}, {}",
+                        Self::format_coord(snapped.x, precision),
+                        Self::format_coord(snapped.y, precision),
+                        Self::format_coord(snapped.z, precision)
+                    ),
+                    TheFontSettings {
+                        size: 13.0,
+                        ..Default::default()
+                    },
+                    &coord_color,
+                    &bg_color,
+                );
+            }
+
+            if let Some(length) = Self::geometry_length_readout(map, server_ctx) {
+                let precision = Self::coord_precision(map.subdivisions);
+                let panel_width = if precision >= 5 { 120 } else { 100 };
+                let x = width.saturating_sub(panel_width + 8);
+                ctx.draw.rect(
+                    buffer.pixels_mut(),
+                    &(x, 2, panel_width, 16),
+                    stride,
+                    &panel_color,
+                );
+                ctx.draw.text(
+                    buffer.pixels_mut(),
+                    &(x + 2, 2),
+                    stride,
+                    &format!("Len {}", Self::format_coord(length, precision)),
+                    TheFontSettings {
+                        size: 13.0,
+                        ..Default::default()
+                    },
+                    &sel_text_color,
+                    &bg_color,
+                );
+            }
         }
 
         if let Some(v) = &server_ctx.background_progress {
@@ -471,9 +582,9 @@ impl Hud {
             && self.mode != HudMode::Rect
         {
             let x = if server_ctx.editor_view_mode == EditorViewMode::D2 {
-                170
+                185
             } else {
-                200
+                215
             };
             let size = 20i32;
             let button_height = info_height as i32 - 1;
@@ -920,5 +1031,60 @@ impl Hud {
         }
 
         (None, false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn box_map() -> (Map, Uuid) {
+        let mut map = Map::new();
+        let object = rusterix::GeometryObject::box_from_bounds(
+            "box",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(2.0, 2.0, 2.0),
+        );
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+        (map, object_id)
+    }
+
+    #[test]
+    fn coord_precision_matches_grid_subdivision() {
+        assert_eq!(Hud::coord_precision(1.0), 3);
+        assert_eq!(Hud::coord_precision(8.0), 3);
+        assert_eq!(Hud::coord_precision(16.0), 4);
+        assert_eq!(Hud::coord_precision(32.0), 5);
+    }
+
+    #[test]
+    fn geometry_edge_length_sums_selected_edges() {
+        let (mut map, object_id) = box_map();
+        map.selected_geometry_vertices = vec![(object_id, 0), (object_id, 1)];
+
+        assert_eq!(Hud::geometry_edge_length(&map), Some(2.0));
+    }
+
+    #[test]
+    fn geometry_length_readout_uses_active_3d_surface_line() {
+        let mut map = Map::new();
+        map.curr_grid_pos_3d = Some(Vec3::new(0.0, 0.0, 0.0));
+        let mut server_ctx = ServerContext::new();
+        server_ctx.editor_view_mode = EditorViewMode::Orbit;
+        server_ctx.curr_map_tool_type = MapToolType::Linedef;
+        server_ctx.hover_cursor_3d = Some(Vec3::new(3.0, 4.0, 0.0));
+
+        assert_eq!(Hud::geometry_length_readout(&map, &server_ctx), Some(5.0));
+    }
+
+    #[test]
+    fn geometry_length_readout_is_hidden_in_2d_mode() {
+        let (mut map, object_id) = box_map();
+        map.selected_geometry_vertices = vec![(object_id, 0), (object_id, 1)];
+        let mut server_ctx = ServerContext::new();
+        server_ctx.editor_view_mode = EditorViewMode::D2;
+
+        assert_eq!(Hud::geometry_length_readout(&map, &server_ctx), None);
     }
 }

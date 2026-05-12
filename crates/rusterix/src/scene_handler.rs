@@ -3369,7 +3369,7 @@ impl SceneHandler {
                 let size = entity.attributes.get_float_default("size", 2.0).max(0.01);
                 let pos_xz = entity.get_pos_xz();
                 let mut ground_y = map
-                    .geometry_floor_height_at(pos_xz)
+                    .geometry_floor_height_nearest(pos_xz, entity.position.y)
                     .or_else(|| {
                         map.find_sector_at(pos_xz)
                             .map(|s| s.properties.get_float_default("floor_height", 0.0))
@@ -3490,7 +3490,7 @@ impl SceneHandler {
             let visible = item.attributes.get_bool_default("visible", false);
             let pos_xz = item.get_pos_xz();
             let mut ground_y = map
-                .geometry_floor_height_at(pos_xz)
+                .geometry_floor_height_nearest(pos_xz, item.position.y)
                 .or_else(|| {
                     map.find_sector_at(pos_xz)
                         .map(|s| s.properties.get_float_default("floor_height", 0.0))
