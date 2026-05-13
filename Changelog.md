@@ -1,3 +1,13 @@
+# Eldiron v0.9.12
+
+## Improvements
+
+### Creator
+
+- Added a Geometry Object minimap path for 3D region editing, drawing a top-down XZ wire projection with selection highlights for objects, faces, edges, vertices, and surface-detail lines.
+
+---
+
 # Eldiron v0.9.11
 
 ## Improvements
