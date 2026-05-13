@@ -114,7 +114,7 @@ In 2D view (no surface selected), toggle rectangular placement helpers for geome
 
 Edit selected direct 3D geometry objects. This action is available in 3D editing views when a geometry object is selected.
 
-Parameters include object name, optional group label, visibility, mesh-collision solidity, and exact object bounds. Turning **Visible** off skips the object in the rendered scene. Turning **Solid** off skips it in mesh collision while keeping it editable in the creator.
+Parameters include object name, optional group label, visibility, mesh-collision solidity, 3D area metadata, and exact object bounds. Turning **Visible** off skips the object in the rendered scene. Turning **Solid** off skips it in mesh collision while keeping it editable in the creator. Named objects with **Area** enabled can be used as sector-style script destinations, and **Hide in Iso** fades the object out while the player is inside that area in isometric gameplay.
 
 ### Edit Face Texture
 

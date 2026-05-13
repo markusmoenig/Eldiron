@@ -70,6 +70,26 @@ impl Action for EditGeometry {
             None,
             false,
         ));
+        nodeui.add_item(TheNodeUIItem::Text(
+            "actionGeometryItem".into(),
+            "Item".into(),
+            "Optional item/handler metadata for this 3D area.".into(),
+            "".into(),
+            None,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "actionGeometryArea".into(),
+            "Area".into(),
+            "Use this named geometry object as a 3D gameplay area.".into(),
+            true,
+        ));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            "actionGeometryHideIso".into(),
+            "Hide in Iso".into(),
+            "Hide this object in isometric gameplay when the player is inside its area.".into(),
+            false,
+        ));
         nodeui.add_item(TheNodeUIItem::Checkbox(
             "actionGeometryVisible".into(),
             "Visible".into(),
@@ -170,6 +190,18 @@ impl Action for EditGeometry {
             .set_text_value("actionGeometryName", object.name.clone());
         self.nodeui
             .set_text_value("actionGeometryGroup", object.group.clone());
+        self.nodeui.set_text_value(
+            "actionGeometryItem",
+            object.properties.get_str_default("item", "".into()),
+        );
+        self.nodeui.set_bool_value(
+            "actionGeometryArea",
+            object.properties.get_bool_default("area", true),
+        );
+        self.nodeui.set_bool_value(
+            "actionGeometryHideIso",
+            object.properties.get_bool_default("hide_iso", false),
+        );
         self.nodeui
             .set_bool_value("actionGeometryVisible", object.visible);
         self.nodeui
@@ -247,6 +279,23 @@ impl Action for EditGeometry {
             .nodeui
             .get_bool_value("actionGeometrySolid")
             .unwrap_or(object.solid);
+        let item = self
+            .nodeui
+            .get_text_value("actionGeometryItem")
+            .unwrap_or_else(|| object.properties.get_str_default("item", "".into()))
+            .trim()
+            .to_string();
+        let area = self
+            .nodeui
+            .get_bool_value("actionGeometryArea")
+            .unwrap_or_else(|| object.properties.get_bool_default("area", true));
+        let hide_iso = self
+            .nodeui
+            .get_bool_value("actionGeometryHideIso")
+            .unwrap_or_else(|| object.properties.get_bool_default("hide_iso", false));
+        let existing_item = object.properties.get_str_default("item", "".into());
+        let existing_area = object.properties.get_bool_default("area", true);
+        let existing_hide_iso = object.properties.get_bool_default("hide_iso", false);
 
         if (to.center - from.center).magnitude_squared() <= 0.000001
             && (to.size - from.size).magnitude_squared() <= 0.000001
@@ -254,6 +303,9 @@ impl Action for EditGeometry {
             && group == object.group
             && visible == object.visible
             && solid == object.solid
+            && item == existing_item
+            && area == existing_area
+            && hide_iso == existing_hide_iso
         {
             return None;
         }
@@ -267,6 +319,13 @@ impl Action for EditGeometry {
         object.group = group;
         object.visible = visible;
         object.solid = solid;
+        if item.is_empty() {
+            object.properties.remove("item");
+        } else {
+            object.properties.set("item", Value::Str(item));
+        }
+        object.properties.set("area", Value::Bool(area));
+        object.properties.set("hide_iso", Value::Bool(hide_iso));
         Self::refit_vertices(&mut object.vertices, from, to);
 
         map.update_surfaces();

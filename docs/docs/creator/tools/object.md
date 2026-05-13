@@ -34,7 +34,7 @@ Object movement and resizing use the current grid snap step. When multiple objec
 
 - **Create Box**: Creates a new geometry box.
 - **Create Box with a selected face**: Attaches a box to that face. The new box matches the face size on the in-plane axes and uses the action's remaining size parameter as thickness.
-- **Edit Geometry**: Sets exact object bounds, object visibility, mesh-collision solidity, and an optional group label. Solid objects feed their walkable face planes and vertical side barriers into mesh collision.
+- **Edit Geometry**: Sets exact object bounds, object visibility, mesh-collision solidity, an optional group label, and 3D area metadata. Solid objects feed their walkable face planes and vertical side barriers into mesh collision. Named area objects can be used as sector-style script destinations, and **Hide in Iso** fades the object out while the player is inside its area in isometric gameplay.
 - **Duplicate**: Duplicate the current object selection with XYZ offsets.
 - **Cmd / Ctrl + D**: Duplicate the current selection.
 

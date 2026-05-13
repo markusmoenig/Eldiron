@@ -2651,12 +2651,7 @@ impl<'a> HostHandler for RegionHost<'a> {
             "goto" => {
                 if let Some(dest) = args.get(0).and_then(|v| v.as_string()) {
                     let speed = args.get(1).map(|v| v.x).unwrap_or(1.0);
-                    let mut coord: Option<vek::Vec2<f32>> = None;
-                    for sector in &self.ctx.map.sectors {
-                        if sector.name == dest {
-                            coord = sector.center(&self.ctx.map);
-                        }
-                    }
+                    let coord = self.ctx.map.named_area_center(&dest);
 
                     if let Some(coord) = coord {
                         if let Some(entity) = self.ctx.get_current_entity_mut() {

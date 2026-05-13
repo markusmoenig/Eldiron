@@ -55,7 +55,9 @@ With the **Object Tool (`G`)** active:
 
 Movement and resizing snap to the current grid size. When multiple objects are selected, dragging a selected object or its move gizmo moves the selection together. Gizmo handles are sized from the current camera view, so they stay usable on both small details and large objects.
 
-Use **Edit Geometry** to set exact object position and size. The same action also exposes object visibility, mesh-collision solidity, and a lightweight group label. Invisible objects are skipped by 3D rendering, and non-solid objects are skipped by mesh collision, which is the foundation for later trigger volumes, water volumes, helper shapes, and grouped moving pieces.
+Use **Edit Geometry** to set exact object position and size. The same action also exposes object visibility, mesh-collision solidity, a lightweight group label, and 3D area metadata. Invisible objects are skipped by 3D rendering, and non-solid objects are skipped by mesh collision.
+
+Named Geometry Objects can act as 3D gameplay areas. Area-enabled objects are used as fallbacks for sector-style script destinations such as `goto("name", speed)`, `teleport("name")`, and `random_walk_in_sector(...)` when no 2D sector with the same name exists. This allows invisible, non-solid Geometry Objects to define trigger/navigation volumes. **Hide in Iso** fades a Geometry Object out while the player is inside its area in isometric gameplay.
 
 Use **1 ... 6** to change the grid snap step: `1`, `1/2`, `1/4`, `1/8`, `1/16`, or `1/32` world units. The 3D HUD keeps the compact shortcut slots and shows the active snap step beside them, and the visible 3D grid subdivision lines follow the same snap step. Use **, / .** to decrease or increase the 3D grid snap subdivision.
 

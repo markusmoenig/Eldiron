@@ -251,6 +251,48 @@ mod tests {
             "expected the ray to continue past the roof hit"
         );
     }
+
+    #[test]
+    fn named_area_center_falls_back_to_geometry_object() {
+        let mut map = Map::new();
+        map.geometry_objects.push(GeometryObject::box_from_bounds(
+            "Tavern",
+            Vec3::new(10.0, 0.0, 20.0),
+            Vec3::new(14.0, 2.0, 26.0),
+        ));
+
+        assert_eq!(map.named_area_center("Tavern"), Some(Vec2::new(12.0, 23.0)));
+    }
+
+    #[test]
+    fn named_area_name_at_falls_back_to_geometry_object() {
+        let mut map = Map::new();
+        map.geometry_objects.push(GeometryObject::box_from_bounds(
+            "Tavern",
+            Vec3::new(10.0, 0.0, 20.0),
+            Vec3::new(14.0, 2.0, 26.0),
+        ));
+
+        assert_eq!(
+            map.named_area_name_at(Vec2::new(12.0, 23.0)),
+            Some("Tavern".to_string())
+        );
+    }
+
+    #[test]
+    fn geometry_object_can_opt_out_of_area_lookup() {
+        let mut object = GeometryObject::box_from_bounds(
+            "Tavern",
+            Vec3::new(10.0, 0.0, 20.0),
+            Vec3::new(14.0, 2.0, 26.0),
+        );
+        object.properties.set("area", Value::Bool(false));
+        let mut map = Map::new();
+        map.geometry_objects.push(object);
+
+        assert_eq!(map.named_area_center("Tavern"), None);
+        assert_eq!(map.named_area_name_at(Vec2::new(12.0, 23.0)), None);
+    }
 }
 
 impl Map {
@@ -872,6 +914,49 @@ impl Map {
 
         // Return the bounding box as Vec4f (x, y, width, height)
         Some(Vec4::new(min_x, min_y, width, height))
+    }
+
+    pub fn geometry_area_center(&self, name: &str) -> Option<Vec2<f32>> {
+        self.geometry_objects
+            .iter()
+            .find(|object| object.name == name && object.properties.get_bool_default("area", true))
+            .and_then(|object| object.bbox().map(|bbox| bbox.center()))
+    }
+
+    pub fn named_area_center(&self, name: &str) -> Option<Vec2<f32>> {
+        self.sectors
+            .iter()
+            .find(|sector| sector.name == name)
+            .and_then(|sector| sector.center(self))
+            .or_else(|| self.geometry_area_center(name))
+    }
+
+    pub fn geometry_area_name_at(&self, pos: Vec2<f32>) -> Option<String> {
+        self.geometry_objects
+            .iter()
+            .find(|object| {
+                !object.name.is_empty()
+                    && object.properties.get_bool_default("area", true)
+                    && object
+                        .bbox()
+                        .map(|bbox| bbox.contains(pos))
+                        .unwrap_or(false)
+            })
+            .map(|object| object.name.clone())
+    }
+
+    pub fn geometry_area_bbox_at(&self, pos: Vec2<f32>) -> Option<BBox> {
+        self.geometry_objects
+            .iter()
+            .filter(|object| object.properties.get_bool_default("area", true))
+            .filter_map(|object| object.bbox())
+            .find(|bbox| bbox.contains(pos))
+    }
+
+    pub fn named_area_name_at(&self, pos: Vec2<f32>) -> Option<String> {
+        self.find_sector_at(pos)
+            .map(|sector| sector.name.clone())
+            .or_else(|| self.geometry_area_name_at(pos))
     }
 
     /// Tick the soft animator.

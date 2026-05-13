@@ -82,6 +82,8 @@ pub struct GameWidget {
     pub current_sector_name: String,
     pub iso_hidden_sectors: FxHashSet<u32>,
     pub iso_sector_fade: FxHashMap<u32, f32>,
+    pub iso_hidden_geometry_objects: FxHashSet<uuid::Uuid>,
+    pub iso_geometry_fade: FxHashMap<uuid::Uuid, f32>,
     pub force_dynamics_rebuild: bool,
     pub firstp_eye_level: f32,
     pub loaded_chunks: FxHashSet<(i32, i32)>,
@@ -144,6 +146,8 @@ impl GameWidget {
             current_sector_name: String::new(),
             iso_hidden_sectors: FxHashSet::default(),
             iso_sector_fade: FxHashMap::default(),
+            iso_hidden_geometry_objects: FxHashSet::default(),
+            iso_geometry_fade: FxHashMap::default(),
             force_dynamics_rebuild: true,
             firstp_eye_level: 1.7,
             loaded_chunks: FxHashSet::default(),
@@ -538,6 +542,8 @@ impl GameWidget {
         self.build_map_changed = map.changed;
         self.iso_hidden_sectors.clear();
         self.iso_sector_fade.clear();
+        self.iso_hidden_geometry_objects.clear();
+        self.iso_geometry_fade.clear();
     }
 
     pub fn apply_entities(
@@ -1217,8 +1223,20 @@ impl GameWidget {
                     visible: sector.properties.get_bool_default("visible", true),
                 });
             }
+            for object in &map.geometry_objects {
+                scene_handler.vm.execute(scenevm::Atom::SetGeoOpacity {
+                    id: scenevm::GeoId::GeometryObject(object.id),
+                    opacity: 1.0,
+                });
+                scene_handler.vm.execute(scenevm::Atom::SetGeoVisible {
+                    id: scenevm::GeoId::GeometryObject(object.id),
+                    visible: object.visible,
+                });
+            }
             self.iso_hidden_sectors.clear();
             self.iso_sector_fade.clear();
+            self.iso_hidden_geometry_objects.clear();
+            self.iso_geometry_fade.clear();
             return;
         }
 
@@ -1236,6 +1254,7 @@ impl GameWidget {
         }
 
         let mut target_hidden: FxHashSet<u32> = FxHashSet::default();
+        let mut target_hidden_geometry: FxHashSet<uuid::Uuid> = FxHashSet::default();
 
         // Multiple sectors may overlap at player position (e.g. foundations, interiors).
         // Collect hide patterns from all matching sectors instead of only the first one.
@@ -1275,7 +1294,23 @@ impl GameWidget {
             }
         }
 
-        let unchanged = target_hidden == self.iso_hidden_sectors;
+        for object in &map.geometry_objects {
+            if !object.properties.get_bool_default("hide_iso", false)
+                || !object.properties.get_bool_default("area", true)
+            {
+                continue;
+            }
+            if object
+                .bbox()
+                .map(|bbox| bbox.contains(self.player_pos))
+                .unwrap_or(false)
+            {
+                target_hidden_geometry.insert(object.id);
+            }
+        }
+
+        let unchanged = target_hidden == self.iso_hidden_sectors
+            && target_hidden_geometry == self.iso_hidden_geometry_objects;
         let mut has_active_fade = false;
         for sector in &map.sectors {
             let target_alpha = if target_hidden.contains(&sector.id) {
@@ -1290,6 +1325,23 @@ impl GameWidget {
             if (current - target_alpha).abs() > 1e-3 {
                 has_active_fade = true;
                 break;
+            }
+        }
+        if !has_active_fade {
+            for object in &map.geometry_objects {
+                let target_alpha = if target_hidden_geometry.contains(&object.id) {
+                    0.0
+                } else {
+                    1.0
+                };
+                let current = *self
+                    .iso_geometry_fade
+                    .get(&object.id)
+                    .unwrap_or(&target_alpha);
+                if (current - target_alpha).abs() > 1e-3 {
+                    has_active_fade = true;
+                    break;
+                }
             }
         }
         if !force_reapply && unchanged && !has_active_fade {
@@ -1361,6 +1413,49 @@ impl GameWidget {
         }
 
         self.iso_hidden_sectors = target_hidden;
+
+        for object in &map.geometry_objects {
+            let was_hidden = self.iso_hidden_geometry_objects.contains(&object.id);
+            let should_hide = target_hidden_geometry.contains(&object.id);
+            let target_alpha = if should_hide { 0.0 } else { 1.0 };
+
+            let current_alpha = self
+                .iso_geometry_fade
+                .get(&object.id)
+                .copied()
+                .unwrap_or(if was_hidden { 0.0 } else { 1.0 });
+
+            let next_alpha = if current_alpha < target_alpha {
+                (current_alpha + FADE_STEP).min(target_alpha)
+            } else if current_alpha > target_alpha {
+                (current_alpha - FADE_STEP).max(target_alpha)
+            } else {
+                current_alpha
+            };
+
+            if target_alpha > 0.0 && next_alpha > 0.0 {
+                scene_handler.vm.execute(scenevm::Atom::SetGeoVisible {
+                    id: scenevm::GeoId::GeometryObject(object.id),
+                    visible: object.visible,
+                });
+            }
+
+            scene_handler.vm.execute(scenevm::Atom::SetGeoOpacity {
+                id: scenevm::GeoId::GeometryObject(object.id),
+                opacity: next_alpha,
+            });
+
+            if next_alpha <= 0.001 {
+                scene_handler.vm.execute(scenevm::Atom::SetGeoVisible {
+                    id: scenevm::GeoId::GeometryObject(object.id),
+                    visible: false,
+                });
+            }
+
+            self.iso_geometry_fade.insert(object.id, next_alpha);
+        }
+
+        self.iso_hidden_geometry_objects = target_hidden_geometry;
     }
 
     /// Upscale the source buffer into the destination buffer using nearest-neighbor sampling.

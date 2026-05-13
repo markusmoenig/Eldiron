@@ -1930,6 +1930,45 @@ impl RegionInstance {
             }
         }
 
+        // Create Items for 3D Geometry Object areas
+        for object in &ctx.map.geometry_objects {
+            if let Some(item_name) = object.properties.get_str("item") {
+                if item_name.is_empty() {
+                    continue;
+                }
+                if ctx.item_programs.contains_key(item_name) {
+                    let mut item = Item::default();
+                    item.id = get_global_id();
+                    item.attributes.set("name", Value::Str(object.name.clone()));
+                    item.attributes
+                        .set("class_name", Value::Str(item_name.to_string()));
+                    item.attributes.set("static", Value::Bool(true));
+                    item.attributes
+                        .set("geometry_object_id", Value::Id(object.id));
+                    if let Some(center) = object.bbox().map(|bbox| bbox.center()) {
+                        let (sum_y, count) = object
+                            .vertices
+                            .iter()
+                            .map(|vertex| object.transform_point(*vertex).y)
+                            .fold((0.0f32, 0usize), |(sum, count), y| (sum + y, count + 1));
+                        let world_y = if count == 0 {
+                            0.0
+                        } else {
+                            sum_y / count as f32
+                        };
+                        item.set_position(Vec3::new(center.x, world_y, center.y));
+                    }
+                    item.mark_all_dirty();
+                    ctx.map.items.push(item);
+                } else {
+                    ctx.startup_errors.push(format!(
+                        "[error] {}: Geometry Object Item '{}': Item does not exist '{}'",
+                        self.name, object.name, item_name
+                    ));
+                }
+            }
+        }
+
         // Create Items for Profile Sectors (Doors, Gates)
         for (_, surface) in ctx.map.surfaces.iter_mut() {
             if let Some(profile_id) = surface.profile {
@@ -2145,22 +2184,22 @@ impl RegionInstance {
                 // Determine, set and notify the entity about the sector it is in.
                 let mut sector_name = String::new();
                 with_regionctx(self.id, |ctx| {
-                    if let Some(sector) = ctx.map.find_sector_at(entity.get_pos_xz()) {
-                        sector_name = sector.name.clone();
-                        let sector_id = sector.id;
-                        for e in ctx.map.entities.iter_mut() {
-                            if e.id == entity.id {
-                                e.attributes.set("sector", Value::Str(sector_name.clone()));
-                                e.attributes
-                                    .set("sector_id", Value::Int64(sector_id as i64));
-                            }
-                        }
-                    } else {
-                        for e in ctx.map.entities.iter_mut() {
-                            if e.id == entity.id {
-                                e.attributes.set("sector", Value::Str(String::new()));
-                                e.attributes.set("sector_id", Value::Int64(-1));
-                            }
+                    let pos = entity.get_pos_xz();
+                    let sector_id = ctx
+                        .map
+                        .find_sector_at(pos)
+                        .map(|sector| {
+                            sector_name = sector.name.clone();
+                            sector.id as i64
+                        })
+                        .unwrap_or_else(|| {
+                            sector_name = ctx.map.geometry_area_name_at(pos).unwrap_or_default();
+                            -1
+                        });
+                    for e in ctx.map.entities.iter_mut() {
+                        if e.id == entity.id {
+                            e.attributes.set("sector", Value::Str(sector_name.clone()));
+                            e.attributes.set("sector_id", Value::Int64(sector_id));
                         }
                     }
 
@@ -3578,13 +3617,7 @@ impl RegionInstance {
                 TeleportEntity(entity_id, dest_sector_name, dest_region_name) => {
                     if dest_region_name.is_empty() {
                         with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                            let center = {
-                                let map = &ctx.map;
-                                map.sectors
-                                    .iter()
-                                    .find(|s| s.name == *dest_sector_name)
-                                    .and_then(|s| s.center(map))
-                            };
+                            let center = ctx.map.named_area_center(&dest_sector_name);
 
                             if let Some(center) = center {
                                 if let Some(entity) =
@@ -4473,12 +4506,10 @@ impl RegionInstance {
                                 .set("__goto_no_improve_ticks", Value::Int(0));
                             entity.action = EntityAction::Off;
 
-                            let mut sector_name: String = String::new();
-                            {
-                                if let Some(s) = ctx.map.find_sector_at(resolved_position) {
-                                    sector_name = s.name.clone();
-                                }
-                            }
+                            let sector_name = ctx
+                                .map
+                                .named_area_name_at(resolved_position)
+                                .unwrap_or_default();
 
                             // Send arrived event
                             if let Some(_class_name) = ctx.entity_classes.get(&entity.id) {
@@ -5128,6 +5159,34 @@ impl RegionInstance {
 
                                 for _ in 0..16 {
                                     if sector.is_inside(&ctx.map, new_pos)
+                                        && ctx.mapmini.is_walkable_position(new_pos, radius)
+                                    {
+                                        found = true;
+                                        break;
+                                    } else {
+                                        new_pos = find_random_position(curr_pos, *distance);
+                                    }
+                                }
+
+                                if found {
+                                    entity.action = RandomWalkInSector(
+                                        *distance, *speed, *max_sleep, 1, new_pos,
+                                    );
+                                    entity.face_at(new_pos);
+                                } else {
+                                    entity.action = RandomWalkInSector(
+                                        *distance, *speed, *max_sleep, 0, curr_pos,
+                                    );
+                                }
+                            } else if let Some(area_bbox) = ctx.map.geometry_area_bbox_at(curr_pos)
+                            {
+                                let radius =
+                                    entity.attributes.get_float_default("radius", 0.5) - 0.01;
+                                let mut new_pos = find_random_position(curr_pos, *distance);
+                                let mut found = false;
+
+                                for _ in 0..16 {
+                                    if area_bbox.contains(new_pos)
                                         && ctx.mapmini.is_walkable_position(new_pos, radius)
                                     {
                                         found = true;
@@ -6035,9 +6094,6 @@ impl RegionInstance {
             // }
             //
 
-            // Determine, set and notify the entity about the sector it is in.
-            let mut sector_name = String::new();
-
             with_regionctx(self.id, |ctx: &mut RegionCtx| {
                 // Send startup event
                 if let Some(program) = ctx.entity_programs.get(&class_name).cloned() {
@@ -6053,9 +6109,7 @@ impl RegionInstance {
                     .find(|e| e.id == entity.id)
                     .map(|e| e.get_pos_xz())
                     .unwrap_or_else(|| entity.get_pos_xz());
-                if let Some(sector) = ctx.map.find_sector_at(entity_pos) {
-                    sector_name = sector.name.clone();
-                }
+                let sector_name = ctx.map.named_area_name_at(entity_pos).unwrap_or_default();
                 {
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
@@ -6598,12 +6652,7 @@ pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name:
         entity.set_attribute("visible", Value::Bool(true));
     }
 
-    let mut new_pos: Option<vek::Vec2<f32>> = None;
-    for sector in &ctx.map.sectors {
-        if sector.name == dest_sector_name {
-            new_pos = sector.center(&ctx.map);
-        }
-    }
+    let new_pos = ctx.map.named_area_center(&dest_sector_name);
 
     if let Some(new_pos) = new_pos {
         entity.set_pos_xz(new_pos);
@@ -11104,11 +11153,11 @@ fn get_sector_name() -> String {
         for e in map.items.iter() {
             if e.id == item_id {
                 let pos = e.get_pos_xz();
-                if let Some(s) = map.find_sector_at(pos) {
-                    if s.name.is_empty() {
+                if let Some(name) = map.named_area_name_at(pos) {
+                    if name.is_empty() {
                         return "Unnamed Sector".to_string();
                     } else {
-                        return s.name.clone();
+                        return name;
                     }
                 }
             }
@@ -11117,11 +11166,11 @@ fn get_sector_name() -> String {
         for e in map.entities.iter() {
             if e.id == *CURR_ENTITYID.borrow() {
                 let pos = e.get_pos_xz();
-                if let Some(s) = map.find_sector_at(pos) {
-                    if s.name.is_empty() {
+                if let Some(name) = map.named_area_name_at(pos) {
+                    if name.is_empty() {
                         return "Unnamed Sector".to_string();
                     } else {
-                        return s.name.clone();
+                        return name;
                     }
                 }
             }
@@ -11149,11 +11198,7 @@ fn goto(destination: String, speed: f32, vm: &VirtualMachine) {
     let mut coord: Option<vek::Vec2<f32>> = None;
 
     with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
-        for sector in &ctx.map.sectors {
-            if sector.name == destination {
-                coord = sector.center(&ctx.map);
-            }
-        }
+        coord = ctx.map.named_area_center(&destination);
 
         if let Some(coord) = coord {
             let entity_id = ctx.curr_entity_id;
@@ -11363,12 +11408,7 @@ pub fn teleport(args: rustpython_vm::function::FuncArgs, vm: &VirtualMachine) ->
         if region_name.is_empty() {
             // Teleport entity in this region to the given sector.
 
-            let mut new_pos: Option<vek::Vec2<f32>> = None;
-            for sector in &ctx.map.sectors {
-                if sector.name == sector_name {
-                    new_pos = sector.center(&ctx.map);
-                }
-            }
+            let new_pos = ctx.map.named_area_center(&sector_name);
 
             if let Some(new_pos) = new_pos {
                 let entity_id = ctx.curr_entity_id;
@@ -11617,12 +11657,7 @@ pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name:
         entity.set_attribute("visible", Value::Bool(true));
     }
 
-    let mut new_pos: Option<vek::Vec2<f32>> = None;
-    for sector in &ctx.map.sectors {
-        if sector.name == dest_sector_name {
-            new_pos = sector.center(&ctx.map);
-        }
-    }
+    let new_pos = ctx.map.named_area_center(&dest_sector_name);
 
     if let Some(new_pos) = new_pos {
         entity.set_pos_xz(new_pos);

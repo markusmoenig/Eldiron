@@ -5,6 +5,7 @@
 ### Creator
 
 - Added a Geometry Object minimap path for 3D region editing, drawing a top-down XZ wire projection with selection highlights for objects, faces, edges, vertices, and surface-detail lines.
+- Extended 3D Geometry Objects with area metadata so named objects can act as gameplay areas for sector-style script destinations such as `goto`, `teleport`, and `random_walk_in_sector`, spawn object-linked items, and fade with **Hide in Iso**.
 
 ---
 

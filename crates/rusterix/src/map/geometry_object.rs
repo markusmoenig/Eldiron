@@ -1,4 +1,4 @@
-use crate::{BBox, PixelSource};
+use crate::{BBox, PixelSource, ValueContainer};
 use serde::{Deserialize, Serialize};
 use theframework::prelude::FxHashMap;
 use uuid::Uuid;
@@ -100,6 +100,8 @@ pub struct GeometryObject {
     pub group: String,
     #[serde(default)]
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub properties: ValueContainer,
 }
 
 impl GeometryObject {
@@ -115,6 +117,7 @@ impl GeometryObject {
             solid: true,
             group: String::new(),
             tags: Vec::new(),
+            properties: ValueContainer::default(),
         }
     }
 
