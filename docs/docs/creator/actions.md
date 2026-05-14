@@ -169,6 +169,12 @@ Duplicate the selected 3D surface-line guide geometry on its host face. The acti
 
 Set selected 3D surface-line segments to straight lines or configurable arcs. You can also select two points on the same connected guide to curve the shortest path between them, which keeps the rest of a closed opening shape intact. Positive and negative amounts bend the arc in opposite directions. Curved segments stay editable as surface guides, and Create Cutout, Create Ridge, and Create Groove tessellate them into the resulting geometry.
 
+### Surface Noise
+
+Apply procedural surface noise to the selected direct 3D geometry faces. The action exposes a **NOISE** HUD material slot; use the Tiles or Palette dock's Apply/Clear controls to assign or clear that slot before applying the action.
+
+The noise is stored on each selected face and uses object/world-space coordinates for evaluation, so adjoining faces with matching noise settings can continue around corners instead of restarting per face. Applying Surface Noise with an empty **NOISE** slot clears the noise from the selected faces.
+
 ### Face Inset
 
 *Shortcut: Ctrl/Cmd + I*

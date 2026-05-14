@@ -113,6 +113,49 @@ impl Hud {
         (index + 1).to_string()
     }
 
+    fn geometry_face_source(face: &rusterix::GeometryFace) -> Option<PixelSource> {
+        face.tile
+            .clone()
+            .or_else(|| face.tiles.values().next().cloned())
+    }
+
+    fn selected_geometry_source(map: &Map) -> Option<PixelSource> {
+        if !map.selected_geometry_faces.is_empty() {
+            for (object_id, face_index) in &map.selected_geometry_faces {
+                if let Some(object) = map
+                    .geometry_objects
+                    .iter()
+                    .find(|object| object.id == *object_id)
+                    && let Some(face) = object.faces.get(*face_index)
+                    && let Some(source) = Self::geometry_face_source(face)
+                {
+                    return Some(source);
+                }
+            }
+            return None;
+        }
+
+        for object_id in &map.selected_geometry_objects {
+            if let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *object_id)
+            {
+                for face in &object.faces {
+                    if let Some(source) = Self::geometry_face_source(face) {
+                        return Some(source);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    fn has_selected_geometry_surface(map: &Map) -> bool {
+        !map.selected_geometry_faces.is_empty() || !map.selected_geometry_objects.is_empty()
+    }
+
     fn active_grid_subdivision(subdivisions: f32) -> usize {
         let step = ServerContext::edit_grid_step(subdivisions);
         ((1.0 / step).round() as usize).clamp(1, 32)
@@ -456,8 +499,8 @@ impl Hud {
         let mut icons = 0;
         let action_item_slots = self.active_builder_item_slots(map, ctx, server_ctx);
         let action_material_slots = if action_item_slots.is_none() {
-            self.active_palette_material_slots(map, ctx, server_ctx)
-                .or_else(|| self.active_action_material_slots(map, ctx, server_ctx))
+            self.active_action_material_slots(map, ctx, server_ctx)
+                .or_else(|| self.active_palette_material_slots(map, ctx, server_ctx))
         } else {
             None
         };
@@ -504,6 +547,7 @@ impl Hud {
                 stride,
                 &self.get_icon_text(
                     i,
+                    map,
                     server_ctx,
                     action_item_slots.as_deref(),
                     action_material_slots.as_deref(),
@@ -526,38 +570,36 @@ impl Hud {
                 &[30, 30, 30, 255],
             );
 
-            if let Some(id) = id {
-                let (tile, has_light) = self.get_icon(
-                    i,
-                    map,
-                    id,
-                    icon_size as usize,
-                    action_item_slots.as_deref(),
-                    action_material_slots.as_deref(),
+            let (tile, has_light) = self.get_icon(
+                i,
+                map,
+                id,
+                icon_size as usize,
+                action_item_slots.as_deref(),
+                action_material_slots.as_deref(),
+            );
+            if let Some(tile) = tile {
+                let texture = tile.textures[0].resized(icon_size as usize, icon_size as usize);
+                ctx.draw.blend_slice(
+                    buffer.pixels_mut(),
+                    &texture.data,
+                    &rect.to_buffer_utuple(),
+                    stride,
                 );
-                if let Some(tile) = tile {
-                    let texture = tile.textures[0].resized(icon_size as usize, icon_size as usize);
+            }
+            if has_light {
+                if let Some(light_icon) = &self.light_icon {
                     ctx.draw.blend_slice(
                         buffer.pixels_mut(),
-                        &texture.data,
-                        &rect.to_buffer_utuple(),
+                        light_icon.pixels(),
+                        &(
+                            rect.x as usize + 1,
+                            rect.y as usize + 1,
+                            light_icon.dim().width as usize,
+                            light_icon.dim().height as usize,
+                        ),
                         stride,
                     );
-                }
-                if has_light {
-                    if let Some(light_icon) = &self.light_icon {
-                        ctx.draw.blend_slice(
-                            buffer.pixels_mut(),
-                            light_icon.pixels(),
-                            &(
-                                rect.x as usize + 1,
-                                rect.y as usize + 1,
-                                light_icon.dim().width as usize,
-                                light_icon.dim().height as usize,
-                            ),
-                            stride,
-                        );
-                    }
                 }
             }
 
@@ -935,6 +977,7 @@ impl Hud {
     pub fn get_icon_text(
         &self,
         index: i32,
+        map: &Map,
         server_ctx: &mut ServerContext,
         action_item_slots: Option<&[ActionItemSlot]>,
         action_material_slots: Option<&[ActionMaterialSlot]>,
@@ -951,7 +994,7 @@ impl Hud {
             }
         }
         if server_ctx.get_map_context() == MapContext::Region {
-            if self.mode == HudMode::Sector {
+            if self.mode == HudMode::Sector || Self::has_selected_geometry_surface(map) {
                 if index == 0 {
                     text = "TILE".into();
                 }
@@ -972,7 +1015,7 @@ impl Hud {
         &self,
         index: i32,
         map: &Map,
-        id: u32,
+        id: Option<u32>,
         icon_size: usize,
         action_item_slots: Option<&[ActionItemSlot]>,
         action_material_slots: Option<&[ActionMaterialSlot]>,
@@ -996,7 +1039,23 @@ impl Hud {
             return (None, false);
         }
 
+        if index == 0
+            && Self::has_selected_geometry_surface(map)
+            && let Some(pixelsource) = Self::selected_geometry_source(map)
+        {
+            let props = ValueContainer::default();
+            if let Some(tile) =
+                pixelsource.to_tile(&RUSTERIX.read().unwrap().assets, icon_size, &props, map)
+            {
+                return (Some(tile), false);
+            }
+            return (None, false);
+        }
+
         if self.mode == HudMode::Sector {
+            let Some(id) = id else {
+                return (None, false);
+            };
             if let Some(sector) = map.find_sector(id) {
                 if index == 0 {
                     let has_light = sector.properties.get("floor_light").is_some();
@@ -1064,6 +1123,26 @@ mod tests {
         map.selected_geometry_vertices = vec![(object_id, 0), (object_id, 1)];
 
         assert_eq!(Hud::geometry_edge_length(&map), Some(2.0));
+    }
+
+    #[test]
+    fn selected_geometry_source_reads_selected_face_tile() {
+        let (mut map, object_id) = box_map();
+        let source = PixelSource::PaletteIndex(3);
+        map.geometry_objects[0].faces[0].tile = Some(source.clone());
+        map.selected_geometry_faces.push((object_id, 0));
+
+        assert_eq!(Hud::selected_geometry_source(&map), Some(source));
+    }
+
+    #[test]
+    fn selected_geometry_source_reads_selected_object_tile() {
+        let (mut map, object_id) = box_map();
+        let source = PixelSource::PaletteIndex(7);
+        map.geometry_objects[0].faces[0].tile = Some(source.clone());
+        map.selected_geometry_objects.push(object_id);
+
+        assert_eq!(Hud::selected_geometry_source(&map), Some(source));
     }
 
     #[test]

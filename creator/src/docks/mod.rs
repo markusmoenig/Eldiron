@@ -9,7 +9,6 @@ pub mod data_editor;
 pub mod data_undo;
 pub mod dungeon;
 pub mod log;
-pub mod organic;
 pub mod palette;
 pub mod particle_preview;
 pub mod text_play;

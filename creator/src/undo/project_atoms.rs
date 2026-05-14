@@ -1,7 +1,6 @@
 use crate::editor::{DOCKMANAGER, SCENEMANAGER, TOOLLIST};
 use crate::prelude::*;
 use crate::toollist::ToolList;
-use crate::tools::organic::OrganicTool;
 use shared::project::PaletteMaterial;
 use theframework::prelude::*;
 
@@ -84,7 +83,6 @@ impl ProjectUndoAtom {
                 }
                 update_region(ctx);
             }
-            OrganicTool::sync_map_edit_detail_to_vm(map, previous_map);
         }
         if !preserved_dock.is_empty() && DOCKMANAGER.read().unwrap().dock != preserved_dock {
             DOCKMANAGER

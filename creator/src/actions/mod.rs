@@ -588,6 +588,7 @@ pub mod paste_vcode;
 pub mod remap_tile;
 pub mod set_tile_material;
 pub mod split;
+pub mod surface_noise;
 pub mod toggle_editing_geo;
 pub mod toggle_editor_preview_render;
 pub mod toggle_rect_geo;
@@ -659,10 +660,20 @@ pub trait Action: Send + Sync {
 
     fn set_hud_material_from_tile(
         &mut self,
+        map: &Map,
+        server_ctx: &ServerContext,
+        _slot_index: i32,
+        tile_id: Uuid,
+    ) -> bool {
+        self.set_hud_material_source(map, server_ctx, _slot_index, PixelSource::TileId(tile_id))
+    }
+
+    fn set_hud_material_source(
+        &mut self,
         _map: &Map,
         _server_ctx: &ServerContext,
         _slot_index: i32,
-        _tile_id: Uuid,
+        _source: PixelSource,
     ) -> bool {
         false
     }

@@ -1322,6 +1322,7 @@ fn fill_selected_geometry_vertices(map: &mut Map) -> bool {
             tiles: FxHashMap::default(),
             surface_points: Vec::new(),
             surface_segments: Vec::new(),
+            surface_noise: None,
         });
         new_selected_faces.push((object.id, face_index));
         changed = true;
@@ -3203,7 +3204,10 @@ impl Tool for GeometryTool {
                     ));
                 }
 
-                if matches!(key, 't' | 'T')
+                if !_ui.ctrl
+                    && !_ui.logo
+                    && !_ui.alt
+                    && matches!(key, 't' | 'T')
                     && (!map.selected_geometry_faces.is_empty()
                         || !map.selected_geometry_objects.is_empty())
                 {

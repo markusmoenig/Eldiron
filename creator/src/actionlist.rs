@@ -29,6 +29,7 @@ impl ActionList {
             Box::new(crate::actions::create_linedef::CreateLinedef::new()),
             Box::new(crate::actions::create_ridge::CreateRidge::new()),
             Box::new(crate::actions::create_sector::CreateSector::new()),
+            Box::new(crate::actions::surface_noise::SurfaceNoise::new()),
             Box::new(crate::actions::clear_tile::ClearTile::new()),
             Box::new(crate::actions::clear_palette::ClearPalette::new()),
             Box::new(crate::actions::duplicate::Duplicate::new()),

@@ -439,8 +439,47 @@ impl PaletteDock {
 
         let mut undo_atom: Option<ProjectUndoAtom> = None;
         let mut needs_scene_redraw = false;
+        let mut applied_to_action_slot = false;
 
-        if let Some(map) = project.get_map_mut(server_ctx) {
+        if server_ctx.get_map_context() == MapContext::Region
+            && let Some(map) = project.get_map(server_ctx)
+            && let Some(action_id) = server_ctx.curr_action_id
+        {
+            applied_to_action_slot = ACTIONLIST
+                .write()
+                .unwrap()
+                .get_action_by_id_mut(action_id)
+                .is_some_and(|action| {
+                    action
+                        .hud_material_slots(map, server_ctx)
+                        .is_some_and(|slots| {
+                            let selected_index = server_ctx.selected_hud_icon_index;
+                            let slot_index =
+                                if selected_index >= 0 && (selected_index as usize) < slots.len() {
+                                    selected_index
+                                } else if slots.len() == 1 {
+                                    0
+                                } else {
+                                    -1
+                                };
+                            slot_index >= 0
+                                && action.set_hud_material_source(
+                                    map,
+                                    server_ctx,
+                                    slot_index,
+                                    source.clone(),
+                                )
+                        })
+                });
+        }
+        if applied_to_action_slot {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Refresh Action Parameters"),
+                TheValue::Empty,
+            ));
+        }
+
+        if !applied_to_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
             let prev = map.clone();
             if crate::actions::apply_builder_hud_material_to_selection(
                 map,
@@ -547,29 +586,40 @@ impl PaletteDock {
             }
         }
 
-        let cleared_action_material_slot =
-            if !cleared_action_slot && server_ctx.get_map_context() == MapContext::Region {
-                if let Some(map) = project.get_map(server_ctx)
-                    && let Some(action_id) = server_ctx.curr_action_id
-                {
-                    ACTIONLIST
-                        .write()
-                        .unwrap()
-                        .get_action_by_id_mut(action_id)
-                        .is_some_and(|action| {
-                            action.hud_material_slots(map, server_ctx).is_some()
-                                && action.clear_hud_material_slot(
-                                    map,
-                                    server_ctx,
-                                    server_ctx.selected_hud_icon_index,
-                                )
-                        })
-                } else {
-                    false
-                }
+        let cleared_action_material_slot = if !cleared_action_slot
+            && server_ctx.get_map_context() == MapContext::Region
+        {
+            if let Some(map) = project.get_map(server_ctx)
+                && let Some(action_id) = server_ctx.curr_action_id
+            {
+                ACTIONLIST
+                    .write()
+                    .unwrap()
+                    .get_action_by_id_mut(action_id)
+                    .is_some_and(|action| {
+                        action
+                            .hud_material_slots(map, server_ctx)
+                            .is_some_and(|slots| {
+                                let selected_index = server_ctx.selected_hud_icon_index;
+                                let slot_index = if selected_index >= 0
+                                    && (selected_index as usize) < slots.len()
+                                {
+                                    selected_index
+                                } else if slots.len() == 1 {
+                                    0
+                                } else {
+                                    -1
+                                };
+                                slot_index >= 0
+                                    && action.clear_hud_material_slot(map, server_ctx, slot_index)
+                            })
+                    })
             } else {
                 false
-            };
+            }
+        } else {
+            false
+        };
         if cleared_action_material_slot {
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Refresh Action Parameters"),

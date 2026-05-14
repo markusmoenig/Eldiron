@@ -1058,7 +1058,6 @@ impl Editor {
             "Tiles" | "Tilemap" | "Tile Editor Dock RGBA Layout View" | "Tile Editor Tree" => {
                 Some("docs/creator/docks/tile_picker_editor".into())
             }
-            "Organic" => Some("docs/creator/tools/organic".into()),
             "Builder" => Some("docs/creator/tools/builder".into()),
             "Palette" => Some("docs/creator/tools/palette".into()),
             "Dungeon" => Some("docs/creator/tools/dungeon".into()),
@@ -1127,7 +1126,6 @@ impl Editor {
             if dm.state != DockManagerState::Minimized {
                 return match dm.dock.as_str() {
                     "Tiles" => Some("docs/creator/docks/tile_picker_editor".into()),
-                    "Organic" => Some("docs/creator/tools/organic".into()),
                     "Builder" => Some("docs/creator/tools/builder".into()),
                     "Palette" => Some("docs/creator/tools/palette".into()),
                     "Dungeon" => Some("docs/creator/tools/dungeon".into()),

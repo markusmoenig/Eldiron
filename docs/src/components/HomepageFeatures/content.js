@@ -36,7 +36,7 @@ export const homepageContent = {
           date: "Apr 26, 2026",
           title: "Eldiron v0.9.7",
           description:
-            "Turn-based and hybrid simulation modes, NPC sequences, multiple-choice menus, nested dialogs, organic painting, and new renderer/post-processing controls.",
+            "Turn-based and hybrid simulation modes, NPC sequences, multiple-choice menus, nested dialogs, surface editing, and renderer/post-processing controls.",
           href: "/blog/2026/04/26/eldiron-v0.9.7",
           linkLabel: "Read more",
         },

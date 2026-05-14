@@ -11,6 +11,7 @@
 - Restored the surface-detail drawing workflow so switching from a selected face to the Linedef / Edge Tool enters detail mode and lets clicks add surface points on that face.
 - Added **Create Face** for closed 3D surface-detail loops, creating a new selectable coplanar face without cutting through the host object so drawn footprints can be extruded into new geometry.
 - Fixed leaving surface-detail mode so switching back to Face, Vertex, or Object mode returns to normal geometry selection instead of keeping detail-mode picking active.
+- Replaced the old Organic paint tool path with a **Surface Noise** action for selected 3D faces; the action exposes a `NOISE` HUD material slot for tile/color assignment and clearing, and noise is stored per face/evaluated from object/world-space coordinates so adjoining noisy faces can stay continuous around corners.
 
 ---
 

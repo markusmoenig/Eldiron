@@ -52,6 +52,7 @@ status_create_cutout_multiple_faces = Ausschnitt erstellen benötigt derzeit all
 status_create_surface_face_failed = Fläche erstellen benötigt mindestens drei ausgewählte Oberflächenlinien-Punkte auf einer 3D-Fläche.
 status_create_surface_face_open_loop = Fläche erstellen benötigt geschlossene Oberflächenlinien-Loops. Die ausgewählte Hilfslinie zuerst beenden oder schließen.
 status_create_surface_face_multiple_faces = Fläche erstellen benötigt derzeit alle ausgewählten Hilfslinien-Loops auf einer Host-Oberfläche.
+status_surface_noise_needs_face = Oberflächenrauschen benötigt mindestens eine ausgewählte 3D-Fläche.
 status_editor_preview_post_on = Editor-Postprocessing-Vorschau ein.
 status_editor_preview_post_off = Editor-Postprocessing-Vorschau aus.
 status_editor_preview_lighting_on = Editor-Beleuchtungsvorschau ein.
@@ -115,6 +116,8 @@ action_create_groove = Rille erstellen
 action_create_groove_desc = Wandelt ausgewählte 3D-Oberflächenlinien in dauerhaft vertiefte Rillen-Geometrie um.
 action_create_ridge = Grat erstellen
 action_create_ridge_desc = Wandelt ausgewählte 3D-Oberflächenlinien in dauerhaft erhöhte Grat-Geometrie um.
+action_surface_noise = Oberflächenrauschen
+action_surface_noise_desc = Wendet objektbasiertes prozedurales Rauschen über den NOISE-HUD-Materialslot auf die ausgewählten 3D-Flächen an.
 action_create_sector = Sektor erstellen
 action_create_sector_desc = Erstellt einen neuen Sektor / eine neue Fläche aus den ausgewählten Vertices. Die Vertices müssen einen geschlossenen Loop bilden (wird automatisch sortiert).
 action_create_geometry_box = Box erstellen
@@ -215,7 +218,6 @@ tool_rect = Rect-Tool (R). Klicken, um die aktuelle Kachel zu zeichnen. Shift-Kl
 tool_sector = Sektor-/Flächen-Tool (F). Wählt Sektoren in 2D oder Flächen in 3D.
 tool_vertex = Vertex-Tool (V). 'Shift' + Klick erstellt einen neuen Vertex.
 tool_entity = Entity-Tool (Y). Spiel-Entitäten platzieren, verschieben, auswählen und löschen.
-tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
 hud_geometry_op_move = MOVE
 hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Objekt-Gizmo-Operation: Verschieben (M).
@@ -227,15 +229,6 @@ status_geometry_vertex_selection = Vertex ausgewählt: F = Füllen, X = Kante te
 status_geometry_edge_selection = Kante ausgewählt: F = Füllen, X = Kante teilen, M = Zusammenführen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
 status_geometry_surface_selection = Oberflächendetail ausgewählt: Shift = Hinzufügen, Alt = Entfernen, L = verbundener Guide.
 status_geometry_surface_loop_selection = Geschlossenes Oberflächendetail ausgewählt: Fläche/Ausschnitt erstellen verfügbar, Shift = Hinzufügen, Alt = Entfernen, L = verbundener Guide.
-organic_dock_title = Organische Pinsel
-organic_toggle_active = Aktiv
-organic_toggle_deactive = Deaktiv
-organic_mode_free = Frei
-organic_mode_locked = Gesperrt
-status_organic_toggle_visibility = Schaltet die Darstellung der organischen Farbschicht ein oder aus.
-status_organic_lock_mode = Frei malt auf allen Flächen. Gesperrt malt nur auf dem ausgewählten Sektor oder der aktiven Fläche.
-status_organic_clear = Löscht gemalte organische Details. Im gesperrten Modus wird nur der ausgewählte Sektor oder die aktive Fläche gelöscht.
-
 # Common
 all = Alle
 apply = Anwenden

@@ -117,6 +117,7 @@ Surface lines are the shared workflow for custom relief and holes:
 - **Create Face** turns selected closed loops into new selectable faces on the host object without cutting through it.
 - **Duplicate Surface Detail** repeats the selected guide shape on the same face using face-local offsets.
 - **Surface Curve** sets selected guide segments, or the shortest path between two selected guide points, to straight lines or configurable arcs. Positive and negative amounts bend the arc in opposite directions, so the same drawn loop can become a plain cutout, an arched opening, or a decorative curved pattern.
+- **Surface Noise** applies procedural noise to selected 3D faces. Its **NOISE** HUD material slot can be assigned or cleared from the Tiles or Palette dock, and the noise is evaluated from object/world-space coordinates so adjoining noisy faces can stay continuous around corners.
 
 Ridges and grooves become persistent Geometry Objects, are selected after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default. This makes small details like mortar lines, brick seams, carved floor patterns, and raised borders immediately visible without selecting and painting each tiny face.
 

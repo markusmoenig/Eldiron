@@ -93,6 +93,7 @@ fn push_face(
         tiles: FxHashMap::default(),
         surface_points: Vec::new(),
         surface_segments: Vec::new(),
+        surface_noise: None,
     });
 }
 

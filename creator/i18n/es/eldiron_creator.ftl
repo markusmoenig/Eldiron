@@ -52,6 +52,7 @@ status_create_cutout_multiple_faces = Crear recorte actualmente necesita todos l
 status_create_surface_face_failed = Crear cara necesita al menos tres puntos de línea de superficie seleccionados en una cara 3D.
 status_create_surface_face_open_loop = Crear cara necesita bucles cerrados de líneas de superficie. Termina o cierra primero la guía seleccionada.
 status_create_surface_face_multiple_faces = Crear cara actualmente necesita todos los bucles guía seleccionados en una sola superficie anfitriona.
+status_surface_noise_needs_face = Ruido de superficie necesita al menos una cara 3D seleccionada.
 status_editor_preview_post_on = Vista previa de posprocesado del editor activada.
 status_editor_preview_post_off = Vista previa de posprocesado del editor desactivada.
 status_editor_preview_lighting_on = Vista previa de iluminación del editor activada.
@@ -115,6 +116,8 @@ action_create_groove = Crear ranura
 action_create_groove_desc = Convierte las líneas de superficie 3D seleccionadas en geometría hundida persistente.
 action_create_ridge = Crear relieve
 action_create_ridge_desc = Convierte las líneas de superficie 3D seleccionadas en geometría elevada persistente.
+action_surface_noise = Ruido de superficie
+action_surface_noise_desc = Aplica ruido procedural en espacio de objeto a las caras 3D seleccionadas usando el material HUD NOISE.
 action_create_sector = Crear sector
 action_create_sector_desc = Crea un nuevo sector/superficie a partir de los vértices seleccionados. Deben formar un bucle cerrado (lo ordenamos automáticamente).
 action_create_geometry_box = Crear caja
@@ -215,7 +218,6 @@ tool_rect = Herramienta de rectángulo (R). Clic para dibujar la baldosa actual.
 tool_sector = Herramienta de sector / cara (F). Selecciona sectores en 2D o caras en 3D.
 tool_vertex = Herramienta de vértice (V). 'Shift' + clic para crear un nuevo vértice.
 tool_entity = Herramienta de entidad (Y). Coloca, mueve, selecciona y elimina entidades del juego.
-tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
 hud_geometry_op_move = MOVE
 hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Operación del gizmo de objeto: mover (M).
@@ -227,15 +229,6 @@ status_geometry_vertex_selection = Vértice seleccionado: F = Rellenar, X = Divi
 status_geometry_edge_selection = Arista seleccionada: F = Rellenar, X = Dividir arista, M = Fusionar, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.
 status_geometry_surface_selection = Detalle de superficie seleccionado: Shift = añadir, Alt = quitar, L = guía conectada.
 status_geometry_surface_loop_selection = Detalle de superficie cerrado seleccionado: Crear cara/recorte disponible, Shift = añadir, Alt = quitar, L = guía conectada.
-organic_dock_title = Pinceles orgánicos
-organic_toggle_active = Activo
-organic_toggle_deactive = Desactivo
-organic_mode_free = Libre
-organic_mode_locked = Bloqueado
-status_organic_toggle_visibility = Activa o desactiva la visualización de la capa de pintura orgánica.
-status_organic_lock_mode = Libre pinta sobre todas las superficies. Bloqueado pinta solo sobre el sector seleccionado o la superficie activa.
-status_organic_clear = Borra el detalle orgánico pintado. En modo bloqueado solo borra el sector seleccionado o la superficie activa.
-
 # Common
 all = Todo
 apply = Aplicar

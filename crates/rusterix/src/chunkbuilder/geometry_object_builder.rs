@@ -122,7 +122,11 @@ impl GeometryObjectBuilder {
         normal * TILED_FACE_RENDER_NUDGE
     }
 
-    fn transformed_face_uvs(face: &crate::GeometryFace, uvs: &[[f32; 2]]) -> Vec<[f32; 2]> {
+    fn transformed_face_uvs(
+        face: &crate::GeometryFace,
+        uvs: &[[f32; 2]],
+        world_points: Option<&[Vec3<f32>]>,
+    ) -> Vec<[f32; 2]> {
         if uvs.is_empty() {
             return Vec::new();
         }
@@ -160,16 +164,51 @@ impl GeometryObjectBuilder {
         let (sin, cos) = radians.sin_cos();
 
         uvs.iter()
-            .map(|uv| {
+            .enumerate()
+            .map(|(index, uv)| {
                 let mut p = Vec2::new(uv[0], uv[1]) - center;
                 p = Vec2::new(p.x / scale.x, p.y / scale.y);
                 if radians.abs() > 1e-5 {
                     p = Vec2::new(p.x * cos - p.y * sin, p.x * sin + p.y * cos);
                 }
                 p += center + face.texture_offset;
+                if let Some(noise) = face.surface_noise.as_ref()
+                    && let Some(world_points) = world_points
+                    && let Some(world) = world_points.get(index)
+                {
+                    p += Self::surface_noise_uv_offset(noise, *world);
+                }
                 [p.x, p.y]
             })
             .collect()
+    }
+
+    fn surface_noise_uv_offset(noise: &crate::GeometrySurfaceNoise, world: Vec3<f32>) -> Vec2<f32> {
+        let scale = noise.scale.max(0.05);
+        let amount = noise.amount.clamp(0.0, 1.0) * 0.18;
+        if amount <= 1e-5 {
+            return Vec2::zero();
+        }
+        let seed = noise.seed as f32 * 0.017;
+        let p = world * scale;
+        let nx = ((p.x * 12.9898 + p.y * 78.233 + p.z * 37.719 + seed).sin() * 43_758.547)
+            .rem_euclid(1.0);
+        let ny = ((p.x * 93.989 + p.y * 67.345 + p.z * 21.123 + seed + 19.19).sin() * 24_634.635)
+            .rem_euclid(1.0);
+        Vec2::new(nx - 0.5, ny - 0.5) * amount
+    }
+
+    fn surface_noise_weight(noise: &crate::GeometrySurfaceNoise, world: Vec3<f32>) -> f32 {
+        let scale = noise.scale.max(0.05);
+        let amount = noise.amount.clamp(0.0, 1.0);
+        if amount <= 1e-5 {
+            return 0.0;
+        }
+        let seed = noise.seed as f32 * 0.017 + 41.37;
+        let p = world * scale;
+        let n = ((p.x * 27.619 + p.y * 57.583 + p.z * 12.9898 + seed).sin() * 16_719.371)
+            .rem_euclid(1.0);
+        (n * amount).clamp(0.0, 1.0)
     }
 
     fn face_normal(world_points: &[Vec3<f32>], object_center: Vec3<f32>) -> Option<Vec3<f32>> {
@@ -323,14 +362,20 @@ impl GeometryObjectBuilder {
         }
 
         let render_nudge = Self::face_render_nudge(world_points, object_center);
-        let cells_x = (max_uv.x - min_uv.x).ceil().max(1.0) as i32;
-        let cells_y = (max_uv.y - min_uv.y).ceil().max(1.0) as i32;
+        let range = max_uv - min_uv;
+        let noise_cells = face
+            .surface_noise
+            .as_ref()
+            .map(|noise| (noise.scale.max(1.0).sqrt() * 8.0).ceil().clamp(8.0, 128.0) as i32)
+            .unwrap_or(1);
+        let cells_x = range.x.ceil().max(noise_cells as f32).max(1.0) as i32;
+        let cells_y = range.y.ceil().max(noise_cells as f32).max(1.0) as i32;
         for ty in 0..cells_y {
             for tx in 0..cells_x {
-                let x0 = min_uv.x + tx as f32;
-                let x1 = (x0 + 1.0).min(max_uv.x);
-                let y0 = min_uv.y + ty as f32;
-                let y1 = (y0 + 1.0).min(max_uv.y);
+                let x0 = min_uv.x + range.x * (tx as f32 / cells_x as f32);
+                let x1 = min_uv.x + range.x * ((tx + 1) as f32 / cells_x as f32);
+                let y0 = min_uv.y + range.y * (ty as f32 / cells_y as f32);
+                let y1 = min_uv.y + range.y * ((ty + 1) as f32 / cells_y as f32);
                 if x1 - x0 <= 1e-4 || y1 - y0 <= 1e-4 {
                     continue;
                 }
@@ -342,33 +387,64 @@ impl GeometryObjectBuilder {
                     Vec2::new(x1, y1),
                 ];
                 let mut vertices = Vec::with_capacity(4);
+                let mut vertices_world = Vec::with_capacity(4);
                 for uv in corners_uv {
                     let Some(world) = Self::world_from_face_uv(uv, face_uvs, world_points) else {
                         vertices.clear();
+                        vertices_world.clear();
                         break;
                     };
                     let world = world + render_nudge;
+                    vertices_world.push(world);
                     vertices.push([world.x, world.y, world.z, 1.0]);
                 }
                 if vertices.len() != 4 {
                     continue;
                 }
 
-                let source = face.tiles.get(&(tx, ty)).or(face.tile.as_ref());
+                let tile_x = (x0 - min_uv.x).floor().max(0.0) as i32;
+                let tile_y = (y0 - min_uv.y).floor().max(0.0) as i32;
+                let source = face.tiles.get(&(tile_x, tile_y)).or(face.tile.as_ref());
                 let tile_id = Self::face_tile_id(source, assets);
+                let noise_tile_id = face
+                    .surface_noise
+                    .as_ref()
+                    .and_then(|noise| noise.source.as_ref())
+                    .map(|source| Self::face_tile_id(Some(source), assets));
                 let uvs = Self::transformed_face_uvs(
                     face,
                     &[[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]],
+                    Some(&vertices_world),
                 );
-                vmchunk.add_poly_3d(
-                    GeoId::GeometryObject(object_id),
-                    tile_id,
-                    vertices,
-                    uvs,
-                    vec![(0, 1, 2), (0, 2, 3)],
-                    0,
-                    true,
-                );
+                if let (Some(noise), Some(noise_tile_id)) =
+                    (face.surface_noise.as_ref(), noise_tile_id)
+                {
+                    let blend_weights = vertices_world
+                        .iter()
+                        .map(|world| Self::surface_noise_weight(noise, *world))
+                        .collect();
+                    vmchunk.add_poly_3d_blended(
+                        GeoId::GeometryObject(object_id),
+                        tile_id,
+                        noise_tile_id,
+                        vertices,
+                        uvs,
+                        blend_weights,
+                        vec![(0, 1, 2), (0, 2, 3)],
+                        0,
+                        true,
+                    );
+                } else {
+                    vmchunk.add_poly_3d(
+                        GeoId::GeometryObject(object_id),
+                        tile_id,
+                        vertices,
+                        uvs,
+                        vec![(0, 1, 2), (0, 2, 3)],
+                        0,
+                        true,
+                    );
+                }
             }
         }
 
@@ -437,7 +513,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 if face.auto_uv {
                     uvs = Self::auto_face_uvs(&local_points);
                 }
-                if face.auto_uv && !face.tiles.is_empty() {
+                if face.auto_uv && (!face.tiles.is_empty() || face.surface_noise.is_some()) {
                     let face_uvs = uvs
                         .iter()
                         .map(|uv| Vec2::new(uv[0], uv[1]))
@@ -459,17 +535,42 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 for index in 1..vertices.len() - 1 {
                     indices.push((0, index, index + 1));
                 }
-                let uvs = Self::transformed_face_uvs(face, &uvs);
+                let uvs = Self::transformed_face_uvs(face, &uvs, Some(&world_points));
 
-                vmchunk.add_poly_3d(
-                    GeoId::GeometryObject(object.id),
-                    tile_id,
-                    vertices,
-                    uvs,
-                    indices,
-                    0,
-                    true,
-                );
+                let noise_tile_id = face
+                    .surface_noise
+                    .as_ref()
+                    .and_then(|noise| noise.source.as_ref())
+                    .map(|source| Self::face_tile_id(Some(source), assets));
+                if let (Some(noise), Some(noise_tile_id)) =
+                    (face.surface_noise.as_ref(), noise_tile_id)
+                {
+                    let blend_weights = world_points
+                        .iter()
+                        .map(|world| Self::surface_noise_weight(noise, *world))
+                        .collect();
+                    vmchunk.add_poly_3d_blended(
+                        GeoId::GeometryObject(object.id),
+                        tile_id,
+                        noise_tile_id,
+                        vertices,
+                        uvs,
+                        blend_weights,
+                        indices,
+                        0,
+                        true,
+                    );
+                } else {
+                    vmchunk.add_poly_3d(
+                        GeoId::GeometryObject(object.id),
+                        tile_id,
+                        vertices,
+                        uvs,
+                        indices,
+                        0,
+                        true,
+                    );
+                }
             }
         }
     }
@@ -538,5 +639,43 @@ impl ChunkBuilder for GeometryObjectBuilder {
 
     fn boxed_clone(&self) -> Box<dyn ChunkBuilder> {
         Box::new(self.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn surface_noise_tessellates_render_mesh_without_topology_change() {
+        let mut object = crate::GeometryObject::box_from_bounds(
+            "Box",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(2.0, 1.0, 2.0),
+        );
+        let original_face_count = object.faces.len();
+        object.faces[2].surface_noise = Some(crate::GeometrySurfaceNoise {
+            scale: 1.0,
+            amount: 0.35,
+            seed: 0,
+            source: Some(PixelSource::PaletteIndex(0)),
+        });
+
+        let mut map = Map::default();
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+
+        let assets = Assets::default();
+        let mut chunk = Chunk::new(Vec2::zero(), 16);
+        let mut vmchunk = scenevm::Chunk::new(Vec2::zero(), 16);
+        let mut builder = GeometryObjectBuilder;
+        builder.build(&map, &assets, &mut chunk, &mut vmchunk);
+
+        let polys = vmchunk
+            .polys3d_map
+            .get(&GeoId::GeometryObject(object_id))
+            .expect("geometry object should render");
+        assert!(polys.len() > original_face_count);
+        assert_eq!(map.geometry_objects[0].faces.len(), original_face_count);
     }
 }

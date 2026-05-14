@@ -973,11 +973,6 @@ impl ToolList {
             return true;
         }
 
-        if let Some(dirty_chunks) = Self::changed_organic_detail_chunks(old_map, new_map) {
-            crate::utils::editor_scene_incremental_map_update(new_map.clone(), dirty_chunks);
-            return true;
-        }
-
         if let Some(plan) = Self::changed_geometry_replacement_plan(old_map, new_map) {
             return Self::apply_geometry_scene_update(new_map, plan);
         }
@@ -1158,59 +1153,6 @@ impl ToolList {
             None
         } else {
             Some(dirty_chunks.into_iter().collect())
-        }
-    }
-
-    fn changed_organic_detail_chunks(old_map: &Map, new_map: &Map) -> Option<Vec<(i32, i32)>> {
-        if !Self::map_geometry_matches(old_map, new_map) {
-            return None;
-        }
-
-        let mut changed = false;
-        let mut dirty_chunks: FxHashSet<(i32, i32)> = FxHashSet::default();
-        let chunk_size = 32;
-
-        if old_map.terrain_organic_layer != new_map.terrain_organic_layer {
-            changed = true;
-            let mut terrain_tiles = crate::tools::organic::OrganicTool::terrain_tiles_for_sync(
-                &old_map.terrain_organic_layer,
-            );
-            terrain_tiles.extend(crate::tools::organic::OrganicTool::terrain_tiles_for_sync(
-                &new_map.terrain_organic_layer,
-            ));
-            for (x, z) in terrain_tiles {
-                dirty_chunks.insert((
-                    x.div_euclid(chunk_size) * chunk_size,
-                    z.div_euclid(chunk_size) * chunk_size,
-                ));
-            }
-        }
-
-        for surface_id in old_map
-            .surfaces
-            .keys()
-            .chain(new_map.surfaces.keys())
-            .copied()
-            .collect::<FxHashSet<_>>()
-        {
-            let old_layers = old_map
-                .surfaces
-                .get(&surface_id)
-                .map(|surface| &surface.organic_layers);
-            let new_layers = new_map
-                .surfaces
-                .get(&surface_id)
-                .map(|surface| &surface.organic_layers);
-            if old_layers != new_layers {
-                changed = true;
-                break;
-            }
-        }
-
-        if changed {
-            Some(dirty_chunks.into_iter().collect())
-        } else {
-            None
         }
     }
 
@@ -1545,11 +1487,7 @@ impl ToolList {
                     } else {
                         None
                     };
-                    let organic_incremental_update = DOCKMANAGER.read().unwrap().dock == "Organic"
-                        && server_ctx.editor_view_mode != EditorViewMode::D2
-                        && matches!(&undo_atom, ProjectUndoAtom::MapEdit(_, _, _));
-                    let geometry_replacement_plan = if !organic_incremental_update
-                        && rect_paint_dirty_chunks.is_none()
+                    let geometry_replacement_plan = if rect_paint_dirty_chunks.is_none()
                         && server_ctx.editor_view_mode != EditorViewMode::D2
                         && let ProjectUndoAtom::MapEdit(_, old_map, new_map) = &undo_atom
                     {
@@ -1560,7 +1498,6 @@ impl ToolList {
                     if server_ctx.editor_view_mode == EditorViewMode::D2
                         && server_ctx.editing_surface.is_some()
                         || rect_paint_dirty_chunks.is_some()
-                        || organic_incremental_update
                         || geometry_replacement_plan.is_some()
                     {
                     } else {
@@ -1581,9 +1518,6 @@ impl ToolList {
                     {
                         used_incremental_terrain_update =
                             Self::apply_geometry_scene_update(new_map, plan);
-                    }
-                    if organic_incremental_update {
-                        used_incremental_terrain_update = true;
                     }
                     if !used_incremental_terrain_update {
                         crate::utils::editor_scene_full_rebuild(project, server_ctx);
@@ -2700,9 +2634,7 @@ impl ToolList {
                         if server_ctx.editor_view_mode != EditorViewMode::D2
                             && self.should_refresh_3d_overlay()
                         {
-                            if server_ctx.curr_map_tool_type == MapToolType::Rect
-                                || DOCKMANAGER.read().unwrap().dock == "Organic"
-                            {
+                            if server_ctx.curr_map_tool_type == MapToolType::Rect {
                                 self.update_tool_preview_overlay_3d(project, server_ctx);
                             } else {
                                 self.update_geometry_overlay_3d(project, server_ctx);
@@ -2859,9 +2791,8 @@ impl ToolList {
 
                         if server_ctx.editor_view_mode != EditorViewMode::D2 {
                             let hover_changed = old_hover != server_ctx.hover;
-                            let fast_preview_tool = server_ctx.curr_map_tool_type
-                                == MapToolType::Rect
-                                || DOCKMANAGER.read().unwrap().dock == "Organic";
+                            let fast_preview_tool =
+                                server_ctx.curr_map_tool_type == MapToolType::Rect;
 
                             if hover_changed && !fast_preview_tool {
                                 self.update_geometry_overlay_3d(project, server_ctx);
@@ -4630,7 +4561,6 @@ impl ToolList {
         let view_nudge = cam_forward * -0.002;
         let thickness = 0.15;
         let white = rusterix.scene_handler.white;
-        let selected = rusterix.scene_handler.selected;
 
         if server_ctx.curr_map_tool_type == MapToolType::Rect {
             if let Some(terrain_id) = server_ctx.rect_terrain_id {
@@ -4762,75 +4692,6 @@ impl ToolList {
                         [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0],
                         100,
                     );
-                }
-            }
-        } else if DOCKMANAGER.read().unwrap().dock == "Organic" {
-            if let Some(pos) = server_ctx.hover_cursor_3d {
-                let segments = 24usize;
-                let brush_radius = map
-                    .properties
-                    .get_float_default("organic_brush_radius", 0.6)
-                    .max(0.05);
-                let border_size = map
-                    .properties
-                    .get_float_default("organic_brush_border_size", 0.16)
-                    .clamp(0.02, 0.48);
-
-                if let Some(surface) = server_ctx
-                    .active_detail_surface
-                    .as_ref()
-                    .or(server_ctx.hover_surface.as_ref())
-                {
-                    let center_local = surface.uv_to_tile_local(surface.world_to_uv(pos), map);
-                    let inner_radius = (brush_radius * (1.0 - border_size)).max(0.02);
-                    for (radius, tile_id, geo_base, z_bias) in [
-                        (brush_radius, selected, 8000u32, -0.0035f32),
-                        (inner_radius, white, 8100u32, -0.0025f32),
-                    ] {
-                        for i in 0..segments {
-                            let a0 = i as f32 / segments as f32 * std::f32::consts::TAU;
-                            let a1 = (i + 1) as f32 / segments as f32 * std::f32::consts::TAU;
-                            let p0_local =
-                                center_local + Vec2::new(a0.cos() * radius, a0.sin() * radius);
-                            let p1_local =
-                                center_local + Vec2::new(a1.cos() * radius, a1.sin() * radius);
-                            let p0 = surface.uv_to_world(surface.tile_local_to_uv(p0_local, map))
-                                + view_nudge
-                                + cam_forward * z_bias;
-                            let p1 = surface.uv_to_world(surface.tile_local_to_uv(p1_local, map))
-                                + view_nudge
-                                + cam_forward * z_bias;
-                            rusterix.scene_handler.tool_overlay_3d.add_line_3d(
-                                GeoId::Triangle(geo_base + i as u32),
-                                tile_id,
-                                p0,
-                                p1,
-                                thickness,
-                                cam_forward,
-                                100,
-                            );
-                        }
-                    }
-                } else {
-                    for i in 0..segments {
-                        let a0 = i as f32 / segments as f32 * std::f32::consts::TAU;
-                        let a1 = (i + 1) as f32 / segments as f32 * std::f32::consts::TAU;
-                        let p0 = pos
-                            + Vec3::new(a0.cos() * brush_radius, 0.0, a0.sin() * brush_radius)
-                            + view_nudge;
-                        let p1 = pos
-                            + Vec3::new(a1.cos() * brush_radius, 0.0, a1.sin() * brush_radius)
-                            + view_nudge;
-                        rusterix.scene_handler.tool_overlay_3d.add_line_3d(
-                            GeoId::Triangle(8200 + i as u32),
-                            selected,
-                            p0,
-                            p1,
-                            thickness,
-                            cam_forward,
-                            100,
-                        );
-                    }
                 }
             }
         }
