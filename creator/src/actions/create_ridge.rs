@@ -18,12 +18,14 @@ pub struct CreateGroove {
 enum RidgeShape {
     Box,
     Triangle,
+    Round,
 }
 
 impl RidgeShape {
     fn from_index(index: i32) -> Self {
         match index {
             1 => Self::Triangle,
+            2 => Self::Round,
             _ => Self::Box,
         }
     }
@@ -272,6 +274,64 @@ fn push_triangle_groove_segment(
     push_face(ridge, vec![base + 3, base + 5, base + 4], tile);
 }
 
+#[allow(clippy::too_many_arguments)]
+fn push_round_relief_segment(
+    ridge: &mut rusterix::GeometryObject,
+    a: Vec3<f32>,
+    b: Vec3<f32>,
+    side: Vec3<f32>,
+    normal: Vec3<f32>,
+    nudge: Vec3<f32>,
+    half_width: f32,
+    height: f32,
+    kind: SurfaceReliefKind,
+    tile: Option<PixelSource>,
+) {
+    let steps = 6;
+    let floor_lift = 0.004;
+    let base = ridge.vertices.len();
+
+    for endpoint in [a, b] {
+        for index in 0..=steps {
+            let t = index as f32 / steps as f32;
+            let x = -half_width + half_width * 2.0 * t;
+            let arc = (std::f32::consts::PI * t).sin();
+            let y = match kind {
+                SurfaceReliefKind::Ridge => height * arc,
+                SurfaceReliefKind::Groove => floor_lift + height * (1.0 - arc),
+            };
+            ridge
+                .vertices
+                .push(endpoint + side * x + nudge + normal * y);
+        }
+    }
+
+    let row = steps + 1;
+    for index in 0..steps {
+        push_face(
+            ridge,
+            vec![
+                base + index,
+                base + row + index,
+                base + row + index + 1,
+                base + index + 1,
+            ],
+            tile.clone(),
+        );
+    }
+
+    push_face(
+        ridge,
+        (0..row).map(|index| base + index).collect(),
+        tile.clone(),
+    );
+    push_face(
+        ridge,
+        (0..row).rev().map(|index| base + row + index).collect(),
+        tile,
+    );
+}
+
 fn create_surface_relief_geometry(
     map: &mut Map,
     width: f32,
@@ -374,6 +434,18 @@ fn create_surface_relief_geometry(
                     height,
                     tile.clone(),
                 ),
+                (_, RidgeShape::Round) => push_round_relief_segment(
+                    &mut ridge,
+                    a,
+                    b,
+                    side,
+                    normal,
+                    nudge,
+                    half_width,
+                    height,
+                    kind,
+                    tile.clone(),
+                ),
             }
         }
         changed = true;
@@ -401,7 +473,7 @@ fn build_nodeui(description: String) -> TheNodeUI {
         "actionCreateRidgeShape".into(),
         "Shape".into(),
         "".into(),
-        vec!["Box".into(), "Triangle".into()],
+        vec!["Box".into(), "Triangle".into(), "Round".into()],
         0,
     ));
     nodeui.add_item(TheNodeUIItem::FloatEditSlider(

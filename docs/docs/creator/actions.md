@@ -218,7 +218,8 @@ Options:
 
 * **Shape: Box**: flat-bottom groove for mortar lines, seams, and block cuts.
 * **Shape: Triangle**: sharp V-shaped groove for carved decoration.
-* `ridge_shape`: `Box` or `Triangle`.
+* **Shape: Round**: rounded U-shaped groove for softer carved lines, vines, roots, and other organic wall detail.
+* `ridge_shape`: `Box`, `Triangle`, or `Round`.
 * `ridge_width`: groove width on the selected face.
 * `ridge_height`: groove depth into the host surface.
 * Source material: inherited from the host face by default.
@@ -258,7 +259,8 @@ Options:
 
 * **Shape: Box**: blocky rectangular ridge for lips, raised mortar, and retro tile-like detail.
 * **Shape: Triangle**: sharp triangular ridge for bevel-like decoration and carved-looking strokes.
-* `ridge_shape`: `Box` or `Triangle`.
+* **Shape: Round**: rounded raised stroke for vines, roots, cables, and softer trim.
+* `ridge_shape`: `Box`, `Triangle`, or `Round`.
 * `ridge_width`: ridge width on the selected face.
 * `ridge_height`: ridge height above the host surface.
 * Source material: inherited from the host face by default.
