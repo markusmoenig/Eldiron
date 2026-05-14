@@ -241,7 +241,9 @@ impl Entity {
             camera.set_parameter_vec3("position", cam_pos);
             camera.set_parameter_vec3("center", cam_center);
         } else {
-            let p = Vec3::new(self.position.x, 0.0, self.position.z);
+            // Iso follow needs the real player height as part of the center. If we flatten this
+            // to ground level, climbing stairs projects the player away from the screen center.
+            let p = self.position;
             camera.set_parameter_vec3("center", p);
             camera.set_parameter_vec3("position", p + vek::Vec3::new(-10.0, 10.0, 10.0));
         }
@@ -754,6 +756,26 @@ impl Entity {
                     (slot, i)
                 })
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{D3Camera, D3IsoCamera};
+
+    #[test]
+    fn iso_camera_follow_preserves_entity_height() {
+        let mut entity = Entity::new();
+        entity.position = Vec3::new(3.0, 4.25, -2.0);
+
+        let mut camera: Box<dyn D3Camera> = Box::new(D3IsoCamera::new());
+        let before = camera.position();
+
+        entity.apply_to_camera(&mut camera, 1.7);
+
+        let after = camera.position();
+        assert!((after.y - before.y - entity.position.y).abs() < 1e-4);
     }
 }
 

@@ -9,7 +9,7 @@ sidebar_position: 1
 
 On the **left side** of the screen, you’ll find a **list of tools**. These tools are used to **edit the geometry** of the currently selected region or content. The 2D and 3D geometry is displayed in the **geometry editor** in the middle of the screen.
 
-The geometry editor can be used in 2D, orbit, isometric, and first-person camera modes. In **FirstP** mode, hold the right mouse button and use `WASD` to fly, then release the right mouse button or press `Escape` to return to normal editing. `Space` toggles the older pointer-from-center fly mode as a touchpad fallback. See [Camera Actions](actions#camera-actions) for the full control summary.
+The geometry editor can be used in 2D, orbit, isometric, and first-person camera modes. In **FirstP** mode, hold the right mouse button and use `WASD` to fly, then release the right mouse button or press `Escape` to return to normal editing. `Space` is only a touchpad fallback for the older pointer-from-center fly mode. See [Camera Actions](actions#camera-actions) for the full control summary.
 
 To the right of the screen you see the **project tree** which lists all editable items of your project, like **regions**, **characters** and more. Below the **project tree** are the settings of the currently selected **action** and beneath that the minimap of the current content. The minimap automatically adjusts to the current context (regions, tiles).
 

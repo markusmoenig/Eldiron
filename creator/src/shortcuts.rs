@@ -164,7 +164,8 @@ impl ShortcutResolver {
                     && !context.has_geometry_vertices
                     && !context.has_surface_detail
             }
-            'X' | 'M' | 'L' => context.has_geometry_vertices,
+            'X' | 'M' => context.has_geometry_vertices,
+            'L' => context.has_geometry_vertices || context.has_surface_detail,
             'F' => context.current_tool == MapToolType::Vertex && context.has_geometry_vertices,
             'T' => context.has_geometry_faces || context.has_geometry_objects,
             _ => false,
@@ -217,6 +218,18 @@ mod tests {
 
         assert_eq!(
             ShortcutResolver::default().resolve('f', context),
+            Some(ShortcutResolution::PreserveInTool)
+        );
+    }
+
+    #[test]
+    fn surface_detail_expand_preserves_l_in_tool() {
+        let mut context = ctx();
+        context.current_tool = MapToolType::Linedef;
+        context.has_surface_detail = true;
+
+        assert_eq!(
+            ShortcutResolver::default().resolve('l', context),
             Some(ShortcutResolution::PreserveInTool)
         );
     }

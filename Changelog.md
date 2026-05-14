@@ -7,11 +7,21 @@
 - Added a Geometry Object minimap path for 3D region editing, drawing a top-down XZ wire projection with selection highlights for objects, faces, edges, vertices, and surface-detail lines.
 - Extended 3D Geometry Objects with area metadata so named objects can act as gameplay areas for sector-style script destinations such as `goto`, `teleport`, and `random_walk_in_sector`, spawn object-linked items, and fade with **Hide in Iso**.
 - Improved **Create Box** in 3D edge mode so a selected floor edge can attach a wall box to the face below it, with wall thickness taken from the current grid step.
+- Added **Cut Profile** for selected 3D Geometry Objects, starting with centered crenellation/battlement cuts across the full object.
+- Added **Cut Stairs** for selected 3D Geometry Object faces, deriving a stair profile from one top face and one adjacent side face while keeping the result as a single object.
 - Added **Game / Shortcuts** for overriding editor shortcut bindings by stable action ID, with the 3D Object, Vertex, Edge, and Face tools defaulting to `O` / `V` / `E` / `F` while preserving in-tool commands such as vertex fill, edge-loop selection, object rotation, and tile application.
 - Restored the surface-detail drawing workflow so switching from a selected face to the Linedef / Edge Tool enters detail mode and lets clicks add surface points on that face.
+- Added **Create Pattern** for selected 3D faces, generating editable surface-line guide stamps such as discs, triangles, quads, lines, staggered brick grids, regular tile grids, and alternating comma-separated sequences that can later be used with Create Face, Create Cutout, Create Ridge, or Create Groove.
 - Added **Create Face** for closed 3D surface-detail loops, creating a new selectable coplanar face without cutting through the host object so drawn footprints can be extruded into new geometry.
+- Fixed surface-detail `L` expansion so selecting one point or segment of a stamped or drawn guide loop can select the whole connected surface-detail component.
 - Fixed leaving surface-detail mode so switching back to Face, Vertex, or Object mode returns to normal geometry selection instead of keeping detail-mode picking active.
 - Replaced the old Organic paint tool path with a **Surface Noise** action for selected 3D faces; the action exposes a `NOISE` HUD material slot for tile/color assignment and clearing, and noise is stored per face/evaluated from object/world-space coordinates so adjoining noisy faces can stay continuous around corners.
+
+## Bug Fixes
+
+### Game
+
+- Fixed the isometric game camera follow target so climbing stairs or elevated geometry keeps the player centered instead of drifting with height changes.
 
 ---
 

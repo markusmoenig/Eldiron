@@ -234,6 +234,19 @@ impl GeometryObjectBuilder {
         Some(normal)
     }
 
+    fn raw_face_normal(world_points: &[Vec3<f32>]) -> Option<Vec3<f32>> {
+        if world_points.len() < 3 {
+            return None;
+        }
+
+        let mut normal = Vec3::<f32>::zero();
+        for index in 1..world_points.len() - 1 {
+            normal += (world_points[index] - world_points[0])
+                .cross(world_points[index + 1] - world_points[0]);
+        }
+        normal.try_normalized()
+    }
+
     fn object_center(object: &crate::GeometryObject, bbox: crate::BBox) -> Vec3<f32> {
         let center = bbox.center();
         let mut min_y = f32::INFINITY;
@@ -363,19 +376,39 @@ impl GeometryObjectBuilder {
 
         let render_nudge = Self::face_render_nudge(world_points, object_center);
         let range = max_uv - min_uv;
+        let has_tile_overrides = !face.tiles.is_empty();
         let noise_cells = face
             .surface_noise
             .as_ref()
             .map(|noise| (noise.scale.max(1.0).sqrt() * 8.0).ceil().clamp(8.0, 128.0) as i32)
             .unwrap_or(1);
-        let cells_x = range.x.ceil().max(noise_cells as f32).max(1.0) as i32;
-        let cells_y = range.y.ceil().max(noise_cells as f32).max(1.0) as i32;
+        let cells_x = if has_tile_overrides {
+            range.x.ceil().max(1.0) as i32
+        } else {
+            range.x.ceil().max(noise_cells as f32).max(1.0) as i32
+        };
+        let cells_y = if has_tile_overrides {
+            range.y.ceil().max(1.0) as i32
+        } else {
+            range.y.ceil().max(noise_cells as f32).max(1.0) as i32
+        };
         for ty in 0..cells_y {
             for tx in 0..cells_x {
-                let x0 = min_uv.x + range.x * (tx as f32 / cells_x as f32);
-                let x1 = min_uv.x + range.x * ((tx + 1) as f32 / cells_x as f32);
-                let y0 = min_uv.y + range.y * (ty as f32 / cells_y as f32);
-                let y1 = min_uv.y + range.y * ((ty + 1) as f32 / cells_y as f32);
+                let (x0, x1, y0, y1, tile_x, tile_y) = if has_tile_overrides {
+                    let x0 = min_uv.x + tx as f32;
+                    let x1 = (x0 + 1.0).min(max_uv.x);
+                    let y0 = min_uv.y + ty as f32;
+                    let y1 = (y0 + 1.0).min(max_uv.y);
+                    (x0, x1, y0, y1, tx, ty)
+                } else {
+                    let x0 = min_uv.x + range.x * (tx as f32 / cells_x as f32);
+                    let x1 = min_uv.x + range.x * ((tx + 1) as f32 / cells_x as f32);
+                    let y0 = min_uv.y + range.y * (ty as f32 / cells_y as f32);
+                    let y1 = min_uv.y + range.y * ((ty + 1) as f32 / cells_y as f32);
+                    let tile_x = (x0 - min_uv.x).floor().max(0.0) as i32;
+                    let tile_y = (y0 - min_uv.y).floor().max(0.0) as i32;
+                    (x0, x1, y0, y1, tile_x, tile_y)
+                };
                 if x1 - x0 <= 1e-4 || y1 - y0 <= 1e-4 {
                     continue;
                 }
@@ -402,8 +435,6 @@ impl GeometryObjectBuilder {
                     continue;
                 }
 
-                let tile_x = (x0 - min_uv.x).floor().max(0.0) as i32;
-                let tile_y = (y0 - min_uv.y).floor().max(0.0) as i32;
                 let source = face.tiles.get(&(tile_x, tile_y)).or(face.tile.as_ref());
                 let tile_id = Self::face_tile_id(source, assets);
                 let noise_tile_id = face
@@ -600,6 +631,11 @@ impl ChunkBuilder for GeometryObjectBuilder {
             }
 
             let object_center = Self::object_center(object, object_bbox);
+            let object_min_y = object
+                .vertices
+                .iter()
+                .map(|vertex| object.transform_point(*vertex).y)
+                .fold(f32::INFINITY, f32::min);
             for face in &object.faces {
                 let Some(world_points) = Self::face_world_points(object, face) else {
                     continue;
@@ -613,19 +649,30 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 let Some(normal) = Self::face_normal(&world_points, object_center) else {
                     continue;
                 };
+                let raw_normal = Self::raw_face_normal(&world_points).unwrap_or(normal);
 
-                if normal.y >= 0.55 {
+                if normal.y >= 0.55 || raw_normal.y.abs() >= 0.55 {
                     let height = world_points.iter().map(|point| point.y).sum::<f32>()
                         / world_points.len() as f32;
+                    if height <= object_min_y + 1e-3 {
+                        continue;
+                    }
                     let polygon_2d = world_points
                         .iter()
                         .map(|point| Vec2::new(point.x, point.z))
                         .collect::<Vec<_>>();
+                    let floor_normal = if normal.y >= 0.55 {
+                        normal
+                    } else if raw_normal.y >= 0.0 {
+                        raw_normal
+                    } else {
+                        -raw_normal
+                    };
                     collision.walkable_floors.push(WalkableFloor::planar(
                         GeoId::GeometryObject(object.id),
                         height,
                         polygon_2d,
-                        normal,
+                        floor_normal,
                         world_points[0],
                     ));
                 } else if normal.y.abs() < 0.75 {
@@ -677,5 +724,50 @@ mod tests {
             .expect("geometry object should render");
         assert!(polys.len() > original_face_count);
         assert_eq!(map.geometry_objects[0].faces.len(), original_face_count);
+    }
+
+    #[test]
+    fn collision_keeps_inset_horizontal_geometry_faces_walkable() {
+        let mut object = crate::GeometryObject::new("StairLike");
+        let object_id = object.id;
+        object.vertices = vec![
+            Vec3::new(0.0, 0.5, 0.0),
+            Vec3::new(1.0, 0.5, 0.0),
+            Vec3::new(1.0, 0.5, 1.0),
+            Vec3::new(0.0, 0.5, 1.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 2.0, 0.0),
+        ];
+        object.faces = vec![crate::GeometryFace {
+            // This winding produces a raw downward normal. For concave/stepped
+            // objects, an outward-center flip would otherwise hide this tread
+            // from collision because it sits below the object's vertical center.
+            indices: vec![0, 1, 2, 3],
+            uvs: Vec::new(),
+            auto_uv: true,
+            texture_offset: Vec2::zero(),
+            texture_scale: Vec2::broadcast(1.0),
+            texture_rotation: 0.0,
+            tile: None,
+            tiles: Default::default(),
+            surface_points: Vec::new(),
+            surface_segments: Vec::new(),
+            surface_noise: None,
+        }];
+
+        let mut map = Map::default();
+        map.geometry_objects.push(object);
+
+        let assets = Assets::default();
+        let mut builder = GeometryObjectBuilder;
+        let collision = builder.build_collision(&map, &assets, Vec2::zero(), 16);
+
+        assert!(
+            collision
+                .walkable_floors
+                .iter()
+                .any(|floor| floor.geo_id == GeoId::GeometryObject(object_id)
+                    && (floor.height - 0.5).abs() < 1e-4)
+        );
     }
 }

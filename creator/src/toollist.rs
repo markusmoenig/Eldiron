@@ -1972,7 +1972,12 @@ impl ToolList {
                                     if let Some(op) = op {
                                         server_ctx.geometry_gizmo_op = op;
                                         self.update_geometry_overlay_3d(project, server_ctx);
-                                        RUSTERIX.write().unwrap().set_dirty();
+                                        {
+                                            let mut rusterix = RUSTERIX.write().unwrap();
+                                            rusterix.set_dirty();
+                                            rusterix.set_overlay_dirty();
+                                        }
+                                        ctx.ui.redraw_all = true;
                                         ctx.ui.send(TheEvent::SetStatusText(
                                             TheId::empty(),
                                             match op {
@@ -1984,7 +1989,7 @@ impl ToolList {
                                                 }
                                             },
                                         ));
-                                        return false;
+                                        return true;
                                     }
                                 }
 
@@ -2007,6 +2012,9 @@ impl ToolList {
                                 map.changed += 1;
                             }
                             self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
+                            if server_ctx.editor_view_mode != EditorViewMode::D2 {
+                                self.update_geometry_overlay_3d(project, server_ctx);
+                            }
                         }
 
                         if server_ctx.get_map_context() == MapContext::Region
@@ -4648,13 +4656,23 @@ impl ToolList {
                             .fold(Vec2::broadcast(f32::INFINITY), |acc, uv| {
                                 Vec2::new(acc.x.min(uv.x), acc.y.min(uv.y))
                             });
+                        let max_uv = points
+                            .iter()
+                            .map(|point| to_uv(*point))
+                            .fold(Vec2::broadcast(f32::NEG_INFINITY), |acc, uv| {
+                                Vec2::new(acc.x.max(uv.x), acc.y.max(uv.y))
+                            });
                         let tile = server_ctx.rect_tile_id_3d;
                         let tile_min = min_uv + Vec2::new(tile.0 as f32, tile.1 as f32);
+                        let tile_max = Vec2::new(
+                            (tile_min.x + 1.0).min(max_uv.x),
+                            (tile_min.y + 1.0).min(max_uv.y),
+                        );
                         let local_corners = [
                             from_uv(tile_min),
-                            from_uv(tile_min + Vec2::new(1.0, 0.0)),
-                            from_uv(tile_min + Vec2::new(1.0, 1.0)),
-                            from_uv(tile_min + Vec2::new(0.0, 1.0)),
+                            from_uv(Vec2::new(tile_max.x, tile_min.y)),
+                            from_uv(tile_max),
+                            from_uv(Vec2::new(tile_min.x, tile_max.y)),
                         ];
                         let world_corners =
                             local_corners.map(|point| object.transform_point(point) + view_nudge);

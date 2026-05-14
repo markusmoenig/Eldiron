@@ -848,12 +848,19 @@ impl Tool for LinedefTool {
                     self.surface_line_start = None;
                     map.curr_grid_pos_3d = None;
                     server_ctx.hover_cursor_3d = None;
-                    if expand_selected_surface_components(map) {
-                        RUSTERIX.write().unwrap().set_overlay_dirty();
+                    let has_surface_selection = !map.selected_geometry_surface_points.is_empty()
+                        || !map.selected_geometry_surface_segments.is_empty();
+                    if expand_selected_surface_components(map) || has_surface_selection {
+                        {
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            rusterix.set_dirty();
+                            rusterix.set_overlay_dirty();
+                        }
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
                         ));
+                        ctx.ui.redraw_all = true;
                         return None;
                     }
                 }
@@ -1014,7 +1021,13 @@ impl Tool for LinedefTool {
                         TheId::named("Map Selection Changed"),
                         TheValue::Empty,
                     ));
-                    RUSTERIX.write().unwrap().set_overlay_dirty();
+                    {
+                        let mut rusterix = RUSTERIX.write().unwrap();
+                        rusterix.set_dirty();
+                        rusterix.set_overlay_dirty();
+                    }
+                    ctx.ui.redraw_all = true;
+                    self.click_selected = true;
                     return None;
                 }
 
