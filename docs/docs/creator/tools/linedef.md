@@ -3,7 +3,7 @@ title: "Linedef / Edge Tool"
 sidebar_position: 4
 ---
 
-The **Linedef / Edge Tool** (keyboard shortcut **'L'**) allows you to **select, edit, and create linedefs** in 2D maps and **select/edit edges** on direct 3D geometry objects.
+The **Linedef / Edge Tool** (3D keyboard shortcut **'E'**) allows you to **select, edit, and create linedefs** in 2D maps and **select/edit edges** on direct 3D geometry objects.
 
 In 2D views it works with **linedefs** and includes **creation modes** for quickly building map geometry (sectors).
 
@@ -44,11 +44,12 @@ Click an existing surface-line point or segment to select just that point or seg
 
 Press **Cmd/Ctrl + Shift + C** with surface-line segments selected to set them to straight lines or configurable arcs. You can also select two points on the same connected guide to curve the shortest path between them, which makes arch and rounded-detail guides possible without adding one-off arch tools. Positive and negative amounts bend the arc in opposite directions.
 
-When the selected shape is a closed loop, the status bar shows that **Create Cutout** is available. Open or closed selected shapes can be used for **Create Ridge** and **Create Groove**.
+When the selected shape is a closed loop, the status bar shows that **Create Cutout** and **Create Face** are available. Open or closed selected shapes can be used for **Create Ridge** and **Create Groove**.
 
 Surface lines are editor geometry attached to the face. They do not cut or deform the mesh by themselves. Use actions to commit selected lines into real geometry:
 
 - **Create Cutout** converts selected closed loops into openings through the host object. The action uses the loop shapes, rebuilds the front and opposite faces around them, and creates reveal faces through the thickness.
+- **Create Face** converts selected closed loops into new selectable faces on the host object without cutting through it.
 - **Create Ridge** converts selected surface lines into persistent raised geometry.
 - **Create Groove** converts selected surface lines into persistent recessed geometry.
 - **Duplicate Surface Detail** duplicates the selected guide shape on the same face with face-local offsets.

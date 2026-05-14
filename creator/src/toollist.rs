@@ -1,6 +1,7 @@
 use crate::actions::geometry_face_ops::surface_segment_points;
 use crate::editor::{DOCKMANAGER, RUSTERIX, SCENEMANAGER, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
+use crate::shortcuts::{ShortcutAction, ShortcutContext, ShortcutResolution, ShortcutResolver};
 use crate::sidebar::SidebarMode;
 pub use crate::tools::rect::RectTool;
 use rusterix::Assets;
@@ -59,6 +60,71 @@ impl ToolList {
     const TEXT_PLAY_BUTTON_NAME: &'static str = "Text Play";
     const PALETTE_BUTTON_NAME: &'static str = "Palette Mode";
     const GRID_SUBDIVISIONS: [f32; 6] = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0];
+
+    fn shortcut_context(map: Option<&Map>, server_ctx: &ServerContext) -> ShortcutContext {
+        ShortcutContext {
+            editor_view_mode: server_ctx.editor_view_mode,
+            current_tool: server_ctx.curr_map_tool_type,
+            has_geometry_objects: map
+                .map(|map| !map.selected_geometry_objects.is_empty())
+                .unwrap_or(false),
+            has_geometry_vertices: map
+                .map(|map| !map.selected_geometry_vertices.is_empty())
+                .unwrap_or(false),
+            has_geometry_faces: map
+                .map(|map| !map.selected_geometry_faces.is_empty())
+                .unwrap_or(false),
+            has_surface_detail: map
+                .map(|map| {
+                    !map.selected_geometry_surface_points.is_empty()
+                        || !map.selected_geometry_surface_segments.is_empty()
+                })
+                .unwrap_or(false),
+        }
+    }
+
+    fn shortcut_tool_name(action: ShortcutAction) -> &'static str {
+        match action {
+            ShortcutAction::ToolObject => "Object Tool",
+            ShortcutAction::ToolVertex => "Vertex Tool",
+            ShortcutAction::ToolEdge => "Linedef / Edge Tool",
+            ShortcutAction::ToolFace => "Sector / Face Tool",
+        }
+    }
+
+    fn shortcut_tool_uuid(&self, action: ShortcutAction) -> Option<Uuid> {
+        let tool_name = Self::shortcut_tool_name(action);
+        self.game_tools
+            .iter()
+            .find(|tool| tool.id().name == tool_name)
+            .map(|tool| tool.id().uuid)
+    }
+
+    fn set_tool_widget_state_by_uuid(&mut self, uuid: Uuid, ctx: &mut TheContext) {
+        if self.editor_mode {
+            if self.curr_editor_tool < self.editor_tools.len() {
+                ctx.ui.set_widget_state(
+                    self.editor_tools[self.curr_editor_tool].id().name,
+                    TheWidgetState::None,
+                );
+            }
+            if let Some(tool) = self.editor_tools.iter().find(|tool| tool.id().uuid == uuid) {
+                ctx.ui
+                    .set_widget_state(tool.id().name, TheWidgetState::Selected);
+            }
+        } else {
+            if self.curr_game_tool < self.game_tools.len() {
+                ctx.ui.set_widget_state(
+                    self.game_tools[self.curr_game_tool].id().name,
+                    TheWidgetState::None,
+                );
+            }
+            if let Some(tool) = self.game_tools.iter().find(|tool| tool.id().uuid == uuid) {
+                ctx.ui
+                    .set_widget_state(tool.id().name, TheWidgetState::Selected);
+            }
+        }
+    }
 
     fn grid_subdivision_from_key(c: char) -> Option<f32> {
         match c {
@@ -1822,6 +1888,22 @@ impl ToolList {
                 let text_input_focused =
                     ui.focus_widget_supports_text_input(ctx) && !polyview_focused;
                 let plain_key = !ui.ctrl && !ui.logo && !ui.alt;
+                let shortcut_resolution = if plain_key
+                    && polyview_focused
+                    && !text_input_focused
+                    && !server_ctx.game_input_mode
+                    && !server_ctx.text_game_mode
+                    && !self.editor_mode
+                    && self.get_current_tool().id().name != "Game Tool"
+                    && !server_ctx.game_mode
+                {
+                    let shortcut_context =
+                        Self::shortcut_context(project.get_map(server_ctx), server_ctx);
+                    ShortcutResolver::from_toml(&project.shortcuts).resolve(*c, shortcut_context)
+                } else {
+                    None
+                };
+                let suppress_tool_accel = shortcut_resolution.is_some();
 
                 let preserve_geometry_object_shortcut = plain_key
                     && polyview_focused
@@ -1837,6 +1919,7 @@ impl ToolList {
                     && !server_ctx.game_input_mode
                     && !server_ctx.text_game_mode
                     && !preserve_geometry_object_shortcut
+                    && !suppress_tool_accel
                 {
                     let mut tool_uuid = None;
                     if self.editor_mode {
@@ -1874,6 +1957,13 @@ impl ToolList {
                     }
 
                     if let Some(uuid) = tool_uuid {
+                        return self.set_tool(uuid, ui, ctx, project, server_ctx);
+                    }
+                }
+
+                if let Some(ShortcutResolution::Run(action)) = shortcut_resolution {
+                    if let Some(uuid) = self.shortcut_tool_uuid(action) {
+                        self.set_tool_widget_state_by_uuid(uuid, ctx);
                         return self.set_tool(uuid, ui, ctx, project, server_ctx);
                     }
                 }
@@ -2012,6 +2102,7 @@ impl ToolList {
                     || ui.alt
                     || server_ctx.game_input_mode
                     || preserve_geometry_object_shortcut
+                    || suppress_tool_accel
                 {
                     acc = false;
                 }
@@ -3109,6 +3200,17 @@ impl ToolList {
                 && previous_geometry_selection
                     .as_ref()
                     .is_some_and(|snapshot| !snapshot.faces.is_empty());
+            if switched_tool && server_ctx.editor_view_mode != EditorViewMode::D2 {
+                if preserve_surface_detail_host {
+                    server_ctx.geometry_edit_mode = GeometryEditMode::Detail;
+                } else {
+                    server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
+                    server_ctx.editing_surface = None;
+                    server_ctx.editing_surface_hit_pos = None;
+                    server_ctx.active_detail_surface = None;
+                }
+                RUSTERIX.write().unwrap().set_overlay_dirty();
+            }
             if switched_tool
                 && server_ctx.editor_view_mode != EditorViewMode::D2
                 && !preserve_surface_detail_host

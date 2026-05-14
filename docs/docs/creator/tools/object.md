@@ -3,7 +3,7 @@ title: "Object Tool"
 sidebar_position: 2
 ---
 
-The **Object Tool** (keyboard shortcut **`G`**) selects and edits direct 3D geometry objects.
+The **Object Tool** (3D keyboard shortcut **`O`**) selects and edits direct 3D geometry objects.
 
 It is the main tool for the new 3D editing workflow. Use it to select whole geometry objects, move them, resize them, duplicate them, and switch between object-level movement and sizing.
 
@@ -34,6 +34,7 @@ Object movement and resizing use the current grid snap step. When multiple objec
 
 - **Create Box**: Creates a new geometry box.
 - **Create Box with a selected face**: Attaches a box to that face. The new box matches the face size on the in-plane axes and uses the action's remaining size parameter as thickness.
+- **Create Box with a selected floor edge**: Finds the face below the selected edge and attaches a wall box to that face. The wall thickness follows the current grid step, even if Create Box remembers a different size from an earlier use.
 - **Edit Geometry**: Sets exact object bounds, object visibility, mesh-collision solidity, an optional group label, and 3D area metadata. Solid objects feed their walkable face planes and vertical side barriers into mesh collision. Named area objects can be used as sector-style script destinations, and **Hide in Iso** fades the object out while the player is inside its area in isometric gameplay.
 - **Duplicate**: Duplicate the current object selection with XYZ offsets.
 - **Cmd / Ctrl + D**: Duplicate the current selection.
@@ -44,11 +45,13 @@ Duplicate remembers the last 3D object offset so repeated duplication can be use
 
 The existing map tools become direct geometry sub-object tools in 3D:
 
-- **Sector / Face Tool (`E`)**: Select and edit faces.
-- **Linedef / Edge Tool (`L`)**: Select and edit edges, and draw surface lines on selected faces.
+- **Sector / Face Tool (`F`)**: Select and edit faces.
+- **Linedef / Edge Tool (`E`)**: Select and edit edges, and draw surface lines on selected faces.
 - **Vertex Tool (`V`)**: Select and edit vertices.
 
 Those tools keep their normal 2D behavior when the editor is in 2D view.
+
+In 3D, the shortcut resolver keeps selected-geometry commands ahead of tool switching. For example, **F** still fills selected vertices, **L** still expands selected edges or surface-detail segments, **R** still rotates selected objects, and **T** still applies the current tile source. Defaults can be changed from **Game / Shortcuts**.
 
 In 3D, switching tools carries the current selection into the new selection mode. Selected objects become all faces, edges, or vertices on those objects. Selected faces become their boundary vertices when switching to the Vertex Tool. Switching a selected face to the Linedef / Edge Tool keeps the face as the surface-line drawing host. Switching back to the Object Tool keeps the owning objects selected.
 

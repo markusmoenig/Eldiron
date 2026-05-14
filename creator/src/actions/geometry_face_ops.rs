@@ -2099,6 +2099,11 @@ fn ordered_surface_loop_points(
         points.extend(segment_points);
     }
     points.dedup_by(|a, b| (*a - *b).magnitude_squared() <= 0.0001);
+    if points.len() >= 2
+        && (points[0] - points[points.len().saturating_sub(1)]).magnitude_squared() <= 0.0001
+    {
+        points.pop();
+    }
     if points.len() < 3 {
         return None;
     }
@@ -2544,6 +2549,79 @@ pub(crate) fn cutout_selected_surface_loop(map: &mut Map) -> bool {
             map.selected_geometry_faces = new_selected_faces;
         }
         map.selected_geometry_vertices.clear();
+        sanitize_geometry_selection(map);
+    }
+    changed
+}
+
+pub(crate) fn create_face_from_selected_surface_loop(map: &mut Map) -> bool {
+    if map.selected_geometry_surface_segments.is_empty()
+        && map.selected_geometry_surface_points.is_empty()
+    {
+        return false;
+    }
+
+    let selected_segments = map.selected_geometry_surface_segments.clone();
+    let selected_points = map.selected_geometry_surface_points.clone();
+    let mut new_selected_faces = Vec::new();
+    let mut changed = false;
+
+    for object in &mut map.geometry_objects {
+        let snapshot = object.clone();
+        for (face_index, face) in snapshot.faces.iter().enumerate() {
+            let segment_indices = selected_surface_segments_for_face(
+                &selected_segments,
+                &selected_points,
+                snapshot.id,
+                face_index,
+                face,
+            );
+            if segment_indices.is_empty() {
+                continue;
+            }
+
+            let loop_segments = selected_segments
+                .iter()
+                .filter_map(|(selected_object_id, selected_face_index, segment_index)| {
+                    (*selected_object_id == snapshot.id && *selected_face_index == face_index)
+                        .then_some(*segment_index)
+                })
+                .collect::<BTreeSet<_>>();
+            let mut loops = ordered_surface_loop_components(face, &loop_segments);
+            if loops.is_empty() {
+                loops = ordered_surface_loop_components(face, &segment_indices);
+            }
+            if loops.is_empty() {
+                continue;
+            }
+
+            let desired_normal =
+                local_face_normal(&snapshot, face).unwrap_or_else(|| Vec3::new(0.0, 1.0, 0.0));
+            for loop_points in loops {
+                if loop_points.len() < 3 {
+                    continue;
+                }
+                let indices = loop_points
+                    .iter()
+                    .map(|point| {
+                        let index = object.vertices.len();
+                        object.vertices.push(*point);
+                        index
+                    })
+                    .collect::<Vec<_>>();
+                let new_face_index =
+                    push_geometry_face_with_normal(object, face, indices, desired_normal);
+                new_selected_faces.push((object.id, new_face_index));
+                changed = true;
+            }
+        }
+    }
+
+    if changed {
+        map.selected_geometry_faces = new_selected_faces;
+        map.selected_geometry_vertices.clear();
+        map.selected_geometry_surface_points.clear();
+        map.selected_geometry_surface_segments.clear();
         sanitize_geometry_selection(map);
     }
     changed
@@ -3218,6 +3296,60 @@ mod tests {
         assert!(cutout_selected_surface_loop(&mut map));
         assert!(!bottom_cap_overlaps(&map.geometry_objects[0], &first_hole));
         assert!(!bottom_cap_overlaps(&map.geometry_objects[0], &second_hole));
+    }
+
+    #[test]
+    fn create_surface_face_adds_selected_coplanar_face_without_cutout() {
+        let mut map = Map::new();
+        let object = rusterix::GeometryObject::box_from_bounds(
+            "floor",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.5, 4.0),
+        );
+        let top_face_index = object
+            .faces
+            .iter()
+            .position(|face| {
+                local_face_normal(&object, face)
+                    .map(|normal| normal.y > 0.9)
+                    .unwrap_or(false)
+            })
+            .expect("box should have a top face");
+        let object_id = object.id;
+        let original_face_count = object.faces.len();
+        let original_vertex_count = object.vertices.len();
+        map.geometry_objects.push(object);
+
+        let guide = vec![
+            Vec3::new(0.5, 0.5, 0.5),
+            Vec3::new(2.5, 0.5, 0.5),
+            Vec3::new(2.5, 0.5, 1.0),
+            Vec3::new(0.5, 0.5, 1.0),
+        ];
+        add_surface_loop(&mut map, 0, top_face_index, &guide);
+
+        assert!(create_face_from_selected_surface_loop(&mut map));
+
+        let object = &map.geometry_objects[0];
+        assert_eq!(object.faces.len(), original_face_count + 1);
+        assert_eq!(object.vertices.len(), original_vertex_count + guide.len());
+        assert_eq!(
+            map.selected_geometry_faces,
+            vec![(object_id, original_face_count)]
+        );
+        assert!(map.selected_geometry_surface_points.is_empty());
+        assert!(map.selected_geometry_surface_segments.is_empty());
+
+        let new_face = &object.faces[original_face_count];
+        assert_eq!(new_face.indices.len(), guide.len());
+        for vertex_index in &new_face.indices {
+            let vertex = object.vertices[*vertex_index];
+            assert!(
+                guide
+                    .iter()
+                    .any(|expected| (*expected - vertex).magnitude_squared() <= 0.0001)
+            );
+        }
     }
 
     #[test]

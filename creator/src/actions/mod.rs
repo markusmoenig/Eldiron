@@ -554,6 +554,7 @@ pub mod create_geometry_box;
 pub mod create_linedef;
 pub mod create_ridge;
 pub mod create_sector;
+pub mod create_surface_face;
 pub mod duplicate;
 pub mod duplicate_surface_detail;
 pub mod duplicate_tile;

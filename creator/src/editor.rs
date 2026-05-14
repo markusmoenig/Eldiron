@@ -1036,7 +1036,9 @@ impl Editor {
             ProjectContext::ProjectSettings => "docs/configuration/game".to_string(),
             ProjectContext::GameRules | ProjectContext::GameLocales => "docs/rules".to_string(),
             ProjectContext::GameAudioFx => "docs/audio".to_string(),
-            ProjectContext::GameAuthoring => "docs/creator/tools/overview".to_string(),
+            ProjectContext::GameAuthoring | ProjectContext::GameShortcuts => {
+                "docs/creator/tools/overview".to_string()
+            }
             ProjectContext::RegionSettings(_) => "docs/building_maps/region_settings".to_string(),
             ProjectContext::CharacterPreviewRigging(_) => "docs/characters_items/rigging".into(),
             ProjectContext::Character(_)

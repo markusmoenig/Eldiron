@@ -3,11 +3,13 @@ title: "Sector / Face Tool"
 sidebar_position: 5
 ---
 
-The **Sector / Face Tool** (keyboard shortcut **'E'**) selects and edits sectors in 2D views and direct geometry faces in 3D views.
+The **Sector / Face Tool** (3D keyboard shortcut **'F'**) selects and edits sectors in 2D views and direct geometry faces in 3D views.
 
 In 2D, it is specifically designed for working with **sectors only**. Unlike the **Linedef / Edge Tool**, it does not include a creation mode, as sectors are automatically formed when a closed shape is created.
 
 In 3D, it selects faces on direct geometry objects.
+
+In 3D, **F** switches to face selection when there is no selected vertex boundary to fill. With selected vertices, **F** keeps its in-tool fill behavior.
 
 ## Selection Modes
 

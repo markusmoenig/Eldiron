@@ -24,6 +24,7 @@ impl ActionList {
             Box::new(crate::actions::create_center_vertex::CreateCenterVertex::new()),
             Box::new(crate::actions::create_geometry_box::CreateGeometryBox::new()),
             Box::new(crate::actions::face_cut_opening::CreateCutout::new()),
+            Box::new(crate::actions::create_surface_face::CreateSurfaceFace::new()),
             Box::new(crate::actions::create_ridge::CreateGroove::new()),
             Box::new(crate::actions::create_linedef::CreateLinedef::new()),
             Box::new(crate::actions::create_ridge::CreateRidge::new()),

@@ -6,6 +6,11 @@
 
 - Added a Geometry Object minimap path for 3D region editing, drawing a top-down XZ wire projection with selection highlights for objects, faces, edges, vertices, and surface-detail lines.
 - Extended 3D Geometry Objects with area metadata so named objects can act as gameplay areas for sector-style script destinations such as `goto`, `teleport`, and `random_walk_in_sector`, spawn object-linked items, and fade with **Hide in Iso**.
+- Improved **Create Box** in 3D edge mode so a selected floor edge can attach a wall box to the face below it, with wall thickness taken from the current grid step.
+- Added **Game / Shortcuts** for overriding editor shortcut bindings by stable action ID, with the 3D Object, Vertex, Edge, and Face tools defaulting to `O` / `V` / `E` / `F` while preserving in-tool commands such as vertex fill, edge-loop selection, object rotation, and tile application.
+- Restored the surface-detail drawing workflow so switching from a selected face to the Linedef / Edge Tool enters detail mode and lets clicks add surface points on that face.
+- Added **Create Face** for closed 3D surface-detail loops, creating a new selectable coplanar face without cutting through the host object so drawn footprints can be extruded into new geometry.
+- Fixed leaving surface-detail mode so switching back to Face, Vertex, or Object mode returns to normal geometry selection instead of keeping detail-mode picking active.
 
 ---
 

@@ -21,6 +21,7 @@ pub mod misc;
     any(target_os = "windows", target_os = "linux", target_os = "macos")
 ))]
 pub mod self_update;
+pub mod shortcuts;
 pub mod sidebar;
 pub mod textplay;
 pub mod toollist;

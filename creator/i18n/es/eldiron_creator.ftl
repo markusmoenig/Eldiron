@@ -49,6 +49,9 @@ status_help_button = Haz clic en cualquier elemento de la UI para visitar la Doc
 status_create_cutout_failed = Crear recorte necesita al menos tres puntos de línea de superficie seleccionados en una cara 3D.
 status_create_cutout_open_loop = Crear recorte necesita bucles cerrados de líneas de superficie. Termina o cierra primero la guía seleccionada.
 status_create_cutout_multiple_faces = Crear recorte actualmente necesita todos los bucles guía seleccionados en una sola superficie anfitriona.
+status_create_surface_face_failed = Crear cara necesita al menos tres puntos de línea de superficie seleccionados en una cara 3D.
+status_create_surface_face_open_loop = Crear cara necesita bucles cerrados de líneas de superficie. Termina o cierra primero la guía seleccionada.
+status_create_surface_face_multiple_faces = Crear cara actualmente necesita todos los bucles guía seleccionados en una sola superficie anfitriona.
 status_editor_preview_post_on = Vista previa de posprocesado del editor activada.
 status_editor_preview_post_off = Vista previa de posprocesado del editor desactivada.
 status_editor_preview_lighting_on = Vista previa de iluminación del editor activada.
@@ -106,6 +109,8 @@ action_create_linedef = Crear linedef
 action_create_linedef_desc = Crea una nueva linedef entre dos vértices.
 action_create_cutout = Crear recorte
 action_create_cutout_desc = Corta una abertura desde el bucle cerrado de líneas de superficie 3D seleccionado a través del objeto.
+action_create_surface_face = Crear cara
+action_create_surface_face_desc = Crea una nueva cara 3D seleccionable desde el bucle cerrado de líneas de superficie seleccionado sin cortar a través del objeto anfitrión.
 action_create_groove = Crear ranura
 action_create_groove_desc = Convierte las líneas de superficie 3D seleccionadas en geometría hundida persistente.
 action_create_ridge = Crear relieve
@@ -113,7 +118,7 @@ action_create_ridge_desc = Convierte las líneas de superficie 3D seleccionadas 
 action_create_sector = Crear sector
 action_create_sector_desc = Crea un nuevo sector/superficie a partir de los vértices seleccionados. Deben formar un bucle cerrado (lo ordenamos automáticamente).
 action_create_geometry_box = Crear caja
-action_create_geometry_box_desc = Crea un objeto de caja 3D editable directamente.
+action_create_geometry_box_desc = Crea un objeto de caja 3D editable directamente o lo adjunta a una cara o borde de suelo seleccionado.
 action_duplicate_tile = Duplicar baldosa
 action_duplicate_tile_desc = Duplica la baldosa actualmente seleccionada.
 action_duplicate_surface_detail = Duplicar detalle de superficie
@@ -204,10 +209,10 @@ action_remap_tile_desc = Remapea los colores de la baldosa a la paleta
 
 # Tools
 tool_game = Herramienta de juego (K). Si el servidor está en marcha, los eventos de entrada se envían al juego.
-tool_linedef = Herramienta de linedef / arista (L). Crear definiciones de línea 2D y editar aristas de geometría 3D.
-tool_object = Herramienta de objeto (G). Selecciona y mueve objetos 3D editables directamente.
+tool_linedef = Herramienta de linedef / arista (E). Crear definiciones de línea 2D y editar aristas de geometría 3D.
+tool_object = Herramienta de objeto (O). Selecciona y mueve objetos 3D editables directamente.
 tool_rect = Herramienta de rectángulo (R). Clic para dibujar la baldosa actual. Shift-clic para borrar. Alt/Opt-clic para tomarla del mapa.
-tool_sector = Herramienta de sector / cara (E). Selecciona sectores en 2D o caras en 3D.
+tool_sector = Herramienta de sector / cara (F). Selecciona sectores en 2D o caras en 3D.
 tool_vertex = Herramienta de vértice (V). 'Shift' + clic para crear un nuevo vértice.
 tool_entity = Herramienta de entidad (Y). Coloca, mueve, selecciona y elimina entidades del juego.
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
@@ -215,13 +220,13 @@ hud_geometry_op_move = MOVE
 hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Operación del gizmo de objeto: mover (M).
 status_hud_geometry_op_size = Operación del gizmo de objeto: redimensionar (S).
-status_geometry_empty_selection = Selección 3D: G = Objeto, E = Cara, V = Vértice, L = Arista.
+status_geometry_empty_selection = Selección 3D: O = Objeto, F = Cara, V = Vértice, E = Arista.
 status_geometry_object_selection = Objeto seleccionado: M = Mover, S = Tamaño, R = rotar Y, Shift+R = rotar Z.
 status_geometry_face_selection = Cara seleccionada: +/- = Empujar/Tirar, [] = Subir/Bajar, Delete = Eliminar.
 status_geometry_vertex_selection = Vértice seleccionado: F = Rellenar, X = Dividir arista, M = Fusionar, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.
 status_geometry_edge_selection = Arista seleccionada: F = Rellenar, X = Dividir arista, M = Fusionar, L = Bucle de aristas, [] = Subir/Bajar, Delete = Eliminar.
 status_geometry_surface_selection = Detalle de superficie seleccionado: Shift = añadir, Alt = quitar, L = guía conectada.
-status_geometry_surface_loop_selection = Detalle de superficie cerrado seleccionado: Shift = añadir, Alt = quitar, L = guía conectada.
+status_geometry_surface_loop_selection = Detalle de superficie cerrado seleccionado: Crear cara/recorte disponible, Shift = añadir, Alt = quitar, L = guía conectada.
 organic_dock_title = Pinceles orgánicos
 organic_toggle_active = Activo
 organic_toggle_deactive = Desactivo

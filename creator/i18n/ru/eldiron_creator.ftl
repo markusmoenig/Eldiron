@@ -49,6 +49,9 @@ status_help_button = Нажмите любой элемент интерфейс
 status_create_cutout_failed = Для выреза нужно выбрать минимум три точки линии поверхности на одной 3D-грани.
 status_create_cutout_open_loop = Для выреза нужны замкнутые контуры линий поверхности. Сначала завершите или замкните выбранную направляющую.
 status_create_cutout_multiple_faces = Для выреза пока нужны все выбранные направляющие контуры на одной базовой поверхности.
+status_create_surface_face_failed = Для создания грани нужно выбрать минимум три точки линии поверхности на одной 3D-грани.
+status_create_surface_face_open_loop = Для создания грани нужны замкнутые контуры линий поверхности. Сначала завершите или замкните выбранную направляющую.
+status_create_surface_face_multiple_faces = Для создания грани пока нужны все выбранные направляющие контуры на одной базовой поверхности.
 status_editor_preview_post_on = Предпросмотр постобработки в редакторе включен.
 status_editor_preview_post_off = Предпросмотр постобработки в редакторе выключен.
 status_editor_preview_lighting_on = Предпросмотр освещения в редакторе включен.
@@ -106,6 +109,8 @@ action_create_linedef = Создать линедеф
 action_create_linedef_desc = Создает новый линедеф между двумя вершинами.
 action_create_cutout = Создать вырез
 action_create_cutout_desc = Вырезает отверстие по выбранному замкнутому контуру 3D-линий поверхности через объект.
+action_create_surface_face = Создать грань
+action_create_surface_face_desc = Создает новую выбираемую 3D-грань из выбранного замкнутого контура линий поверхности, не прорезая базовый объект.
 action_create_groove = Создать канавку
 action_create_groove_desc = Преобразует выбранные 3D-линии поверхности в постоянную углубленную геометрию.
 action_create_ridge = Создать выступ
@@ -113,7 +118,7 @@ action_create_ridge_desc = Преобразует выбранные 3D-лини
 action_create_sector = Создать сектор
 action_create_sector_desc = Создает новый сектор / поверхность из выбранных вершин. Вершины должны образовывать замкнутую петлю (мы упорядочим их автоматически).
 action_create_geometry_box = Создать коробку
-action_create_geometry_box_desc = Создает напрямую редактируемый 3D-объект-коробку.
+action_create_geometry_box_desc = Создает напрямую редактируемый 3D-объект-коробку или присоединяет его к выбранной грани или ребру пола.
 action_duplicate_tile = Дублировать тайл
 action_duplicate_tile_desc = Дублирует выбранный тайл.
 action_duplicate_surface_detail = Дублировать деталь поверхности
@@ -204,10 +209,10 @@ action_remap_tile_desc = Перекодирует цвета тайла согл
 
 # Tools
 tool_game = Инструмент игры (K). Если сервер запущен, события ввода отправляются в игру.
-tool_linedef = Инструмент линедефов / ребер (L). Создание 2D-линий и редактирование ребер 3D-геометрии.
-tool_object = Инструмент объектов (G). Выбирайте и перемещайте напрямую редактируемые 3D-объекты.
+tool_linedef = Инструмент линедефов / ребер (E). Создание 2D-линий и редактирование ребер 3D-геометрии.
+tool_object = Инструмент объектов (O). Выбирайте и перемещайте напрямую редактируемые 3D-объекты.
 tool_rect = Инструмент прямоугольников (R). Клик — рисует текущий тайл. Shift-клик — удаляет. Alt/Opt-клик — взять тайл с карты.
-tool_sector = Инструмент секторов / граней (E). Выбирает секторы в 2D или грани в 3D.
+tool_sector = Инструмент секторов / граней (F). Выбирает секторы в 2D или грани в 3D.
 tool_vertex = Инструмент вершин (V). Shift + клик — создать новую вершину.
 tool_entity = Инструмент сущностей (Y). Размещайте, перемещайте, выделяйте и удаляйте игровые сущности.
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
@@ -215,13 +220,13 @@ hud_geometry_op_move = MOVE
 hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Операция гизмо объекта: перемещение (M).
 status_hud_geometry_op_size = Операция гизмо объекта: изменение размера (S).
-status_geometry_empty_selection = 3D-выбор: G = объект, E = грань, V = вершина, L = ребро.
+status_geometry_empty_selection = 3D-выбор: O = объект, F = грань, V = вершина, E = ребро.
 status_geometry_object_selection = Объект выбран: M = переместить, S = размер, R = поворот Y, Shift+R = поворот Z.
 status_geometry_face_selection = Грань выбрана: +/- = выдавить/вдавить, [] = вверх/вниз, Delete = удалить.
 status_geometry_vertex_selection = Вершина выбрана: F = заполнить, X = разделить ребро, M = объединить, L = петля ребер, [] = вверх/вниз, Delete = удалить.
 status_geometry_edge_selection = Ребро выбрано: F = заполнить, X = разделить ребро, M = объединить, L = петля ребер, [] = вверх/вниз, Delete = удалить.
 status_geometry_surface_selection = Деталь поверхности выбрана: Shift = добавить, Alt = убрать, L = связанный контур.
-status_geometry_surface_loop_selection = Замкнутая деталь поверхности выбрана: Shift = добавить, Alt = убрать, L = связанный контур.
+status_geometry_surface_loop_selection = Замкнутая деталь поверхности выбрана: доступны Создать грань/вырез, Shift = добавить, Alt = убрать, L = связанный контур.
 organic_dock_title = Органические кисти
 organic_toggle_active = Активно
 organic_toggle_deactive = Неактивно

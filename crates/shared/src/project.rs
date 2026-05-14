@@ -32,6 +32,18 @@ fn default_authoring() -> String {
     String::new()
 }
 
+fn default_shortcuts() -> String {
+    r#"# Override editor shortcuts by stable action id.
+# Values are single keys and are matched case-insensitively.
+[shortcuts]
+"tool.object" = "O"
+"tool.vertex" = "V"
+"tool.edge" = "E"
+"tool.face" = "F"
+"#
+    .to_string()
+}
+
 fn default_world_module() -> Module {
     Module::as_type(codegridfx::ModuleType::World)
 }
@@ -424,6 +436,9 @@ pub struct Project {
     #[serde(default = "default_authoring")]
     pub authoring: String,
 
+    #[serde(default = "default_shortcuts")]
+    pub shortcuts: String,
+
     #[serde(default)]
     pub avatars: IndexMap<Uuid, Avatar>,
 
@@ -482,6 +497,7 @@ impl Project {
             locales: default_locales(),
             audio_fx: default_audio_fx(),
             authoring: default_authoring(),
+            shortcuts: default_shortcuts(),
         }
     }
 

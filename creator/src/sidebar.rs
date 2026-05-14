@@ -239,6 +239,11 @@ impl Sidebar {
         authoring_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
         config_node.add_widget(Box::new(authoring_item));
 
+        let mut shortcuts_item = TheTreeItem::new(TheId::named("Game Shortcuts"));
+        shortcuts_item.set_text("Shortcuts".to_string());
+        shortcuts_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        config_node.add_widget(Box::new(shortcuts_item));
+
         let mut debug_log_item = TheTreeItem::new(TheId::named("Debug Log"));
         debug_log_item.set_text(fl!("debug_log"));
         debug_log_item.set_background_color(TheColor::from(ActionRole::Editor.to_color()));
@@ -3193,6 +3198,15 @@ impl Sidebar {
                         project,
                         server_ctx,
                         ProjectContext::GameAuthoring,
+                    );
+                    redraw = true;
+                } else if id.name == "Game Shortcuts" {
+                    set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::GameShortcuts,
                     );
                     redraw = true;
                 } else if id.name == "Debug Log" {

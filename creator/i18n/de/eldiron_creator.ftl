@@ -49,6 +49,9 @@ status_help_button = Auf ein beliebiges UI-Element klicken, um die Eldiron-Onlin
 status_create_cutout_failed = Ausschnitt erstellen benötigt mindestens drei ausgewählte Oberflächenlinien-Punkte auf einer 3D-Fläche.
 status_create_cutout_open_loop = Ausschnitt erstellen benötigt geschlossene Oberflächenlinien-Loops. Die ausgewählte Hilfslinie zuerst beenden oder schließen.
 status_create_cutout_multiple_faces = Ausschnitt erstellen benötigt derzeit alle ausgewählten Hilfslinien-Loops auf einer Host-Oberfläche.
+status_create_surface_face_failed = Fläche erstellen benötigt mindestens drei ausgewählte Oberflächenlinien-Punkte auf einer 3D-Fläche.
+status_create_surface_face_open_loop = Fläche erstellen benötigt geschlossene Oberflächenlinien-Loops. Die ausgewählte Hilfslinie zuerst beenden oder schließen.
+status_create_surface_face_multiple_faces = Fläche erstellen benötigt derzeit alle ausgewählten Hilfslinien-Loops auf einer Host-Oberfläche.
 status_editor_preview_post_on = Editor-Postprocessing-Vorschau ein.
 status_editor_preview_post_off = Editor-Postprocessing-Vorschau aus.
 status_editor_preview_lighting_on = Editor-Beleuchtungsvorschau ein.
@@ -106,6 +109,8 @@ action_create_linedef = Linedef erstellen
 action_create_linedef_desc = Erstellt eine neue Linedef zwischen zwei Vertices.
 action_create_cutout = Ausschnitt erstellen
 action_create_cutout_desc = Schneidet aus dem ausgewählten geschlossenen 3D-Oberflächenlinien-Loop eine Öffnung durch das Objekt.
+action_create_surface_face = Fläche erstellen
+action_create_surface_face_desc = Erstellt aus dem ausgewählten geschlossenen Oberflächenlinien-Loop eine neue auswählbare 3D-Fläche, ohne durch das Host-Objekt zu schneiden.
 action_create_groove = Rille erstellen
 action_create_groove_desc = Wandelt ausgewählte 3D-Oberflächenlinien in dauerhaft vertiefte Rillen-Geometrie um.
 action_create_ridge = Grat erstellen
@@ -113,7 +118,7 @@ action_create_ridge_desc = Wandelt ausgewählte 3D-Oberflächenlinien in dauerha
 action_create_sector = Sektor erstellen
 action_create_sector_desc = Erstellt einen neuen Sektor / eine neue Fläche aus den ausgewählten Vertices. Die Vertices müssen einen geschlossenen Loop bilden (wird automatisch sortiert).
 action_create_geometry_box = Box erstellen
-action_create_geometry_box_desc = Erstellt ein direkt bearbeitbares 3D-Box-Objekt.
+action_create_geometry_box_desc = Erstellt ein direkt bearbeitbares 3D-Box-Objekt oder fügt es an eine ausgewählte Fläche oder Bodenkante an.
 action_duplicate_tile = Kachel duplizieren
 action_duplicate_tile_desc = Dupliziert die aktuell ausgewählte Kachel.
 action_duplicate_surface_detail = Oberflächendetail duplizieren
@@ -204,10 +209,10 @@ action_remap_tile_desc = Ordnet die Farben der Kachel der Palette zu
 
 # Tools
 tool_game = Spiel-Tool (K). Wenn der Server läuft, werden Eingabeereignisse an das Spiel gesendet.
-tool_linedef = Linedef- / Kanten-Tool (L). 2D-Liniendefinitionen erstellen und 3D-Geometriekanten bearbeiten.
-tool_object = Objekt-Tool (G). Direkt bearbeitbare 3D-Objekte auswählen und verschieben.
+tool_linedef = Linedef- / Kanten-Tool (E). 2D-Liniendefinitionen erstellen und 3D-Geometriekanten bearbeiten.
+tool_object = Objekt-Tool (O). Direkt bearbeitbare 3D-Objekte auswählen und verschieben.
 tool_rect = Rect-Tool (R). Klicken, um die aktuelle Kachel zu zeichnen. Shift-Klick zum Löschen. Alt/Opt-Klick zum Aufnehmen aus der Karte.
-tool_sector = Sektor-/Flächen-Tool (E). Wählt Sektoren in 2D oder Flächen in 3D.
+tool_sector = Sektor-/Flächen-Tool (F). Wählt Sektoren in 2D oder Flächen in 3D.
 tool_vertex = Vertex-Tool (V). 'Shift' + Klick erstellt einen neuen Vertex.
 tool_entity = Entity-Tool (Y). Spiel-Entitäten platzieren, verschieben, auswählen und löschen.
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
@@ -215,13 +220,13 @@ hud_geometry_op_move = MOVE
 hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Objekt-Gizmo-Operation: Verschieben (M).
 status_hud_geometry_op_size = Objekt-Gizmo-Operation: Größe ändern (S).
-status_geometry_empty_selection = 3D-Auswahl: G = Objekt, E = Fläche, V = Vertex, L = Kante.
+status_geometry_empty_selection = 3D-Auswahl: O = Objekt, F = Fläche, V = Vertex, E = Kante.
 status_geometry_object_selection = Objekt ausgewählt: M = Verschieben, S = Größe, R = Y drehen, Shift+R = Z drehen.
 status_geometry_face_selection = Fläche ausgewählt: +/- = Drücken/Ziehen, [] = Hoch/Runter, Delete = Löschen.
 status_geometry_vertex_selection = Vertex ausgewählt: F = Füllen, X = Kante teilen, M = Zusammenführen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
 status_geometry_edge_selection = Kante ausgewählt: F = Füllen, X = Kante teilen, M = Zusammenführen, L = Kanten-Loop, [] = Hoch/Runter, Delete = Löschen.
 status_geometry_surface_selection = Oberflächendetail ausgewählt: Shift = Hinzufügen, Alt = Entfernen, L = verbundener Guide.
-status_geometry_surface_loop_selection = Geschlossenes Oberflächendetail ausgewählt: Shift = Hinzufügen, Alt = Entfernen, L = verbundener Guide.
+status_geometry_surface_loop_selection = Geschlossenes Oberflächendetail ausgewählt: Fläche/Ausschnitt erstellen verfügbar, Shift = Hinzufügen, Alt = Entfernen, L = verbundener Guide.
 organic_dock_title = Organische Pinsel
 organic_toggle_active = Aktiv
 organic_toggle_deactive = Deaktiv

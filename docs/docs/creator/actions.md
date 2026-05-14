@@ -151,6 +151,12 @@ The host object needs an opposite face in the cut direction. If the object has o
 
 Create Cutout validates the selection before editing the object. All selected guide components must be closed loops on one host surface. Create Cutout keeps the selected surface-line loops as reusable guide geometry after the openings are created. The Linedef / Edge Tool can reselect those guides on the rebuilt surface ring, so the same host object can receive additional cutouts later. Delete the guides explicitly when they are no longer needed.
 
+### Create Face
+
+Convert one or more selected closed 3D surface-line loops into new selectable faces on the host geometry object without cutting through the object. This is useful for drawing a floor plan or footprint on an existing face, creating a coplanar face from it, then extruding that new face into walls, raised trim, platforms, or other connected blockout geometry.
+
+Create Face validates the same closed-loop selection as Create Cutout, but it does not rebuild the host face or create reveal geometry. The new face is selected after creation so it can be extruded immediately.
+
 ### Duplicate Surface Detail
 
 *Shortcut: Ctrl/Cmd + Shift + D*

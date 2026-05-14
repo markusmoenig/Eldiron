@@ -387,6 +387,7 @@ pub enum EntityKey {
     GameLocales,
     GameAudioFx,
     GameAuthoring,
+    GameShortcuts,
     ScreenWidget(Uuid, Uuid), // (screen_id, widget_id)
 }
 
@@ -598,6 +599,13 @@ impl Dock for DataDock {
                 TheValue::Text(project.authoring.clone()),
             );
             self.switch_to_entity(EntityKey::GameAuthoring, ctx);
+        } else if server_ctx.pc.is_game_shortcuts() {
+            ui.set_widget_value(
+                "DockDataEditor",
+                ctx,
+                TheValue::Text(project.shortcuts.clone()),
+            );
+            self.switch_to_entity(EntityKey::GameShortcuts, ctx);
         }
 
         self.sync_audio_fx_toolbar(ctx, server_ctx);
@@ -746,6 +754,11 @@ impl Dock for DataDock {
                     } else if server_ctx.pc.is_game_authoring() {
                         if let Some(code) = value.to_string() {
                             project.authoring = code;
+                            redraw = true;
+                        }
+                    } else if server_ctx.pc.is_game_shortcuts() {
+                        if let Some(code) = value.to_string() {
+                            project.shortcuts = code;
                             redraw = true;
                         }
                     }
@@ -1451,6 +1464,7 @@ impl DataDock {
                 | EntityKey::GameLocales
                 | EntityKey::GameAudioFx
                 | EntityKey::GameAuthoring
+                | EntityKey::GameShortcuts
         ) {
             return;
         }
@@ -1471,6 +1485,7 @@ impl DataDock {
             EntityKey::GameLocales => "Game / Locales",
             EntityKey::GameAudioFx => "Game / Audio FX",
             EntityKey::GameAuthoring => "Game / Authoring",
+            EntityKey::GameShortcuts => "Game / Shortcuts",
             _ => return,
         };
 
@@ -1824,6 +1839,12 @@ impl DataDock {
                 let state = edit.get_state();
                 let text = state.rows.join("\n");
                 project.authoring = text;
+            }
+        } else if server_ctx.pc.is_game_shortcuts() {
+            if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
+                let state = edit.get_state();
+                let text = state.rows.join("\n");
+                project.shortcuts = text;
             }
         }
 

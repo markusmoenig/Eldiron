@@ -57,12 +57,24 @@ When the **map view** has focus, you can use **number keys (1-6)** on your keybo
 
 In 3D geometry views you can also use:
 
-- `G`: Object Tool
+- `O`: Object Tool
 - `V`: Vertex Tool
-- `L`: Linedef / Edge Tool
-- `E`: Sector / face tool
+- `E`: Linedef / Edge Tool
+- `F`: Sector / Face Tool
 - `M`: Move object gizmo
 - `S`: Size object gizmo
+
+These 3D tool shortcuts are resolved contextually, so in-tool commands such as vertex fill (**F**), edge-loop selection (**L**), object rotation (**R**), and tile application (**T**) keep working when their matching geometry is selected. Defaults can be changed from **Game / Shortcuts**.
+
+The **Game / Shortcuts** document stores overrides by stable action id:
+
+```toml
+[shortcuts]
+"tool.object" = "O"
+"tool.vertex" = "V"
+"tool.edge" = "E"
+"tool.face" = "F"
+```
 
 For direct 3D geometry editing shortcuts, see [Object Tool](object).
 

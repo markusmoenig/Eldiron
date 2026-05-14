@@ -49,6 +49,9 @@ status_help_button = Click on any UI element to visit the Eldiron Online Documen
 status_create_cutout_failed = Create Cutout needs at least three selected surface-line points on one 3D face.
 status_create_cutout_open_loop = Create Cutout needs closed surface-line loops. Finish or close the selected guide first.
 status_create_cutout_multiple_faces = Create Cutout currently needs all selected guide loops on one host surface.
+status_create_surface_face_failed = Create Face needs at least three selected surface-line points on one 3D face.
+status_create_surface_face_open_loop = Create Face needs closed surface-line loops. Finish or close the selected guide first.
+status_create_surface_face_multiple_faces = Create Face currently needs all selected guide loops on one host surface.
 status_editor_preview_post_on = Editor post-processing preview on.
 status_editor_preview_post_off = Editor post-processing preview off.
 status_editor_preview_lighting_on = Editor lighting preview on.
@@ -108,6 +111,8 @@ action_create_linedef = Create Linedef
 action_create_linedef_desc = Creates a new linedef between two vertices.
 action_create_cutout = Create Cutout
 action_create_cutout_desc = Cuts an opening from the selected closed 3D surface-line loop through the host object.
+action_create_surface_face = Create Face
+action_create_surface_face_desc = Creates a new selectable 3D face from the selected closed surface-line loop without cutting through the host object.
 action_create_groove = Create Groove
 action_create_groove_desc = Converts selected 3D surface lines into persistent recessed groove geometry.
 action_create_ridge = Create Ridge
@@ -115,7 +120,7 @@ action_create_ridge_desc = Converts selected 3D surface lines into persistent ra
 action_create_sector = Create Sector
 action_create_sector_desc = Creates a new sector / surface from the selected vertices. The vertices must form a closed loop (we auto-order them).
 action_create_geometry_box = Create Box
-action_create_geometry_box_desc = Create a directly editable 3D box object.
+action_create_geometry_box_desc = Create a directly editable 3D box object, or attach one to a selected face or floor edge.
 action_duplicate_tile = Duplicate Tile
 action_duplicate_tile_desc = Duplicates the currently selected tile.
 action_duplicate_surface_detail = Duplicate Surface Detail
@@ -220,10 +225,10 @@ tool_game = Game Tool (K). Play the game!
 tool_builder = Builder Tool (B). Select reusable prop and assembly assets from the builder picker.
 tool_palette = Palette Tool (P). Edit palette entries and apply palette colors.
 tool_dungeon = Dungeon Tool (U). Paint conceptual dungeon structures.
-tool_linedef = Linedef / Edge Tool (L). Create 2D line definitions and edit 3D geometry edges.
-tool_object = Object Tool (G). Select and move directly editable 3D objects.
+tool_linedef = Linedef / Edge Tool (E). Create 2D line definitions and edit 3D geometry edges.
+tool_object = Object Tool (O). Select and move directly editable 3D objects.
 tool_rect = Rect Tool (R). Click to draw the current tile. Shift-click to delete. Alt/Opt-click to pick from the map.
-tool_sector = Sector / Face Tool (E). Select sectors in 2D or faces in 3D.
+tool_sector = Sector / Face Tool (F). Select sectors in 2D or faces in 3D.
 tool_vertex = Vertex Tool (V). 'Shift' + Click to create a new vertex.
 tool_entity = Entity Tool (Y). Place, move, select, and delete game entities.
 tool_organic = Organic Paint Tool (O). Paint volumetric organic detail using the active brush graph.
@@ -231,13 +236,13 @@ hud_geometry_op_move = MOVE
 hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Object gizmo operation: move (M).
 status_hud_geometry_op_size = Object gizmo operation: resize (S).
-status_geometry_empty_selection = 3D selection: G = Object, E = Face, V = Vertex, L = Edge.
+status_geometry_empty_selection = 3D selection: O = Object, F = Face, V = Vertex, E = Edge.
 status_geometry_object_selection = Object selected: M = Move, S = Size, R = rotate Y, Shift+R = rotate Z.
 status_geometry_face_selection = Face selected: +/- = Push/Pull, [] = Move Up/Down, Delete = Delete.
 status_geometry_vertex_selection = Vertex selected: F = Fill, X = Split Edge, M = Merge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.
 status_geometry_edge_selection = Edge selected: F = Fill, X = Split Edge, M = Merge, L = Edge Loop, [] = Move Up/Down, Delete = Delete.
 status_geometry_surface_selection = Surface detail selected: Shift = add, Alt = remove, L = connected guide.
-status_geometry_surface_loop_selection = Closed surface detail selected: Shift = add, Alt = remove, L = connected guide.
+status_geometry_surface_loop_selection = Closed surface detail selected: Create Face / Cutout available, Shift = add, Alt = remove, L = connected guide.
 organic_dock_title = Organic Brushes
 organic_toggle_active = Active
 organic_toggle_deactive = Deactive

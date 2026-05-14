@@ -3,7 +3,9 @@ title: "Organic Tool"
 sidebar_position: 10
 ---
 
-The **Organic Tool** (keyboard shortcut **`O`**) paints organic surface detail directly onto map surfaces.
+The **Organic Tool** (keyboard shortcut **`O`** outside direct 3D geometry editing) paints organic surface detail directly onto map surfaces.
+
+In 3D geometry views, **O** selects the Object Tool. Use the tool strip to enter Organic while working in that context.
 
 Use it for:
 
