@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::collections::hash_map::DefaultHasher;
 use vek::Vec2;
 
-use crate::editor::{DOCKMANAGER, PALETTE, RUSTERIX};
+use crate::editor::{ACTIONLIST, DOCKMANAGER, PALETTE, RUSTERIX};
 use std::hash::{Hash, Hasher};
 
 pub static MINIMAPBUFFER: LazyLock<RwLock<TheRGBABuffer>> =
@@ -205,6 +205,108 @@ fn draw_geometry_minimap(map: &Map, buffer: &mut TheRGBABuffer, bbox: Vec4<f32>)
     }
 }
 
+fn active_action_minimap_preview(
+    map: &Map,
+    server_ctx: &ServerContext,
+) -> Option<(String, Vec<crate::actions::ActionMinimapSegment>)> {
+    let Some(action_id) = server_ctx.curr_action_id else {
+        return None;
+    };
+    let actionlist = ACTIONLIST.read().unwrap();
+    let Some(action) = actionlist.get_action_by_id(action_id) else {
+        return None;
+    };
+    if !action.uses_minimap_preview() {
+        return None;
+    };
+    let segments = action.minimap_preview_segments(map, server_ctx);
+    if segments.is_empty() {
+        return None;
+    }
+    Some((action.id().name.clone(), segments))
+}
+
+fn minimap_bbox_for_segments(
+    segments: &[crate::actions::ActionMinimapSegment],
+) -> Option<Vec4<f32>> {
+    let mut min = Vec2::broadcast(f32::INFINITY);
+    let mut max = Vec2::broadcast(f32::NEG_INFINITY);
+    for segment in segments {
+        for point in [segment.start, segment.end] {
+            if !point.x.is_finite() || !point.y.is_finite() {
+                continue;
+            }
+            min.x = min.x.min(point.x);
+            min.y = min.y.min(point.y);
+            max.x = max.x.max(point.x);
+            max.y = max.y.max(point.y);
+        }
+    }
+    if !min.x.is_finite() || !min.y.is_finite() || !max.x.is_finite() || !max.y.is_finite() {
+        return None;
+    }
+
+    let mut size = max - min;
+    size.x = size.x.max(1.0);
+    size.y = size.y.max(1.0);
+    let pad = Vec2::new(size.x * 0.12, size.y * 0.12);
+    Some(Vec4::new(
+        min.x - pad.x,
+        min.y - pad.y,
+        size.x + pad.x * 2.0,
+        size.y + pad.y * 2.0,
+    ))
+}
+
+fn bbox_with_render_aspect(mut bbox: Vec4<f32>, render_dim: Vec2<f32>) -> Vec4<f32> {
+    if bbox.z <= 0.0 || bbox.w <= 0.0 || render_dim.x <= 0.0 || render_dim.y <= 0.0 {
+        return bbox;
+    }
+
+    let render_aspect = render_dim.x / render_dim.y;
+    let bbox_aspect = bbox.z / bbox.w;
+    if bbox_aspect < render_aspect {
+        let new_width = bbox.w * render_aspect;
+        bbox.x -= (new_width - bbox.z) * 0.5;
+        bbox.z = new_width;
+    } else if bbox_aspect > render_aspect {
+        let new_height = bbox.z / render_aspect;
+        bbox.y -= (new_height - bbox.w) * 0.5;
+        bbox.w = new_height;
+    }
+    bbox
+}
+
+fn draw_action_minimap_preview(
+    buffer: &mut TheRGBABuffer,
+    bbox: Vec4<f32>,
+    segments: &[crate::actions::ActionMinimapSegment],
+) {
+    let dim = *buffer.dim();
+    let render_dim = Vec2::new(dim.width as f32, dim.height as f32);
+    let preview_color = [88, 210, 255, 235];
+    for segment in segments {
+        let start = world_to_minimap_pixel(segment.start, render_dim, bbox);
+        let end = world_to_minimap_pixel(segment.end, render_dim, bbox);
+        buffer.draw_line(
+            start.x as i32,
+            start.y as i32,
+            end.x as i32,
+            end.y as i32,
+            preview_color,
+        );
+    }
+}
+
+fn draw_minimap_overlays(
+    map: &Map,
+    region_marker: Option<&Region>,
+    buffer: &mut TheRGBABuffer,
+    server_ctx: &ServerContext,
+) {
+    draw_camera_marker(map, region_marker, buffer, server_ctx);
+}
+
 pub fn draw_camera_marker(
     map: &Map,
     region: Option<&Region>,
@@ -263,16 +365,21 @@ pub fn draw_minimap_context_label(
         return;
     }
 
-    let label = if server_ctx.get_map_context() == MapContext::Region {
-        "Region"
+    let label = if let Some(action_id) = server_ctx.curr_action_id
+        && let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id)
+        && action.uses_minimap_preview()
+    {
+        action.id().name.clone()
+    } else if server_ctx.get_map_context() == MapContext::Region {
+        "Region".to_string()
     } else if server_ctx.get_map_context() == MapContext::Screen {
-        "Screen"
+        "Screen".to_string()
     } else if server_ctx.get_map_context() == MapContext::Character {
-        "Character"
+        "Character".to_string()
     } else if server_ctx.get_map_context() == MapContext::Item {
-        "Item"
+        "Item".to_string()
     } else {
-        "Map"
+        "Map".to_string()
     };
 
     let stride = buffer.stride();
@@ -296,7 +403,7 @@ pub fn draw_minimap_context_label(
             16,
         ),
         stride,
-        label,
+        &label,
         TheFontSettings {
             size: 11.0,
             ..Default::default()
@@ -338,6 +445,21 @@ pub fn draw_minimap(
         project.get_map(server_ctx)
     };
 
+    if let Some(map) = map
+        && let Some((_label, segments)) = active_action_minimap_preview(map, server_ctx)
+    {
+        let background = [42, 42, 42, 255];
+        buffer.fill(background);
+        if let Some(bbox) = minimap_bbox_for_segments(&segments) {
+            let dim = *buffer.dim();
+            let bbox =
+                bbox_with_render_aspect(bbox, Vec2::new(dim.width as f32, dim.height as f32));
+            *MINIMAPBOX.write().unwrap() = bbox;
+            draw_action_minimap_preview(buffer, bbox, &segments);
+        }
+        return;
+    }
+
     let mut cache_key = minimap_context_key(server_ctx);
     if let Some(map) = map {
         let mut hasher = DefaultHasher::default();
@@ -368,7 +490,7 @@ pub fn draw_minimap(
             } else {
                 None
             };
-            draw_camera_marker(map, region_marker, buffer, server_ctx);
+            draw_minimap_overlays(map, region_marker, buffer, server_ctx);
         }
         return;
     }
@@ -500,7 +622,7 @@ pub fn draw_minimap(
         } else {
             None
         };
-        draw_camera_marker(map, region_marker, buffer, server_ctx);
+        draw_minimap_overlays(map, region_marker, buffer, server_ctx);
     }
 }
 
@@ -547,6 +669,16 @@ mod tests {
         assert!(bbox.y <= 19.5);
         assert!(bbox.z >= 3.0);
         assert!(bbox.w >= 5.0);
+    }
+
+    #[test]
+    fn action_preview_bbox_keeps_render_aspect() {
+        let bbox = Vec4::new(0.0, 0.0, 2.0, 10.0);
+        let adjusted = bbox_with_render_aspect(bbox, Vec2::new(200.0, 100.0));
+
+        assert!((adjusted.z / adjusted.w - 2.0).abs() < 0.001);
+        assert_eq!(adjusted.w, 10.0);
+        assert!(adjusted.z > bbox.z);
     }
 
     #[test]

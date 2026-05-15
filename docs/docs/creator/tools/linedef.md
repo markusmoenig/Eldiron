@@ -59,7 +59,7 @@ Create Cutout keeps the guide loops selected after openings are created, so shap
 
 The same closed guide-loop concept is intended to support future surface-region actions: cutting through, carving/chipping the inside, raising the inside, splitting the region into new paintable faces, or assigning different tiles/colors to generated interior regions.
 
-Use surface lines for custom detail that should be drawn directly on a face: mortar lines, stone blocks, floor seams, decorative raised trim, grooves, vents, custom window cuts, or other geometry-first surface relief.
+Use surface lines for custom detail that should be drawn directly on a face: mortar lines, stone blocks, guide cobbles, floor seams, decorative raised trim, grooves, vents, custom window cuts, or other geometry-first surface relief. For committed patterned surface geometry, use **Create Pattern** in relief mode.
 
 ## Creation Mode (Manual)
 

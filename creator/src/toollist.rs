@@ -1,5 +1,5 @@
 use crate::actions::geometry_face_ops::surface_segment_points;
-use crate::editor::{DOCKMANAGER, RUSTERIX, SCENEMANAGER, SIDEBARMODE, UNDOMANAGER};
+use crate::editor::{ACTIONLIST, DOCKMANAGER, RUSTERIX, SCENEMANAGER, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 use crate::shortcuts::{ShortcutAction, ShortcutContext, ShortcutResolution, ShortcutResolver};
 use crate::sidebar::SidebarMode;
@@ -60,6 +60,56 @@ impl ToolList {
     const TEXT_PLAY_BUTTON_NAME: &'static str = "Text Play";
     const PALETTE_BUTTON_NAME: &'static str = "Palette Mode";
     const GRID_SUBDIVISIONS: [f32; 6] = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0];
+
+    fn handle_action_hud_icon_click(
+        &self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+        coord: Vec2<i32>,
+    ) -> bool {
+        if server_ctx.get_map_context() != MapContext::Region {
+            return false;
+        }
+        let Some(action_id) = server_ctx.curr_action_id else {
+            return false;
+        };
+        let Some(map) = project.get_map(server_ctx) else {
+            return false;
+        };
+        let Some(render_view) = ui.get_render_view("PolyView") else {
+            return false;
+        };
+        let actionlist = ACTIONLIST.read().unwrap();
+        let Some(action) = actionlist.get_action_by_id(action_id) else {
+            return false;
+        };
+        let Some(slots) = action.hud_material_slots(map, server_ctx) else {
+            return false;
+        };
+        if slots.is_empty() {
+            return false;
+        }
+
+        let icon_size = 40;
+        let dim = *render_view.dim();
+        let x = dim.width as i32 - icon_size * slots.len() as i32 - 1;
+        let y = 20;
+        for index in 0..slots.len() as i32 {
+            let rect = TheDim::rect(x + index * icon_size, y, icon_size, icon_size);
+            if rect.contains(coord) {
+                server_ctx.selected_hud_icon_index = index;
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Minimap"),
+                    TheValue::Empty,
+                ));
+                ctx.ui.redraw_all = true;
+                return true;
+            }
+        }
+        false
+    }
 
     fn shortcut_context(map: Option<&Map>, server_ctx: &ServerContext) -> ShortcutContext {
         ShortcutContext {
@@ -2372,6 +2422,10 @@ impl ToolList {
                     }
 
                     if !server_ctx.game_mode && !server_ctx.game_input_mode {
+                        if self.handle_action_hud_icon_click(ui, ctx, project, server_ctx, *coord) {
+                            return true;
+                        }
+
                         if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                             if coord.y > 20 {
                                 // Test for Paste operation

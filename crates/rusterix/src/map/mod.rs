@@ -42,6 +42,12 @@ pub enum MapCamera {
     ThreeDFirstPerson,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GeometryPlacementFloor {
+    pub height: f32,
+    pub normal_y: f32,
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Copy)]
 pub enum MapToolType {
     General,
@@ -253,6 +259,56 @@ mod tests {
     }
 
     #[test]
+    fn geometry_floor_hit_for_placement_keeps_floor_when_below_has_no_clearance() {
+        let mut map = Map::default();
+        map.geometry_objects.push(GeometryObject::box_(
+            "ground",
+            Vec3::new(0.0, -0.05, 0.0),
+            Vec3::new(4.0, 0.1, 4.0),
+        ));
+        map.geometry_objects.push(GeometryObject::box_(
+            "balcony",
+            Vec3::new(0.0, 0.85, 0.0),
+            Vec3::new(4.0, 0.1, 4.0),
+        ));
+
+        let ray_origin = Vec3::new(0.0, 4.0, -1.0);
+        let ray_dir = Vec3::new(0.0, -1.0, 0.25).normalized();
+        let raw_hit = Vec3::new(0.0, 0.9, 0.0);
+        let (hit, reference_y) = map
+            .geometry_floor_hit_from_ray_for_placement(ray_origin, ray_dir, raw_hit, 1.0)
+            .unwrap();
+
+        assert_close(hit.y, 0.9);
+        assert_close(reference_y, 0.9);
+    }
+
+    #[test]
+    fn geometry_floor_hit_for_placement_uses_floor_below_when_clearance_allows() {
+        let mut map = Map::default();
+        map.geometry_objects.push(GeometryObject::box_(
+            "floor",
+            Vec3::new(0.0, -0.05, 0.0),
+            Vec3::new(4.0, 0.1, 4.0),
+        ));
+        map.geometry_objects.push(GeometryObject::box_(
+            "roof",
+            Vec3::new(0.0, 2.05, 0.0),
+            Vec3::new(4.0, 0.1, 4.0),
+        ));
+
+        let ray_origin = Vec3::new(0.0, 4.0, -1.0);
+        let ray_dir = Vec3::new(0.0, -1.0, 0.25).normalized();
+        let raw_hit = Vec3::new(0.0, 2.1, 0.0);
+        let (hit, reference_y) = map
+            .geometry_floor_hit_from_ray_for_placement(ray_origin, ray_dir, raw_hit, 1.0)
+            .unwrap();
+
+        assert_close(hit.y, 0.0);
+        assert_close(reference_y, 2.0);
+    }
+
+    #[test]
     fn named_area_center_falls_back_to_geometry_object() {
         let mut map = Map::new();
         map.geometry_objects.push(GeometryObject::box_from_bounds(
@@ -429,8 +485,13 @@ impl Map {
     }
 
     pub fn geometry_floor_height_at(&self, position: Vec2<f32>) -> Option<f32> {
-        let mut best_height: Option<f32> = None;
+        self.geometry_floor_candidates_at(position)
+            .last()
+            .map(|candidate| candidate.height)
+    }
 
+    pub fn geometry_floor_candidates_at(&self, position: Vec2<f32>) -> Vec<GeometryPlacementFloor> {
+        let mut floors = Vec::new();
         for object in &self.geometry_objects {
             let Some(bbox) = object.bbox() else {
                 continue;
@@ -482,12 +543,21 @@ impl Map {
                         world_points.iter().map(|point| point.y).sum::<f32>()
                             / world_points.len() as f32
                     };
-                    best_height = Some(best_height.map_or(height, |best| best.max(height)));
+                    floors.push(GeometryPlacementFloor {
+                        height,
+                        normal_y: normal.y,
+                    });
                 }
             }
         }
 
-        best_height
+        floors.sort_by(|a, b| {
+            a.height
+                .partial_cmp(&b.height)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        floors.dedup_by(|a, b| (a.height - b.height).abs() <= 1e-4);
+        floors
     }
 
     /// Find a geometry floor at `position`, preferring the highest floor at or below
@@ -689,6 +759,59 @@ impl Map {
         }
 
         best_hit
+    }
+
+    /// Find an editor placement floor along a screen ray. If the raw picker hit is
+    /// itself a walkable floor and the lower candidate would not leave enough
+    /// clearance for the dropped object, keep the raw floor instead of forcing the
+    /// placement through it.
+    pub fn geometry_floor_hit_from_ray_for_placement(
+        &self,
+        ray_origin: Vec3<f32>,
+        ray_dir: Vec3<f32>,
+        raw_hit: Vec3<f32>,
+        clearance: f32,
+    ) -> Option<(Vec3<f32>, f32)> {
+        const ROOF_CLEARANCE: f32 = 0.1;
+        const FLOOR_MATCH_EPS: f32 = 0.08;
+        const CLEARANCE_EPS: f32 = 0.05;
+
+        let raw_xz = Vec2::new(raw_hit.x, raw_hit.z);
+        let raw_floors = self.geometry_floor_candidates_at(raw_xz);
+        let raw_floor = raw_floors
+            .iter()
+            .find(|floor| (floor.height - raw_hit.y).abs() <= FLOOR_MATCH_EPS)
+            .map(|floor| floor.height)
+            .or_else(|| {
+                let floor_cutoff = raw_hit.y - ROOF_CLEARANCE;
+                raw_floors
+                    .iter()
+                    .filter(|floor| floor.height <= floor_cutoff + FLOOR_MATCH_EPS)
+                    .min_by(|a, b| {
+                        (floor_cutoff - a.height)
+                            .abs()
+                            .partial_cmp(&(floor_cutoff - b.height).abs())
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    })
+                    .map(|floor| floor.height)
+            });
+
+        let below =
+            self.geometry_floor_hit_from_ray(ray_origin, ray_dir, Some(raw_hit.y - ROOF_CLEARANCE));
+
+        if let Some(below_hit) = below {
+            if let Some(raw_floor_y) = raw_floor
+                && raw_hit.y - below_hit.y < clearance.max(0.0) + CLEARANCE_EPS
+            {
+                return Some((Vec3::new(raw_hit.x, raw_floor_y, raw_hit.z), raw_floor_y));
+            }
+
+            return Some((below_hit, raw_hit.y - ROOF_CLEARANCE));
+        }
+
+        raw_floor
+            .map(|height| (Vec3::new(raw_hit.x, height, raw_hit.z), height))
+            .or(Some((raw_hit, raw_hit.y)))
     }
 
     /// Returns the surface for the given sector_id

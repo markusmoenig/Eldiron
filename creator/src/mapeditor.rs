@@ -1,4 +1,4 @@
-use crate::editor::{EDITCAMERA, RUSTERIX, SIDEBARMODE};
+use crate::editor::{EDITCAMERA, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::Value;
 use vek::Vec2;
@@ -90,6 +90,122 @@ pub struct MapEditor {
 
 #[allow(clippy::new_without_default)]
 impl MapEditor {
+    fn selected_textured_geometry_faces(map: &Map) -> Vec<(usize, usize)> {
+        map.selected_geometry_faces
+            .iter()
+            .filter_map(|(object_id, face_index)| {
+                let object_index = map
+                    .geometry_objects
+                    .iter()
+                    .position(|object| object.id == *object_id)?;
+                let face = map.geometry_objects[object_index].faces.get(*face_index)?;
+                if face.tile.is_some() || !face.tiles.is_empty() {
+                    Some((object_index, *face_index))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn nudge_selected_face_texture(
+        map: &mut Map,
+        key: TheKeyCode,
+        shift: bool,
+        scale: bool,
+    ) -> bool {
+        let selected_faces = Self::selected_textured_geometry_faces(map);
+        if selected_faces.is_empty() {
+            return false;
+        }
+
+        let mut changed = false;
+        for (object_index, face_index) in selected_faces {
+            let Some(face) = map
+                .geometry_objects
+                .get_mut(object_index)
+                .and_then(|object| object.faces.get_mut(face_index))
+            else {
+                continue;
+            };
+
+            if scale {
+                let step = 0.1;
+                match key {
+                    TheKeyCode::Left => {
+                        face.texture_scale.x = (face.texture_scale.x - step).max(0.05)
+                    }
+                    TheKeyCode::Right => face.texture_scale.x += step,
+                    TheKeyCode::Down => {
+                        face.texture_scale.y = (face.texture_scale.y - step).max(0.05)
+                    }
+                    TheKeyCode::Up => face.texture_scale.y += step,
+                    _ => continue,
+                }
+                changed = true;
+            } else if shift {
+                let step = 5.0;
+                match key {
+                    TheKeyCode::Left => face.texture_rotation -= step,
+                    TheKeyCode::Right => face.texture_rotation += step,
+                    _ => continue,
+                }
+                changed = true;
+            } else {
+                let step = 0.1;
+                match key {
+                    TheKeyCode::Left => face.texture_offset.x -= step,
+                    TheKeyCode::Right => face.texture_offset.x += step,
+                    TheKeyCode::Down => face.texture_offset.y -= step,
+                    TheKeyCode::Up => face.texture_offset.y += step,
+                    _ => continue,
+                }
+                changed = true;
+            }
+        }
+
+        if changed {
+            map.update_surfaces();
+            map.changed += 1;
+        }
+        changed
+    }
+
+    fn handle_face_texture_arrow_shortcut(
+        &mut self,
+        key: TheKeyCode,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        if server_ctx.editor_view_mode == EditorViewMode::D2
+            || server_ctx.get_map_context() != MapContext::Region
+        {
+            return false;
+        }
+
+        let Some(map) = project.get_map_mut(server_ctx) else {
+            return false;
+        };
+        let prev = map.clone();
+        if !Self::nudge_selected_face_texture(map, key, ui.shift, ui.ctrl || ui.logo) {
+            return false;
+        }
+
+        let undo_atom =
+            ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone()));
+        crate::utils::editor_scene_apply_map_edit_atom(project, server_ctx, &undo_atom);
+        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+        RUSTERIX.write().unwrap().set_overlay_dirty();
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Action Parameters"),
+            TheValue::Empty,
+        ));
+        ctx.ui.redraw_all = true;
+        true
+    }
+
     pub fn new() -> Self {
         Self {
             curr_tile_uuid: None,
@@ -291,123 +407,23 @@ impl MapEditor {
             TheEvent::KeyCodeDown(TheValue::KeyCode(key)) => {
                 if !ui.focus_widget_supports_text_input(ctx) {
                     match key {
-                        TheKeyCode::Up => {
-                            if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-                                EDITCAMERA.write().unwrap().move_action = Some(if ui.shift {
-                                    CustomMoveAction::Up
-                                } else {
-                                    CustomMoveAction::Forward
-                                });
-                                ctx.ui.redraw_all = true;
-                                redraw = true;
-                            } else if matches!(
-                                server_ctx.editor_view_mode,
-                                EditorViewMode::Orbit | EditorViewMode::Iso
-                            ) {
-                                if let Some(region) =
-                                    project.get_region_mut(&server_ctx.curr_region)
-                                {
-                                    let amount = if ui.shift { 5.0 } else { 1.0 };
-                                    EDITCAMERA.write().unwrap().nudge_target(
-                                        region,
-                                        server_ctx,
-                                        Vec2::new(0.0, 1.0),
-                                        amount,
-                                    );
-                                    ctx.ui.redraw_all = true;
-                                    redraw = true;
-                                }
-                            }
-                        }
-                        TheKeyCode::Down => {
-                            if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-                                EDITCAMERA.write().unwrap().move_action = Some(if ui.shift {
-                                    CustomMoveAction::Down
-                                } else {
-                                    CustomMoveAction::Backward
-                                });
-                                ctx.ui.redraw_all = true;
-                                redraw = true;
-                            } else if matches!(
-                                server_ctx.editor_view_mode,
-                                EditorViewMode::Orbit | EditorViewMode::Iso
-                            ) {
-                                if let Some(region) =
-                                    project.get_region_mut(&server_ctx.curr_region)
-                                {
-                                    let amount = if ui.shift { 5.0 } else { 1.0 };
-                                    EDITCAMERA.write().unwrap().nudge_target(
-                                        region,
-                                        server_ctx,
-                                        Vec2::new(0.0, -1.0),
-                                        amount,
-                                    );
-                                    ctx.ui.redraw_all = true;
-                                    redraw = true;
-                                }
-                            }
-                        }
-                        TheKeyCode::Left => {
-                            if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-                                EDITCAMERA.write().unwrap().move_action =
-                                    Some(CustomMoveAction::Left);
-                                ctx.ui.redraw_all = true;
-                                redraw = true;
-                            } else if matches!(
-                                server_ctx.editor_view_mode,
-                                EditorViewMode::Orbit | EditorViewMode::Iso
-                            ) {
-                                if let Some(region) =
-                                    project.get_region_mut(&server_ctx.curr_region)
-                                {
-                                    let amount = if ui.shift { 5.0 } else { 1.0 };
-                                    EDITCAMERA.write().unwrap().nudge_target(
-                                        region,
-                                        server_ctx,
-                                        Vec2::new(-1.0, 0.0),
-                                        amount,
-                                    );
-                                    ctx.ui.redraw_all = true;
-                                    redraw = true;
-                                }
-                            }
-                        }
-                        TheKeyCode::Right => {
-                            if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-                                EDITCAMERA.write().unwrap().move_action =
-                                    Some(CustomMoveAction::Right);
-                                ctx.ui.redraw_all = true;
-                                redraw = true;
-                            } else if matches!(
-                                server_ctx.editor_view_mode,
-                                EditorViewMode::Orbit | EditorViewMode::Iso
-                            ) {
-                                if let Some(region) =
-                                    project.get_region_mut(&server_ctx.curr_region)
-                                {
-                                    let amount = if ui.shift { 5.0 } else { 1.0 };
-                                    EDITCAMERA.write().unwrap().nudge_target(
-                                        region,
-                                        server_ctx,
-                                        Vec2::new(1.0, 0.0),
-                                        amount,
-                                    );
-                                    ctx.ui.redraw_all = true;
-                                    redraw = true;
-                                }
-                            }
+                        TheKeyCode::Up
+                        | TheKeyCode::Down
+                        | TheKeyCode::Left
+                        | TheKeyCode::Right => {
+                            redraw |= self.handle_face_texture_arrow_shortcut(
+                                key.clone(),
+                                ui,
+                                ctx,
+                                project,
+                                server_ctx,
+                            );
                         }
                         _ => {}
                     }
                 }
             }
-            TheEvent::KeyCodeUp(TheValue::KeyCode(_)) => {
-                if server_ctx.editor_view_mode == EditorViewMode::FirstP {
-                    EDITCAMERA.write().unwrap().move_action = None;
-                    ctx.ui.redraw_all = true;
-                    redraw = true;
-                }
-            }
+            TheEvent::KeyCodeUp(TheValue::KeyCode(_)) => {}
 
             TheEvent::Copy => {
                 if !server_ctx.polyview_has_focus(ctx) {
@@ -1009,5 +1025,69 @@ impl MapEditor {
         _server_ctx: &ServerContext,
     ) {
         RUSTERIX.write().unwrap().set_dirty();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusterix::PixelSource;
+    use vek::Vec3;
+
+    fn selected_box_with_textured_face() -> (Map, Uuid) {
+        let mut map = Map::default();
+        let mut object = rusterix::GeometryObject::box_from_bounds(
+            "Box",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 1.0),
+        );
+        let object_id = object.id;
+        object.faces[2].tile = Some(PixelSource::PaletteIndex(3));
+        map.geometry_objects.push(object);
+        map.selected_geometry_faces.push((object_id, 2));
+        (map, object_id)
+    }
+
+    #[test]
+    fn arrow_shortcuts_adjust_selected_textured_face_uvs() {
+        let (mut map, _) = selected_box_with_textured_face();
+
+        assert!(MapEditor::nudge_selected_face_texture(
+            &mut map,
+            TheKeyCode::Right,
+            false,
+            false,
+        ));
+        assert_eq!(map.geometry_objects[0].faces[2].texture_offset.x, 0.1);
+
+        assert!(MapEditor::nudge_selected_face_texture(
+            &mut map,
+            TheKeyCode::Left,
+            true,
+            false,
+        ));
+        assert_eq!(map.geometry_objects[0].faces[2].texture_rotation, -5.0);
+
+        assert!(MapEditor::nudge_selected_face_texture(
+            &mut map,
+            TheKeyCode::Up,
+            false,
+            true,
+        ));
+        assert_eq!(map.geometry_objects[0].faces[2].texture_scale.y, 1.1);
+    }
+
+    #[test]
+    fn arrow_shortcuts_ignore_untextured_faces() {
+        let (mut map, object_id) = selected_box_with_textured_face();
+        map.selected_geometry_faces = vec![(object_id, 1)];
+
+        assert!(!MapEditor::nudge_selected_face_texture(
+            &mut map,
+            TheKeyCode::Right,
+            false,
+            false,
+        ));
+        assert_eq!(map.geometry_objects[0].faces[1].texture_offset.x, 0.0);
     }
 }

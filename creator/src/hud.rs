@@ -47,10 +47,15 @@ impl Hud {
 
         if let Some(action_id) = server_ctx.curr_action_id
             && let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id)
-            && action.is_applicable(map, ctx, server_ctx)
-            && let Some(slots) = action.hud_material_slots(map, server_ctx)
         {
-            return Some(slots);
+            if let Some(slots) = action.hud_material_slots(map, server_ctx) {
+                return Some(slots);
+            }
+            if action.is_applicable(map, ctx, server_ctx)
+                && let Some(slots) = action.hud_material_slots(map, server_ctx)
+            {
+                return Some(slots);
+            }
         }
         None
     }
@@ -529,6 +534,14 @@ impl Hud {
             icons = 0;
         }
 
+        if icons > 0 {
+            server_ctx.selected_hud_icon_index =
+                server_ctx.selected_hud_icon_index.clamp(0, icons - 1);
+            self.selected_icon_index = server_ctx.selected_hud_icon_index;
+        } else {
+            self.selected_icon_index = 0;
+        }
+
         self.icon_rects.clear();
         let x = width as i32 - (icon_size * icons) - 1;
         for i in 0..icons {
@@ -603,7 +616,7 @@ impl Hud {
                 }
             }
 
-            if i == self.selected_icon_index {
+            if i == server_ctx.selected_hud_icon_index {
                 ctx.draw.rect_outline(
                     buffer.pixels_mut(),
                     &rect.to_buffer_utuple(),
@@ -891,6 +904,11 @@ impl Hud {
             if rect.contains(Vec2::new(x, y)) {
                 self.selected_icon_index = i as i32;
                 server_ctx.selected_hud_icon_index = i as i32;
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Minimap"),
+                    TheValue::Empty,
+                ));
+                ctx.ui.redraw_all = true;
                 if self.mode == HudMode::Linedef {
                     server_ctx.selected_wall_row = Some(i as i32);
                     ctx.ui.send(TheEvent::Custom(

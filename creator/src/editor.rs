@@ -2982,6 +2982,11 @@ impl TheTrait for Editor {
                     let mut spawn_y = 0.0;
                     let mut placement_reference_y: Option<f32> = None;
                     let use_3d_hit = self.server_ctx.editor_view_mode != EditorViewMode::D2;
+                    let placement_clearance = if drop.id.name.starts_with("Character") {
+                        2.0
+                    } else {
+                        1.0
+                    };
 
                     if let Some(map) = self.project.get_map(&self.server_ctx) {
                         if use_3d_hit && let Some(render_view) = ui.get_render_view("PolyView") {
@@ -3005,20 +3010,48 @@ impl TheTrait for Editor {
                                 false,
                                 false,
                             ) {
+                                let floor_candidates = map
+                                    .geometry_floor_candidates_at(Vec2::new(raw.1.x, raw.1.z))
+                                    .into_iter()
+                                    .map(|floor| format!("{:.3}", floor.height))
+                                    .collect::<Vec<_>>()
+                                    .join(",");
                                 if let Some((ray_origin, ray_dir)) = ray
-                                    && let Some(floor_hit) = map.geometry_floor_hit_from_ray(
-                                        ray_origin,
-                                        ray_dir,
-                                        Some(raw.1.y - 0.1),
-                                    )
+                                    && let Some((floor_hit, reference_y)) = map
+                                        .geometry_floor_hit_from_ray_for_placement(
+                                            ray_origin,
+                                            ray_dir,
+                                            raw.1,
+                                            placement_clearance,
+                                        )
                                 {
                                     grid_pos = Vec2::new(floor_hit.x, floor_hit.z);
                                     spawn_y = floor_hit.y;
-                                    placement_reference_y = Some(raw.1.y - 0.1);
+                                    placement_reference_y = Some(reference_y);
+                                    eprintln!(
+                                        "[EntityPlacementDebug] viewport drop raw=({:.3},{:.3},{:.3}) raw_floors=[{}] resolved=({:.3},{:.3},{:.3}) reference_y={:.3} clearance={:.3}",
+                                        raw.1.x,
+                                        raw.1.y,
+                                        raw.1.z,
+                                        floor_candidates,
+                                        floor_hit.x,
+                                        floor_hit.y,
+                                        floor_hit.z,
+                                        reference_y,
+                                        placement_clearance
+                                    );
                                 } else {
                                     grid_pos = Vec2::new(raw.1.x, raw.1.z);
                                     spawn_y = raw.1.y;
                                     placement_reference_y = Some(raw.1.y);
+                                    eprintln!(
+                                        "[EntityPlacementDebug] viewport drop raw fallback raw=({:.3},{:.3},{:.3}) raw_floors=[{}] clearance={:.3}",
+                                        raw.1.x,
+                                        raw.1.y,
+                                        raw.1.z,
+                                        floor_candidates,
+                                        placement_clearance
+                                    );
                                 }
                             } else {
                                 grid_pos = self.server_ctx.local_to_map_cell(
@@ -3082,6 +3115,10 @@ impl TheTrait for Editor {
                                 map.geometry_floor_height_at(grid_pos)
                             };
                             if let Some(height) = floor_height {
+                                eprintln!(
+                                    "[EntityPlacementDebug] viewport drop height recheck grid=({:.3},{:.3}) reference_y={:?} before={:.3} after={:.3}",
+                                    grid_pos.x, grid_pos.y, placement_reference_y, spawn_y, height
+                                );
                                 spawn_y = height;
                             }
                         }
@@ -3907,6 +3944,8 @@ impl TheTrait for Editor {
                                     rusterix.server.set_time(&map.id, time);
                                 }
                             }
+                            rusterix.set_dirty();
+                            redraw = true;
                         }
                     } else if id.name == TextGameState::GAME_INPUT_ID {
                         if let Some(command) = value.to_string() {

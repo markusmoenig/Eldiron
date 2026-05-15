@@ -3211,10 +3211,7 @@ impl Tool for GeometryTool {
                     && (!map.selected_geometry_faces.is_empty()
                         || !map.selected_geometry_objects.is_empty())
                 {
-                    let source = server_ctx
-                        .curr_tile_id
-                        .map(PixelSource::TileId)
-                        .or_else(|| get_source(_ui, server_ctx))?;
+                    let source = get_source(_ui, server_ctx)?;
                     let old_map = map.clone();
                     if !apply_tile_to_selected_geometry_faces(map, source) {
                         return None;

@@ -843,6 +843,7 @@ impl Sidebar {
                     }
                 } else if id.name == "Update Action Parameters" {
                     // Update the current action params (if any)
+                    self.sync_current_action_toml_params(ui, ctx, Some(project), server_ctx);
                     if let Some(curr_action_id) = server_ctx.curr_action_id {
                         if let Some(action) = ACTIONLIST
                             .write()
@@ -2163,6 +2164,7 @@ impl Sidebar {
                     }
                 } else if id.name == "Action Apply" {
                     if let Some(action_id) = server_ctx.curr_action_id {
+                        self.sync_current_action_toml_params(ui, ctx, Some(project), server_ctx);
                         if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id)
                         {
                             let mut needs_scene_redraw = false;
@@ -4251,6 +4253,51 @@ impl Sidebar {
         }
     }
 
+    fn sync_current_action_toml_params(
+        &self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: Option<&mut Project>,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        let Some(action_id) = server_ctx.curr_action_id else {
+            return false;
+        };
+        let Some(widget) = ui.get_widget("Action Params TOML") else {
+            return false;
+        };
+        let Some(edit) = widget.as_text_area_edit() else {
+            return false;
+        };
+        let source = edit.text().to_string();
+        if source.trim().is_empty() {
+            return false;
+        }
+        let mut actionlist = ACTIONLIST.write().unwrap();
+        let Some(action) = actionlist.get_action_by_id_mut(action_id) else {
+            return false;
+        };
+        let mut nodeui = action.params();
+        if apply_toml_to_nodeui(&mut nodeui, &source).is_err() {
+            return false;
+        }
+
+        if action.set_params_from_nodeui(nodeui.clone()) {
+            return true;
+        }
+
+        let Some(project) = project else {
+            return false;
+        };
+
+        let mut changed = false;
+        for (key, val) in nodeui_to_value_pairs(&nodeui) {
+            let ev = TheEvent::ValueChanged(TheId::named(&key), val);
+            changed |= action.handle_event(&ev, project, ui, ctx, server_ctx);
+        }
+        changed
+    }
+
     fn dungeon_params_nodeui(&self, server_ctx: &ServerContext) -> TheNodeUI {
         let mut nodeui = TheNodeUI::default();
         nodeui.add_item(TheNodeUIItem::OpenTree("Dungeon".into()));
@@ -4329,7 +4376,10 @@ impl Sidebar {
 
                 if let Some(map) = project.get_map(server_ctx).or(Some(&Map::default())) {
                     for action in &actions.actions {
-                        if action.is_applicable(map, ctx, server_ctx) {
+                        let is_current = Some(action.id().uuid) == server_ctx.curr_action_id;
+                        let keep_current_action_slots =
+                            is_current && action.preserves_hud_material_slots();
+                        if action.is_applicable(map, ctx, server_ctx) || keep_current_action_slots {
                             let mut item = TheListItem::new(action.id().clone());
                             item.set_text(action.id().name.clone());
 
@@ -4348,7 +4398,7 @@ impl Sidebar {
                             item.set_status_text(&status_text);
                             item.set_background_color(TheColor::from(action.role().to_color()));
 
-                            if Some(action.id().uuid) == server_ctx.curr_action_id {
+                            if is_current {
                                 found_current = true;
                                 item.set_state(TheWidgetState::Selected);
                             }
@@ -4383,6 +4433,7 @@ impl Sidebar {
         }
 
         if let Some(action_id) = server_ctx.curr_action_id {
+            self.sync_current_action_toml_params(ui, ctx, None, server_ctx);
             if let Some(action) = ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id) {
                 if let Some(map) = project.get_map(server_ctx) {
                     action.load_params(map);

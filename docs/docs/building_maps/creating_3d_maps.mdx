@@ -81,6 +81,9 @@ Useful face shortcuts:
 - **Cmd/Ctrl+M** runs the Face Merge action on selected connected faces.
 - **Delete** removes selected faces and leaves the boundary vertices selected.
 - **T** applies the current tile, palette color, tilegraph, or nodegraph source. Explicit face selections take priority over object selections, so painting selected faces on an object affects only those faces.
+- **Arrow keys** nudge texture offsets on selected textured faces.
+- **Shift + Left / Right** rotates textures on selected textured faces.
+- **Ctrl/Cmd + Arrow keys** scales textures on selected textured faces.
 - **+ / -** push or pull selected faces along their normals.
 - **[ / ]** move selected faces vertically by one grid step.
 
@@ -115,7 +118,7 @@ Surface lines are the shared workflow for custom relief and holes:
 - **Create Groove** turns selected surface lines into recessed box-shaped, triangular, or rounded strokes.
 - **Create Cutout** turns selected closed loops into openings through the host object.
 - **Create Face** turns selected closed loops into new selectable faces on the host object without cutting through it.
-- **Create Pattern** stamps editable guide patterns such as discs, triangles, quads, lines, staggered brick grids, regular tile grids, or alternating comma sequences onto selected faces. The guides remain normal surface detail, so they can be inspected, edited, and then committed with Create Face, Create Cutout, Create Ridge, or Create Groove.
+- **Create Pattern** can stamp editable guide patterns or generate raised relief geometry directly. Patterns include discs, triangles, quads, lines, regular or interleaved tile grids, irregular cobbles, and alternating comma sequences.
 - **Duplicate Surface Detail** repeats the selected guide shape on the same face using face-local offsets.
 - **Surface Curve** sets selected guide segments, or the shortest path between two selected guide points, to straight lines or configurable arcs. Positive and negative amounts bend the arc in opposite directions, so the same drawn loop can become a plain cutout, an arched opening, or a decorative curved pattern.
 - **Surface Noise** applies procedural noise to selected 3D faces. Its **NOISE** HUD material slot can be assigned or cleared from the Tiles or Palette dock, and the noise is evaluated from object/world-space coordinates so adjoining noisy faces can stay continuous around corners.
@@ -160,7 +163,7 @@ Select one or more faces with the **Sector / Face Tool** and press **T**, or use
 
 Faces can either repeat a tile in 1x1 world units or scale the source across the selected face, depending on the active tile application mode. Applying or clearing tile and palette sources uses selected faces first; if no individual faces are selected, selected objects apply to all of their faces.
 
-Use **Edit Face Texture** on selected faces, or on a selected object, to adjust texture offset, scale, and rotation. Explicit face selections take priority, so selecting one face on an object edits only that face; selecting the object edits every face. Parameter changes update the 3D view immediately. Texture scale follows the old 3D path convention: larger scale values make the source cover a larger area, while smaller values repeat it more tightly.
+Use **Edit Face Texture** on selected faces, or on a selected object, to adjust texture offset, scale, and rotation. Explicit face selections take priority, so selecting one face on an object edits only that face; selecting the object edits every face. Parameter changes update the 3D view immediately. Texture scale follows the old 3D path convention: larger scale values make the source cover a larger area, while smaller values repeat it more tightly. For selected textured faces, the arrow shortcuts can also adjust offset, rotation, and scale without opening the action parameters.
 
 ## Suggested Blockout Workflow
 

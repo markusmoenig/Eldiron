@@ -226,26 +226,41 @@ Options:
 
 ### Create Pattern
 
-Create editable surface-line guide patterns on the selected 3D face without directly cutting or changing topology. The generated guides are selected after creation, so they can immediately be used with **Create Face**, **Create Cutout**, **Create Ridge**, or **Create Groove**.
+Create patterns on the selected 3D face. In **guide** mode, the action creates editable surface-line guides without directly changing topology. In **relief** mode, the same pattern creates generated raised surface geometry immediately, with separate foreground/background material slots.
 
 Options:
 
-* `pattern`: select `disc`, `triangle`, `quad`, `line`, `brick`, or `tile`.
+* `mode`: select `guide` or `relief`.
+* `pattern`: select `disc`, `triangle`, `quad`, `line`, `tile`, or `cobble`.
 * `sequence`: optional comma-separated pattern sequence such as `disc,triangle`; leave empty to use `pattern`.
 * `repeat`: when off, creates one centered stamp; when on, repeats across the selected face.
+* `interleave`: offsets every second repeated row by half the X spacing. A brick layout is `pattern = "tile"` with `interleave = true`.
 * `[shape].scale`: overall stamp size.
 * `[shape].rotation`: stamp rotation in degrees.
 * `[shape].margin`: inset margin used when fitting shapes inside the selected face.
 * `[shape].sides`: side count for disc-like shapes.
+* `[shape].roundness`: cobble corner roundness, from squarer stones to softer rounded stones.
+* `[shape].jitter`: cobble size and placement variation.
+* `[shape].seed`: cobble variation seed.
 * `[spacing].x`: horizontal spacing between repeated stamps.
 * `[spacing].y`: vertical spacing between repeated stamps.
+* `[relief].height`: raised pattern height in relief mode.
+* `[relief].height_jitter`: per-stamp height variation in relief mode.
+* `[relief].dome`: rounded top amount in relief mode.
+* `[relief].edge_depth`: base edge offset for generated relief geometry.
+* `[relief].color_jitter`: palette-index variation for the generated pattern material.
 * `[fit].rows`: row count; `0` lets the action compute the count from the face and spacing.
 * `[fit].columns`: column count; `0` lets the action compute the count from the face and spacing.
 
 Pattern notes:
 
-* `brick`: creates staggered mortar lines.
-* `tile`: creates the same grid without offsetting every second row.
+* `guide` mode selects the created surface details after creation so they can be committed with **Create Face**, **Create Cutout**, **Create Ridge**, or **Create Groove**.
+* `relief` mode creates a generated non-solid Geometry Object and selects it after creation.
+* While Create Pattern is selected, the minimap previews the current pattern outline on the selected face before applying.
+* The HUD exposes **PATTERN** and **BACKGROUND** material slots while Create Pattern is active. Applying a tile or palette color to those slots controls generated relief material and optional host-face background material.
+* `tile`: creates a regular grid guide in guide mode and rectangular raised cells in relief mode.
+* `tile` plus `interleave`: creates a staggered brick-like layout.
+* `cobble`: creates repeated irregular rounded closed loops in guide mode and rounded raised cobbles in relief mode.
 * Repeated patterns are centered in the remaining space and skip stamps that do not fit inside the actual face polygon.
 * A fixed row or column count is useful for decorative one-row patterns, such as alternating disc and triangle cutouts.
 
@@ -315,6 +330,12 @@ Options:
 ### Edit Face Texture
 
 Edit texture placement on selected direct 3D geometry faces, or on every face of selected Geometry Objects. Explicit face selections take priority, so selecting one face on an object edits only that face. Parameter changes update the selected geometry in the 3D view immediately, so texture adjustments can be judged while editing.
+
+Shortcuts for selected textured faces:
+
+* `Arrow keys`: adjust texture offset.
+* `Shift + Left / Right`: adjust texture rotation.
+* `Ctrl/Cmd + Arrow keys`: adjust texture scale.
 
 Options:
 

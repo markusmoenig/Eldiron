@@ -14,6 +14,12 @@ pub struct ActionItemSlot {
     pub assigned_builder_name: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ActionMinimapSegment {
+    pub start: Vec2<f32>,
+    pub end: Vec2<f32>,
+}
+
 pub fn parse_tile_id_pixelsource(text: &str) -> Option<PixelSource> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
@@ -691,6 +697,22 @@ pub trait Action: Send + Sync {
     }
 
     fn preserves_hud_material_slots(&self) -> bool {
+        false
+    }
+
+    fn minimap_preview_segments(
+        &self,
+        _map: &Map,
+        _server_ctx: &ServerContext,
+    ) -> Vec<ActionMinimapSegment> {
+        Vec::new()
+    }
+
+    fn uses_minimap_preview(&self) -> bool {
+        false
+    }
+
+    fn set_params_from_nodeui(&mut self, _nodeui: TheNodeUI) -> bool {
         false
     }
 

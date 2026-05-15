@@ -22,12 +22,30 @@ struct DragState {
     start_pos: Vec2<f32>,
     changed: bool,
     grab_offset: Vec2<f32>,
+    last_reference_y: Option<f32>,
+    last_floor_y: Option<f32>,
 }
 
 #[derive(Clone, Copy)]
 enum DragTarget {
     Entity(Uuid),
     Item(Uuid),
+}
+
+#[derive(Clone, Copy)]
+struct PlacementSample {
+    pos: Vec2<f32>,
+    reference_y: Option<f32>,
+    floor_y: Option<f32>,
+}
+
+impl DragTarget {
+    fn placement_clearance(self) -> f32 {
+        match self {
+            DragTarget::Entity(_) => 2.0,
+            DragTarget::Item(_) => 1.0,
+        }
+    }
 }
 
 impl Tool for EntityTool {
@@ -130,9 +148,14 @@ impl Tool for EntityTool {
                 if server_ctx.get_map_context() == MapContext::Region
                     && let Some(hit) = self.pick_hit_for_coord(ui, server_ctx, map, coord)
                 {
-                    let click_pos = self
-                        .map_pos_unsnapped(ui, server_ctx, map, coord)
-                        .unwrap_or(hit.pos);
+                    let placement = self.placement_sample_at_coord(
+                        ui,
+                        server_ctx,
+                        map,
+                        coord,
+                        hit.target.placement_clearance(),
+                    );
+                    let click_pos = placement.map(|sample| sample.pos).unwrap_or(hit.pos);
 
                     map.clear_selection();
                     map.selected_entity_item = Some(hit.id());
@@ -144,6 +167,8 @@ impl Tool for EntityTool {
                         start_pos: hit.pos,
                         changed: false,
                         grab_offset,
+                        last_reference_y: placement.and_then(|sample| sample.reference_y),
+                        last_floor_y: placement.and_then(|sample| sample.floor_y),
                     });
 
                     match hit.target {
@@ -192,7 +217,13 @@ impl Tool for EntityTool {
                                 );
                                 let floor_height = snapped.and_then(|pos| {
                                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                        Self::placement_floor_height(map, server_ctx, pos)
+                                        Self::placement_floor_height(
+                                            map,
+                                            pos,
+                                            state.last_reference_y,
+                                            state.last_floor_y,
+                                            state.target.placement_clearance(),
+                                        )
                                     } else {
                                         None
                                     }
@@ -224,7 +255,13 @@ impl Tool for EntityTool {
                                     });
                                 let floor_height = snapped.and_then(|pos| {
                                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                        Self::placement_floor_height(map, server_ctx, pos)
+                                        Self::placement_floor_height(
+                                            map,
+                                            pos,
+                                            state.last_reference_y,
+                                            state.last_floor_y,
+                                            state.target.placement_clearance(),
+                                        )
                                     } else {
                                         None
                                     }
@@ -256,10 +293,25 @@ impl Tool for EntityTool {
                 if let Some(_render_view) = ui.get_render_view("PolyView") {
                     if let Some(mut state) = self.drag_state.take() {
                         // Keep drag freeform; no snapping while moving
-                        let pointer_pos = self
-                            .map_pos_unsnapped(ui, server_ctx, map, coord)
+                        let placement = self.placement_sample_at_coord(
+                            ui,
+                            server_ctx,
+                            map,
+                            coord,
+                            state.target.placement_clearance(),
+                        );
+                        let pointer_pos = placement
+                            .map(|sample| sample.pos)
                             .unwrap_or(Vec2::new(0.0, 0.0));
                         let mut drag_pos = pointer_pos + state.grab_offset;
+                        let placement_reference_y = placement.and_then(|sample| sample.reference_y);
+                        let placement_floor_y = placement.and_then(|sample| sample.floor_y);
+                        if placement_reference_y.is_some() {
+                            state.last_reference_y = placement_reference_y;
+                        }
+                        if placement_floor_y.is_some() {
+                            state.last_floor_y = placement_floor_y;
+                        }
 
                         // Ignore tiny mouse jitter so a pure click doesn't register as a move
                         let delta = drag_pos - state.start_pos;
@@ -272,7 +324,13 @@ impl Tool for EntityTool {
                             DragTarget::Entity(id) => {
                                 let floor_height =
                                     if moved && server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                        Self::placement_floor_height(map, server_ctx, drag_pos)
+                                        Self::placement_floor_height(
+                                            map,
+                                            drag_pos,
+                                            placement_reference_y,
+                                            placement_floor_y,
+                                            state.target.placement_clearance(),
+                                        )
                                     } else {
                                         None
                                     };
@@ -298,7 +356,13 @@ impl Tool for EntityTool {
                             DragTarget::Item(id) => {
                                 let floor_height =
                                     if moved && server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                        Self::placement_floor_height(map, server_ctx, drag_pos)
+                                        Self::placement_floor_height(
+                                            map,
+                                            drag_pos,
+                                            placement_reference_y,
+                                            placement_floor_y,
+                                            state.target.placement_clearance(),
+                                        )
                                     } else {
                                         None
                                     };
@@ -475,6 +539,18 @@ impl EntityTool {
         map: &Map,
         coord: Vec2<i32>,
     ) -> Option<Vec2<f32>> {
+        self.placement_sample_at_coord(ui, server_ctx, map, coord, 1.0)
+            .map(|sample| sample.pos)
+    }
+
+    fn placement_sample_at_coord(
+        &self,
+        ui: &mut TheUI,
+        server_ctx: &ServerContext,
+        map: &Map,
+        coord: Vec2<i32>,
+        clearance: f32,
+    ) -> Option<PlacementSample> {
         if server_ctx.editor_view_mode != EditorViewMode::D2
             && let Some(render_view) = ui.get_render_view("PolyView")
         {
@@ -494,15 +570,33 @@ impl EntityTool {
                 if let Some((ray_origin, ray_dir)) = server_ctx
                     .hover_ray_origin_3d
                     .zip(server_ctx.hover_ray_dir_3d)
-                    && let Some(floor_hit) =
-                        map.geometry_floor_hit_from_ray(ray_origin, ray_dir, Some(hit.y - 0.1))
+                    && let Some((floor_hit, reference_y)) = map
+                        .geometry_floor_hit_from_ray_for_placement(
+                            ray_origin, ray_dir, hit, clearance,
+                        )
                 {
-                    return Some(Vec2::new(floor_hit.x, floor_hit.z));
+                    eprintln!(
+                        "[EntityPlacementDebug] entity tool pointer raw=({:.3},{:.3},{:.3}) resolved=({:.3},{:.3},{:.3}) reference_y={:.3}",
+                        hit.x, hit.y, hit.z, floor_hit.x, floor_hit.y, floor_hit.z, reference_y
+                    );
+                    return Some(PlacementSample {
+                        pos: Vec2::new(floor_hit.x, floor_hit.z),
+                        reference_y: Some(reference_y),
+                        floor_y: Some(floor_hit.y),
+                    });
                 }
-                return Some(Vec2::new(hit.x, hit.z));
+                return Some(PlacementSample {
+                    pos: Vec2::new(hit.x, hit.z),
+                    reference_y: Some(hit.y),
+                    floor_y: Some(hit.y),
+                });
             }
             if let Some(hit) = server_ctx.hover_cursor_3d {
-                return Some(Vec2::new(hit.x, hit.z));
+                return Some(PlacementSample {
+                    pos: Vec2::new(hit.x, hit.z),
+                    reference_y: Some(hit.y),
+                    floor_y: Some(hit.y),
+                });
             }
         }
 
@@ -512,7 +606,11 @@ impl EntityTool {
                 - Vec2::new(dim.width as f32, dim.height as f32) / 2.0
                 - Vec2::new(map.offset.x, -map.offset.y);
 
-            grid_space_pos / map.grid_size
+            PlacementSample {
+                pos: grid_space_pos / map.grid_size,
+                reference_y: None,
+                floor_y: None,
+            }
         })
     }
 
@@ -530,13 +628,55 @@ impl EntityTool {
 
     fn placement_floor_height(
         map: &Map,
-        server_ctx: &ServerContext,
         pos: Vec2<f32>,
+        reference_y: Option<f32>,
+        pointer_floor_y: Option<f32>,
+        clearance: f32,
     ) -> Option<f32> {
-        const ROOF_CLEARANCE: f32 = 0.1;
+        const FLOOR_EPS: f32 = 0.08;
+        const CLEARANCE_EPS: f32 = 0.05;
 
-        if let Some(hit) = server_ctx.hover_cursor_3d {
-            map.geometry_floor_height_nearest(pos, hit.y - ROOF_CLEARANCE)
+        if let Some(reference_y) = reference_y {
+            let nearest = map.geometry_floor_height_nearest(pos, reference_y);
+            let floor_candidates = map.geometry_floor_candidates_at(pos);
+            let raw_floor = floor_candidates
+                .iter()
+                .find(|floor| (floor.height - reference_y).abs() <= FLOOR_EPS)
+                .map(|floor| floor.height)
+                .or_else(|| {
+                    floor_candidates
+                        .iter()
+                        .filter(|floor| floor.height <= reference_y + FLOOR_EPS)
+                        .min_by(|a, b| {
+                            (reference_y - a.height)
+                                .abs()
+                                .partial_cmp(&(reference_y - b.height).abs())
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        })
+                        .map(|floor| floor.height)
+                });
+
+            let mut resolved = if let (Some(nearest), Some(raw_floor)) = (nearest, raw_floor) {
+                if raw_floor - nearest < clearance.max(0.0) + CLEARANCE_EPS {
+                    Some(raw_floor)
+                } else {
+                    Some(nearest)
+                }
+            } else {
+                nearest.or(raw_floor)
+            };
+            if let (Some(pointer_floor_y), Some(current)) = (pointer_floor_y, resolved)
+                && pointer_floor_y > current
+                && pointer_floor_y - current < clearance.max(0.0) + CLEARANCE_EPS
+            {
+                resolved = Some(pointer_floor_y);
+            }
+
+            eprintln!(
+                "[EntityPlacementDebug] entity tool height pos=({:.3},{:.3}) reference_y={:.3} pointer_floor={:?} nearest={:?} raw_floor={:?} resolved={:?} clearance={:.3}",
+                pos.x, pos.y, reference_y, pointer_floor_y, nearest, raw_floor, resolved, clearance
+            );
+            resolved
         } else {
             map.geometry_floor_height_at(pos)
         }
