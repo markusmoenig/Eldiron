@@ -25,6 +25,10 @@ enum SpellTargetArg {
 }
 
 fn opening_geo_for_item(item: &Item) -> Option<GeoId> {
+    if let Some(object_id) = item.attributes.get_id("geometry_object_id") {
+        return Some(GeoId::GeometryObject(object_id));
+    }
+
     if let Some(sector_id) = match item.attributes.get("sector_id") {
         Some(Value::UInt(v)) => Some(*v),
         Some(Value::Int(v)) if *v >= 0 => Some(*v as u32),
@@ -45,6 +49,28 @@ fn opening_geo_for_item(item: &Item) -> Option<GeoId> {
     }?;
 
     Some(GeoId::Hole(host_id, profile_id))
+}
+
+fn apply_geometry_object_item_attr(
+    ctx: &mut RegionCtx,
+    object_id: uuid::Uuid,
+    key: &str,
+    value: bool,
+) {
+    let Some(object) = ctx
+        .map
+        .geometry_objects
+        .iter_mut()
+        .find(|object| object.id == object_id)
+    else {
+        return;
+    };
+
+    match key {
+        "visible" => object.visible = value,
+        "blocking" => object.solid = value,
+        _ => {}
+    }
 }
 
 fn rebuild_runtime_navigation(ctx: &mut RegionCtx) {
@@ -1525,6 +1551,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                 {
                     let health_attr = self.ctx.health_attr.clone();
                     if let Some(item_id) = self.ctx.curr_item_id {
+                        let mut geometry_object_attr = None;
                         if let Some(item) = self.ctx.get_item_mut(item_id) {
                             // Single conversion path with optional type hints (string tag or attr type).
                             let converted = convert_attr_value(
@@ -1534,6 +1561,15 @@ impl<'a> HostHandler for RegionHost<'a> {
                                 &health_attr,
                             );
                             item.set_attribute(key, converted);
+                            if matches!(key, "visible" | "blocking")
+                                && let Some(object_id) =
+                                    item.attributes.get_id("geometry_object_id")
+                            {
+                                geometry_object_attr = Some((
+                                    object_id,
+                                    item.attributes.get_bool_default(key, key == "visible"),
+                                ));
+                            }
 
                             let (queue_active, queued_id, active_val) = if key == "active" {
                                 let active = item.attributes.get_bool_default("active", false);
@@ -1581,6 +1617,12 @@ impl<'a> HostHandler for RegionHost<'a> {
                                     "active".into(),
                                     active_val,
                                 ));
+                            }
+                        }
+                        if let Some((object_id, value)) = geometry_object_attr {
+                            apply_geometry_object_item_attr(self.ctx, object_id, key, value);
+                            if key == "blocking" {
+                                rebuild_runtime_navigation(self.ctx);
                             }
                         }
                     } else if let Some(entity) = self.ctx.get_current_entity_mut() {

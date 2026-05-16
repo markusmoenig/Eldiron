@@ -139,6 +139,7 @@ pub struct Client {
     pub target_fps: i32,
     pub game_tick_ms: i32,
     pub firstp_eye_level: f32,
+    firstp_camera_y: Option<f32>,
 
     // The offset we copy the target into
     pub target_offset: Vec2<i32>,
@@ -482,6 +483,7 @@ impl Client {
             target_fps: 30,
             game_tick_ms: 250,
             firstp_eye_level: 1.7,
+            firstp_camera_y: None,
 
             target_offset: Vec2::zero(),
             target: TheRGBABuffer::default(),
@@ -557,7 +559,30 @@ impl Client {
 
     /// Set the D3 Camera
     pub fn set_camera_d3(&mut self, camera: Box<dyn D3Camera>) {
+        if camera.id() != "firstp" {
+            self.firstp_camera_y = None;
+        }
         self.camera_d3 = camera;
+    }
+
+    fn apply_player_camera_d3(&mut self, entity: &Entity) {
+        if self.camera_d3.id() == "firstp" {
+            let target_y = entity.position.y;
+            let smoothed_y = match self.firstp_camera_y {
+                Some(current) if (target_y - current).abs() <= 2.0 => {
+                    current + (target_y - current) * 0.28
+                }
+                _ => target_y,
+            };
+            self.firstp_camera_y = Some(smoothed_y);
+
+            let mut visual_entity = entity.clone();
+            visual_entity.position.y = smoothed_y;
+            visual_entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
+        } else {
+            self.firstp_camera_y = None;
+            entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
+        }
     }
 
     pub fn set_map_tool_type_d2(&mut self, tool: MapToolType) {
@@ -671,7 +696,7 @@ impl Client {
     ) {
         for entity in &map.entities {
             if entity.is_player() {
-                entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
+                self.apply_player_camera_d3(entity);
             }
         }
         self.builder_d3.build_entities_items(

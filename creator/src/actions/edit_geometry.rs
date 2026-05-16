@@ -54,6 +54,7 @@ impl Action for EditGeometry {
         Self: Sized,
     {
         let mut nodeui = TheNodeUI::default();
+        nodeui.add_item(TheNodeUIItem::OpenTree("metadata".into()));
         nodeui.add_item(TheNodeUIItem::Text(
             "actionGeometryName".into(),
             "Name".into(),
@@ -102,6 +103,9 @@ impl Action for EditGeometry {
             "Include this geometry object in mesh collision.".into(),
             true,
         ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
+
+        nodeui.add_item(TheNodeUIItem::OpenTree("geometry".into()));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
             "actionGeometryX".into(),
             "X".into(),
@@ -150,6 +154,7 @@ impl Action for EditGeometry {
             0.05..=256.0,
             false,
         ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
 
         Self {
             id: TheId::named(&fl!("action_edit_geometry")),
@@ -351,5 +356,27 @@ impl Action for EditGeometry {
         _server_ctx: &mut ServerContext,
     ) -> bool {
         self.nodeui.handle_event(event)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::nodeui_to_toml;
+
+    #[test]
+    fn edit_geometry_toml_is_grouped() {
+        let action = EditGeometry::new();
+        let toml = nodeui_to_toml(&action.params());
+
+        assert!(toml.contains("[metadata]\n"));
+        assert!(toml.contains("name = \"\""));
+        assert!(toml.contains("visible = true"));
+        assert!(toml.contains("solid = true"));
+        assert!(toml.contains("[geometry]\n"));
+        assert!(toml.contains("x = 0.0"));
+        assert!(toml.contains("width = 1.0"));
+        assert!(!toml.contains("geometry_x"));
+        assert!(!toml.contains("geometry_width"));
     }
 }

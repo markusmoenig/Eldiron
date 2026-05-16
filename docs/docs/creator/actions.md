@@ -351,19 +351,25 @@ Edit selected direct 3D geometry objects. This action is available in 3D editing
 
 Options:
 
-* `name`: object name used for scripts and editor organization.
-* `group`: optional group label.
-* `item`: optional item/handler metadata for this 3D area.
-* `visible`: when off, skips the object in the rendered scene.
-* `solid`: when off, skips the object in mesh collision while keeping it editable in the creator.
-* `area`: marks named objects for sector-style script destinations.
-* `hide_iso`: fades the object out while the player is inside that area in isometric gameplay.
-* `x`: object bounds center X.
-* `y`: object bounds center Y / elevation.
-* `z`: object bounds center Z.
-* `width`: object bounds width.
-* `height`: object bounds height.
-* `depth`: object bounds depth.
+* `[metadata].name`: object name used for scripts and editor organization.
+* `[metadata].group`: optional group label.
+* `[metadata].item`: optional item/handler metadata for this 3D area. When set to a valid Item class, the game server creates a static item linked to this Geometry Object.
+* `[metadata].area`: marks named objects for sector-style script destinations.
+* `[metadata].hide_iso`: fades the object out while the player is inside that area in isometric gameplay.
+* `[metadata].visible`: initial object render visibility.
+* `[metadata].solid`: initial object mesh collision state.
+* `[geometry].x`: object bounds center X.
+* `[geometry].y`: object bounds center Y / elevation.
+* `[geometry].z`: object bounds center Z.
+* `[geometry].width`: object bounds width.
+* `[geometry].height`: object bounds height.
+* `[geometry].depth`: object bounds depth.
+
+Scripted area behavior:
+
+* If `[metadata].item` creates a static item for the Geometry Object, `set_attr("visible", false)` / `set_attr("visible", true)` on that item hides or shows the backing 3D object.
+* `set_attr("blocking", false)` / `set_attr("blocking", true)` on that item updates the backing object's solidity and rebuilds runtime collision/navigation.
+* Hidden objects remain present in the scene data so scripts can reveal them later.
 
 ### Edit Linedef
 

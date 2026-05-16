@@ -208,6 +208,71 @@ fn geometry_face_plane(
     })
 }
 
+fn geometry_face_plane_in_reference(
+    object: &rusterix::GeometryObject,
+    face: &rusterix::GeometryFace,
+    reference: &FacePlane,
+) -> Option<FacePlane> {
+    let world_vertices = face
+        .indices
+        .iter()
+        .filter_map(|index| {
+            object
+                .vertices
+                .get(*index)
+                .map(|vertex| object.transform_point(*vertex))
+        })
+        .collect::<Vec<_>>();
+    if world_vertices.len() != face.indices.len() || world_vertices.len() < 3 {
+        return None;
+    }
+
+    let mut polygon = Vec::with_capacity(world_vertices.len());
+    let mut min = Vec2::broadcast(f32::INFINITY);
+    let mut max = Vec2::broadcast(f32::NEG_INFINITY);
+    for point in &world_vertices {
+        let projected = face_plane_coord(reference, *point);
+        min.x = min.x.min(projected.x);
+        min.y = min.y.min(projected.y);
+        max.x = max.x.max(projected.x);
+        max.y = max.y.max(projected.y);
+        polygon.push(projected);
+    }
+
+    Some(FacePlane {
+        origin: reference.origin,
+        axis_u: reference.axis_u,
+        axis_v: reference.axis_v,
+        polygon,
+        min,
+        max,
+        normal: reference.normal,
+    })
+}
+
+fn geometry_object_local_point(object: &rusterix::GeometryObject, world: Vec3<f32>) -> Vec3<f32> {
+    let m = object.transform;
+    let translation = Vec3::new(m[3][0], m[3][1], m[3][2]);
+    let rel = world - translation;
+    let axis_x = Vec3::new(m[0][0], m[0][1], m[0][2]);
+    let axis_y = Vec3::new(m[1][0], m[1][1], m[1][2]);
+    let axis_z = Vec3::new(m[2][0], m[2][1], m[2][2]);
+    let project = |axis: Vec3<f32>| {
+        let len_sq = axis.dot(axis);
+        if len_sq > 1e-6 {
+            rel.dot(axis) / len_sq
+        } else {
+            0.0
+        }
+    };
+    Vec3::new(project(axis_x), project(axis_y), project(axis_z))
+}
+
+fn face_plane_coord(plane: &FacePlane, world: Vec3<f32>) -> Vec2<f32> {
+    let rel = world - plane.origin;
+    Vec2::new(rel.dot(plane.axis_u), rel.dot(plane.axis_v))
+}
+
 fn point_in_polygon(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> bool {
     if polygon.len() < 3 {
         return false;
@@ -235,6 +300,55 @@ fn point_in_polygon(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> bool {
         previous = current;
     }
     inside
+}
+
+fn cross2(a: Vec2<f32>, b: Vec2<f32>) -> f32 {
+    a.x * b.y - a.y * b.x
+}
+
+fn line_polygon_segments(
+    start: Vec2<f32>,
+    end: Vec2<f32>,
+    polygon: &[Vec2<f32>],
+) -> Vec<(Vec2<f32>, Vec2<f32>)> {
+    if polygon.len() < 3 || (end - start).magnitude_squared() <= 1e-8 {
+        return Vec::new();
+    }
+
+    let direction = end - start;
+    let mut cuts = vec![0.0f32, 1.0];
+    for index in 0..polygon.len() {
+        let a = polygon[index];
+        let b = polygon[(index + 1) % polygon.len()];
+        let edge = b - a;
+        let denom = cross2(direction, edge);
+        if denom.abs() <= 1e-6 {
+            continue;
+        }
+        let rel = a - start;
+        let t = cross2(rel, edge) / denom;
+        let u = cross2(rel, direction) / denom;
+        if (-1e-5..=1.0 + 1e-5).contains(&t) && (-1e-5..=1.0 + 1e-5).contains(&u) {
+            cuts.push(t.clamp(0.0, 1.0));
+        }
+    }
+
+    cuts.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    cuts.dedup_by(|a, b| (*a - *b).abs() <= 1e-5);
+
+    let mut segments = Vec::new();
+    for window in cuts.windows(2) {
+        let t0 = window[0];
+        let t1 = window[1];
+        if t1 - t0 <= 1e-5 {
+            continue;
+        }
+        let mid = start + direction * ((t0 + t1) * 0.5);
+        if point_in_polygon(mid, polygon) {
+            segments.push((start + direction * t0, start + direction * t1));
+        }
+    }
+    segments
 }
 
 fn pattern_settings(nodeui: &TheNodeUI) -> PatternSettings {
@@ -397,6 +511,7 @@ fn stamp_points(
 }
 
 fn append_stamp(
+    object: &rusterix::GeometryObject,
     face: &mut rusterix::GeometryFace,
     object_id: Uuid,
     face_index: usize,
@@ -410,6 +525,33 @@ fn append_stamp(
     if points.is_empty() {
         return false;
     }
+    if !closed && points.len() == 2 {
+        let start = center + points[0];
+        let end = center + points[1];
+        let mut added = false;
+        for (start, end) in line_polygon_segments(start, end, &plane.polygon) {
+            let point_start = face.surface_points.len();
+            for point in [start, end] {
+                let world = plane.origin + plane.axis_u * point.x + plane.axis_v * point.y;
+                let local = geometry_object_local_point(object, world);
+                face.surface_points.push(rusterix::GeometrySurfacePoint {
+                    position: local,
+                    mode: rusterix::GeometrySurfacePointMode::Corner,
+                });
+                selected_points.push((object_id, face_index, face.surface_points.len() - 1));
+            }
+            face.surface_segments
+                .push(rusterix::GeometrySurfaceSegment {
+                    start: point_start,
+                    end: point_start + 1,
+                    mode: rusterix::GeometrySurfaceSegmentMode::Line,
+                    curve_amount: 0.35,
+                });
+            selected_segments.push((object_id, face_index, face.surface_segments.len() - 1));
+            added = true;
+        }
+        return added;
+    }
     if points
         .iter()
         .any(|point| !point_in_polygon(center + *point, &plane.polygon))
@@ -419,9 +561,10 @@ fn append_stamp(
 
     let start = face.surface_points.len();
     for point in points {
-        let local = plane.origin
+        let world = plane.origin
             + plane.axis_u * (center.x + point.x)
             + plane.axis_v * (center.y + point.y);
+        let local = geometry_object_local_point(object, world);
         face.surface_points.push(rusterix::GeometrySurfacePoint {
             position: local,
             mode: rusterix::GeometrySurfacePointMode::Corner,
@@ -576,8 +719,28 @@ fn fit_count(available: f32, footprint: f32, spacing: f32, requested: usize) -> 
     }
 }
 
+fn pattern_space_bounds(plane: &FacePlane, rotation: f32) -> (Vec2<f32>, Vec2<f32>, Vec2<f32>) {
+    let pivot = (plane.min + plane.max) * 0.5;
+    if rotation.abs() <= 1e-6 {
+        return (plane.min, plane.max, pivot);
+    }
+
+    let mut min = Vec2::broadcast(f32::INFINITY);
+    let mut max = Vec2::broadcast(f32::NEG_INFINITY);
+    for point in &plane.polygon {
+        let rotated = pivot + rotate(*point - pivot, -rotation);
+        min.x = min.x.min(rotated.x);
+        min.y = min.y.min(rotated.y);
+        max.x = max.x.max(rotated.x);
+        max.y = max.y.max(rotated.y);
+    }
+
+    (min, max, pivot)
+}
+
 fn pattern_stamps(plane: &FacePlane, settings: &PatternSettings) -> Vec<PatternStamp> {
-    let available = (plane.max - plane.min) - Vec2::broadcast(settings.margin * 2.0);
+    let (fit_min, fit_max, rotation_pivot) = pattern_space_bounds(plane, settings.rotation);
+    let available = (fit_max - fit_min) - Vec2::broadcast(settings.margin * 2.0);
     if available.x <= 0.0 || available.y <= 0.0 {
         return Vec::new();
     }
@@ -597,10 +760,9 @@ fn pattern_stamps(plane: &FacePlane, settings: &PatternSettings) -> Vec<PatternS
 
     let total_width = footprint + (columns.saturating_sub(1) as f32) * settings.spacing_x;
     let total_height = footprint + (rows.saturating_sub(1) as f32) * settings.spacing_y;
-    let start_x =
-        plane.min.x + settings.margin + (available.x - total_width) * 0.5 + footprint * 0.5;
+    let start_x = fit_min.x + settings.margin + (available.x - total_width) * 0.5 + footprint * 0.5;
     let start_y =
-        plane.min.y + settings.margin + (available.y - total_height) * 0.5 + footprint * 0.5;
+        fit_min.y + settings.margin + (available.y - total_height) * 0.5 + footprint * 0.5;
     let pattern_center = Vec2::new(
         start_x + (columns.saturating_sub(1) as f32) * settings.spacing_x * 0.5,
         start_y + (rows.saturating_sub(1) as f32) * settings.spacing_y * 0.5,
@@ -633,7 +795,11 @@ fn pattern_stamps(plane: &FacePlane, settings: &PatternSettings) -> Vec<PatternS
                 points: stamp_points(shape, settings, row, column),
                 closed: shape != PatternShape::Line,
             };
-            rotate_stamp_around(&mut stamp, pattern_center, settings.rotation);
+            if settings.rotation.abs() > 1e-6 {
+                rotate_stamp_around(&mut stamp, rotation_pivot, settings.rotation);
+            } else {
+                rotate_stamp_around(&mut stamp, pattern_center, settings.rotation);
+            }
             stamps.push(stamp);
         }
     }
@@ -641,16 +807,18 @@ fn pattern_stamps(plane: &FacePlane, settings: &PatternSettings) -> Vec<PatternS
 }
 
 fn append_tile_grid_pattern(
+    object: &rusterix::GeometryObject,
     face: &mut rusterix::GeometryFace,
     object_id: Uuid,
     face_index: usize,
-    plane: &FacePlane,
+    fit_plane: &FacePlane,
+    target_plane: &FacePlane,
     settings: &PatternSettings,
     selected_points: &mut Vec<(Uuid, usize, usize)>,
     selected_segments: &mut Vec<(Uuid, usize, usize)>,
     stagger: bool,
 ) -> usize {
-    let available = (plane.max - plane.min) - Vec2::broadcast(settings.margin * 2.0);
+    let available = (fit_plane.max - fit_plane.min) - Vec2::broadcast(settings.margin * 2.0);
     if available.x <= 0.0 || available.y <= 0.0 {
         return 0;
     }
@@ -677,9 +845,9 @@ fn append_tile_grid_pattern(
 
     let total_width = columns as f32 * cell_width;
     let total_height = rows as f32 * cell_height;
-    let min_x = plane.min.x + settings.margin + (available.x - total_width) * 0.5;
+    let min_x = fit_plane.min.x + settings.margin + (available.x - total_width) * 0.5;
     let max_x = min_x + total_width;
-    let min_y = plane.min.y + settings.margin + (available.y - total_height) * 0.5;
+    let min_y = fit_plane.min.y + settings.margin + (available.y - total_height) * 0.5;
     let max_y = min_y + total_height;
     let pattern_center = Vec2::new((min_x + max_x) * 0.5, (min_y + max_y) * 0.5);
     let mut added = 0usize;
@@ -697,10 +865,11 @@ fn append_tile_grid_pattern(
         let mut points = [Vec2::new(min_x, y), Vec2::new(max_x, y)];
         rotate_grid_points(&mut points);
         if append_stamp(
+            object,
             face,
             object_id,
             face_index,
-            plane,
+            target_plane,
             Vec2::zero(),
             &points,
             false,
@@ -731,10 +900,11 @@ fn append_tile_grid_pattern(
             ];
             rotate_grid_points(&mut points);
             if append_stamp(
+                object,
                 face,
                 object_id,
                 face_index,
-                plane,
+                target_plane,
                 Vec2::zero(),
                 &points,
                 false,
@@ -754,8 +924,23 @@ fn create_pattern_on_face(
     face_index: usize,
     settings: &PatternSettings,
 ) -> Option<(usize, Vec<(Uuid, usize, usize)>, Vec<(Uuid, usize, usize)>)> {
+    create_pattern_on_face_with_fit(object, face_index, settings, None)
+}
+
+fn create_pattern_on_face_with_fit(
+    object: &mut rusterix::GeometryObject,
+    face_index: usize,
+    settings: &PatternSettings,
+    fit_plane: Option<&FacePlane>,
+) -> Option<(usize, Vec<(Uuid, usize, usize)>, Vec<(Uuid, usize, usize)>)> {
     let face_snapshot = object.faces.get(face_index)?.clone();
-    let plane = geometry_face_plane(object, &face_snapshot)?;
+    let target_plane = if let Some(fit_plane) = fit_plane {
+        geometry_face_plane_in_reference(object, &face_snapshot, fit_plane)?
+    } else {
+        geometry_face_plane(object, &face_snapshot)?
+    };
+    let pattern_plane = fit_plane.unwrap_or(&target_plane);
+    let object_snapshot = object.clone();
     let object_id = object.id;
     let face = object.faces.get_mut(face_index)?;
     let mut added = 0usize;
@@ -764,10 +949,12 @@ fn create_pattern_on_face(
 
     if matches!(settings.shapes.first(), Some(PatternShape::Tile)) && settings.shapes.len() == 1 {
         added = append_tile_grid_pattern(
+            &object_snapshot,
             face,
             object_id,
             face_index,
-            &plane,
+            pattern_plane,
+            &target_plane,
             settings,
             &mut selected_points,
             &mut selected_segments,
@@ -776,12 +963,13 @@ fn create_pattern_on_face(
         return (added > 0).then_some((added, selected_points, selected_segments));
     }
 
-    for stamp in pattern_stamps(&plane, settings) {
+    for stamp in pattern_stamps(pattern_plane, settings) {
         if append_stamp(
+            &object_snapshot,
             face,
             object_id,
             face_index,
-            &plane,
+            &target_plane,
             stamp.center,
             &stamp.points,
             stamp.closed,
@@ -821,6 +1009,101 @@ fn create_relief_on_face(
     (added > 0).then_some(relief)
 }
 
+fn faces_are_coplanar(reference: &FacePlane, candidate: &FacePlane) -> bool {
+    reference.normal.dot(candidate.normal).abs() >= 0.995
+        && (candidate.origin - reference.origin)
+            .dot(reference.normal)
+            .abs()
+            <= 0.02
+}
+
+fn combined_fit_plane(
+    map: &Map,
+    selected_faces: &[(Uuid, usize)],
+) -> Option<(FacePlane, Vec<(Uuid, usize)>)> {
+    let (first_object_id, first_face_index) = *selected_faces.first()?;
+    let first_object = map
+        .geometry_objects
+        .iter()
+        .find(|object| object.id == first_object_id)?;
+    let first_face = first_object.faces.get(first_face_index)?;
+    let reference = geometry_face_plane(first_object, first_face)?;
+    let mut fit = reference.clone();
+    fit.min = Vec2::broadcast(f32::INFINITY);
+    fit.max = Vec2::broadcast(f32::NEG_INFINITY);
+    let mut coplanar = Vec::new();
+
+    for (object_id, face_index) in selected_faces {
+        let Some(object) = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == *object_id)
+        else {
+            continue;
+        };
+        let Some(face) = object.faces.get(*face_index) else {
+            continue;
+        };
+        let Some(candidate) = geometry_face_plane(object, face) else {
+            continue;
+        };
+        if !faces_are_coplanar(&reference, &candidate) {
+            continue;
+        }
+        let Some(projected) = geometry_face_plane_in_reference(object, face, &reference) else {
+            continue;
+        };
+        fit.min.x = fit.min.x.min(projected.min.x);
+        fit.min.y = fit.min.y.min(projected.min.y);
+        fit.max.x = fit.max.x.max(projected.max.x);
+        fit.max.y = fit.max.y.max(projected.max.y);
+        coplanar.push((*object_id, *face_index));
+    }
+
+    if coplanar.is_empty() || !fit.min.x.is_finite() || !fit.min.y.is_finite() {
+        return None;
+    }
+    fit.polygon = vec![
+        fit.min,
+        Vec2::new(fit.max.x, fit.min.y),
+        fit.max,
+        Vec2::new(fit.min.x, fit.max.y),
+    ];
+    Some((fit, coplanar))
+}
+
+fn create_pattern_on_coplanar_faces(
+    map: &mut Map,
+    selected_faces: &[(Uuid, usize)],
+    settings: &PatternSettings,
+) -> (usize, Vec<(Uuid, usize, usize)>, Vec<(Uuid, usize, usize)>) {
+    let Some((fit_plane, coplanar_faces)) = combined_fit_plane(map, selected_faces) else {
+        return (0, Vec::new(), Vec::new());
+    };
+
+    let mut added = 0usize;
+    let mut selected_points = Vec::new();
+    let mut selected_segments = Vec::new();
+    for (object_id, face_index) in coplanar_faces {
+        let Some(object) = map
+            .geometry_objects
+            .iter_mut()
+            .find(|object| object.id == object_id)
+        else {
+            continue;
+        };
+        if let Some((count, points, segments)) =
+            create_pattern_on_face_with_fit(object, face_index, settings, Some(&fit_plane))
+        {
+            added += count;
+            selected_points.extend(points);
+            selected_segments.extend(segments);
+        }
+    }
+
+    (added, selected_points, selected_segments)
+}
+
 fn selected_face_source(map: &Map) -> Option<PixelSource> {
     map.selected_geometry_faces
         .first()
@@ -852,12 +1135,15 @@ fn pattern_minimap_segments(
     let mut segments = Vec::new();
     if matches!(settings.shapes.first(), Some(PatternShape::Tile)) && settings.shapes.len() == 1 {
         let mut face_clone = face.clone();
+        let object_snapshot = object.clone();
         let mut selected_points = Vec::new();
         let mut selected_segments = Vec::new();
         append_tile_grid_pattern(
+            &object_snapshot,
             &mut face_clone,
             object.id,
             face_index,
+            &plane,
             &plane,
             settings,
             &mut selected_points,
@@ -874,12 +1160,9 @@ fn pattern_minimap_segments(
             let Some(end) = face_clone.surface_points.get(segment.end) else {
                 continue;
             };
-            let start = object.transform_point(start.position);
-            let end = object.transform_point(end.position);
-            segments.push(ActionMinimapSegment {
-                start: Vec2::new(start.x, start.z),
-                end: Vec2::new(end.x, end.z),
-            });
+            let start = face_plane_coord(&plane, object.transform_point(start.position));
+            let end = face_plane_coord(&plane, object.transform_point(end.position));
+            segments.push(ActionMinimapSegment { start, end });
         }
         return segments;
     }
@@ -893,19 +1176,9 @@ fn pattern_minimap_segments(
         for index in 0..segment_count {
             let a = stamp.points[index];
             let b = stamp.points[(index + 1) % stamp.points.len()];
-            let a = object.transform_point(
-                plane.origin
-                    + plane.axis_u * (stamp.center.x + a.x)
-                    + plane.axis_v * (stamp.center.y + a.y),
-            );
-            let b = object.transform_point(
-                plane.origin
-                    + plane.axis_u * (stamp.center.x + b.x)
-                    + plane.axis_v * (stamp.center.y + b.y),
-            );
             segments.push(ActionMinimapSegment {
-                start: Vec2::new(a.x, a.z),
-                end: Vec2::new(b.x, b.z),
+                start: stamp.center + a,
+                end: stamp.center + b,
             });
         }
     }
@@ -1199,20 +1472,30 @@ impl Action for CreatePattern {
                 }
             }
         } else {
-            for (object_id, face_index) in selected_faces {
-                let Some(object) = map
-                    .geometry_objects
-                    .iter_mut()
-                    .find(|object| object.id == object_id)
-                else {
-                    continue;
-                };
-                if let Some((count, points, segments)) =
-                    create_pattern_on_face(object, face_index, &settings)
-                {
-                    added += count;
-                    selected_points.extend(points);
-                    selected_segments.extend(segments);
+            if selected_faces.len() > 1 {
+                let (count, points, segments) =
+                    create_pattern_on_coplanar_faces(map, &selected_faces, &settings);
+                added += count;
+                selected_points.extend(points);
+                selected_segments.extend(segments);
+            }
+
+            if added == 0 {
+                for (object_id, face_index) in selected_faces {
+                    let Some(object) = map
+                        .geometry_objects
+                        .iter_mut()
+                        .find(|object| object.id == object_id)
+                    else {
+                        continue;
+                    };
+                    if let Some((count, points, segments)) =
+                        create_pattern_on_face(object, face_index, &settings)
+                    {
+                        added += count;
+                        selected_points.extend(points);
+                        selected_segments.extend(segments);
+                    }
                 }
             }
         }
@@ -1378,6 +1661,21 @@ impl Action for CreatePattern {
 mod tests {
     use super::*;
 
+    fn broadest_face_index(object: &rusterix::GeometryObject) -> usize {
+        object
+            .faces
+            .iter()
+            .enumerate()
+            .filter_map(|(index, face)| {
+                let plane = geometry_face_plane(object, face)?;
+                let size = plane.max - plane.min;
+                Some((index, size.x.abs() * size.y.abs()))
+            })
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(index, _)| index)
+            .unwrap_or(0)
+    }
+
     fn selected_box_top_face() -> (Map, Uuid, usize) {
         let mut map = Map::default();
         let object = rusterix::GeometryObject::box_from_bounds(
@@ -1386,10 +1684,111 @@ mod tests {
             Vec3::new(4.0, 1.0, 4.0),
         );
         let object_id = object.id;
+        let face_index = broadest_face_index(&object);
         map.geometry_objects.push(object);
-        let face_index = 2;
         map.selected_geometry_faces.push((object_id, face_index));
         (map, object_id, face_index)
+    }
+
+    fn selected_wide_box_top_face() -> (Map, Uuid, usize) {
+        let mut map = Map::default();
+        let object = rusterix::GeometryObject::box_from_bounds(
+            "Wide Box",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(12.0, 1.0, 3.0),
+        );
+        let object_id = object.id;
+        let face_index = broadest_face_index(&object);
+        map.geometry_objects.push(object);
+        map.selected_geometry_faces.push((object_id, face_index));
+        (map, object_id, face_index)
+    }
+
+    fn selected_box_vertical_face() -> (Map, Uuid, usize) {
+        let mut map = Map::default();
+        let mut object = rusterix::GeometryObject::box_from_bounds(
+            "Wall Box",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 3.0, 4.0),
+        );
+        object.transform[3][0] = 8.0;
+        object.transform[3][1] = 2.0;
+        object.transform[3][2] = -6.0;
+        let object_id = object.id;
+        let face_index = object
+            .faces
+            .iter()
+            .enumerate()
+            .find_map(|(index, face)| {
+                let plane = geometry_face_plane(&object, face)?;
+                (plane.normal.y.abs() < 0.25).then_some(index)
+            })
+            .unwrap_or(0);
+        map.geometry_objects.push(object);
+        map.selected_geometry_faces.push((object_id, face_index));
+        (map, object_id, face_index)
+    }
+
+    fn selected_triangular_vertical_face() -> (Map, Uuid, usize) {
+        let mut map = Map::default();
+        let mut object = rusterix::GeometryObject::new("Triangle Wall");
+        object.vertices = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(2.0, 4.0, 0.0),
+        ];
+        object.faces.push(rusterix::GeometryFace {
+            indices: vec![0, 1, 2],
+            uvs: Vec::new(),
+            auto_uv: true,
+            texture_offset: Vec2::zero(),
+            texture_scale: Vec2::broadcast(1.0),
+            texture_rotation: 0.0,
+            tile: None,
+            tiles: FxHashMap::default(),
+            surface_points: Vec::new(),
+            surface_segments: Vec::new(),
+            surface_noise: None,
+        });
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+        map.selected_geometry_faces.push((object_id, 0));
+        (map, object_id, 0)
+    }
+
+    fn selected_split_vertical_faces() -> (Map, Uuid, usize, usize) {
+        let mut map = Map::default();
+        let mut object = rusterix::GeometryObject::new("Split Wall");
+        object.vertices = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(4.0, 4.0, 0.0),
+            Vec3::new(0.0, 4.0, 0.0),
+            Vec3::new(4.0, 0.2, 0.0),
+            Vec3::new(5.0, 0.2, 0.0),
+            Vec3::new(5.0, 0.7, 0.0),
+            Vec3::new(4.0, 0.7, 0.0),
+        ];
+        let make_face = |indices| rusterix::GeometryFace {
+            indices,
+            uvs: Vec::new(),
+            auto_uv: true,
+            texture_offset: Vec2::zero(),
+            texture_scale: Vec2::broadcast(1.0),
+            texture_rotation: 0.0,
+            tile: None,
+            tiles: FxHashMap::default(),
+            surface_points: Vec::new(),
+            surface_segments: Vec::new(),
+            surface_noise: None,
+        };
+        object.faces.push(make_face(vec![0, 1, 2, 3]));
+        object.faces.push(make_face(vec![4, 5, 6, 7]));
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+        map.selected_geometry_faces.push((object_id, 0));
+        map.selected_geometry_faces.push((object_id, 1));
+        (map, object_id, 0, 1)
     }
 
     #[test]
@@ -1555,8 +1954,202 @@ mod tests {
     }
 
     #[test]
+    fn create_pattern_rotation_fits_repeated_layout_in_pattern_space() {
+        let (mut map, _object_id, face_index) = selected_wide_box_top_face();
+        let mut action = CreatePattern::new();
+        action.nodeui.set_i32_value(PATTERN_ID, 5);
+        action.nodeui.set_bool_value(REPEAT_ID, true);
+        action.nodeui.set_f32_value(SCALE_ID, 0.5);
+        action.nodeui.set_f32_value(SPACING_X_ID, 0.75);
+        action.nodeui.set_f32_value(SPACING_Y_ID, 0.75);
+        action.nodeui.set_f32_value(ROTATION_ID, 45.0);
+        action.nodeui.set_i32_value(SIDES_ID, 8);
+
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        server_ctx.editor_view_mode = EditorViewMode::Iso;
+
+        assert!(
+            action
+                .apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
+                .is_some()
+        );
+        let face = &map.geometry_objects[0].faces[face_index];
+        assert!(
+            face.surface_segments.len() > 80,
+            "rotated repeated pattern should fill the wide face, got {} segments",
+            face.surface_segments.len()
+        );
+    }
+
+    #[test]
+    fn create_pattern_works_on_vertical_faces() {
+        let (mut map, _object_id, face_index) = selected_box_vertical_face();
+        let mut action = CreatePattern::new();
+        action.nodeui.set_i32_value(PATTERN_ID, 5);
+        action.nodeui.set_bool_value(REPEAT_ID, true);
+        action.nodeui.set_f32_value(SCALE_ID, 0.5);
+        action.nodeui.set_f32_value(SPACING_X_ID, 0.75);
+        action.nodeui.set_f32_value(SPACING_Y_ID, 0.75);
+        action.nodeui.set_i32_value(SIDES_ID, 8);
+
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        server_ctx.editor_view_mode = EditorViewMode::Iso;
+
+        assert!(
+            action
+                .apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
+                .is_some()
+        );
+        let face = &map.geometry_objects[0].faces[face_index];
+        assert!(
+            face.surface_segments.len() > 16,
+            "vertical face should receive repeated pattern segments, got {}",
+            face.surface_segments.len()
+        );
+        let object = &map.geometry_objects[0];
+        let plane = geometry_face_plane(object, face).unwrap();
+        for point in &face.surface_points {
+            let world = object.transform_point(point.position);
+            let distance = (world - plane.origin).dot(plane.normal).abs();
+            assert!(
+                distance < 0.001,
+                "guide surface point should stay on the selected vertical face, distance={distance}"
+            );
+            let coord = face_plane_coord(&plane, world);
+            assert!(
+                point_in_polygon(coord, &plane.polygon),
+                "guide surface point should remain inside the selected face"
+            );
+        }
+        let preview =
+            pattern_minimap_segments(object, face_index, &pattern_settings(&action.nodeui));
+        let min_x = preview
+            .iter()
+            .flat_map(|segment| [segment.start.x, segment.end.x])
+            .fold(f32::INFINITY, f32::min);
+        let max_x = preview
+            .iter()
+            .flat_map(|segment| [segment.start.x, segment.end.x])
+            .fold(f32::NEG_INFINITY, f32::max);
+        let min_y = preview
+            .iter()
+            .flat_map(|segment| [segment.start.y, segment.end.y])
+            .fold(f32::INFINITY, f32::min);
+        let max_y = preview
+            .iter()
+            .flat_map(|segment| [segment.start.y, segment.end.y])
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            max_x - min_x > 1.0 && max_y - min_y > 1.0,
+            "vertical face minimap preview should draw in face space, not collapse to a line"
+        );
+    }
+
+    #[test]
+    fn create_pattern_tile_clips_guide_lines_to_non_rectangular_faces() {
+        let (mut map, _object_id, face_index) = selected_triangular_vertical_face();
+        let mut action = CreatePattern::new();
+        action.nodeui.set_i32_value(PATTERN_ID, 4);
+        action.nodeui.set_bool_value(REPEAT_ID, true);
+        action.nodeui.set_f32_value(SCALE_ID, 0.5);
+        action.nodeui.set_f32_value(SPACING_X_ID, 0.5);
+        action.nodeui.set_f32_value(SPACING_Y_ID, 0.5);
+
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        server_ctx.editor_view_mode = EditorViewMode::Iso;
+
+        assert!(
+            action
+                .apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
+                .is_some()
+        );
+
+        let object = &map.geometry_objects[0];
+        let face = &object.faces[face_index];
+        let plane = geometry_face_plane(object, face).unwrap();
+        let mut horizontal_segments = 0usize;
+        for segment in &face.surface_segments {
+            let start = face_plane_coord(
+                &plane,
+                object.transform_point(face.surface_points[segment.start].position),
+            );
+            let end = face_plane_coord(
+                &plane,
+                object.transform_point(face.surface_points[segment.end].position),
+            );
+            if (start.y - end.y).abs() < 0.001 && (start.x - end.x).abs() > 0.1 {
+                horizontal_segments += 1;
+            }
+        }
+
+        assert!(
+            horizontal_segments > 2,
+            "tile guides should clip horizontal lines to triangular faces, got {horizontal_segments}"
+        );
+    }
+
+    #[test]
+    fn create_pattern_uses_shared_fit_for_coplanar_selected_faces() {
+        let (mut map, _object_id, main_face, small_face) = selected_split_vertical_faces();
+        let mut action = CreatePattern::new();
+        action.nodeui.set_i32_value(PATTERN_ID, 4);
+        action.nodeui.set_bool_value(REPEAT_ID, true);
+        action.nodeui.set_f32_value(SCALE_ID, 0.5);
+        action.nodeui.set_f32_value(SPACING_X_ID, 0.5);
+        action.nodeui.set_f32_value(SPACING_Y_ID, 0.5);
+
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        server_ctx.editor_view_mode = EditorViewMode::Iso;
+
+        assert!(
+            action
+                .apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
+                .is_some()
+        );
+
+        let object = &map.geometry_objects[0];
+        let reference = geometry_face_plane(object, &object.faces[main_face]).unwrap();
+        let face = &object.faces[small_face];
+        let expected_y = face_plane_coord(&reference, Vec3::new(4.0, 0.5, 0.0)).y;
+        let mut has_shared_horizontal = false;
+        for segment in &face.surface_segments {
+            let start = face_plane_coord(
+                &reference,
+                object.transform_point(face.surface_points[segment.start].position),
+            );
+            let end = face_plane_coord(
+                &reference,
+                object.transform_point(face.surface_points[segment.end].position),
+            );
+            if (start.y - expected_y).abs() < 0.001
+                && (end.y - expected_y).abs() < 0.001
+                && (start.x - end.x).abs() > 0.1
+            {
+                has_shared_horizontal = true;
+                break;
+            }
+        }
+        assert!(
+            has_shared_horizontal,
+            "small coplanar faces should use the shared wall pattern, not a separately centered local pattern"
+        );
+    }
+
+    #[test]
     fn create_pattern_relief_generates_raised_pattern_object() {
-        let (mut map, _object_id, _face_index) = selected_box_top_face();
+        let (mut map, _object_id, face_index) = selected_box_top_face();
         let mut action = CreatePattern::new();
         action.nodeui.set_i32_value(MODE_ID, 1);
         action.nodeui.set_i32_value(PATTERN_ID, 5);
@@ -1589,7 +2182,7 @@ mod tests {
         );
         assert!(map.selected_geometry_faces.is_empty());
         assert_eq!(
-            map.geometry_objects[0].faces[2].tile,
+            map.geometry_objects[0].faces[face_index].tile,
             Some(PixelSource::PaletteIndex(2))
         );
     }

@@ -73,6 +73,7 @@ pub struct Vert3DPod {
     pub organic_local_min: [f32; 2],
     pub organic_local_size: [f32; 2],
     pub organic_atlas_size: [f32; 2],
+    pub surface_noise: [f32; 4],
 }
 
 #[repr(C)]
@@ -1338,6 +1339,7 @@ struct VsIn {
     @location(10) organic_local_min: vec2<f32>,
     @location(11) organic_local_size: vec2<f32>,
     @location(12) organic_atlas_size: vec2<f32>,
+    @location(13) surface_noise: vec4<f32>,
 };
 
 struct VsOut {
@@ -1355,6 +1357,7 @@ struct VsOut {
     @location(10) organic_local_size: vec2<f32>,
     @location(11) organic_atlas_size: vec2<f32>,
     @location(12) world_pos: vec3<f32>,
+    @location(13) surface_noise: vec4<f32>,
 };
 
 struct VsShadowOut {
@@ -1598,6 +1601,37 @@ fn hash13(p: vec3<f32>) -> f32 {
     return fract(sin(dot(p, vec3<f32>(127.1, 311.7, 74.7))) * 43758.5453123);
 }
 
+fn surface_noise_value(pos: vec3<f32>, seed: f32) -> f32 {
+    let cell = floor(pos);
+    let frac_pos = fract(pos);
+    let f = frac_pos * frac_pos * (vec3<f32>(3.0) - 2.0 * frac_pos);
+    let n000 = hash13(cell + vec3<f32>(0.0, 0.0, 0.0) + seed);
+    let n100 = hash13(cell + vec3<f32>(1.0, 0.0, 0.0) + seed);
+    let n010 = hash13(cell + vec3<f32>(0.0, 1.0, 0.0) + seed);
+    let n110 = hash13(cell + vec3<f32>(1.0, 1.0, 0.0) + seed);
+    let n001 = hash13(cell + vec3<f32>(0.0, 0.0, 1.0) + seed);
+    let n101 = hash13(cell + vec3<f32>(1.0, 0.0, 1.0) + seed);
+    let n011 = hash13(cell + vec3<f32>(0.0, 1.0, 1.0) + seed);
+    let n111 = hash13(cell + vec3<f32>(1.0, 1.0, 1.0) + seed);
+    let nx00 = mix(n000, n100, f.x);
+    let nx10 = mix(n010, n110, f.x);
+    let nx01 = mix(n001, n101, f.x);
+    let nx11 = mix(n011, n111, f.x);
+    let nxy0 = mix(nx00, nx10, f.y);
+    let nxy1 = mix(nx01, nx11, f.y);
+    return mix(nxy0, nxy1, f.z);
+}
+
+fn surface_noise_blend(params: vec4<f32>, world_pos: vec3<f32>) -> f32 {
+    if (params.w <= 0.5 || params.y <= 0.0001) {
+        return 0.0;
+    }
+    let scale = max(params.x, 0.0001);
+    let amount = clamp(params.y, 0.0, 1.0);
+    let seed = vec3<f32>(params.z * 0.173, params.z * 0.371, params.z * 0.619);
+    return surface_noise_value(world_pos * scale + seed, params.z * 0.013) * amount;
+}
+
 fn bayer4_threshold(x: u32, y: u32) -> f32 {
     let xi = x & 3u;
     let yi = y & 3u;
@@ -1733,6 +1767,7 @@ fn vs_main(in: VsIn) -> VsOut {
     out.organic_local_size = in.organic_local_size;
     out.organic_atlas_size = in.organic_atlas_size;
     out.world_pos = in.pos;
+    out.surface_noise = in.surface_noise;
     return out;
 }
 
@@ -1814,7 +1849,10 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let shadow_receiver = in.world_pos + Nf_shadow * select(0.01, 0.03, UBO.cam_kind == 2u);
     let shadow = sample_shadow(shadow_receiver, NdotL_shadow);
     let phase_start = select(0u, u32(max(in.blend_factor, 0.0)), is_billboard);
-    let blend = clamp(in.blend_factor, 0.0, 1.0);
+    var blend = clamp(in.blend_factor, 0.0, 1.0);
+    if (!is_avatar && !is_billboard && !is_particle && in.surface_noise.w > 0.5) {
+        blend = surface_noise_blend(in.surface_noise, in.world_pos);
+    }
     let c0 = select(sample_tile(in.tile_index, in.uv, clamp_uv, phase_start), sample_avatar(in.tile_index, in.uv), is_avatar);
     let c1 = sample_tile(tile_index2, in.uv, clamp_uv, phase_start);
     let c0_base = select(sample_tile_lod0(in.tile_index, in.uv, clamp_uv, phase_start), sample_avatar(in.tile_index, in.uv), is_avatar);
@@ -5884,6 +5922,11 @@ impl VM {
                             shader_location: 12,
                             format: wgpu::VertexFormat::Float32x2,
                         },
+                        wgpu::VertexAttribute {
+                            offset: 92,
+                            shader_location: 13,
+                            format: wgpu::VertexFormat::Float32x4,
+                        },
                     ],
                 }],
             },
@@ -5997,6 +6040,11 @@ impl VM {
                                 offset: 84,
                                 shader_location: 12,
                                 format: wgpu::VertexFormat::Float32x2,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 92,
+                                shader_location: 13,
+                                format: wgpu::VertexFormat::Float32x4,
                             },
                         ],
                     }],
@@ -6114,6 +6162,11 @@ impl VM {
                                 offset: 84,
                                 shader_location: 12,
                                 format: wgpu::VertexFormat::Float32x2,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 92,
+                                shader_location: 13,
+                                format: wgpu::VertexFormat::Float32x4,
                             },
                         ],
                     }],
@@ -6331,6 +6384,11 @@ impl VM {
                                 offset: 84,
                                 shader_location: 12,
                                 format: wgpu::VertexFormat::Float32x2,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 92,
+                                shader_location: 13,
+                                format: wgpu::VertexFormat::Float32x4,
                             },
                         ],
                     }],
@@ -7408,6 +7466,10 @@ impl VM {
                                     )
                                 })
                         });
+                        let surface_noise = poly
+                            .surface_noise
+                            .map(|noise| [noise.scale, noise.amount, noise.seed, 1.0])
+                            .unwrap_or([0.0, 0.0, 0.0, 0.0]);
 
                         for (i, p) in poly_pos.iter().enumerate() {
                             let uv0 = poly.uvs[i];
@@ -7446,6 +7508,7 @@ impl VM {
                                 organic_local_min,
                                 organic_local_size,
                                 organic_atlas_size,
+                                surface_noise,
                             });
                         }
 
@@ -7477,6 +7540,7 @@ impl VM {
                     organic_local_min: [0.0, 0.0],
                     organic_local_size: [0.0, 0.0],
                     organic_atlas_size: [0.0, 0.0],
+                    surface_noise: [0.0, 0.0, 0.0, 0.0],
                 });
             }
             if i3.is_empty() {
@@ -7886,6 +7950,10 @@ impl VM {
                                     },
                                 )
                             });
+                            let surface_noise = poly
+                                .surface_noise
+                                .map(|noise| [noise.scale, noise.amount, noise.seed, 1.0])
+                                .unwrap_or([0.0, 0.0, 0.0, 0.0]);
 
                             for (i, p) in poly_pos.iter().enumerate() {
                                 let uv0 = poly.uvs[i];
@@ -7924,6 +7992,7 @@ impl VM {
                                     organic_local_min,
                                     organic_local_size,
                                     organic_atlas_size,
+                                    surface_noise,
                                 });
                             }
 
@@ -8075,6 +8144,7 @@ impl VM {
                         organic_local_min: [0.0, 0.0],
                         organic_local_size: [0.0, 0.0],
                         organic_atlas_size: [0.0, 0.0],
+                        surface_noise: [0.0, 0.0, 0.0, 0.0],
                     });
                 }
                 i3.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
@@ -8120,6 +8190,7 @@ impl VM {
                         organic_local_min: [0.0, 0.0],
                         organic_local_size: [0.0, 0.0],
                         organic_atlas_size: [0.0, 0.0],
+                        surface_noise: [0.0, 0.0, 0.0, 0.0],
                     });
                 }
                 for tri in obj.mesh_indices.chunks_exact(3) {
@@ -8144,6 +8215,7 @@ impl VM {
                     organic_local_min: [0.0, 0.0],
                     organic_local_size: [0.0, 0.0],
                     organic_atlas_size: [0.0, 0.0],
+                    surface_noise: [0.0, 0.0, 0.0, 0.0],
                 });
             }
             if i3.is_empty() {

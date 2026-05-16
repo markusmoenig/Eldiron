@@ -24,6 +24,24 @@ use std::sync::{LazyLock, RwLock};
 static REGIONCTX: LazyLock<RwLock<FxHashMap<u32, Arc<Mutex<RegionCtx>>>>> =
     LazyLock::new(|| RwLock::new(FxHashMap::default()));
 
+fn dynamic_collision_height(container: &ValueContainer) -> f32 {
+    container
+        .get_float("collision_height")
+        .or_else(|| container.get_float("entity_height"))
+        .or_else(|| container.get_float("height"))
+        .unwrap_or(2.0)
+        .max(0.1)
+}
+
+fn vertical_collision_ranges_overlap(a_y: f32, a_height: f32, b_y: f32, b_height: f32) -> bool {
+    const VERTICAL_COLLISION_TOLERANCE: f32 = 0.25;
+    let a_min = a_y;
+    let a_max = a_y + a_height;
+    let b_min = b_y;
+    let b_max = b_y + b_height;
+    a_min <= b_max + VERTICAL_COLLISION_TOLERANCE && b_min <= a_max + VERTICAL_COLLISION_TOLERANCE
+}
+
 /// Register a new RegionCtx
 pub fn register_regionctx(id: u32, instance: Arc<Mutex<RegionCtx>>) {
     REGIONCTX.write().unwrap().insert(id, instance);
@@ -274,6 +292,7 @@ impl RegionInstance {
         test_position: Vec2<f32>,
     ) -> DynamicCollisionProbe {
         let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
+        let entity_height = dynamic_collision_height(&entity.attributes);
         let mut blocking_collision = false;
 
         for other in ctx.map.entities.iter() {
@@ -283,6 +302,15 @@ impl RegionInstance {
 
             let other_pos = other.get_pos_xz();
             let other_radius = other.attributes.get_float_default("radius", 0.5) - 0.01;
+            let other_height = dynamic_collision_height(&other.attributes);
+            if !vertical_collision_ranges_overlap(
+                entity.position.y,
+                entity_height,
+                other.position.y,
+                other_height,
+            ) {
+                continue;
+            }
             let combined_radius = radius + other_radius;
             let combined_radius_sq = combined_radius * combined_radius;
 
@@ -1324,6 +1352,7 @@ impl RegionInstance {
     ) -> MovementResult {
         let position = entity.get_pos_xz();
         let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
+        let entity_height = dynamic_collision_height(&entity.attributes);
 
         let mut new_position = position + move_vector;
         let mut dynamic_collision = false;
@@ -1340,11 +1369,21 @@ impl RegionInstance {
 
                 let other_pos = other.get_pos_xz();
                 let other_radius = other.attributes.get_float_default("radius", 0.5) - 0.01;
+                let other_height = dynamic_collision_height(&other.attributes);
                 let combined_radius = radius + other_radius;
                 let combined_radius_sq = combined_radius * combined_radius;
 
                 let dist_vec = new_position - other_pos;
                 let dist_sq = dist_vec.magnitude_squared();
+                let vertical_overlap = vertical_collision_ranges_overlap(
+                    entity.position.y,
+                    entity_height,
+                    other.position.y,
+                    other_height,
+                );
+                if dist_sq < combined_radius_sq && !vertical_overlap {
+                    continue;
+                }
                 if dist_sq < combined_radius_sq {
                     dynamic_collision = true;
                     if let Some(_class_name) = ctx.entity_classes.get(&entity.id) {
@@ -1488,7 +1527,14 @@ impl RegionInstance {
             && ctx.collision_world.has_collision_data()
         {
             ctx.collision_world
-                .get_floor_height_reachable(final_pos, entity.position.y, 1.0)
+                .sample_reachable_floor_height(final_pos, radius * 0.5, entity.position.y, 1.0)
+                .or_else(|| {
+                    ctx.collision_world.get_floor_height_reachable(
+                        final_pos,
+                        entity.position.y,
+                        1.0,
+                    )
+                })
         } else {
             let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
             Some(
@@ -1945,6 +1991,8 @@ impl RegionInstance {
                     item.attributes.set("static", Value::Bool(true));
                     item.attributes
                         .set("geometry_object_id", Value::Id(object.id));
+                    item.attributes.set("visible", Value::Bool(object.visible));
+                    item.attributes.set("blocking", Value::Bool(object.solid));
                     if let Some(center) = object.bbox().map(|bbox| bbox.center()) {
                         let (sum_y, count) = object
                             .vertices
@@ -10713,8 +10761,17 @@ fn set_attr(key: PyObjectRef, value: PyObjectRef, vm: &VirtualMachine) {
         if let Ok(key) = String::try_from_object(vm, key) {
             if let Some(value) = Value::from_pyobject(value, vm) {
                 if let Some(item_id) = ctx.curr_item_id {
+                    let mut geometry_object_attr = None;
                     if let Some(item) = get_item_mut(&mut ctx.map, item_id) {
                         item.set_attribute(&key, value);
+                        if matches!(key.as_str(), "visible" | "blocking")
+                            && let Some(object_id) = item.attributes.get_id("geometry_object_id")
+                        {
+                            geometry_object_attr = Some((
+                                object_id,
+                                item.attributes.get_bool_default(&key, key == "visible"),
+                            ));
+                        }
 
                         if key == "active" {
                             // Send active state
@@ -10729,6 +10786,52 @@ fn set_attr(key: PyObjectRef, value: PyObjectRef, vm: &VirtualMachine) {
                                     }
                                 );
                                 // ctx.to_execute_item.push((item.id, "active".into(), cmd));
+                            }
+                        }
+                    }
+                    if let Some((object_id, attr_value)) = geometry_object_attr {
+                        if let Some(object) = ctx
+                            .map
+                            .geometry_objects
+                            .iter_mut()
+                            .find(|object| object.id == object_id)
+                        {
+                            match key.as_str() {
+                                "visible" => object.visible = attr_value,
+                                "blocking" => object.solid = attr_value,
+                                _ => {}
+                            }
+                        }
+                        if key == "blocking" {
+                            ctx.mapmini = ctx.map.as_mini(&ctx.blocking_tiles);
+                            ctx.collision_world = crate::CollisionWorld::default();
+                            use crate::chunkbuilder::{ChunkBuilder, d3chunkbuilder::D3ChunkBuilder};
+                            let mut chunk_builder = D3ChunkBuilder::new();
+                            let chunk_size = 10;
+                            if !ctx.map.vertices.is_empty() || !ctx.map.geometry_objects.is_empty()
+                            {
+                                let bbox = ctx.map.bbox();
+                                let min_chunk = vek::Vec2::new(
+                                    (bbox.min.x / chunk_size as f32).floor() as i32,
+                                    (bbox.min.y / chunk_size as f32).floor() as i32,
+                                );
+                                let max_chunk = vek::Vec2::new(
+                                    (bbox.max.x / chunk_size as f32).floor() as i32,
+                                    (bbox.max.y / chunk_size as f32).floor() as i32,
+                                );
+                                for cy in min_chunk.y..=max_chunk.y {
+                                    for cx in min_chunk.x..=max_chunk.x {
+                                        let chunk_origin = vek::Vec2::new(cx, cy);
+                                        let chunk_collision = chunk_builder.build_collision(
+                                            &ctx.map,
+                                            &ctx.assets,
+                                            chunk_origin,
+                                            chunk_size,
+                                        );
+                                        ctx.collision_world
+                                            .update_chunk(chunk_origin, chunk_collision);
+                                    }
+                                }
                             }
                         }
                     }

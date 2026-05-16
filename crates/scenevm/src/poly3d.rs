@@ -11,6 +11,13 @@ pub struct OrganicSurfaceDetail {
     pub flip_x: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct SurfaceNoiseLayer {
+    pub scale: f32,
+    pub amount: f32,
+    pub seed: f32,
+}
+
 #[derive(Debug, Clone)]
 pub struct Poly3D {
     pub id: GeoId,
@@ -26,6 +33,7 @@ pub struct Poly3D {
     pub tile_id2: Option<uuid::Uuid>, // Secondary texture for blending
     pub blend_weights: Vec<f32>,      // Per-vertex blend factor (0.0=primary, 1.0=secondary)
     pub organic_detail: Option<OrganicSurfaceDetail>,
+    pub surface_noise: Option<SurfaceNoiseLayer>,
 }
 
 impl Poly3D {
@@ -51,6 +59,7 @@ impl Poly3D {
             tile_id2: None,
             blend_weights: Vec::new(),
             organic_detail: None,
+            surface_noise: None,
         }
     }
 
@@ -123,6 +132,7 @@ impl Poly3D {
             tile_id2: None,
             blend_weights: Vec::new(),
             organic_detail: None,
+            surface_noise: None,
         }
     }
 
@@ -205,6 +215,7 @@ impl Poly3D {
             tile_id2: None,
             blend_weights: Vec::new(),
             organic_detail: None,
+            surface_noise: None,
         }
     }
 
@@ -267,6 +278,7 @@ impl Poly3D {
             tile_id2: None,
             blend_weights: Vec::new(),
             organic_detail: None,
+            surface_noise: None,
         }
     }
 

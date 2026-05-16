@@ -1,6 +1,8 @@
-use crate::collision_world::{ChunkCollision, StaticBarrier, WalkableFloor};
+use crate::collision_world::{
+    ChunkCollision, DynamicOpening, OpeningType, StaticBarrier, WalkableFloor,
+};
 use crate::{Assets, Chunk, ChunkBuilder, Map, PixelSource};
-use scenevm::GeoId;
+use scenevm::{GeoId, SurfaceNoiseLayer};
 use uuid::Uuid;
 use vek::{Vec2, Vec3};
 
@@ -125,7 +127,7 @@ impl GeometryObjectBuilder {
     fn transformed_face_uvs(
         face: &crate::GeometryFace,
         uvs: &[[f32; 2]],
-        world_points: Option<&[Vec3<f32>]>,
+        _world_points: Option<&[Vec3<f32>]>,
     ) -> Vec<[f32; 2]> {
         if uvs.is_empty() {
             return Vec::new();
@@ -165,50 +167,24 @@ impl GeometryObjectBuilder {
 
         uvs.iter()
             .enumerate()
-            .map(|(index, uv)| {
+            .map(|(_index, uv)| {
                 let mut p = Vec2::new(uv[0], uv[1]) - center;
                 p = Vec2::new(p.x / scale.x, p.y / scale.y);
                 if radians.abs() > 1e-5 {
                     p = Vec2::new(p.x * cos - p.y * sin, p.x * sin + p.y * cos);
                 }
                 p += center + face.texture_offset;
-                if let Some(noise) = face.surface_noise.as_ref()
-                    && let Some(world_points) = world_points
-                    && let Some(world) = world_points.get(index)
-                {
-                    p += Self::surface_noise_uv_offset(noise, *world);
-                }
                 [p.x, p.y]
             })
             .collect()
     }
 
-    fn surface_noise_uv_offset(noise: &crate::GeometrySurfaceNoise, world: Vec3<f32>) -> Vec2<f32> {
-        let scale = noise.scale.max(0.05);
-        let amount = noise.amount.clamp(0.0, 1.0) * 0.18;
-        if amount <= 1e-5 {
-            return Vec2::zero();
+    fn surface_noise_layer(noise: &crate::GeometrySurfaceNoise) -> SurfaceNoiseLayer {
+        SurfaceNoiseLayer {
+            scale: noise.scale.max(0.0001),
+            amount: noise.amount.clamp(0.0, 1.0),
+            seed: noise.seed as f32,
         }
-        let seed = noise.seed as f32 * 0.017;
-        let p = world * scale;
-        let nx = ((p.x * 12.9898 + p.y * 78.233 + p.z * 37.719 + seed).sin() * 43_758.547)
-            .rem_euclid(1.0);
-        let ny = ((p.x * 93.989 + p.y * 67.345 + p.z * 21.123 + seed + 19.19).sin() * 24_634.635)
-            .rem_euclid(1.0);
-        Vec2::new(nx - 0.5, ny - 0.5) * amount
-    }
-
-    fn surface_noise_weight(noise: &crate::GeometrySurfaceNoise, world: Vec3<f32>) -> f32 {
-        let scale = noise.scale.max(0.05);
-        let amount = noise.amount.clamp(0.0, 1.0);
-        if amount <= 1e-5 {
-            return 0.0;
-        }
-        let seed = noise.seed as f32 * 0.017 + 41.37;
-        let p = world * scale;
-        let n = ((p.x * 27.619 + p.y * 57.583 + p.z * 12.9898 + seed).sin() * 16_719.371)
-            .rem_euclid(1.0);
-        (n * amount).clamp(0.0, 1.0)
     }
 
     fn face_normal(world_points: &[Vec3<f32>], object_center: Vec3<f32>) -> Option<Vec3<f32>> {
@@ -299,6 +275,9 @@ impl GeometryObjectBuilder {
     fn add_face_barriers(
         collision: &mut ChunkCollision,
         object_id: Uuid,
+        _face_index: usize,
+        _normal: Vec3<f32>,
+        _raw_normal: Vec3<f32>,
         world_points: &[Vec3<f32>],
     ) {
         let min_y = world_points
@@ -311,34 +290,326 @@ impl GeometryObjectBuilder {
             return;
         }
 
-        let mut segments: Vec<(Vec2<f32>, Vec2<f32>)> = Vec::new();
-        for index in 0..world_points.len() {
-            let a = world_points[index];
-            let b = world_points[(index + 1) % world_points.len()];
-            let start = Vec2::new(a.x, a.z);
-            let end = Vec2::new(b.x, b.z);
-            if (end - start).magnitude_squared() <= 1e-6 {
+        let mut y_levels = world_points.iter().map(|point| point.y).collect::<Vec<_>>();
+        y_levels.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        y_levels.dedup_by(|a, b| (*a - *b).abs() <= 1e-4);
+        if y_levels.len() < 2 {
+            return;
+        }
+
+        let mut segments: Vec<(Vec2<f32>, Vec2<f32>, f32, f32)> = Vec::new();
+        for y_index in 0..y_levels.len() - 1 {
+            let band_min_y = y_levels[y_index];
+            let band_max_y = y_levels[y_index + 1];
+            if band_max_y - band_min_y <= 0.02 {
                 continue;
             }
-            let duplicate = segments.iter().any(|(existing_start, existing_end)| {
-                ((*existing_start - start).magnitude_squared() <= 1e-6
-                    && (*existing_end - end).magnitude_squared() <= 1e-6)
-                    || ((*existing_start - end).magnitude_squared() <= 1e-6
-                        && (*existing_end - start).magnitude_squared() <= 1e-6)
+            let sample_y = (band_min_y + band_max_y) * 0.5;
+            let mut intersections: Vec<Vec2<f32>> = Vec::new();
+            for index in 0..world_points.len() {
+                let a = world_points[index];
+                let b = world_points[(index + 1) % world_points.len()];
+                let da = a.y - sample_y;
+                let db = b.y - sample_y;
+                if da.abs() <= 1e-5 && db.abs() <= 1e-5 {
+                    let start = Vec2::new(a.x, a.z);
+                    let end = Vec2::new(b.x, b.z);
+                    if (end - start).magnitude_squared() > 1e-6 {
+                        intersections.push(start);
+                        intersections.push(end);
+                    }
+                    continue;
+                }
+                if (da > 0.0 && db > 0.0) || (da < 0.0 && db < 0.0) {
+                    continue;
+                }
+                let denom = b.y - a.y;
+                if denom.abs() <= 1e-6 {
+                    continue;
+                }
+                let t = ((sample_y - a.y) / denom).clamp(0.0, 1.0);
+                let point = a + (b - a) * t;
+                intersections.push(Vec2::new(point.x, point.z));
+            }
+
+            let mut unique: Vec<Vec2<f32>> = Vec::new();
+            for point in intersections {
+                if !unique
+                    .iter()
+                    .any(|existing| (*existing - point).magnitude_squared() <= 1e-6)
+                {
+                    unique.push(point);
+                }
+            }
+            if unique.len() < 2 {
+                continue;
+            }
+
+            let (min_x, max_x, min_z, max_z) = unique.iter().fold(
+                (
+                    f32::INFINITY,
+                    f32::NEG_INFINITY,
+                    f32::INFINITY,
+                    f32::NEG_INFINITY,
+                ),
+                |(min_x, max_x, min_z, max_z), point| {
+                    (
+                        min_x.min(point.x),
+                        max_x.max(point.x),
+                        min_z.min(point.y),
+                        max_z.max(point.y),
+                    )
+                },
+            );
+            let sort_by_x = max_x - min_x >= max_z - min_z;
+            unique.sort_by(|a, b| {
+                let av = if sort_by_x { a.x } else { a.y };
+                let bv = if sort_by_x { b.x } else { b.y };
+                av.partial_cmp(&bv).unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            for pair in unique.chunks(2) {
+                if pair.len() < 2 {
+                    continue;
+                }
+                let start = pair[0];
+                let end = pair[1];
+                if (end - start).magnitude_squared() <= 1e-6 {
+                    continue;
+                }
+                let duplicate = segments
+                    .iter()
+                    .any(|(existing_start, existing_end, y0, y1)| {
+                        ((*y0 - band_min_y).abs() <= 1e-4 && (*y1 - band_max_y).abs() <= 1e-4)
+                            && (((*existing_start - start).magnitude_squared() <= 1e-6
+                                && (*existing_end - end).magnitude_squared() <= 1e-6)
+                                || ((*existing_start - end).magnitude_squared() <= 1e-6
+                                    && (*existing_end - start).magnitude_squared() <= 1e-6))
+                    });
+                if duplicate {
+                    continue;
+                }
+                segments.push((start, end, band_min_y, band_max_y));
+            }
+        }
+
+        for (start, end, barrier_min_y, barrier_max_y) in segments {
+            let duplicate = collision.static_barriers.iter().any(|existing| {
+                existing.geo_id == GeoId::GeometryObject(object_id)
+                    && (existing.min_y - barrier_min_y).abs() <= 1e-4
+                    && (existing.max_y - barrier_max_y).abs() <= 1e-4
+                    && (((existing.start - start).magnitude_squared() <= 1e-6
+                        && (existing.end - end).magnitude_squared() <= 1e-6)
+                        || ((existing.start - end).magnitude_squared() <= 1e-6
+                            && (existing.end - start).magnitude_squared() <= 1e-6))
             });
             if duplicate {
                 continue;
             }
-            segments.push((start, end));
-        }
-
-        for (start, end) in segments {
             collision.static_barriers.push(StaticBarrier {
                 geo_id: GeoId::GeometryObject(object_id),
                 start,
                 end,
-                min_y,
-                max_y,
+                min_y: barrier_min_y,
+                max_y: barrier_max_y,
+            });
+        }
+    }
+
+    fn mesh_edge_adjacent_points(
+        object: &crate::GeometryObject,
+        a: Vec3<f32>,
+        b: Vec3<f32>,
+    ) -> Option<Vec<Vec3<f32>>> {
+        const EPS_SQ: f32 = 0.0001;
+        let mut points = Vec::new();
+        for face in &object.faces {
+            for index in 0..face.indices.len() {
+                let Some(pa) = face
+                    .indices
+                    .get(index)
+                    .and_then(|i| object.vertices.get(*i))
+                else {
+                    continue;
+                };
+                let Some(pb) = face
+                    .indices
+                    .get((index + 1) % face.indices.len())
+                    .and_then(|i| object.vertices.get(*i))
+                else {
+                    continue;
+                };
+                let matches = ((*pa - a).magnitude_squared() <= EPS_SQ
+                    && (*pb - b).magnitude_squared() <= EPS_SQ)
+                    || ((*pa - b).magnitude_squared() <= EPS_SQ
+                        && (*pb - a).magnitude_squared() <= EPS_SQ);
+                if matches {
+                    for vertex_index in &face.indices {
+                        if let Some(point) = object.vertices.get(*vertex_index) {
+                            points.push(*point);
+                        }
+                    }
+                }
+            }
+        }
+
+        (!points.is_empty()).then_some(points)
+    }
+
+    fn ordered_surface_loop_indices(face: &crate::GeometryFace) -> Vec<Vec<usize>> {
+        let mut unused = (0..face.surface_segments.len()).collect::<Vec<_>>();
+        let mut loops = Vec::new();
+
+        while let Some(first_segment_index) = unused.pop() {
+            let Some(first) = face.surface_segments.get(first_segment_index) else {
+                continue;
+            };
+            let start = first.start;
+            let mut current = first.end;
+            let mut ordered = vec![start, current];
+
+            while current != start {
+                let Some((unused_pos, next_segment_index, next_point)) = unused
+                    .iter()
+                    .enumerate()
+                    .find_map(|(unused_pos, segment_index)| {
+                        let segment = face.surface_segments.get(*segment_index)?;
+                        if segment.start == current {
+                            Some((unused_pos, *segment_index, segment.end))
+                        } else if segment.end == current {
+                            Some((unused_pos, *segment_index, segment.start))
+                        } else {
+                            None
+                        }
+                    })
+                else {
+                    ordered.clear();
+                    break;
+                };
+                unused.swap_remove(unused_pos);
+                let _ = next_segment_index;
+                current = next_point;
+                if current != start {
+                    ordered.push(current);
+                }
+                if ordered.len() > face.surface_points.len() + 1 {
+                    ordered.clear();
+                    break;
+                }
+            }
+
+            if ordered.len() >= 3 {
+                loops.push(ordered);
+            }
+        }
+
+        loops
+    }
+
+    fn cutout_opening_boundary_2d(
+        points: &[Vec3<f32>],
+        normal: Vec3<f32>,
+    ) -> Option<Vec<Vec2<f32>>> {
+        if points.len() < 3 {
+            return None;
+        }
+        let normal_2d = Vec2::new(normal.x, normal.z);
+        let normal_len = normal_2d.magnitude();
+        if normal_len <= 1e-6 {
+            return None;
+        }
+        let normal_2d = normal_2d / normal_len;
+        let tangent = Vec2::new(-normal_2d.y, normal_2d.x);
+
+        let mut min_t = f32::INFINITY;
+        let mut max_t = f32::NEG_INFINITY;
+        let mut min_n = f32::INFINITY;
+        let mut max_n = f32::NEG_INFINITY;
+        for point in points {
+            let p = Vec2::new(point.x, point.z);
+            let t = p.dot(tangent);
+            let n = p.dot(normal_2d);
+            min_t = min_t.min(t);
+            max_t = max_t.max(t);
+            min_n = min_n.min(n);
+            max_n = max_n.max(n);
+        }
+        if !min_t.is_finite() || !max_t.is_finite() || !min_n.is_finite() || !max_n.is_finite() {
+            return None;
+        }
+
+        let half_depth = ((max_n - min_n) * 0.5).max(0.08);
+        let center_n = (min_n + max_n) * 0.5;
+        Some(vec![
+            tangent * min_t + normal_2d * (center_n - half_depth),
+            tangent * max_t + normal_2d * (center_n - half_depth),
+            tangent * max_t + normal_2d * (center_n + half_depth),
+            tangent * min_t + normal_2d * (center_n + half_depth),
+        ])
+    }
+
+    fn add_cutout_openings_from_surface_guides(
+        collision: &mut ChunkCollision,
+        object: &crate::GeometryObject,
+        face: &crate::GeometryFace,
+        normal: Vec3<f32>,
+    ) {
+        if face.surface_points.len() < 3 || face.surface_segments.len() < 3 {
+            return;
+        }
+
+        let loops = Self::ordered_surface_loop_indices(face);
+
+        for loop_indices in loops {
+            let Some(local_points) = loop_indices
+                .iter()
+                .map(|index| face.surface_points.get(*index).map(|point| point.position))
+                .collect::<Option<Vec<_>>>()
+            else {
+                continue;
+            };
+            let mut opening_points = local_points.clone();
+            let boundary_matches_mesh = (0..local_points.len()).all(|index| {
+                let Some(adjacent_points) = Self::mesh_edge_adjacent_points(
+                    object,
+                    local_points[index],
+                    local_points[(index + 1) % local_points.len()],
+                ) else {
+                    return false;
+                };
+                opening_points.extend(adjacent_points);
+                true
+            });
+            if !boundary_matches_mesh {
+                continue;
+            }
+
+            let world_points = opening_points
+                .iter()
+                .map(|point| object.transform_point(*point))
+                .collect::<Vec<_>>();
+            let Some(boundary_2d) = Self::cutout_opening_boundary_2d(&world_points, normal) else {
+                continue;
+            };
+            let min_y = world_points
+                .iter()
+                .map(|point| point.y)
+                .fold(f32::INFINITY, f32::min);
+            let max_y = world_points
+                .iter()
+                .map(|point| point.y)
+                .fold(f32::NEG_INFINITY, f32::max);
+            if !min_y.is_finite() || !max_y.is_finite() || max_y - min_y <= 0.05 {
+                continue;
+            }
+
+            collision.dynamic_openings.push(DynamicOpening {
+                geo_id: GeoId::GeometryObject(object.id),
+                item_blocking: Some(false),
+                boundary_2d,
+                floor_height: min_y - 0.05,
+                ceiling_height: max_y + 0.05,
+                opening_type: OpeningType::Passage,
             });
         }
     }
@@ -376,39 +647,14 @@ impl GeometryObjectBuilder {
 
         let render_nudge = Self::face_render_nudge(world_points, object_center);
         let range = max_uv - min_uv;
-        let has_tile_overrides = !face.tiles.is_empty();
-        let noise_cells = face
-            .surface_noise
-            .as_ref()
-            .map(|noise| (noise.scale.max(1.0).sqrt() * 8.0).ceil().clamp(8.0, 128.0) as i32)
-            .unwrap_or(1);
-        let cells_x = if has_tile_overrides {
-            range.x.ceil().max(1.0) as i32
-        } else {
-            range.x.ceil().max(noise_cells as f32).max(1.0) as i32
-        };
-        let cells_y = if has_tile_overrides {
-            range.y.ceil().max(1.0) as i32
-        } else {
-            range.y.ceil().max(noise_cells as f32).max(1.0) as i32
-        };
+        let cells_x = range.x.ceil().max(1.0) as i32;
+        let cells_y = range.y.ceil().max(1.0) as i32;
         for ty in 0..cells_y {
             for tx in 0..cells_x {
-                let (x0, x1, y0, y1, tile_x, tile_y) = if has_tile_overrides {
-                    let x0 = min_uv.x + tx as f32;
-                    let x1 = (x0 + 1.0).min(max_uv.x);
-                    let y0 = min_uv.y + ty as f32;
-                    let y1 = (y0 + 1.0).min(max_uv.y);
-                    (x0, x1, y0, y1, tx, ty)
-                } else {
-                    let x0 = min_uv.x + range.x * (tx as f32 / cells_x as f32);
-                    let x1 = min_uv.x + range.x * ((tx + 1) as f32 / cells_x as f32);
-                    let y0 = min_uv.y + range.y * (ty as f32 / cells_y as f32);
-                    let y1 = min_uv.y + range.y * ((ty + 1) as f32 / cells_y as f32);
-                    let tile_x = (x0 - min_uv.x).floor().max(0.0) as i32;
-                    let tile_y = (y0 - min_uv.y).floor().max(0.0) as i32;
-                    (x0, x1, y0, y1, tile_x, tile_y)
-                };
+                let x0 = min_uv.x + tx as f32;
+                let x1 = (x0 + 1.0).min(max_uv.x);
+                let y0 = min_uv.y + ty as f32;
+                let y1 = (y0 + 1.0).min(max_uv.y);
                 if x1 - x0 <= 1e-4 || y1 - y0 <= 1e-4 {
                     continue;
                 }
@@ -435,7 +681,7 @@ impl GeometryObjectBuilder {
                     continue;
                 }
 
-                let source = face.tiles.get(&(tile_x, tile_y)).or(face.tile.as_ref());
+                let source = face.tiles.get(&(tx, ty)).or(face.tile.as_ref());
                 let tile_id = Self::face_tile_id(source, assets);
                 let noise_tile_id = face
                     .surface_noise
@@ -450,20 +696,16 @@ impl GeometryObjectBuilder {
                 if let (Some(noise), Some(noise_tile_id)) =
                     (face.surface_noise.as_ref(), noise_tile_id)
                 {
-                    let blend_weights = vertices_world
-                        .iter()
-                        .map(|world| Self::surface_noise_weight(noise, *world))
-                        .collect();
-                    vmchunk.add_poly_3d_blended(
+                    vmchunk.add_poly_3d_surface_noise(
                         GeoId::GeometryObject(object_id),
                         tile_id,
                         noise_tile_id,
                         vertices,
                         uvs,
-                        blend_weights,
                         vec![(0, 1, 2), (0, 2, 3)],
                         0,
                         true,
+                        Self::surface_noise_layer(noise),
                     );
                 } else {
                     vmchunk.add_poly_3d(
@@ -496,9 +738,8 @@ impl ChunkBuilder for GeometryObjectBuilder {
         vmchunk: &mut scenevm::Chunk,
     ) {
         for object in &map.geometry_objects {
-            if !object.visible {
-                continue;
-            }
+            // Build hidden objects too so scripts can later reveal 3D geometry
+            // through the controlling area's `visible` attribute.
             let Some(bbox) = object.bbox() else {
                 continue;
             };
@@ -544,7 +785,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 if face.auto_uv {
                     uvs = Self::auto_face_uvs(&local_points);
                 }
-                if face.auto_uv && (!face.tiles.is_empty() || face.surface_noise.is_some()) {
+                if face.auto_uv && !face.tiles.is_empty() {
                     let face_uvs = uvs
                         .iter()
                         .map(|uv| Vec2::new(uv[0], uv[1]))
@@ -576,20 +817,16 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 if let (Some(noise), Some(noise_tile_id)) =
                     (face.surface_noise.as_ref(), noise_tile_id)
                 {
-                    let blend_weights = world_points
-                        .iter()
-                        .map(|world| Self::surface_noise_weight(noise, *world))
-                        .collect();
-                    vmchunk.add_poly_3d_blended(
+                    vmchunk.add_poly_3d_surface_noise(
                         GeoId::GeometryObject(object.id),
                         tile_id,
                         noise_tile_id,
                         vertices,
                         uvs,
-                        blend_weights,
                         indices,
                         0,
                         true,
+                        Self::surface_noise_layer(noise),
                     );
                 } else {
                     vmchunk.add_poly_3d(
@@ -636,7 +873,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 .iter()
                 .map(|vertex| object.transform_point(*vertex).y)
                 .fold(f32::INFINITY, f32::min);
-            for face in &object.faces {
+            for (face_index, face) in object.faces.iter().enumerate() {
                 let Some(world_points) = Self::face_world_points(object, face) else {
                     continue;
                 };
@@ -676,7 +913,20 @@ impl ChunkBuilder for GeometryObjectBuilder {
                         world_points[0],
                     ));
                 } else if normal.y.abs() < 0.75 {
-                    Self::add_face_barriers(&mut collision, object.id, &world_points);
+                    Self::add_cutout_openings_from_surface_guides(
+                        &mut collision,
+                        object,
+                        face,
+                        normal,
+                    );
+                    Self::add_face_barriers(
+                        &mut collision,
+                        object.id,
+                        face_index,
+                        normal,
+                        raw_normal,
+                        &world_points,
+                    );
                 }
             }
         }
@@ -694,7 +944,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn surface_noise_tessellates_render_mesh_without_topology_change() {
+    fn surface_noise_uses_shader_layer_without_topology_change() {
         let mut object = crate::GeometryObject::box_from_bounds(
             "Box",
             Vec3::new(0.0, 0.0, 0.0),
@@ -722,8 +972,63 @@ mod tests {
             .polys3d_map
             .get(&GeoId::GeometryObject(object_id))
             .expect("geometry object should render");
-        assert!(polys.len() > original_face_count);
+        assert_eq!(polys.len(), original_face_count);
+        assert!(polys.iter().any(|poly| poly.surface_noise.is_some()));
         assert_eq!(map.geometry_objects[0].faces.len(), original_face_count);
+    }
+
+    #[test]
+    fn high_scale_surface_noise_does_not_add_render_tessellation() {
+        let mut object = crate::GeometryObject::new("Many Triangles");
+        for index in 0..64 {
+            let x = (index % 8) as f32;
+            let z = (index / 8) as f32;
+            let base = object.vertices.len();
+            object.vertices.extend([
+                Vec3::new(x, 0.0, z),
+                Vec3::new(x + 0.8, 0.0, z),
+                Vec3::new(x, 0.0, z + 0.8),
+            ]);
+            object.faces.push(crate::GeometryFace {
+                indices: vec![base, base + 1, base + 2],
+                uvs: Vec::new(),
+                auto_uv: true,
+                texture_offset: Vec2::zero(),
+                texture_scale: Vec2::broadcast(1.0),
+                texture_rotation: 0.0,
+                tile: None,
+                tiles: Default::default(),
+                surface_points: Vec::new(),
+                surface_segments: Vec::new(),
+                surface_noise: Some(crate::GeometrySurfaceNoise {
+                    scale: 500.0,
+                    amount: 0.35,
+                    seed: 0,
+                    source: Some(PixelSource::PaletteIndex(0)),
+                }),
+            });
+        }
+        let object_id = object.id;
+        let face_count = object.faces.len();
+        let mut map = Map::default();
+        map.geometry_objects.push(object);
+
+        let assets = Assets::default();
+        let mut chunk = Chunk::new(Vec2::zero(), 16);
+        let mut vmchunk = scenevm::Chunk::new(Vec2::zero(), 16);
+        let mut builder = GeometryObjectBuilder;
+        builder.build(&map, &assets, &mut chunk, &mut vmchunk);
+
+        let polys = vmchunk
+            .polys3d_map
+            .get(&GeoId::GeometryObject(object_id))
+            .expect("geometry object should render");
+        assert_eq!(
+            polys.len(),
+            face_count,
+            "shader-side surface noise should not add render polys"
+        );
+        assert!(polys.iter().all(|poly| poly.surface_noise.is_some()));
     }
 
     #[test]
@@ -769,5 +1074,129 @@ mod tests {
                 .any(|floor| floor.geo_id == GeoId::GeometryObject(object_id)
                     && (floor.height - 0.5).abs() < 1e-4)
         );
+    }
+
+    #[test]
+    fn collision_ignores_stale_cap_inside_real_cutout_boundary() {
+        fn test_face(indices: Vec<usize>) -> crate::GeometryFace {
+            crate::GeometryFace {
+                indices,
+                uvs: Vec::new(),
+                auto_uv: true,
+                texture_offset: Vec2::zero(),
+                texture_scale: Vec2::broadcast(1.0),
+                texture_rotation: 0.0,
+                tile: None,
+                tiles: Default::default(),
+                surface_points: Vec::new(),
+                surface_segments: Vec::new(),
+                surface_noise: None,
+            }
+        }
+
+        let mut object = crate::GeometryObject::new("WallWithCutoutAndStaleCap");
+        object.vertices = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(6.0, 0.0, 0.0),
+            Vec3::new(6.0, 3.0, 0.0),
+            Vec3::new(0.0, 3.0, 0.0),
+            Vec3::new(2.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(4.0, 2.0, 0.0),
+            Vec3::new(2.0, 2.0, 0.0),
+            Vec3::new(2.0, 0.0, 0.5),
+            Vec3::new(4.0, 0.0, 0.5),
+            Vec3::new(4.0, 2.0, 0.5),
+            Vec3::new(2.0, 2.0, 0.5),
+        ];
+
+        let mut stale_front_cap = test_face(vec![0, 1, 2, 3]);
+        stale_front_cap.surface_points = vec![
+            crate::GeometrySurfacePoint {
+                position: object.vertices[4],
+                mode: crate::GeometrySurfacePointMode::Corner,
+            },
+            crate::GeometrySurfacePoint {
+                position: object.vertices[5],
+                mode: crate::GeometrySurfacePointMode::Corner,
+            },
+            crate::GeometrySurfacePoint {
+                position: object.vertices[6],
+                mode: crate::GeometrySurfacePointMode::Corner,
+            },
+            crate::GeometrySurfacePoint {
+                position: object.vertices[7],
+                mode: crate::GeometrySurfacePointMode::Corner,
+            },
+        ];
+        stale_front_cap.surface_segments = vec![
+            crate::GeometrySurfaceSegment {
+                start: 0,
+                end: 1,
+                mode: crate::GeometrySurfaceSegmentMode::Line,
+                curve_amount: 0.0,
+            },
+            crate::GeometrySurfaceSegment {
+                start: 1,
+                end: 2,
+                mode: crate::GeometrySurfaceSegmentMode::Line,
+                curve_amount: 0.0,
+            },
+            crate::GeometrySurfaceSegment {
+                start: 2,
+                end: 3,
+                mode: crate::GeometrySurfaceSegmentMode::Line,
+                curve_amount: 0.0,
+            },
+            crate::GeometrySurfaceSegment {
+                start: 3,
+                end: 0,
+                mode: crate::GeometrySurfaceSegmentMode::Line,
+                curve_amount: 0.0,
+            },
+        ];
+
+        object.faces = vec![
+            stale_front_cap,
+            test_face(vec![4, 5, 9, 8]),
+            test_face(vec![5, 6, 10, 9]),
+            test_face(vec![6, 7, 11, 10]),
+            test_face(vec![7, 4, 8, 11]),
+            test_face(vec![4, 7, 6, 5]),
+            test_face(vec![9, 10, 11, 8]),
+        ];
+
+        let mut map = Map::default();
+        map.geometry_objects.push(object);
+
+        let assets = Assets::default();
+        let mut builder = GeometryObjectBuilder;
+        let mut collision = builder.build_collision(&map, &assets, Vec2::zero(), 16);
+        collision.walkable_floors.push(WalkableFloor::flat(
+            GeoId::GeometryObject(map.geometry_objects[0].id),
+            0.0,
+            vec![
+                Vec2::new(0.0, -1.0),
+                Vec2::new(6.0, -1.0),
+                Vec2::new(6.0, 1.0),
+                Vec2::new(0.0, 1.0),
+            ],
+        ));
+
+        let mut world = crate::CollisionWorld::new(16);
+        world.update_chunk(Vec2::zero(), collision);
+        let (end, arrived) = world
+            .move_towards_on_floors_direct(
+                Vec2::new(3.0, -0.25),
+                Vec2::new(3.0, 0.75),
+                1.0,
+                0.3,
+                1.0,
+                0.0,
+            )
+            .expect("cutout floor should be walkable");
+
+        assert!(arrived, "movement should pass through the cutout");
+        assert!(end.z > 0.7, "expected to move through opening, got {end:?}");
     }
 }

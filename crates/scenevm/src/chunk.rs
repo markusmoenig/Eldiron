@@ -1,6 +1,6 @@
 use crate::{
     BBox2D, GeoId, Line3D, LineStrip2D, OrganicBillboardInstance, OrganicBillboardSprite,
-    OrganicSurfaceDetail, Poly2D, Poly3D,
+    OrganicSurfaceDetail, Poly2D, Poly3D, SurfaceNoiseLayer,
 };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
@@ -265,6 +265,7 @@ impl Chunk {
             tile_id2: None,
             blend_weights: Vec::new(),
             organic_detail: None,
+            surface_noise: None,
         });
     }
 
@@ -293,6 +294,7 @@ impl Chunk {
             tile_id2: None,
             blend_weights: Vec::new(),
             organic_detail: Some(organic_detail),
+            surface_noise: None,
         });
     }
 
@@ -350,6 +352,37 @@ impl Chunk {
             tile_id2: Some(tile_id2),
             blend_weights,
             organic_detail: None,
+            surface_noise: None,
+        });
+    }
+
+    /// Add a 3D polygon with shader-side world-space surface noise.
+    pub fn add_poly_3d_surface_noise(
+        &mut self,
+        id: GeoId,
+        tile_id: uuid::Uuid,
+        tile_id2: uuid::Uuid,
+        vertices: Vec<[f32; 4]>,
+        uvs: Vec<[f32; 2]>,
+        indices: Vec<(usize, usize, usize)>,
+        layer: i32,
+        visible: bool,
+        surface_noise: SurfaceNoiseLayer,
+    ) {
+        self.polys3d_map.entry(id).or_default().push(Poly3D {
+            id,
+            tile_id,
+            vertices,
+            uvs,
+            organic_uvs: Vec::new(),
+            indices,
+            layer,
+            visible,
+            opacity: 1.0,
+            tile_id2: Some(tile_id2),
+            blend_weights: Vec::new(),
+            organic_detail: None,
+            surface_noise: Some(surface_noise),
         });
     }
 
@@ -380,6 +413,7 @@ impl Chunk {
             tile_id2: Some(tile_id2),
             blend_weights,
             organic_detail: Some(organic_detail),
+            surface_noise: None,
         });
     }
 
@@ -456,6 +490,7 @@ impl Chunk {
             tile_id2: None,
             blend_weights: Vec::new(),
             organic_detail: None,
+            surface_noise: None,
         };
         self.polys3d_map.entry(id).or_default().push(poly);
     }
@@ -550,6 +585,7 @@ impl Chunk {
             tile_id2: None,
             blend_weights: Vec::new(),
             organic_detail: None,
+            surface_noise: None,
         };
         self.polys3d_map.entry(id).or_default().push(poly);
     }

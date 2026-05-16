@@ -86,6 +86,7 @@ pub struct GameWidget {
     pub iso_geometry_fade: FxHashMap<uuid::Uuid, f32>,
     pub force_dynamics_rebuild: bool,
     pub firstp_eye_level: f32,
+    pub(crate) firstp_camera_y: Option<f32>,
     pub loaded_chunks: FxHashSet<(i32, i32)>,
     pub stream_load_radius_chunks: i32,
     pub stream_prefetch_radius_chunks: i32,
@@ -150,6 +151,7 @@ impl GameWidget {
             iso_geometry_fade: FxHashMap::default(),
             force_dynamics_rebuild: true,
             firstp_eye_level: 1.7,
+            firstp_camera_y: None,
             loaded_chunks: FxHashSet::default(),
             stream_load_radius_chunks: 2,
             stream_prefetch_radius_chunks: 5,
@@ -198,6 +200,7 @@ impl GameWidget {
     pub fn set_camera_mode(&mut self, camera: PlayerCamera) {
         self.camera = camera;
         self.force_dynamics_rebuild = true;
+        self.firstp_camera_y = None;
         match self.camera {
             PlayerCamera::D2 | PlayerCamera::D2Grid => {}
             PlayerCamera::D3Iso => {
@@ -208,6 +211,26 @@ impl GameWidget {
             PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid => {
                 self.camera_d3 = Box::new(D3FirstPCamera::new());
             }
+        }
+    }
+
+    fn apply_player_camera_d3(&mut self, entity: &crate::Entity) {
+        if self.camera_d3.id() == "firstp" {
+            let target_y = entity.position.y;
+            let smoothed_y = match self.firstp_camera_y {
+                Some(current) if (target_y - current).abs() <= 2.0 => {
+                    current + (target_y - current) * 0.28
+                }
+                _ => target_y,
+            };
+            self.firstp_camera_y = Some(smoothed_y);
+
+            let mut visual_entity = entity.clone();
+            visual_entity.position.y = smoothed_y;
+            visual_entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
+        } else {
+            self.firstp_camera_y = None;
+            entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
         }
     }
 
@@ -289,7 +312,7 @@ impl GameWidget {
         for entity in &map.entities {
             if entity.is_player() {
                 if !Self::is_2d_camera(&self.camera) {
-                    entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
+                    self.apply_player_camera_d3(entity);
                 }
                 self.player_pos = entity.get_pos_xz();
                 self.current_sector_name = entity

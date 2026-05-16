@@ -1,3 +1,25 @@
+# Eldiron v0.9.13
+
+## Improvements
+
+### Creator
+
+- Improved **Edit Geometry** action parameters by grouping metadata and transform values into separate TOML sections for easier editing.
+- Improved scripted 3D Geometry Object areas so `set_attr("visible", ...)` updates the backing object visibility, while `set_attr("blocking", ...)` updates object solidity and rebuilds runtime collision/navigation.
+- Improved hidden 3D Geometry Object handling so hidden objects are still available to the scene and can be revealed later through script.
+- Fixed rotated **Create Pattern** repeats so the pattern fills the selected face in rotated pattern space instead of collapsing into a small central area.
+- Fixed **Create Pattern** guide mode and minimap previews on vertical/transformed faces, including clipped tile guide lines on triangular/sloped face boundaries and shared pattern fitting across coplanar subdivided faces.
+- Reworked **Surface Noise** to blend materials in the 3D shader from stable world-space noise instead of adding render tessellation or UV-dependent distortion.
+
+### Game
+
+- Improved mesh collision for direct 3D Geometry Object cutouts so actors can move through wall openings without colliding against stale hidden geometry.
+- Improved mesh floor movement on narrow bridges and stepped geometry by sampling reachable floor support across the actor radius instead of relying only on the center point.
+- Improved first-person stair traversal by smoothing the visual camera height while keeping collision and actor position tied to the real floor height.
+- Fixed dynamic entity collision so actors on different vertical levels no longer block each other in XZ when their height ranges do not overlap.
+
+---
+
 # Eldiron v0.9.12
 
 ## Improvements
