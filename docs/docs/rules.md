@@ -348,6 +348,8 @@ The weapon and armor groups use the configured slot lists from **Game / Settings
 - `game.weapon_slots`
 - `game.gear_slots`
 
+Weapon items can also define `attack_cooldown` for engine-owned `follow_attack` engagements. This is not a damage formula value; it is gameplay timing in in-game minutes. When present on the active weapon, it overrides the attacker's character `attack_cooldown`.
+
 ### Difference Between `weapon.*` and `source.*`
 
 This is important:

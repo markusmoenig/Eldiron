@@ -1,10 +1,9 @@
 ---
 title: "Builder Tool"
 sidebar_position: 7
-draft: true
 ---
 
-The **Builder Tool** (keyboard shortcut **`B`**) applies reusable [Builder Graph](/docs/builder_graph) assets to map geometry.
+The **Builder Tool** (keyboard shortcut **`B`**) bakes reusable [Builder Graph](/docs/builder_graph) assets into editable 3D Geometry Objects.
 
 Use this page for the editor workflow. Use the [Builder Graph](/docs/builder_graph) chapter for the `.buildergraph` language, hosts, details, cuts, materials, examples, and CLI preview workflow.
 
@@ -16,11 +15,9 @@ The Builder Tool lets you:
 - create new builder assets
 - tune exposed builder parameters in the lower dock sidebar
 - open the Builder script editor
-- apply the selected builder asset to selected map hosts
-- clear builder data from selected hosts
-- assign material and item slots through the HUD
+- click in the 3D scene to place and bake the selected builder asset immediately
 
-Builder assets can be props, structures, wall details, surface details, or procedural assemblies.
+Builder assets can be props, structures, wall details, and reusable assemblies. Baking a build creates ordinary editable geometry instead of leaving a procedural generator attached to the scene.
 
 ## Picker Workflow
 
@@ -32,28 +29,28 @@ From the picker you can:
 - edit exposed `param` values in the TOML sidebar
 - create a new asset with **New**
 - open an asset by double-clicking it, pressing **Return**, or maximizing the editor
-- use **Apply Build** to apply the asset to selected hosts
-- use **Clear** to remove builder data from selected hosts
+- click in the 3D scene to bake the selected asset at the clicked point
+- use the normal geometry tools after baking to move, texture, cut, delete, or reshape the generated parts
 
-Single-click selects a builder asset. The currently selected asset is used by **Apply Build**.
+Single-click selects a builder asset. The currently selected asset is used when you click in the 3D scene.
 
 ## Host Targets
 
-Each Builder Graph declares one host target. The Builder Tool uses that target to decide which map selection type it applies to:
+Each Builder Graph declares one host target. The Builder Tool uses the clicked surface position and orientation as the placement host. Wall clicks face the asset out from the wall; floor clicks place it upright on the floor.
 
 - `host = sector;`
-  - applies to selected sectors
+  - bakes as a floor or platform-oriented asset
   - useful for platforms, floor props, surface relief, recesses, and freestanding sector details
 
 - `host = linedef;`
-  - applies to selected linedefs
+  - bakes as a wall or span-oriented asset
   - useful for walls, rails, fences, pilasters, and long span-based details
 
 - `host = vertex;`
-  - applies to selected vertices
+  - bakes as a point-mounted asset
   - useful for point-mounted props such as wall torches, lanterns, posts, and campfires
 
-Selecting a builder asset switches the map edit host mode to the matching target automatically.
+Direct 3D clicks do not require a preselected sector, linedef, or vertex.
 
 ## Builder Script Editor
 
@@ -91,50 +88,32 @@ param seed = 1.0;
 
 Editing the sidebar updates those `param ... = ...;` lines. Use this for tuning a selected template. Choose a different template when the structure changes, such as switching from masonry relief to a cut-out column opening.
 
-The Builder dock has a **Treasury** tab for published Builder Graph packages. It downloads the indexed package list only when the Treasury tab is opened. Starter templates such as tables, wall lights, campfires, masonry, column structures, and farmhouse shells live there. Treasury items can be applied directly, or installed into the project with **Install** if the script should become a permanent editable project asset.
+The Builder dock has a **Treasury** tab for published Builder Graph packages. It downloads the indexed package list only when the Treasury tab is opened. Starter templates such as tables, wall lights, campfires, masonry, column structures, and farmhouse shells live there. Treasury items can be baked directly, or installed into the project with **Install** if the script should become a permanent editable project asset.
 
 For the script language itself, see [Builder Graph](/docs/builder_graph).
 
 ## HUD Slots
 
-Builder hosts use the same upper-right HUD area as other map tools, but the icons represent builder slots.
+Builder Graphs can expose material and item slots. Baked Geometry Objects currently preserve the source graph and material slot name as object metadata, while the geometry itself is immediately editable through the normal 3D tools.
 
-There are two slot types:
+The Builder Graph language has two slot types:
 
 - **Material slots**
-  - assign visual tile sources to named parts such as `TOP`, `LEGS`, `COLUMN`, or `TRIM`
+  - name parts such as `TOP`, `LEGS`, `COLUMN`, or `TRIM`
 
 - **Item slots**
-  - attach other builder assets to named anchors or surfaces
+  - name anchors or surfaces for future child-asset workflows
 
 For example, a table builder can expose:
 
 - `TOP` and `LEGS` as material slots
 - `TOP` as an item surface slot for child props placed on the tabletop
 
-## Applying Materials
+## After Baking
 
-Use the Tile Picker with a Builder host selected to assign tiles to the currently selected builder material slot.
+After baking, the generated parts are selected as Geometry Objects. Use the normal 3D Object, Face, Edge, and Vertex tools to edit them.
 
-This keeps the graph reusable:
-
-- the graph defines slot names
-- the placed instance decides which tile fills each slot
-
-The same graph can be reused with different material assignments.
-
-## Applying Child Builders
-
-Builder item slots can host other builder assets.
-
-This supports workflows such as:
-
-- placing an object on a tabletop
-- attaching content to a shelf
-- mounting a child prop onto a stand
-- adding effects or secondary props to an anchor
-
-Point attachments use item anchors. Surface attachments use item surfaces.
+The current bake path supports Builder Graph box and cylinder primitives. Surface-only details, cuts, child item slots, and procedural organic details remain Builder Graph concepts, but they are not baked into editable Geometry Objects yet.
 
 ## Testing A Builder
 
@@ -142,13 +121,10 @@ Typical workflow:
 
 1. Create or select a Builder Graph asset.
 2. Edit the `.buildergraph` script and watch the preview.
-3. Select matching map hosts:
-   - sectors for `host = sector`
-   - linedefs for `host = linedef`
-   - vertices for `host = vertex`
-4. Press **Apply Build**.
-5. Assign materials through the HUD if needed.
-6. Rebuild or reapply after changing the script.
+3. Activate the Builder Tool.
+4. Click in the 3D scene where the asset should be placed.
+5. Edit, texture, duplicate, or reshape the selected Geometry Objects.
+6. Reapply after changing the script if you want a fresh baked version.
 
 ## Presets And Examples
 
@@ -168,7 +144,7 @@ See [Builder Graph](/docs/builder_graph) for script examples and language detail
 
 ## Tips
 
-- Use the Builder Tool for reusable placed structures and procedural details.
+- Use the Builder Tool for reusable placed structures and editable baked props.
 - Prefer focused templates over one giant script with many unrelated controls.
 - Use the parameter sidebar for tuning values such as radius, spacing, damage chance, and seed.
 - Keep scripts generic and expose named slots instead of hardcoding materials.

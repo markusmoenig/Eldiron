@@ -408,8 +408,39 @@ portrait_gap = 12
 - `message_spacing`: vertical spacing between separate message blocks
 - `portrait_size`: square portrait size in pixels when `portrait = true`
 - `portrait_gap`: horizontal spacing between the portrait and text
+- `press_to_continue`: pauses output when the current page fills while more text is queued and shows a prompt
+- `continue_prompt`: text shown while waiting for the player to continue
+- `pause_blocks_input`: blocks player input during message pauses, defaults to `true`
+- `scrollback`: lets the player use the mouse wheel to review older messages
+- `max_messages`: number of messages kept for scrollback, defaults to `100`
 
 This is useful when long wrapped messages would otherwise run visually into the next message.
+
+### Pauses and Scrollback
+
+Messages widgets can pause output automatically when the visible page fills and more queued text is waiting:
+
+```toml
+[ui]
+role = "messages"
+press_to_continue = true
+continue_prompt = "Press Space"
+pause_blocks_input = true
+scrollback = true
+max_messages = 200
+```
+
+Scripts can also insert explicit pauses into the message stream. Use the `pause` category with an empty message to show the continue prompt, or with a number of seconds for a timed pause:
+
+```eldrin
+message(id(), "First line.", "")
+message(id(), "", "pause")
+message(id(), "Second line after player input.", "")
+
+message(id(), "Wait for it...", "")
+message(id(), "5", "pause")
+message(id(), "Five seconds later.", "")
+```
 
 ### Multiple Choice
 

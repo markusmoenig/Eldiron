@@ -88,6 +88,9 @@ impl Hud {
         if !server_ctx.palette_tool_active {
             return None;
         }
+        if let Some(slots) = crate::actions::builder_hud_material_slots_for_selected_geometry(map) {
+            return Some(slots);
+        }
         match server_ctx.curr_map_tool_type {
             MapToolType::Sector => {
                 crate::actions::builder_hud_material_slots_for_selected_sector(map)
@@ -384,6 +387,41 @@ impl Hud {
 
         self.subdiv_rects = vec![];
 
+        let icon_size = 40;
+        let action_item_slots = self.active_builder_item_slots(map, ctx, server_ctx);
+        let action_material_slots = if action_item_slots.is_none() {
+            crate::actions::builder_hud_material_slots_for_selected_geometry(map)
+                .or_else(|| self.active_action_material_slots(map, ctx, server_ctx))
+                .or_else(|| self.active_palette_material_slots(map, ctx, server_ctx))
+        } else {
+            None
+        };
+        let mut icons = 0;
+
+        if server_ctx.get_map_context() == MapContext::Region {
+            icons = if let Some(slots) = &action_item_slots {
+                slots.len() as i32
+            } else if let Some(slots) = &action_material_slots {
+                slots.len() as i32
+            } else if self.mode == HudMode::Vertex {
+                0
+            } else if self.mode == HudMode::Linedef {
+                0
+            } else {
+                1
+            };
+        } else if server_ctx.get_map_context() == MapContext::Screen {
+            icons = if self.mode == HudMode::Sector { 2 } else { 0 };
+        }
+
+        if self.mode == HudMode::Effects
+            || self.mode == HudMode::Dungeon
+            || self.mode == HudMode::Rect
+            || self.mode == HudMode::Terrain
+        {
+            icons = 0;
+        }
+
         ctx.draw.rect(
             buffer.pixels_mut(),
             &(0, 0, width, info_height),
@@ -458,7 +496,9 @@ impl Hud {
                 );
             }
 
-            if let Some(length) = Self::geometry_length_readout(map, server_ctx) {
+            if icons == 0
+                && let Some(length) = Self::geometry_length_readout(map, server_ctx)
+            {
                 let precision = Self::coord_precision(map.subdivisions);
                 let panel_width = if precision >= 5 { 120 } else { 100 };
                 let x = width.saturating_sub(panel_width + 8);
@@ -499,40 +539,6 @@ impl Hud {
         }
 
         // Icons
-
-        let icon_size = 40;
-        let mut icons = 0;
-        let action_item_slots = self.active_builder_item_slots(map, ctx, server_ctx);
-        let action_material_slots = if action_item_slots.is_none() {
-            self.active_action_material_slots(map, ctx, server_ctx)
-                .or_else(|| self.active_palette_material_slots(map, ctx, server_ctx))
-        } else {
-            None
-        };
-
-        if server_ctx.get_map_context() == MapContext::Region {
-            icons = if let Some(slots) = &action_item_slots {
-                slots.len() as i32
-            } else if let Some(slots) = &action_material_slots {
-                slots.len() as i32
-            } else if self.mode == HudMode::Vertex {
-                0
-            } else if self.mode == HudMode::Linedef {
-                0
-            } else {
-                1
-            };
-        } else if server_ctx.get_map_context() == MapContext::Screen {
-            icons = if self.mode == HudMode::Sector { 2 } else { 0 };
-        }
-
-        if self.mode == HudMode::Effects
-            || self.mode == HudMode::Dungeon
-            || self.mode == HudMode::Rect
-            || self.mode == HudMode::Terrain
-        {
-            icons = 0;
-        }
 
         if icons > 0 {
             server_ctx.selected_hud_icon_index =
@@ -625,7 +631,8 @@ impl Hud {
                 );
             }
 
-            self.icon_rects.push(rect);
+            self.icon_rects
+                .push(TheDim::rect(rect.x, 0, rect.width, rect.y + rect.height));
         }
 
         // Show Subdivs

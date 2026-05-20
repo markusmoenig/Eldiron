@@ -13,6 +13,7 @@ Some tools are specifically designed for **map editing** and display a common **
 - **Linedef / Edge Tool**
 - **Sector / Face Tool**
 - **Rect Tool**
+- **Builder Tool**
 
 The tool strip also contains **mode toggles** below the main map tools:
 
@@ -61,6 +62,7 @@ In 3D geometry views you can also use:
 - `V`: Vertex Tool
 - `E`: Linedef / Edge Tool
 - `F`: Sector / Face Tool
+- `B`: Builder Tool
 - `M`: Move object gizmo
 - `S`: Size object gizmo
 

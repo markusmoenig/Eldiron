@@ -140,6 +140,7 @@ pub struct Client {
     pub game_tick_ms: i32,
     pub firstp_eye_level: f32,
     firstp_camera_y: Option<f32>,
+    active_player_camera: Option<PlayerCamera>,
 
     // The offset we copy the target into
     pub target_offset: Vec2<i32>,
@@ -378,6 +379,20 @@ impl Client {
         now_ticks > expires_at_tick
     }
 
+    fn choice_key_from_input(value: &str) -> Option<char> {
+        let trimmed = value.trim();
+        if trimmed.len() == 1 {
+            return trimmed.chars().next().filter(|c| c.is_ascii_digit());
+        }
+
+        let lower = trimmed.to_ascii_lowercase();
+        ["digit", "numpad"].iter().find_map(|prefix| {
+            lower
+                .strip_prefix(prefix)
+                .and_then(|suffix| suffix.chars().find(|c| c.is_ascii_digit()))
+        })
+    }
+
     fn deactivate_matches(widget: &Widget, token: &str) -> bool {
         let t = token.trim();
         if t.is_empty() {
@@ -413,6 +428,17 @@ impl Client {
         } else {
             None
         }
+    }
+
+    fn update_active_player_camera(&mut self, map: &Map) {
+        self.active_player_camera = map
+            .entities
+            .iter()
+            .find(|entity| entity.is_player())
+            .and_then(|entity| match entity.attributes.get("player_camera") {
+                Some(crate::Value::PlayerCamera(camera)) => Some(camera.clone()),
+                _ => None,
+            });
     }
 
     fn parse_player_camera_mode(camera: &str) -> Option<PlayerCamera> {
@@ -484,6 +510,7 @@ impl Client {
             game_tick_ms: 250,
             firstp_eye_level: 1.7,
             firstp_camera_y: None,
+            active_player_camera: None,
 
             target_offset: Vec2::zero(),
             target: TheRGBABuffer::default(),
@@ -622,6 +649,7 @@ impl Client {
         scene_handler: &mut SceneHandler,
         draw_sectors: bool,
     ) {
+        self.update_active_player_camera(map);
         self.curr_map_id = map.id;
         if self.map_tool_type_d2 == MapToolType::Dungeon {
             self.scene_d2 = self
@@ -663,6 +691,7 @@ impl Client {
         scene_handler: &mut SceneHandler,
         draw_sectors: bool,
     ) {
+        self.update_active_player_camera(map);
         self.builder_d2.build_entities_items(
             map,
             assets,
@@ -677,6 +706,7 @@ impl Client {
 
     /// Build the 3D scene from the map.
     pub fn build_custom_scene_d3(&mut self, map: &Map, assets: &Assets, values: &ValueContainer) {
+        self.update_active_player_camera(map);
         self.curr_map_id = map.id;
         self.scene_d3 = self.builder_d3.build(
             map,
@@ -694,6 +724,7 @@ impl Client {
         assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) {
+        self.update_active_player_camera(map);
         for entity in &map.entities {
             if entity.is_player() {
                 self.apply_player_camera_d3(entity);
@@ -1430,6 +1461,7 @@ impl Client {
     ) {
         // Keep scene timing in sync with config
         scene_handler.set_timings(self.target_fps as f32, self.game_tick_ms);
+        self.update_active_player_camera(map);
 
         // Reset the intent to the server value
         self.current_sector.clear();
@@ -1936,6 +1968,7 @@ impl Client {
         size: (u32, u32),
     ) -> bool {
         // Keep input mapping in sync with direct SceneVM presentation path.
+        self.update_active_player_camera(map);
         let (scale, offset_x, offset_y) = self.presentation_transform_for_surface(size.0, size.1);
         self.upscale_factor = scale.max(0.0001);
         self.target_offset = Vec2::new(offset_x as i32, offset_y as i32);
@@ -2550,10 +2583,11 @@ impl Client {
     }
 
     fn immediate_2d_intent_mode(&self) -> bool {
-        matches!(
-            self.active_game_widget_camera_mode(),
-            Some(crate::PlayerCamera::D2 | crate::PlayerCamera::D2Grid)
-        ) && !self.click_intents_2d
+        let camera = self
+            .active_player_camera
+            .clone()
+            .or_else(|| self.active_game_widget_camera_mode());
+        matches!(camera, Some(crate::PlayerCamera::D2)) && !self.click_intents_2d
     }
 
     fn drop_position_at_viewport(&self, p: Vec2<i32>) -> Option<Vec2<f32>> {
@@ -2817,6 +2851,20 @@ impl Client {
             self.curr_cursor = self.default_cursor;
         }
 
+        // Transform screen coordinates to viewport coordinates
+        let p = self.screen_to_viewport(coord);
+
+        // Give paused/scrollback message widgets first chance to consume input before
+        // buttons or the game map turn it into player actions.
+        for widget in self.messages_widgets.iter_mut() {
+            let inside = widget.rect.contains(Vec2::new(p.x as f32, p.y as f32));
+            if (inside || widget.blocks_input())
+                && let Some(action) = widget.touch_down(p)
+            {
+                return Some(action);
+            }
+        }
+
         // If we hovered over an item in 3D, send an explicit ItemClicked intent
         if let Some(entity_id) = self.hovered_entity_id {
             return Some(EntityAction::EntityClicked(
@@ -2843,8 +2891,6 @@ impl Client {
             ));
         }
 
-        // Transform screen coordinates to viewport coordinates
-        let p = self.screen_to_viewport(coord);
         for (id, widget) in self.button_widgets.iter() {
             if widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
                 self.activated_widgets.push(*id);
@@ -3155,24 +3201,12 @@ impl Client {
             self.key_down_intent = None;
         }
 
-        if immediate_2d_intent && event == "key_down" {
-            if let Some(key_down_intent) = &self.key_down_intent {
-                if !key_down_intent.is_empty() {
-                    return EntityAction::Off;
-                }
-            }
-        }
-
-        if immediate_2d_intent && self.key_down_intent.is_none() && event == "key_down" {
-            self.key_down_intent = Some(self.intent.clone());
-        }
-
         // --- Check for multiple choice
 
         if let Some(choice_map) = &self.choice_map.clone() {
             if event == "key_down" {
                 if let Value::Str(v) = &value {
-                    if let Some(c) = v.chars().next() {
+                    if let Some(c) = Self::choice_key_from_input(v) {
                         if let Some(choice) = choice_map.get(&c) {
                             let choice = if self.choice_expired(choice) {
                                 let (from, to, expires_at_tick, max_distance) =
@@ -3191,21 +3225,43 @@ impl Client {
             }
         }
 
+        for widget in self.messages_widgets.iter_mut() {
+            if let Some(action) = widget.user_event(&event, &value) {
+                return action;
+            }
+        }
+
+        if immediate_2d_intent && event == "key_down" {
+            if let Some(key_down_intent) = &self.key_down_intent
+                && !key_down_intent.is_empty()
+            {
+                return EntityAction::Off;
+            }
+        }
+
+        if immediate_2d_intent && self.key_down_intent.is_none() && event == "key_down" {
+            self.key_down_intent = Some(self.intent.clone());
+        }
+
         // ---
 
         let is_key_down = event == "key_down";
         let mut action = self.client_action.lock().unwrap().user_event(event, value);
+
+        if is_key_down {
+            if !immediate_2d_intent && let EntityAction::Intent(intent_name) = &action {
+                // 3D and click-intents-in-2D use intent as a persistent UI state.
+                self.apply_intent_button_activation(intent_name);
+                // Keyboard intent shortcuts only update selection state here.
+                action = EntityAction::Off;
+            }
+        }
 
         if is_key_down && let EntityAction::Intent(intent_name) = &action {
             if immediate_2d_intent {
                 // Classic 2D uses one-shot directional intents, so shortcuts should
                 // not toggle persistent button activation.
                 self.intent = intent_name.clone();
-            } else {
-                // 3D and click-intents-in-2D use intent as a persistent UI state.
-                self.apply_intent_button_activation(intent_name);
-                // Keyboard intent shortcuts only update selection state here.
-                action = EntityAction::Off;
             }
         }
 
@@ -3221,6 +3277,14 @@ impl Client {
         }
 
         action
+    }
+
+    pub fn scroll_messages(&mut self, delta_y: isize) -> bool {
+        let mut handled = false;
+        for widget in self.messages_widgets.iter_mut() {
+            handled |= widget.scroll(delta_y);
+        }
+        handled
     }
 
     /// Apply the same intent-button toggle behavior as clicking a button:

@@ -1,6 +1,6 @@
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
-use vek::Vec2;
+use vek::{Vec2, Vec3};
 
 const OFFSET_X_ID: &str = "actionFaceTextureOffsetX";
 const OFFSET_Y_ID: &str = "actionFaceTextureOffsetY";
@@ -39,6 +39,92 @@ impl EditFaceTexture {
         let rotation = self.nodeui.get_f32_value(ROTATION_ID).unwrap_or(0.0);
 
         (offset, scale, rotation)
+    }
+
+    fn geometry_face_auto_uvs(points: &[Vec3<f32>]) -> Vec<Vec2<f32>> {
+        if points.len() < 3 {
+            return vec![Vec2::zero(); points.len()];
+        }
+
+        let mut normal = Vec3::<f32>::zero();
+        for index in 1..points.len() - 1 {
+            normal += (points[index] - points[0]).cross(points[index + 1] - points[0]);
+        }
+
+        let abs = Vec3::new(normal.x.abs(), normal.y.abs(), normal.z.abs());
+        points
+            .iter()
+            .map(|point| {
+                if abs.y >= abs.x && abs.y >= abs.z {
+                    Vec2::new(point.x, point.z)
+                } else if abs.x >= abs.z {
+                    Vec2::new(point.z, point.y)
+                } else {
+                    Vec2::new(point.x, point.y)
+                }
+            })
+            .collect()
+    }
+
+    fn geometry_face_texture_signs(
+        object: &rusterix::GeometryObject,
+        face: &rusterix::GeometryFace,
+    ) -> (Vec2<f32>, f32) {
+        let points = face
+            .indices
+            .iter()
+            .filter_map(|vertex_index| object.vertices.get(*vertex_index).copied())
+            .collect::<Vec<_>>();
+        if points.len() != face.indices.len() || points.len() < 3 {
+            return (Vec2::broadcast(1.0), 1.0);
+        }
+
+        let uvs = if face.auto_uv || face.uvs.len() != face.indices.len() {
+            Self::geometry_face_auto_uvs(&points)
+        } else {
+            face.uvs.clone()
+        };
+
+        let mut normal = Vec3::<f32>::zero();
+        for index in 1..points.len() - 1 {
+            normal += (points[index] - points[0]).cross(points[index + 1] - points[0]);
+        }
+        let abs = Vec3::new(normal.x.abs(), normal.y.abs(), normal.z.abs());
+        let (canonical_u, canonical_v) = if abs.y >= abs.x && abs.y >= abs.z {
+            (Vec3::unit_x(), Vec3::unit_z())
+        } else if abs.x >= abs.z {
+            (Vec3::unit_z(), Vec3::unit_y())
+        } else {
+            (Vec3::unit_x(), Vec3::unit_y())
+        };
+
+        let mut best_u = (0.0f32, Vec3::zero());
+        let mut best_v = (0.0f32, Vec3::zero());
+        for index in 0..points.len() {
+            let next = (index + 1) % points.len();
+            let delta_world = points[next] - points[index];
+            let delta_uv = uvs[next] - uvs[index];
+            let abs_u = delta_uv.x.abs();
+            let abs_v = delta_uv.y.abs();
+            if abs_u > best_u.0 && abs_u > 1e-5 {
+                best_u = (abs_u, delta_world * delta_uv.x.signum());
+            }
+            if abs_v > best_v.0 && abs_v > 1e-5 {
+                best_v = (abs_v, delta_world * delta_uv.y.signum());
+            }
+        }
+
+        let u_sign = if best_u.1.dot(canonical_u) < 0.0 {
+            -1.0
+        } else {
+            1.0
+        };
+        let v_sign = if best_v.1.dot(canonical_v) < 0.0 {
+            -1.0
+        } else {
+            1.0
+        };
+        (Vec2::new(u_sign, v_sign), u_sign * v_sign)
     }
 
     fn selected_faces(map: &Map) -> Vec<(usize, usize)> {
@@ -86,6 +172,16 @@ impl EditFaceTexture {
 
         let mut changed = false;
         for (object_index, face_index) in selected_faces {
+            let Some((offset_sign, rotation_sign)) =
+                map.geometry_objects.get(object_index).and_then(|object| {
+                    let face = object.faces.get(face_index)?;
+                    Some(Self::geometry_face_texture_signs(object, face))
+                })
+            else {
+                continue;
+            };
+            let raw_offset = Vec2::new(offset.x * offset_sign.x, offset.y * offset_sign.y);
+            let raw_rotation = rotation * rotation_sign;
             let Some(face) = map
                 .geometry_objects
                 .get_mut(object_index)
@@ -94,16 +190,16 @@ impl EditFaceTexture {
                 continue;
             };
 
-            if (face.texture_offset - offset).magnitude_squared() > 0.000001 {
-                face.texture_offset = offset;
+            if (face.texture_offset - raw_offset).magnitude_squared() > 0.000001 {
+                face.texture_offset = raw_offset;
                 changed = true;
             }
             if (face.texture_scale - scale).magnitude_squared() > 0.000001 {
                 face.texture_scale = scale;
                 changed = true;
             }
-            if (face.texture_rotation - rotation).abs() > 0.0001 {
-                face.texture_rotation = rotation;
+            if (face.texture_rotation - raw_rotation).abs() > 0.0001 {
+                face.texture_rotation = raw_rotation;
                 changed = true;
             }
         }
@@ -192,24 +288,27 @@ impl Action for EditFaceTexture {
         let Some((object_index, face_index)) = Self::selected_faces(map).first().copied() else {
             return;
         };
-        let Some(face) = map
-            .geometry_objects
-            .get(object_index)
-            .and_then(|object| object.faces.get(face_index))
-        else {
+        let Some(object) = map.geometry_objects.get(object_index) else {
             return;
         };
+        let Some(face) = object.faces.get(face_index) else {
+            return;
+        };
+        let (offset_sign, rotation_sign) = Self::geometry_face_texture_signs(object, face);
 
-        self.nodeui
-            .set_f32_value(OFFSET_X_ID, face.texture_offset.x);
-        self.nodeui
-            .set_f32_value(OFFSET_Y_ID, face.texture_offset.y);
+        let display_offset = Vec2::new(
+            face.texture_offset.x * offset_sign.x,
+            face.texture_offset.y * offset_sign.y,
+        );
+
+        self.nodeui.set_f32_value(OFFSET_X_ID, display_offset.x);
+        self.nodeui.set_f32_value(OFFSET_Y_ID, display_offset.y);
         self.nodeui
             .set_f32_value(SCALE_X_ID, face.texture_scale.x.max(0.05));
         self.nodeui
             .set_f32_value(SCALE_Y_ID, face.texture_scale.y.max(0.05));
         self.nodeui
-            .set_f32_value(ROTATION_ID, face.texture_rotation);
+            .set_f32_value(ROTATION_ID, face.texture_rotation * rotation_sign);
     }
 
     fn apply(
@@ -344,5 +443,37 @@ mod tests {
             assert_eq!(face.texture_scale, Vec2::new(2.0, 3.0));
             assert_eq!(face.texture_rotation, 45.0);
         }
+    }
+
+    #[test]
+    fn face_texture_edit_values_follow_mirrored_face_uv_winding() {
+        let mut map = Map::default();
+        let mut object = rusterix::GeometryObject::box_from_bounds(
+            "Box",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 1.0),
+        );
+        let object_id = object.id;
+        object.faces[2].auto_uv = false;
+        object.faces[2].uvs = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            Vec2::new(1.0, 1.0),
+            Vec2::new(0.0, 1.0),
+        ];
+        map.geometry_objects.push(object);
+        map.selected_geometry_faces.push((object_id, 2));
+
+        assert!(EditFaceTexture::apply_values(
+            &mut map,
+            Vec2::new(0.25, 0.5),
+            Vec2::new(2.0, 3.0),
+            45.0,
+        ));
+
+        let face = &map.geometry_objects[0].faces[2];
+        assert_eq!(face.texture_offset, Vec2::new(-0.25, 0.5));
+        assert_eq!(face.texture_scale, Vec2::new(2.0, 3.0));
+        assert_eq!(face.texture_rotation, -45.0);
     }
 }

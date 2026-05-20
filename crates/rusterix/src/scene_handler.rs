@@ -655,6 +655,15 @@ impl SceneHandler {
             .fold(0u32, |acc, byte| acc.wrapping_mul(16777619) ^ byte as u32)
     }
 
+    fn hash_u32_uuid(id: Uuid) -> u32 {
+        let bytes = id.as_bytes();
+        bytes.chunks(4).fold(0u32, |acc, chunk| {
+            let mut word = [0u8; 4];
+            word[..chunk.len()].copy_from_slice(chunk);
+            acc.wrapping_mul(16777619) ^ u32::from_le_bytes(word)
+        })
+    }
+
     fn normalize_builder_material_key(name: &str) -> String {
         let mut out = String::new();
         let mut prev_is_sep = false;
@@ -1133,6 +1142,88 @@ impl SceneHandler {
         out
     }
 
+    fn builder_geometry_object_particle_sources(
+        map: &Map,
+        assets: &Assets,
+    ) -> Vec<BuilderParticleSource> {
+        fn object_bounds_3d(object: &crate::GeometryObject) -> Option<(Vec3<f32>, Vec3<f32>)> {
+            let mut min = Vec3::broadcast(f32::INFINITY);
+            let mut max = Vec3::broadcast(f32::NEG_INFINITY);
+            let mut found = false;
+            for vertex in &object.vertices {
+                let world = object.transform_point(*vertex);
+                if !world.x.is_finite() || !world.y.is_finite() || !world.z.is_finite() {
+                    continue;
+                }
+                min.x = min.x.min(world.x);
+                min.y = min.y.min(world.y);
+                min.z = min.z.min(world.z);
+                max.x = max.x.max(world.x);
+                max.y = max.y.max(world.y);
+                max.z = max.z.max(world.z);
+                found = true;
+            }
+            found.then_some((min, max))
+        }
+
+        fn face_particle_tile(face: &crate::GeometryFace, assets: &Assets) -> Option<Tile> {
+            face.tile
+                .as_ref()
+                .and_then(|source| source.tile_from_tile_list(assets))
+                .filter(|tile| tile.particle_emitter.is_some())
+                .or_else(|| {
+                    face.tiles.values().find_map(|source| {
+                        source
+                            .tile_from_tile_list(assets)
+                            .filter(|tile| tile.particle_emitter.is_some())
+                    })
+                })
+        }
+
+        let mut out = Vec::new();
+        for object in &map.geometry_objects {
+            if object.properties.get_str("builder_baked") != Some("geometry_object") {
+                continue;
+            }
+            let Some(material_slot) = object.properties.get_str("builder_material_slot") else {
+                continue;
+            };
+            let Some(tile) = object
+                .faces
+                .iter()
+                .find_map(|face| face_particle_tile(face, assets))
+            else {
+                continue;
+            };
+            let Some(emitter) = tile.particle_emitter.clone() else {
+                continue;
+            };
+            let Some((min, max)) = object_bounds_3d(object) else {
+                continue;
+            };
+
+            let center = (min + max) * 0.5;
+            let height = (max.y - min.y).max(0.01);
+            let width = (max.x - min.x).max(max.z - min.z).max(0.01);
+            let origin = Vec3::new(center.x, max.y + height.min(0.12) * 0.1, center.z);
+            let slot_hash = Self::hash_u32_label(material_slot);
+            let key = Self::tile_particle_key(8, Self::hash_u32_uuid(object.id), slot_hash);
+
+            out.push(BuilderParticleSource {
+                key,
+                light_id: GeoId::Unknown(0xB17F_0000 ^ key),
+                tile_id: tile.id,
+                emitter,
+                light_override: tile.light_emitter.clone(),
+                origin,
+                direction: Vec3::new(0.0, 1.0, 0.0),
+                size_scale: width.clamp(0.35, 1.5),
+            });
+        }
+
+        out
+    }
+
     fn rebuild_builder_particles_2d(
         &mut self,
         map: &Map,
@@ -1145,6 +1236,7 @@ impl SceneHandler {
         for source in Self::builder_linedef_particle_sources(map, assets)
             .into_iter()
             .chain(Self::builder_vertex_particle_sources(map, assets).into_iter())
+            .chain(Self::builder_geometry_object_particle_sources(map, assets).into_iter())
         {
             active_emitters.insert(source.key);
             let emitter = self
@@ -1205,6 +1297,7 @@ impl SceneHandler {
         for source in Self::builder_linedef_particle_sources(map, assets)
             .into_iter()
             .chain(Self::builder_vertex_particle_sources(map, assets).into_iter())
+            .chain(Self::builder_geometry_object_particle_sources(map, assets).into_iter())
         {
             active_emitters.insert(source.key);
             let emitter = self
@@ -2554,6 +2647,7 @@ impl SceneHandler {
         hasher.write_u64(map.sectors.len() as u64);
         hasher.write_u64(map.linedefs.len() as u64);
         hasher.write_u64(map.vertices.len() as u64);
+        hasher.write_u64(map.geometry_objects.len() as u64);
         hasher.write_u64(map.items.len() as u64);
         hasher.write_u64(map.entities.len() as u64);
 
@@ -2635,6 +2729,39 @@ impl SceneHandler {
             }
         }
 
+        for object in &map.geometry_objects {
+            hasher.write(object.id.as_bytes());
+            hasher.write(
+                object
+                    .properties
+                    .get_str_default("builder_baked", String::new())
+                    .as_bytes(),
+            );
+            hasher.write(
+                object
+                    .properties
+                    .get_str_default("builder_material_slot", String::new())
+                    .as_bytes(),
+            );
+            for transform_row in object.transform {
+                for value in transform_row {
+                    hasher.write_u32(value.to_bits());
+                }
+            }
+            for face in &object.faces {
+                if let Some(source) = face.tile.as_ref() {
+                    Self::hash_pixel_source(&mut hasher, source);
+                } else {
+                    hasher.write_u8(0);
+                }
+                for ((x, y), source) in &face.tiles {
+                    hasher.write_i32(*x);
+                    hasher.write_i32(*y);
+                    Self::hash_pixel_source(&mut hasher, source);
+                }
+            }
+        }
+
         for item in &map.items {
             hasher.write_u32(item.id);
             hasher.write_u32(item.position.x.to_bits());
@@ -2705,6 +2832,7 @@ impl SceneHandler {
         hasher.write_u64(map.sectors.len() as u64);
         hasher.write_u64(map.linedefs.len() as u64);
         hasher.write_u64(map.vertices.len() as u64);
+        hasher.write_u64(map.geometry_objects.len() as u64);
         hasher.write_u64(map.items.len() as u64);
         hasher.write_u64(map.entities.len() as u64);
 
@@ -2789,6 +2917,39 @@ impl SceneHandler {
                             hasher.write_u8(0);
                         }
                     }
+                }
+            }
+        }
+
+        for object in &map.geometry_objects {
+            hasher.write(object.id.as_bytes());
+            hasher.write(
+                object
+                    .properties
+                    .get_str_default("builder_baked", String::new())
+                    .as_bytes(),
+            );
+            hasher.write(
+                object
+                    .properties
+                    .get_str_default("builder_material_slot", String::new())
+                    .as_bytes(),
+            );
+            for transform_row in object.transform {
+                for value in transform_row {
+                    hasher.write_u32(value.to_bits());
+                }
+            }
+            for face in &object.faces {
+                if let Some(source) = face.tile.as_ref() {
+                    Self::hash_pixel_source(&mut hasher, source);
+                } else {
+                    hasher.write_u8(0);
+                }
+                for ((x, y), source) in &face.tiles {
+                    hasher.write_i32(*x);
+                    hasher.write_i32(*y);
+                    Self::hash_pixel_source(&mut hasher, source);
                 }
             }
         }

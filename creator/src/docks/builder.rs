@@ -3,7 +3,8 @@ use crate::prelude::*;
 use rusterix::Surface;
 use scenevm::GeoId;
 use shared::buildergraph::{
-    BuilderCutMask, BuilderCutMode, BuilderDocument, BuilderScriptParameterValue,
+    BuilderCutMask, BuilderCutMode, BuilderDocument, BuilderHost, BuilderOutputTarget,
+    BuilderPreviewHost, BuilderPrimitive, BuilderScriptParameterValue, BuilderTransform,
 };
 use std::{
     collections::HashMap,
@@ -21,7 +22,6 @@ const BUILDER_TAB_LAYOUT: &str = "Builder Dock Tabs";
 const BUILDER_VIEW_PREFIX: &str = "Builder Dock View ";
 const BUILDER_DOCK_REFRESH: &str = "Builder Dock Refresh";
 const BUILDER_PARAMS_TOML: &str = "Builder Parameters TOML";
-const BUILDER_AUTO_VERTEX_BUTTON: &str = "Builder Dock Auto Vertex";
 const BUILDER_PARAMS_WIDTH: i32 = 300;
 const BUILDER_CARD_BASE_W: i32 = 240;
 const BUILDER_CARD_BASE_H: i32 = 178;
@@ -69,6 +69,16 @@ struct BuilderTreasuryItem {
     target: String,
     graph_name: String,
     graph_data: String,
+}
+
+#[derive(Clone)]
+struct BuilderBakePlacement {
+    host: BuilderHost,
+    origin: Vec3<f32>,
+    along: Vec3<f32>,
+    up: Vec3<f32>,
+    out: Vec3<f32>,
+    dims: Vec3<f32>,
 }
 
 impl BuilderTreasuryItem {
@@ -189,26 +199,7 @@ impl Dock for BuilderDock {
             .set_status_text("Install the selected Treasury Builder Graph into this project.");
         toolbar_hlayout.add_widget(Box::new(install_button));
 
-        let mut auto_vertex_button =
-            TheTraybarButton::new(TheId::named(BUILDER_AUTO_VERTEX_BUTTON));
-        auto_vertex_button.set_text("Auto Vertex".to_string());
-        auto_vertex_button.set_is_toggle(true);
-        auto_vertex_button.set_status_text(
-            "When active, clicking in 3D creates a vertex at the hit point and applies the selected vertex Builder Graph.",
-        );
-        toolbar_hlayout.add_widget(Box::new(auto_vertex_button));
-
-        let mut apply_button = TheTraybarButton::new(TheId::named("Builder Dock Apply Build"));
-        apply_button.set_text(fl!("builder_apply_build"));
-        apply_button.set_status_text(&fl!("status_builder_apply_build"));
-        toolbar_hlayout.add_widget(Box::new(apply_button));
-
-        let mut clear_button = TheTraybarButton::new(TheId::named("Builder Dock Clear Build"));
-        clear_button.set_text(fl!("clear"));
-        clear_button.set_status_text(&fl!("status_builder_clear_build"));
-        toolbar_hlayout.add_widget(Box::new(clear_button));
-
-        toolbar_hlayout.set_reverse_index(Some(3));
+        toolbar_hlayout.set_reverse_index(Some(2));
 
         toolbar_canvas.set_layout(toolbar_hlayout);
         canvas.set_top(toolbar_canvas);
@@ -627,95 +618,6 @@ impl Dock for BuilderDock {
                     redraw = true;
                 }
             }
-            TheEvent::StateChanged(id, TheWidgetState::Clicked)
-                if id.name == "Builder Dock Apply Build" =>
-            {
-                eprintln!(
-                    "[BuilderGraphDebug][click] Apply Build selected={:?} treasury={:?} curr={:?} hud_slot={} map_tool={:?}",
-                    self.selected,
-                    self.selected_treasury,
-                    server_ctx.curr_builder_graph_id,
-                    server_ctx.selected_hud_icon_index,
-                    server_ctx.curr_map_tool_type
-                );
-                if let Some(asset) = self.selected_builder_asset(project, server_ctx) {
-                    let asset_id = asset.id;
-                    let mut applied_to_item_slot = false;
-                    if let Some(map) = project.get_map_mut(server_ctx) {
-                        applied_to_item_slot = crate::actions::apply_builder_item_to_selection(
-                            map,
-                            server_ctx,
-                            server_ctx.selected_hud_icon_index,
-                            &asset,
-                        );
-                        eprintln!(
-                            "[BuilderGraphDebug][click] item-slot apply attempted result={} selected sectors={} linedefs={} vertices={}",
-                            applied_to_item_slot,
-                            map.selected_sectors.len(),
-                            map.selected_linedefs.len(),
-                            map.selected_vertices.len()
-                        );
-                    }
-                    if !applied_to_item_slot {
-                        eprintln!(
-                            "[BuilderGraphDebug][click] activating asset={asset_id} on host selection"
-                        );
-                        self.activate_builder_asset(&asset, ui, ctx, project, server_ctx);
-                    } else {
-                        eprintln!(
-                            "[BuilderGraphDebug][click] consumed by item-slot apply; host activation skipped"
-                        );
-                    }
-                    crate::utils::editor_scene_full_rebuild(project, server_ctx);
-                    self.sync_current_builder_context(project, server_ctx);
-                    let selection_value = if self.selected_builtin.is_some() {
-                        TheValue::Empty
-                    } else {
-                        TheValue::Id(asset_id)
-                    };
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Builder Selection Changed"),
-                        selection_value,
-                    ));
-                    self.render_views(ui, ctx, project);
-                    self.sync_params_ui(ui, project, server_ctx);
-                    redraw = true;
-                } else {
-                    eprintln!(
-                        "[BuilderGraphDebug][click] Apply Build ignored: no selected builder graph"
-                    );
-                }
-            }
-            TheEvent::StateChanged(id, state) if id.name == BUILDER_AUTO_VERTEX_BUTTON => {
-                server_ctx.builder_auto_vertex_mode = *state == TheWidgetState::Selected;
-                self.sync_current_builder_context(project, server_ctx);
-                self.sync_auto_vertex_button(ui, server_ctx);
-                self.sync_params_ui(ui, project, server_ctx);
-                self.render_views(ui, ctx, project);
-                redraw = true;
-            }
-            TheEvent::StateChanged(id, TheWidgetState::Clicked)
-                if id.name == "Builder Dock Clear Build" =>
-            {
-                let mut cleared_item_slot = false;
-                if let Some(map) = project.get_map_mut(server_ctx) {
-                    cleared_item_slot = crate::actions::clear_builder_item_from_selection(
-                        map,
-                        server_ctx,
-                        server_ctx.selected_hud_icon_index,
-                    );
-                }
-                if !cleared_item_slot {
-                    self.clear_selected_hosts(project, server_ctx);
-                }
-                crate::utils::editor_scene_full_rebuild(project, server_ctx);
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Builder Selection Changed"),
-                    TheValue::Empty,
-                ));
-                self.render_views(ui, ctx, project);
-                redraw = true;
-            }
             TheEvent::Custom(id, value)
                 if id.name == "Builder Graph Updated" || id.name == "Builder Selection Changed" =>
             {
@@ -736,7 +638,6 @@ impl Dock for BuilderDock {
                 }
                 self.render_views(ui, ctx, project);
                 self.sync_params_ui(ui, project, server_ctx);
-                self.sync_auto_vertex_button(ui, server_ctx);
                 redraw = true;
             }
             TheEvent::Custom(id, _) if id.name == BUILDER_DOCK_REFRESH => {
@@ -744,7 +645,6 @@ impl Dock for BuilderDock {
                 ctx.ui.relayout = true;
                 self.render_views(ui, ctx, project);
                 self.sync_params_ui(ui, project, server_ctx);
-                self.sync_auto_vertex_button(ui, server_ctx);
                 redraw = true;
             }
             _ => {}
@@ -763,15 +663,478 @@ impl Dock for BuilderDock {
 }
 
 impl BuilderDock {
-    fn sync_auto_vertex_button(&self, ui: &mut TheUI, server_ctx: &ServerContext) {
-        if let Some(widget) = ui.get_widget(BUILDER_AUTO_VERTEX_BUTTON) {
-            widget.set_state(if server_ctx.builder_auto_vertex_mode {
-                TheWidgetState::Selected
-            } else {
-                TheWidgetState::None
-            });
-            widget.set_value(TheValue::Text("Auto Vertex".to_string()));
+    pub fn bake_builder_graph_at_point(
+        map: &mut Map,
+        server_ctx: &mut ServerContext,
+        builder_id: Uuid,
+        graph_name: &str,
+        graph_data: &str,
+        origin: Vec3<f32>,
+        along: Vec3<f32>,
+        out: Vec3<f32>,
+    ) -> Option<ProjectUndoAtom> {
+        let Ok(document) = BuilderDocument::from_text(graph_data) else {
+            eprintln!("[BuilderGraphDebug][bake] click bake parse failed");
+            return None;
+        };
+        let preview = document.preview_host();
+        let placement =
+            Self::point_bake_placement(&preview, document.output_spec().target, origin, along, out);
+        let prev = map.clone();
+        let created = Self::bake_document_placements_into_map(
+            map,
+            builder_id,
+            graph_name,
+            graph_data,
+            &document,
+            vec![placement],
+        );
+        if created.is_empty() {
+            return None;
         }
+
+        map.selected_geometry_objects = created;
+        map.selected_geometry_vertices.clear();
+        map.selected_geometry_faces.clear();
+        map.selected_geometry_surface_points.clear();
+        map.selected_geometry_surface_segments.clear();
+        map.selected_vertices.clear();
+        map.selected_linedefs.clear();
+        map.selected_sectors.clear();
+        crate::editor::RUSTERIX.write().unwrap().set_dirty();
+
+        Some(ProjectUndoAtom::MapEdit(
+            server_ctx.pc,
+            Box::new(prev),
+            Box::new(map.clone()),
+        ))
+    }
+
+    fn bake_document_placements_into_map(
+        map: &mut Map,
+        builder_id: Uuid,
+        graph_name: &str,
+        graph_data: &str,
+        document: &BuilderDocument,
+        placements: Vec<BuilderBakePlacement>,
+    ) -> Vec<Uuid> {
+        let mut created = Vec::new();
+        let group_id = Uuid::new_v4().to_string();
+
+        for (host_index, placement) in placements.into_iter().enumerate() {
+            let Ok(assembly) = document.evaluate_with_host(&placement.host) else {
+                eprintln!(
+                    "[BuilderGraphDebug][bake] asset='{}' evaluation failed for host {}",
+                    graph_name, host_index
+                );
+                continue;
+            };
+            for (primitive_index, primitive) in assembly.primitives.iter().enumerate() {
+                let Some(mut object) = Self::object_from_builder_primitive(
+                    graph_name,
+                    host_index,
+                    primitive_index,
+                    primitive,
+                    &placement,
+                    document.output_spec().target,
+                ) else {
+                    continue;
+                };
+                object.kind = rusterix::GeometryObjectKind::Prop;
+                object.group = group_id.clone();
+                object
+                    .properties
+                    .set("builder_graph_id", Value::Id(builder_id));
+                object
+                    .properties
+                    .set("builder_graph_name", Value::Str(graph_name.to_string()));
+                object
+                    .properties
+                    .set("builder_graph_data", Value::Str(graph_data.to_string()));
+                object.properties.set(
+                    "builder_graph_target",
+                    Value::Str("geometry_object".to_string()),
+                );
+                object
+                    .properties
+                    .set("builder_baked", Value::Str("geometry_object".to_string()));
+                let object_id = object.id;
+                map.geometry_objects.push(object);
+                created.push(object_id);
+            }
+        }
+
+        created
+    }
+
+    fn point_bake_placement(
+        preview: &BuilderPreviewHost,
+        target: BuilderOutputTarget,
+        origin: Vec3<f32>,
+        along: Vec3<f32>,
+        out: Vec3<f32>,
+    ) -> BuilderBakePlacement {
+        let width = preview.width.max(0.01);
+        let depth = preview.depth.max(0.01);
+        let height = preview.height.max(0.01);
+        let along = along
+            .try_normalized()
+            .unwrap_or_else(|| Vec3::new(1.0, 0.0, 0.0));
+        let out = out
+            .try_normalized()
+            .unwrap_or_else(|| Vec3::new(0.0, 0.0, 1.0));
+        let host = match target {
+            BuilderOutputTarget::Sector => BuilderHost::preview_floor(width, depth),
+            BuilderOutputTarget::Linedef => BuilderHost::preview_linedef(width, height, depth),
+            BuilderOutputTarget::VertexPair => BuilderHost::preview_vertex(width, depth, height),
+        };
+        BuilderBakePlacement {
+            host,
+            origin,
+            along,
+            up: Vec3::new(0.0, 1.0, 0.0),
+            out,
+            dims: Vec3::new(width, height, depth),
+        }
+    }
+
+    fn object_from_builder_primitive(
+        graph_name: &str,
+        host_index: usize,
+        primitive_index: usize,
+        primitive: &BuilderPrimitive,
+        placement: &BuilderBakePlacement,
+        target: BuilderOutputTarget,
+    ) -> Option<rusterix::GeometryObject> {
+        match primitive {
+            BuilderPrimitive::Box {
+                size,
+                transform,
+                material_slot,
+                host_position_normalized,
+                host_position_y_normalized,
+                host_scale_y_normalized,
+                host_scale_x_normalized,
+                host_scale_z_normalized,
+            } => {
+                let scaled = Vec3::new(
+                    Self::scale_builder_x(
+                        size.x * transform.scale.x,
+                        *host_scale_x_normalized,
+                        placement.dims,
+                        target,
+                    ),
+                    Self::scale_builder_y(
+                        size.y * transform.scale.y,
+                        *host_scale_y_normalized,
+                        placement.dims,
+                    ),
+                    Self::scale_builder_z(
+                        size.z * transform.scale.z,
+                        *host_scale_z_normalized,
+                        placement.dims,
+                        target,
+                    ),
+                );
+                let translation = Self::scaled_builder_translation(
+                    transform,
+                    *host_position_normalized,
+                    *host_position_y_normalized,
+                    placement.dims,
+                );
+                let center = translation
+                    + Self::rotate_builder_y(
+                        Self::rotate_builder_x(
+                            Vec3::new(0.0, scaled.y * 0.5, 0.0),
+                            transform.rotation_x,
+                        ),
+                        transform.rotation_y,
+                    );
+                Some(Self::builder_box_object(
+                    graph_name,
+                    host_index,
+                    primitive_index,
+                    center,
+                    scaled,
+                    transform.rotation_x,
+                    transform.rotation_y,
+                    material_slot.as_deref(),
+                    placement,
+                ))
+            }
+            BuilderPrimitive::Cylinder {
+                length,
+                radius,
+                transform,
+                material_slot,
+                host_position_normalized,
+                host_position_y_normalized,
+                host_scale_y_normalized,
+                host_scale_x_normalized,
+                ..
+            } => {
+                let scaled_length = Self::scale_builder_y(
+                    *length * transform.scale.y,
+                    *host_scale_y_normalized,
+                    placement.dims,
+                );
+                let scaled_radius = if *host_scale_x_normalized {
+                    *radius * transform.scale.z * placement.dims.x
+                } else {
+                    *radius * transform.scale.z
+                };
+                let translation = Self::scaled_builder_translation(
+                    transform,
+                    *host_position_normalized,
+                    *host_position_y_normalized,
+                    placement.dims,
+                );
+                let center = translation
+                    + Self::rotate_builder_y(
+                        Self::rotate_builder_x(
+                            Vec3::new(0.0, scaled_length * 0.5, 0.0),
+                            transform.rotation_x,
+                        ),
+                        transform.rotation_y,
+                    );
+                Some(Self::builder_cylinder_object(
+                    graph_name,
+                    host_index,
+                    primitive_index,
+                    center,
+                    scaled_length,
+                    scaled_radius,
+                    transform.rotation_x,
+                    transform.rotation_y,
+                    material_slot.as_deref(),
+                    placement,
+                ))
+            }
+        }
+    }
+
+    fn builder_face(indices: Vec<usize>) -> rusterix::GeometryFace {
+        rusterix::GeometryFace {
+            indices,
+            uvs: Vec::new(),
+            auto_uv: true,
+            texture_offset: Vec2::zero(),
+            texture_scale: Vec2::one(),
+            texture_rotation: 0.0,
+            tile: None,
+            tiles: FxHashMap::default(),
+            surface_points: Vec::new(),
+            surface_segments: Vec::new(),
+            surface_noise: None,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn builder_box_object(
+        graph_name: &str,
+        host_index: usize,
+        primitive_index: usize,
+        center: Vec3<f32>,
+        size: Vec3<f32>,
+        rotation_x: f32,
+        rotation_y: f32,
+        material_slot: Option<&str>,
+        placement: &BuilderBakePlacement,
+    ) -> rusterix::GeometryObject {
+        let hx = size.x * 0.5;
+        let hy = size.y * 0.5;
+        let hz = size.z * 0.5;
+        let local = [
+            Vec3::new(-hx, -hy, -hz),
+            Vec3::new(hx, -hy, -hz),
+            Vec3::new(hx, hy, -hz),
+            Vec3::new(-hx, hy, -hz),
+            Vec3::new(-hx, -hy, hz),
+            Vec3::new(hx, -hy, hz),
+            Vec3::new(hx, hy, hz),
+            Vec3::new(-hx, hy, hz),
+            Vec3::new(-hx, -hy, -hz),
+            Vec3::new(-hx, hy, -hz),
+            Vec3::new(-hx, hy, hz),
+            Vec3::new(-hx, -hy, hz),
+            Vec3::new(hx, -hy, -hz),
+            Vec3::new(hx, hy, -hz),
+            Vec3::new(hx, hy, hz),
+            Vec3::new(hx, -hy, hz),
+            Vec3::new(-hx, hy, -hz),
+            Vec3::new(hx, hy, -hz),
+            Vec3::new(hx, hy, hz),
+            Vec3::new(-hx, hy, hz),
+            Vec3::new(-hx, -hy, -hz),
+            Vec3::new(hx, -hy, -hz),
+            Vec3::new(hx, -hy, hz),
+            Vec3::new(-hx, -hy, hz),
+        ];
+        let mut object = rusterix::GeometryObject::new(format!(
+            "{} {}:{}",
+            graph_name,
+            host_index + 1,
+            primitive_index + 1
+        ));
+        object.vertices = local
+            .into_iter()
+            .map(|point| {
+                let rotated =
+                    Self::rotate_builder_y(Self::rotate_builder_x(point, rotation_x), rotation_y);
+                Self::host_local_to_world(center + rotated, placement)
+            })
+            .collect();
+        object.faces = vec![
+            Self::builder_face(vec![0, 1, 2, 3]),
+            Self::builder_face(vec![4, 7, 6, 5]),
+            Self::builder_face(vec![8, 9, 10, 11]),
+            Self::builder_face(vec![12, 15, 14, 13]),
+            Self::builder_face(vec![16, 17, 18, 19]),
+            Self::builder_face(vec![20, 23, 22, 21]),
+        ];
+        if let Some(slot) = material_slot {
+            object
+                .properties
+                .set("builder_material_slot", Value::Str(slot.to_string()));
+        }
+        object
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn builder_cylinder_object(
+        graph_name: &str,
+        host_index: usize,
+        primitive_index: usize,
+        center: Vec3<f32>,
+        length: f32,
+        radius: f32,
+        rotation_x: f32,
+        rotation_y: f32,
+        material_slot: Option<&str>,
+        placement: &BuilderBakePlacement,
+    ) -> rusterix::GeometryObject {
+        let segments = 18usize;
+        let half = length * 0.5;
+        let mut object = rusterix::GeometryObject::new(format!(
+            "{} {}:{}",
+            graph_name,
+            host_index + 1,
+            primitive_index + 1
+        ));
+        for ring in 0..2 {
+            let y = if ring == 0 { -half } else { half };
+            for i in 0..segments {
+                let t = i as f32 / segments as f32 * std::f32::consts::TAU;
+                let local = Vec3::new(t.cos() * radius, y, t.sin() * radius);
+                let rotated =
+                    Self::rotate_builder_y(Self::rotate_builder_x(local, rotation_x), rotation_y);
+                object
+                    .vertices
+                    .push(Self::host_local_to_world(center + rotated, placement));
+            }
+        }
+        let bottom_center = object.vertices.len();
+        object.vertices.push(Self::host_local_to_world(
+            center
+                + Self::rotate_builder_y(
+                    Self::rotate_builder_x(Vec3::new(0.0, -half, 0.0), rotation_x),
+                    rotation_y,
+                ),
+            placement,
+        ));
+        let top_center = object.vertices.len();
+        object.vertices.push(Self::host_local_to_world(
+            center
+                + Self::rotate_builder_y(
+                    Self::rotate_builder_x(Vec3::new(0.0, half, 0.0), rotation_x),
+                    rotation_y,
+                ),
+            placement,
+        ));
+        for i in 0..segments {
+            let next = (i + 1) % segments;
+            let b0 = i;
+            let b1 = next;
+            let t0 = segments + i;
+            let t1 = segments + next;
+            object.faces.push(Self::builder_face(vec![b0, b1, t1, t0]));
+            object
+                .faces
+                .push(Self::builder_face(vec![bottom_center, b1, b0]));
+            object
+                .faces
+                .push(Self::builder_face(vec![top_center, t0, t1]));
+        }
+        if let Some(slot) = material_slot {
+            object
+                .properties
+                .set("builder_material_slot", Value::Str(slot.to_string()));
+        }
+        object
+    }
+
+    fn host_local_to_world(local: Vec3<f32>, placement: &BuilderBakePlacement) -> Vec3<f32> {
+        placement.origin
+            + placement.along * local.x
+            + placement.up * local.y
+            + placement.out * local.z
+    }
+
+    fn scale_builder_x(
+        value: f32,
+        normalized: bool,
+        dims: Vec3<f32>,
+        _target: BuilderOutputTarget,
+    ) -> f32 {
+        if normalized { value * dims.x } else { value }
+    }
+
+    fn scale_builder_y(value: f32, normalized: bool, dims: Vec3<f32>) -> f32 {
+        if normalized { value * dims.y } else { value }
+    }
+
+    fn scale_builder_z(
+        value: f32,
+        normalized: bool,
+        dims: Vec3<f32>,
+        _target: BuilderOutputTarget,
+    ) -> f32 {
+        if normalized { value * dims.z } else { value }
+    }
+
+    fn scaled_builder_translation(
+        transform: &BuilderTransform,
+        pos_normalized: bool,
+        pos_y_normalized: bool,
+        dims: Vec3<f32>,
+    ) -> Vec3<f32> {
+        Vec3::new(
+            if pos_normalized {
+                transform.translation.x * dims.x
+            } else {
+                transform.translation.x
+            },
+            if pos_y_normalized {
+                transform.translation.y * dims.y
+            } else {
+                transform.translation.y
+            },
+            if pos_normalized {
+                transform.translation.z * dims.z
+            } else {
+                transform.translation.z
+            },
+        )
+    }
+
+    fn rotate_builder_x(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
+        let (s, c) = angle.sin_cos();
+        Vec3::new(v.x, v.y * c - v.z * s, v.y * s + v.z * c)
+    }
+
+    fn rotate_builder_y(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
+        let (s, c) = angle.sin_cos();
+        Vec3::new(v.x * c - v.z * s, v.y, v.x * s + v.z * c)
     }
 
     fn sync_current_builder_context(&self, project: &Project, server_ctx: &mut ServerContext) {
@@ -1185,6 +1548,7 @@ impl BuilderDock {
         Some(if grow_positive { normal } else { -normal })
     }
 
+    #[allow(dead_code)]
     fn linedef_builder_wall_side(map: &Map, server_ctx: &ServerContext, linedef_id: u32) -> f32 {
         if let Some(linedef) = map.find_linedef(linedef_id) {
             let hit_pos = server_ctx
@@ -1748,9 +2112,6 @@ impl BuilderDock {
     }
 
     fn builtin_uses_vertex(project: &Project, server_ctx: &ServerContext) -> bool {
-        if server_ctx.builder_auto_vertex_mode {
-            return true;
-        }
         project
             .get_map(server_ctx)
             .map(|map| !map.selected_vertices.is_empty() && map.selected_sectors.is_empty())
@@ -1887,6 +2248,7 @@ impl BuilderDock {
         }
     }
 
+    #[allow(dead_code)]
     fn activate_builder_asset(
         &self,
         asset: &BuilderGraphAsset,
@@ -2088,74 +2450,6 @@ impl BuilderDock {
                             linedef.properties.remove("builder_graph_face_offset");
                         }
                     }
-                }
-            }
-        }
-    }
-
-    fn clear_selected_hosts(&self, project: &mut Project, server_ctx: &mut ServerContext) {
-        let Some(map) = project.get_map_mut(server_ctx) else {
-            return;
-        };
-
-        for sector_id in map.selected_sectors.clone() {
-            if let Some(sector) = map.find_sector_mut(sector_id) {
-                for key in [
-                    "builder_graph_id",
-                    "builder_graph_name",
-                    "builder_graph_data",
-                    "builder_graph_target",
-                    "builder_surface_mode",
-                    "builder_hide_host",
-                    "builder_graph_host_refs",
-                    "builder_graph_group_id",
-                    "builder_graph_group_order",
-                ] {
-                    sector.properties.remove(key);
-                }
-            }
-        }
-
-        for vertex_id in map.selected_vertices.clone() {
-            if let Some(vertex) = map.find_vertex_mut(vertex_id) {
-                for key in [
-                    "builder_graph_id",
-                    "builder_graph_name",
-                    "builder_graph_data",
-                    "builder_graph_target",
-                    "builder_graph_host_refs",
-                    "builder_graph_wall_side",
-                    "builder_graph_outward_x",
-                    "builder_graph_outward_y",
-                    "builder_graph_outward_z",
-                    "builder_graph_group_id",
-                    "builder_graph_group_order",
-                ] {
-                    vertex.properties.remove(key);
-                }
-            }
-        }
-
-        for linedef_id in map.selected_linedefs.clone() {
-            if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                for key in [
-                    "builder_graph_id",
-                    "builder_graph_name",
-                    "builder_graph_data",
-                    "builder_graph_target",
-                    "builder_graph_host_refs",
-                    "builder_graph_wall_side",
-                    "builder_graph_outward_x",
-                    "builder_graph_outward_y",
-                    "builder_graph_outward_z",
-                    "builder_graph_surface_origin_x",
-                    "builder_graph_surface_origin_y",
-                    "builder_graph_surface_origin_z",
-                    "builder_graph_face_offset",
-                    "builder_graph_group_id",
-                    "builder_graph_group_order",
-                ] {
-                    linedef.properties.remove(key);
                 }
             }
         }

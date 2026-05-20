@@ -94,6 +94,7 @@ Behavior:
 
 - chases the target using the given movement speed
 - attacks using the normal combat rules, weapon damage kind, and progression damage setup
+- waits `attack_cooldown` in-game minutes between hits; equipped weapon values override the attacker's character value, and the default is `1.0`
 - in non-realtime 2D modes, stays grid-aligned and does not use custom script-side `close_in` / `notify_in` attack loops
 - if `speed < 1.0` in non-realtime 2D, it skips some turns and then moves a full tile instead of drifting off-grid
 - keeps the engagement active only while the target still exists, is visible/alive, and stays close enough

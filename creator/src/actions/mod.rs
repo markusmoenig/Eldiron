@@ -177,6 +177,118 @@ pub fn builder_hud_material_slots_for_selected_vertex(
     builder_material_slots_from_properties(&vertex.properties)
 }
 
+fn is_baked_builder_geometry_object(object: &rusterix::GeometryObject) -> bool {
+    object.properties.get_str("builder_graph_data").is_some()
+        || object
+            .properties
+            .get_str_default("builder_baked", String::new())
+            == "geometry_object"
+}
+
+fn selected_builder_geometry_object_ids(map: &Map) -> Vec<Uuid> {
+    let mut seed_ids = map.selected_geometry_objects.clone();
+    for (object_id, _) in &map.selected_geometry_faces {
+        if !seed_ids.contains(object_id) {
+            seed_ids.push(*object_id);
+        }
+    }
+    if seed_ids.is_empty() {
+        return Vec::new();
+    }
+
+    let mut groups = Vec::new();
+    let mut ungrouped = Vec::new();
+    for object_id in seed_ids {
+        let Some(object) = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)
+        else {
+            continue;
+        };
+        if !is_baked_builder_geometry_object(object) {
+            continue;
+        }
+        if object.group.trim().is_empty() {
+            ungrouped.push(object.id);
+        } else if !groups.iter().any(|group| group == &object.group) {
+            groups.push(object.group.clone());
+        }
+    }
+
+    let mut out = ungrouped;
+    for object in &map.geometry_objects {
+        if is_baked_builder_geometry_object(object)
+            && groups.iter().any(|group| group == &object.group)
+            && !out.contains(&object.id)
+        {
+            out.push(object.id);
+        }
+    }
+    out
+}
+
+fn selected_builder_geometry_graph_data(map: &Map, object_ids: &[Uuid]) -> Option<String> {
+    object_ids.iter().find_map(|object_id| {
+        map.geometry_objects
+            .iter()
+            .find(|object| object.id == *object_id)
+            .and_then(|object| object.properties.get_str("builder_graph_data"))
+            .map(str::to_string)
+    })
+}
+
+fn geometry_face_source(face: &rusterix::GeometryFace) -> Option<PixelSource> {
+    face.tile
+        .clone()
+        .or_else(|| face.tiles.values().next().cloned())
+}
+
+fn selected_builder_geometry_material_source(
+    map: &Map,
+    object_ids: &[Uuid],
+    slot_label: &str,
+) -> Option<PixelSource> {
+    let slot_key = normalize_builder_slot_key(slot_label);
+    object_ids.iter().find_map(|object_id| {
+        let object = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == *object_id)?;
+        let object_slot = object.properties.get_str("builder_material_slot")?;
+        if normalize_builder_slot_key(object_slot) != slot_key {
+            return None;
+        }
+        object.faces.iter().find_map(geometry_face_source)
+    })
+}
+
+pub fn builder_hud_material_slots_for_selected_geometry(
+    map: &Map,
+) -> Option<Vec<ActionMaterialSlot>> {
+    let object_ids = selected_builder_geometry_object_ids(map);
+    if object_ids.is_empty() {
+        return None;
+    }
+    let graph_text = selected_builder_geometry_graph_data(map, &object_ids)?;
+    let Ok(graph) = shared::buildergraph::BuilderDocument::from_text(&graph_text) else {
+        return None;
+    };
+    let slot_names = graph.material_slot_names();
+    if slot_names.is_empty() {
+        return None;
+    }
+    Some(
+        slot_names
+            .into_iter()
+            .map(|label| {
+                let source = selected_builder_geometry_material_source(map, &object_ids, &label);
+                ActionMaterialSlot { label, source }
+            })
+            .collect(),
+    )
+}
+
 pub fn builder_hud_item_slots_for_selected_sector(map: &Map) -> Option<Vec<ActionItemSlot>> {
     let sector_id = *map.selected_sectors.first()?;
     let sector = map.find_sector(sector_id)?;
@@ -203,6 +315,38 @@ pub fn apply_builder_hud_material_to_selection(
 ) -> bool {
     if slot_index < 0 {
         return false;
+    }
+    if let Some(slot) = builder_hud_material_slots_for_selected_geometry(map)
+        .and_then(|slots| slots.get(slot_index as usize).cloned())
+    {
+        let slot_key = normalize_builder_slot_key(&slot.label);
+        let object_ids = selected_builder_geometry_object_ids(map);
+        let mut changed = false;
+        for object_id in object_ids {
+            let Some(object_slot) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == object_id)
+                .and_then(|object| object.properties.get_str("builder_material_slot"))
+                .map(str::to_string)
+            else {
+                continue;
+            };
+            if normalize_builder_slot_key(&object_slot) != slot_key {
+                continue;
+            }
+            if let Some(source) = &source {
+                changed |= crate::utils::apply_surface_source_to_geometry_object(
+                    map,
+                    object_id,
+                    &SurfaceApplySource::Direct(source.clone()),
+                    Some(1),
+                );
+            } else {
+                changed |= crate::utils::clear_surface_source_on_geometry_object(map, object_id);
+            }
+        }
+        return changed;
     }
     match server_ctx.curr_map_tool_type {
         MapToolType::Sector => {
@@ -303,6 +447,52 @@ pub fn apply_builder_hud_material_to_selection(
         }
         _ => false,
     }
+}
+
+pub fn apply_builder_hud_surface_source_to_selection(
+    map: &mut Map,
+    _server_ctx: &ServerContext,
+    slot_index: i32,
+    source: Option<&SurfaceApplySource>,
+    tile_mode: Option<i32>,
+) -> bool {
+    if slot_index < 0 {
+        return false;
+    }
+    let Some(slot) = builder_hud_material_slots_for_selected_geometry(map)
+        .and_then(|slots| slots.get(slot_index as usize).cloned())
+    else {
+        return false;
+    };
+
+    let slot_key = normalize_builder_slot_key(&slot.label);
+    let object_ids = selected_builder_geometry_object_ids(map);
+    let mut changed = false;
+    for object_id in object_ids {
+        let Some(object_slot) = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)
+            .and_then(|object| object.properties.get_str("builder_material_slot"))
+            .map(str::to_string)
+        else {
+            continue;
+        };
+        if normalize_builder_slot_key(&object_slot) != slot_key {
+            continue;
+        }
+        if let Some(source) = source {
+            changed |= crate::utils::apply_surface_source_to_geometry_object(
+                map, object_id, source, tile_mode,
+            );
+        } else {
+            changed |= crate::utils::clear_surface_source_on_geometry_object(map, object_id);
+        }
+    }
+    if changed {
+        map.update_surfaces();
+    }
+    changed
 }
 
 pub fn apply_builder_item_to_selection(

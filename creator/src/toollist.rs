@@ -72,32 +72,36 @@ impl ToolList {
         if server_ctx.get_map_context() != MapContext::Region {
             return false;
         }
-        let Some(action_id) = server_ctx.curr_action_id else {
-            return false;
-        };
         let Some(map) = project.get_map(server_ctx) else {
             return false;
         };
         let Some(render_view) = ui.get_render_view("PolyView") else {
             return false;
         };
-        let actionlist = ACTIONLIST.read().unwrap();
-        let Some(action) = actionlist.get_action_by_id(action_id) else {
-            return false;
+
+        let slot_count = if let Some(slots) =
+            crate::actions::builder_hud_material_slots_for_selected_geometry(map)
+        {
+            slots.len()
+        } else if let Some(action_id) = server_ctx.curr_action_id {
+            let actionlist = ACTIONLIST.read().unwrap();
+            actionlist
+                .get_action_by_id(action_id)
+                .and_then(|action| action.hud_material_slots(map, server_ctx))
+                .map(|slots| slots.len())
+                .unwrap_or(0)
+        } else {
+            0
         };
-        let Some(slots) = action.hud_material_slots(map, server_ctx) else {
-            return false;
-        };
-        if slots.is_empty() {
+        if slot_count == 0 {
             return false;
         }
 
         let icon_size = 40;
         let dim = *render_view.dim();
-        let x = dim.width as i32 - icon_size * slots.len() as i32 - 1;
-        let y = 20;
-        for index in 0..slots.len() as i32 {
-            let rect = TheDim::rect(x + index * icon_size, y, icon_size, icon_size);
+        let x = dim.width as i32 - icon_size * slot_count as i32 - 1;
+        for index in 0..slot_count as i32 {
+            let rect = TheDim::rect(x + index * icon_size, 0, icon_size, 60);
             if rect.contains(coord) {
                 server_ctx.selected_hud_icon_index = index;
                 ctx.ui.send(TheEvent::Custom(
@@ -1259,6 +1263,10 @@ impl ToolList {
             Box::new(GeometryTool::new()),
             Box::new(RectTool::new()),
             Box::new(crate::tools::entity::EntityTool::new()),
+            Box::new(crate::tools::builder::BuilderTool::new()),
+            // Hidden for now: the collision probe tool needs a clearer 3D route visualization
+            // before it deserves a visible tool slot again.
+            // Box::new(crate::tools::collision_probe::CollisionProbeTool::new()),
             // Box::new(RenderTool::new()),
             // Box::new(TerrainTool::new()),
             // Box::new(CodeTool::new()),
@@ -1974,7 +1982,10 @@ impl ToolList {
                         }
 
                         if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
-                            let plain_grid_shortcut = plain_key;
+                            let plain_grid_shortcut = plain_key
+                                && !server_ctx.game_mode
+                                && !server_ctx.game_input_mode
+                                && server_ctx.curr_map_tool_type != MapToolType::Game;
                             if plain_grid_shortcut
                                 && (*c == ',' || *c == '.')
                                 && server_ctx.editor_view_mode != EditorViewMode::D2
@@ -4619,7 +4630,7 @@ impl ToolList {
         rusterix.scene_handler.tool_overlay_3d = scenevm::Chunk::default();
         rusterix.scene_handler.tool_overlay_3d.priority = 1;
 
-        let (cam_forward, _, _) = rusterix.client.camera_d3.basis_vectors();
+        let (cam_forward, cam_right, cam_up) = rusterix.client.camera_d3.basis_vectors();
         let view_nudge = cam_forward * -0.002;
         let thickness = 0.15;
         let white = rusterix.scene_handler.white;
@@ -4765,6 +4776,138 @@ impl ToolList {
                         100,
                     );
                 }
+            }
+        } else if server_ctx.curr_map_tool_type == MapToolType::CollisionProbe {
+            let green = [74.0 / 255.0, 222.0 / 255.0, 128.0 / 255.0, 1.0];
+            let yellow = [250.0 / 255.0, 204.0 / 255.0, 21.0 / 255.0, 1.0];
+            let orange = [251.0 / 255.0, 146.0 / 255.0, 60.0 / 255.0, 1.0];
+            let red = [248.0 / 255.0, 113.0 / 255.0, 113.0 / 255.0, 1.0];
+            let mut index = 0u32;
+            macro_rules! push_hardware {
+                ($rusterix:expr, $a:expr, $b:expr, $color:expr, $priority:expr $(,)?) => {{
+                    $rusterix
+                        .scene_handler
+                        .tool_overlay_3d
+                        .add_hardware_line_3d(
+                            GeoId::Unknown(0xE3F0_0000u32.wrapping_add(index)),
+                            $a + view_nudge + cam_forward * -0.012,
+                            $b + view_nudge + cam_forward * -0.012,
+                            $color,
+                            $priority,
+                        );
+                    index = index.wrapping_add(1);
+                }};
+            }
+            macro_rules! push_contrast {
+                ($rusterix:expr, $a:expr, $b:expr, $color:expr, $priority:expr $(,)?) => {{
+                    let shadow = [0.02, 0.025, 0.035, $color[3].min(0.75)];
+                    let right = cam_right * 0.018;
+                    let up = cam_up * 0.018;
+                    let offsets = [-right, right, -up, up, Vec3::zero()];
+                    for offset in offsets {
+                        push_hardware!($rusterix, $a + offset, $b + offset, shadow, $priority - 1);
+                    }
+                    push_hardware!($rusterix, $a, $b, $color, $priority);
+                    push_hardware!(
+                        $rusterix,
+                        $a + right * 0.5,
+                        $b + right * 0.5,
+                        $color,
+                        $priority
+                    );
+                    push_hardware!($rusterix, $a + up * 0.5, $b + up * 0.5, $color, $priority);
+                }};
+            }
+
+            let mut draw_result = |rusterix: &mut rusterix::Rusterix,
+                                   result: &rusterix::CollisionProbeResult,
+                                   faded: bool| {
+                let fade = |mut color: [f32; 4]| {
+                    if faded {
+                        color[3] *= 0.45;
+                    }
+                    color
+                };
+                let green = fade(green);
+                let yellow = fade(yellow);
+                let orange = fade(orange);
+                let red = fade(red);
+
+                for step in &result.steps {
+                    let color = match step.kind {
+                        rusterix::CollisionProbeStepKind::Walk => green,
+                        rusterix::CollisionProbeStepKind::StepUp
+                        | rusterix::CollisionProbeStepKind::StepDown => yellow,
+                        rusterix::CollisionProbeStepKind::Contact => orange,
+                        rusterix::CollisionProbeStepKind::Blocked
+                        | rusterix::CollisionProbeStepKind::NoFloor => red,
+                    };
+                    push_contrast!(rusterix, step.from, step.to, color, 100);
+
+                    if let Some(blocker) = step.blocker {
+                        let y = step.from.y + 0.08;
+                        let blocker_color =
+                            if step.kind == rusterix::CollisionProbeStepKind::Contact {
+                                orange
+                            } else {
+                                red
+                            };
+                        push_contrast!(
+                            rusterix,
+                            Vec3::new(blocker.start.x, y, blocker.start.y),
+                            Vec3::new(blocker.end.x, y, blocker.end.y),
+                            blocker_color,
+                            101,
+                        );
+                    }
+                }
+
+                let marker = 0.1;
+                let start_color = green;
+                let target_color = if result.arrived { green } else { red };
+                let start = result.start + Vec3::new(0.0, 0.06, 0.0);
+                let target_y = result
+                    .steps
+                    .last()
+                    .map(|step| step.to.y)
+                    .unwrap_or(result.start.y);
+                let target = Vec3::new(result.target.x, target_y + 0.06, result.target.y);
+                push_hardware!(
+                    rusterix,
+                    start + Vec3::new(-marker, 0.0, 0.0),
+                    start + Vec3::new(marker, 0.0, 0.0),
+                    start_color,
+                    102,
+                );
+                push_hardware!(
+                    rusterix,
+                    start + Vec3::new(0.0, 0.0, -marker),
+                    start + Vec3::new(0.0, 0.0, marker),
+                    start_color,
+                    102,
+                );
+                push_hardware!(
+                    rusterix,
+                    target + Vec3::new(-marker, 0.0, 0.0),
+                    target + Vec3::new(marker, 0.0, 0.0),
+                    target_color,
+                    102,
+                );
+                push_hardware!(
+                    rusterix,
+                    target + Vec3::new(0.0, 0.0, -marker),
+                    target + Vec3::new(0.0, 0.0, marker),
+                    target_color,
+                    102,
+                );
+            };
+
+            if let Some(result) = server_ctx
+                .collision_probe_result
+                .as_ref()
+                .or_else(|| server_ctx.collision_probe_results.last())
+            {
+                draw_result(&mut rusterix, result, false);
             }
         }
 

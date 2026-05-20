@@ -743,16 +743,14 @@ impl Dock for TilesDock {
                             applied_to_action = true;
                         }
 
-                        if !applied_to_action
-                            && let Some(source) = builder_selected_source.clone()
-                            && let Some(map) = project.get_map_mut(server_ctx)
-                        {
+                        if !applied_to_action && let Some(map) = project.get_map_mut(server_ctx) {
                             let prev = map.clone();
-                            if crate::actions::apply_builder_hud_material_to_selection(
+                            if crate::actions::apply_builder_hud_surface_source_to_selection(
                                 map,
                                 server_ctx,
                                 server_ctx.selected_hud_icon_index,
-                                Some(source),
+                                Some(&selected_source),
+                                Some(self.apply_tile_mode),
                             ) {
                                 undo_atom = Some(ProjectUndoAtom::MapEdit(
                                     server_ctx.pc,

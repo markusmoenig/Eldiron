@@ -1,3 +1,4 @@
+use crate::docks::builder::BuilderDock;
 use crate::editor::DOCKMANAGER;
 use crate::prelude::*;
 use MapEvent::*;
@@ -5,7 +6,6 @@ use ToolEvent::*;
 use rusterix::Surface;
 use scenevm::GeoId;
 use shared::buildergraph::BuilderDocument;
-use std::str::FromStr;
 
 fn resolve_creation_surface_side(
     hit_pos: Vec3<f32>,
@@ -35,6 +35,100 @@ pub struct BuilderTool {
 }
 
 impl BuilderTool {
+    fn geometry_face_normal(
+        object: &rusterix::GeometryObject,
+        face: &rusterix::GeometryFace,
+    ) -> Option<(Vec3<f32>, Vec3<f32>)> {
+        let first_index = *face.indices.first()?;
+        let first = object.transform_point(*object.vertices.get(first_index)?);
+        for i in 1..face.indices.len().saturating_sub(1) {
+            let b = object.transform_point(*object.vertices.get(face.indices[i])?);
+            let c = object.transform_point(*object.vertices.get(face.indices[i + 1])?);
+            if let Some(normal) = (b - first).cross(c - first).try_normalized() {
+                return Some((normal, first));
+            }
+        }
+        None
+    }
+
+    fn geometry_face_along(
+        object: &rusterix::GeometryObject,
+        face: &rusterix::GeometryFace,
+        normal: Vec3<f32>,
+    ) -> Vec3<f32> {
+        let mut best = None;
+        let mut best_len_sq = 0.0;
+        for i in 0..face.indices.len() {
+            let Some(a) = face
+                .indices
+                .get(i)
+                .and_then(|index| object.vertices.get(*index))
+                .map(|point| object.transform_point(*point))
+            else {
+                continue;
+            };
+            let Some(b) = face
+                .indices
+                .get((i + 1) % face.indices.len())
+                .and_then(|index| object.vertices.get(*index))
+                .map(|point| object.transform_point(*point))
+            else {
+                continue;
+            };
+            let edge = b - a;
+            let horizontal = Vec3::new(edge.x, 0.0, edge.z);
+            let len_sq = horizontal.magnitude_squared();
+            if len_sq > best_len_sq {
+                best = horizontal.try_normalized();
+                best_len_sq = len_sq;
+            }
+        }
+
+        let mut along = best
+            .or_else(|| Vec3::new(0.0, 1.0, 0.0).cross(normal).try_normalized())
+            .unwrap_or_else(|| Vec3::new(1.0, 0.0, 0.0));
+        let ax = along.x.abs();
+        let az = along.z.abs();
+        if (ax >= az && along.x < 0.0) || (az > ax && along.z < 0.0) {
+            along = -along;
+        }
+        along
+    }
+
+    fn geometry_object_hit_frame(
+        map: &Map,
+        server_ctx: &ServerContext,
+        hit_pos: Vec3<f32>,
+    ) -> Option<(Vec3<f32>, Vec3<f32>)> {
+        let Some(GeoId::GeometryObject(object_id)) = server_ctx.geo_hit else {
+            return None;
+        };
+        let object = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)?;
+        let (face, normal, origin) = object
+            .faces
+            .iter()
+            .filter_map(|face| {
+                let (normal, origin) = Self::geometry_face_normal(object, face)?;
+                let dist = (hit_pos - origin).dot(normal).abs();
+                Some((face, normal, origin, dist))
+            })
+            .min_by(|a, b| a.3.total_cmp(&b.3))
+            .map(|(face, normal, origin, _)| (face, normal, origin))?;
+        let out = resolve_creation_surface_side(
+            hit_pos,
+            normal,
+            origin,
+            server_ctx
+                .hover_ray_dir_3d
+                .and_then(|dir| dir.try_normalized()),
+        );
+        let along = Self::geometry_face_along(object, face, out);
+        Some((out, along))
+    }
+
     fn detail_surface_at_point(map: &Map, point: Vec3<f32>) -> Option<Surface> {
         let mut best_surface: Option<(Surface, f32)> = None;
         for surface in map.surfaces.values() {
@@ -109,15 +203,6 @@ impl BuilderTool {
         surface.is_valid().then_some(surface)
     }
 
-    fn creation_host_sector_id(map: &Map, server_ctx: &ServerContext) -> Option<u32> {
-        Self::creation_host_surface(map, server_ctx)
-            .map(|surface| surface.sector_id)
-            .or(match server_ctx.geo_hit {
-                Some(GeoId::Sector(id)) => Some(id),
-                _ => None,
-            })
-    }
-
     fn selected_builder_document(
         server_ctx: &ServerContext,
     ) -> Option<(String, String, BuilderDocument)> {
@@ -128,35 +213,6 @@ impl BuilderTool {
             .unwrap_or_else(|| "Builder Script".to_string());
         let document = BuilderDocument::from_text(&graph_data).ok()?;
         Some((graph_name, graph_data, document))
-    }
-
-    fn apply_vertex_builder_to_vertex(
-        map: &mut Map,
-        vertex_id: u32,
-        builder_id: Uuid,
-        graph_name: &str,
-        graph_data: &str,
-        document: &BuilderDocument,
-    ) {
-        let spec = document.output_spec();
-        if let Some(vertex) = map.find_vertex_mut(vertex_id) {
-            vertex
-                .properties
-                .set("builder_graph_id", Value::Id(builder_id));
-            vertex
-                .properties
-                .set("builder_graph_name", Value::Str(graph_name.to_string()));
-            vertex
-                .properties
-                .set("builder_graph_data", Value::Str(graph_data.to_string()));
-            vertex.properties.set(
-                "builder_graph_target",
-                Value::Str("vertex_pair".to_string()),
-            );
-            vertex
-                .properties
-                .set("builder_graph_host_refs", Value::Int(spec.host_refs as i32));
-        }
     }
 
     fn selected_host_tool(project: &Project, server_ctx: &ServerContext) -> Option<MapToolType> {
@@ -296,111 +352,83 @@ impl Tool for BuilderTool {
         let MapClicked(_coord) = map_event else {
             return None;
         };
-        if !server_ctx.builder_auto_vertex_mode || server_ctx.editor_view_mode == EditorViewMode::D2
-        {
+        if server_ctx.editor_view_mode == EditorViewMode::D2 {
             return None;
         }
 
-        let (graph_name, graph_data, document) = Self::selected_builder_document(server_ctx)?;
-        if document.output_spec().target != BuilderOutputTarget::VertexPair {
-            return None;
-        }
+        let (graph_name, graph_data, _document) = Self::selected_builder_document(server_ctx)?;
+        let hit_pos = server_ctx
+            .hover_surface_hit_pos
+            .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
+            .or(server_ctx.hover_cursor_3d)?;
 
-        let pt = server_ctx
-            .hover_cursor_3d
-            .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))?;
-        let prev = map.clone();
-        let snapped = server_ctx.snap_world_point_for_edit(map, pt);
-        let vertex_id = map.add_vertex_at_3d(snapped.x, snapped.z, snapped.y, false);
+        let snapped = server_ctx.snap_world_point_for_edit(map, hit_pos);
+        let geometry_frame = Self::geometry_object_hit_frame(map, server_ctx, hit_pos);
+        let host_surface = if geometry_frame.is_none() {
+            Self::creation_host_surface(map, server_ctx)
+        } else {
+            None
+        };
+        let host_hit_pos = server_ctx.hover_surface_hit_pos.unwrap_or(hit_pos);
+        let out = geometry_frame
+            .as_ref()
+            .map(|(out, _)| *out)
+            .or_else(|| {
+                host_surface.as_ref().and_then(|surface| {
+                    let normal = surface.plane.normal.try_normalized()?;
+                    Some(resolve_creation_surface_side(
+                        host_hit_pos,
+                        normal,
+                        surface.plane.origin,
+                        server_ctx
+                            .hover_ray_dir_3d
+                            .and_then(|dir| dir.try_normalized()),
+                    ))
+                })
+            })
+            .unwrap_or_else(|| Vec3::new(0.0, 0.0, 1.0));
+        let along = geometry_frame
+            .as_ref()
+            .map(|(_, along)| *along)
+            .or_else(|| {
+                host_surface.as_ref().and_then(|surface| {
+                    let mut along = Vec3::new(surface.frame.right.x, 0.0, surface.frame.right.z)
+                        .try_normalized()?;
+                    let ax = along.x.abs();
+                    let az = along.z.abs();
+                    if (ax >= az && along.x < 0.0) || (az > ax && along.z < 0.0) {
+                        along = -along;
+                    }
+                    Some(along)
+                })
+            })
+            .unwrap_or_else(|| Vec3::new(1.0, 0.0, 0.0));
+        let origin = if out.y.abs() < 0.75 {
+            snapped - out * (snapped - host_hit_pos).dot(out)
+        } else {
+            snapped
+        };
 
-        if let Some(host_sector_id) = Self::creation_host_sector_id(map, server_ctx) {
-            let host_surface = Self::creation_host_surface(map, server_ctx);
-            let host_hit_pos = server_ctx
-                .hover_surface_hit_pos
-                .or(server_ctx.editing_surface_hit_pos)
-                .unwrap_or(server_ctx.geo_hit_pos);
-            let host_outward = host_surface.as_ref().and_then(|surface| {
-                let normal = surface.plane.normal.try_normalized()?;
-                Some(resolve_creation_surface_side(
-                    host_hit_pos,
-                    normal,
-                    surface.plane.origin,
-                    server_ctx
-                        .hover_ray_dir_3d
-                        .and_then(|dir| dir.try_normalized()),
-                ))
-            });
-            let host_along = host_surface.as_ref().and_then(|surface| {
-                let mut along = Vec3::new(surface.frame.right.x, 0.0, surface.frame.right.z)
-                    .try_normalized()?;
-                let ax = along.x.abs();
-                let az = along.z.abs();
-                if (ax >= az && along.x < 0.0) || (az > ax && along.z < 0.0) {
-                    along = -along;
-                }
-                Some(along)
-            });
-            let host_face_origin = host_outward
-                .map(|outward| snapped - outward * (snapped - host_hit_pos).dot(outward));
-            if let Some(vertex) = map.find_vertex_mut(vertex_id) {
-                vertex
-                    .properties
-                    .set("host_sector", Value::Int(host_sector_id as i32));
-                if let Some(outward) = host_outward {
-                    vertex
-                        .properties
-                        .set("host_outward_x", Value::Float(outward.x));
-                    vertex
-                        .properties
-                        .set("host_outward_y", Value::Float(outward.y));
-                    vertex
-                        .properties
-                        .set("host_outward_z", Value::Float(outward.z));
-                }
-                if let Some(along) = host_along {
-                    vertex.properties.set("host_along_x", Value::Float(along.x));
-                    vertex.properties.set("host_along_y", Value::Float(along.y));
-                    vertex.properties.set("host_along_z", Value::Float(along.z));
-                }
-                let origin = host_face_origin.unwrap_or(snapped);
-                vertex
-                    .properties
-                    .set("host_surface_origin_x", Value::Float(origin.x));
-                vertex
-                    .properties
-                    .set("host_surface_origin_y", Value::Float(origin.y));
-                vertex
-                    .properties
-                    .set("host_surface_origin_z", Value::Float(origin.z));
-            }
-        }
-
-        Self::apply_vertex_builder_to_vertex(
+        let undo = BuilderDock::bake_builder_graph_at_point(
             map,
-            vertex_id,
+            server_ctx,
             server_ctx
                 .curr_builder_graph_id
                 .unwrap_or_else(Uuid::new_v4),
             &graph_name,
             &graph_data,
-            &document,
-        );
-        map.selected_vertices = vec![vertex_id];
-        map.selected_linedefs.clear();
-        map.selected_sectors.clear();
-        server_ctx.curr_map_tool_type = MapToolType::Vertex;
-        server_ctx.curr_action_id =
-            Some(Uuid::from_str(crate::actions::edit_vertex::EDIT_VERTEX_ACTION_ID).unwrap());
+            origin,
+            along,
+            out,
+        )?;
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Map Selection Changed"),
             TheValue::Empty,
         ));
-        crate::editor::RUSTERIX.write().unwrap().set_dirty();
-
-        Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
-            Box::new(prev),
-            Box::new(map.clone()),
-        ))
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Geometry Overlay 3D"),
+            TheValue::Empty,
+        ));
+        Some(undo)
     }
 }

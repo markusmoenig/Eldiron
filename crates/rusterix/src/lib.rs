@@ -144,7 +144,10 @@ pub use crate::{
         geometry_object_builder::GeometryObjectBuilder,
         topology_builder::{TopologyBuilder, TopologyScene},
     },
-    collision_world::CollisionWorld,
+    collision_world::{
+        CollisionProbeBlocker, CollisionProbeFloorSample, CollisionProbeResult, CollisionProbeStep,
+        CollisionProbeStepKind, CollisionWorld,
+    },
     edge::Edges,
     hitinfo::HitInfo,
     intodata::IntoDataInput,

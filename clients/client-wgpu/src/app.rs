@@ -534,7 +534,9 @@ impl SceneVMApp for EldironPlayerApp {
         std::mem::swap(_vm, &mut self.rusterix.scene_handler.vm);
     }
 
-    fn scroll(&mut self, _vm: &mut SceneVM, _dx: f32, _dy: f32) {}
+    fn scroll(&mut self, _vm: &mut SceneVM, _dx: f32, dy: f32) {
+        self.rusterix.client.scroll_messages(dy as isize);
+    }
 
     fn key_down(&mut self, _vm: &mut SceneVM, key: &str) {
         on_key_event(self, key, true);

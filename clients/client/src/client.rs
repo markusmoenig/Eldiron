@@ -276,6 +276,10 @@ impl TheTrait for Client {
         true
     }
 
+    fn mouse_wheel(&mut self, delta: (isize, isize), _ctx: &mut TheContext) -> bool {
+        self.rusterix.client.scroll_messages(delta.1)
+    }
+
     fn hover(&mut self, x: f32, y: f32, _ctx: &mut TheContext) -> bool {
         let coord = Vec2::new(x as i32, y as i32);
         for r in &mut self.project.regions {

@@ -109,6 +109,24 @@ color_targets = ["left_leg", "right_leg"]
 
 ---
 
+## `attack_cooldown`
+
+*Character or weapon item attribute.*
+
+Cooldown between engine-owned `follow_attack` hits, measured in in-game minutes.
+Weapon values override the attacker's character value. If neither is set, the default is `1.0`.
+
+```toml
+attack_cooldown = 4.0
+```
+
+The runtime converts this to simulation ticks using `game.ticks_per_minute`.
+For example, with `ticks_per_minute = 4`, `attack_cooldown = 4.0` becomes 16 simulation ticks.
+
+This is gameplay timing only. `avatar_attack_time` controls how long the visual attack animation is held after damage is dealt.
+
+---
+
 ## `damage_kind`
 
 *Item-only attribute.*

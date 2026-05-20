@@ -1,7 +1,7 @@
 use crate::editor::{EDITCAMERA, RUSTERIX, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::Value;
-use vek::Vec2;
+use vek::{Vec2, Vec3};
 
 fn geometry_selection_status_text(map: &Map, server_ctx: &ServerContext) -> Option<String> {
     if server_ctx.editor_view_mode == EditorViewMode::D2 {
@@ -90,6 +90,92 @@ pub struct MapEditor {
 
 #[allow(clippy::new_without_default)]
 impl MapEditor {
+    fn geometry_face_auto_uvs(points: &[Vec3<f32>]) -> Vec<Vec2<f32>> {
+        if points.len() < 3 {
+            return vec![Vec2::zero(); points.len()];
+        }
+
+        let mut normal = Vec3::<f32>::zero();
+        for index in 1..points.len() - 1 {
+            normal += (points[index] - points[0]).cross(points[index + 1] - points[0]);
+        }
+
+        let abs = Vec3::new(normal.x.abs(), normal.y.abs(), normal.z.abs());
+        points
+            .iter()
+            .map(|point| {
+                if abs.y >= abs.x && abs.y >= abs.z {
+                    Vec2::new(point.x, point.z)
+                } else if abs.x >= abs.z {
+                    Vec2::new(point.z, point.y)
+                } else {
+                    Vec2::new(point.x, point.y)
+                }
+            })
+            .collect()
+    }
+
+    fn geometry_face_texture_shortcut_signs(
+        object: &rusterix::GeometryObject,
+        face: &rusterix::GeometryFace,
+    ) -> (Vec2<f32>, f32) {
+        let points = face
+            .indices
+            .iter()
+            .filter_map(|vertex_index| object.vertices.get(*vertex_index).copied())
+            .collect::<Vec<_>>();
+        if points.len() != face.indices.len() || points.len() < 3 {
+            return (Vec2::broadcast(1.0), 1.0);
+        }
+
+        let uvs = if face.auto_uv || face.uvs.len() != face.indices.len() {
+            Self::geometry_face_auto_uvs(&points)
+        } else {
+            face.uvs.clone()
+        };
+
+        let mut normal = Vec3::<f32>::zero();
+        for index in 1..points.len() - 1 {
+            normal += (points[index] - points[0]).cross(points[index + 1] - points[0]);
+        }
+        let abs = Vec3::new(normal.x.abs(), normal.y.abs(), normal.z.abs());
+        let (canonical_u, canonical_v) = if abs.y >= abs.x && abs.y >= abs.z {
+            (Vec3::unit_x(), Vec3::unit_z())
+        } else if abs.x >= abs.z {
+            (Vec3::unit_z(), Vec3::unit_y())
+        } else {
+            (Vec3::unit_x(), Vec3::unit_y())
+        };
+
+        let mut best_u = (0.0f32, Vec3::zero());
+        let mut best_v = (0.0f32, Vec3::zero());
+        for index in 0..points.len() {
+            let next = (index + 1) % points.len();
+            let delta_world = points[next] - points[index];
+            let delta_uv = uvs[next] - uvs[index];
+            let abs_u = delta_uv.x.abs();
+            let abs_v = delta_uv.y.abs();
+            if abs_u > best_u.0 && abs_u > 1e-5 {
+                best_u = (abs_u, delta_world * delta_uv.x.signum());
+            }
+            if abs_v > best_v.0 && abs_v > 1e-5 {
+                best_v = (abs_v, delta_world * delta_uv.y.signum());
+            }
+        }
+
+        let u_sign = if best_u.1.dot(canonical_u) < 0.0 {
+            -1.0
+        } else {
+            1.0
+        };
+        let v_sign = if best_v.1.dot(canonical_v) < 0.0 {
+            -1.0
+        } else {
+            1.0
+        };
+        (Vec2::new(u_sign, v_sign), u_sign * v_sign)
+    }
+
     fn selected_textured_geometry_faces(map: &Map) -> Vec<(usize, usize)> {
         map.selected_geometry_faces
             .iter()
@@ -121,6 +207,14 @@ impl MapEditor {
 
         let mut changed = false;
         for (object_index, face_index) in selected_faces {
+            let Some((offset_sign, rotation_sign)) =
+                map.geometry_objects.get(object_index).and_then(|object| {
+                    let face = object.faces.get(face_index)?;
+                    Some(Self::geometry_face_texture_shortcut_signs(object, face))
+                })
+            else {
+                continue;
+            };
             let Some(face) = map
                 .geometry_objects
                 .get_mut(object_index)
@@ -146,18 +240,18 @@ impl MapEditor {
             } else if shift {
                 let step = 5.0;
                 match key {
-                    TheKeyCode::Left => face.texture_rotation -= step,
-                    TheKeyCode::Right => face.texture_rotation += step,
+                    TheKeyCode::Left => face.texture_rotation -= step * rotation_sign,
+                    TheKeyCode::Right => face.texture_rotation += step * rotation_sign,
                     _ => continue,
                 }
                 changed = true;
             } else {
                 let step = 0.1;
                 match key {
-                    TheKeyCode::Left => face.texture_offset.x -= step,
-                    TheKeyCode::Right => face.texture_offset.x += step,
-                    TheKeyCode::Down => face.texture_offset.y -= step,
-                    TheKeyCode::Up => face.texture_offset.y += step,
+                    TheKeyCode::Left => face.texture_offset.x -= step * offset_sign.x,
+                    TheKeyCode::Right => face.texture_offset.x += step * offset_sign.x,
+                    TheKeyCode::Down => face.texture_offset.y -= step * offset_sign.y,
+                    TheKeyCode::Up => face.texture_offset.y += step * offset_sign.y,
                     _ => continue,
                 }
                 changed = true;
@@ -551,6 +645,9 @@ impl MapEditor {
                         == rusterix::ServerState::Running;
                     if is_running && server_ctx.game_mode {
                         let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                        if rusterix.client.scroll_messages(coord.y as isize) {
+                            return true;
+                        }
                         rusterix.client.target_offset -= *coord;
                     } else if !server_ctx.world_mode {
                         if server_ctx.editor_view_mode == EditorViewMode::D2
@@ -1075,6 +1172,35 @@ mod tests {
             true,
         ));
         assert_eq!(map.geometry_objects[0].faces[2].texture_scale.y, 1.1);
+    }
+
+    #[test]
+    fn arrow_shortcuts_follow_mirrored_face_uv_winding() {
+        let (mut map, _) = selected_box_with_textured_face();
+        let face = &mut map.geometry_objects[0].faces[2];
+        face.auto_uv = false;
+        face.uvs = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            Vec2::new(1.0, 1.0),
+            Vec2::new(0.0, 1.0),
+        ];
+
+        assert!(MapEditor::nudge_selected_face_texture(
+            &mut map,
+            TheKeyCode::Right,
+            false,
+            false,
+        ));
+        assert_eq!(map.geometry_objects[0].faces[2].texture_offset.x, -0.1);
+
+        assert!(MapEditor::nudge_selected_face_texture(
+            &mut map,
+            TheKeyCode::Right,
+            true,
+            false,
+        ));
+        assert_eq!(map.geometry_objects[0].faces[2].texture_rotation, -5.0);
     }
 
     #[test]

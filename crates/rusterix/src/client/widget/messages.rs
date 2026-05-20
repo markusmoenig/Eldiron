@@ -1,12 +1,32 @@
 use crate::{
-    Assets, Choice, Entity, EntityAction, Map, MsgParser, Pixel, Rect, Tile,
+    Assets, Choice, Entity, EntityAction, Map, MsgParser, Pixel, Rect, Tile, Value,
     client::{
         draw2d,
         resolver::{MessageContext, MsgResolver},
     },
 };
 use draw2d::Draw2D;
+use instant::{Duration, Instant};
+use std::collections::VecDeque;
 use theframework::prelude::*;
+
+#[derive(Clone)]
+pub struct MessageLine {
+    pub id: Uuid,
+    pub text: String,
+    pub rect: Rect,
+    pub choice: Option<Choice>,
+    pub choice_key: Option<char>,
+    pub color: Pixel,
+    pub sender_entity: Option<u32>,
+}
+
+#[derive(Clone)]
+pub(crate) enum PendingMessage {
+    Line(MessageLine),
+    Continue,
+    Timer(Duration),
+}
 
 pub struct MessagesWidget {
     pub name: String,
@@ -15,7 +35,8 @@ pub struct MessagesWidget {
     pub buffer: TheRGBABuffer,
     pub font: Option<fontdue::Font>,
     pub font_size: f32,
-    pub messages: Vec<(Uuid, String, Rect, Option<Choice>, Pixel, Option<u32>)>,
+    pub messages: Vec<MessageLine>,
+    pub(crate) pending_messages: VecDeque<PendingMessage>,
     pub draw2d: Draw2D,
     pub spacing: f32,
     pub message_spacing: f32,
@@ -33,6 +54,16 @@ pub struct MessagesWidget {
     pub portrait: bool,
     pub portrait_size: f32,
     pub portrait_gap: f32,
+    pub press_to_continue: bool,
+    pub pause_blocks_input: bool,
+    pub continue_prompt: String,
+    pub continue_prompt_color: Pixel,
+    pub max_messages: usize,
+    pub scrollback: bool,
+    pub(crate) paused: bool,
+    pub(crate) pause_until: Option<Instant>,
+    pub(crate) scroll_offset: usize,
+    pub(crate) page_start_index: usize,
 }
 
 impl Default for MessagesWidget {
@@ -53,6 +84,7 @@ impl MessagesWidget {
             font: None,
             font_size: 20.0,
             messages: vec![],
+            pending_messages: VecDeque::new(),
             draw2d: Draw2D::default(),
             spacing: 1.0,
             message_spacing: 8.0,
@@ -70,6 +102,16 @@ impl MessagesWidget {
             portrait: false,
             portrait_size: 64.0,
             portrait_gap: 12.0,
+            press_to_continue: false,
+            pause_blocks_input: true,
+            continue_prompt: "Press to continue".into(),
+            continue_prompt_color: [170, 170, 170, 255],
+            max_messages: 100,
+            scrollback: true,
+            paused: false,
+            pause_until: None,
+            scroll_offset: 0,
+            page_start_index: 0,
         }
     }
 
@@ -165,6 +207,42 @@ impl MessagesWidget {
                         self.portrait_gap = (v as f32).max(0.0);
                     }
                 }
+                if let Some(value) = ui
+                    .get("press_to_continue")
+                    .or_else(|| ui.get("pause_on_overflow"))
+                    .and_then(toml::Value::as_bool)
+                {
+                    self.press_to_continue = value;
+                }
+                if let Some(value) = ui
+                    .get("pause_blocks_input")
+                    .or_else(|| ui.get("block_input_during_pause"))
+                    .and_then(toml::Value::as_bool)
+                {
+                    self.pause_blocks_input = value;
+                }
+                if let Some(value) = ui
+                    .get("continue_prompt")
+                    .or_else(|| ui.get("pause_prompt"))
+                    .and_then(toml::Value::as_str)
+                {
+                    self.continue_prompt = value.to_string();
+                }
+                if let Some(value) = ui
+                    .get("continue_prompt_color")
+                    .or_else(|| ui.get("pause_prompt_color"))
+                    .and_then(toml::Value::as_str)
+                {
+                    self.continue_prompt_color = self.hex_to_rgba_u8(value);
+                }
+                if let Some(value) = ui.get("max_messages") {
+                    if let Some(v) = value.as_integer() {
+                        self.max_messages = (v as usize).max(1);
+                    }
+                }
+                if let Some(value) = ui.get("scrollback").and_then(toml::Value::as_bool) {
+                    self.scrollback = value;
+                }
                 if let Some(handles) = ui.get("handles").and_then(toml::Value::as_array) {
                     self.handle_messages = false;
                     self.handle_dialogs = false;
@@ -196,6 +274,59 @@ impl MessagesWidget {
 
         if let Some(font) = assets.fonts.get(&font_name) {
             self.font = Some(font.clone());
+        }
+    }
+
+    fn parse_pause_duration(msg: &str, category: &str) -> Option<Duration> {
+        let lower = category.trim().to_ascii_lowercase();
+        let value = lower
+            .strip_prefix("pause:")
+            .or_else(|| lower.strip_prefix("timer:"))
+            .unwrap_or(msg.trim());
+        let seconds = value.parse::<f32>().ok()?;
+        (seconds > 0.0).then(|| Duration::from_secs_f32(seconds))
+    }
+
+    fn is_pause_category(category: &str) -> bool {
+        matches!(
+            category.trim().to_ascii_lowercase().as_str(),
+            "pause" | "continue" | "message_pause" | "pause_to_continue"
+        ) || category.trim().to_ascii_lowercase().starts_with("pause:")
+            || category.trim().to_ascii_lowercase().starts_with("timer:")
+    }
+
+    fn queue_pause(&mut self, msg: &str, category: &str) {
+        if let Some(duration) = Self::parse_pause_duration(msg, category) {
+            self.pending_messages
+                .push_back(PendingMessage::Timer(duration));
+        } else {
+            self.pending_messages.push_back(PendingMessage::Continue);
+        }
+    }
+
+    fn continue_after_pause(&mut self) {
+        self.paused = false;
+        self.pause_until = None;
+        self.page_start_index = self.messages.len();
+        self.scroll_offset = 0;
+    }
+
+    fn pause_for_continue(&mut self) {
+        self.paused = true;
+        self.pause_until = None;
+    }
+
+    fn pause_for_duration(&mut self, duration: Duration) {
+        self.paused = true;
+        self.pause_until = Some(Instant::now() + duration);
+    }
+
+    fn advance_pause_timer(&mut self) {
+        if self
+            .pause_until
+            .is_some_and(|pause_until| Instant::now() >= pause_until)
+        {
+            self.continue_after_pause();
         }
     }
 
@@ -235,9 +366,16 @@ impl MessagesWidget {
         choices: Vec<crate::MultipleChoice>,
     ) -> Option<FxHashMap<char, Choice>> {
         self.deactivate_inactive_choices(assets, map, time);
+        self.advance_pause_timer();
+        let starts_new_reveal_batch = !self.paused && self.pending_messages.is_empty();
+        let new_batch_start_index = self.messages.len();
 
         // Append new messages
         for (sender_entity, sender_item, receiver_id, msg, category) in &messages {
+            if Self::is_pause_category(category) {
+                self.queue_pause(msg, category);
+                continue;
+            }
             if !self.accepts_message_category(category) {
                 continue;
             }
@@ -261,17 +399,17 @@ impl MessagesWidget {
                     world_time: Some(*time),
                 },
             );
-            self.messages.push((
-                Uuid::new_v4(),
-                message.clone(),
-                Rect::default(),
-                None,
-                color,
-                *sender_entity,
-            ));
+            self.pending_messages
+                .push_back(PendingMessage::Line(MessageLine {
+                    id: Uuid::new_v4(),
+                    text: message.clone(),
+                    rect: Rect::default(),
+                    choice: None,
+                    choice_key: None,
+                    color,
+                    sender_entity: *sender_entity,
+                }));
         }
-
-        let mut choice_map = FxHashMap::default();
 
         for choices in choices {
             let accepted_choices: Vec<_> = choices
@@ -283,17 +421,6 @@ impl MessagesWidget {
             if accepted_choices.is_empty() {
                 continue;
             }
-
-            // Insert the cancel choice.
-            choice_map.insert(
-                '0',
-                Choice::Cancel(
-                    choices.from,
-                    choices.to,
-                    choices.expires_at_tick,
-                    choices.max_distance,
-                ),
-            );
 
             let mut color = self.default_color;
             if let Some(ui) = self.table.get("ui").and_then(toml::Value::as_table) {
@@ -376,9 +503,6 @@ impl MessagesWidget {
                     }
                     _ => {}
                 }
-
-                choice_map.insert((b'1' + index as u8) as char, rendered_choice.clone());
-
                 let text = if matches!(choice, Choice::ItemToSell(_, _, _, _, _)) {
                     let label = format!("{}) {}", index + 1, item_name);
                     let price = format!("{}G", item_price);
@@ -387,37 +511,41 @@ impl MessagesWidget {
                     format!("{}) {}", index + 1, item_name)
                 };
 
-                self.messages.push((
-                    Uuid::new_v4(),
-                    text,
-                    Rect::default(),
-                    Some(rendered_choice),
-                    color,
-                    Some(choices.from),
-                ));
+                self.pending_messages
+                    .push_back(PendingMessage::Line(MessageLine {
+                        id: Uuid::new_v4(),
+                        text,
+                        rect: Rect::default(),
+                        choice: Some(rendered_choice),
+                        choice_key: Some((b'1' + index as u8) as char),
+                        color,
+                        sender_entity: Some(choices.from),
+                    }));
             }
-            self.messages.push((
-                Uuid::new_v4(),
-                self.resolve_msg("0) {system.exit_menu}", map, assets, time),
-                Rect::default(),
-                Some(Choice::Cancel(
-                    choices.from,
-                    choices.to,
-                    choices.expires_at_tick,
-                    choices.max_distance,
-                )),
-                color,
-                Some(choices.from),
-            ));
+            self.pending_messages
+                .push_back(PendingMessage::Line(MessageLine {
+                    id: Uuid::new_v4(),
+                    text: self.resolve_msg("0) {system.exit_menu}", map, assets, time),
+                    rect: Rect::default(),
+                    choice: Some(Choice::Cancel(
+                        choices.from,
+                        choices.to,
+                        choices.expires_at_tick,
+                        choices.max_distance,
+                    )),
+                    choice_key: Some('0'),
+                    color,
+                    sender_entity: Some(choices.from),
+                }));
         }
 
-        // Purge the messages which are scrolled out of scope
-        let max_messages = 100;
-        if self.messages.len() > max_messages {
-            let excess = self.messages.len() - max_messages;
-            self.messages.drain(0..excess);
+        if starts_new_reveal_batch && !self.pending_messages.is_empty() {
+            self.page_start_index = new_batch_start_index;
         }
+        self.reveal_pending_messages();
+        self.purge_old_messages();
 
+        let choice_map = self.active_choice_map();
         if choice_map.is_empty() {
             None
         } else {
@@ -457,17 +585,28 @@ impl MessagesWidget {
                 self.rect.width.min(width as f32).max(0.0) as isize,
                 self.rect.height.min(height as f32).max(0.0) as isize,
             );
+            let prompt_reserved_height = if self.paused && self.pause_until.is_none() {
+                self.font_size.ceil() + self.message_spacing.max(self.spacing)
+            } else {
+                0.0
+            };
+            let content_bottom = self.rect.y + (self.rect.height - prompt_reserved_height).max(0.0);
             let mut y = if self.top_down {
                 self.rect.y
             } else {
-                self.rect.y + self.rect.height - self.font_size.ceil()
+                content_bottom - self.font_size.ceil()
             };
             let draw2d = &self.draw2d;
 
-            for (id, message, rect, _choice, color, sender_entity) in self.messages.iter_mut().rev()
-            {
+            let scroll_offset = self.scroll_offset.min(self.messages.len());
+            for message_line in self.messages.iter_mut().rev().skip(scroll_offset) {
+                let id = message_line.id;
+                let message = &message_line.text;
+                let rect = &mut message_line.rect;
+                let color = message_line.color;
+                let sender_entity = message_line.sender_entity;
                 let portrait_tile = if self.portrait {
-                    Self::portrait_tile_for_sender(*sender_entity, map, assets)
+                    Self::portrait_tile_for_sender(sender_entity, map, assets)
                 } else {
                     None
                 };
@@ -492,14 +631,16 @@ impl MessagesWidget {
                     0.0
                 });
 
-                let color = if *id == self.clicked {
-                    darken(*color, 100)
+                let color = if id == self.clicked {
+                    darken(color, 100)
                 } else {
-                    *color
+                    color
                 };
+                let mut drew_block = false;
 
                 if self.top_down {
-                    if y > self.rect.y + self.rect.height {
+                    if y > content_bottom {
+                        *rect = Rect::default();
                         break;
                     }
 
@@ -526,9 +667,10 @@ impl MessagesWidget {
 
                     for (index, line) in lines.iter().enumerate() {
                         let line_y = y + index as f32 * line_height;
-                        if line_y > self.rect.y + self.rect.height {
+                        if line_y > content_bottom {
                             break;
                         }
+                        drew_block = true;
 
                         let tuple = (
                             (self.rect.x + portrait_width) as isize,
@@ -587,6 +729,7 @@ impl MessagesWidget {
                     // A single wrapped message can be taller than the widget. Keep drawing it
                     // while its bottom is visible so the latest/lower lines stay pinned.
                     if block_bottom < self.rect.y {
+                        *rect = Rect::default();
                         break;
                     }
 
@@ -613,11 +756,10 @@ impl MessagesWidget {
 
                     for (index, line) in lines.iter().enumerate() {
                         let line_y = text_top + index as f32 * line_height;
-                        if line_y + self.font_size < self.rect.y
-                            || line_y > self.rect.y + self.rect.height
-                        {
+                        if line_y + self.font_size < self.rect.y || line_y > content_bottom {
                             continue;
                         }
+                        drew_block = true;
                         let tuple = (
                             (self.rect.x + portrait_width) as isize,
                             line_y.floor() as isize,
@@ -669,10 +811,135 @@ impl MessagesWidget {
 
                     y = block_top - block_gap - self.font_size;
                 }
+                if !drew_block {
+                    *rect = Rect::default();
+                }
+            }
+
+            if self.paused && self.pause_until.is_none() {
+                self.draw_continue_prompt(buffer, font, map, assets, time, stride, &clip_rect);
             }
         }
 
         choice_map
+    }
+
+    fn reveal_pending_messages(&mut self) {
+        if self.paused {
+            return;
+        }
+
+        while let Some(entry) = self.pending_messages.pop_front() {
+            match entry {
+                PendingMessage::Line(line) => {
+                    self.scroll_offset = 0;
+                    self.messages.push(line);
+                    if self.press_to_continue
+                        && !self.pending_messages.is_empty()
+                        && self.page_is_full(true)
+                    {
+                        self.pause_for_continue();
+                        break;
+                    }
+                }
+                PendingMessage::Continue => {
+                    self.pause_for_continue();
+                    break;
+                }
+                PendingMessage::Timer(duration) => {
+                    self.pause_for_duration(duration);
+                    break;
+                }
+            }
+        }
+
+        if !self.paused && self.pending_messages.is_empty() {
+            self.page_start_index = self.messages.len();
+        }
+    }
+
+    fn purge_old_messages(&mut self) {
+        if self.messages.len() > self.max_messages {
+            let excess = self.messages.len() - self.max_messages;
+            self.messages.drain(0..excess);
+            self.page_start_index = self.page_start_index.saturating_sub(excess);
+            self.scroll_offset = self.scroll_offset.saturating_sub(excess);
+        }
+    }
+
+    fn page_is_full(&self, reserve_prompt: bool) -> bool {
+        let Some(font) = &self.font else {
+            return false;
+        };
+        let prompt_reserved_height = if reserve_prompt {
+            self.font_size.ceil() + self.message_spacing.max(self.spacing)
+        } else {
+            0.0
+        };
+        let available_height = (self.rect.height - prompt_reserved_height).max(self.font_size);
+        let mut total_height = 0.0;
+        for message_line in self.messages.iter().skip(self.page_start_index) {
+            let portrait_width = if self.portrait && message_line.sender_entity.is_some() {
+                self.portrait_size + self.portrait_gap
+            } else {
+                0.0
+            };
+            let text_width = (self.rect.width - portrait_width).max(self.font_size);
+            let lines = Self::wrap_message_lines(
+                &self.draw2d,
+                font,
+                self.font_size,
+                &message_line.text,
+                text_width,
+            );
+            let line_height = self.font_size + self.spacing;
+            let text_height = if lines.is_empty() {
+                self.font_size
+            } else {
+                self.font_size + (lines.len().saturating_sub(1) as f32 * line_height)
+            };
+            let block_height = text_height.max(if portrait_width > 0.0 {
+                self.portrait_size
+            } else {
+                0.0
+            });
+            if total_height > 0.0 {
+                total_height += self.message_spacing;
+            }
+            total_height += block_height;
+        }
+        total_height > available_height
+    }
+
+    fn draw_continue_prompt(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        font: &fontdue::Font,
+        map: &Map,
+        assets: &Assets,
+        time: &TheTime,
+        stride: usize,
+        clip_rect: &(isize, isize, isize, isize),
+    ) {
+        let prompt = self.resolve_msg(&self.continue_prompt, map, assets, time);
+        let tuple = (
+            self.rect.x as isize,
+            (self.rect.y + self.rect.height - self.font_size.ceil()) as isize,
+            self.rect.width as isize,
+            self.font_size as isize,
+        );
+        self.draw2d.text_rect_blend_safe_clip(
+            buffer.pixels_mut(),
+            &tuple,
+            stride,
+            font,
+            self.font_size,
+            &prompt,
+            &self.continue_prompt_color,
+            draw2d::TheHorizontalAlign::Right,
+            draw2d::TheVerticalAlign::Center,
+            clip_rect,
+        );
     }
 
     /// Converts a hex color string to a [u8; 4] (RGBA).
@@ -703,10 +970,24 @@ impl MessagesWidget {
     }
 
     pub fn touch_down(&mut self, coord: Vec2<i32>) -> Option<EntityAction> {
-        for (id, _, rect, choice, _, _) in &self.messages {
-            if rect.contains(Vec2::new(coord.x as f32, coord.y as f32)) {
-                if let Some(choice) = choice {
-                    self.clicked = id.clone();
+        let inside = self
+            .rect
+            .contains(Vec2::new(coord.x as f32, coord.y as f32));
+        if inside && self.paused && self.pause_until.is_none() {
+            self.continue_after_pause();
+            self.reveal_pending_messages();
+            return Some(EntityAction::Off);
+        }
+        if self.paused && self.pause_blocks_input {
+            return Some(EntityAction::Off);
+        }
+        for message_line in &self.messages {
+            if message_line
+                .rect
+                .contains(Vec2::new(coord.x as f32, coord.y as f32))
+            {
+                if let Some(choice) = &message_line.choice {
+                    self.clicked = message_line.id;
                     return Some(EntityAction::Choice(choice.clone()));
                 }
             }
@@ -721,7 +1002,61 @@ impl MessagesWidget {
     pub fn has_active_choices(&self) -> bool {
         self.messages
             .iter()
-            .any(|(_, _, _, choice, _, _)| choice.is_some())
+            .any(|message_line| message_line.choice.is_some())
+    }
+
+    fn active_choice_map(&self) -> FxHashMap<char, Choice> {
+        let mut choice_map = FxHashMap::default();
+        for message_line in &self.messages {
+            let Some(choice) = &message_line.choice else {
+                continue;
+            };
+            let Some(key) = message_line.choice_key else {
+                continue;
+            };
+            choice_map.insert(key, choice.clone());
+        }
+        choice_map
+    }
+
+    pub fn blocks_input(&self) -> bool {
+        self.paused && self.pause_blocks_input
+    }
+
+    pub fn user_event(&mut self, event: &str, value: &Value) -> Option<EntityAction> {
+        self.advance_pause_timer();
+        if !self.paused {
+            return None;
+        }
+
+        if event == "key_down"
+            && self.pause_until.is_none()
+            && let Value::Str(v) = value
+        {
+            let key = v.trim().to_ascii_lowercase();
+            if matches!(key.as_str(), " " | "space" | "enter" | "return" | "\n") {
+                self.continue_after_pause();
+                self.reveal_pending_messages();
+                return Some(EntityAction::Off);
+            }
+        }
+
+        self.pause_blocks_input.then_some(EntityAction::Off)
+    }
+
+    pub fn scroll(&mut self, delta_y: isize) -> bool {
+        if !self.scrollback || self.messages.is_empty() {
+            return false;
+        }
+
+        let step = (delta_y.unsigned_abs() / 120).max(1);
+        if delta_y > 0 {
+            self.scroll_offset =
+                (self.scroll_offset + step).min(self.messages.len().saturating_sub(1));
+        } else if delta_y < 0 {
+            self.scroll_offset = self.scroll_offset.saturating_sub(step);
+        }
+        true
     }
 
     /// Resolves a message
@@ -757,8 +1092,8 @@ impl MessagesWidget {
             .max(1) as u32;
         let now_ticks = time.to_ticks(ticks_per_minute);
 
-        for (_, _, _, choice, _, _) in &mut self.messages {
-            let Some(active_choice) = choice.as_ref() else {
+        for message_line in &mut self.messages {
+            let Some(active_choice) = message_line.choice.as_ref() else {
                 continue;
             };
 
@@ -774,7 +1109,7 @@ impl MessagesWidget {
                 });
 
             if expired || !in_range {
-                *choice = None;
+                message_line.choice = None;
             }
         }
     }

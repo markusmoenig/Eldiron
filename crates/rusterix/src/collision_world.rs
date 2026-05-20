@@ -87,6 +87,55 @@ struct CollisionSegment {
     end: Vec2<f32>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CollisionProbeStepKind {
+    Walk,
+    StepUp,
+    StepDown,
+    Contact,
+    Blocked,
+    NoFloor,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct CollisionProbeBlocker {
+    pub geo_id: GeoId,
+    pub start: Vec2<f32>,
+    pub end: Vec2<f32>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct CollisionProbeFloorSample {
+    pub position: Vec2<f32>,
+    pub height: f32,
+    pub reachable: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct CollisionProbeStep {
+    pub from: Vec3<f32>,
+    pub to: Vec3<f32>,
+    pub target: Vec2<f32>,
+    pub current_floor: Option<f32>,
+    pub next_floor: Option<f32>,
+    pub kind: CollisionProbeStepKind,
+    pub blocker: Option<CollisionProbeBlocker>,
+    pub support_samples: Vec<CollisionProbeFloorSample>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct CollisionProbeResult {
+    pub start: Vec3<f32>,
+    pub target: Vec2<f32>,
+    pub radius: f32,
+    pub max_step_height: f32,
+    pub arrived: bool,
+    pub goto_path_found: bool,
+    pub goto_path_unstable: bool,
+    pub goto_path: Vec<Vec3<f32>>,
+    pub steps: Vec<CollisionProbeStep>,
+}
+
 /// State of a dynamic geometry element
 #[derive(Clone, Debug)]
 pub struct DynamicState {
@@ -223,6 +272,22 @@ impl CollisionWorld {
         radius: f32,
         step_clearance_y: Option<f32>,
     ) -> (Vec3<f32>, bool) {
+        let (pos, blocked, _) = self.move_distance_with_step_clearance_trace(
+            start_pos,
+            move_vector,
+            radius,
+            step_clearance_y,
+        );
+        (pos, blocked)
+    }
+
+    fn move_distance_with_step_clearance_trace(
+        &self,
+        start_pos: Vec3<f32>,
+        move_vector: Vec3<f32>,
+        radius: f32,
+        step_clearance_y: Option<f32>,
+    ) -> (Vec3<f32>, bool, Option<CollisionProbeBlocker>) {
         const MAX_ITERATIONS: usize = 3;
         const EPSILON: f32 = 0.001;
 
@@ -233,7 +298,7 @@ impl CollisionWorld {
             start_pos.z + move_vector.z,
         );
         if self.is_in_passable_opening(target_pos, radius) {
-            return (target_pos, false);
+            return (target_pos, false, None);
         }
 
         let mut current_pos = start_pos;
@@ -245,6 +310,7 @@ impl CollisionWorld {
         let mut iterations = 0;
 
         let segments = self.collect_blocking_segments(start_pos, radius, step_clearance_y);
+        let mut blocker = None;
 
         while remaining.magnitude_squared() > EPSILON * EPSILON && iterations < MAX_ITERATIONS {
             iterations += 1;
@@ -266,8 +332,15 @@ impl CollisionWorld {
             }
 
             match closest_collision {
-                Some((distance, normal, _geo_id)) => {
+                Some((distance, normal, geo_id)) => {
                     blocked = true;
+                    blocker = segments.iter().find(|seg| seg.geo_id == geo_id).map(|seg| {
+                        CollisionProbeBlocker {
+                            geo_id: seg.geo_id,
+                            start: seg.start,
+                            end: seg.end,
+                        }
+                    });
 
                     // Move up to (just before) collision point
                     let move_dir = remaining.normalized();
@@ -309,6 +382,11 @@ impl CollisionWorld {
                 let penetration = radius - dist;
                 if penetration > 0.0 {
                     blocked = true;
+                    blocker.get_or_insert(CollisionProbeBlocker {
+                        geo_id: seg.geo_id,
+                        start: seg.start,
+                        end: seg.end,
+                    });
                     current_2d += normal * (penetration + EPSILON);
                 }
             }
@@ -317,7 +395,7 @@ impl CollisionWorld {
         current_pos.x = current_2d.x;
         current_pos.z = current_2d.y;
 
-        (current_pos, blocked)
+        (current_pos, blocked, blocker)
     }
 
     fn check_chunk_collision(
@@ -567,6 +645,23 @@ impl CollisionWorld {
             })
             .or_else(|| self.get_floor_height_reachable(to, reference_y, max_step_height))?;
 
+        let distance_before = (to - from).magnitude();
+        if distance_before <= 0.05 {
+            return Some((Vec3::new(from.x, base_height, from.y), true));
+        }
+
+        let (direct_position, direct_arrived) =
+            self.step_towards_point(from, to, speed, radius, base_height, max_step_height, 0.05);
+        let direct_2d = Vec2::new(direct_position.x, direct_position.z);
+        let moved = (direct_2d - from).magnitude();
+        let distance_after = (to - direct_2d).magnitude();
+        let requested_step = speed.min(distance_before);
+        let useful_direct =
+            moved >= requested_step * 0.5 && distance_after < distance_before - 0.001;
+        if useful_direct || direct_arrived || distance_after <= 0.05 {
+            return Some((direct_position, distance_after <= 0.05));
+        }
+
         let waypoint = if self.segment_is_clear(
             Vec3::new(from.x, base_height, from.y),
             Vec3::new(to.x, base_height, to.y),
@@ -625,6 +720,231 @@ impl CollisionWorld {
         Some((new_position, arrived))
     }
 
+    pub fn probe_path_direct(
+        &self,
+        from: Vec2<f32>,
+        to: Vec2<f32>,
+        radius: f32,
+        max_step_height: f32,
+        reference_y: f32,
+    ) -> CollisionProbeResult {
+        let mut result = CollisionProbeResult {
+            start: Vec3::new(from.x, reference_y, from.y),
+            target: to,
+            radius,
+            max_step_height,
+            arrived: false,
+            goto_path_found: false,
+            goto_path_unstable: false,
+            goto_path: Vec::new(),
+            steps: Vec::new(),
+        };
+
+        let Some(base_height) = self
+            .sample_reachable_floor_height(from, radius * 0.5, reference_y, max_step_height)
+            .or_else(|| self.get_floor_height_reachable(from, reference_y, max_step_height))
+            .or_else(|| {
+                self.sample_reachable_floor_height(to, radius * 0.5, reference_y, max_step_height)
+            })
+            .or_else(|| self.get_floor_height_reachable(to, reference_y, max_step_height))
+        else {
+            result.steps.push(CollisionProbeStep {
+                from: Vec3::new(from.x, reference_y, from.y),
+                to: Vec3::new(from.x, reference_y, from.y),
+                target: to,
+                current_floor: None,
+                next_floor: None,
+                kind: CollisionProbeStepKind::NoFloor,
+                blocker: None,
+                support_samples: self.floor_support_samples(
+                    from,
+                    radius * 0.5,
+                    reference_y,
+                    max_step_height,
+                ),
+            });
+            return result;
+        };
+
+        result.start.y = base_height;
+
+        let to_vector = to - from;
+        let dist = to_vector.magnitude();
+        if dist <= 0.0001 {
+            result.arrived = true;
+            return result;
+        }
+
+        let dir = to_vector / dist;
+        let sub_step = (radius * 0.5).max(0.1);
+        let mut current = Vec3::new(from.x, base_height, from.y);
+        let mut remaining = dist;
+
+        while remaining > 0.0001 && result.steps.len() < 512 {
+            let len = remaining.min(sub_step);
+            let delta = Vec3::new(dir.x * len, 0.0, dir.y * len);
+            let current_2d = Vec2::new(current.x, current.z);
+            let current_floor = self
+                .sample_reachable_floor_height(current_2d, radius * 0.5, current.y, max_step_height)
+                .or_else(|| {
+                    self.get_floor_height_reachable(current_2d, current.y, max_step_height)
+                });
+            let Some(current_floor) = current_floor else {
+                result.steps.push(CollisionProbeStep {
+                    from: current,
+                    to: current,
+                    target: current_2d,
+                    current_floor: None,
+                    next_floor: None,
+                    kind: CollisionProbeStepKind::NoFloor,
+                    blocker: None,
+                    support_samples: self.floor_support_samples(
+                        current_2d,
+                        radius * 0.5,
+                        current.y,
+                        max_step_height,
+                    ),
+                });
+                break;
+            };
+
+            let probe_2d = current_2d + Vec2::new(delta.x, delta.z);
+            let support_samples =
+                self.floor_support_samples(probe_2d, radius * 0.5, current_floor, max_step_height);
+            let Some(mut move_height) = self
+                .sample_reachable_floor_height(
+                    probe_2d,
+                    radius * 0.5,
+                    current_floor,
+                    max_step_height,
+                )
+                .or_else(|| {
+                    self.get_floor_height_reachable(probe_2d, current_floor, max_step_height)
+                })
+            else {
+                result.steps.push(CollisionProbeStep {
+                    from: current,
+                    to: current,
+                    target: probe_2d,
+                    current_floor: Some(current_floor),
+                    next_floor: None,
+                    kind: CollisionProbeStepKind::NoFloor,
+                    blocker: None,
+                    support_samples,
+                });
+                break;
+            };
+            if (move_height - current_floor).abs() > max_step_height + 1e-3 {
+                move_height = current_floor;
+            }
+
+            let step_start = Vec3::new(current.x, move_height, current.z);
+            let (mut next, blocked, blocker) = self.move_distance_with_step_clearance_trace(
+                step_start,
+                delta,
+                radius,
+                Some(current_floor + max_step_height + 1e-3),
+            );
+            let next_2d = Vec2::new(next.x, next.z);
+            let next_floor = self
+                .sample_reachable_floor_height(next_2d, radius * 0.5, next.y, max_step_height)
+                .or_else(|| self.get_floor_height_reachable(next_2d, next.y, max_step_height));
+
+            if let Some(next_floor) = next_floor
+                && (next_floor - current_floor).abs() <= max_step_height + 1e-3
+            {
+                next.y = next_floor;
+            }
+
+            let moved = Vec2::new(next.x - current.x, next.z - current.z).magnitude();
+            let height_delta = next_floor.unwrap_or(move_height) - current_floor;
+            let mut kind = if height_delta > 0.05 {
+                CollisionProbeStepKind::StepUp
+            } else if height_delta < -0.05 {
+                CollisionProbeStepKind::StepDown
+            } else {
+                CollisionProbeStepKind::Walk
+            };
+            if blocked {
+                kind = if moved >= len * 0.5 {
+                    CollisionProbeStepKind::Contact
+                } else {
+                    CollisionProbeStepKind::Blocked
+                };
+            }
+
+            result.steps.push(CollisionProbeStep {
+                from: current,
+                to: next,
+                target: probe_2d,
+                current_floor: Some(current_floor),
+                next_floor,
+                kind,
+                blocker,
+                support_samples,
+            });
+
+            current = next;
+            remaining -= len;
+            if kind == CollisionProbeStepKind::Blocked || moved < 0.0001 {
+                break;
+            }
+        }
+
+        let end_2d = Vec2::new(current.x, current.z);
+        result.arrived = (to - end_2d).magnitude() <= 0.05;
+        result.goto_path_found = result.arrived;
+        result.goto_path = if result.arrived {
+            let mut path = Vec::with_capacity(result.steps.len() + 1);
+            path.push(result.start);
+            for step in &result.steps {
+                if step.to.x.is_finite()
+                    && step.to.y.is_finite()
+                    && step.to.z.is_finite()
+                    && path
+                        .last()
+                        .map(|last| (*last - step.to).magnitude_squared() > 1e-6)
+                        .unwrap_or(true)
+                {
+                    path.push(step.to);
+                }
+            }
+            if path.len() < 2 {
+                path.push(current);
+            }
+            path
+        } else {
+            self.navgrid_path(from, to, radius, base_height, max_step_height, 0.05)
+                .map(|path| {
+                    path.into_iter()
+                        .map(|point| {
+                            let height = self
+                                .sample_reachable_floor_height(
+                                    point,
+                                    radius * 0.5,
+                                    base_height,
+                                    max_step_height,
+                                )
+                                .or_else(|| {
+                                    self.get_floor_height_reachable(
+                                        point,
+                                        base_height,
+                                        max_step_height,
+                                    )
+                                })
+                                .unwrap_or(base_height);
+                            Vec3::new(point.x, height, point.y)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        if !result.goto_path.is_empty() {
+            result.goto_path_found = true;
+        }
+        result
+    }
+
     /// Like `move_towards_on_floors`, but stops once the agent is within `dest_radius`.
     pub fn close_in_on_floors(
         &self,
@@ -644,6 +964,27 @@ impl CollisionWorld {
             .get_floor_height_reachable(from, reference_y, max_step_height)
             .or_else(|| self.get_floor_height_reachable(target, reference_y, max_step_height))?;
 
+        let arrival_radius = dest_radius.max(0.05);
+        let distance_before = (target - from).magnitude();
+        let (direct_position, direct_arrived) = self.step_towards_point(
+            from,
+            target,
+            speed,
+            agent_radius,
+            base_height,
+            max_step_height,
+            arrival_radius,
+        );
+        let direct_2d = Vec2::new(direct_position.x, direct_position.z);
+        let moved = (direct_2d - from).magnitude();
+        let distance_after = (target - direct_2d).magnitude();
+        let requested_step = speed.min(distance_before);
+        let useful_direct =
+            moved >= requested_step * 0.5 && distance_after < distance_before - 0.001;
+        if useful_direct || direct_arrived || distance_after <= arrival_radius {
+            return Some((direct_position, distance_after <= arrival_radius));
+        }
+
         let waypoint = if self.segment_is_clear(
             Vec3::new(from.x, base_height, from.y),
             Vec3::new(target.x, base_height, target.y),
@@ -657,7 +998,7 @@ impl CollisionWorld {
                 agent_radius,
                 base_height,
                 max_step_height,
-                dest_radius,
+                arrival_radius,
             )?
         };
 
@@ -668,10 +1009,10 @@ impl CollisionWorld {
             agent_radius,
             base_height,
             max_step_height,
-            0.05,
+            arrival_radius,
         );
         let arrived =
-            (target - Vec2::new(new_position.x, new_position.z)).magnitude() <= dest_radius;
+            (target - Vec2::new(new_position.x, new_position.z)).magnitude() <= arrival_radius;
         Some((new_position, arrived))
     }
 
@@ -1348,6 +1689,40 @@ impl CollisionWorld {
         center_best_up.or(best_same).or(best_up).or(best_down)
     }
 
+    pub fn floor_support_samples(
+        &self,
+        position: Vec2<f32>,
+        probe: f32,
+        reference_y: f32,
+        max_step_height: f32,
+    ) -> Vec<CollisionProbeFloorSample> {
+        let d = probe.max(0.05);
+        let offsets = [
+            Vec2::zero(),
+            Vec2::new(-d, 0.0),
+            Vec2::new(d, 0.0),
+            Vec2::new(0.0, -d),
+            Vec2::new(0.0, d),
+            Vec2::new(-d, -d),
+            Vec2::new(-d, d),
+            Vec2::new(d, -d),
+            Vec2::new(d, d),
+        ];
+
+        let mut samples = Vec::new();
+        for offset in offsets {
+            let sample_pos = position + offset;
+            if let Some(height) = self.get_floor_height_nearest(sample_pos, reference_y) {
+                samples.push(CollisionProbeFloorSample {
+                    position: sample_pos,
+                    height,
+                    reachable: (height - reference_y).abs() <= max_step_height + 1e-3,
+                });
+            }
+        }
+        samples
+    }
+
     fn navgrid_next_waypoint(
         &self,
         from: Vec2<f32>,
@@ -1357,6 +1732,29 @@ impl CollisionWorld {
         max_step_height: f32,
         goal_radius: f32,
     ) -> Option<Vec2<f32>> {
+        let path = self.navgrid_path(
+            from,
+            target,
+            radius,
+            base_height,
+            max_step_height,
+            goal_radius,
+        )?;
+        if path.len() < 2 {
+            return Some(target);
+        }
+        Some(path[1])
+    }
+
+    fn navgrid_path(
+        &self,
+        from: Vec2<f32>,
+        target: Vec2<f32>,
+        radius: f32,
+        base_height: f32,
+        max_step_height: f32,
+        goal_radius: f32,
+    ) -> Option<Vec<Vec2<f32>>> {
         let cell = (radius * 1.25).clamp(0.2, 0.8);
         let direct_distance = (target - from).magnitude();
         let search_radius_world = (direct_distance + 8.0).clamp(8.0, 120.0);
@@ -1446,10 +1844,13 @@ impl CollisionWorld {
         };
 
         let (path, _) = astar(&start_cell, successors, heuristic, is_goal)?;
-        if path.len() < 2 {
-            return Some(target);
+        let mut points = Vec::with_capacity(path.len() + 2);
+        points.push(from);
+        for cell in path.iter().skip(1) {
+            points.push(cell_center(*cell));
         }
-        Some(cell_center(path[1]))
+        points.push(target);
+        Some(points)
     }
 }
 

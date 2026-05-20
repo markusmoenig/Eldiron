@@ -841,20 +841,8 @@ impl RegionInstance {
     }
 
     fn follow_attack_cooldown_ticks(ctx: &RegionCtx, entity: &Entity) -> i64 {
-        if matches!(
-            ctx.simulation_mode,
-            crate::server::regionctx::SimulationMode::Realtime
-        ) {
-            let attack_time = entity
-                .attributes
-                .get_float_default("avatar_attack_time", 0.35)
-                .max(0.05);
-            ((attack_time * ctx.ticks_per_minute as f32) / 60.0)
-                .ceil()
-                .max(1.0) as i64
-        } else {
-            1
-        }
+        let cooldown = current_attack_cooldown_for_entity(ctx, entity);
+        (cooldown * ctx.ticks_per_minute as f32).ceil().max(1.0) as i64
     }
 
     fn end_follow_attack(ctx: &mut RegionCtx, entity: &mut Entity, reason: &str) {
@@ -948,6 +936,23 @@ impl RegionInstance {
         )
     }
 
+    fn entity_has_player_continuous_motion(entity: &Entity) -> bool {
+        entity.is_player()
+            && matches!(
+                entity.action,
+                EntityAction::Forward
+                    | EntityAction::Backward
+                    | EntityAction::Left
+                    | EntityAction::Right
+                    | EntityAction::StrafeLeft
+                    | EntityAction::StrafeRight
+                    | EntityAction::ForwardLeft
+                    | EntityAction::ForwardRight
+                    | EntityAction::BackwardLeft
+                    | EntityAction::BackwardRight
+            )
+    }
+
     fn simulation_dt_for_frame(&mut self, ctx: &RegionCtx, redraw_dt: f32) -> f32 {
         match ctx.simulation_mode {
             crate::server::regionctx::SimulationMode::Realtime => {
@@ -959,6 +964,14 @@ impl RegionInstance {
                 self.grant_simulation_steps_if_due(ctx);
                 if self.pending_redraw_steps == 0 {
                     if Self::has_active_continuous_motion(ctx) {
+                        self.current_frame_has_turn_step = false;
+                        redraw_dt
+                    } else if ctx
+                        .map
+                        .entities
+                        .iter()
+                        .any(Self::entity_has_player_continuous_motion)
+                    {
                         self.current_frame_has_turn_step = false;
                         redraw_dt
                     } else {
@@ -975,6 +988,14 @@ impl RegionInstance {
                 self.grant_simulation_steps_if_due(ctx);
                 if self.pending_redraw_steps == 0 {
                     if Self::has_active_continuous_motion(ctx) {
+                        self.current_frame_has_turn_step = false;
+                        redraw_dt
+                    } else if ctx
+                        .map
+                        .entities
+                        .iter()
+                        .any(Self::entity_has_player_continuous_motion)
+                    {
                         self.current_frame_has_turn_step = false;
                         redraw_dt
                     } else {
@@ -3515,14 +3536,15 @@ impl RegionInstance {
                                 max_distance,
                             ) => {
                                 with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                                    clear_choice_session(ctx, *from_id, *to_id);
-                                    if !choice_session_is_valid(
+                                    let valid = choice_session_is_valid(
                                         ctx,
                                         *from_id,
                                         *to_id,
                                         *expires_at_tick,
                                         *max_distance,
-                                    ) {
+                                    );
+                                    clear_choice_session(ctx, *from_id, *to_id);
+                                    if !valid {
                                         if let Some(_class_name) = ctx.entity_classes.get(from_id) {
                                             ctx.to_execute_entity.push((
                                                 *from_id,
@@ -3555,14 +3577,15 @@ impl RegionInstance {
                             }
                             Choice::DialogChoice(dialog_choice) => {
                                 with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                                    clear_choice_session(ctx, dialog_choice.from, dialog_choice.to);
-                                    if !choice_session_is_valid(
+                                    let valid = choice_session_is_valid(
                                         ctx,
                                         dialog_choice.from,
                                         dialog_choice.to,
                                         dialog_choice.expires_at_tick,
                                         dialog_choice.max_distance,
-                                    ) {
+                                    );
+                                    clear_choice_session(ctx, dialog_choice.from, dialog_choice.to);
+                                    if !valid {
                                         if ctx.entity_classes.contains_key(&dialog_choice.from) {
                                             ctx.to_execute_entity.push((
                                                 dialog_choice.from,
@@ -3805,6 +3828,7 @@ impl RegionInstance {
                     entity.action,
                     EntityAction::StepTo(_, _, _, _, _) | EntityAction::RotateTo(_)
                 )
+                && !Self::entity_has_player_continuous_motion(entity)
             {
                 continue;
             }
@@ -9122,6 +9146,44 @@ pub(crate) fn progression_stat_value(ctx: &RegionCtx, entity_id: u32, stat: &str
 
 fn item_numeric_attr(item: &Item, attr: &str) -> f32 {
     item.attributes.get_float_default(attr, 0.0)
+}
+
+fn current_attack_weapon_for_entity<'a>(ctx: &RegionCtx, entity: &'a Entity) -> Option<&'a Item> {
+    let configured_slots = configured_weapon_slots(ctx);
+    for slot in &configured_slots {
+        if let Some((_, item)) = entity
+            .equipped
+            .iter()
+            .find(|(equipped_slot, _)| equipped_slot.trim().eq_ignore_ascii_case(slot))
+        {
+            return Some(item);
+        }
+    }
+
+    entity
+        .equipped
+        .iter()
+        .find(|(slot, _)| {
+            matches!(
+                slot.trim().to_ascii_lowercase().as_str(),
+                "main_hand"
+                    | "mainhand"
+                    | "weapon"
+                    | "hand_main"
+                    | "off_hand"
+                    | "offhand"
+                    | "hand_off"
+            )
+        })
+        .map(|(_, item)| item)
+}
+
+fn current_attack_cooldown_for_entity(ctx: &RegionCtx, entity: &Entity) -> f32 {
+    current_attack_weapon_for_entity(ctx, entity)
+        .map(|item| item.attributes.get_float_default("attack_cooldown", 0.0))
+        .filter(|cooldown| *cooldown > 0.0)
+        .unwrap_or_else(|| entity.attributes.get_float_default("attack_cooldown", 1.0))
+        .max(0.0)
 }
 
 fn configured_weapon_slots(ctx: &RegionCtx) -> Vec<String> {

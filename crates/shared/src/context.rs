@@ -693,6 +693,14 @@ pub struct ServerContext {
     pub rect_terrain_id: Option<(i32, i32)>,
     pub rect_blend_preset: VertexBlendPreset,
 
+    /// Active editor collision/path probe overlay.
+    pub collision_probe_start: Option<Vec3<f32>>,
+    pub collision_probe_target: Option<Vec3<f32>>,
+    pub collision_probe_result: Option<rusterix::CollisionProbeResult>,
+    pub collision_probe_results: Vec<rusterix::CollisionProbeResult>,
+    pub collision_probe_points: Vec<Vec3<f32>>,
+    pub collision_probe_dragging: bool,
+
     /// Game input mode
     pub game_input_mode: bool,
 
@@ -866,6 +874,12 @@ impl ServerContext {
             rect_geometry_face_3d: None,
             rect_terrain_id: None,
             rect_blend_preset: VertexBlendPreset::Solid,
+            collision_probe_start: None,
+            collision_probe_target: None,
+            collision_probe_result: None,
+            collision_probe_results: Vec::new(),
+            collision_probe_points: Vec::new(),
+            collision_probe_dragging: false,
 
             game_input_mode: false,
             editor_fly_nav_active: false,

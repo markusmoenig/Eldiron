@@ -56,6 +56,7 @@ pub enum MapToolType {
     Vertex,
     Linedef,
     Sector,
+    CollisionProbe,
     Effects,
     Rect,
     Game,

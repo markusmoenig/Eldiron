@@ -9,12 +9,16 @@
 - Improved hidden 3D Geometry Object handling so hidden objects are still available to the scene and can be revealed later through script.
 - Fixed rotated **Create Pattern** repeats so the pattern fills the selected face in rotated pattern space instead of collapsing into a small central area.
 - Fixed **Create Pattern** guide mode and minimap previews on vertical/transformed faces, including clipped tile guide lines on triangular/sloped face boundaries and shared pattern fitting across coplanar subdivided faces.
+- Fixed 3D face texture offset and rotation controls so arrow-key nudging and the **Edit Texture** action follow each face's UV winding instead of moving mirrored faces in the wrong direction.
+- Reintroduced the **Builder Tool** as an instant click-to-bake workflow that turns Builder Graph box and cylinder primitives into editable 3D Geometry Objects instead of procedural scene-time host data.
 - Reworked **Surface Noise** to blend materials in the 3D shader from stable world-space noise instead of adding render tessellation or UV-dependent distortion.
 
 ### Game
 
+- Added Messages widget options for press-to-continue overflow pauses, explicit script pauses, timed pauses, input blocking during pauses, and mouse-wheel scrollback.
 - Improved mesh collision for direct 3D Geometry Object cutouts so actors can move through wall openings without colliding against stale hidden geometry.
 - Improved mesh floor movement on narrow bridges and stepped geometry by sampling reachable floor support across the actor radius instead of relying only on the center point.
+- Improved mesh `goto` movement on stairs by trying stair-aware direct floor stepping before falling back to navgrid pathing.
 - Improved first-person stair traversal by smoothing the visual camera height while keeping collision and actor position tied to the real floor height.
 - Fixed dynamic entity collision so actors on different vertical levels no longer block each other in XZ when their height ranges do not overlap.
 

@@ -97,7 +97,7 @@ pub fn merge_config_toml(project_config: &str, region_config: &str) -> String {
     };
 
     merge_toml_tables(&mut merged, region);
-    toml::Value::Table(merged).to_string()
+    toml::to_string(&merged).unwrap_or_else(|_| project_config.to_string())
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

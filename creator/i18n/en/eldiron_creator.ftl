@@ -234,7 +234,7 @@ action_remap_tile_desc = Remaps the colors of the tile to the palette.
 
 # Tools
 tool_game = Game Tool (K). Play the game!
-tool_builder = Builder Tool (B). Select reusable prop and assembly assets from the builder picker.
+tool_builder = Builder Tool (B). Select a reusable prop or assembly asset, then click in the 3D scene to bake it into editable geometry.
 tool_palette = Palette Tool (P). Edit palette entries and apply palette colors.
 tool_dungeon = Dungeon Tool (U). Paint conceptual dungeon structures.
 tool_linedef = Linedef / Edge Tool (E). Create 2D line definitions and edit 3D geometry edges.
@@ -243,6 +243,12 @@ tool_rect = Rect Tool (R). Click to draw the current tile. Shift-click to delete
 tool_sector = Sector / Face Tool (F). Select sectors in 2D or faces in 3D.
 tool_vertex = Vertex Tool (V). 'Shift' + Click to create a new vertex.
 tool_entity = Entity Tool (Y). Place, move, select, and delete game entities.
+tool_collision_probe = Collision Probe Tool (C). Click to add waypoints, move to preview the next segment, and press Escape to finish the polyline.
+collision_probe_legend = Collision Probe: green walk, yellow step, magenta goto route, orange contact, red stop, blue support
+collision_probe_arrived = direct/goto route ok
+collision_probe_goto_ok = goto route found
+collision_probe_goto_unstable = goto route unstable on stairs
+collision_probe_blocked = blocked/no floor
 hud_geometry_op_move = MOVE
 hud_geometry_op_size = SIZE
 status_hud_geometry_op_move = Object gizmo operation: move (M).
@@ -255,13 +261,10 @@ status_geometry_edge_selection = Edge selected: F = Fill, X = Split Edge, M = Me
 status_geometry_surface_selection = Surface detail selected: Shift = add, Alt = remove, L = connected guide.
 status_geometry_surface_loop_selection = Closed surface detail selected: Create Face / Cutout available, Shift = add, Alt = remove, L = connected guide.
 builder_picker_title = Builder Picker
-builder_apply_build = Apply Build
 palette_apply_color = Apply Color
 status_palette_apply_color = Apply the current palette entry to the selected target.
 status_builder_new = Create a new builder graph asset.
 status_builder_collections = Builder collections will be added here later.
-status_builder_apply_build = Apply the selected builder graph to the selected hosts.
-status_builder_clear_build = Clear the builder graph from the selected hosts.
 status_builder_select_asset = Select builder asset '{$asset_name}'. Double-click or press Return to open.
 
 # Common
