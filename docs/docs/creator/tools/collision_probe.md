@@ -2,7 +2,6 @@
 title: "Collision Probe Tool"
 sidebar_position: 9
 draft: true
-unlisted: true
 ---
 
 The **Collision Probe Tool** (keyboard shortcut **C**) previews walkability and collision behavior directly in 2D and 3D editor views.
