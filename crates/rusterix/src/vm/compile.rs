@@ -714,7 +714,7 @@ impl Visitor for CompileVisitor {
                     }
                     ctx.emit(NodeOp::Print(args.len() as u8));
                 } else if name == "deal_damage" {
-                    if (1..=3).contains(&args.len()) {
+                    if args.len() <= 3 {
                         for arg in args {
                             _ = arg.accept(self, ctx)?;
                         }
@@ -725,7 +725,7 @@ impl Visitor for CompileVisitor {
                     } else {
                         return Err(RuntimeError::new(
                             format!(
-                                "Wrong amount of arguments for '{}', expected '1..3' got '{}'",
+                                "Wrong amount of arguments for '{}', expected '0..3' got '{}'",
                                 name,
                                 args.len(),
                             ),

@@ -341,7 +341,8 @@ impl ClientTrait for Client {
             let status = xhr.status().unwrap_or(0);
             if (200..300).contains(&status) {
                 if let Ok(Some(text)) = xhr.response_text() {
-                    if let Ok(project) = serde_json::from_str::<Project>(&text) {
+                    if let Ok(mut project) = serde_json::from_str::<Project>(&text) {
+                        project.migrate_default_ruleset();
                         return project;
                     }
                 }
@@ -353,7 +354,8 @@ impl ClientTrait for Client {
         #[cfg(not(target_arch = "wasm32"))]
         {
             if let Ok(contents) = std::fs::read_to_string(path) {
-                if let Ok(project) = serde_json::from_str::<Project>(&contents) {
+                if let Ok(mut project) = serde_json::from_str::<Project>(&contents) {
+                    project.migrate_default_ruleset();
                     return project;
                 }
             }

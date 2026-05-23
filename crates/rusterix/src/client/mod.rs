@@ -1775,28 +1775,23 @@ impl Client {
         // Drag preview icon for inventory/equipped drag & drop.
         if self.dragging_started && self.dragging_item_id.is_some() {
             let dragged_item = self.find_dragged_item(map);
-            if let Some(item) = dragged_item
-                && let Some(Value::Source(source)) = item.attributes.get("source")
-                && let Some(tile) = source.tile_from_tile_list(assets)
-            {
-                let index = self.animation_frame % tile.textures.len();
-                let texture = &tile.textures[index];
+            if let Some(item) = dragged_item {
                 let preview_size = 28usize;
                 let x = self.cursor_pos.x as usize;
                 let y = self.cursor_pos.y as usize;
                 let half = preview_size / 2;
-                let stride = self.target.stride();
-                self.draw2d.blend_scale_chunk(
-                    self.target.pixels_mut(),
-                    &(
-                        x.saturating_sub(half),
-                        y.saturating_sub(half),
-                        preview_size,
-                        preview_size,
-                    ),
-                    stride,
-                    &texture.data,
-                    &(texture.width, texture.height),
+                Widget::draw_item_icon(
+                    &mut self.target,
+                    Rect {
+                        x: x.saturating_sub(half) as f32,
+                        y: y.saturating_sub(half) as f32,
+                        width: preview_size as f32,
+                        height: preview_size as f32,
+                    },
+                    assets,
+                    item,
+                    &self.draw2d,
+                    self.animation_frame,
                 );
             }
         }

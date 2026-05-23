@@ -33,6 +33,189 @@ fn dynamic_collision_height(container: &ValueContainer) -> f32 {
         .max(0.1)
 }
 
+fn ruleset_value_to_attr(value: &toml::Value) -> Option<Value> {
+    if let Some(value) = value.as_bool() {
+        return Some(Value::Bool(value));
+    }
+    if let Some(value) = value.as_integer() {
+        return Some(Value::Int(value as i32));
+    }
+    if let Some(value) = value.as_float() {
+        return Some(Value::Float(value as f32));
+    }
+    if let Some(value) = value.as_str() {
+        return Some(Value::Str(value.to_string()));
+    }
+    if let Some(values) = value.as_array() {
+        let strings = values
+            .iter()
+            .map(|value| value.as_str().map(str::to_string))
+            .collect::<Option<Vec<_>>>()?;
+        return Some(Value::StrArray(strings));
+    }
+    None
+}
+
+fn apply_ruleset_attribute_table(
+    entity: &mut Entity,
+    explicit_keys: &FxHashSet<String>,
+    table: Option<&toml::value::Table>,
+) {
+    let Some(table) = table else {
+        return;
+    };
+    for (key, value) in table {
+        if explicit_keys.contains(key) {
+            continue;
+        }
+        if let Some(value) = ruleset_value_to_attr(value) {
+            entity.set_attribute(key, value);
+        }
+    }
+}
+
+fn ruleset_attributes_table<'a>(
+    root: &'a toml::value::Table,
+    section: &str,
+    name: &str,
+) -> Option<&'a toml::value::Table> {
+    root.get(section)
+        .and_then(toml::Value::as_table)
+        .and_then(|sections| sections.get(name))
+        .and_then(toml::Value::as_table)
+        .and_then(|entry| entry.get("attributes"))
+        .and_then(toml::Value::as_table)
+}
+
+fn ruleset_identity_default(root: &toml::value::Table, key: &str) -> Option<String> {
+    root.get("identity")
+        .and_then(toml::Value::as_table)
+        .and_then(|identity| identity.get("defaults"))
+        .and_then(toml::Value::as_table)
+        .and_then(|defaults| defaults.get(key))
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn ruleset_class_table<'a>(
+    root: &'a toml::value::Table,
+    class: &str,
+) -> Option<&'a toml::value::Table> {
+    root.get("classes")
+        .and_then(toml::Value::as_table)
+        .and_then(|classes| classes.get(class.trim()))
+        .and_then(toml::Value::as_table)
+}
+
+fn ruleset_loadout_values(table: &toml::value::Table, keys: &[&str]) -> Vec<String> {
+    let mut out = Vec::new();
+    for key in keys {
+        let Some(values) = table.get(*key).and_then(toml::Value::as_array) else {
+            continue;
+        };
+        for value in values.iter().filter_map(toml::Value::as_str) {
+            let value = value.trim();
+            if !value.is_empty() && !out.iter().any(|existing| existing == value) {
+                out.push(value.to_string());
+            }
+        }
+    }
+    out
+}
+
+fn explicit_key_exists(explicit_keys: &FxHashSet<String>, keys: &[&str]) -> bool {
+    keys.iter().any(|key| explicit_keys.contains(*key))
+}
+
+fn apply_ruleset_class_loadout_defaults(
+    rules: &toml::Table,
+    entity: &mut Entity,
+    explicit_keys: &FxHashSet<String>,
+) {
+    let Some(class) = entity.get_attr_string("class") else {
+        return;
+    };
+    let Some(loadout) = ruleset_class_table(rules, class.trim())
+        .and_then(|class| class.get("starting_loadout"))
+        .and_then(toml::Value::as_table)
+    else {
+        return;
+    };
+
+    if !explicit_key_exists(
+        explicit_keys,
+        &[
+            "start_equipped_items",
+            "startup_equipped_items",
+            "add_equip_items",
+        ],
+    ) {
+        let equipped =
+            ruleset_loadout_values(loadout, &["equipment", "weapons", "armor", "clothing"]);
+        if !equipped.is_empty() {
+            entity.set_attribute("start_equipped_items", Value::StrArray(equipped));
+        }
+    }
+
+    if !explicit_key_exists(
+        explicit_keys,
+        &["start_items", "startup_items", "add_items"],
+    ) {
+        let inventory = ruleset_loadout_values(loadout, &["inventory", "items"]);
+        if !inventory.is_empty() {
+            entity.set_attribute("start_items", Value::StrArray(inventory));
+        }
+    }
+}
+
+pub(crate) fn apply_ruleset_character_defaults(rules: &toml::Table, entity: &mut Entity) {
+    let explicit_keys = entity.attributes.keys().cloned().collect::<FxHashSet<_>>();
+
+    apply_ruleset_attribute_table(
+        entity,
+        &explicit_keys,
+        rules
+            .get("attributes")
+            .and_then(toml::Value::as_table)
+            .and_then(|attributes| attributes.get("defaults"))
+            .and_then(toml::Value::as_table),
+    );
+
+    if !explicit_keys.contains("race")
+        && entity.get_attr_string("race").is_none()
+        && let Some(race) = ruleset_identity_default(rules, "race")
+    {
+        entity.set_attribute("race", Value::Str(race));
+    }
+
+    if !explicit_keys.contains("class")
+        && entity.get_attr_string("class").is_none()
+        && let Some(class) = ruleset_identity_default(rules, "class")
+    {
+        entity.set_attribute("class", Value::Str(class));
+    }
+
+    if let Some(race) = entity.get_attr_string("race") {
+        apply_ruleset_attribute_table(
+            entity,
+            &explicit_keys,
+            ruleset_attributes_table(rules, "races", race.trim()),
+        );
+    }
+
+    if let Some(class) = entity.get_attr_string("class") {
+        apply_ruleset_attribute_table(
+            entity,
+            &explicit_keys,
+            ruleset_attributes_table(rules, "classes", class.trim()),
+        );
+    }
+
+    apply_ruleset_class_loadout_defaults(rules, entity, &explicit_keys);
+}
+
 fn vertical_collision_ranges_overlap(a_y: f32, a_height: f32, b_y: f32, b_height: f32) -> bool {
     const VERTICAL_COLLISION_TOLERANCE: f32 = 0.25;
     let a_min = a_y;
@@ -2139,7 +2322,7 @@ impl RegionInstance {
 
         let target_fps = get_config_i32_default(&ctx, "game", "target_fps", 30).max(1) as f32;
         ctx.delta_time = 1.0 / target_fps;
-        ctx.health_attr = get_config_string_default(&ctx, "game", "health", "HP").to_string();
+        ctx.health_attr = ruleset_health_attr(&ctx);
         ctx.level_attr = get_config_string_default(&ctx, "game", "level", "LEVEL").to_string();
         ctx.experience_attr =
             get_config_string_default(&ctx, "game", "experience", "EXP").to_string();
@@ -2170,12 +2353,14 @@ impl RegionInstance {
         for entity in entities.iter() {
             if let Some(class_name) = entity.get_attr_string("class_name") {
                 if let Some(data) = ctx.entity_class_data.get(&class_name) {
+                    let rules = ctx.rules.clone();
                     let ground_y =
                         ctx_spawn_height(&ctx, entity.get_pos_xz(), Some(entity.position.y));
                     let mut spawn_entity_id: Option<u32> = None;
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
                             apply_entity_data(e, data);
+                            apply_ruleset_character_defaults(&rules, e);
                             e.position.y = ground_y;
 
                             // Fill up the inventory slots
@@ -2864,9 +3049,13 @@ impl RegionInstance {
                                 let rules = intent_rule_config(ctx, entity_id, &intent_lower);
 
                                 if !intent.is_empty()
-                                    && let Some(max_distance) =
-                                        entity_intent_distance_limit(ctx, entity_id, &intent_lower)
-                                    && distance > max_distance
+                                    && distance
+                                        > intent_distance_limit(
+                                            ctx,
+                                            entity_id,
+                                            &intent_lower,
+                                            &rules,
+                                        )
                                 {
                                     send_message(
                                         ctx,
@@ -2883,10 +3072,9 @@ impl RegionInstance {
                                 }
 
                                 if !intent.is_empty()
-                                    && let Some(allowed) = rules.allowed.as_deref()
-                                    && !evaluate_intent_allowed(
+                                    && !intent_allowed(
                                         ctx,
-                                        allowed,
+                                        &rules,
                                         distance,
                                         subject,
                                         target_entity,
@@ -3058,9 +3246,13 @@ impl RegionInstance {
                                 let rules = intent_rule_config(ctx, entity_id, &intent_lower);
 
                                 if !intent.is_empty()
-                                    && let Some(max_distance) =
-                                        entity_intent_distance_limit(ctx, entity_id, &intent_lower)
-                                    && distance > max_distance
+                                    && distance
+                                        > intent_distance_limit(
+                                            ctx,
+                                            entity_id,
+                                            &intent_lower,
+                                            &rules,
+                                        )
                                 {
                                     send_message(
                                         ctx,
@@ -3077,10 +3269,9 @@ impl RegionInstance {
                                 }
 
                                 if !intent.is_empty()
-                                    && let Some(allowed) = rules.allowed.as_deref()
-                                    && !evaluate_intent_allowed(
+                                    && !intent_allowed(
                                         ctx,
-                                        allowed,
+                                        &rules,
                                         distance,
                                         subject,
                                         None,
@@ -3686,7 +3877,9 @@ impl RegionInstance {
                     });
                 }
                 TeleportEntity(entity_id, dest_sector_name, dest_region_name) => {
-                    if dest_region_name.is_empty() {
+                    if dest_region_name.trim().is_empty()
+                        || dest_region_name.trim().eq_ignore_ascii_case(&self.name)
+                    {
                         with_regionctx(self.id, |ctx: &mut RegionCtx| {
                             let center = ctx.map.named_area_center(&dest_sector_name);
 
@@ -6103,12 +6296,14 @@ impl RegionInstance {
 
                 // Setting the data for the entity
                 if let Some(data) = ctx.entity_class_data.get(&class_name) {
+                    let rules = ctx.rules.clone();
                     let ground_y =
                         ctx_spawn_height(&ctx, entity.get_pos_xz(), Some(entity.position.y));
                     let mut spawn_entity_id: Option<u32> = None;
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
                             apply_entity_data(e, data);
+                            apply_ruleset_character_defaults(&rules, e);
                             e.position.y = ground_y;
 
                             // Fill up the inventory slots
@@ -6311,10 +6506,9 @@ impl RegionInstance {
                 .and_then(|id| ctx.map.items.iter().find(|candidate| candidate.id == id));
 
             if !intent.trim().is_empty()
-                && let Some(allowed) = rules.allowed.as_deref()
-                && !evaluate_intent_allowed(
+                && !intent_allowed(
                     ctx,
-                    allowed,
+                    &rules,
                     value.y,
                     Some(entity),
                     target_entity,
@@ -6674,6 +6868,53 @@ fn get_config_bool_default(ctx: &RegionCtx, table: &str, key: &str, default: boo
     value
 }
 
+fn ruleset_health_attr(ctx: &RegionCtx) -> String {
+    if let Some(value) = ctx
+        .rules
+        .get("attributes")
+        .and_then(toml::Value::as_table)
+        .and_then(|attributes| attributes.get("health"))
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return value.to_string();
+    }
+
+    let resources = ctx
+        .rules
+        .get("attributes")
+        .and_then(toml::Value::as_table)
+        .and_then(|attributes| attributes.get("resources"))
+        .and_then(toml::Value::as_array)
+        .map(|resources| {
+            resources
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    for resource in &resources {
+        if resource.starts_with("MAX_") {
+            continue;
+        }
+        let max_resource = format!("MAX_{}", resource);
+        if resources.iter().any(|candidate| candidate == &max_resource) {
+            return resource.clone();
+        }
+    }
+
+    if resources.iter().any(|resource| resource == "HP") {
+        return "HP".to_string();
+    }
+
+    "HP".to_string()
+}
+
 /// Returns the entity at the given position (if any)
 fn get_entity_at(ctx: &RegionCtx, position: Vec2<f32>, but_not: u32) -> Option<u32> {
     let mut entity = None;
@@ -6747,6 +6988,35 @@ fn flush_pending_entity_transfers(ctx: &mut RegionCtx) {
 
     let pending = std::mem::take(&mut ctx.pending_entity_transfers);
     for (entity_id, dest_region_name, dest_sector_name) in pending {
+        if dest_region_name.trim().is_empty()
+            || dest_region_name.trim().eq_ignore_ascii_case(&ctx.map.name)
+        {
+            let radius = ctx
+                .map
+                .entities
+                .iter()
+                .find(|entity| entity.id == entity_id)
+                .map(|entity| entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01)
+                .unwrap_or(0.49);
+            if let Some(center) = ctx.resolve_sector_spawn_position(&dest_sector_name, radius)
+                && let Some(preferred_y) = ctx
+                    .map
+                    .entities
+                    .iter()
+                    .find(|e| e.id == entity_id)
+                    .map(|entity| entity.position.y)
+            {
+                let spawn_y = ctx_spawn_height(ctx, center, Some(preferred_y));
+                if let Some(entity) = ctx.map.entities.iter_mut().find(|e| e.id == entity_id) {
+                    entity.set_pos_xz(center);
+                    entity.position.y = spawn_y;
+                    entity.mark_all_dirty();
+                    ctx.check_player_for_section_change_id(entity_id);
+                }
+            }
+            continue;
+        }
+
         if let Some(pos) = ctx.map.entities.iter().position(|e| e.id == entity_id) {
             let removed = ctx.map.entities.remove(pos);
             ctx.entity_classes.remove(&removed.id);
@@ -7805,6 +8075,18 @@ fn combat_rule_exprs<'a>(
     exprs
 }
 
+fn combat_kind_table_from_root<'a>(
+    root: &'a toml::value::Table,
+    kind: &str,
+) -> Option<&'a toml::value::Table> {
+    root.get("combat")
+        .and_then(toml::Value::as_table)
+        .and_then(|combat| combat.get("kinds"))
+        .and_then(toml::Value::as_table)
+        .and_then(|kinds| kinds.get(kind))
+        .and_then(toml::Value::as_table)
+}
+
 fn active_locale(ctx: &RegionCtx) -> &str {
     let configured = ctx
         .config
@@ -7905,7 +8187,7 @@ fn parse_intent_distance_limit(data: &str, intent: &str) -> Option<f32> {
 fn entity_intent_distance_limit(ctx: &RegionCtx, entity_id: u32, intent: &str) -> Option<f32> {
     let class_name = ctx.entity_classes.get(&entity_id)?;
     let data = ctx.entity_class_data.get(class_name)?;
-    Some(parse_intent_distance_limit(data, intent).unwrap_or(2.0))
+    parse_intent_distance_limit(data, intent)
 }
 
 fn choice_session_is_valid(
@@ -8152,10 +8434,20 @@ fn queue_intent_cooldown(
 }
 
 #[derive(Default)]
+struct IntentDistanceConfig {
+    fixed: Option<f32>,
+    source: Option<String>,
+    fallback: Option<f32>,
+}
+
+#[derive(Default)]
 struct IntentRuleConfig {
     allowed: Option<String>,
+    allowed_dispositions: Vec<String>,
+    allowed_target_kinds: Vec<String>,
     deny_message: Option<String>,
     cooldown_minutes: Option<f32>,
+    distance: IntentDistanceConfig,
 }
 
 fn merge_intent_rule_config(config: &mut IntentRuleConfig, table: &toml::value::Table) {
@@ -8163,6 +8455,28 @@ fn merge_intent_rule_config(config: &mut IntentRuleConfig, table: &toml::value::
         && !value.trim().is_empty()
     {
         config.allowed = Some(value.trim().to_string());
+    }
+    if let Some(values) = table
+        .get("allowed_dispositions")
+        .and_then(toml::Value::as_array)
+    {
+        config.allowed_dispositions = values
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .collect();
+    }
+    if let Some(values) = table
+        .get("allowed_target_kinds")
+        .and_then(toml::Value::as_array)
+    {
+        config.allowed_target_kinds = values
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .collect();
     }
     if let Some(value) = table.get("deny_message").and_then(toml::Value::as_str)
         && !value.trim().is_empty()
@@ -8175,6 +8489,27 @@ fn merge_intent_rule_config(config: &mut IntentRuleConfig, table: &toml::value::
             .or_else(|| value.as_integer().map(|v| v as f64))
     }) {
         config.cooldown_minutes = Some(value as f32);
+    }
+    if let Some(value) = table.get("distance").and_then(|value| {
+        value
+            .as_float()
+            .or_else(|| value.as_integer().map(|v| v as f64))
+    }) {
+        config.distance.fixed = Some(value as f32);
+    }
+    if let Some(distance) = table.get("distance").and_then(toml::Value::as_table) {
+        if let Some(source) = distance.get("source").and_then(toml::Value::as_str)
+            && !source.trim().is_empty()
+        {
+            config.distance.source = Some(source.trim().to_ascii_lowercase());
+        }
+        if let Some(value) = distance.get("fallback").and_then(|value| {
+            value
+                .as_float()
+                .or_else(|| value.as_integer().map(|v| v as f64))
+        }) {
+            config.distance.fallback = Some(value as f32);
+        }
     }
 }
 
@@ -8215,6 +8550,218 @@ fn intent_rule_config(ctx: &RegionCtx, entity_id: u32, intent: &str) -> IntentRu
     }
 
     config
+}
+
+fn intent_distance_limit(
+    ctx: &RegionCtx,
+    entity_id: u32,
+    intent: &str,
+    rules: &IntentRuleConfig,
+) -> f32 {
+    if let Some(local) = entity_intent_distance_limit(ctx, entity_id, intent) {
+        return local;
+    }
+    if let Some(fixed) = rules.distance.fixed {
+        return fixed.max(0.0);
+    }
+
+    let fallback = rules.distance.fallback.unwrap_or(2.0).max(0.0);
+    if rules.distance.source.as_deref() == Some("weapon_range")
+        && let Some(entity) = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == entity_id)
+    {
+        return current_attack_range_for_entity(ctx, entity, Some(fallback)).unwrap_or(fallback);
+    }
+
+    fallback
+}
+
+fn entity_race_for_rules(ctx: &RegionCtx, entity: &Entity) -> String {
+    entity
+        .get_attr_string("race")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            ctx.rules
+                .get("identity")
+                .and_then(toml::Value::as_table)
+                .and_then(|identity| identity.get("defaults"))
+                .and_then(toml::Value::as_table)
+                .and_then(|defaults| defaults.get("race"))
+                .and_then(toml::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "Human".to_string())
+}
+
+fn base_race_disposition(ctx: &RegionCtx, actor_race: &str, target_race: &str) -> String {
+    ctx.rules
+        .get("race_relations")
+        .and_then(toml::Value::as_table)
+        .and_then(|relations| relations.get(actor_race.trim()))
+        .and_then(toml::Value::as_table)
+        .and_then(|relations| relations.get(target_race.trim()))
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_else(|| {
+            if actor_race.eq_ignore_ascii_case(target_race) {
+                "friendly".to_string()
+            } else {
+                "neutral".to_string()
+            }
+        })
+}
+
+fn reputation_for_target_race(ctx: &RegionCtx, actor: &Entity, target_race: &str) -> f32 {
+    let key = format!("reputation_{}", target_race.trim());
+    if actor.attributes.get(&key).is_some() {
+        return actor.attributes.get_float_default(&key, 0.0);
+    }
+    if actor.attributes.get("reputation").is_some() {
+        return actor.attributes.get_float_default("reputation", 0.0);
+    }
+    ctx.rules
+        .get("reputation")
+        .and_then(toml::Value::as_table)
+        .and_then(|reputation| reputation.get("default"))
+        .and_then(|value| {
+            value
+                .as_float()
+                .or_else(|| value.as_integer().map(|v| v as f64))
+        })
+        .map(|value| value as f32)
+        .unwrap_or(0.0)
+}
+
+fn reputation_threshold(ctx: &RegionCtx, key: &str, default: f32) -> f32 {
+    ctx.rules
+        .get("reputation")
+        .and_then(toml::Value::as_table)
+        .and_then(|reputation| reputation.get("thresholds"))
+        .and_then(toml::Value::as_table)
+        .and_then(|thresholds| thresholds.get(key))
+        .and_then(|value| {
+            value
+                .as_float()
+                .or_else(|| value.as_integer().map(|v| v as f64))
+        })
+        .map(|value| value as f32)
+        .unwrap_or(default)
+}
+
+fn entity_disposition(ctx: &RegionCtx, actor: &Entity, target: &Entity) -> String {
+    let actor_race = entity_race_for_rules(ctx, actor);
+    let target_race = entity_race_for_rules(ctx, target);
+    let base = base_race_disposition(ctx, &actor_race, &target_race);
+    let reputation = reputation_for_target_race(ctx, actor, &target_race);
+
+    if reputation <= reputation_threshold(ctx, "hostile", -50.0) {
+        "hostile".to_string()
+    } else if reputation >= reputation_threshold(ctx, "friendly", 50.0) {
+        "friendly".to_string()
+    } else {
+        base
+    }
+}
+
+pub(crate) fn entity_disposition_by_id(
+    ctx: &RegionCtx,
+    actor_id: u32,
+    target_id: u32,
+) -> Option<String> {
+    let actor = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == actor_id)?;
+    let target = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == target_id)?;
+    Some(entity_disposition(ctx, actor, target))
+}
+
+pub(crate) fn entity_is_hostile_by_id(ctx: &RegionCtx, actor_id: u32, target_id: u32) -> bool {
+    entity_disposition_by_id(ctx, actor_id, target_id).as_deref() == Some("hostile")
+}
+
+fn structured_intent_allowed(
+    ctx: &RegionCtx,
+    rules: &IntentRuleConfig,
+    subject: Option<&Entity>,
+    target_entity: Option<&Entity>,
+    target_item: Option<&Item>,
+) -> Option<bool> {
+    let has_target_kind_rule = !rules.allowed_target_kinds.is_empty();
+    let has_disposition_rule = !rules.allowed_dispositions.is_empty();
+    if !has_target_kind_rule && !has_disposition_rule {
+        return None;
+    }
+
+    if has_target_kind_rule {
+        let target_kind = if target_entity.is_some() {
+            "entity"
+        } else if target_item.is_some() {
+            "item"
+        } else {
+            "none"
+        };
+        if !rules
+            .allowed_target_kinds
+            .iter()
+            .any(|kind| kind == target_kind)
+        {
+            return Some(false);
+        }
+    }
+
+    if has_disposition_rule {
+        let Some(actor) = subject else {
+            return Some(false);
+        };
+        let Some(target) = target_entity else {
+            return Some(false);
+        };
+        let disposition = entity_disposition(ctx, actor, target);
+        if !rules
+            .allowed_dispositions
+            .iter()
+            .any(|allowed| allowed == &disposition)
+        {
+            return Some(false);
+        }
+    }
+
+    Some(true)
+}
+
+fn intent_allowed(
+    ctx: &RegionCtx,
+    rules: &IntentRuleConfig,
+    distance: f32,
+    subject: Option<&Entity>,
+    target_entity: Option<&Entity>,
+    target_item: Option<&Item>,
+) -> bool {
+    if let Some(allowed) =
+        structured_intent_allowed(ctx, rules, subject, target_entity, target_item)
+    {
+        return allowed;
+    }
+
+    if let Some(expr) = rules.allowed.as_deref() {
+        return evaluate_intent_allowed(ctx, expr, distance, subject, target_entity, target_item);
+    }
+
+    true
 }
 
 fn localized_template(ctx: &RegionCtx, key: &str) -> Option<String> {
@@ -8566,6 +9113,33 @@ fn item_by_id<'a>(ctx: &'a RegionCtx, item_id: u32) -> Option<&'a Item> {
     None
 }
 
+fn progression_kill_xp_table_from_root(
+    root: &toml::value::Table,
+    attacker: Option<&Entity>,
+    defender: Option<&Entity>,
+) -> Option<f32> {
+    let kill = root
+        .get("progression")
+        .and_then(toml::Value::as_table)
+        .and_then(|progression| progression.get("xp"))
+        .and_then(toml::Value::as_table)
+        .and_then(|xp| xp.get("kill"))
+        .and_then(toml::Value::as_table)?;
+    let attacker_level = attacker
+        .map(|entity| entity.attributes.get_float_default("LEVEL", 1.0))
+        .unwrap_or(1.0)
+        .max(1.0);
+    let defender_level = defender
+        .map(|entity| entity.attributes.get_float_default("LEVEL", 1.0))
+        .unwrap_or(1.0)
+        .max(1.0);
+    Some(
+        rule_number(kill, "base", 0.0)
+            + rule_number(kill, "per_attacker_level", 0.0) * attacker_level
+            + rule_number(kill, "per_defender_level", 0.0) * defender_level,
+    )
+}
+
 fn progression_kill_xp(ctx: &RegionCtx, from_id: u32, target_id: u32) -> i32 {
     let attacker = ctx.map.entities.iter().find(|entity| entity.id == from_id);
     let defender = ctx
@@ -8573,6 +9147,26 @@ fn progression_kill_xp(ctx: &RegionCtx, from_id: u32, target_id: u32) -> i32 {
         .entities
         .iter()
         .find(|entity| entity.id == target_id);
+
+    let mut structured_xp = Vec::new();
+    if let Some(xp) = progression_kill_xp_table_from_root(&ctx.rules, attacker, defender) {
+        structured_xp.push(xp);
+    }
+    if let Some(attacker_entity) = attacker
+        && let Some(root) = race_rule_root(ctx, attacker_entity)
+        && let Some(xp) = progression_kill_xp_table_from_root(root, attacker, defender)
+    {
+        structured_xp.push(xp);
+    }
+    if let Some(attacker_entity) = attacker
+        && let Some(root) = class_rule_root(ctx, attacker_entity)
+        && let Some(xp) = progression_kill_xp_table_from_root(root, attacker, defender)
+    {
+        structured_xp.push(xp);
+    }
+    if !structured_xp.is_empty() {
+        return structured_xp.into_iter().sum::<f32>().round().max(0.0) as i32;
+    }
 
     let mut exprs = Vec::new();
     if let Some(expr) = ctx
@@ -8995,6 +9589,173 @@ fn resolve_combat_var(
     0.0
 }
 
+fn structured_attribute_bonus(entity: Option<&Entity>, table: &toml::value::Table) -> f32 {
+    let mut bonus = 0.0;
+    if let Some(attr) = rule_string(table, "bonus_attribute") {
+        let every = rule_number(table, "bonus_every", 1.0).max(1.0);
+        bonus += entity
+            .map(|entity| (entity.attributes.get_float_default(attr, 0.0) / every).floor())
+            .unwrap_or(0.0);
+    }
+    if let Some(attrs) = table
+        .get("bonus_attributes")
+        .and_then(toml::Value::as_array)
+    {
+        let every = rule_number(table, "bonus_every", 1.0).max(1.0);
+        for attr in attrs.iter().filter_map(toml::Value::as_str) {
+            bonus += entity
+                .map(|entity| (entity.attributes.get_float_default(attr, 0.0) / every).floor())
+                .unwrap_or(0.0);
+        }
+    }
+    bonus
+}
+
+fn parse_ruleset_dice(input: &str) -> Option<(u32, u32)> {
+    let value = input.trim().to_ascii_lowercase();
+    let (count, sides) = value.split_once('d')?;
+    let count = if count.trim().is_empty() {
+        1
+    } else {
+        count.trim().parse::<u32>().ok()?
+    };
+    let sides = sides.trim().parse::<u32>().ok()?;
+    (count > 0 && sides > 0).then_some((count, sides))
+}
+
+fn roll_ruleset_dice(input: &str) -> Option<f32> {
+    let (count, sides) = parse_ruleset_dice(input)?;
+    let mut rng = rand::rng();
+    let mut total = 0u32;
+    for _ in 0..count {
+        total += rng.random_range(1..=sides);
+    }
+    Some(total as f32)
+}
+
+fn roll_damage_table(entity: Option<&Entity>, table: &toml::value::Table) -> Option<f32> {
+    let roll = rule_string(table, "roll")?;
+    let mut value = roll_ruleset_dice(roll)?;
+    value += rule_number(table, "bonus", 0.0);
+    value += structured_attribute_bonus(entity, table);
+    Some(value.max(0.0))
+}
+
+fn apply_structured_combat_table(
+    ctx: &RegionCtx,
+    amount: f32,
+    key: &str,
+    attacker: Option<&Entity>,
+    defender: Option<&Entity>,
+    source_item: Option<&Item>,
+    kind_table: &toml::value::Table,
+) -> Option<f32> {
+    if key == "outgoing_damage" {
+        let damage = kind_table.get("damage").and_then(toml::Value::as_table)?;
+        let mut value = amount + rule_number(damage, "bonus", 0.0);
+        if let Some(attr) = rule_string(damage, "source_bonus_attribute") {
+            value += source_item.map_or(0.0, |item| item.attributes.get_float_default(attr, 0.0));
+        }
+        if let Some(attr) = rule_string(damage, "attacker_bonus_attribute") {
+            value += attacker.map_or(0.0, |entity| entity.attributes.get_float_default(attr, 0.0));
+        }
+        value += structured_attribute_bonus(attacker, damage);
+        return Some(value.max(0.0));
+    }
+
+    if key == "incoming_damage" {
+        let reduction = kind_table
+            .get("reduction")
+            .and_then(toml::Value::as_table)?;
+        let mut value = amount - rule_number(reduction, "bonus", 0.0);
+        if let Some(attr) = rule_string(reduction, "attribute") {
+            value -= defender.map_or(0.0, |entity| entity.attributes.get_float_default(attr, 0.0));
+        }
+        if let Some(attr) = rule_string(reduction, "equipped_armor_attribute") {
+            value -= defender.map_or(0.0, |entity| armor_equipped_attr(ctx, entity, attr));
+        }
+        value -= structured_attribute_bonus(defender, reduction);
+        return Some(value.max(0.0));
+    }
+
+    None
+}
+
+fn evaluate_structured_damage_rule(
+    ctx: &RegionCtx,
+    target_id: u32,
+    from_id: u32,
+    amount: i32,
+    kind: &str,
+    source_item_id: u32,
+    key: &str,
+) -> Option<i32> {
+    let attacker = ctx.map.entities.iter().find(|entity| entity.id == from_id);
+    let defender = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == target_id);
+    let source_item = attacker.and_then(|entity| {
+        if source_item_id > 0 {
+            entity.get_item(source_item_id)
+        } else {
+            None
+        }
+    });
+    let mut current_value = amount as f32;
+    let mut applied = false;
+
+    if let Some(table) = combat_kind_table_from_root(&ctx.rules, kind)
+        && let Some(value) = apply_structured_combat_table(
+            ctx,
+            current_value,
+            key,
+            attacker,
+            defender,
+            source_item,
+            table,
+        )
+    {
+        current_value = value;
+        applied = true;
+    }
+    if let Some(attacker_entity) = attacker
+        && let Some(root) = race_rule_root(ctx, attacker_entity)
+        && let Some(table) = combat_kind_table_from_root(root, kind)
+        && let Some(value) = apply_structured_combat_table(
+            ctx,
+            current_value,
+            key,
+            attacker,
+            defender,
+            source_item,
+            table,
+        )
+    {
+        current_value = value;
+        applied = true;
+    }
+    if let Some(attacker_entity) = attacker
+        && let Some(root) = class_rule_root(ctx, attacker_entity)
+        && let Some(table) = combat_kind_table_from_root(root, kind)
+        && let Some(value) = apply_structured_combat_table(
+            ctx,
+            current_value,
+            key,
+            attacker,
+            defender,
+            source_item,
+            table,
+        )
+    {
+        current_value = value;
+        applied = true;
+    }
+
+    applied.then_some(current_value.round().max(0.0) as i32)
+}
+
 fn progression_stat_table<'a>(ctx: &'a RegionCtx, stat: &str) -> Option<&'a toml::value::Table> {
     ctx.rules
         .get("progression")
@@ -9084,12 +9845,52 @@ fn progression_number(value: Option<&toml::Value>, default: f32) -> f32 {
     }
 }
 
+fn rule_number(table: &toml::value::Table, key: &str, default: f32) -> f32 {
+    progression_number(table.get(key), default)
+}
+
+fn rule_string<'a>(table: &'a toml::value::Table, key: &str) -> Option<&'a str> {
+    table
+        .get(key)
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn progression_xp_table_value_from_root(root: &toml::value::Table, level: u32) -> Option<f32> {
+    let xp_table = root
+        .get("progression")
+        .and_then(toml::Value::as_table)
+        .and_then(|progression| progression.get("xp_table"))
+        .and_then(toml::Value::as_table)?;
+    let level_key = format!("level_{}", level);
+    let value = xp_table
+        .get(&level_key)
+        .or_else(|| xp_table.get(&level.to_string()))?;
+    match value {
+        toml::Value::Integer(value) => Some(*value as f32),
+        toml::Value::Float(value) => Some(*value as f32),
+        _ => None,
+    }
+}
+
 pub(crate) fn progression_xp_for_level(ctx: &RegionCtx, entity_id: u32, level: u32) -> Option<f32> {
     let entity = ctx
         .map
         .entities
         .iter()
         .find(|entity| entity.id == entity_id)?;
+    if let Some(value) = class_rule_root(ctx, entity)
+        .and_then(|root| progression_xp_table_value_from_root(root, level))
+        .or_else(|| {
+            race_rule_root(ctx, entity)
+                .and_then(|root| progression_xp_table_value_from_root(root, level))
+        })
+        .or_else(|| progression_xp_table_value_from_root(&ctx.rules, level))
+    {
+        return Some(value.max(0.0));
+    }
+
     let tables = progression_stat_tables(ctx, entity, "level");
     let expr = tables
         .iter()
@@ -9178,12 +9979,61 @@ fn current_attack_weapon_for_entity<'a>(ctx: &RegionCtx, entity: &'a Entity) -> 
         .map(|(_, item)| item)
 }
 
-fn current_attack_cooldown_for_entity(ctx: &RegionCtx, entity: &Entity) -> f32 {
+pub(crate) fn current_attack_cooldown_for_entity(ctx: &RegionCtx, entity: &Entity) -> f32 {
     current_attack_weapon_for_entity(ctx, entity)
         .map(|item| item.attributes.get_float_default("attack_cooldown", 0.0))
         .filter(|cooldown| *cooldown > 0.0)
-        .unwrap_or_else(|| entity.attributes.get_float_default("attack_cooldown", 1.0))
+        .unwrap_or_else(|| {
+            ctx.rules
+                .get("combat")
+                .and_then(toml::Value::as_table)
+                .and_then(|combat| combat.get("default_attack_cooldown"))
+                .and_then(|value| {
+                    value
+                        .as_float()
+                        .or_else(|| value.as_integer().map(|value| value as f64))
+                })
+                .map(|value| value as f32)
+                .unwrap_or(1.0)
+        })
         .max(0.0)
+}
+
+fn weapon_category_range(ctx: &RegionCtx, category: &str) -> Option<f32> {
+    ctx.rules
+        .get("equipment")
+        .and_then(toml::Value::as_table)
+        .and_then(|equipment| equipment.get("weapon_categories"))
+        .and_then(toml::Value::as_table)
+        .and_then(|categories| categories.get(category.trim()))
+        .and_then(toml::Value::as_table)
+        .and_then(|category| {
+            category.get("range").and_then(|value| {
+                value
+                    .as_float()
+                    .or_else(|| value.as_integer().map(|v| v as f64))
+            })
+        })
+        .map(|value| value as f32)
+        .filter(|value| *value >= 0.0)
+}
+
+fn current_attack_range_for_entity(
+    ctx: &RegionCtx,
+    entity: &Entity,
+    fallback: Option<f32>,
+) -> Option<f32> {
+    let weapon = current_attack_weapon_for_entity(ctx, entity)?;
+    let range = weapon.attributes.get_float_default("range", 0.0);
+    if range > 0.0 {
+        return Some(range);
+    }
+    if let Some(category) = weapon.attributes.get_str("category")
+        && let Some(range) = weapon_category_range(ctx, category)
+    {
+        return Some(range);
+    }
+    fallback
 }
 
 fn configured_weapon_slots(ctx: &RegionCtx) -> Vec<String> {
@@ -9239,7 +10089,48 @@ fn current_attack_source_item_id_for_entity(ctx: &RegionCtx, entity_id: u32) -> 
         .map(|(_, item)| item.id)
 }
 
-fn current_attack_base_damage_for_entity(ctx: &RegionCtx, entity_id: u32) -> i32 {
+fn item_ruleset_damage_table(ctx: &RegionCtx, item: &Item) -> Option<toml::value::Table> {
+    let class_name = item.attributes.get_str("class_name")?;
+    let data = ctx.item_class_data.get(class_name)?;
+    let root = data.parse::<toml::Table>().ok()?;
+    root.get("ruleset")
+        .and_then(toml::Value::as_table)
+        .and_then(|ruleset| ruleset.get("damage"))
+        .and_then(toml::Value::as_table)
+        .cloned()
+        .or_else(|| root.get("damage").and_then(toml::Value::as_table).cloned())
+}
+
+fn unarmed_damage_table(ctx: &RegionCtx) -> Option<&toml::value::Table> {
+    ctx.rules
+        .get("combat")
+        .and_then(toml::Value::as_table)
+        .and_then(|combat| combat.get("unarmed_damage"))
+        .and_then(toml::Value::as_table)
+}
+
+pub(crate) fn current_attack_base_damage_for_entity(ctx: &RegionCtx, entity_id: u32) -> i32 {
+    let entity = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id);
+
+    if let Some(entity) = entity
+        && let Some(source_item_id) = current_attack_source_item_id_for_entity(ctx, entity_id)
+        && let Some(source_item) = entity.get_item(source_item_id)
+        && let Some(table) = item_ruleset_damage_table(ctx, source_item)
+        && let Some(value) = roll_damage_table(Some(entity), &table)
+    {
+        return value.round().max(0.0) as i32;
+    }
+
+    if let Some(table) = unarmed_damage_table(ctx)
+        && let Some(value) = roll_damage_table(entity, table)
+    {
+        return value.round().max(0.0) as i32;
+    }
+
     progression_stat_value(ctx, entity_id, "damage")
         .or_else(|| {
             ctx.map
@@ -9671,7 +10562,15 @@ fn evaluate_damage_rule(
     let attacker = ctx.map.entities.iter().find(|entity| entity.id == from_id);
     let exprs = combat_rule_exprs(ctx, attacker, kind, key);
     if exprs.is_empty() {
-        return None;
+        return evaluate_structured_damage_rule(
+            ctx,
+            target_id,
+            from_id,
+            amount,
+            kind,
+            source_item_id,
+            key,
+        );
     }
     let defender = ctx
         .map
@@ -10090,7 +10989,14 @@ fn update_spell_items(ctx: &mut RegionCtx) {
             }
             if let Some(entity) = ctx.map.entities.iter_mut().find(|e| e.id == target_id) {
                 let hp = entity.attributes.get_int_default(&health_attr, 0);
-                let max_hp = entity.attributes.get_int_default("max_health", hp.max(1));
+                let max_health_attr = format!("MAX_{}", health_attr);
+                let max_hp = entity
+                    .attributes
+                    .get_float(&max_health_attr)
+                    .or_else(|| entity.attributes.get_float("MAX_HP"))
+                    .unwrap_or(hp.max(1) as f32)
+                    .round()
+                    .max(1.0) as i32;
                 entity.set_attribute(&health_attr, Value::Int((hp + amount).min(max_hp)));
             }
         }
@@ -11570,7 +12476,7 @@ pub fn teleport(args: rustpython_vm::function::FuncArgs, vm: &VirtualMachine) ->
     }
 
     with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
-        if region_name.is_empty() {
+        if region_name.trim().is_empty() || region_name.trim().eq_ignore_ascii_case(&ctx.map.name) {
             // Teleport entity in this region to the given sector.
 
             let new_pos = ctx.map.named_area_center(&sector_name);

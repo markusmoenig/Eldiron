@@ -112,7 +112,7 @@ impl ConsoleDock {
     fn intro() -> String {
         [
             "Console ready.",
-            "Commands: help, list, focus <name|id>, show, get <key>, pwd, up, clear",
+            "Commands: help, list, focus <name|id>, show, get <key>, rules <query>, pwd, up, clear",
             "When the game is running, `list` shows live characters and items for the current editor region.",
         ]
         .join("\n")
@@ -486,6 +486,363 @@ impl ConsoleDock {
         Ok((runtime_entities, runtime_items))
     }
 
+    fn rules_usage() -> &'static str {
+        "Usage:\n\
+rules overview\n\
+rules validate\n\
+rules list [races|classes|weapons|armor|spells|abilities]\n\
+rules show <ruleset.path>\n\
+rules class <class_id>\n\
+rules xp <level>\n\
+rules weapon <weapon_id> [ATTR=VALUE ...]\n\
+rules spell <spell_id> [ATTR=VALUE ...]\n\
+rules roll <ruleset.path.to.roll> [ATTR=VALUE ...]"
+    }
+
+    fn parse_rules_attributes(
+        args: &[&str],
+    ) -> Result<shared::rulesets::RulesetAttributeMap, String> {
+        let mut attributes = shared::rulesets::RulesetAttributeMap::new();
+        for raw in args {
+            let Some((key, value)) = raw.split_once('=') else {
+                return Err(format!("Attribute `{}` must use ATTR=VALUE syntax.", raw));
+            };
+            let key = key.trim();
+            if key.is_empty() {
+                return Err(format!("Attribute `{}` has an empty name.", raw));
+            }
+            let value = value
+                .trim()
+                .parse::<f32>()
+                .map_err(|_| format!("Attribute `{}` has a non-numeric value.", raw))?;
+            attributes.insert(key.to_string(), value);
+        }
+        Ok(attributes)
+    }
+
+    fn effective_rules_source(project: &Project) -> Result<String, String> {
+        shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+    }
+
+    fn format_roll_summary(label: &str, summary: &shared::rulesets::RulesetRollSummary) -> String {
+        let attr_line = if let Some(attribute) = summary.spec.bonus_attribute.as_deref() {
+            format!(
+                "{}={} => +{} every {}",
+                attribute,
+                summary.attribute_value,
+                summary.attribute_bonus,
+                summary.spec.bonus_every
+            )
+        } else {
+            "none".into()
+        };
+        let kind_line = summary
+            .spec
+            .damage_kind
+            .as_deref()
+            .map(|kind| format!("\ndamage kind: {}", kind))
+            .unwrap_or_default();
+
+        format!(
+            "{}\nroll: {}\nbonus: {}\nattribute bonus: {}\ntotal bonus: {}\nmin: {}\nmax: {}\naverage: {:.2}{}",
+            label,
+            summary.spec.roll,
+            summary.spec.bonus,
+            attr_line,
+            summary.total_bonus,
+            summary.minimum,
+            summary.maximum,
+            summary.average,
+            kind_line
+        )
+    }
+
+    fn join_or_dash(values: &[String]) -> String {
+        if values.is_empty() {
+            "-".into()
+        } else {
+            values.join(", ")
+        }
+    }
+
+    fn format_ruleset_catalog(catalog: &shared::rulesets::RulesetCatalog) -> String {
+        format!(
+            "ruleset: {}@{}\nschema: {}\nsource: {}\nraces: {}\nclasses: {}\nweapons: {}\narmor: {}\nclothing: {}\nspells: {}\nabilities: {}\nitem templates: {}",
+            catalog.id.as_deref().unwrap_or("-"),
+            catalog.version.as_deref().unwrap_or("-"),
+            catalog.schema_version.as_deref().unwrap_or("-"),
+            catalog.source.as_deref().unwrap_or("-"),
+            catalog.races.len(),
+            catalog.classes.len(),
+            catalog.weapons.len(),
+            catalog.armor.len(),
+            catalog.clothing.len(),
+            catalog.spells.len(),
+            catalog.abilities.len(),
+            catalog.item_templates.len(),
+        )
+    }
+
+    fn format_ruleset_list(label: &str, values: &[String]) -> String {
+        if values.is_empty() {
+            return format!("{}:\n-", label);
+        }
+
+        format!("{}:\n{}", label, values.join("\n"))
+    }
+
+    fn format_ruleset_validation(report: &shared::rulesets::RulesetValidationReport) -> String {
+        let mut lines = vec![format!(
+            "ruleset validation: {} error(s), {} warning(s)",
+            report.error_count(),
+            report.warning_count()
+        )];
+
+        if report.issues.is_empty() {
+            lines.push("OK".into());
+            return lines.join("\n");
+        }
+
+        for issue in &report.issues {
+            let severity = match issue.severity {
+                shared::rulesets::RulesetValidationSeverity::Error => "ERROR",
+                shared::rulesets::RulesetValidationSeverity::Warning => "WARN",
+            };
+            lines.push(format!("{} {}: {}", severity, issue.path, issue.message));
+        }
+
+        lines.join("\n")
+    }
+
+    fn execute_rules_command(&self, args: &[&str], project: &Project) -> String {
+        let Some(command) = args.first().copied() else {
+            return Self::rules_usage().to_string();
+        };
+
+        match command {
+            "overview" | "summary" | "catalog" | "info" => {
+                let rules = match Self::effective_rules_source(project) {
+                    Ok(rules) => rules,
+                    Err(err) => return err,
+                };
+                match shared::rulesets::ruleset_catalog_from_source(&rules) {
+                    Ok(catalog) => Self::format_ruleset_catalog(&catalog),
+                    Err(err) => err,
+                }
+            }
+            "validate" | "check" => {
+                let rules = match Self::effective_rules_source(project) {
+                    Ok(rules) => rules,
+                    Err(err) => return err,
+                };
+                match shared::rulesets::validate_ruleset_from_source(&rules) {
+                    Ok(report) => Self::format_ruleset_validation(&report),
+                    Err(err) => err,
+                }
+            }
+            "list" => {
+                let rules = match Self::effective_rules_source(project) {
+                    Ok(rules) => rules,
+                    Err(err) => return err,
+                };
+                if let Some(section) = args.get(1).copied() {
+                    return match shared::rulesets::ruleset_section_ids_from_source(&rules, section)
+                    {
+                        Ok(values) => Self::format_ruleset_list(section, &values),
+                        Err(err) => err,
+                    };
+                }
+
+                match shared::rulesets::ruleset_catalog_from_source(&rules) {
+                    Ok(catalog) => [
+                        Self::format_ruleset_list("races", &catalog.races),
+                        Self::format_ruleset_list("classes", &catalog.classes),
+                        Self::format_ruleset_list("weapons", &catalog.weapons),
+                        Self::format_ruleset_list("armor", &catalog.armor),
+                        Self::format_ruleset_list("clothing", &catalog.clothing),
+                        Self::format_ruleset_list("spells", &catalog.spells),
+                        Self::format_ruleset_list("abilities", &catalog.abilities),
+                    ]
+                    .join("\n\n"),
+                    Err(err) => err,
+                }
+            }
+            "show" => {
+                let Some(path) = args.get(1).copied() else {
+                    return Self::rules_usage().to_string();
+                };
+                let path_parts = path
+                    .split('.')
+                    .map(str::trim)
+                    .filter(|part| !part.is_empty())
+                    .collect::<Vec<_>>();
+                if path_parts.is_empty() {
+                    return Self::rules_usage().to_string();
+                }
+                let rules = match Self::effective_rules_source(project) {
+                    Ok(rules) => rules,
+                    Err(err) => return err,
+                };
+                match shared::rulesets::ruleset_show_path_from_source(&rules, &path_parts) {
+                    Ok(Some(value)) => format!("{}:\n{}", path, value),
+                    Ok(None) => format!("Ruleset path '{}' was not found.", path),
+                    Err(err) => err,
+                }
+            }
+            "xp" => {
+                let Some(level) = args.get(1) else {
+                    return Self::rules_usage().to_string();
+                };
+                let Ok(level) = level.parse::<u32>() else {
+                    return format!("Level `{}` is not a positive integer.", level);
+                };
+                let rules = match Self::effective_rules_source(project) {
+                    Ok(rules) => rules,
+                    Err(err) => return err,
+                };
+                match shared::rulesets::ruleset_xp_for_level_from_source(&rules, level) {
+                    Ok(Some(xp)) => format!("level: {}\nrequired xp: {}", level, xp),
+                    Ok(None) => format!("No XP entry for level {}.", level),
+                    Err(err) => err,
+                }
+            }
+            "weapon" => {
+                let Some(weapon_id) = args.get(1).copied() else {
+                    return Self::rules_usage().to_string();
+                };
+                let attributes = match Self::parse_rules_attributes(&args[2..]) {
+                    Ok(attributes) => attributes,
+                    Err(err) => return err,
+                };
+                let rules = match Self::effective_rules_source(project) {
+                    Ok(rules) => rules,
+                    Err(err) => return err,
+                };
+                match shared::rulesets::summarize_weapon_damage_from_source(
+                    &rules,
+                    weapon_id,
+                    &attributes,
+                ) {
+                    Ok(summary) => {
+                        Self::format_roll_summary(&format!("weapon: {}", weapon_id), &summary)
+                    }
+                    Err(err) => err,
+                }
+            }
+            "spell" => {
+                let Some(spell_id) = args.get(1).copied() else {
+                    return Self::rules_usage().to_string();
+                };
+                let attributes = match Self::parse_rules_attributes(&args[2..]) {
+                    Ok(attributes) => attributes,
+                    Err(err) => return err,
+                };
+                let rules = match Self::effective_rules_source(project) {
+                    Ok(rules) => rules,
+                    Err(err) => return err,
+                };
+                match shared::rulesets::summarize_spell_roll_from_source(
+                    &rules,
+                    spell_id,
+                    &attributes,
+                ) {
+                    Ok((kind, summary)) => Self::format_roll_summary(
+                        &format!("spell: {} ({})", spell_id, kind.label()),
+                        &summary,
+                    ),
+                    Err(err) => err,
+                }
+            }
+            "roll" => {
+                let Some(path) = args.get(1).copied() else {
+                    return Self::rules_usage().to_string();
+                };
+                let path_parts = path
+                    .split('.')
+                    .map(str::trim)
+                    .filter(|part| !part.is_empty())
+                    .collect::<Vec<_>>();
+                if path_parts.is_empty() {
+                    return Self::rules_usage().to_string();
+                }
+                let attributes = match Self::parse_rules_attributes(&args[2..]) {
+                    Ok(attributes) => attributes,
+                    Err(err) => return err,
+                };
+                let rules = match Self::effective_rules_source(project) {
+                    Ok(rules) => rules,
+                    Err(err) => return err,
+                };
+                match shared::rulesets::summarize_roll_path_from_source(
+                    &rules,
+                    &path_parts,
+                    &attributes,
+                ) {
+                    Ok(summary) => Self::format_roll_summary(path, &summary),
+                    Err(err) => err,
+                }
+            }
+            "class" => {
+                let Some(class_id) = args.get(1).copied() else {
+                    return Self::rules_usage().to_string();
+                };
+                let rules = match Self::effective_rules_source(project) {
+                    Ok(rules) => rules,
+                    Err(err) => return err,
+                };
+                let summary = match shared::rulesets::summarize_class_from_source(&rules, class_id)
+                {
+                    Ok(summary) => summary,
+                    Err(err) => return err,
+                };
+                let mut attributes = summary
+                    .attributes
+                    .iter()
+                    .map(|(key, value)| format!("{}={}", key, value))
+                    .collect::<Vec<_>>();
+                attributes.sort();
+                let unlocks = summary
+                    .level_unlocks
+                    .iter()
+                    .map(|(level, values)| format!("{}: {}", level, Self::join_or_dash(values)))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let loadout = summary
+                    .starting_loadout
+                    .iter()
+                    .map(|(category, values)| {
+                        format!("{}: {}", category, Self::join_or_dash(values))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                format!(
+                    "class: {}\nrole: {}\ndescription: {}\nprimary attributes: {}\nallowed weapons: {}\nallowed armor: {}\nabilities: {}\nspells: {}\nattributes: {}\nunlocks:\n{}\nstarting loadout:\n{}",
+                    summary.id,
+                    summary.role.as_deref().unwrap_or("-"),
+                    summary.description.as_deref().unwrap_or("-"),
+                    Self::join_or_dash(&summary.primary_attributes),
+                    Self::join_or_dash(&summary.allowed_weapons),
+                    Self::join_or_dash(&summary.allowed_armor),
+                    Self::join_or_dash(&summary.abilities),
+                    Self::join_or_dash(&summary.spells),
+                    Self::join_or_dash(&attributes),
+                    if unlocks.is_empty() {
+                        "-".into()
+                    } else {
+                        unlocks
+                    },
+                    if loadout.is_empty() {
+                        "-".into()
+                    } else {
+                        loadout
+                    },
+                )
+            }
+            _ => Self::rules_usage().to_string(),
+        }
+    }
+
     fn focus_label(&self, entities: &[RuntimeEntity], items: &[RuntimeItem]) -> String {
         match self.focus {
             ConsoleFocus::Root => "root".to_string(),
@@ -526,6 +883,14 @@ impl ConsoleDock {
                 "focus <name|id>  focus a character or item from root",
                 "show  show the current character or item details",
                 "get <key>  show one attribute from the current character or item",
+                "rules overview  show active ruleset counts and metadata",
+                "rules validate  validate the effective ruleset",
+                "rules list [section]  list ruleset races, classes, weapons, armor, spells, or abilities",
+                "rules show <path>  show a TOML value from the effective ruleset",
+                "rules class <class_id>  inspect a ruleset class",
+                "rules xp <level>  show required XP for a level",
+                "rules weapon <weapon_id> [ATTR=VALUE ...]  calculate weapon damage",
+                "rules spell <spell_id> [ATTR=VALUE ...]  calculate spell damage or healing",
                 "pwd  show the current console focus",
                 "up  go back to root",
                 "clear  clear the console output",
@@ -536,6 +901,16 @@ impl ConsoleDock {
         if trimmed.eq_ignore_ascii_case("clear") {
             self.transcript.clear();
             return String::new();
+        }
+
+        if let Some((head, tail)) = trimmed.split_once(' ')
+            && head.eq_ignore_ascii_case("rules")
+        {
+            let args = tail.split_whitespace().collect::<Vec<_>>();
+            return self.execute_rules_command(&args, project);
+        }
+        if trimmed.eq_ignore_ascii_case("rules") {
+            return Self::rules_usage().to_string();
         }
 
         let (entities, items) = match Self::runtime_snapshot(project, server_ctx) {

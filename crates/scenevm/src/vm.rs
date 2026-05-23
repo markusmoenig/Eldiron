@@ -14,7 +14,7 @@ use bytemuck::{Pod, Zeroable};
 #[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::hash::Hasher;
+use std::{cmp::Ordering, hash::Hasher};
 use uuid::Uuid;
 use vek::{Mat3, Mat4, Vec2, Vec3, Vec4};
 use wgpu::util::DeviceExt;
@@ -2932,6 +2932,71 @@ impl VM {
         }
     }
 
+    fn geo_id_sort_key(id: GeoId) -> (u8, u64, u64) {
+        match id {
+            GeoId::Unknown(v) => (0, v as u64, 0),
+            GeoId::Vertex(v) => (1, v as u64, 0),
+            GeoId::Linedef(v) => (2, v as u64, 0),
+            GeoId::Sector(v) => (3, v as u64, 0),
+            GeoId::Character(v) => (4, v as u64, 0),
+            GeoId::Item(v) => (5, v as u64, 0),
+            GeoId::Light(v) => (6, v as u64, 0),
+            GeoId::ItemLight(v) => (7, v as u64, 0),
+            GeoId::Triangle(v) => (8, v as u64, 0),
+            GeoId::Terrain(x, y) => (9, x as i64 as u64, y as i64 as u64),
+            GeoId::GeometryObject(id) => {
+                let raw = id.as_u128();
+                (10, (raw >> 64) as u64, raw as u64)
+            }
+            GeoId::Hole(host, profile) => (11, host as u64, profile as u64),
+            GeoId::Gizmo(v) => (12, v as u64, 0),
+        }
+    }
+
+    fn dynamic_object_order(a: &DynamicObject, b: &DynamicObject) -> Ordering {
+        b.layer
+            .cmp(&a.layer)
+            .then_with(|| (a.kind as u32).cmp(&(b.kind as u32)))
+            .then_with(|| Self::geo_id_sort_key(a.id).cmp(&Self::geo_id_sort_key(b.id)))
+    }
+
+    fn sorted_dynamic_objects(&self) -> Vec<&DynamicObject> {
+        let mut dynamic_objs: Vec<&DynamicObject> = self
+            .dynamic_objects
+            .iter()
+            .chain(self.dynamic_avatar_objects.values())
+            .collect();
+        dynamic_objs.sort_by(|a, b| Self::dynamic_object_order(a, b));
+        dynamic_objs
+    }
+
+    fn avatar_meta_indices_for_objects(
+        &self,
+        dynamic_objs: &[&DynamicObject],
+    ) -> FxHashMap<GeoId, u32> {
+        let mut avatar_meta_indices: FxHashMap<GeoId, u32> = FxHashMap::default();
+        let mut avatar_meta_count: u32 = 0;
+        for obj in dynamic_objs.iter().copied() {
+            if obj.kind != DynamicKind::BillboardAvatar || avatar_meta_indices.contains_key(&obj.id)
+            {
+                continue;
+            }
+            let Some(avatar) = self.dynamic_avatar_data.get(&obj.id) else {
+                continue;
+            };
+            if avatar.size == 0 {
+                continue;
+            }
+            let expected_len = avatar.size as usize * avatar.size as usize * 4;
+            if avatar.rgba.len() != expected_len {
+                continue;
+            }
+            avatar_meta_indices.insert(obj.id, avatar_meta_count);
+            avatar_meta_count += 1;
+        }
+        avatar_meta_indices
+    }
+
     fn build_2d_batches(
         &self,
         fb_w: u32,
@@ -3240,12 +3305,7 @@ impl VM {
         let mut avatar_metas: Vec<DynamicAvatarMetaPod> = Vec::new();
         let mut avatar_pixels_rgba8: Vec<u32> = Vec::new();
         let mut avatar_indices: FxHashMap<GeoId, u32> = FxHashMap::default();
-        let mut dynamic_objs: Vec<&DynamicObject> = self
-            .dynamic_objects
-            .iter()
-            .chain(self.dynamic_avatar_objects.values())
-            .collect();
-        dynamic_objs.sort_by(|a, b| b.layer.cmp(&a.layer));
+        let dynamic_objs = self.sorted_dynamic_objects();
         for obj in dynamic_objs {
             match obj.kind {
                 DynamicKind::BillboardTile | DynamicKind::ParticleBillboard => {
@@ -6667,38 +6727,8 @@ impl VM {
             let mut indices_flat = self.cached_static_i2.clone();
 
             let m = self.transform2d;
-            let mut avatar_meta_indices: FxHashMap<GeoId, u32> = FxHashMap::default();
-            let mut avatar_meta_count: u32 = 0;
-            for obj in self
-                .dynamic_objects
-                .iter()
-                .chain(self.dynamic_avatar_objects.values())
-            {
-                if obj.kind != DynamicKind::BillboardAvatar
-                    || avatar_meta_indices.contains_key(&obj.id)
-                {
-                    continue;
-                }
-                let Some(avatar) = self.dynamic_avatar_data.get(&obj.id) else {
-                    continue;
-                };
-                if avatar.size == 0 {
-                    continue;
-                }
-                let expected_len = avatar.size as usize * avatar.size as usize * 4;
-                if avatar.rgba.len() != expected_len {
-                    continue;
-                }
-                avatar_meta_indices.insert(obj.id, avatar_meta_count);
-                avatar_meta_count += 1;
-            }
-
-            let mut dynamic_objs: Vec<&DynamicObject> = self
-                .dynamic_objects
-                .iter()
-                .chain(self.dynamic_avatar_objects.values())
-                .collect();
-            dynamic_objs.sort_by(|a, b| b.layer.cmp(&a.layer));
+            let dynamic_objs = self.sorted_dynamic_objects();
+            let avatar_meta_indices = self.avatar_meta_indices_for_objects(&dynamic_objs);
 
             for obj in dynamic_objs {
                 let (tile_index, tile_index2) = match obj.kind {
@@ -8038,36 +8068,9 @@ impl VM {
             tri_visibility = self.cached_static_tri_visibility.clone();
 
             // Dynamic billboards (tile + avatar) as camera-facing quads in world space.
-            let mut avatar_meta_indices: FxHashMap<GeoId, u32> = FxHashMap::default();
-            let mut avatar_meta_count: u32 = 0;
-            for obj in self
-                .dynamic_objects
-                .iter()
-                .chain(self.dynamic_avatar_objects.values())
-            {
-                if obj.kind != DynamicKind::BillboardAvatar
-                    || avatar_meta_indices.contains_key(&obj.id)
-                {
-                    continue;
-                }
-                let Some(avatar) = self.dynamic_avatar_data.get(&obj.id) else {
-                    continue;
-                };
-                if avatar.size == 0 {
-                    continue;
-                }
-                let expected_len = avatar.size as usize * avatar.size as usize * 4;
-                if avatar.rgba.len() != expected_len {
-                    continue;
-                }
-                avatar_meta_indices.insert(obj.id, avatar_meta_count);
-                avatar_meta_count += 1;
-            }
-            for obj in self
-                .dynamic_objects
-                .iter()
-                .chain(self.dynamic_avatar_objects.values())
-            {
+            let dynamic_objs = self.sorted_dynamic_objects();
+            let avatar_meta_indices = self.avatar_meta_indices_for_objects(&dynamic_objs);
+            for obj in dynamic_objs {
                 let (tile_index, mut tile_index2) = match obj.kind {
                     DynamicKind::BillboardTile | DynamicKind::ParticleBillboard => {
                         let Some(tile_id) = obj.tile_id else { continue };

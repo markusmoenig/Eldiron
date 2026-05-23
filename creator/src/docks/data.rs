@@ -98,10 +98,6 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
                 status: "Array of supported weapon slot names.",
             },
             SettingNavEntry {
-                key: "health",
-                status: "Attribute name used as health / death threshold, for example \"HP\".",
-            },
-            SettingNavEntry {
                 key: "level",
                 status: "Attribute name used as the current progression level.",
             },
@@ -116,6 +112,31 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
             SettingNavEntry {
                 key: "avatar_skin_auto_shading",
                 status: "Enable generated marker-ramp shading for skin markers. Values: true, false.",
+            },
+        ],
+    },
+    SettingNavSection {
+        table: "ruleset",
+        entries: &[
+            SettingNavEntry {
+                key: "id",
+                status: "Bundled ruleset id. Default: \"eldiron.official\".",
+            },
+            SettingNavEntry {
+                key: "version",
+                status: "Bundled ruleset version requested by this project.",
+            },
+            SettingNavEntry {
+                key: "schema_version",
+                status: "Ruleset schema version expected by this project.",
+            },
+            SettingNavEntry {
+                key: "source",
+                status: "Ruleset source. Values: \"official\", \"project\".",
+            },
+            SettingNavEntry {
+                key: "update_policy",
+                status: "Official ruleset update policy. Values: \"pinned\", \"patches\", \"compatible\", \"latest\".",
             },
         ],
     },
@@ -1523,7 +1544,13 @@ impl DataDock {
             .map(|asset| asset.name.clone())
             .collect::<FxHashSet<_>>();
 
-        match project.rules.parse::<Table>() {
+        match shared::rulesets::resolve_project_rules(&project.config, &project.rules).and_then(
+            |rules| {
+                rules
+                    .parse::<Table>()
+                    .map_err(|err| format!("Effective ruleset TOML parse error: {}", err))
+            },
+        ) {
             Ok(rules) => {
                 let referenced_locale_keys = Self::rules_locale_keys(&rules);
                 let referenced_audio_fx = Self::rules_audio_fx_refs(&rules);
@@ -1556,7 +1583,7 @@ impl DataDock {
                     }
                 }
             }
-            Err(err) => issues.push(format!("Rules TOML parse error: {}", err)),
+            Err(err) => issues.push(err),
         }
 
         issues

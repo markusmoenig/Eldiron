@@ -8,6 +8,7 @@
 
 .heroSection,
 .newsSection,
+.announcementSection,
 .formatsSection,
 .toolsSection {
   max-width: 1120px;
@@ -148,6 +149,61 @@
   color: #b57614;
 }
 
+.announcementPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.36fr);
+  gap: 1.4rem;
+  align-items: center;
+  border: 1px solid rgba(181, 118, 20, 0.38);
+  border-left: 0.45rem solid #d79921;
+  border-radius: 12px;
+  padding: 1.35rem 1.5rem;
+  background: rgba(254, 225, 184, 0.72);
+  box-shadow: 0 18px 40px rgba(60, 56, 54, 0.08);
+}
+
+.announcementEyebrow {
+  display: inline-block;
+  margin: 0 0 0.65rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  background: #fdd179;
+  color: #3d3333;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.announcementPanel h2 {
+  margin: 0;
+  font-size: clamp(1.7rem, 3vw, 2.45rem);
+  line-height: 1.08;
+}
+
+.announcementPanel p:last-of-type {
+  max-width: 58rem;
+  margin: 0.8rem 0 0.9rem;
+  color: var(--ifm-font-color-secondary);
+  line-height: 1.7;
+}
+
+.announcementThumbnailWrap {
+  overflow: hidden;
+  border: 1px solid rgba(60, 56, 54, 0.18);
+  border-radius: 8px;
+  background: #fbf1c7;
+  box-shadow: 0 14px 32px rgba(60, 56, 54, 0.12);
+}
+
+.announcementThumbnail {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  object-position: center;
+}
+
 .formatStack {
   display: grid;
   gap: 1.25rem;
@@ -200,16 +256,28 @@
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.24);
 }
 
+[data-theme="dark"] .announcementPanel {
+  background: rgba(122, 88, 89, 0.38);
+  border-color: rgba(215, 153, 33, 0.5);
+  border-left-color: #d79921;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+}
+
 @media screen and (max-width: 996px) {
   .heroSection,
   .formatCard,
   .toolsGrid,
-  .newsGrid {
+  .newsGrid,
+  .announcementPanel {
     grid-template-columns: 1fr;
   }
 
   .heroSection {
     gap: 1.5rem;
+  }
+
+  .announcementThumbnailWrap {
+    max-width: 26rem;
   }
 
   .heroTitle {
@@ -224,6 +292,7 @@
 
   .heroSection,
   .newsSection,
+  .announcementSection,
   .formatsSection,
   .toolsSection {
     padding-bottom: 2.5rem;

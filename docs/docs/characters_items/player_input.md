@@ -142,7 +142,7 @@ This lets either side handle the interaction.
 
 Examples:
 
-- the player handles `attack` and calls `deal_damage(...)`
+- the player handles `attack` and calls `attack()`
 - an item handles `use` and toggles itself
 - a character handles `talk` and opens dialogue
 

@@ -3,11 +3,14 @@ title: "Attributes"
 sidebar_position: 5
 ---
 
-This chapter lists all supported **attributes** for characters and items in Eldiron.  
+This chapter lists supported **attributes** for characters and items in Eldiron.
 
 Attributes can be applied to characters, items, or both.
 
 This page covers individual attributes such as `tile_id`, `radius`, or `timeout`.
+Gameplay rules such as weapon damage, spell cooldowns, intent ranges, class
+permissions, armor categories, and progression belong in the effective ruleset:
+the official ruleset plus **Game / Rules** project overrides.
 
 Some character configuration in the **Attributes** editor also uses top-level TOML tables instead of single attributes, for example:
 
@@ -74,10 +77,9 @@ blocking = true
 
 Optional gameplay role or archetype for a character.
 
-Use this for things like:
-
-- text targeting by class, for example `attack warrior`
-- future class-based rules, progression, or bonuses
+The class name selects a class definition from the effective ruleset. Class
+rules, progression, abilities, equipment permissions, and cooldowns should be
+defined in the ruleset, not repeated on the character.
 
 ```toml
 class = "Warrior"
@@ -106,45 +108,6 @@ List of geometry node names whose color should be overridden when the item is eq
 ```toml
 color_targets = ["left_leg", "right_leg"]
 ```
-
----
-
-## `attack_cooldown`
-
-*Character or weapon item attribute.*
-
-Cooldown between engine-owned `follow_attack` hits, measured in in-game minutes.
-Weapon values override the attacker's character value. If neither is set, the default is `1.0`.
-
-```toml
-attack_cooldown = 4.0
-```
-
-The runtime converts this to simulation ticks using `game.ticks_per_minute`.
-For example, with `ticks_per_minute = 4`, `attack_cooldown = 4.0` becomes 16 simulation ticks.
-
-This is gameplay timing only. `avatar_attack_time` controls how long the visual attack animation is held after damage is dealt.
-
----
-
-## `damage_kind`
-
-*Item-only attribute.*
-
-Damage kind used by `attack()` when this item is the active weapon.
-Default: `physical`.
-
-```toml
-damage_kind = "fire"
-```
-
-This maps weapon attacks to the matching `combat.kinds.<kind>` rule path, for example:
-
-- `damage_kind = "physical"` -> `combat.kinds.physical`
-- `damage_kind = "fire"` -> `combat.kinds.fire`
-- `damage_kind = "ice"` -> `combat.kinds.ice`
-
-See [Rules](../rules) for the full rules format and combat kind configuration.
 
 ---
 
@@ -258,6 +221,7 @@ portrait_tile_id = "2"
 *Character-only attribute.*
 
 List of item template names to add to the character inventory on spawn (not equipped).
+When omitted, the active ruleset class can provide its default inventory.
 
 ```toml
 start_items = ["Sword", "Potion"]
@@ -271,6 +235,8 @@ start_items = ["Sword", "Potion"]
 
 List of item template names to add and auto-equip on spawn.  
 Items must define a valid `slot` attribute.
+When omitted, the active ruleset class can provide its default equipped weapons,
+armor, and clothing.
 
 ```toml
 start_equipped_items = ["Shield", "Helmet"]
@@ -282,7 +248,7 @@ start_equipped_items = ["Shield", "Helmet"]
 
 *Character-only attribute.*
 
-The current mode of the entity. On startup of characters this is set to **"active"**. When the [health attribute](/docs/configuration/game#health) drops to zero or below, the server changes it to **"dead"** automatically. Dead characters do not receive events. Healers can set the mode attribute to **"active"** again.
+The current mode of the entity. On startup of characters this is set to **"active"**. When the ruleset health attribute drops to zero or below, the server changes it to **"dead"** automatically. Dead characters do not receive events. Healers can set the mode attribute to **"active"** again. If health is still zero, `set_attr("mode", "active")` restores it from `MAX_<health>` or `MAX_HP`.
 
 ```python
 set_attr("mode", "active")
@@ -351,210 +317,13 @@ NPC background workflows themselves are defined separately in the character **At
 
 ## Spell Attributes
 
-These are *item-only attributes* used by spell templates/items (`is_spell = true`).
-
-## `is_spell`
-
-Marks an item as a spell runtime object.
-
-```toml
-is_spell = true
-```
-
-## `spell_mode`
-
-Spell simulation mode.
-Default: `projectile`.
-
-```toml
-spell_mode = "projectile"
-```
-
-Currently supported: `projectile`.
-
-## `spell_effect`
-
-Default effect applied when the spell hits.
-Default: `damage`.
-
-```toml
-spell_effect = "damage"
-# or:
-# spell_effect = "heal"
-```
-
-## `spell_kind`
-
-Damage kind used for combat rules, combat messages, and combat audio.
-Default: `spell`.
-
-```toml
-spell_kind = "fire"
-```
-
-This maps the spell to the matching `combat.kinds.<kind>` rule path, for example:
-
-- `spell_kind = "spell"` -> `combat.kinds.spell`
-- `spell_kind = "fire"` -> `combat.kinds.fire`
-- `spell_kind = "ice"` -> `combat.kinds.ice`
-
-See [Rules](../rules) for the full rules format and combat kind configuration.
-
-## `spell_target_filter`
-
-Target filtering used by spell hit checks.
-Default: `any`.
-
-```toml
-spell_target_filter = "enemy"
-```
-
-Supported values: `enemy`, `ally`, `self`, `any`.
-
-You can also use a numeric attribute expression on the target, for example:
-
-```toml
-spell_target_filter = "ALIGNMENT < 0"
-```
-
-Supported operators in expressions: `<`, `<=`, `>`, `>=`, `==`, `!=`.
-
-## `spell_amount`
-
-Effect magnitude (damage/heal amount).
-Default: `1`.
-
-```toml
-spell_amount = 3
-```
-
-## `spell_speed`
-
-Projectile movement speed.
-Default: `6.0`.
-
-```toml
-spell_speed = 6.0
-```
-
-## `spell_cast_time`
-
-Cast wind-up time in real-time seconds.
-While casting, the spell is held in front of the caster before it starts moving.
-Default: `0.0` (instant start).
-
-```toml
-spell_cast_time = 0.6
-```
-
-## `spell_cooldown`
-
-Cooldown in real-time seconds (per caster, per spell template).
-Default: `0.0` (no cooldown).
-
-```toml
-spell_cooldown = 1.5
-```
-
-## `spell_cast_offset`
-
-Distance in map units to hold the spell in front of the caster during cast wind-up.
-Default: `0.6`.
-
-```toml
-spell_cast_offset = 0.6
-```
-
-## `spell_cast_height`
-
-Height used while the spell is in cast wind-up (preview state).
-Default: `0.5`.
-
-```toml
-spell_cast_height = 0.5
-```
-
-## `spell_flight_height`
-
-Height used while the projectile is traveling.
-Default: `0.5`.
-
-```toml
-spell_flight_height = 0.5
-```
-
-## `spell_max_range`
-
-Maximum travel distance before expire (`0` = unlimited).
-Default: `0.0` (unlimited).
-
-```toml
-spell_max_range = 12.0
-```
-
-## `spell_lifetime`
-
-Maximum lifetime in seconds.
-Default: `3.0`.
-
-```toml
-spell_lifetime = 3.0
-```
-
-## `spell_radius`
-
-Hit radius for projectile collision checks.
-Default: `0.4`.
-
-```toml
-spell_radius = 0.4
-```
-
-## `effect_id`
-
-Optional impact tile source.
-Accepts a tile UUID, tile alias, or palette index.
-If set, projectile spells switch to this tile on hit before despawn.
-
-```toml
-effect_id = "c4323247-0b92-4bf6-b303-643d8350f794"
-# effect_id = "fire_impact"
-# effect_id = "7"
-```
-
-## `effect_duration`
-
-How long the impact visual (from `effect_id`) remains visible, in real-time seconds.
-Default: `0.25`.
-
-```toml
-effect_duration = 0.25
-```
-
-## `effect_height`
-
-Optional impact height override.
-If not set, impact keeps the projectile's current height.
-
-```toml
-effect_height = 0.7
-```
-
-## `on_cast`
-
-Optional message sent to the caster when the spell is successfully cast.
-
-```toml
-on_cast = "You cast a fireball"
-```
-
-## `reagents`
-
-List of required reagents. Duplicates represent quantity.
-
-```toml
-reagents = ["Ginseng", "Ginseng", "Mandrake"]
-```
+Spell gameplay is ruleset data.
+
+Define spell mode, costs, cooldowns, target rules, range, damage or healing,
+visuals, audio, reagents, and messages in the effective ruleset. Use
+**Game / Rules** when this project needs to change the official spell rules.
+Project item data should only carry concrete asset/state information for a
+materialized spell item.
 
 ---
 
@@ -656,11 +425,9 @@ name = "Golden Key"
 
 Optional race/species identity for a character.
 
-Use this for things like:
-
-- text targeting by race, for example `look orc`
-- future race-based rules, progression, or bonuses
-- separating gameplay identity from the visible display name
+The race name selects a race definition from the effective ruleset. Race
+relations, reputation defaults, progression, bonuses, and visual defaults should
+be defined in the ruleset.
 
 ```toml
 race = "Orc"

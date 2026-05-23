@@ -123,13 +123,6 @@ These commands can be used for both **characters** and **items**:
 # of in-game minutes.
 block_events(minutes, "event1", "event2",...)
 
-# Deal damage to the given entity or item identified by its ID.
-# Damage is a dictionary of information which gets send to the receiver via a
-# `take_damage` event.
-# Example: deal_damage(id, {"physical": 10})
-# Send all relevant data to the receiver who can calculate the final damage and apply it.
-deal_damage(entity_id | item_id, damage)
-
 # Send a debug message to the Log.
 debug(arg1, arg2, ...)
 
@@ -193,6 +186,9 @@ These commands are **exclusive to characters**:
 # Creates a new item of the given class name and adds it to the character's inventory. It returns the id of the created
 # item (in case you want to equp it) or -1 on failure.
 add_item(class_name)
+
+# Attack the current target using weapon or unarmed rules.
+attack()
 
 # Returns an array of filtered item ids in the character's inventory.
 # Returns all items if filter_string is empty. Otherwise, returns items whose name
@@ -331,7 +327,7 @@ For the up-to-date event list and the newer NPC sequence model, see:
 | **`bumped_into_item`**   | `item` *(int)*   | Triggered when an entity bumps into an item. |
 | **`bumped_by_entity`**   | `entity_id` *(int)* | Triggered when another entity collides with this entity or item. |
 | **`clicked`**            | *dict* `{ entity_id, distance }` | Triggered when the player clicks on an entity or item. Includes the clicking entity's ID and distance. |
-| **`take_damage`**        | *dict*           | Triggered by the `deal_damage` command. The dictionary contains the data passed to `deal_damage()`. |
+| **`take_damage`**        | *dict*           | Triggered after combat damage is resolved. Contains the damage amount, attacker id, damage kind, and source item when available. |
 
 ### User Events
 

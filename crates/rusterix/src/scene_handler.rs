@@ -9,7 +9,7 @@ use crate::{
     Assets, AvatarDirection, AvatarShadingOptions, BillboardAnimation, BillboardMetadata, D3Camera,
     Item, Map, ParticleEmitter, PixelSource, RenderSettings, Texture, Tile, Value, ValueTomlLoader,
     avatar_builder::AvatarRuntimeBuilder, chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
-    scene_build_index::SceneBuildIndex,
+    client::widget::Widget, scene_build_index::SceneBuildIndex,
 };
 use buildergraph::{BuilderDocument, BuilderOutputTarget, BuilderPrimitive};
 use indexmap::IndexMap;
@@ -193,6 +193,7 @@ pub struct SceneHandler {
     last_dynamics_tick_3d: Option<usize>,
     dynamics_ready_2d: bool,
     dynamics_ready_3d: bool,
+    generated_item_avatar_geo: FxHashSet<GeoId>,
 
     // Timing parameters (configurable)
     render_fps: f32,
@@ -242,6 +243,25 @@ impl SceneHandler {
 
     fn effective_tile_light_intensity(intensity: f32) -> f32 {
         intensity.max(0.0) * 4.0
+    }
+
+    fn generated_ground_item_size(item: &Item) -> f32 {
+        item.attributes
+            .get_float_default("ground_icon_size", 0.62)
+            .clamp(0.1, 1.0)
+    }
+
+    fn update_generated_item_avatar_data(&mut self, active_geo: &FxHashSet<GeoId>) {
+        let stale: Vec<GeoId> = self
+            .generated_item_avatar_geo
+            .iter()
+            .copied()
+            .filter(|id| !active_geo.contains(id))
+            .collect();
+        for id in stale {
+            self.vm.execute(Atom::RemoveAvatarBillboardData { id });
+        }
+        self.generated_item_avatar_geo = active_geo.clone();
     }
 
     fn particle_sprite_tile_id(tile_id: Uuid) -> Uuid {
@@ -2486,6 +2506,7 @@ impl SceneHandler {
             last_dynamics_tick_3d: None,
             dynamics_ready_2d: false,
             dynamics_ready_3d: false,
+            generated_item_avatar_geo: FxHashSet::default(),
             render_fps: 30.0,
             game_tick_fps: 4.0, // default 250ms ticks
             pending_particle_steps_2d: 0,
@@ -2640,6 +2661,34 @@ impl SceneHandler {
         hasher.write_u8(u8::from(light.active));
     }
 
+    fn hash_generated_item_icon_attrs(hasher: &mut rustc_hash::FxHasher, item: &Item) {
+        for key in [
+            "avatar_channels",
+            "color_index",
+            "torso_index",
+            "arms_index",
+            "legs_index",
+            "feet_index",
+            "category",
+            "slot",
+            "ruleset_kind",
+            "visual_template",
+            "icon_template",
+            "rig_template",
+            "visual_template_width",
+            "visual_template_height",
+            "visual_template_pixels",
+            "ground_icon_size",
+        ] {
+            hasher.write(key.as_bytes());
+            if let Some(value) = item.attributes.get(key) {
+                hasher.write(format!("{value:?}").as_bytes());
+            } else {
+                hasher.write_u8(0);
+            }
+        }
+    }
+
     fn dynamics_hash_2d(&self, map: &Map, animation_frame: usize) -> u64 {
         let mut hasher = rustc_hash::FxHasher::default();
         hasher.write(map.id.as_bytes());
@@ -2772,6 +2821,7 @@ impl SceneHandler {
                 Self::hash_pixel_source(&mut hasher, source);
             } else {
                 hasher.write_u8(0);
+                Self::hash_generated_item_icon_attrs(&mut hasher, item);
             }
             if let Some(Value::Light(light)) = item.attributes.get("light") {
                 hasher.write_u8(1);
@@ -2964,6 +3014,7 @@ impl SceneHandler {
                 Self::hash_pixel_source(&mut hasher, source);
             } else {
                 hasher.write_u8(0);
+                Self::hash_generated_item_icon_attrs(&mut hasher, item);
             }
             if let Some(Value::Light(light)) = item.attributes.get("light") {
                 hasher.write_u8(1);
@@ -3298,6 +3349,7 @@ impl SceneHandler {
         let _has_tile_particles = self.rebuild_tile_particles_2d(map, assets, particle_steps);
         let _has_builder_particles = self.rebuild_builder_particles_2d(map, assets, particle_steps);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
+        let mut active_generated_item_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
 
         for item in &map.items {
@@ -3332,6 +3384,22 @@ impl SceneHandler {
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                     }
                 }
+            } else if item.attributes.get_bool_default("visible", false)
+                && let Some((size, rgba)) = Widget::item_generated_icon_square(assets, item)
+            {
+                let geo_id = GeoId::Item(item.id);
+                self.vm.execute(Atom::SetAvatarBillboardData {
+                    id: geo_id,
+                    size,
+                    rgba,
+                });
+                active_generated_item_geo.insert(geo_id);
+                active_avatar_geo.insert(geo_id);
+                let ground_size = Self::generated_ground_item_size(item);
+                let dynamic =
+                    DynamicObject::billboard_avatar_2d(geo_id, pos, ground_size, ground_size)
+                        .with_layer(10);
+                self.vm.execute(Atom::AddDynamic { object: dynamic });
             }
         }
 
@@ -3435,6 +3503,7 @@ impl SceneHandler {
 
         self.avatar_builder
             .remove_stale_avatars(&mut self.vm, &active_avatar_geo);
+        self.update_generated_item_avatar_data(&active_generated_item_geo);
         self.impact_anim_starts
             .retain(|geo_id, _| active_impact_geo.contains(geo_id));
         self.dynamics_ready_2d = true;
@@ -3484,6 +3553,7 @@ impl SceneHandler {
         let _has_builder_particles =
             self.rebuild_builder_particles_3d(map, camera, assets, particle_steps);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
+        let mut active_generated_item_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
 
         let basis = camera.basis_vectors();
@@ -3666,6 +3736,33 @@ impl SceneHandler {
             }
 
             if visible
+                && item.attributes.get("source").is_none()
+                && let Some((icon_size, rgba)) = Widget::item_generated_icon_square(assets, item)
+            {
+                let geo_id = GeoId::Item(item.id);
+                self.vm.execute(Atom::SetAvatarBillboardData {
+                    id: geo_id,
+                    size: icon_size,
+                    rgba,
+                });
+                active_generated_item_geo.insert(geo_id);
+                active_avatar_geo.insert(geo_id);
+                let ground_size = Self::generated_ground_item_size(item);
+                let center3 = Vec3::new(
+                    item.position.x,
+                    ground_y + ground_size * 0.5,
+                    item.position.z,
+                );
+                let dynamic = DynamicObject::billboard_avatar(
+                    geo_id,
+                    center3,
+                    basis.1,
+                    basis.2,
+                    ground_size,
+                    ground_size,
+                );
+                self.vm.execute(Atom::AddDynamic { object: dynamic });
+            } else if visible
                 && let Some(Value::Source(source)) = item.attributes.get("source")
                 && let Some(tile) = source.tile_from_tile_list(assets)
             {
@@ -4001,6 +4098,7 @@ impl SceneHandler {
 
         self.avatar_builder
             .remove_stale_avatars(&mut self.vm, &active_avatar_geo);
+        self.update_generated_item_avatar_data(&active_generated_item_geo);
         self.impact_anim_starts
             .retain(|geo_id, _| active_impact_geo.contains(geo_id));
         self.dynamics_ready_3d = true;

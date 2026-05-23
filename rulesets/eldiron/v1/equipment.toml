@@ -1,0 +1,208 @@
+[equipment]
+weapon_slots = ["main_hand", "off_hand"]
+armor_slots = ["head", "torso", "legs", "hands", "feet", "shield"]
+
+[equipment.weapon_categories.sword]
+handed = "one_handed"
+damage_kind = "physical"
+base_cooldown = 1.0
+
+[equipment.weapon_categories.axe]
+handed = "one_handed"
+damage_kind = "physical"
+base_cooldown = 1.2
+
+[equipment.weapon_categories.mace]
+handed = "one_handed"
+damage_kind = "physical"
+base_cooldown = 1.15
+
+[equipment.weapon_categories.spear]
+handed = "two_handed"
+damage_kind = "physical"
+base_cooldown = 1.25
+range = 2
+
+[equipment.weapon_categories.bow]
+handed = "two_handed"
+damage_kind = "physical"
+base_cooldown = 1.5
+range = 6
+
+[equipment.armor_categories.cloth]
+crafting_family = "tailoring"
+armor_bonus = 0
+dex_penalty = 0
+
+[equipment.armor_categories.leather]
+crafting_family = "leatherworking"
+armor_bonus = 1
+dex_penalty = 0
+
+[equipment.armor_categories.chain]
+crafting_family = "armorsmithing"
+armor_bonus = 2
+dex_penalty = 1
+
+[equipment.armor_categories.shield]
+crafting_family = "armorsmithing"
+armor_bonus = 1
+dex_penalty = 1
+
+[visual_templates.sword_diagonal]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "....................HHH.",
+    "...................HHBB.",
+    "..................HHBBB.",
+    ".................HHBBB..",
+    "................HHBBB...",
+    "...............HHBBB....",
+    "..............HHBBB.....",
+    ".............HHBBB......",
+    "............HHBBB.......",
+    "...........HHBBB........",
+    "......AG..HHBBB.........",
+    "......AAGHHBBB..........",
+    ".......AAGBBB...........",
+    "........AAGB............",
+    ".......AAAAA............",
+    "......AAA.AAG...........",
+    ".....AAA...AA...........",
+    "....AAA.................",
+    "..AAAA..................",
+    ".AGAA...................",
+    ".AAAA...................",
+    "..AA....................",
+    "........................",
+]
+
+[items.weapons.training_sword]
+name = "Training Sword"
+category = "sword"
+slot = "main_hand"
+rarity = "common"
+color = 25
+visual_template = "sword_diagonal"
+rig_scale = 0.85
+rig_pivot = [0.31, 0.82]
+rig_layer = "back"
+
+[items.weapons.training_sword.attributes]
+DMG = 2
+attack_cooldown = 1.0
+damage_kind = "physical"
+
+[items.weapons.training_sword.damage]
+roll = "1d6"
+bonus = 1
+bonus_attribute = "STR"
+bonus_every = 4
+damage_kind = "physical"
+
+[items.weapons.hand_axe]
+name = "Hand Axe"
+category = "axe"
+slot = "main_hand"
+rarity = "common"
+color = 25
+
+[items.weapons.hand_axe.attributes]
+DMG = 3
+attack_cooldown = 1.2
+damage_kind = "physical"
+
+[items.weapons.hand_axe.damage]
+roll = "1d8"
+bonus = 1
+bonus_attribute = "STR"
+bonus_every = 4
+damage_kind = "physical"
+
+[items.weapons.novice_mace]
+name = "Novice Mace"
+category = "mace"
+slot = "main_hand"
+rarity = "common"
+color = 25
+
+[items.weapons.novice_mace.attributes]
+DMG = 2
+attack_cooldown = 1.15
+damage_kind = "physical"
+
+[items.weapons.novice_mace.damage]
+roll = "1d6"
+bonus = 0
+bonus_attribute = "STR"
+bonus_every = 4
+damage_kind = "physical"
+
+[items.armor.padded_armor]
+name = "Padded Armor"
+category = "cloth"
+slot = "torso"
+rarity = "common"
+color = 9
+avatar_channels = ["torso", "arms"]
+
+[items.armor.padded_armor.attributes]
+ARMOR = 1
+
+[items.armor.leather_vest]
+name = "Leather Vest"
+category = "leather"
+slot = "torso"
+rarity = "common"
+color = 7
+avatar_channels = ["torso"]
+
+[items.armor.leather_vest.attributes]
+ARMOR = 2
+
+[items.armor.chain_shirt]
+name = "Chain Shirt"
+category = "chain"
+slot = "torso"
+rarity = "common"
+color = 25
+avatar_channels = ["torso", "arms"]
+
+[items.armor.chain_shirt.attributes]
+ARMOR = 3
+
+[items.armor.round_shield]
+name = "Round Shield"
+category = "shield"
+slot = "shield"
+rarity = "common"
+color = 10
+
+[items.armor.round_shield.attributes]
+ARMOR = 1
+
+[items.clothing.linen_shirt]
+name = "Linen Shirt"
+category = "cloth"
+slot = "torso"
+rarity = "common"
+color = 2
+avatar_channels = ["torso", "arms"]
+
+[items.clothing.wool_trousers]
+name = "Wool Trousers"
+category = "cloth"
+slot = "legs"
+rarity = "common"
+color = 28
+avatar_channels = ["legs"]
+
+[items.clothing.leather_shoes]
+name = "Leather Shoes"
+category = "leather"
+slot = "feet"
+rarity = "common"
+color = 7
+avatar_channels = ["feet"]

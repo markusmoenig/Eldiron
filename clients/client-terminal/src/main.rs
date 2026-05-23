@@ -46,8 +46,9 @@ impl TerminalApp {
     fn load(path: &Path) -> Result<Self, String> {
         let contents = fs::read_to_string(path)
             .map_err(|err| format!("Failed to read {}: {}", path.display(), err))?;
-        let project: Project = serde_json::from_str(&contents)
+        let mut project: Project = serde_json::from_str(&contents)
             .map_err(|err| format!("Failed to parse {}: {}", path.display(), err))?;
+        project.migrate_default_ruleset();
 
         let current_map = config_string(&project.config, "game", "start_region", "");
         if current_map.is_empty() {
@@ -94,7 +95,13 @@ impl TerminalApp {
             }
         }
 
-        self.assets.rules = self.project.rules.clone();
+        self.assets.rules =
+            shared::rulesets::resolve_project_rules(&self.project.config, &self.project.rules)
+                .unwrap_or_else(|err| {
+                    eprintln!("Ruleset resolution error: {}", err);
+                    self.project.rules.clone()
+                });
+        self.assets.read_rules_metadata();
         self.assets.locales_src = self.project.locales.clone();
         self.assets.audio_fx_src = self.project.audio_fx.clone();
         self.assets.authoring_src = self.project.authoring.clone();
@@ -174,6 +181,14 @@ impl TerminalApp {
         }
 
         self.assets.avatars.clear();
+        match shared::rulesets::bundled_avatars_for_project(&self.project.config) {
+            Ok(avatars) => {
+                for (id, avatar) in avatars {
+                    self.assets.avatars.insert(id.to_string(), avatar);
+                }
+            }
+            Err(err) => eprintln!("Ruleset avatar load error: {}", err),
+        }
         for avatar in self.project.avatars.values() {
             self.assets
                 .avatars
@@ -876,6 +891,212 @@ fn resolve_data_path(args: &[String]) -> Result<PathBuf, String> {
     }
 }
 
+fn rules_command_usage() -> &'static str {
+    "Usage:\n\
+       eldiron-client-terminal rules class <class_id>\n\
+       eldiron-client-terminal rules xp <level>\n\
+       eldiron-client-terminal rules weapon <weapon_id> [ATTR=VALUE ...]\n\
+       eldiron-client-terminal rules spell <spell_id> [ATTR=VALUE ...]\n\
+       eldiron-client-terminal rules roll <ruleset.path.to.roll> [ATTR=VALUE ...]\n\
+     Examples:\n\
+       eldiron-client-terminal rules class Warrior\n\
+       eldiron-client-terminal rules xp 5\n\
+       eldiron-client-terminal rules weapon training_sword STR=12\n\
+       eldiron-client-terminal rules spell fire_spark INT=12"
+}
+
+fn run_rules_command(args: &[String]) -> Result<(), String> {
+    match args.first().map(String::as_str) {
+        Some("class") => run_rules_class_command(&args[1..]),
+        Some("xp") => run_rules_xp_command(&args[1..]),
+        Some("weapon") => run_rules_weapon_command(&args[1..]),
+        Some("spell") => run_rules_spell_command(&args[1..]),
+        Some("roll") => run_rules_roll_command(&args[1..]),
+        _ => Err(rules_command_usage().into()),
+    }
+}
+
+fn parse_rules_attributes(
+    args: &[String],
+) -> Result<shared::rulesets::RulesetAttributeMap, String> {
+    let mut attributes = shared::rulesets::RulesetAttributeMap::new();
+    for raw in args {
+        let Some((key, value)) = raw.split_once('=') else {
+            return Err(format!("Attribute '{}' must use ATTR=VALUE syntax.", raw));
+        };
+        let key = key.trim();
+        if key.is_empty() {
+            return Err(format!("Attribute '{}' has an empty name.", raw));
+        }
+        let value = value
+            .trim()
+            .parse::<f32>()
+            .map_err(|_| format!("Attribute '{}' has a non-numeric value.", raw))?;
+        attributes.insert(key.to_string(), value);
+    }
+    Ok(attributes)
+}
+
+fn official_rules_table() -> Result<toml::Table, String> {
+    shared::rulesets::latest_official_ruleset()
+        .parse::<toml::Table>()
+        .map_err(|err| format!("Official ruleset TOML parse error: {}", err))
+}
+
+fn format_roll_summary(label: &str, summary: &shared::rulesets::RulesetRollSummary) -> String {
+    let attr_line = if let Some(attribute) = summary.spec.bonus_attribute.as_deref() {
+        format!(
+            "{}={} => +{} every {}",
+            attribute, summary.attribute_value, summary.attribute_bonus, summary.spec.bonus_every
+        )
+    } else {
+        "none".into()
+    };
+    let kind_line = summary
+        .spec
+        .damage_kind
+        .as_deref()
+        .map(|kind| format!("\ndamage kind: {}", kind))
+        .unwrap_or_default();
+
+    format!(
+        "{}\nroll: {}\nbonus: {}\nattribute bonus: {}\ntotal bonus: {}\nmin: {}\nmax: {}\naverage: {:.2}{}",
+        label,
+        summary.spec.roll,
+        summary.spec.bonus,
+        attr_line,
+        summary.total_bonus,
+        summary.minimum,
+        summary.maximum,
+        summary.average,
+        kind_line
+    )
+}
+
+fn run_rules_roll_command(args: &[String]) -> Result<(), String> {
+    let Some(path) = args.first() else {
+        return Err(rules_command_usage().into());
+    };
+    let path_parts = path
+        .split('.')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    if path_parts.is_empty() {
+        return Err(rules_command_usage().into());
+    }
+
+    let attributes = parse_rules_attributes(&args[1..])?;
+    let rules = official_rules_table()?;
+    let summary = shared::rulesets::summarize_roll_path(&rules, &path_parts, &attributes)?;
+    println!("{}", format_roll_summary(path, &summary));
+    Ok(())
+}
+
+fn run_rules_weapon_command(args: &[String]) -> Result<(), String> {
+    let Some(weapon_id) = args.first() else {
+        return Err(rules_command_usage().into());
+    };
+    let attributes = parse_rules_attributes(&args[1..])?;
+    let rules = official_rules_table()?;
+    let summary = shared::rulesets::summarize_weapon_damage(&rules, weapon_id, &attributes)?;
+    println!(
+        "{}",
+        format_roll_summary(&format!("weapon: {}", weapon_id), &summary)
+    );
+    Ok(())
+}
+
+fn run_rules_spell_command(args: &[String]) -> Result<(), String> {
+    let Some(spell_id) = args.first() else {
+        return Err(rules_command_usage().into());
+    };
+    let attributes = parse_rules_attributes(&args[1..])?;
+    let rules = official_rules_table()?;
+    let (kind, summary) = shared::rulesets::summarize_spell_roll(&rules, spell_id, &attributes)?;
+    println!(
+        "{}",
+        format_roll_summary(&format!("spell: {} ({})", spell_id, kind.label()), &summary)
+    );
+    Ok(())
+}
+
+fn run_rules_xp_command(args: &[String]) -> Result<(), String> {
+    let Some(level) = args.first() else {
+        return Err(rules_command_usage().into());
+    };
+    let level = level
+        .trim()
+        .parse::<u32>()
+        .map_err(|_| format!("Level '{}' is not a positive integer.", level))?;
+    let rules = official_rules_table()?;
+    let Some(xp) = shared::rulesets::ruleset_xp_for_level(&rules, level) else {
+        return Err(format!("No XP entry for level {}.", level));
+    };
+    println!("level: {}\nrequired xp: {}", level, xp);
+    Ok(())
+}
+
+fn join_or_dash(values: &[String]) -> String {
+    if values.is_empty() {
+        "-".into()
+    } else {
+        values.join(", ")
+    }
+}
+
+fn run_rules_class_command(args: &[String]) -> Result<(), String> {
+    let Some(class_id) = args.first() else {
+        return Err(rules_command_usage().into());
+    };
+    let rules = shared::rulesets::latest_official_ruleset()
+        .parse::<toml::Table>()
+        .map_err(|err| format!("Official ruleset TOML parse error: {}", err))?;
+    let summary = shared::rulesets::summarize_class(&rules, class_id)?;
+    let mut attributes = summary
+        .attributes
+        .iter()
+        .map(|(key, value)| format!("{}={}", key, value))
+        .collect::<Vec<_>>();
+    attributes.sort();
+    let unlocks = summary
+        .level_unlocks
+        .iter()
+        .map(|(level, values)| format!("{}: {}", level, join_or_dash(values)))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let loadout = summary
+        .starting_loadout
+        .iter()
+        .map(|(category, values)| format!("{}: {}", category, join_or_dash(values)))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    println!(
+        "class: {}\nrole: {}\ndescription: {}\nprimary attributes: {}\nallowed weapons: {}\nallowed armor: {}\nabilities: {}\nspells: {}\nattributes: {}\nunlocks:\n{}\nstarting loadout:\n{}",
+        summary.id,
+        summary.role.as_deref().unwrap_or("-"),
+        summary.description.as_deref().unwrap_or("-"),
+        join_or_dash(&summary.primary_attributes),
+        join_or_dash(&summary.allowed_weapons),
+        join_or_dash(&summary.allowed_armor),
+        join_or_dash(&summary.abilities),
+        join_or_dash(&summary.spells),
+        join_or_dash(&attributes),
+        if unlocks.is_empty() {
+            "-".into()
+        } else {
+            unlocks
+        },
+        if loadout.is_empty() {
+            "-".into()
+        } else {
+            loadout
+        },
+    );
+    Ok(())
+}
+
 fn print_with_printer(printer: &mut impl ExternalPrinter, text: &str) {
     if text.trim().is_empty() {
         return;
@@ -1389,6 +1610,14 @@ fn clear_terminal_prompt_line() {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("rules") {
+        if let Err(err) = run_rules_command(&args[2..]) {
+            eprintln!("{}", err);
+            std::process::exit(1);
+        }
+        return;
+    }
+
     let path = match resolve_data_path(&args) {
         Ok(path) => path,
         Err(err) => {

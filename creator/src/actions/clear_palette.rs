@@ -1,7 +1,4 @@
-use crate::{
-    editor::{DOCKMANAGER, UNDOMANAGER},
-    prelude::*,
-};
+use crate::{editor::UNDOMANAGER, prelude::*};
 
 pub struct ClearPalette {
     id: TheId,
@@ -38,7 +35,8 @@ impl Action for ClearPalette {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        DOCKMANAGER.read().unwrap().dock == "Palette" && server_ctx.palette_tool_active
+        let _ = server_ctx;
+        false
     }
 
     fn apply_project(
@@ -48,6 +46,10 @@ impl Action for ClearPalette {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
+        if project.ruleset_palette_is_active() {
+            return;
+        }
+
         let prev = project.palette.clone();
         let prev_materials = project.palette_materials.clone();
 

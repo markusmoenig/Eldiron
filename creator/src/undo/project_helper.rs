@@ -46,6 +46,19 @@ fn data_attr_bool(data: &str, key: &str) -> bool {
     }
 }
 
+fn data_has_attr(data: &str, key: &str) -> bool {
+    let Ok(value) = data.parse::<toml::Value>() else {
+        return false;
+    };
+
+    let attrs = value
+        .get("attributes")
+        .and_then(|v| v.as_table())
+        .or_else(|| value.as_table());
+
+    attrs.is_some_and(|attrs| attrs.contains_key(key))
+}
+
 /// Generate a tree node for the given region
 pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&region.name, region.id));
@@ -168,7 +181,9 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
 pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&item_.name, item_.id));
     node.set_root_mode(false);
-    if data_attr_bool(&item_.data, "is_spell") {
+    if data_has_attr(&item_.data, "ruleset_path") {
+        node.set_background_color(ActionRole::Dock.to_color());
+    } else if data_attr_bool(&item_.data, "is_spell") {
         node.set_background_color(ActionRole::Editor.to_color());
     }
 
@@ -577,6 +592,10 @@ pub fn apply_palette(
     server_ctx: &mut ServerContext,
     project: &mut Project,
 ) {
+    if project.palette.current_index as usize >= project.palette_visible_color_count() {
+        project.palette.current_index =
+            project.palette_visible_color_count().saturating_sub(1) as u16;
+    }
     project.ensure_palette_materials_len();
     for (index, color) in project.palette.colors.iter_mut().enumerate() {
         if color.as_ref().is_some_and(|c| c.a <= f32::EPSILON) {
@@ -594,10 +613,11 @@ pub fn apply_palette(
             palette_node.childs.clear();
 
             let mut item = TheTreeIcons::new(TheId::named("Palette Item"));
-            item.set_icon_count(256);
+            let palette_count = project.palette_visible_color_count();
+            item.set_icon_count(palette_count);
             item.set_icons_per_row(17);
             item.set_palette(&project.palette);
-            for index in 0..project.palette.colors.len() {
+            for index in 0..palette_count {
                 item.set_status_text_for(
                     index,
                     palette_status_text(
@@ -648,6 +668,25 @@ pub fn apply_palette(
         && let Some(widget) = ui.get_widget("Palette Color Picker")
     {
         widget.set_value(TheValue::ColorObject(color));
+    }
+
+    let palette_locked = project.ruleset_palette_is_active();
+    if let Some(widget) = ui.get_widget("Palette Color Picker") {
+        if palette_locked {
+            widget.limiter_mut().set_min_size(Vec2::zero());
+            widget.limiter_mut().set_max_size(Vec2::zero());
+        } else {
+            widget.limiter_mut().set_max_size(Vec2::new(200, 200));
+        }
+        widget.set_needs_redraw(true);
+    }
+    for id in [
+        "Palette Color Picker",
+        "Palette Hex Edit",
+        "Palette Clear",
+        "Palette Import",
+    ] {
+        ui.set_widget_disabled_state(id, ctx, palette_locked);
     }
 
     if let Some(widget) = ui.get_widget("Palette Index Text") {

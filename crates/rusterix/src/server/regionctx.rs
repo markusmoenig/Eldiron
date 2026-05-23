@@ -579,7 +579,7 @@ impl RegionCtx {
             return Some(class_name.clone());
         }
 
-        // Accept display names from item data: [attributes].name or top-level name.
+        // Accept display names and stable ruleset ids from item data.
         for (class_name, (_, item_data)) in &self.assets.items {
             if let Ok(table) = item_data.parse::<toml::Table>() {
                 let attr_name = table
@@ -587,8 +587,21 @@ impl RegionCtx {
                     .and_then(toml::Value::as_table)
                     .and_then(|attrs| attrs.get("name"))
                     .and_then(toml::Value::as_str);
+                let ruleset_id = table
+                    .get("attributes")
+                    .and_then(toml::Value::as_table)
+                    .and_then(|attrs| attrs.get("ruleset_id"))
+                    .and_then(toml::Value::as_str);
+                let ruleset_path_id = table
+                    .get("attributes")
+                    .and_then(toml::Value::as_table)
+                    .and_then(|attrs| attrs.get("ruleset_path"))
+                    .and_then(toml::Value::as_str)
+                    .and_then(|path| path.rsplit('.').next());
                 let top_name = table.get("name").and_then(toml::Value::as_str);
                 if attr_name.is_some_and(|name| name.eq_ignore_ascii_case(requested))
+                    || ruleset_id.is_some_and(|id| id.eq_ignore_ascii_case(requested))
+                    || ruleset_path_id.is_some_and(|id| id.eq_ignore_ascii_case(requested))
                     || top_name.is_some_and(|name| name.eq_ignore_ascii_case(requested))
                 {
                     return Some(class_name.clone());

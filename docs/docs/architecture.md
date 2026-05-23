@@ -142,7 +142,7 @@ This is not a separate gameplay system. It is another frontend onto the same wor
 The current intended split is:
 
 - scripts decide when to attack
-- `attack()` or `deal_damage()` starts combat resolution
+- `attack()` starts combat resolution
 - rules calculate outgoing and incoming damage
 - messages and audio are produced from the resolved result
 - progression handles XP and levels

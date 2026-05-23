@@ -5,6 +5,7 @@ pub mod interaction;
 pub mod item;
 pub mod project;
 pub mod region;
+pub mod rulesets;
 #[cfg(feature = "graphics")]
 pub mod rusterix_utils;
 pub mod screen;
@@ -31,6 +32,7 @@ pub mod prelude {
         BuilderGraphAsset, NodeGroupAsset, Project, TileCollectionAsset, TileCollectionEntry,
     };
     pub use crate::region::Region;
+    pub use crate::rulesets::*;
     pub use crate::screen::*;
     pub use crate::text_game::*;
     pub use crate::text_session::*;

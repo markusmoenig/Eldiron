@@ -82,6 +82,7 @@ impl TilePickerTool {
         let sampled = texture.get_pixel(pos.x as u32, pos.y as u32);
         let sampled_color = TheColor::from(sampled);
 
+        let palette_locked = project.ruleset_palette_is_active();
         let prev_palette = project.palette.clone();
         let prev_palette_materials = project.palette_materials.clone();
 
@@ -91,7 +92,7 @@ impl TilePickerTool {
             .iter()
             .position(|entry| entry.as_ref() == Some(&sampled_color));
 
-        if selected_index.is_none() {
+        if selected_index.is_none() && !palette_locked {
             project.palette.add_unique_color(sampled_color.clone());
             selected_index = project
                 .palette
@@ -99,12 +100,15 @@ impl TilePickerTool {
                 .iter()
                 .position(|entry| entry.as_ref() == Some(&sampled_color));
         }
+        if selected_index.is_none() && palette_locked {
+            selected_index = project.palette.find_closest_color_index(&sampled_color);
+        }
 
         if let Some(index) = selected_index {
             project.palette.current_index = index as u16;
         }
 
-        if project.palette != prev_palette {
+        if project.palette != prev_palette && !palette_locked {
             let undo = ProjectUndoAtom::PaletteEdit(
                 prev_palette,
                 prev_palette_materials,

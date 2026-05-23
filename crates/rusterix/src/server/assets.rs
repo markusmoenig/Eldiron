@@ -38,6 +38,7 @@ pub struct Assets {
     pub config: String,
     pub world_source: String,
     pub rules: String,
+    pub default_avatar: Option<String>,
     pub locales_src: String,
     pub audio_fx_src: String,
     pub authoring_src: String,
@@ -103,6 +104,7 @@ impl Assets {
             config: String::new(),
             world_source: String::new(),
             rules: String::new(),
+            default_avatar: None,
             locales_src: String::new(),
             audio_fx_src: String::new(),
             authoring_src: String::new(),
@@ -129,6 +131,24 @@ impl Assets {
                 }
             }
         }
+    }
+
+    /// Reads lightweight metadata from the effective ruleset.
+    pub fn read_rules_metadata(&mut self) {
+        self.default_avatar = None;
+        let Ok(table) = self.rules.parse::<Table>() else {
+            return;
+        };
+        self.default_avatar = table
+            .get("visuals")
+            .and_then(toml::Value::as_table)
+            .and_then(|visuals| visuals.get("defaults"))
+            .and_then(toml::Value::as_table)
+            .and_then(|defaults| defaults.get("avatar"))
+            .and_then(toml::Value::as_str)
+            .map(str::trim)
+            .filter(|avatar| !avatar.is_empty())
+            .map(str::to_string);
     }
 
     /// Clears the tile list.

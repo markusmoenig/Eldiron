@@ -106,7 +106,7 @@ This event is useful for clearing target state and returning an NPC to idle beha
   `{ intent (string), entity_id (int), item_id (int), distance (float)}`
 - **Description**: Triggered when the player triggers an intent towards another entity or item. Either via a movement based keyboard shortcut or by clicking on the target entity or item.
   - When the target is an item, the event is send to the target item **and** to the originating player entity as the action may be handled by either of them depending on the context, for example a torch would lit itself when used, or a character may take an item.
-  - When the target is another character, the event is send to both, the originating character and the target entity. For example on an `attack` intent the originating player may call [deal_damage](server_commands#deal_damage) to the given `entity_id`, or the target may want to respond when talked to.
+  - When the target is another character, the event is send to both, the originating character and the target entity. For example on an `attack` intent the originating player may call [attack](server_commands#attack), or the target may want to respond when talked to.
 
 ---
 
@@ -163,7 +163,7 @@ See [NPC Sequences](npc_sequences) for the bigger event + sequence model.
 ### `take_damage`
 
 - **Value**: `amount` *(int)*
-- **Description**: Triggered by the `deal_damage()` command after the server has applied the project-wide damage formula.  
+- **Description**: Triggered after the server has applied the ruleset combat pipeline.  
   `amount` is the final incoming damage, `from_id` contains the attacker id, `damage_kind` contains the kind such as `physical`, `spell`, or `fire`, and `source_item_id` contains the weapon or spell item when available.
   The server applies this final damage automatically after the event returns.
   If the target has [autodamage](attributes#autodamage) enabled, this event is not triggered.

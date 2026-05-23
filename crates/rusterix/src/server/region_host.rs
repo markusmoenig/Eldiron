@@ -1,8 +1,9 @@
 use crate::server::message::{AudioCommand, RegionMessage};
 use crate::server::region::{
     RegionInstance, add_debug_value, apply_damage_direct, apply_damage_rules,
-    apply_spell_default_attrs, grant_experience, is_spell_on_cooldown, open_dialog_node,
-    progression_stat_value, set_spell_cooldown,
+    apply_spell_default_attrs, current_attack_base_damage_for_entity,
+    current_attack_cooldown_for_entity, entity_disposition_by_id, entity_is_hostile_by_id,
+    grant_experience, is_spell_on_cooldown, open_dialog_node, set_spell_cooldown,
 };
 use crate::server::regionctx::ChoiceSession;
 use crate::vm::*;
@@ -249,6 +250,7 @@ fn rebuild_procedural_region(ctx: &mut RegionCtx, seed_arg: i64) -> bool {
         entity.set_attribute("procedural_kind", Value::Str(spawn.kind));
         if let Some(data) = ctx.entity_class_data.get(&spawn.name) {
             crate::server::data::apply_entity_data(&mut entity, data);
+            crate::server::region::apply_ruleset_character_defaults(&ctx.rules, &mut entity);
         }
         if let Some(Value::Int(inv_slots)) = entity.attributes.get("inventory_slots") {
             entity.inventory = vec![None; *inv_slots as usize];
@@ -340,6 +342,22 @@ fn convert_attr_value(key: &str, val: &VMValue, hint: Option<&Value>, health_att
         return Value::UInt(val.x.max(0.0) as u32);
     }
     val.to_value_with_hint(hint)
+}
+
+fn restore_entity_health_if_revived(entity: &mut Entity, health_attr: &str) {
+    if entity.attributes.get_float_default(health_attr, 1.0) > 0.0 {
+        return;
+    }
+
+    let max_health_attr = format!("MAX_{}", health_attr);
+    let max_health = entity
+        .attributes
+        .get_float(&max_health_attr)
+        .or_else(|| entity.attributes.get_float("MAX_HP"))
+        .unwrap_or(1.0)
+        .round()
+        .max(1.0) as i32;
+    entity.set_attribute(health_attr, Value::Int(max_health));
 }
 
 impl<'a> RegionHost<'a> {
@@ -858,18 +876,7 @@ impl<'a> RegionHost<'a> {
     }
 
     fn current_attack_base_damage(&self) -> i32 {
-        progression_stat_value(self.ctx, self.ctx.curr_entity_id, "damage")
-            .or_else(|| {
-                self.ctx
-                    .map
-                    .entities
-                    .iter()
-                    .find(|entity| entity.id == self.ctx.curr_entity_id)
-                    .map(|entity| entity.attributes.get_float_default("DMG", 1.0))
-            })
-            .unwrap_or(1.0)
-            .round()
-            .max(0.0) as i32
+        current_attack_base_damage_for_entity(self.ctx, self.ctx.curr_entity_id)
     }
 
     fn current_attack_kind(&self, source_item_id: Option<u32>) -> String {
@@ -979,6 +986,55 @@ impl<'a> RegionHost<'a> {
         }
     }
 
+    fn attack_cooldown_ticks(&self) -> i64 {
+        let cooldown = self
+            .ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == self.ctx.curr_entity_id)
+            .map(|entity| current_attack_cooldown_for_entity(self.ctx, entity))
+            .unwrap_or_else(|| {
+                self.ctx
+                    .rules
+                    .get("combat")
+                    .and_then(toml::Value::as_table)
+                    .and_then(|combat| combat.get("default_attack_cooldown"))
+                    .and_then(|value| {
+                        value
+                            .as_float()
+                            .or_else(|| value.as_integer().map(|value| value as f64))
+                    })
+                    .map(|value| value as f32)
+                    .unwrap_or(1.0)
+            });
+        RegionInstance::scheduled_delay_ticks(self.ctx, cooldown)
+    }
+
+    fn try_start_attack_cooldown(&mut self) -> bool {
+        if self.ctx.curr_item_id.is_some() {
+            return true;
+        }
+
+        let entity_id = self.ctx.curr_entity_id;
+        let key = "intent: attack";
+        if let Some(state) = self.ctx.entity_state_data.get(&entity_id)
+            && let Some(Value::Int64(tick)) = state.get(key)
+            && *tick > self.ctx.ticks
+        {
+            return false;
+        }
+
+        let cooldown_ticks = self.attack_cooldown_ticks();
+        if cooldown_ticks <= 0 {
+            return true;
+        }
+
+        let state = self.ctx.entity_state_data.entry(entity_id).or_default();
+        state.set(key, Value::Int64(self.ctx.ticks + cooldown_ticks));
+        true
+    }
+
     fn has_valid_target(&mut self) -> bool {
         let Some(target_id) = self.get_current_target_id() else {
             return false;
@@ -1057,7 +1113,9 @@ impl<'a> HostHandler for RegionHost<'a> {
                 ) {
                     let region_name = args.get(2).and_then(|v| v.as_string()).unwrap_or("");
 
-                    if region_name.is_empty() {
+                    if region_name.trim().is_empty()
+                        || region_name.trim().eq_ignore_ascii_case(&self.ctx.map.name)
+                    {
                         let radius = self
                             .ctx
                             .map
@@ -1638,6 +1696,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                                 entity.set_attribute("visible", Value::Bool(false));
                             } else if mode == "active" {
                                 entity.set_attribute("visible", Value::Bool(true));
+                                restore_entity_health_if_revived(entity, &health_attr);
                             }
                         }
                     }
@@ -1701,6 +1760,26 @@ impl<'a> HostHandler for RegionHost<'a> {
                     }
                 }
                 return self.debug_return(VMValue::zero());
+            }
+            "disposition_of" => {
+                if let Some(target) = args.first() {
+                    let target_id = target.x.max(0.0) as u32;
+                    if let Some(disposition) =
+                        entity_disposition_by_id(self.ctx, self.ctx.curr_entity_id, target_id)
+                    {
+                        return self.debug_return(VMValue::from_string(disposition));
+                    }
+                }
+                return self.debug_return(VMValue::from_string("neutral"));
+            }
+            "is_hostile" => {
+                if let Some(target) = args.first() {
+                    let target_id = target.x.max(0.0) as u32;
+                    let hostile =
+                        entity_is_hostile_by_id(self.ctx, self.ctx.curr_entity_id, target_id);
+                    return self.debug_return(VMValue::from_bool(hostile));
+                }
+                return self.debug_return(VMValue::from_bool(false));
             }
             "random" => {
                 // random(min, max) inclusive; fallback to 0..1 if missing args
@@ -2229,34 +2308,69 @@ impl<'a> HostHandler for RegionHost<'a> {
                 }
             }
             "deal_damage" => {
-                // deal_damage(amount[, kind]) using current target, or deal_damage(target, amount[, kind]).
-                let (target_id, base_dmg, kind) = match args {
-                    [amount] => (
+                // deal_damage() uses the normal weapon / unarmed rules against the current target.
+                let mut ruleset_damage = || {
+                    let source_item_id = self
+                        .ctx
+                        .curr_item_id
+                        .or_else(|| self.current_attack_source_item_id());
+                    (
                         self.get_current_target_id(),
-                        amount.x as i32,
-                        "physical".to_string(),
-                    ),
-                    [amount, kind] if kind.as_string().is_some() => (
-                        self.get_current_target_id(),
-                        amount.x as i32,
-                        kind.as_string().unwrap_or("physical").to_string(),
-                    ),
-                    [target, amount] => (
-                        Self::parse_target_arg_id(target).or_else(|| self.get_current_target_id()),
-                        amount.x as i32,
-                        "physical".to_string(),
-                    ),
-                    [target, amount, kind] => (
-                        Self::parse_target_arg_id(target).or_else(|| self.get_current_target_id()),
-                        amount.x as i32,
-                        kind.as_string().unwrap_or("physical").to_string(),
-                    ),
-                    _ => (None, 0, "physical".to_string()),
+                        self.current_attack_base_damage(),
+                        self.current_attack_kind(source_item_id),
+                        source_item_id,
+                    )
                 };
-                self.queue_damage(target_id, base_dmg, &kind, self.ctx.curr_item_id);
+                let (target_id, base_dmg, kind, source_item_id) = match args {
+                    [] => ruleset_damage(),
+                    [kind] if kind.as_string().is_some() => {
+                        let (target_id, base_dmg, _, source_item_id) = ruleset_damage();
+                        (
+                            target_id,
+                            base_dmg,
+                            kind.as_string().unwrap_or("physical").to_string(),
+                            source_item_id,
+                        )
+                    }
+                    [_amount] => ruleset_damage(),
+                    [_amount, kind] if kind.as_string().is_some() => (
+                        self.get_current_target_id(),
+                        self.current_attack_base_damage(),
+                        kind.as_string().unwrap_or("physical").to_string(),
+                        self.ctx
+                            .curr_item_id
+                            .or_else(|| self.current_attack_source_item_id()),
+                    ),
+                    [target, _amount] => {
+                        let (_, base_dmg, kind, source_item_id) = ruleset_damage();
+                        (
+                            Self::parse_target_arg_id(target)
+                                .or_else(|| self.get_current_target_id()),
+                            base_dmg,
+                            kind,
+                            source_item_id,
+                        )
+                    }
+                    [target, _amount, kind] => (
+                        Self::parse_target_arg_id(target).or_else(|| self.get_current_target_id()),
+                        self.current_attack_base_damage(),
+                        kind.as_string().unwrap_or("physical").to_string(),
+                        self.ctx
+                            .curr_item_id
+                            .or_else(|| self.current_attack_source_item_id()),
+                    ),
+                    _ => ruleset_damage(),
+                };
+                if target_id.is_some() && !self.try_start_attack_cooldown() {
+                    return self.debug_return(VMValue::zero());
+                }
+                self.queue_damage(target_id, base_dmg, &kind, source_item_id);
             }
             "attack" => {
                 let target_id = self.get_current_target_id();
+                if target_id.is_some() && !self.try_start_attack_cooldown() {
+                    return self.debug_return(VMValue::zero());
+                }
                 let source_item_id = self.current_attack_source_item_id();
                 let kind = self.current_attack_kind(source_item_id);
                 let base_dmg = self.current_attack_base_damage();
@@ -2532,6 +2646,7 @@ impl<'a> HostHandler for RegionHost<'a> {
             }
             "drop_items" => {
                 if let Some(filter) = args.get(0).and_then(|v| v.as_string()) {
+                    let mut removed_items = Vec::new();
                     if let Some(entity) = self.ctx.get_current_entity_mut() {
                         let matching_slots: Vec<usize> = entity
                             .iter_inventory()
@@ -2550,7 +2665,6 @@ impl<'a> HostHandler for RegionHost<'a> {
                             })
                             .collect();
 
-                        let mut removed_items = Vec::new();
                         for slot in matching_slots {
                             if let Some(mut item) = entity.remove_item_from_slot(slot) {
                                 // Drop at the entity position and mark dirty so the server transmits
@@ -2559,8 +2673,8 @@ impl<'a> HostHandler for RegionHost<'a> {
                                 removed_items.push(item);
                             }
                         }
-                        self.ctx.map.items.extend(removed_items);
                     }
+                    self.ctx.map.items.extend(removed_items);
                 }
             }
             "drop" => {
@@ -2584,7 +2698,9 @@ impl<'a> HostHandler for RegionHost<'a> {
                 if let Some(dest) = args.get(0).and_then(|v| v.as_string()) {
                     let region_name = args.get(1).and_then(|v| v.as_string()).unwrap_or("");
 
-                    if region_name.is_empty() {
+                    if region_name.trim().is_empty()
+                        || region_name.trim().eq_ignore_ascii_case(&self.ctx.map.name)
+                    {
                         let radius = self
                             .ctx
                             .map

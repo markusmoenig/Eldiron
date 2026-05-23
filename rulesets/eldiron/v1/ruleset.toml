@@ -1,0 +1,61 @@
+[ruleset]
+id = "eldiron.official"
+name = "Eldiron Official Ruleset"
+version = "1.0.0"
+schema_version = "1"
+min_engine_version = "0.9.12"
+status = "draft"
+
+[schema]
+attribute_case = "upper"
+time_unit = "seconds"
+distance_unit = "tiles"
+cooldown_unit = "seconds"
+damage_rounding = "round"
+
+[assets.avatars.humanoid]
+path = "assets/humanoid.eldiron_avatar"
+description = "Default Eldiron humanoid avatar."
+
+[visuals.defaults]
+avatar = "humanoid"
+
+[visuals.overrides]
+tile_id = "explicit character tile_id wins over ruleset visuals"
+avatar = "explicit character avatar/avatar_id wins over ruleset visuals"
+empty_visual = "tile_id = \"\" or avatar = \"\" disables inherited default visuals"
+
+# Eldiron v1 uses a single mood palette based on Lospec's "31" palette by mattt.
+
+[palette]
+0 = "#636663"
+1 = "#87857c"
+2 = "#bcad9f"
+3 = "#f2b888"
+4 = "#eb9661"
+5 = "#b55945"
+6 = "#734c44"
+7 = "#3d3333"
+8 = "#593e47"
+9 = "#7a5859"
+10 = "#a57855"
+11 = "#de9f47"
+12 = "#fdd179"
+13 = "#fee1b8"
+14 = "#d4c692"
+15 = "#a6b04f"
+16 = "#819447"
+17 = "#44702d"
+18 = "#2f4d2f"
+19 = "#546756"
+20 = "#89a477"
+21 = "#a4c5af"
+22 = "#cae6d9"
+23 = "#f1f6f0"
+24 = "#d5d6db"
+25 = "#bbc3d0"
+26 = "#96a9c1"
+27 = "#6c81a1"
+28 = "#405273"
+29 = "#303843"
+30 = "#14233a"

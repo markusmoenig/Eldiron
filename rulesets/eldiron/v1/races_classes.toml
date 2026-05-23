@@ -1,0 +1,128 @@
+[races.Human]
+description = "Adaptable people with balanced attributes and no hard specialization."
+default_avatar = "humanoid"
+languages = ["common"]
+
+[races.Human.attributes]
+HP = 10
+MAX_HP = 10
+MP = 0
+MAX_MP = 0
+STR = 10
+DEX = 10
+INT = 10
+WIS = 10
+VIT = 10
+SPEED = 1
+
+[races.Orc]
+description = "Strong, hardy people often used as hostile test enemies in the default rules."
+default_avatar = "humanoid"
+languages = ["orcish"]
+
+[races.Orc.attributes]
+HP = 14
+MAX_HP = 14
+MP = 0
+MAX_MP = 0
+STR = 12
+DEX = 9
+INT = 8
+WIS = 8
+VIT = 12
+SPEED = 1
+
+[classes.Warrior]
+description = "Durable martial adventurer trained for weapons and armor."
+role = "martial"
+primary_attributes = ["STR", "VIT"]
+allowed_weapons = ["sword", "axe", "mace", "spear", "bow"]
+allowed_armor = ["cloth", "leather", "chain", "shield"]
+abilities = ["basic_attack", "guard", "power_strike"]
+spells = []
+
+[classes.Warrior.attributes]
+HP = 16
+MAX_HP = 16
+STR = 12
+DEX = 10
+VIT = 12
+DMG = 1
+ARMOR = 1
+INIT = 1
+inventory_slots = 6
+
+[classes.Warrior.progression.damage]
+base = 1
+per_level = 1
+bonus_attribute = "STR"
+bonus_every = 5
+
+[classes.Warrior.progression.level]
+hp_per_level = 6
+primary_attribute_gain = 1
+
+[classes.Warrior.unlocks.level_1]
+abilities = ["basic_attack", "guard"]
+equipment = ["training_sword", "padded_armor"]
+
+[classes.Warrior.unlocks.level_2]
+abilities = ["power_strike"]
+
+[classes.Warrior.starting_loadout]
+weapons = ["training_sword"]
+armor = ["padded_armor"]
+clothing = ["wool_trousers", "leather_shoes"]
+inventory = ["linen_shirt"]
+abilities = ["basic_attack", "guard"]
+
+[classes.Cleric]
+description = "Armored divine caster trained to heal allies and hold a line."
+role = "divine"
+primary_attributes = ["WIS", "VIT"]
+allowed_weapons = ["mace"]
+allowed_armor = ["cloth", "leather", "chain", "shield"]
+abilities = ["basic_attack", "guard"]
+spells = ["minor_heal"]
+
+[classes.Cleric.attributes]
+HP = 14
+MAX_HP = 14
+MP = 8
+MAX_MP = 8
+STR = 10
+DEX = 9
+WIS = 12
+VIT = 11
+POWER = 1
+ARMOR = 1
+RESIST = 1
+INIT = 0
+inventory_slots = 6
+
+[classes.Cleric.progression.damage]
+base = 1
+per_level = 0
+bonus_attribute = "WIS"
+bonus_every = 6
+
+[classes.Cleric.progression.level]
+hp_per_level = 5
+mp_per_level = 3
+primary_attribute_gain = 1
+
+[classes.Cleric.unlocks.level_1]
+abilities = ["basic_attack", "guard"]
+spells = ["minor_heal"]
+equipment = ["novice_mace", "padded_armor", "round_shield"]
+
+[classes.Cleric.unlocks.level_2]
+spells = ["holy_light"]
+
+[classes.Cleric.starting_loadout]
+weapons = ["novice_mace"]
+armor = ["padded_armor", "round_shield"]
+clothing = ["wool_trousers", "leather_shoes"]
+inventory = ["linen_shirt"]
+abilities = ["basic_attack", "guard"]
+spells = ["minor_heal"]

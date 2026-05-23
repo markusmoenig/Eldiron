@@ -584,7 +584,14 @@ impl TheTreeIconsTrait for TheTreeIcons {
         self.texts.clear();
         self.status_texts.clear();
 
-        for (index, color_opt) in palette.colors.iter().enumerate() {
+        let count = palette
+            .colors
+            .iter()
+            .rposition(Option::is_some)
+            .map(|index| index + 1)
+            .unwrap_or(1);
+
+        for (index, color_opt) in palette.colors.iter().take(count).enumerate() {
             if let Some(color) = color_opt {
                 // Create a small buffer with the palette color
                 let mut icon =

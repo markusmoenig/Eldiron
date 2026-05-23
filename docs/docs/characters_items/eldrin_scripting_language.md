@@ -15,35 +15,24 @@ fn event(event, value) {
         random_walk_in_sector( 1.0,  1.0,  4);
         set_proximity_tracking( true,  4);
         add_item( "GoldenKey");
-        set_attr( "target",  "");
     }
     if event == "proximity_warning" {
-        let alignment = get_attr_of( value,  "ALIGNMENT");
-        if alignment > 0 {
-            close_in( value,  1.5,  1.0);
+        if is_hostile( value) {
+            if target() == 0 {
+                set_target( value);
+            }
+            follow_attack( value,  1.0);
         }
     }
-    if event == "closed_in" {
-        let target = get_attr( "target");
-        if target == "" {
-            let damage = random( 1,  3);
-            deal_damage( value,  damage);
-            set_attr( "target",  value);
-            notify_in( 4,  "attack");
-        }
-    }
-    if event == "attack" {
-        let target = get_attr( "target");
-        if target != "" {
-            let damage = random( 1,  3);
-            deal_damage( target,  damage);
-            notify_in( 4,  "attack");
-        }
+    if event == "engagement_over" {
+        clear_target();
+        goto( "Garden",  1.0);
+        set_proximity_tracking( false,  5.0);
     }
     if event == "kill" {
         set_proximity_tracking( false,  5.0);
         goto( "Garden",  1.0);
-        set_attr( "target",  "");
+        clear_target();
     }
     if event == "arrived" {
         set_proximity_tracking( true,  5.0);
@@ -61,6 +50,8 @@ fn event(event, value) {
     }
 }
 ```
+
+`is_hostile(value)` asks the active ruleset whether this character considers the nearby entity hostile. This keeps race relations and reputation in one place instead of encoding them as custom character attributes.
 
 ## Events
 

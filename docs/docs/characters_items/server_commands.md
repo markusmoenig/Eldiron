@@ -37,8 +37,7 @@ block_events(minutes, "event1", "event2", ...)
 You can also block specific `intent` events.
 
 ```eldrin
-block_events(2, "intent: attack") // Block attack intents for 2 in-game minutes.
-
+block_events(2, "intent: talk") // Block talk intents for 2 in-game minutes.
 block_events(2, "intent") // Block all intents for 2 in-game minutes.
 ```
 
@@ -48,7 +47,7 @@ block_events(2, "intent") // Block all intents for 2 in-game minutes.
 
 *This command can only be used with characters.*
 
-Attacks the current target using the project's progression and combat rules.
+Attacks the current target using the ruleset combat path.
 
 ```eldrin
 attack()
@@ -57,12 +56,14 @@ attack()
 Behavior:
 
 - uses the current target (see [set_target](#set_target))
-- starts from `progression.damage`
-- if `progression.damage` is not configured, falls back to the attacker's `DMG` attribute, then to `1`
+- starts from the equipped weapon's ruleset damage roll
+- if no weapon damage roll is available, uses `[combat.unarmed_damage]`
+- if no dice rule is available, falls back to `progression.damage`, then the attacker's `DMG` attribute, then `1`
 - uses the current weapon's `damage_kind` when available, otherwise `physical`
-- then applies `outgoing_damage` and `incoming_damage` from [Rules](../rules)
+- starts the attack cooldown from the equipped weapon, falling back to `[combat].default_attack_cooldown`
+- then applies incoming damage reductions from [Rules](../rules)
 
-Use `attack()` for the normal combat path. Use [deal_damage](#deal_damage) when you need to send an explicit amount or kind.
+Use `attack()` for normal weapon or unarmed attacks.
 
 ---
 
@@ -93,8 +94,8 @@ follow_attack(entity_id, 1.0)
 Behavior:
 
 - chases the target using the given movement speed
-- attacks using the normal combat rules, weapon damage kind, and progression damage setup
-- waits `attack_cooldown` in-game minutes between hits; equipped weapon values override the attacker's character value, and the default is `1.0`
+- attacks using the normal combat rules, weapon damage kind, and weapon or unarmed dice setup
+- waits for the ruleset attack cooldown between hits; equipped weapon values override `[combat].default_attack_cooldown`
 - in non-realtime 2D modes, stays grid-aligned and does not use custom script-side `close_in` / `notify_in` attack loops
 - if `speed < 1.0` in non-realtime 2D, it skips some turns and then moves a full tile instead of drifting off-grid
 - keeps the engagement active only while the target still exists, is visible/alive, and stays close enough
@@ -135,7 +136,7 @@ clear_target()
 
 Returns `true`.
 
-See also: [set_target](#set_target), [target](#target), [has_target](#has_target), [deal_damage](#deal_damage).
+See also: [set_target](#set_target), [target](#target), [has_target](#has_target), [attack](#attack).
 
 ---
 
@@ -159,40 +160,6 @@ set_tile("2")
 
 This updates the runtime `source` attribute directly.
 
----
-
-## `deal_damage`
-
-*This command can be used with both characters and items.*
-
-Deals damage to an entity or item. The server first applies the project-wide [Rules](../rules) combat pipeline, then sends a [take_damage](events#take_damage) event to the receiver with the final amount and the attacker id.
-
-```eldrin
-deal_damage(id, random(2, 5))
-deal_damage(random(2, 5)) // Uses current target.
-deal_damage(id, random(2, 5), "fire")
-deal_damage(random(2, 5), "physical")
-```
-
-If called with one argument, `deal_damage(amount)` uses the current target (see [set_target](#set_target)).
-If called with two arguments and the second argument is a string, `deal_damage(amount, kind)` uses the current target and sets the damage kind.
-If no kind is supplied, `deal_damage` defaults to `physical`.
-
-`deal_damage(...)` is the lower-level escape hatch. For normal attacks against the current target, prefer [attack](#attack).
-
-The damage kind is also used by:
-
-- `Game / Rules` combat formula overrides under `combat.kinds.<kind>`
-- automatic combat messages and combat audio in `Game / Rules`
-- the `take_damage` event payload as `damage_kind`
-
-If the target character has [autodamage](attributes#autodamage) set to `true`, damage is applied directly by the server and no [take_damage](events#take_damage) event is sent.
-
-See also: [set_target](#set_target), [target](#target), [has_target](#has_target), [clear_target](#clear_target).
-
-:::note
-Characters and items can deal damage. But only characters can receive damage and actually die.
-:::
 ---
 
 ## `debug`
@@ -351,6 +318,40 @@ get_attr_of(id, "key")
 
 ---
 
+## `disposition_of`
+
+*This command can be used with character scripts.*
+
+Returns this character's ruleset disposition toward another character.
+
+```eldrin
+let disposition = disposition_of(entity_id)
+```
+
+The result is a string such as `"friendly"`, `"neutral"`, or `"hostile"`. It is resolved from the active ruleset race relations and reputation rules, so scripts do not need to inspect low-level alignment attributes.
+
+See also: [is_hostile](#is_hostile), [set_proximity_tracking](#set_proximity_tracking), [follow_attack](#follow_attack).
+
+---
+
+## `is_hostile`
+
+*This command can be used with character scripts.*
+
+Returns `true` when this character's ruleset disposition toward another character is hostile.
+
+```eldrin
+if is_hostile(entity_id) {
+    follow_attack(entity_id, 1.0)
+}
+```
+
+Use this in `proximity_warning` handlers instead of checking custom `ALIGNMENT` attributes. The hostility decision comes from the active ruleset.
+
+See also: [disposition_of](#disposition_of), [set_proximity_tracking](#set_proximity_tracking), [follow_attack](#follow_attack).
+
+---
+
 ## `get_sector_name`
 
 *This command can be used with both characters and items.*
@@ -445,11 +446,11 @@ Checks whether a valid current target is set.
 
 ```eldrin
 if has_target() {
-    deal_damage(3)
+    attack()
 }
 ```
 
-See also: [set_target](#set_target), [target](#target), [clear_target](#clear_target), [deal_damage](#deal_damage).
+See also: [set_target](#set_target), [target](#target), [clear_target](#clear_target), [attack](#attack).
 
 ---
 
@@ -671,6 +672,8 @@ Sets an attribute on the current character or item.
 set_attr("key", value)
 ```
 
+Setting `mode` to `"dead"` hides a character. Setting `mode` to `"active"` shows the character again and, if the ruleset health attribute is zero, restores it from `MAX_<health>` or `MAX_HP`.
+
 ---
 
 ## `set_audio_bus_volume`
@@ -763,7 +766,7 @@ set_target(entity_id)
 
 Returns `true` if the target exists and was set, otherwise `false`.
 
-See also: [target](#target), [has_target](#has_target), [clear_target](#clear_target), [deal_damage](#deal_damage).
+See also: [target](#target), [has_target](#has_target), [clear_target](#clear_target), [attack](#attack).
 
 ---
 
@@ -792,7 +795,7 @@ let id = target()
 
 Returns `0` when no target is set.
 
-See also: [set_target](#set_target), [has_target](#has_target), [clear_target](#clear_target), [deal_damage](#deal_damage).
+See also: [set_target](#set_target), [has_target](#has_target), [clear_target](#clear_target), [attack](#attack).
 
 ---
 

@@ -46,13 +46,10 @@ base_currency_symbol = "G"       # Symbol used to represent the currency (e.g. "
 locale = "en"                    # Active locale used for localized strings and rules-based messages.
 
 # The supported gear slots
-gear_slots = ["legs", "head", "torso"]
+gear_slots = ["head", "torso", "legs", "hands", "feet"]
 
 # The supported weapon slots
 weapon_slots = ["main_hand", "off_hand"]
-
-# The attribute which handles health & death
-health = "HP"
 
 # The attribute which stores the current level
 level = "LEVEL"
@@ -65,6 +62,13 @@ avatar_shading = true
 
 # Enables generated marker ramp shading for skin markers.
 avatar_skin_auto_shading = false
+
+[ruleset]
+id = "eldiron.official"          # Bundled ruleset id.
+version = "1.0.0"                # Bundled ruleset version.
+schema_version = "1"             # Ruleset schema version.
+source = "official"              # Bundled official ruleset.
+update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest".
 ```
 
 ### **Option Descriptions**
@@ -158,10 +162,6 @@ avatar_skin_auto_shading = false
 - **`weapon_slots`**
   The **valid weapon slots** of items. Items can define it's weapon slot by setting `slot` in the data tool.
 
-### `health`
-
-  The name of the health attribute for characters. When it becomes smaller or equal to zero, the character is considered **dead** and its [mode](/docs/characters_items/attributes#mode) attribute is set to `"dead"` automatically by the server damage system. If you want to use another attribute name, change the default **"HP"** value to something else.
-
 ### `level`
 
   The name of the character attribute used as the current level for [Rules](../rules) progression formulas. Default: **"LEVEL"**.
@@ -169,6 +169,22 @@ avatar_skin_auto_shading = false
 ### `experience`
 
   The name of the character attribute used to store accumulated experience. Default: **"EXP"**.
+
+## Ruleset Selection
+
+Selects the official ruleset used by the project.
+
+By default, Eldiron uses the bundled `eldiron.official` ruleset. **Game / Rules**
+starts empty and can override that official ruleset for this project. Gameplay
+definitions such as formulas, classes, spells, intent ranges, and equipment
+rules should live in the official ruleset or in **Game / Rules**, not in
+individual character or item attributes.
+
+- `id`: ruleset id, for example `eldiron.official`
+- `version`: requested ruleset version, for example `1.0.0`
+- `schema_version`: ruleset schema version expected by the project
+- `source`: `official` for bundled rulesets
+- `update_policy`: intended update behavior, such as `compatible` or `pinned`
 
 ### `avatar_shading`
 

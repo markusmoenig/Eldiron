@@ -1,0 +1,65 @@
+[attributes]
+primary = ["STR", "DEX", "INT", "WIS", "VIT"]
+resources = ["HP", "MAX_HP", "MP", "MAX_MP"]
+combat = ["DMG", "POWER", "ARMOR", "RESIST", "FIRE_RESIST", "INIT", "SPEED"]
+progression = ["LEVEL", "EXP"]
+
+[attributes.defaults]
+HP = 10
+MAX_HP = 10
+MP = 0
+MAX_MP = 0
+STR = 10
+DEX = 10
+INT = 10
+WIS = 10
+VIT = 10
+DMG = 0
+POWER = 0
+ARMOR = 0
+RESIST = 0
+FIRE_RESIST = 0
+INIT = 0
+SPEED = 1
+LEVEL = 1
+EXP = 0
+
+[derived_stats.MAX_HP]
+base = 10
+level_bonus = 2
+bonus_attribute = "VIT"
+bonus_every = 1
+clamp_min = 1
+
+[derived_stats.MAX_MP]
+base = 0
+bonus_attributes = ["INT", "WIS"]
+bonus_every = 1
+clamp_min = 0
+
+[derived_stats.INIT]
+base = 0
+bonus_attribute = "DEX"
+bonus_every = 2
+secondary_bonus_attribute = "WIS"
+secondary_bonus_every = 4
+clamp_min = 0
+
+[derived_stats.DMG]
+base = 0
+bonus_attribute = "STR"
+bonus_every = 4
+clamp_min = 0
+
+[derived_stats.POWER]
+base = 0
+bonus_attributes = ["INT", "WIS"]
+bonus_every = 4
+clamp_min = 0
+
+[derived_stats.SPEED]
+base = 1
+bonus_attribute = "DEX"
+bonus_every = 20
+clamp_min = 1
+clamp_max = 3

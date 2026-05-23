@@ -196,7 +196,7 @@ impl Sidebar {
         ));
 
         let mut item = TheTreeIcons::new(TheId::named("Palette Item"));
-        item.set_icon_count(256);
+        item.set_icon_count(1);
         item.set_icons_per_row(17);
         item.set_selected_index(Some(0));
         palette_node.add_widget(Box::new(item));
@@ -603,7 +603,8 @@ impl Sidebar {
 
                         // Color selected
                         let palette_minimap_active = server_ctx.palette_tool_active
-                            && DOCKMANAGER.read().unwrap().dock == "Palette";
+                            && DOCKMANAGER.read().unwrap().dock == "Palette"
+                            && !project.ruleset_palette_is_active();
                         if palette_minimap_active {
                             let buffer = render_view.render_buffer_mut();
                             if let Some(col) = buffer.get_pixel(coord.x, coord.y) {
@@ -1515,6 +1516,9 @@ impl Sidebar {
                     }
                 }
                 if id.name == "Palette Hex Edit" {
+                    if project.ruleset_palette_is_active() {
+                        return true;
+                    }
                     if let Some(hex) = value.to_string() {
                         let color = TheColor::from_hex(&hex);
 
@@ -2076,6 +2080,7 @@ impl Sidebar {
                 if *code == TheKeyCode::Delete
                     && let Some(focus_id) = &ctx.ui.focus
                     && (focus_id.name == "Palette Picker" || focus_id.name == "Palette Item")
+                    && !project.ruleset_palette_is_active()
                 {
                     let index = project.palette.current_index as usize;
                     if index < project.palette.colors.len() && project.palette[index].is_some() {
@@ -2202,6 +2207,9 @@ impl Sidebar {
                         TheValue::Empty,
                     ));
                 } else if id.name == "Palette Clear" {
+                    if project.ruleset_palette_is_active() {
+                        return true;
+                    }
                     let prev = project.palette.clone();
                     let prev_materials = project.palette_materials.clone();
                     project.palette.clear();
@@ -2226,6 +2234,9 @@ impl Sidebar {
                     );
                     UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                 } else if id.name == "Palette Import" {
+                    if project.ruleset_palette_is_active() {
+                        return true;
+                    }
                     ctx.ui.open_file_requester(
                         TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                         "Open".into(),

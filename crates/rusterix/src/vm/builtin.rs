@@ -221,6 +221,22 @@ impl Default for Builtins {
             },
         );
         b.insert(
+            "disposition_of",
+            1,
+            NodeOp::HostCall {
+                name: "disposition_of".into(),
+                argc: 1,
+            },
+        );
+        b.insert(
+            "is_hostile",
+            1,
+            NodeOp::HostCall {
+                name: "is_hostile".into(),
+                argc: 1,
+            },
+        );
+        b.insert(
             "set_attr",
             2,
             NodeOp::HostCall {
@@ -381,11 +397,19 @@ impl Default for Builtins {
             },
         );
         b.insert(
+            "attack",
+            0,
+            NodeOp::HostCall {
+                name: "attack".into(),
+                argc: 0,
+            },
+        );
+        b.insert(
             "deal_damage",
-            2,
+            0,
             NodeOp::HostCall {
                 name: "deal_damage".into(),
-                argc: 2,
+                argc: 0,
             },
         );
         b.insert(

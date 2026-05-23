@@ -146,6 +146,21 @@ impl AvatarRuntimeBuilder {
         Some(out)
     }
 
+    fn find_avatar_by_name<'a>(name: &str, assets: &'a Assets) -> Option<&'a Avatar> {
+        if name.trim().is_empty() {
+            return None;
+        }
+        if let Some(avatar) = assets.avatars.get(name) {
+            return Some(avatar);
+        }
+        for (key, avatar) in &assets.avatars {
+            if key.eq_ignore_ascii_case(name) || avatar.name.eq_ignore_ascii_case(name) {
+                return Some(avatar);
+            }
+        }
+        None
+    }
+
     pub fn find_avatar_for_entity<'a>(entity: &Entity, assets: &'a Assets) -> Option<&'a Avatar> {
         if let Some(avatar_id) = entity.attributes.get_id("avatar_id") {
             if let Some(avatar) = assets.avatars.get(&avatar_id.to_string()) {
@@ -158,16 +173,15 @@ impl AvatarRuntimeBuilder {
             }
         }
         if let Some(name) = entity.attributes.get_str("avatar") {
-            if let Some(avatar) = assets.avatars.get(name) {
-                return Some(avatar);
-            }
-            for (key, avatar) in &assets.avatars {
-                if key.eq_ignore_ascii_case(name) || avatar.name.eq_ignore_ascii_case(name) {
-                    return Some(avatar);
-                }
-            }
+            return Self::find_avatar_by_name(name, assets);
         }
-        None
+        if entity.attributes.get("source").is_some() || entity.attributes.get("tile_id").is_some() {
+            return None;
+        }
+        assets
+            .default_avatar
+            .as_deref()
+            .and_then(|name| Self::find_avatar_by_name(name, assets))
     }
 
     fn avatar_direction_from_entity(entity: &Entity) -> AvatarDirection {
@@ -421,6 +435,298 @@ impl AvatarRuntimeBuilder {
         Some((out, out_w, out_h))
     }
 
+    fn scaled_rgba(
+        rgba: &[u8],
+        width: usize,
+        height: usize,
+        scale: f32,
+    ) -> Option<(Vec<u8>, usize, usize)> {
+        if width == 0 || height == 0 || rgba.len() != width * height * 4 {
+            return None;
+        }
+        let scale = if scale.is_finite() {
+            scale.max(0.01)
+        } else {
+            1.0
+        };
+        let out_w = ((width as f32) * scale).round().max(1.0) as usize;
+        let out_h = ((height as f32) * scale).round().max(1.0) as usize;
+        let mut out = vec![0_u8; out_w * out_h * 4];
+        for y in 0..out_h {
+            let src_y = ((y as f32) / scale)
+                .floor()
+                .clamp(0.0, (height.saturating_sub(1)) as f32) as usize;
+            for x in 0..out_w {
+                let src_x = ((x as f32) / scale)
+                    .floor()
+                    .clamp(0.0, (width.saturating_sub(1)) as f32)
+                    as usize;
+                let src_i = (src_y * width + src_x) * 4;
+                let dst_i = (y * out_w + x) * 4;
+                out[dst_i..dst_i + 4].copy_from_slice(&rgba[src_i..src_i + 4]);
+            }
+        }
+        Some((out, out_w, out_h))
+    }
+
+    fn item_visual_color(item: &Item, assets: &Assets, default: [u8; 4]) -> [u8; 4] {
+        if let Some(Value::Color(c)) = item.attributes.get("rig_color") {
+            return c.to_u8_array();
+        }
+        if let Some(Value::Color(c)) = item.attributes.get("color") {
+            return c.to_u8_array();
+        }
+        if let Some(hex) = item.attributes.get_str("rig_color") {
+            return TheColor::from_hex(hex).to_u8_array();
+        }
+        if let Some(hex) = item.attributes.get_str("color") {
+            return TheColor::from_hex(hex).to_u8_array();
+        }
+        if let Some(idx) = item
+            .attributes
+            .get_int("rig_color")
+            .or_else(|| item.attributes.get_int("color"))
+            .or_else(|| item.attributes.get_int("rig_color_index"))
+            .or_else(|| item.attributes.get_int("color_index"))
+        {
+            return Self::marker_color_from_index(assets, idx, default);
+        }
+        default
+    }
+
+    fn item_role_visual_color(
+        item: &Item,
+        assets: &Assets,
+        role: &str,
+        default: [u8; 4],
+    ) -> [u8; 4] {
+        let color_key = format!("{role}_color");
+        let index_key = format!("{role}_color_index");
+        if let Some(Value::Color(c)) = item.attributes.get(&color_key) {
+            return c.to_u8_array();
+        }
+        if let Some(hex) = item.attributes.get_str(&color_key) {
+            return TheColor::from_hex(hex).to_u8_array();
+        }
+        if let Some(idx) = item.attributes.get_int(&color_key) {
+            return Self::marker_color_from_index(assets, idx, default);
+        }
+        if let Some(idx) = item.attributes.get_int(&index_key) {
+            return Self::marker_color_from_index(assets, idx, default);
+        }
+        default
+    }
+
+    fn put_weapon_pixel(rgba: &mut [u8], width: usize, x: i32, y: i32, color: [u8; 4]) {
+        if x < 0 || y < 0 {
+            return;
+        }
+        let x = x as usize;
+        let y = y as usize;
+        if x >= width || y >= rgba.len() / (width * 4) {
+            return;
+        }
+        let i = (y * width + x) * 4;
+        rgba[i..i + 4].copy_from_slice(&color);
+    }
+
+    fn draw_weapon_rect(
+        rgba: &mut [u8],
+        width: usize,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+        color: [u8; 4],
+    ) {
+        for yy in y..y + h {
+            for xx in x..x + w {
+                Self::put_weapon_pixel(rgba, width, xx, yy, color);
+            }
+        }
+    }
+
+    fn draw_weapon_line(
+        rgba: &mut [u8],
+        width: usize,
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        color: [u8; 4],
+    ) {
+        let mut x = x0;
+        let mut y = y0;
+        let dx = (x1 - x0).abs();
+        let sx = if x0 < x1 { 1 } else { -1 };
+        let dy = -(y1 - y0).abs();
+        let sy = if y0 < y1 { 1 } else { -1 };
+        let mut err = dx + dy;
+        loop {
+            Self::put_weapon_pixel(rgba, width, x, y, color);
+            if x == x1 && y == y1 {
+                break;
+            }
+            let e2 = err * 2;
+            if e2 >= dy {
+                err += dy;
+                x += sx;
+            }
+            if e2 <= dx {
+                err += dx;
+                y += sy;
+            }
+        }
+    }
+
+    fn item_template_mask_rgba(
+        item: &Item,
+        blade: [u8; 4],
+        grip: [u8; 4],
+        accent: [u8; 4],
+        highlight: [u8; 4],
+    ) -> Option<(Vec<u8>, usize, usize)> {
+        let width = item.attributes.get_int("visual_template_width")? as usize;
+        let height = item.attributes.get_int("visual_template_height")? as usize;
+        let Some(Value::StrArray(rows)) = item.attributes.get("visual_template_pixels") else {
+            return None;
+        };
+        if width == 0 || height == 0 || rows.len() != height {
+            return None;
+        }
+
+        let mut rgba = vec![0_u8; width * height * 4];
+        for (y, row) in rows.iter().enumerate() {
+            if row.chars().count() != width {
+                return None;
+            }
+            for (x, ch) in row.chars().enumerate() {
+                let color = match ch {
+                    'B' | 'b' => blade,
+                    'G' | 'g' => grip,
+                    'A' | 'a' => accent,
+                    'H' | 'h' => highlight,
+                    '.' | ' ' => continue,
+                    _ => continue,
+                };
+                let i = (y * width + x) * 4;
+                rgba[i..i + 4].copy_from_slice(&color);
+            }
+        }
+
+        Some((rgba, width, height))
+    }
+
+    fn generated_rig_texture(
+        item: &Item,
+        assets: &Assets,
+        slot: &str,
+    ) -> Option<(Vec<u8>, usize, usize, [f32; 2])> {
+        let category = item
+            .attributes
+            .get_str("category")
+            .or_else(|| item.attributes.get_str("ruleset_kind"))
+            .unwrap_or(slot)
+            .trim()
+            .to_ascii_lowercase();
+        let template = item
+            .attributes
+            .get_str("rig_template")
+            .or_else(|| item.attributes.get_str("visual_template"))
+            .or_else(|| item.attributes.get_str("icon_template"))
+            .unwrap_or(&category)
+            .trim()
+            .to_ascii_lowercase();
+        let metal = Self::item_role_visual_color(
+            item,
+            assets,
+            "blade",
+            Self::item_visual_color(item, assets, [187, 195, 208, 255]),
+        );
+        let wood = Self::item_role_visual_color(
+            item,
+            assets,
+            "grip",
+            Self::marker_color_from_index(assets, 10, [165, 120, 80, 255]),
+        );
+        let accent = Self::item_role_visual_color(item, assets, "accent", [48, 56, 67, 255]);
+        let dark = [48, 56, 67, 255];
+        let highlight = [241, 246, 240, 255];
+
+        if let Some((rgba, width, height)) =
+            Self::item_template_mask_rgba(item, metal, wood, accent, highlight)
+        {
+            let pivot = match template.as_str() {
+                "sword_diagonal" => [0.31, 0.82],
+                "shield" => [0.5, 0.5],
+                _ => [0.5, 0.82],
+            };
+            return Some((rgba, width, height, pivot));
+        }
+
+        let (width, height, pivot) = match template.as_str() {
+            "sword_diagonal" => (16usize, 16usize, [0.31, 0.82]),
+            "shield" => (16usize, 18usize, [0.5, 0.5]),
+            _ => (16usize, 24usize, [0.5, 0.82]),
+        };
+        let mut rgba = vec![0_u8; width * height * 4];
+
+        match template.as_str() {
+            "sword_diagonal" => {
+                Self::draw_weapon_line(&mut rgba, width, 3, 12, 11, 4, metal);
+                Self::draw_weapon_line(&mut rgba, width, 4, 12, 12, 4, metal);
+                Self::draw_weapon_line(&mut rgba, width, 8, 14, 12, 10, accent);
+                Self::draw_weapon_rect(&mut rgba, width, 2, 13, 3, 2, wood);
+                Self::put_weapon_pixel(&mut rgba, width, 13, 3, highlight);
+            }
+            "sword" => {
+                Self::draw_weapon_rect(&mut rgba, width, 7, 2, 2, 14, metal);
+                Self::draw_weapon_rect(&mut rgba, width, 8, 1, 1, 1, highlight);
+                Self::draw_weapon_rect(&mut rgba, width, 6, 16, 4, 1, accent);
+                Self::draw_weapon_rect(&mut rgba, width, 7, 17, 2, 5, wood);
+                Self::put_weapon_pixel(&mut rgba, width, 7, 0, highlight);
+            }
+            "axe" => {
+                Self::draw_weapon_rect(&mut rgba, width, 7, 5, 2, 16, wood);
+                Self::draw_weapon_rect(&mut rgba, width, 5, 4, 6, 5, metal);
+                Self::put_weapon_pixel(&mut rgba, width, 4, 6, metal);
+                Self::put_weapon_pixel(&mut rgba, width, 11, 6, metal);
+                Self::draw_weapon_rect(&mut rgba, width, 6, 9, 4, 1, dark);
+            }
+            "mace" => {
+                Self::draw_weapon_rect(&mut rgba, width, 7, 7, 2, 14, wood);
+                Self::draw_weapon_rect(&mut rgba, width, 5, 3, 6, 5, metal);
+                Self::put_weapon_pixel(&mut rgba, width, 4, 5, metal);
+                Self::put_weapon_pixel(&mut rgba, width, 11, 5, metal);
+                Self::draw_weapon_rect(&mut rgba, width, 6, 8, 4, 1, dark);
+            }
+            "shield" => {
+                Self::draw_weapon_rect(&mut rgba, width, 4, 3, 8, 11, metal);
+                Self::draw_weapon_rect(&mut rgba, width, 5, 2, 6, 13, metal);
+                Self::draw_weapon_rect(&mut rgba, width, 6, 4, 4, 9, wood);
+                Self::draw_weapon_rect(&mut rgba, width, 7, 3, 2, 11, highlight);
+                Self::put_weapon_pixel(&mut rgba, width, 7, 15, metal);
+                Self::put_weapon_pixel(&mut rgba, width, 8, 15, metal);
+            }
+            "bow" => {
+                for y in 2..22 {
+                    let x = if y < 8 {
+                        6
+                    } else if y < 16 {
+                        5
+                    } else {
+                        6
+                    };
+                    Self::put_weapon_pixel(&mut rgba, width, x, y, wood);
+                }
+                Self::draw_weapon_rect(&mut rgba, width, 10, 3, 1, 18, highlight);
+            }
+            _ => return None,
+        }
+
+        Some((rgba, width, height, pivot))
+    }
+
     fn alpha_blit_rgba(
         dst: &mut [u8],
         dst_w: usize,
@@ -595,55 +901,68 @@ impl AvatarRuntimeBuilder {
                 }
                 continue;
             };
-            let Some(tile_id) = Self::item_tile_id_for_direction(item, direction) else {
+            let scale = item.attributes.get_float_default("rig_scale", 1.0);
+            let has_directional_tile;
+            let debug_source;
+            let (mut scaled, sw, sh, mut pivot) = if let Some(tile_id) =
+                Self::item_tile_id_for_direction(item, direction)
+            {
+                let Some(tile) = assets.tiles.get(&tile_id) else {
+                    if preview_debug {
+                        eprintln!(
+                            "[RIGPREVIEW] overlay slot='{}' -> tile '{}' not found in assets",
+                            slot, tile_id
+                        );
+                    }
+                    continue;
+                };
+                if tile.textures.is_empty() {
+                    if preview_debug {
+                        eprintln!(
+                            "[RIGPREVIEW] overlay slot='{}' -> tile '{}' has no textures",
+                            slot, tile_id
+                        );
+                    }
+                    continue;
+                }
+                let tex = &tile.textures[frame_index % tile.textures.len()];
+                let Some((scaled, sw, sh)) = Self::scaled_texture_rgba(tex, scale) else {
+                    if preview_debug {
+                        eprintln!(
+                            "[RIGPREVIEW] overlay slot='{}' -> texture scale failed (w={} h={} scale={})",
+                            slot, tex.width, tex.height, scale
+                        );
+                    }
+                    continue;
+                };
+                has_directional_tile = Self::has_directional_tile_for_direction(item, direction);
+                debug_source = tile_id.to_string();
+                (scaled, sw, sh, Self::item_rig_pivot(item))
+            } else if let Some((rgba, width, height, default_pivot)) =
+                Self::generated_rig_texture(item, assets, slot)
+            {
+                let Some((scaled, sw, sh)) = Self::scaled_rgba(&rgba, width, height, scale) else {
+                    continue;
+                };
+                has_directional_tile = false;
+                debug_source = "generated".to_string();
+                (scaled, sw, sh, Self::item_rig_pivot_or(item, default_pivot))
+            } else {
                 if preview_debug {
                     eprintln!(
-                        "[RIGPREVIEW] overlay slot='{}' -> no tile_id for direction {:?}",
+                        "[RIGPREVIEW] overlay slot='{}' -> no tile_id or generated rig visual for direction {:?}",
                         slot, direction
                     );
                 }
                 continue;
             };
-            let Some(tile) = assets.tiles.get(&tile_id) else {
-                if preview_debug {
-                    eprintln!(
-                        "[RIGPREVIEW] overlay slot='{}' -> tile '{}' not found in assets",
-                        slot, tile_id
-                    );
-                }
-                continue;
-            };
-            if tile.textures.is_empty() {
-                if preview_debug {
-                    eprintln!(
-                        "[RIGPREVIEW] overlay slot='{}' -> tile '{}' has no textures",
-                        slot, tile_id
-                    );
-                }
-                continue;
-            }
-            let tex = &tile.textures[frame_index % tile.textures.len()];
-            let scale = item.attributes.get_float_default("rig_scale", 1.0);
-            let mut pivot = Self::item_rig_pivot(item);
-            let Some((scaled, sw, sh)) = Self::scaled_texture_rgba(tex, scale) else {
-                if preview_debug {
-                    eprintln!(
-                        "[RIGPREVIEW] overlay slot='{}' -> texture scale failed (w={} h={} scale={})",
-                        slot, tex.width, tex.height, scale
-                    );
-                }
-                continue;
-            };
-            let has_directional_tile = Self::has_directional_tile_for_direction(item, direction);
             let flip_back = item.attributes.get_bool_default("rig_flip_back", true);
             let should_flip = direction == AvatarDirection::Left
                 || (direction == AvatarDirection::Back && !has_directional_tile && flip_back);
-            let scaled = if should_flip {
+            if should_flip {
                 pivot[0] = 1.0 - pivot[0];
-                Self::flip_rgba_horizontal(&scaled, sw, sh)
-            } else {
-                scaled
-            };
+                scaled = Self::flip_rgba_horizontal(&scaled, sw, sh);
+            }
             let px = (pivot[0].clamp(0.0, 1.0) * (sw as f32 - 1.0)).round() as i32;
             let py = (pivot[1].clamp(0.0, 1.0) * (sh as f32 - 1.0)).round() as i32;
             let dst_x = anchor.0 as i32 - px;
@@ -656,7 +975,7 @@ impl AvatarRuntimeBuilder {
                     layer,
                     anchor.0,
                     anchor.1,
-                    tile_id,
+                    debug_source,
                     sw,
                     sh,
                     scale,
@@ -719,6 +1038,14 @@ impl AvatarRuntimeBuilder {
             }
         }
         [0.5, 0.5]
+    }
+
+    fn item_rig_pivot_or(item: &Item, default: [f32; 2]) -> [f32; 2] {
+        if item.attributes.get("rig_pivot").is_some() {
+            Self::item_rig_pivot(item)
+        } else {
+            default
+        }
     }
 
     fn frame_anchors(

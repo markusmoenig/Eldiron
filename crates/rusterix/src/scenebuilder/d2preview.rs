@@ -830,7 +830,8 @@ impl D2PreviewBuilder {
                 let pos =
                     self.map_grid_to_local(screen_size, Vec2::new(entity_pos.x, entity_pos.y), map);
                 let size = 1.0;
-                let has_avatar = AvatarRuntimeBuilder::has_avatar_binding(entity);
+                let has_avatar =
+                    AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets).is_some();
 
                 // Find light on entity
                 if let Some(Value::Light(light)) = entity.attributes.get("light") {

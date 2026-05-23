@@ -232,6 +232,9 @@ impl Dock for TilemapDock {
                         );
                     }
                 } else if item_id.name == "Add Tileset Colors" {
+                    if project.ruleset_palette_is_active() {
+                        return true;
+                    }
                     // let prev = project.palette.clone();
                     if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id).cloned() {
                         let width = tilemap.buffer.dim().width;

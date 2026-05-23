@@ -1,7 +1,4 @@
-use crate::{
-    editor::{DOCKMANAGER, UNDOMANAGER},
-    prelude::*,
-};
+use crate::{editor::UNDOMANAGER, prelude::*};
 
 pub struct ImportPalette {
     id: TheId,
@@ -38,7 +35,8 @@ impl Action for ImportPalette {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        DOCKMANAGER.read().unwrap().dock == "Palette" && server_ctx.palette_tool_active
+        let _ = server_ctx;
+        false
     }
 
     fn apply_project(
@@ -48,6 +46,10 @@ impl Action for ImportPalette {
         ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,
     ) {
+        if _project.ruleset_palette_is_active() {
+            return;
+        }
+
         ctx.ui.open_file_requester(
             TheId::named_with_id("actionImportPalette", Uuid::new_v4()),
             "Import Palette".into(),
@@ -70,6 +72,9 @@ impl Action for ImportPalette {
         match event {
             TheEvent::FileRequesterResult(id, paths) => {
                 if id.name == "actionImportPalette" {
+                    if project.ruleset_palette_is_active() {
+                        return false;
+                    }
                     for p in paths {
                         if let Ok(contents) = std::fs::read_to_string(p) {
                             let prev = project.palette.clone();

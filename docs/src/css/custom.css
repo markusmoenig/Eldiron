@@ -219,6 +219,226 @@
 :root .language-toml .token.key {
     color: #5d9ad6;
 }
+
+/* Official Rules page */
+.theme-doc-markdown img[src*="/img/rules/"] {
+    display: block;
+    width: 100%;
+    margin: 1.4rem 0 1.8rem;
+    border: 1px solid rgba(60, 56, 54, 0.14);
+    border-radius: 14px;
+    background: #14233a;
+    box-shadow: 0 18px 44px rgba(60, 56, 54, 0.12);
+}
+
+.rules-hero-spread {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(12rem, 0.7fr);
+    gap: 1rem;
+    margin: 1.5rem 0 2rem;
+}
+
+.rules-hero-card,
+.rules-dice-card,
+.rules-sheet-card,
+.rules-callout,
+.rules-class-card {
+    border: 1px solid rgba(60, 56, 54, 0.14);
+    border-radius: 12px;
+    background: rgba(249, 245, 215, 0.82);
+    box-shadow: 0 16px 36px rgba(60, 56, 54, 0.08);
+}
+
+.rules-hero-card-main {
+    grid-row: span 2;
+    padding: 1.5rem;
+    background:
+        linear-gradient(135deg, rgba(253, 209, 121, 0.2), rgba(137, 164, 119, 0.18)),
+        rgba(249, 245, 215, 0.9);
+}
+
+.rules-hero-card h2 {
+    margin: 0.25rem 0 0.75rem;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    line-height: 1;
+}
+
+.rules-hero-card p,
+.rules-callout p,
+.rules-class-card p {
+    margin: 0;
+    color: var(--ifm-font-color-secondary);
+    line-height: 1.65;
+}
+
+.rules-kicker {
+    display: inline-block;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #79740e;
+}
+
+.rules-dice-card {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.55rem;
+    padding: 1rem;
+    align-content: center;
+}
+
+.rules-die,
+.rules-die-inline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #3d3333;
+    background: #fdd179;
+    color: #3d3333;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: inset 0 -0.2rem rgba(61, 51, 51, 0.12);
+}
+
+.rules-die {
+    min-height: 3rem;
+    border-radius: 9px;
+}
+
+.rules-die-large {
+    grid-column: span 3;
+    min-height: 3.4rem;
+}
+
+.rules-die-inline {
+    width: 3.1rem;
+    height: 3.1rem;
+    border-radius: 9px;
+    flex: 0 0 auto;
+}
+
+.rules-sheet-card {
+    display: grid;
+    gap: 0.35rem;
+    padding: 1rem;
+}
+
+.rules-sheet-card strong {
+    font-size: 1.05rem;
+}
+
+.rules-sheet-card span {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(60, 56, 54, 0.12);
+    color: var(--ifm-font-color-secondary);
+}
+
+.rules-callout-grid,
+.rules-class-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 1rem 0 1.35rem;
+}
+
+.rules-callout {
+    display: flex;
+    gap: 0.8rem;
+    align-items: center;
+    padding: 1rem;
+}
+
+.rules-class-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rules-class-card {
+    padding: 1.2rem;
+}
+
+.rules-class-card h3 {
+    margin: 0.2rem 0 0.5rem;
+}
+
+.rules-class-card ul {
+    margin-bottom: 0;
+}
+
+.rules-flow {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.6rem;
+    margin: 1rem 0 1.35rem;
+}
+
+.rules-flow div {
+    display: grid;
+    gap: 0.45rem;
+    align-content: start;
+    min-height: 5.2rem;
+    padding: 0.8rem;
+    border: 1px solid rgba(60, 56, 54, 0.14);
+    border-radius: 10px;
+    background: rgba(242, 184, 136, 0.22);
+}
+
+.rules-flow strong {
+    display: inline-flex;
+    width: 1.8rem;
+    height: 1.8rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #458588;
+    color: #fbf1c7;
+}
+
+.rules-flow span {
+    color: var(--ifm-font-color-secondary);
+    line-height: 1.25;
+}
+
+[data-theme="dark"] .rules-hero-card,
+[data-theme="dark"] .rules-dice-card,
+[data-theme="dark"] .rules-sheet-card,
+[data-theme="dark"] .rules-callout,
+[data-theme="dark"] .rules-class-card {
+    border-color: rgba(235, 219, 178, 0.12);
+    background: rgba(60, 56, 54, 0.72);
+    box-shadow: 0 20px 44px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .rules-hero-card-main {
+    background:
+        linear-gradient(135deg, rgba(215, 153, 33, 0.16), rgba(131, 165, 152, 0.12)),
+        rgba(60, 56, 54, 0.82);
+}
+
+[data-theme="dark"] .rules-kicker {
+    color: #fabd2f;
+}
+
+[data-theme="dark"] .rules-flow div {
+    border-color: rgba(235, 219, 178, 0.12);
+    background: rgba(122, 88, 89, 0.32);
+}
+
+@media screen and (max-width: 996px) {
+    .rules-hero-spread,
+    .rules-callout-grid,
+    .rules-class-grid,
+    .rules-flow {
+        grid-template-columns: 1fr;
+    }
+
+    .rules-hero-card-main,
+    .rules-die-large {
+        grid-row: auto;
+        grid-column: auto;
+    }
+}
 :root .language-toml .token.punctuation {
     color: #3c3836;
 }

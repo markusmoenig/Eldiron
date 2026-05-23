@@ -5,7 +5,7 @@ use theframework::prelude::*;
 const BLOCKS: [&str; 3] = ["Event", "Var = ..", "If .. == .."];
 const VALUES: [&str; 1] = ["Value"];
 const OPERATORS: [&str; 4] = ["Arithmetic", "Assignment", "Comparison", "Else"];
-const FUNCTIONS: [&str; 48] = [
+const FUNCTIONS: [&str; 49] = [
     "action",
     "add_item",
     "attack",
@@ -15,8 +15,8 @@ const FUNCTIONS: [&str; 48] = [
     "clear_audio",
     "clear_target",
     "close_in",
+    "disposition_of",
     "follow_attack",
-    "deal_damage",
     "drop",
     "drop_items",
     "entities_in_radius",
@@ -50,6 +50,7 @@ const FUNCTIONS: [&str; 48] = [
     "take",
     "target",
     "has_target",
+    "is_hostile",
     "teleport",
     "teleport_entity",
     "toggle_attr",

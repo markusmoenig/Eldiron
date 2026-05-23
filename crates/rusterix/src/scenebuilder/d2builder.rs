@@ -15,12 +15,13 @@ impl Default for D2Builder {
 
 impl D2Builder {
     #[cfg(feature = "graphics")]
-    fn entity_has_avatar(entity: &crate::Entity) -> bool {
-        crate::avatar_builder::AvatarRuntimeBuilder::has_avatar_binding(entity)
+    fn entity_has_avatar(entity: &crate::Entity, assets: &Assets) -> bool {
+        crate::avatar_builder::AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets)
+            .is_some()
     }
 
     #[cfg(not(feature = "graphics"))]
-    fn entity_has_avatar(_entity: &crate::Entity) -> bool {
+    fn entity_has_avatar(_entity: &crate::Entity, _assets: &Assets) -> bool {
         false
     }
 
@@ -284,7 +285,7 @@ impl D2Builder {
                 self.map_grid_to_local(screen_size, Vec2::new(entity_pos.x, entity_pos.y), map);
             let size = 1.0;
             let hsize = 0.5;
-            let has_avatar = Self::entity_has_avatar(entity);
+            let has_avatar = Self::entity_has_avatar(entity, assets);
 
             // Find light on entity
             if let Some(Value::Light(light)) = entity.attributes.get("light") {

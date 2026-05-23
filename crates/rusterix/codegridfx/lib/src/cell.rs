@@ -159,6 +159,7 @@ pub enum Cell {
     DealDamage,
     Drop,
     DropItems,
+    DispositionOf,
     EntitiesInRadius,
     Equip,
     GainXp,
@@ -191,6 +192,7 @@ pub enum Cell {
     Take,
     Target,
     HasTarget,
+    IsHostile,
     Teleport,
     TeleportEntity,
     ToggleAttr,
@@ -292,6 +294,7 @@ impl Cell {
             Cell::DealDamage => "Deal Damage",
             Cell::Drop => "Drop",
             Cell::DropItems => "Drop Items",
+            Cell::DispositionOf => "Disposition Of",
             Cell::EntitiesInRadius => "Entities in Radius",
             Cell::Equip => "Equip",
             Cell::GainXp => "Gain XP",
@@ -324,6 +327,7 @@ impl Cell {
             Cell::Take => "Take",
             Cell::Target => "Target",
             Cell::HasTarget => "Has Target",
+            Cell::IsHostile => "Is Hostile",
             Cell::Teleport => "Teleport",
             Cell::TeleportEntity => "Teleport Entity",
             Cell::ToggleAttr => "Toggle Attr",
@@ -400,6 +404,7 @@ impl Cell {
             "deal_damage" => Some(Cell::DealDamage),
             "drop" => Some(Cell::Drop),
             "drop_items" => Some(Cell::DropItems),
+            "disposition_of" => Some(Cell::DispositionOf),
             "entities_in_radius" => Some(Cell::EntitiesInRadius),
             "equip" => Some(Cell::Equip),
             "gain_xp" => Some(Cell::GainXp),
@@ -431,6 +436,7 @@ impl Cell {
             "take" => Some(Cell::Take),
             "target" => Some(Cell::Target),
             "has_target" => Some(Cell::HasTarget),
+            "is_hostile" => Some(Cell::IsHostile),
             "teleport" => Some(Cell::Teleport),
             "teleport_entity" => Some(Cell::TeleportEntity),
             "toggle_attr" => Some(Cell::ToggleAttr),
@@ -522,6 +528,7 @@ impl Cell {
             DealDamage => "deal_damage".into(),
             Drop => "drop".into(),
             DropItems => "drop_items".into(),
+            DispositionOf => "disposition_of".into(),
             EntitiesInRadius => "entities_in_radius".into(),
             Equip => "equip".into(),
             GainXp => "gain_xp".into(),
@@ -553,6 +560,7 @@ impl Cell {
             Take => "take".into(),
             Target => "target".into(),
             HasTarget => "has_target".into(),
+            IsHostile => "is_hostile".into(),
             Teleport => "teleport".into(),
             TeleportEntity => "teleport_entity".into(),
             ToggleAttr => "toggle_attr".into(),
@@ -602,7 +610,7 @@ impl Cell {
         match &self {
             Action => "Player based action.".into(),
             AddItem => "Add an item to the inventory of the current entity.".into(),
-            Attack => "Attack the current target using progression.damage, or DMG / 1 as fallback, then apply weapon damage kind rules.".into(),
+            Attack => "Attack the current target using the equipped weapon or unarmed ruleset damage, then apply damage kind rules.".into(),
             BlockEvents => "Block specific events for a period of in-game minutes for the current entity or item.".into(),
             BuildProcedural => {
                 "Rebuild the current region from its [procedural] settings. Use 0 to auto-advance the seed.".into()
@@ -612,9 +620,10 @@ impl Cell {
             ClearTarget => "Clear current target for the current entity or item.".into(),
             CloseIn => "Close in to the target entities within the given radius and speed.".into(),
             FollowAttack => "Engage a target using engine-owned chase and melee rules.".into(),
-            DealDamage => "Deal damage. Use deal_damage(amount[, kind]) for current target, or deal_damage(target, amount[, kind]).".into(),
+            DealDamage => "Deal damage to the current target using the equipped weapon or unarmed ruleset damage.".into(),
             Drop => "Drop the item of the given ID for the current entity.".into(),
             DropItems => "Drop all or filtered items for the current entity.".into(),
+            DispositionOf => "Return this entity's ruleset disposition toward the target entity.".into(),
             EntitiesInRadius => {
                 "Returns a list of entity IDs in the radius of the current entity or item.".into()
             }
@@ -653,6 +662,7 @@ impl Cell {
             Take => "Take the item with the given ID.".into(),
             Target => "Get current target entity ID.".into(),
             HasTarget => "Returns true if a valid current target is set.".into(),
+            IsHostile => "Returns true when this entity's ruleset disposition toward the target entity is hostile.".into(),
             Teleport => "Teleport to a sector. Optionally in another region.".into(),
             TeleportEntity => {
                 "Teleport the given entity ID to a sector, optionally in another region.".into()

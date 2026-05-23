@@ -262,6 +262,7 @@ const config = {
             position: "left",
             label: "Docs",
           },
+          { to: "/docs/official_rules", label: "Rules", position: "left" },
           { to: "/blog", label: "Blog", position: "left" },
           { to: "/intro", label: "History", position: "left" },
           { to: "/sponsor", label: "Sponsor", position: "left" },

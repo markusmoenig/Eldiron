@@ -1,0 +1,39 @@
+[identity.defaults]
+race = "Human"
+class = "Warrior"
+
+[dispositions]
+friendly = 1
+neutral = 0
+hostile = -1
+
+[race_relations.Human]
+Human = "friendly"
+Orc = "hostile"
+
+[race_relations.Orc]
+Human = "hostile"
+Orc = "friendly"
+
+[reputation]
+default = 0
+normal = 0
+
+[reputation.thresholds]
+hostile = -50
+friendly = 50
+
+[intents.attack]
+allowed_dispositions = ["hostile"]
+deny_message = "{system.cant_do_that}"
+
+[intents.attack.distance]
+source = "weapon_range"
+fallback = 1.5
+
+[intents.take]
+allowed_target_kinds = ["item"]
+distance = 1.5
+
+[intents.use]
+distance = 2

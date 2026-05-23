@@ -248,9 +248,8 @@ fn event(event, value) {
     }
 
     if event == "proximity_warning" {
-        let alignment = get_attr_of(value, "ALIGNMENT");
-        if alignment > 0 {
-            if target() == "" {
+        if is_hostile(value) {
+            if target() == 0 {
                 set_target(value);
             }
             follow_attack(value, 1.0);
@@ -267,6 +266,7 @@ fn event(event, value) {
 This keeps combat rule-based:
 
 - chase behavior is owned by the engine
+- hostility comes from the active ruleset's race and reputation rules
 - melee legality stays consistent
 - turn-based / hybrid modes keep grid alignment
 - slower chase speeds below `1.0` skip turns instead of taking fractional off-grid steps

@@ -19,6 +19,7 @@ pub(crate) struct PaletteDockBoard {
     palette: ThePalette,
     materials: Vec<PaletteMaterial>,
     index: usize,
+    read_only: bool,
     drag_index: Option<usize>,
     hovered_index: Option<usize>,
     rectangles: Vec<(usize, TheDim)>,
@@ -40,6 +41,7 @@ impl PaletteDockBoard {
             palette: ThePalette::default(),
             materials: vec![PaletteMaterial::default(); 256],
             index: 0,
+            read_only: false,
             drag_index: None,
             hovered_index: None,
             rectangles: Vec::new(),
@@ -54,6 +56,13 @@ impl PaletteDockBoard {
     pub(crate) fn set_index(&mut self, index: usize) {
         self.index = index.min(self.palette.colors.len().saturating_sub(1));
         self.is_dirty = true;
+    }
+
+    pub(crate) fn set_read_only(&mut self, read_only: bool) {
+        if self.read_only != read_only {
+            self.read_only = read_only;
+            self.is_dirty = true;
+        }
     }
 
     pub(crate) fn set_materials(&mut self, materials: Vec<PaletteMaterial>) {
@@ -145,7 +154,7 @@ impl TheWidget for PaletteDockBoard {
                 for (index, rect) in &self.rectangles {
                     if rect.contains(*coord) {
                         ctx.ui.set_focus(self.id());
-                        self.drag_index = Some(*index);
+                        self.drag_index = (!self.read_only).then_some(*index);
                         self.index = *index;
                         ctx.ui.send(TheEvent::PaletteIndexChanged(
                             self.id.clone(),
@@ -181,7 +190,9 @@ impl TheWidget for PaletteDockBoard {
                 }
             }
             TheEvent::MouseUp(coord) => {
-                if let Some(from) = self.drag_index.take() {
+                if !self.read_only
+                    && let Some(from) = self.drag_index.take()
+                {
                     for (to, rect) in &self.rectangles {
                         if rect.contains(*coord) {
                             if from != *to {
@@ -202,6 +213,9 @@ impl TheWidget for PaletteDockBoard {
                     .send(TheEvent::SetStatusText(self.id.clone(), String::new()));
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Delete)) => {
+                if self.read_only {
+                    return true;
+                }
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Palette Dock Delete Entry"),
                     TheValue::Int(self.index as i32),
@@ -400,6 +414,7 @@ impl PaletteDock {
             board.set_palette(project.palette.clone());
             board.set_materials(project.palette_materials.clone());
             board.set_index(index);
+            board.set_read_only(project.ruleset_palette_is_active());
         }
         let text = project.palette[index]
             .as_ref()
@@ -423,6 +438,11 @@ impl PaletteDock {
         if let Some(layout) = ui.get_text_layout("Palette Dock Inspector Layout") {
             self.nodeui.apply_to_text_layout(layout);
             ctx.ui.relayout = true;
+        }
+
+        let locked = project.ruleset_palette_is_active();
+        for id in ["Palette Dock New", "Palette Dock Clone", PALETTE_DOCK_HEX] {
+            ui.set_widget_disabled_state(id, ctx, locked);
         }
     }
 
@@ -766,6 +786,9 @@ impl Dock for PaletteDock {
         }
         match event {
             TheEvent::PaletteEntriesSwapped(id, from, to) if id.name == PALETTE_DOCK_PICKER => {
+                if project.ruleset_palette_is_active() {
+                    return true;
+                }
                 let from = *from as usize;
                 let to = *to as usize;
                 if from < project.palette.colors.len()
@@ -797,6 +820,9 @@ impl Dock for PaletteDock {
                 true
             }
             TheEvent::ValueChanged(id, TheValue::Text(text)) if id.name == PALETTE_DOCK_HEX => {
+                if project.ruleset_palette_is_active() {
+                    return true;
+                }
                 let color = TheColor::from_hex(text);
                 let index = project.palette.current_index as usize;
                 project.ensure_palette_materials_len();
@@ -871,6 +897,9 @@ impl Dock for PaletteDock {
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
                 if id.name == "Palette Dock New" {
+                    if project.ruleset_palette_is_active() {
+                        return true;
+                    }
                     if let Some(index) = Self::append_index(project) {
                         let prev = project.palette.clone();
                         let prev_materials = project.palette_materials.clone();
@@ -890,6 +919,9 @@ impl Dock for PaletteDock {
                     }
                     true
                 } else if id.name == "Palette Dock Clone" {
+                    if project.ruleset_palette_is_active() {
+                        return true;
+                    }
                     if let Some(index) = Self::append_index(project) {
                         let prev = project.palette.clone();
                         let prev_materials = project.palette_materials.clone();
@@ -925,6 +957,9 @@ impl Dock for PaletteDock {
             TheEvent::Custom(id, TheValue::Int(index))
                 if id.name == "Palette Dock Delete Entry" =>
             {
+                if project.ruleset_palette_is_active() {
+                    return true;
+                }
                 let index = *index as usize;
                 if index < project.palette.colors.len() {
                     let prev = project.palette.clone();

@@ -96,9 +96,37 @@ function ToolsSection({ section }) {
   );
 }
 
+function AnnouncementSection({ section }) {
+  return (
+    <section className={styles.announcementSection}>
+      <div className={styles.announcementPanel}>
+        <div className={styles.announcementCopy}>
+          <p className={styles.announcementEyebrow}>{section.eyebrow}</p>
+          <h2>{section.title}</h2>
+          <p>{section.description}</p>
+          <Link to={section.href}>{section.linkLabel}</Link>
+        </div>
+        {section.thumbnail && (
+          <div className={styles.announcementThumbnailWrap}>
+            <Screenshot
+              className={styles.announcementThumbnail}
+              src={section.thumbnail.image}
+              alt={section.thumbnail.alt}
+            />
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function HomepageSection({ section }) {
   if (section.type === "news") {
     return <NewsSection section={section} />;
+  }
+
+  if (section.type === "announcement") {
+    return <AnnouncementSection section={section} />;
   }
 
   if (section.type === "formats") {

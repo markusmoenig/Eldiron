@@ -1101,29 +1101,7 @@ impl CellItem {
                 self.form = CellItemForm::LeftRounded;
                 grid.insert(pos, self)
             }
-            Cell::DealDamage => {
-                grid.insert(
-                    (pos.0 + 1, pos.1),
-                    CellItem::new_dependency(
-                        Cell::Value("0".into()),
-                        self.id,
-                        true,
-                        "Entity ID",
-                        CellItemForm::Box,
-                    ),
-                );
-                let mut item = CellItem::new_dependency(
-                    Cell::Value("0".into()),
-                    self.id,
-                    true,
-                    "Damage",
-                    CellItemForm::RightRounded,
-                );
-                item.special_role = CellItemSpecialRole::DealDamageValue;
-                grid.insert((pos.0 + 2, pos.1), item);
-                self.form = CellItemForm::LeftRounded;
-                grid.insert(pos, self)
-            }
+            Cell::DealDamage => grid.insert(pos, self),
             Cell::Drop => {
                 grid.insert(
                     (pos.0 + 1, pos.1),
@@ -1146,6 +1124,20 @@ impl CellItem {
                         self.id,
                         false,
                         "Filter",
+                        CellItemForm::RightRounded,
+                    ),
+                );
+                self.form = CellItemForm::LeftRounded;
+                grid.insert(pos, self)
+            }
+            Cell::DispositionOf | Cell::IsHostile => {
+                grid.insert(
+                    (pos.0 + 1, pos.1),
+                    CellItem::new_dependency(
+                        Cell::Value("value".into()),
+                        self.id,
+                        true,
+                        "Target ID",
                         CellItemForm::RightRounded,
                     ),
                 );
@@ -2484,11 +2476,6 @@ impl CellItem {
         if self.cell.role() == CellRole::Function {
             return self.cell.to_string() + "(";
         }
-
-        // if self.special_role == CellItemSpecialRole::DealDamageValue {
-        // deal_damage(value, {"from": id(), "amount": random(1, 3)})
-        // return format!("{{\"from\": id(), \"amount\": {}}}", self.cell.to_string());
-        // }
 
         match self.cell {
             Variable(_) => match self.option {

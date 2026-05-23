@@ -417,6 +417,8 @@ impl Editor {
     fn load_project_from_json_path(path: &std::path::Path) -> Option<Project> {
         let contents = std::fs::read_to_string(path).ok()?;
         let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
+        loaded.migrate_default_ruleset();
+        let _ = loaded.sync_ruleset_items();
         loaded.palette.current_index = 0;
         Some(loaded)
     }
@@ -448,6 +450,7 @@ impl Editor {
         {
             project.authoring = source.to_string();
         }
+        let _ = project.sync_ruleset_items();
         project
     }
 
@@ -507,6 +510,8 @@ impl Editor {
             .find(|choice| choice.manifest_id == manifest_id)?;
         let contents = Self::fetch_url_text(&Self::starter_repo_url(&choice.project_path))?;
         let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
+        loaded.migrate_default_ruleset();
+        let _ = loaded.sync_ruleset_items();
         loaded.palette.current_index = 0;
         self.starter_project_cache
             .insert(manifest_id.to_string(), loaded.clone());
@@ -1176,6 +1181,7 @@ impl TheTrait for Editor {
                 project.authoring = source.to_string();
             }
         }
+        let _ = project.sync_ruleset_items();
 
         #[cfg(all(
             feature = "self-update",
@@ -3366,6 +3372,9 @@ impl TheTrait for Editor {
                 TheEvent::FileRequesterResult(id, paths) => {
                     // Load a palette from a file
                     if id.name == "Palette Import" {
+                        if self.project.ruleset_palette_is_active() {
+                            return redraw;
+                        }
                         for p in paths {
                             let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
                             let prev = self.project.palette.clone();

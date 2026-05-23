@@ -81,6 +81,23 @@ fn merge_toml_tables(base: &mut toml::Table, overlay: toml::Table) {
     }
 }
 
+fn item_ruleset_path(item: &Item) -> Option<String> {
+    item.data
+        .parse::<toml::Table>()
+        .ok()
+        .and_then(|data| {
+            data.get("attributes")
+                .and_then(toml::Value::as_table)
+                .cloned()
+        })
+        .and_then(|attributes| {
+            attributes
+                .get("ruleset_path")
+                .and_then(toml::Value::as_str)
+                .map(str::to_string)
+        })
+}
+
 pub fn merge_config_toml(project_config: &str, region_config: &str) -> String {
     if project_config.trim().is_empty() {
         return region_config.to_string();
@@ -499,6 +516,97 @@ impl Project {
             authoring: default_authoring(),
             shortcuts: default_shortcuts(),
         }
+    }
+
+    pub fn migrate_default_ruleset(&mut self) -> bool {
+        if crate::rulesets::has_top_level_ruleset(&self.config) {
+            return false;
+        }
+
+        crate::rulesets::prefix_default_ruleset_config(&mut self.config);
+        self.rules = crate::rulesets::DEFAULT_RULES_OVERRIDE.to_string();
+        true
+    }
+
+    pub fn sync_ruleset_palette(&mut self) -> Result<bool, String> {
+        let rules = crate::rulesets::resolve_project_rules(&self.config, &self.rules)?;
+        let mut palette = crate::rulesets::ruleset_palette_from_source(&rules)?;
+        if palette.is_empty() {
+            return Ok(false);
+        }
+
+        let visible_count = palette
+            .colors
+            .iter()
+            .rposition(Option::is_some)
+            .map(|index| index + 1)
+            .unwrap_or(1);
+        palette.current_index = self
+            .palette
+            .current_index
+            .min(visible_count.saturating_sub(1) as u16);
+        let prev_palette = self.palette.clone();
+        let prev_materials = self.palette_materials.clone();
+        self.palette = palette;
+        self.reset_all_palette_materials();
+        Ok(prev_palette != self.palette || prev_materials != self.palette_materials)
+    }
+
+    pub fn ruleset_palette_is_active(&self) -> bool {
+        let (id, version, source) = crate::rulesets::selected_ruleset(&self.config);
+        if source != "project" {
+            return crate::rulesets::official_ruleset(&id, &version)
+                .and_then(|rules| crate::rulesets::ruleset_palette_from_source(rules).ok())
+                .is_some_and(|palette| !palette.is_empty());
+        }
+
+        crate::rulesets::ruleset_palette_from_source(&self.rules)
+            .is_ok_and(|palette| !palette.is_empty())
+    }
+
+    pub fn palette_visible_color_count(&self) -> usize {
+        self.palette
+            .colors
+            .iter()
+            .rposition(Option::is_some)
+            .map(|index| index + 1)
+            .unwrap_or(1)
+    }
+
+    pub fn sync_ruleset_items(&mut self) -> Result<usize, String> {
+        self.sync_ruleset_palette()?;
+        let rules = crate::rulesets::resolve_project_rules(&self.config, &self.rules)?;
+        let templates = crate::rulesets::ruleset_item_templates_from_source(&rules)?;
+        let mut changed = 0;
+
+        for template in templates {
+            if let Some(item) = self
+                .items
+                .values_mut()
+                .find(|item| item_ruleset_path(item).as_deref() == Some(&template.ruleset_path))
+            {
+                let mut item_changed = false;
+                if item.name != template.name {
+                    item.name = template.name.clone();
+                    item_changed = true;
+                }
+                if item.data != template.data {
+                    item.data = template.data.clone();
+                    item_changed = true;
+                }
+                if item_changed {
+                    changed += 1;
+                }
+            } else {
+                let mut item = Item::new();
+                item.name = template.name;
+                item.data = template.data;
+                self.add_item(item);
+                changed += 1;
+            }
+        }
+
+        Ok(changed)
     }
 
     /// Add Character
@@ -1156,5 +1264,67 @@ mod tests {
             !project.regions.is_empty(),
             "3D starter fixture should contain at least one region"
         );
+    }
+
+    #[test]
+    fn old_project_gets_default_ruleset_and_empty_rules_override() {
+        let mut project = Project::new();
+        project.config = "[game]\nname = \"Old Project\"\n".to_string();
+        project.rules = "[combat]\nincoming_damage = \"old\"\n".to_string();
+
+        assert!(project.migrate_default_ruleset());
+
+        assert!(crate::rulesets::has_top_level_ruleset(&project.config));
+        assert_eq!(project.rules, crate::rulesets::DEFAULT_RULES_OVERRIDE);
+    }
+
+    #[test]
+    fn project_with_ruleset_keeps_rules_override() {
+        let mut project = Project::new();
+        project.config = crate::rulesets::DEFAULT_RULESET_CONFIG.to_string();
+        project.rules = "[spells.minor_heal]\ncost_mp = 3\n".to_string();
+
+        assert!(!project.migrate_default_ruleset());
+
+        assert_eq!(project.rules, "[spells.minor_heal]\ncost_mp = 3\n");
+    }
+
+    #[test]
+    fn project_creates_missing_ruleset_items_once() {
+        let mut project = Project::new();
+        project.config = crate::rulesets::DEFAULT_RULESET_CONFIG.to_string();
+        project.rules = crate::rulesets::DEFAULT_RULES_OVERRIDE.to_string();
+
+        assert_eq!(project.sync_ruleset_items().unwrap(), 10);
+        assert_eq!(project.sync_ruleset_items().unwrap(), 0);
+        assert_eq!(
+            project.palette.colors[2]
+                .as_ref()
+                .map(TheColor::to_hex)
+                .as_deref(),
+            Some("#BCAD9F")
+        );
+        assert!(project.ruleset_palette_is_active());
+        assert!(project.items.values().any(|item| {
+            item.name == "Training Sword"
+                && item
+                    .data
+                    .contains("ruleset_path = \"items.weapons.training_sword\"")
+        }));
+
+        let linen_shirt = project
+            .items
+            .values_mut()
+            .find(|item| item_ruleset_path(item).as_deref() == Some("items.clothing.linen_shirt"))
+            .unwrap();
+        linen_shirt.data =
+            "[attributes]\nruleset_path = \"items.clothing.linen_shirt\"\n".to_string();
+
+        assert_eq!(project.sync_ruleset_items().unwrap(), 1);
+        assert!(project.items.values().any(|item| {
+            item_ruleset_path(item).as_deref() == Some("items.clothing.linen_shirt")
+                && item.data.contains("torso_index = 2")
+                && item.data.contains("arms_index = 2")
+        }));
     }
 }

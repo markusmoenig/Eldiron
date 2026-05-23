@@ -1,6 +1,20 @@
 use crate::prelude::*;
 use rusterix::{Command, Entity, Rusterix, Value};
 
+fn insert_bundled_ruleset_avatars(
+    assets: &mut rusterix::server::assets::Assets,
+    project: &Project,
+) {
+    match crate::rulesets::bundled_avatars_for_project(&project.config) {
+        Ok(avatars) => {
+            for (id, avatar) in avatars {
+                assets.avatars.insert(id.to_string(), avatar);
+            }
+        }
+        Err(err) => eprintln!("Ruleset avatar load error: {}", err),
+    }
+}
+
 /// Start the server
 pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool) {
     rusterix.server.clear();
@@ -16,7 +30,12 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
             project.world_source_debug = project.world_module.build(true);
         }
     }
-    rusterix.assets.rules = project.rules.clone();
+    rusterix.assets.rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)
+        .unwrap_or_else(|err| {
+            eprintln!("Ruleset resolution error: {}", err);
+            project.rules.clone()
+        });
+    rusterix.assets.read_rules_metadata();
     rusterix.assets.locales_src = project.locales.clone();
     rusterix.assets.audio_fx_src = project.audio_fx.clone();
     rusterix.assets.authoring_src = project.authoring.clone();
@@ -132,6 +151,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
 
     // Create the avatars
     rusterix.assets.avatars.clear();
+    insert_bundled_ruleset_avatars(&mut rusterix.assets, project);
     for avatar in &mut project.avatars.values() {
         rusterix
             .assets
@@ -176,7 +196,12 @@ pub fn warmup_runtime(rusterix: &mut Rusterix, project: &mut Project, ticks: usi
 pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Command> {
     rusterix.assets.config = project.config.clone();
     rusterix.assets.world_source = project.world_source.clone();
-    rusterix.assets.rules = project.rules.clone();
+    rusterix.assets.rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)
+        .unwrap_or_else(|err| {
+            eprintln!("Ruleset resolution error: {}", err);
+            project.rules.clone()
+        });
+    rusterix.assets.read_rules_metadata();
     rusterix.assets.locales_src = project.locales.clone();
     rusterix.assets.audio_fx_src = project.audio_fx.clone();
     rusterix.assets.authoring_src = project.authoring.clone();
@@ -203,6 +228,14 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
     for (_, screen) in &project.screens {
         let scr = screen.map.clone();
         rusterix.assets.screens.insert(screen.map.name.clone(), scr);
+    }
+    rusterix.assets.avatars.clear();
+    insert_bundled_ruleset_avatars(&mut rusterix.assets, project);
+    for avatar in project.avatars.values() {
+        rusterix
+            .assets
+            .avatars
+            .insert(avatar.name.clone(), avatar.clone());
     }
     rusterix.assets.fonts.clear();
     rusterix.assets.audio.clear();

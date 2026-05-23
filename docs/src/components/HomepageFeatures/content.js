@@ -25,6 +25,20 @@ export const homepageContent = {
   },
   sections: [
     {
+      key: "rules-announcement",
+      eyebrow: "BIG UPCOMING CHANGES",
+      title: "Official Eldiron Ruleset",
+      description:
+        "Characters and items are moving toward one unified official ruleset. The website docs already reflect this transition, and Eldiron v0.91 with official rules is planned for release around mid June. Races, classes, weapons, armor, spells, cooldowns, progression, item visuals, and starter loadouts will share a single source of truth, reducing project configuration while still allowing each game to override and customize the rules it needs.",
+      href: "/docs/official_rules",
+      linkLabel: "Read the draft rules",
+      thumbnail: {
+        image: "/img/rules/combat-dice-ink.png",
+        alt: "Black-and-white RPG dice, sword, shield, armor, and orc marker illustration",
+      },
+      type: "announcement",
+    },
+    {
       key: "news",
       eyebrow: "News",
       title: "What changed recently",
@@ -121,7 +135,7 @@ export const homepageContent = {
             "Block out rooms, corridors, shafts, and doors in a conceptual grid, then let Eldiron generate editable map geometry from it. You can even dynamically change fog and other render settings.",
           image: "/img/screenshots/Eldiron_v0.92_DT.png",
           alt: "Dungeon Tool preview",
-          href: "/docs/creator/tools/dungeon",
+          href: "/docs/building_maps/procedural_generation",
           linkLabel: "Open docs",
         },
         {
@@ -148,7 +162,7 @@ export const homepageContent = {
             "Create reusable builder graphs for props, furniture, fences, and other structural assemblies, with live preview, material slots, and attachment points for nested builds.",
           image: "/img/screenshots/Eldiron_v0.92_BG.png",
           alt: "Builder Graph preview",
-          href: "/docs/builder_graph",
+          href: "/docs/creator/tools/builder",
           linkLabel: "Open docs",
         },
         {
