@@ -35,14 +35,17 @@ impl CompileVisitor {
             "distance" => Some(1),
             "amount" => Some(1),
             "subject_id" => Some(0),
+            "attacker_id" => Some(0),
+            "source_id" => Some(0),
             "count" => Some(2),
+            "source_item_id" => Some(2),
             _ => None,
         }
     }
 
     #[inline]
     fn is_string_alias(field: &str) -> bool {
-        matches!(field, "string" | "text")
+        matches!(field, "string" | "text" | "kind" | "damage_kind")
     }
 
     #[inline]

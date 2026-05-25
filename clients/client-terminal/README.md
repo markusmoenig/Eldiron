@@ -42,6 +42,28 @@ Once running, you can use standard text adventure commands:
 - Actions: `attack <target>`, `take <item>`, `use <item>`, `talk to <character>`
 - Info: `look`, `inventory`, `help`
 
+## Rules Tools
+
+The terminal client can also inspect and validate the official ruleset without
+starting a game:
+
+```bash
+eldiron-client-terminal rules summary
+eldiron-client-terminal rules check
+eldiron-client-terminal rules character Cleric race=Human level=2
+eldiron-client-terminal rules class Warrior
+eldiron-client-terminal rules weapon training_sword STR=12
+eldiron-client-terminal rules spell minor_heal WIS=12
+```
+
+Pass a `.eldiron` project path to validate or summarize that project's resolved
+ruleset, including its **Game / Rules** overrides:
+
+```bash
+eldiron-client-terminal rules check path/to/game.eldiron
+eldiron-client-terminal rules summary path/to/game.eldiron
+```
+
 ## Platform Support
 
 Works on all platforms (macOS, Linux, Windows) with a compatible terminal emulator.

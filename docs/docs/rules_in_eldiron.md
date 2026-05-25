@@ -289,6 +289,10 @@ shared server logic all answer the same rules questions.
 Rules can be tested in the terminal client:
 
 ```bash
+eldiron-client-terminal rules check
+eldiron-client-terminal rules check test_projects/Hideout2D.eldiron
+eldiron-client-terminal rules summary
+eldiron-client-terminal rules character Cleric race=Human level=2
 eldiron-client-terminal rules class Warrior
 eldiron-client-terminal rules xp 5
 eldiron-client-terminal rules weapon training_sword STR=12

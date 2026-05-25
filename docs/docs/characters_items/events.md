@@ -160,13 +160,23 @@ See [NPC Sequences](npc_sequences) for the bigger event + sequence model.
 
 ---
 
-### `take_damage`
+### `damaged`
 
-- **Value**: `amount` *(int)*
+- **Value**: damage payload
 - **Description**: Triggered after the server has applied the ruleset combat pipeline.  
-  `amount` is the final incoming damage, `from_id` contains the attacker id, `damage_kind` contains the kind such as `physical`, `spell`, or `fire`, and `source_item_id` contains the weapon or spell item when available.
+  `value.amount` is the final incoming damage, `value.attacker_id` contains the attacker id, `value.kind` contains the damage kind such as `physical`, `spell`, or `fire`, and `value.source_item_id` contains the weapon or spell item when available.
   The server applies this final damage automatically after the event returns.
   If the target has [autodamage](attributes#autodamage) enabled, this event is not triggered.
+
+Use `damaged` when an NPC should react to being hit. For example, a neutral
+character can decide to retaliate:
+
+```eldrin
+if event == "damaged" {
+    set_target(value.attacker_id);
+    follow_attack(value.attacker_id, 0.6);
+}
+```
 
 ---
 

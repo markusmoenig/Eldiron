@@ -56,6 +56,7 @@ attack()
 Behavior:
 
 - uses the current target (see [set_target](#set_target))
+- does nothing if the current target is already dead
 - starts from the equipped weapon's ruleset damage roll
 - if no weapon damage roll is available, uses `[combat.unarmed_damage]`
 - if no dice rule is available, falls back to `progression.damage`, then the attacker's `DMG` attribute, then `1`

@@ -23,6 +23,16 @@
 - Improved first-person stair traversal by smoothing the visual camera height while keeping collision and actor position tied to the real floor height.
 - Fixed dynamic entity collision so actors on different vertical levels no longer block each other in XZ when their height ranges do not overlap.
 
+### Rules
+
+- Added headless rules interaction tests covering scripted character attacks, `damaged` event payloads, NPC retaliation, and attack cooldown blocking.
+- Added headless death and loot regression coverage for lethal attacks, `death` / `kill` event delivery, item drops, and dead-target attack blocking.
+- Added headless spell regression coverage for ruleset spell damage, `damaged` payloads, MP costs, spell cooldowns, and healing caps.
+- Added negative spell regressions for invalid targets, not enough MP, and lethal spell casts firing `death` / `kill` once.
+- Added official ruleset regressions for Warrior defaults/loadout, Cleric spell unlocks, Human/Orc hostility, official weapon damage, and official spell costs/cooldowns.
+- Added terminal ruleset validation and summary commands for the bundled official ruleset and resolved project rules overrides.
+- Added a terminal character rules inspector that resolves race, class, level, attributes, unlocks, loadout, spell details, and combat rolls from the official ruleset.
+
 ---
 
 # Eldiron v0.9.12
@@ -497,7 +507,7 @@
 ### Server
 
 - Added project-wide combat rules with per-kind overrides for incoming damage.
-- Changed `take_damage` to receive final incoming damage after rules are applied, while the server commits damage automatically after the event returns.
+- Added the `damaged` event for ruleset damage reactions. It receives final incoming damage after rules are applied, while the server commits damage automatically after the event returns.
 - Integrated damage kinds across combat, including physical, spell, and custom kinds such as fire.
 - Added automatic combat messages driven by rules and localized through the new locale system.
 - Added automatic combat audio driven by rules, including per-kind overrides and support for generated Audio FX.
@@ -519,7 +529,7 @@
 - Added dedicated documentation for **Rules** and **Localization**.
 - Updated the visual scripting docs to cover realtime debugging, persistent values, condition feedback, hover help, and drag-copy.
 - Updated audio docs to cover `Game / Audio FX`, combat audio integration, and Audio FX parameters.
-- Updated scripting and event docs to reflect the new `take_damage` behavior, damage kinds, and `source_item_id`.
+- Updated scripting and event docs to reflect the new `damaged` event, damage kinds, and `source_item_id`.
 
 ---
 

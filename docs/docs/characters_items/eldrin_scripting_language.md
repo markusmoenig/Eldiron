@@ -42,8 +42,8 @@ fn event(event, value) {
         drop_items( "");
         set_attr( "visible",  false);
     }
-    if event == "take_damage" {
-        let from_id = value.subject_id;
+    if event == "damaged" {
+        let from_id = value.attacker_id;
         let amount = value.amount;
         let attacker = get_attr_of( from_id,  "name");
         message( id(),  "You hit the Orc for " + amount + " damage",  "");

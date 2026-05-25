@@ -37,7 +37,7 @@ active = true
 
 *Character-only attribute.*
 
-If set to `true`, incoming damage is applied directly by the server and the [take_damage](events#take_damage) event is skipped.
+If set to `true`, incoming damage is applied directly by the server and the [damaged](events#damaged) event is skipped.
 Use this for simple NPCs/targets that should not run custom damage scripts.
 On lethal damage, the server also applies death state automatically (`mode = "dead"` and `visible = false`).
 

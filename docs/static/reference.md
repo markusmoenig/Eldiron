@@ -331,7 +331,7 @@ For the up-to-date event list and the newer NPC sequence model, see:
 | **`bumped_into_item`**   | `item` *(int)*   | Triggered when an entity bumps into an item. |
 | **`bumped_by_entity`**   | `entity_id` *(int)* | Triggered when another entity collides with this entity or item. |
 | **`clicked`**            | *dict* `{ entity_id, distance }` | Triggered when the player clicks on an entity or item. Includes the clicking entity's ID and distance. |
-| **`take_damage`**        | *dict*           | Triggered after combat damage is resolved. Contains the damage amount, attacker id, damage kind, and source item when available. |
+| **`damaged`**            | *dict*           | Triggered after combat damage is resolved. Contains `amount`, `attacker_id`, `kind`, and `source_item_id` when available. |
 
 ### User Events
 

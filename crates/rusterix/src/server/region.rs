@@ -360,7 +360,7 @@ fn apply_ruleset_class_progression(
     apply_ruleset_class_progression_list(class, entity, explicit_keys, level, "spells");
 }
 
-pub(crate) fn apply_ruleset_character_defaults(rules: &toml::Table, entity: &mut Entity) {
+pub fn apply_ruleset_character_defaults(rules: &toml::Table, entity: &mut Entity) {
     let explicit_keys = entity.attributes.keys().cloned().collect::<FxHashSet<_>>();
 
     apply_ruleset_attribute_table(
@@ -612,8 +612,35 @@ mod ruleset_progression_tests {
         assert!(is_action_on_cooldown(&ctx, 1, "power_strike"));
         assert_eq!(ctx.to_execute_entity.len(), 1);
         assert_eq!(ctx.to_execute_entity[0].0, 2);
-        assert_eq!(ctx.to_execute_entity[0].1, "take_damage");
+        assert_eq!(ctx.to_execute_entity[0].1, "damaged");
         assert_eq!(ctx.to_execute_entity[0].2.y, 5.0);
+    }
+
+    #[test]
+    fn damage_event_name_accepts_official_and_runtime_alias() {
+        assert!(is_damage_event_name("damaged"));
+        assert!(is_damage_event_name("take_damage"));
+        assert!(!is_damage_event_name("damage"));
+    }
+
+    #[test]
+    fn intent_cooldown_stays_pending_until_script_event_finishes() {
+        let mut ctx = RegionCtx::default();
+        ctx.ticks = 10;
+        ctx.ticks_per_minute = 4;
+
+        queue_intent_cooldown(&mut ctx, 1, "attack", Some(2.0));
+
+        let state = ctx.entity_state_data.get(&1).expect("cooldown state");
+        assert!(state.get("__pending_intent_cooldown:attack").is_some());
+        assert!(state.get("intent: attack").is_none());
+        assert!(!is_cooldown_key_active(&ctx, 1, "intent: attack"));
+
+        apply_pending_intent_cooldown(&mut ctx, 1, "attack");
+
+        let state = ctx.entity_state_data.get(&1).expect("cooldown state");
+        assert!(state.get("__pending_intent_cooldown:attack").is_none());
+        assert!(is_cooldown_key_active(&ctx, 1, "intent: attack"));
     }
 }
 
@@ -1311,7 +1338,7 @@ impl RegionInstance {
     }
 
     fn handle_text_command(&self, ctx: &mut RegionCtx, entity_id: u32, input: &str) {
-        use crate::client::text_command::{TextCommand, parse_text_command};
+        use crate::text_command::{TextCommand, parse_text_command};
 
         let supported_intents = Self::text_command_supported_intents(ctx, entity_id);
         let spell_ids = Self::text_command_spell_ids(ctx);
@@ -6718,12 +6745,13 @@ impl RegionInstance {
             with_regionctx(self.id, |ctx| {
                 ctx.entity_state_data = state_data;
                 ctx.damage_committed = false;
-                ctx.current_damage_kind = if todo.1 == "take_damage" {
+                let is_damage_event = is_damage_event_name(&todo.1);
+                ctx.current_damage_kind = if is_damage_event {
                     todo.2.as_string().map(|s| s.to_string())
                 } else {
                     None
                 };
-                ctx.current_damage_source_item = if todo.1 == "take_damage" {
+                ctx.current_damage_source_item = if is_damage_event {
                     let source_item_id = todo.2.z.max(0.0) as u32;
                     if source_item_id > 0 {
                         Some(source_item_id)
@@ -6740,7 +6768,7 @@ impl RegionInstance {
                         let payload = todo.2.clone();
                         let args = [VMValue::from_string(event_name.clone()), payload.clone()];
                         run_server_fn(&mut self.exec, &args, &program, ctx);
-                        if event_name == "take_damage" && !ctx.damage_committed {
+                        if is_damage_event_name(&event_name) && !ctx.damage_committed {
                             let from_id = payload.x.max(0.0) as u32;
                             let amount = payload.y.max(0.0) as i32;
                             if amount > 0 {
@@ -8022,7 +8050,7 @@ pub fn block_events(args: rustpython_vm::function::FuncArgs, vm: &VirtualMachine
     });
 }
 
-/// Deal damage to the given entity. Sends an "take_damage" event to the other entity.
+/// Deal damage to the given entity. Sends a "damaged" event to the other entity.
 fn deal_damage(id: u32, dict: PyObjectRef, vm: &VirtualMachine) {
     /*
     let dict = extract_dictionary(dict, vm);
@@ -8031,13 +8059,13 @@ fn deal_damage(id: u32, dict: PyObjectRef, vm: &VirtualMachine) {
         if let Ok(dict) = dict {
             if let Some(entity) = ctx.map.entities.iter().find(|entity| entity.id == id) {
                 if let Some(class_name) = entity.attributes.get_str("class_name") {
-                    let cmd = format!("{}.event('{}', {})", class_name, "take_damage", dict);
-                    ctx.to_execute_entity.push((id, "take_damage".into(), cmd));
+                    let cmd = format!("{}.event('{}', {})", class_name, "damaged", dict);
+                    ctx.to_execute_entity.push((id, "damaged".into(), cmd));
                 }
             } else if let Some(item) = ctx.map.items.iter_mut().find(|item| item.id == id) {
                 if let Some(class_name) = item.attributes.get_str("class_name") {
-                    let cmd = format!("{}.event('{}', {})", class_name, "take_damage", dict);
-                    ctx.to_execute_item.push((id, "take_damage".into(), cmd));
+                    let cmd = format!("{}.event('{}', {})", class_name, "damaged", dict);
+                    ctx.to_execute_item.push((id, "damaged".into(), cmd));
                 }
             }
         }
@@ -9162,6 +9190,12 @@ fn cast_ruleset_spell_for_entity(
     let caster_pos = caster.position;
     let target_pos = target.position;
     let range = action_number_or_spell(action.as_ref(), &spell, "range", 0.0).max(0.0);
+    if let Some(action) = action.as_ref()
+        && !action_target_allowed(ctx, action, caster_id, target_id)
+    {
+        send_message(ctx, caster_id, "{system.cant_do_that}".into(), "warning");
+        return RulesetSpellCastResult::HandledFailure;
+    }
     if range > 0.0 && caster.get_pos_xz().distance(target.get_pos_xz()) > range {
         send_message(ctx, caster_id, "{system.too_far_away}".into(), "warning");
         return RulesetSpellCastResult::HandledFailure;
@@ -9298,7 +9332,22 @@ fn cast_ruleset_spell_for_entity(
         );
         return RulesetSpellCastResult::Cast(0);
     }
-    _ = apply_damage_direct(ctx, target_id, caster_id, final_amount, &damage_kind, None);
+    let autodamage = ctx
+        .map
+        .entities
+        .iter()
+        .find(|e| e.id == target_id)
+        .map(|e| e.attributes.get_bool_default("autodamage", false))
+        .unwrap_or(false);
+    if autodamage {
+        _ = apply_damage_direct(ctx, target_id, caster_id, final_amount, &damage_kind, None);
+    } else {
+        ctx.to_execute_entity.push((
+            target_id,
+            "damaged".into(),
+            VMValue::new_with_string(caster_id as f32, final_amount as f32, 0.0, &damage_kind),
+        ));
+    }
     spawn_ruleset_fx_item(
         ctx,
         action.as_ref(),
@@ -9651,6 +9700,10 @@ fn close_visible_damage_allowed(ctx: &RegionCtx, from_id: u32, target_id: u32) -
         && ctx.mapmini.is_visible(attacker_pos, target_pos)
 }
 
+fn is_damage_event_name(event: &str) -> bool {
+    matches!(event, "damaged" | "take_damage")
+}
+
 pub(crate) fn apply_damage_direct(
     ctx: &mut RegionCtx,
     target_id: u32,
@@ -9753,7 +9806,7 @@ pub(crate) fn apply_damage_direct(
                 return false;
             }
             // Guard against stale queued broadcasts encoding the dead entity as a target.
-            if payload.x.max(0.0) as u32 == target_id && event == "take_damage" {
+            if payload.x.max(0.0) as u32 == target_id && is_damage_event_name(event) {
                 return false;
             }
             true
@@ -11682,7 +11735,7 @@ fn evaluate_structured_damage_rule(
         .find(|entity| entity.id == target_id);
     let source_item = attacker.and_then(|entity| {
         if source_item_id > 0 {
-            entity.get_item(source_item_id)
+            entity_item_by_id(entity, source_item_id)
         } else {
             None
         }
@@ -11933,6 +11986,12 @@ fn item_numeric_attr(item: &Item, attr: &str) -> f32 {
     item.attributes.get_float_default(attr, 0.0)
 }
 
+pub(crate) fn entity_item_by_id(entity: &Entity, item_id: u32) -> Option<&Item> {
+    entity
+        .get_item(item_id)
+        .or_else(|| entity.equipped.values().find(|item| item.id == item_id))
+}
+
 fn current_attack_weapon_for_entity<'a>(ctx: &RegionCtx, entity: &'a Entity) -> Option<&'a Item> {
     let configured_slots = configured_weapon_slots(ctx);
     for slot in &configured_slots {
@@ -12102,8 +12161,7 @@ pub(crate) fn current_attack_base_damage_for_entity(ctx: &RegionCtx, entity_id: 
         .find(|entity| entity.id == entity_id);
 
     if let Some(entity) = entity
-        && let Some(source_item_id) = current_attack_source_item_id_for_entity(ctx, entity_id)
-        && let Some(source_item) = entity.get_item(source_item_id)
+        && let Some(source_item) = current_attack_weapon_for_entity(ctx, entity)
         && let Some(table) = item_ruleset_damage_table(ctx, source_item)
         && let Some(value) = roll_damage_table(Some(entity), &table)
     {
@@ -12141,7 +12199,7 @@ fn current_attack_kind_for_entity(
         .find(|entity| entity.id == entity_id);
 
     if let Some(kind) = source_item_id
-        .and_then(|item_id| attacker.and_then(|entity| entity.get_item(item_id)))
+        .and_then(|item_id| attacker.and_then(|entity| entity_item_by_id(entity, item_id)))
         .and_then(|item| item.attributes.get_str("damage_kind"))
         .map(str::trim)
         .filter(|kind| !kind.is_empty())
@@ -12167,6 +12225,15 @@ fn queue_entity_damage(
     kind: &str,
     source_item_id: Option<u32>,
 ) {
+    if ctx
+        .map
+        .entities
+        .iter()
+        .any(|entity| entity.id == target_id && entity.get_mode() == "dead")
+    {
+        return;
+    }
+
     let dmg = apply_damage_rules(
         ctx,
         target_id,
@@ -12200,7 +12267,7 @@ fn queue_entity_damage(
         let source_item_id = source_item_id.unwrap_or(0) as f32;
         ctx.to_execute_entity.push((
             target_id,
-            "take_damage".into(),
+            "damaged".into(),
             VMValue::new_with_string(attacker_id as f32, dmg as f32, source_item_id, kind),
         ));
     }
@@ -12575,7 +12642,7 @@ fn evaluate_damage_rule(
         .find(|entity| entity.id == target_id);
     let source_item = attacker.and_then(|entity| {
         if source_item_id > 0 {
-            entity.get_item(source_item_id)
+            entity_item_by_id(entity, source_item_id)
         } else {
             None
         }
@@ -13048,7 +13115,7 @@ fn update_spell_items(ctx: &mut RegionCtx) {
         } else {
             ctx.to_execute_entity.push((
                 target_id,
-                "take_damage".into(),
+                "damaged".into(),
                 VMValue::new_with_string(
                     caster_id as f32,
                     final_amount as f32,

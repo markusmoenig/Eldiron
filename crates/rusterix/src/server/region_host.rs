@@ -3,8 +3,8 @@ use crate::server::region::{
     RegionInstance, add_debug_value, apply_damage_direct, apply_damage_rules,
     apply_spell_default_attrs, current_attack_base_damage_for_entity,
     current_attack_cooldown_for_entity, entity_disposition_by_id, entity_is_hostile_by_id,
-    execute_ruleset_action, grant_experience, is_spell_on_cooldown, open_dialog_node,
-    set_spell_cooldown,
+    entity_item_by_id, execute_ruleset_action, grant_experience, is_spell_on_cooldown,
+    open_dialog_node, set_spell_cooldown,
 };
 use crate::server::regionctx::ChoiceSession;
 use crate::vm::*;
@@ -881,7 +881,7 @@ impl<'a> RegionHost<'a> {
             .find(|entity| entity.id == self.ctx.curr_entity_id);
 
         if let Some(kind) = source_item_id
-            .and_then(|item_id| attacker.and_then(|entity| entity.get_item(item_id)))
+            .and_then(|item_id| attacker.and_then(|entity| entity_item_by_id(entity, item_id)))
             .and_then(|item| item.attributes.get_str("damage_kind"))
             .map(str::trim)
             .filter(|kind| !kind.is_empty())
@@ -900,6 +900,16 @@ impl<'a> RegionHost<'a> {
         source_item_id: Option<u32>,
     ) {
         if let Some(id) = target_id {
+            if self
+                .ctx
+                .map
+                .entities
+                .iter()
+                .any(|entity| entity.id == id && entity.get_mode() == "dead")
+            {
+                return;
+            }
+
             let attacker_id = self.ctx.curr_entity_id;
             let source_item_id = source_item_id.unwrap_or(0);
             let dmg = apply_damage_rules(self.ctx, id, attacker_id, base_dmg, kind, source_item_id);
@@ -938,7 +948,7 @@ impl<'a> RegionHost<'a> {
                 let source_item_id = source_item_id as f32;
                 self.ctx.to_execute_entity.push((
                     id,
-                    "take_damage".into(),
+                    "damaged".into(),
                     VMValue::new_with_string(attacker_id as f32, dmg as f32, source_item_id, kind),
                 ));
             }
@@ -2964,6 +2974,1098 @@ impl<'a> HostHandler for RegionHost<'a> {
             _ => {}
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::region::apply_ruleset_character_defaults;
+    use crate::vm::{Execution, Program, VM, VMValue};
+    use std::sync::Arc;
+
+    fn official_rules_source() -> String {
+        [
+            include_str!("../../../../rulesets/eldiron/v1/ruleset.toml"),
+            include_str!("../../../../rulesets/eldiron/v1/identity.toml"),
+            include_str!("../../../../rulesets/eldiron/v1/attributes.toml"),
+            include_str!("../../../../rulesets/eldiron/v1/progression.toml"),
+            include_str!("../../../../rulesets/eldiron/v1/combat.toml"),
+            include_str!("../../../../rulesets/eldiron/v1/messages.toml"),
+            include_str!("../../../../rulesets/eldiron/v1/equipment.toml"),
+            include_str!("../../../../rulesets/eldiron/v1/fx.toml"),
+            include_str!("../../../../rulesets/eldiron/v1/actions.toml"),
+            include_str!("../../../../rulesets/eldiron/v1/abilities_spells.toml"),
+            include_str!("../../../../rulesets/eldiron/v1/races_classes.toml"),
+        ]
+        .join("\n\n")
+    }
+
+    fn toml_value_to_attr(value: &toml::Value) -> Option<Value> {
+        match value {
+            toml::Value::String(value) => Some(Value::Str(value.clone())),
+            toml::Value::Integer(value) if *value >= 0 => Some(Value::UInt(*value as u32)),
+            toml::Value::Integer(value) => Some(Value::Int(*value as i32)),
+            toml::Value::Float(value) => Some(Value::Float(*value as f32)),
+            toml::Value::Boolean(value) => Some(Value::Bool(*value)),
+            toml::Value::Array(values) => {
+                let strings = values
+                    .iter()
+                    .filter_map(toml::Value::as_str)
+                    .map(str::to_string)
+                    .collect::<Vec<_>>();
+                (!strings.is_empty()).then_some(Value::StrArray(strings))
+            }
+            _ => None,
+        }
+    }
+
+    fn table_string(table: &toml::value::Table, key: &str) -> Option<String> {
+        table
+            .get(key)
+            .and_then(toml::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    }
+
+    fn official_item_from_rules(
+        rules: &toml::Table,
+        item_id: u32,
+        group: &str,
+        id: &str,
+    ) -> (String, String, Item, String) {
+        let item_table = rules
+            .get("items")
+            .and_then(toml::Value::as_table)
+            .and_then(|items| items.get(group))
+            .and_then(toml::Value::as_table)
+            .and_then(|items| items.get(id))
+            .and_then(toml::Value::as_table)
+            .expect("official item");
+        let name = table_string(item_table, "name").unwrap_or_else(|| id.to_string());
+        let kind = group.strip_suffix('s').unwrap_or(group).to_string();
+        let slot = table_string(item_table, "slot").unwrap_or_else(|| "main_hand".into());
+        let ruleset_path = format!("items.{}.{}", group, id);
+
+        let mut item = Item::new();
+        item.id = item_id;
+        item.item_type = name.clone();
+        item.set_attribute("class_name", Value::Str(name.clone()));
+        item.set_attribute("name", Value::Str(name.clone()));
+        item.set_attribute("ruleset_id", Value::Str(id.into()));
+        item.set_attribute("ruleset_kind", Value::Str(kind));
+        item.set_attribute("ruleset_path", Value::Str(ruleset_path));
+        item.set_attribute("slot", Value::Str(slot.clone()));
+
+        for key in ["category", "rarity", "visual_template", "rig_layer"] {
+            if let Some(value) = table_string(item_table, key) {
+                item.set_attribute(key, Value::Str(value));
+            }
+        }
+        for key in ["rig_scale", "rig_pivot", "color"] {
+            if let Some(value) = item_table.get(key).and_then(toml_value_to_attr) {
+                let attr = if key == "color" { "color_index" } else { key };
+                item.set_attribute(attr, value);
+            }
+        }
+        if let Some(attributes) = item_table.get("attributes").and_then(toml::Value::as_table) {
+            for (key, value) in attributes {
+                if let Some(value) = toml_value_to_attr(value) {
+                    item.set_attribute(key, value);
+                }
+            }
+        }
+
+        let mut data = toml::value::Table::new();
+        if let Some(damage) = item_table.get("damage").and_then(toml::Value::as_table) {
+            let mut ruleset = toml::value::Table::new();
+            ruleset.insert("damage".into(), toml::Value::Table(damage.clone()));
+            data.insert("ruleset".into(), toml::Value::Table(ruleset));
+        }
+
+        (
+            slot,
+            name,
+            item,
+            toml::to_string(&data).expect("official item data"),
+        )
+    }
+
+    fn attack_host_context() -> RegionCtx {
+        let mut ctx = RegionCtx {
+            curr_entity_id: 1,
+            ticks: 10,
+            ticks_per_minute: 4,
+            ..Default::default()
+        };
+        let mut entity = Entity::new();
+        entity.id = 1;
+        ctx.map.entities.push(entity);
+        ctx
+    }
+
+    #[test]
+    fn pending_intent_cooldown_does_not_block_script_attack() {
+        let mut ctx = attack_host_context();
+        ctx.entity_state_data
+            .entry(1)
+            .or_default()
+            .set("__pending_intent_cooldown:attack", Value::Int64(30));
+
+        let mut host = RegionHost { ctx: &mut ctx };
+
+        assert!(host.try_start_attack_cooldown());
+        assert!(
+            host.ctx
+                .entity_state_data
+                .get(&1)
+                .and_then(|state| state.get("intent: attack"))
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn active_intent_cooldown_blocks_script_attack() {
+        let mut ctx = attack_host_context();
+        ctx.entity_state_data
+            .entry(1)
+            .or_default()
+            .set("intent: attack", Value::Int64(30));
+
+        let mut host = RegionHost { ctx: &mut ctx };
+
+        assert!(!host.try_start_attack_cooldown());
+    }
+
+    struct HeadlessRulesArena {
+        ctx: RegionCtx,
+        exec: Execution,
+        _messages: crossbeam_channel::Receiver<RegionMessage>,
+    }
+
+    impl HeadlessRulesArena {
+        fn new() -> Self {
+            let ctx = RegionCtx {
+                health_attr: "HP".into(),
+                level_attr: "LEVEL".into(),
+                ticks_per_minute: 10,
+                ..Default::default()
+            };
+            let (sender, receiver) = crossbeam_channel::unbounded();
+            let _ = ctx.from_sender.set(sender);
+            Self {
+                ctx,
+                exec: Execution::default(),
+                _messages: receiver,
+            }
+        }
+
+        fn with_rules(rules: &str) -> Self {
+            let mut arena = Self::new();
+            arena.ctx.rules = rules
+                .parse::<toml::Table>()
+                .expect("valid arena rules TOML");
+            arena
+        }
+
+        fn with_official_rules() -> Self {
+            let mut arena = Self::with_rules(&official_rules_source());
+            arena.ctx.config = r#"
+                [game]
+                weapon_slots = ["main_hand", "off_hand"]
+            "#
+            .parse::<toml::Table>()
+            .expect("valid arena config TOML");
+            arena
+        }
+
+        fn add_official_entity(
+            &mut self,
+            id: u32,
+            class: &str,
+            race: &str,
+            level: u32,
+            target: Option<u32>,
+        ) {
+            let mut entity = Entity::new();
+            entity.id = id;
+            entity.position = Vec3::new(id as f32, 1.0, 0.0);
+            entity.set_attribute("class_name", Value::Str(class.into()));
+            entity.set_attribute("name", Value::Str(class.into()));
+            entity.set_attribute("mode", Value::Str("active".into()));
+            entity.set_attribute("visible", Value::Bool(true));
+            entity.set_attribute("class", Value::Str(class.into()));
+            entity.set_attribute("race", Value::Str(race.into()));
+            entity.set_attribute("LEVEL", Value::UInt(level));
+            if let Some(target) = target {
+                entity.set_attribute("target", Value::UInt(target));
+                entity.set_attribute("attack_target", Value::UInt(target));
+            }
+
+            apply_ruleset_character_defaults(&self.ctx.rules, &mut entity);
+            self.ctx.entity_classes.insert(id, class.into());
+            self.ctx.map.entities.push(entity);
+        }
+
+        fn compile_program(source: &str) -> Arc<Program> {
+            let mut vm = VM::default();
+            Arc::new(vm.prepare_str(source).expect("valid arena script"))
+        }
+
+        fn add_script_class(&mut self, class: &str, source: &str) {
+            self.ctx
+                .entity_programs
+                .insert(class.into(), Self::compile_program(source));
+        }
+
+        fn add_entity(&mut self, id: u32, class: &str, hp: i32, dmg: i32, target: Option<u32>) {
+            let mut entity = Entity::new();
+            entity.id = id;
+            entity.position = Vec3::new(id as f32, 1.0, 0.0);
+            entity.set_attribute("class_name", Value::Str(class.into()));
+            entity.set_attribute("name", Value::Str(class.into()));
+            entity.set_attribute("mode", Value::Str("active".into()));
+            entity.set_attribute("visible", Value::Bool(true));
+            entity.set_attribute("HP", Value::Int(hp));
+            entity.set_attribute("MAX_HP", Value::Int(hp));
+            entity.set_attribute("DMG", Value::Int(dmg));
+            if let Some(target) = target {
+                entity.set_attribute("target", Value::UInt(target));
+                entity.set_attribute("attack_target", Value::UInt(target));
+            }
+
+            self.ctx.entity_classes.insert(id, class.into());
+            self.ctx.map.entities.push(entity);
+        }
+
+        fn add_inventory_item(&mut self, entity_id: u32, item_id: u32, class: &str) {
+            let mut item = Item::new();
+            item.id = item_id;
+            item.item_type = class.into();
+            item.set_attribute("class_name", Value::Str(class.into()));
+            item.set_attribute("name", Value::Str(class.into()));
+            item.set_attribute("ruleset_id", Value::Str(class.to_ascii_lowercase()));
+            item.set_attribute("visual_template", Value::Str("coin".into()));
+
+            let entity = self
+                .ctx
+                .map
+                .entities
+                .iter_mut()
+                .find(|entity| entity.id == entity_id)
+                .expect("inventory owner");
+            entity.inventory.resize(4, None);
+            entity.add_item(item).expect("free inventory slot");
+        }
+
+        fn equip_official_item(&mut self, entity_id: u32, item_id: u32, group: &str, id: &str) {
+            let (slot, class_name, item, data) =
+                official_item_from_rules(&self.ctx.rules, item_id, group, id);
+            self.ctx.item_class_data.insert(class_name, data);
+            let entity = self
+                .ctx
+                .map
+                .entities
+                .iter_mut()
+                .find(|entity| entity.id == entity_id)
+                .expect("equipment owner");
+            entity.equipped.insert(slot, item);
+        }
+
+        fn has_str_array_attr(&self, entity_id: u32, key: &str, expected: &str) -> bool {
+            match self.entity(entity_id).attributes.get(key) {
+                Some(Value::StrArray(values)) => values.iter().any(|value| value == expected),
+                Some(Value::Str(value)) => value.split(',').map(str::trim).any(|v| v == expected),
+                _ => false,
+            }
+        }
+
+        fn set_entity_attr(&mut self, entity_id: u32, key: &str, value: Value) {
+            let entity = self
+                .ctx
+                .map
+                .entities
+                .iter_mut()
+                .find(|entity| entity.id == entity_id)
+                .expect("arena entity");
+            entity.set_attribute(key, value);
+        }
+
+        fn entity(&self, id: u32) -> &Entity {
+            self.ctx
+                .map
+                .entities
+                .iter()
+                .find(|entity| entity.id == id)
+                .expect("arena entity")
+        }
+
+        fn hp(&self, id: u32) -> i32 {
+            self.entity(id).attributes.get_int("HP").expect("HP")
+        }
+
+        fn mp(&self, id: u32) -> i32 {
+            self.entity(id).attributes.get_int_default("MP", 0)
+        }
+
+        fn mode(&self, id: u32) -> String {
+            self.entity(id).get_mode()
+        }
+
+        fn attr_f32(&self, id: u32, key: &str) -> f32 {
+            self.entity(id).attributes.get_float_default(key, -1.0)
+        }
+
+        fn attr_str(&self, id: u32, key: &str) -> String {
+            self.entity(id)
+                .attributes
+                .get_str_default(key, String::new())
+        }
+
+        fn target(&self, id: u32) -> Option<u32> {
+            self.entity(id).attributes.get_uint("target")
+        }
+
+        fn map_item(&self, id: u32) -> &Item {
+            self.ctx
+                .map
+                .items
+                .iter()
+                .find(|item| item.id == id)
+                .expect("map item")
+        }
+
+        fn run_entity_event(&mut self, entity_id: u32, event: &str, payload: VMValue) {
+            let program = self
+                .ctx
+                .entity_classes
+                .get(&entity_id)
+                .and_then(|class| self.ctx.entity_programs.get(class))
+                .cloned();
+
+            self.ctx.curr_entity_id = entity_id;
+            self.ctx.curr_item_id = None;
+            self.ctx.damage_committed = false;
+
+            let is_damage_event = matches!(event, "damaged" | "take_damage");
+            self.ctx.current_damage_kind = if is_damage_event {
+                payload.as_string().map(str::to_string)
+            } else {
+                None
+            };
+            self.ctx.current_damage_source_item = if is_damage_event {
+                let source_item_id = payload.z.max(0.0) as u32;
+                (source_item_id > 0).then_some(source_item_id)
+            } else {
+                None
+            };
+
+            if let Some(program) = program {
+                let args = [VMValue::from_string(event.to_string()), payload.clone()];
+                run_server_fn(&mut self.exec, &args, &program, &mut self.ctx);
+            }
+
+            if is_damage_event && !self.ctx.damage_committed {
+                let attacker_id = payload.x.max(0.0) as u32;
+                let amount = payload.y.max(0.0) as i32;
+                if amount > 0 {
+                    let kind = self
+                        .ctx
+                        .current_damage_kind
+                        .as_deref()
+                        .unwrap_or("physical")
+                        .to_string();
+                    let source_item_id = self.ctx.current_damage_source_item;
+                    let _ = apply_damage_direct(
+                        &mut self.ctx,
+                        entity_id,
+                        attacker_id,
+                        amount,
+                        &kind,
+                        source_item_id,
+                    );
+                }
+            }
+
+            self.ctx.current_damage_kind = None;
+            self.ctx.current_damage_source_item = None;
+            self.ctx.damage_committed = false;
+        }
+
+        fn drain_entity_events(&mut self) {
+            while !self.ctx.to_execute_entity.is_empty() {
+                let queued = std::mem::take(&mut self.ctx.to_execute_entity);
+                for (entity_id, event, payload) in queued {
+                    self.run_entity_event(entity_id, &event, payload);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn character_attack_triggers_damage_event_and_retaliation() {
+        let mut arena = HeadlessRulesArena::new();
+        arena.add_script_class(
+            "Warrior",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "attack" {
+                    attack();
+                }
+                if event == "damaged" {
+                    set_attr("damaged_by", value.attacker_id);
+                    set_attr("damage_taken", value.amount);
+                }
+            }
+            "#,
+        );
+        arena.add_script_class(
+            "Orc",
+            r#"
+            fn event(event, value) {
+                if event == "damaged" {
+                    set_attr("last_attacker", value.attacker_id);
+                    set_attr("last_damage", value.amount);
+                    set_attr("last_kind", value.kind);
+                    set_attr("last_source_item", value.source_item_id);
+                    set_target(value.attacker_id);
+                    attack();
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Warrior", 20, 3, Some(2));
+        arena.add_entity(2, "Orc", 20, 2, None);
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(2), 17);
+        assert_eq!(arena.attr_f32(2, "last_attacker") as u32, 1);
+        assert_eq!(arena.attr_f32(2, "last_damage") as i32, 3);
+        assert_eq!(arena.attr_str(2, "last_kind"), "physical");
+        assert_eq!(arena.attr_f32(2, "last_source_item") as u32, 0);
+        assert_eq!(arena.target(2), Some(1));
+        assert_eq!(arena.hp(1), 18);
+        assert_eq!(arena.attr_f32(1, "damaged_by") as u32, 2);
+        assert_eq!(arena.attr_f32(1, "damage_taken") as i32, 2);
+    }
+
+    #[test]
+    fn character_attack_cooldown_blocks_repeated_interaction_damage() {
+        let mut arena = HeadlessRulesArena::new();
+        arena.add_script_class(
+            "Warrior",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "attack" {
+                    attack();
+                }
+            }
+            "#,
+        );
+        arena.add_script_class(
+            "Target",
+            r#"
+            fn event(event, value) {
+            }
+            "#,
+        );
+        arena.add_entity(1, "Warrior", 20, 4, Some(2));
+        arena.add_entity(2, "Target", 15, 0, None);
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+        assert_eq!(arena.hp(2), 11);
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+        assert_eq!(arena.hp(2), 11);
+
+        arena.ctx.ticks += 10;
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+        assert_eq!(arena.hp(2), 7);
+    }
+
+    #[test]
+    fn lethal_attack_fires_death_kill_once_and_drops_loot() {
+        let mut arena = HeadlessRulesArena::new();
+        arena.add_script_class(
+            "Warrior",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "attack" {
+                    attack();
+                }
+                if event == "kill" {
+                    set_attr("kill_count", get_attr("kill_count") + 1);
+                    set_attr("last_kill", value);
+                }
+                if event == "damaged" {
+                    set_attr("damage_taken", get_attr("damage_taken") + value.amount);
+                }
+            }
+            "#,
+        );
+        arena.add_script_class(
+            "Orc",
+            r#"
+            fn event(event, value) {
+                if event == "damaged" {
+                    set_target(value.attacker_id);
+                    attack();
+                }
+                if event == "death" {
+                    set_attr("death_count", get_attr("death_count") + 1);
+                    drop_items("");
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Warrior", 20, 8, Some(2));
+        arena.add_entity(2, "Orc", 5, 2, None);
+        arena.add_inventory_item(2, 10, "Golden Key");
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(2), 0);
+        assert_eq!(arena.mode(2), "dead");
+        assert_eq!(arena.attr_f32(2, "death_count") as i32, 1);
+        assert_eq!(arena.attr_f32(1, "kill_count") as i32, 1);
+        assert_eq!(arena.attr_f32(1, "last_kill") as u32, 2);
+        assert_eq!(arena.entity(2).iter_inventory().count(), 0);
+        assert_eq!(arena.ctx.map.items.len(), 1);
+
+        let dropped = arena.map_item(10);
+        assert_eq!(dropped.attributes.get_str("class_name"), Some("Golden Key"));
+        assert_eq!(dropped.attributes.get_str("visual_template"), Some("coin"));
+        assert_eq!(dropped.position, arena.entity(2).position);
+
+        let warrior_hp_after_first_attack = arena.hp(1);
+        arena.ctx.ticks += 10;
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(2), 0);
+        assert_eq!(arena.attr_f32(2, "death_count") as i32, 1);
+        assert_eq!(arena.attr_f32(1, "kill_count") as i32, 1);
+        assert_eq!(arena.ctx.map.items.len(), 1);
+        assert_eq!(arena.hp(1), warrior_hp_after_first_attack);
+    }
+
+    #[test]
+    fn ruleset_spell_damage_uses_damaged_event_cost_and_cooldown() {
+        let mut arena = HeadlessRulesArena::with_rules(
+            r#"
+            [race_relations.Human]
+            Orc = "hostile"
+
+            [actions.holy_light]
+            name = "Holy Light"
+            kind = "spell"
+            requires = { spell = "holy_light" }
+            target = "hostile_entity"
+            range = 5
+            cooldown = 5.0
+            cost = { MP = 4 }
+            result = { damage = "spells.holy_light.damage" }
+
+            [spells.holy_light]
+            name = "Holy Light"
+            kind = "damage"
+            damage_kind = "arcane"
+            range = 5
+            cost_mp = 4
+
+            [spells.holy_light.damage]
+            roll = "1d1"
+            bonus = 3
+            damage_kind = "arcane"
+            "#,
+        );
+        arena.add_script_class(
+            "Cleric",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "holy_light" {
+                    use_action("holy_light");
+                }
+            }
+            "#,
+        );
+        arena.add_script_class(
+            "Orc",
+            r#"
+            fn event(event, value) {
+                if event == "damaged" {
+                    set_attr("last_attacker", value.attacker_id);
+                    set_attr("last_damage", value.amount);
+                    set_attr("last_kind", value.kind);
+                    set_attr("last_source_item", value.source_item_id);
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Cleric", 20, 1, Some(2));
+        arena.add_entity(2, "Orc", 20, 1, None);
+        arena.set_entity_attr(1, "race", Value::Str("Human".into()));
+        arena.set_entity_attr(2, "race", Value::Str("Orc".into()));
+        arena.set_entity_attr(1, "MP", Value::Int(10));
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("holy_light"));
+        assert_eq!(arena.hp(2), 20);
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(2), 16);
+        assert_eq!(arena.mp(1), 6);
+        assert!(is_spell_on_cooldown(&arena.ctx, 1, "holy_light"));
+        assert_eq!(arena.attr_f32(2, "last_attacker") as u32, 1);
+        assert_eq!(arena.attr_f32(2, "last_damage") as i32, 4);
+        assert_eq!(arena.attr_str(2, "last_kind"), "arcane");
+        assert_eq!(arena.attr_f32(2, "last_source_item") as u32, 0);
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("holy_light"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(2), 16);
+        assert_eq!(arena.mp(1), 6);
+    }
+
+    #[test]
+    fn ruleset_minor_heal_spends_mp_respects_max_hp_and_cooldown() {
+        let mut arena = HeadlessRulesArena::with_rules(
+            r#"
+            [actions.minor_heal]
+            name = "Minor Heal"
+            kind = "spell"
+            requires = { spell = "minor_heal" }
+            target = "friendly_or_self"
+            range = 5
+            cooldown = 4.0
+            cost = { MP = 3 }
+            result = { healing = "spells.minor_heal.healing" }
+
+            [spells.minor_heal]
+            name = "Minor Heal"
+            kind = "heal"
+            range = 5
+            cost_mp = 3
+
+            [spells.minor_heal.healing]
+            roll = "1d1"
+            bonus = 5
+            "#,
+        );
+        arena.add_script_class(
+            "Cleric",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "minor_heal" {
+                    use_action("minor_heal");
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Cleric", 6, 1, Some(1));
+        arena.set_entity_attr(1, "MAX_HP", Value::Int(10));
+        arena.set_entity_attr(1, "MP", Value::Int(8));
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("minor_heal"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(1), 10);
+        assert_eq!(arena.mp(1), 5);
+        assert!(is_spell_on_cooldown(&arena.ctx, 1, "minor_heal"));
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("minor_heal"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(1), 10);
+        assert_eq!(arena.mp(1), 5);
+    }
+
+    #[test]
+    fn ruleset_spells_do_not_spend_resources_on_invalid_targets() {
+        let mut arena = HeadlessRulesArena::with_rules(
+            r#"
+            [race_relations.Human]
+            Orc = "hostile"
+
+            [actions.holy_light]
+            name = "Holy Light"
+            kind = "spell"
+            requires = { spell = "holy_light" }
+            target = "hostile_entity"
+            range = 5
+            cooldown = 5.0
+            cost = { MP = 4 }
+            result = { damage = "spells.holy_light.damage" }
+
+            [actions.minor_heal]
+            name = "Minor Heal"
+            kind = "spell"
+            requires = { spell = "minor_heal" }
+            target = "friendly_or_self"
+            range = 5
+            cooldown = 4.0
+            cost = { MP = 3 }
+            result = { healing = "spells.minor_heal.healing" }
+
+            [spells.holy_light]
+            name = "Holy Light"
+            kind = "damage"
+            damage_kind = "arcane"
+            range = 5
+            cost_mp = 4
+
+            [spells.holy_light.damage]
+            roll = "1d1"
+            bonus = 3
+            damage_kind = "arcane"
+
+            [spells.minor_heal]
+            name = "Minor Heal"
+            kind = "heal"
+            range = 5
+            cost_mp = 3
+
+            [spells.minor_heal.healing]
+            roll = "1d1"
+            bonus = 5
+            "#,
+        );
+        arena.add_script_class(
+            "Cleric",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "holy_light" {
+                    use_action("holy_light");
+                }
+                if event == "intent" && value == "minor_heal" {
+                    use_action("minor_heal");
+                }
+            }
+            "#,
+        );
+        arena.add_script_class(
+            "Orc",
+            r#"
+            fn event(event, value) {
+                if event == "damaged" {
+                    set_attr("damage_events", get_attr("damage_events") + 1);
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Cleric", 10, 1, Some(1));
+        arena.add_entity(2, "Orc", 5, 1, None);
+        arena.set_entity_attr(1, "race", Value::Str("Human".into()));
+        arena.set_entity_attr(2, "race", Value::Str("Orc".into()));
+        arena.set_entity_attr(1, "MAX_HP", Value::Int(10));
+        arena.set_entity_attr(2, "MAX_HP", Value::Int(10));
+        arena.set_entity_attr(1, "MP", Value::Int(10));
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("holy_light"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(1), 10);
+        assert_eq!(arena.mp(1), 10);
+        assert!(!is_spell_on_cooldown(&arena.ctx, 1, "holy_light"));
+
+        arena.set_entity_attr(1, "target", Value::UInt(2));
+        arena.set_entity_attr(1, "attack_target", Value::UInt(2));
+        arena.run_entity_event(1, "intent", VMValue::from_string("minor_heal"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(2), 5);
+        assert_eq!(arena.mp(1), 10);
+        assert!(!is_spell_on_cooldown(&arena.ctx, 1, "minor_heal"));
+        assert_eq!(arena.attr_f32(2, "damage_events") as i32, -1);
+    }
+
+    #[test]
+    fn ruleset_spell_failure_for_not_enough_mp_has_no_side_effects() {
+        let mut arena = HeadlessRulesArena::with_rules(
+            r#"
+            [race_relations.Human]
+            Orc = "hostile"
+
+            [actions.holy_light]
+            name = "Holy Light"
+            kind = "spell"
+            requires = { spell = "holy_light" }
+            target = "hostile_entity"
+            range = 5
+            cooldown = 5.0
+            cost = { MP = 4 }
+            result = { damage = "spells.holy_light.damage" }
+
+            [spells.holy_light]
+            name = "Holy Light"
+            kind = "damage"
+            damage_kind = "arcane"
+            range = 5
+            cost_mp = 4
+
+            [spells.holy_light.damage]
+            roll = "1d1"
+            bonus = 3
+            damage_kind = "arcane"
+            "#,
+        );
+        arena.add_script_class(
+            "Cleric",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "holy_light" {
+                    use_action("holy_light");
+                }
+            }
+            "#,
+        );
+        arena.add_script_class(
+            "Orc",
+            r#"
+            fn event(event, value) {
+                if event == "damaged" {
+                    set_attr("damage_events", get_attr("damage_events") + 1);
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Cleric", 10, 1, Some(2));
+        arena.add_entity(2, "Orc", 10, 1, None);
+        arena.set_entity_attr(1, "race", Value::Str("Human".into()));
+        arena.set_entity_attr(2, "race", Value::Str("Orc".into()));
+        arena.set_entity_attr(1, "MP", Value::Int(3));
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("holy_light"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(2), 10);
+        assert_eq!(arena.mp(1), 3);
+        assert!(!is_spell_on_cooldown(&arena.ctx, 1, "holy_light"));
+        assert_eq!(arena.attr_f32(2, "damage_events") as i32, -1);
+    }
+
+    #[test]
+    fn lethal_ruleset_spell_fires_death_and_kill_once() {
+        let mut arena = HeadlessRulesArena::with_rules(
+            r#"
+            [race_relations.Human]
+            Orc = "hostile"
+
+            [actions.holy_light]
+            name = "Holy Light"
+            kind = "spell"
+            requires = { spell = "holy_light" }
+            target = "hostile_entity"
+            range = 5
+            cooldown = 5.0
+            cost = { MP = 4 }
+            result = { damage = "spells.holy_light.damage" }
+
+            [spells.holy_light]
+            name = "Holy Light"
+            kind = "damage"
+            damage_kind = "arcane"
+            range = 5
+            cost_mp = 4
+
+            [spells.holy_light.damage]
+            roll = "1d1"
+            bonus = 7
+            damage_kind = "arcane"
+            "#,
+        );
+        arena.add_script_class(
+            "Cleric",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "holy_light" {
+                    use_action("holy_light");
+                }
+                if event == "kill" {
+                    set_attr("kill_count", get_attr("kill_count") + 1);
+                    set_attr("last_kill", value);
+                }
+            }
+            "#,
+        );
+        arena.add_script_class(
+            "Orc",
+            r#"
+            fn event(event, value) {
+                if event == "damaged" {
+                    set_attr("damage_events", get_attr("damage_events") + 1);
+                    set_target(value.attacker_id);
+                    attack();
+                }
+                if event == "death" {
+                    set_attr("death_count", get_attr("death_count") + 1);
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Cleric", 20, 1, Some(2));
+        arena.add_entity(2, "Orc", 5, 2, None);
+        arena.set_entity_attr(1, "race", Value::Str("Human".into()));
+        arena.set_entity_attr(2, "race", Value::Str("Orc".into()));
+        arena.set_entity_attr(1, "MP", Value::Int(10));
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("holy_light"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(2), 0);
+        assert_eq!(arena.mode(2), "dead");
+        assert_eq!(arena.attr_f32(2, "damage_events") as i32, 1);
+        assert_eq!(arena.attr_f32(2, "death_count") as i32, 1);
+        assert_eq!(arena.attr_f32(1, "kill_count") as i32, 1);
+        assert_eq!(arena.attr_f32(1, "last_kill") as u32, 2);
+        assert_eq!(arena.hp(1), 20);
+
+        arena.ctx.ticks += 50;
+        arena.run_entity_event(1, "intent", VMValue::from_string("holy_light"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.attr_f32(2, "damage_events") as i32, 1);
+        assert_eq!(arena.attr_f32(2, "death_count") as i32, 1);
+        assert_eq!(arena.attr_f32(1, "kill_count") as i32, 1);
+    }
+
+    #[test]
+    fn official_ruleset_applies_character_defaults_and_unlocks() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.add_official_entity(1, "Warrior", "Human", 1, None);
+        arena.add_official_entity(2, "Cleric", "Human", 1, None);
+        arena.add_official_entity(3, "Cleric", "Human", 2, None);
+
+        assert_eq!(arena.hp(1), 16);
+        assert_eq!(arena.entity(1).attributes.get_int_default("MAX_HP", 0), 16);
+        assert_eq!(arena.entity(1).attributes.get_int_default("STR", 0), 12);
+        assert_eq!(arena.entity(1).attributes.get_int_default("ARMOR", 0), 1);
+        assert!(arena.has_str_array_attr(1, "start_equipped_items", "training_sword"));
+        assert!(arena.has_str_array_attr(1, "start_equipped_items", "padded_armor"));
+        assert!(arena.has_str_array_attr(1, "start_items", "linen_shirt"));
+        assert!(arena.has_str_array_attr(1, "abilities", "basic_attack"));
+        assert!(arena.has_str_array_attr(1, "abilities", "guard"));
+
+        assert!(arena.has_str_array_attr(2, "spells", "minor_heal"));
+        assert!(!arena.has_str_array_attr(2, "spells", "holy_light"));
+        assert!(arena.has_str_array_attr(3, "spells", "minor_heal"));
+        assert!(arena.has_str_array_attr(3, "spells", "holy_light"));
+        assert_eq!(arena.entity(3).attributes.get_int_default("MAX_MP", 0), 11);
+    }
+
+    #[test]
+    fn official_ruleset_warrior_attack_uses_weapon_and_hostility() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.add_script_class(
+            "Warrior",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "attack" {
+                    attack();
+                }
+                if event == "damaged" {
+                    set_attr("last_attacker", value.attacker_id);
+                    set_attr("last_damage", value.amount);
+                    set_attr("last_kind", value.kind);
+                    set_attr("last_source_item", value.source_item_id);
+                }
+            }
+            "#,
+        );
+        arena.add_official_entity(1, "Warrior", "Human", 1, Some(2));
+        arena.add_official_entity(2, "Warrior", "Orc", 1, None);
+        arena.equip_official_item(1, 101, "weapons", "training_sword");
+
+        assert_eq!(
+            entity_disposition_by_id(&arena.ctx, 1, 2).as_deref(),
+            Some("hostile")
+        );
+        assert!(entity_is_hostile_by_id(&arena.ctx, 1, 2));
+        assert_eq!(
+            current_attack_cooldown_for_entity(&arena.ctx, arena.entity(1)),
+            1.0
+        );
+        let base_damage = current_attack_base_damage_for_entity(&arena.ctx, 1);
+        assert!((5..=10).contains(&base_damage));
+
+        let orc_hp = arena.hp(2);
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+
+        assert!(arena.hp(2) < orc_hp);
+        assert_eq!(arena.attr_str(2, "last_kind"), "physical");
+        assert_eq!(arena.attr_f32(2, "last_attacker") as u32, 1);
+        assert_eq!(arena.attr_f32(2, "last_source_item") as u32, 101);
+        assert!(arena.attr_f32(2, "last_damage") >= 1.0);
+    }
+
+    #[test]
+    fn official_ruleset_cleric_spells_use_costs_cooldowns_and_unlocks() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.add_script_class(
+            "Cleric",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "holy_light" {
+                    use_action("holy_light");
+                }
+                if event == "intent" && value == "minor_heal" {
+                    use_action("minor_heal");
+                }
+            }
+            "#,
+        );
+        arena.add_script_class(
+            "Warrior",
+            r#"
+            fn event(event, value) {
+                if event == "damaged" {
+                    set_attr("last_attacker", value.attacker_id);
+                    set_attr("last_damage", value.amount);
+                    set_attr("last_kind", value.kind);
+                }
+            }
+            "#,
+        );
+        arena.add_official_entity(1, "Cleric", "Human", 2, Some(2));
+        arena.add_official_entity(2, "Warrior", "Orc", 1, None);
+
+        assert!(arena.has_str_array_attr(1, "spells", "minor_heal"));
+        assert!(arena.has_str_array_attr(1, "spells", "holy_light"));
+        assert_eq!(arena.mp(1), 11);
+        assert_eq!(
+            entity_disposition_by_id(&arena.ctx, 1, 2).as_deref(),
+            Some("hostile")
+        );
+
+        let orc_hp = arena.hp(2);
+        arena.run_entity_event(1, "intent", VMValue::from_string("holy_light"));
+        assert_eq!(arena.hp(2), orc_hp);
+        arena.drain_entity_events();
+
+        assert!(arena.hp(2) < orc_hp);
+        assert_eq!(arena.mp(1), 7);
+        assert!(is_spell_on_cooldown(&arena.ctx, 1, "holy_light"));
+        assert_eq!(arena.attr_str(2, "last_kind"), "arcane");
+        assert_eq!(arena.attr_f32(2, "last_attacker") as u32, 1);
+
+        arena.set_entity_attr(1, "HP", Value::Int(5));
+        arena.set_entity_attr(1, "target", Value::UInt(1));
+        arena.set_entity_attr(1, "attack_target", Value::UInt(1));
+        arena.run_entity_event(1, "intent", VMValue::from_string("minor_heal"));
+        arena.drain_entity_events();
+
+        assert!(arena.hp(1) > 5);
+        assert!(arena.hp(1) <= arena.entity(1).attributes.get_int_default("MAX_HP", 0));
+        assert_eq!(arena.mp(1), 4);
+        assert!(is_spell_on_cooldown(&arena.ctx, 1, "minor_heal"));
     }
 }
 

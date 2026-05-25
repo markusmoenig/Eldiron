@@ -288,6 +288,10 @@ buttons, scripts, and later sandbox tools on the same rules path.
 Attack cooldown is rules-owned. A character script should call `attack()` for a
 normal weapon or unarmed attack. The runtime uses the equipped weapon cooldown
 and falls back to the `basic_attack` action cooldown.
+When damage resolves, the target receives the `damaged` event with the final
+`amount`, `attacker_id`, damage `kind`, and `source_item_id` payload fields.
+Ruleset spell damage uses this same `damaged` event path, so NPC reactions do
+not need separate weapon and spell handlers.
 
 ## Combat
 

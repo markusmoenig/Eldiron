@@ -285,6 +285,43 @@ mod tests {
     }
 
     #[test]
+    fn damage_payload_field_aliases() {
+        let mut script = VM::default();
+        let module = script
+            .parse_str(
+                r#"
+                fn inspect_damage(event, value) {
+                    if value.kind != "physical" {
+                        return 0;
+                    }
+                    if value.damage_kind != "physical" {
+                        return 0;
+                    }
+                    return value.attacker_id + value.amount + value.source_item_id;
+                }
+                "#,
+            )
+            .unwrap();
+        script.compile(&module).unwrap();
+
+        let func_index = script
+            .context
+            .program
+            .user_functions_name_map
+            .get("inspect_damage")
+            .copied()
+            .unwrap();
+        let mut exec = Execution::new(script.context.globals.len());
+        exec.reset(script.context.globals.len());
+        let args = [
+            VMValue::from_string("damaged"),
+            VMValue::new_with_string(7.0, 3.0, 11.0, "physical"),
+        ];
+        let result = exec.execute_function(&args, func_index, &script.context.program);
+        assert_eq!(result.x, 21.0);
+    }
+
+    #[test]
     fn match_syntax_event() {
         let mut script = VM::default();
         let module = script

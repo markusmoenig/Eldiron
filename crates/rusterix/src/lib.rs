@@ -12,6 +12,8 @@ pub mod chunk;
 pub mod chunkbuilder;
 #[cfg(feature = "graphics")]
 pub mod client;
+#[cfg(feature = "graphics")]
+pub use client::text_command;
 pub mod collision_world;
 pub mod command;
 pub mod edge;
@@ -35,6 +37,9 @@ pub mod scene_build_index;
 pub mod scene_handler;
 pub mod scenebuilder;
 pub mod scenemanager;
+#[cfg(not(feature = "graphics"))]
+#[path = "client/text_command.rs"]
+pub mod text_command;
 // pub mod script;
 pub mod server;
 pub mod shader;

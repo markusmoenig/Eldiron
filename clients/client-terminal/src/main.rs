@@ -893,12 +893,19 @@ fn resolve_data_path(args: &[String]) -> Result<PathBuf, String> {
 
 fn rules_command_usage() -> &'static str {
     "Usage:\n\
+       eldiron-client-terminal rules check [game.eldiron]\n\
+       eldiron-client-terminal rules summary [game.eldiron]\n\
+       eldiron-client-terminal rules character <class_id> [race=Race] [level=N] [ATTR=VALUE ...]\n\
        eldiron-client-terminal rules class <class_id>\n\
        eldiron-client-terminal rules xp <level>\n\
        eldiron-client-terminal rules weapon <weapon_id> [ATTR=VALUE ...]\n\
        eldiron-client-terminal rules spell <spell_id> [ATTR=VALUE ...]\n\
        eldiron-client-terminal rules roll <ruleset.path.to.roll> [ATTR=VALUE ...]\n\
      Examples:\n\
+       eldiron-client-terminal rules check\n\
+       eldiron-client-terminal rules check test_projects/Hideout2D.eldiron\n\
+       eldiron-client-terminal rules summary\n\
+       eldiron-client-terminal rules character Cleric race=Human level=2\n\
        eldiron-client-terminal rules class Warrior\n\
        eldiron-client-terminal rules xp 5\n\
        eldiron-client-terminal rules weapon training_sword STR=12\n\
@@ -907,6 +914,9 @@ fn rules_command_usage() -> &'static str {
 
 fn run_rules_command(args: &[String]) -> Result<(), String> {
     match args.first().map(String::as_str) {
+        Some("check") => run_rules_check_command(&args[1..]),
+        Some("summary") => run_rules_summary_command(&args[1..]),
+        Some("character") => run_rules_character_command(&args[1..]),
         Some("class") => run_rules_class_command(&args[1..]),
         Some("xp") => run_rules_xp_command(&args[1..]),
         Some("weapon") => run_rules_weapon_command(&args[1..]),
@@ -914,6 +924,127 @@ fn run_rules_command(args: &[String]) -> Result<(), String> {
         Some("roll") => run_rules_roll_command(&args[1..]),
         _ => Err(rules_command_usage().into()),
     }
+}
+
+fn optional_rules_project_path(args: &[String]) -> Result<Option<&Path>, String> {
+    match args {
+        [] => Ok(None),
+        [path] => Ok(Some(Path::new(path))),
+        _ => Err(rules_command_usage().into()),
+    }
+}
+
+fn project_rules_table(path: &Path) -> Result<toml::Table, String> {
+    let contents = fs::read_to_string(path)
+        .map_err(|err| format!("Failed to read {}: {}", path.display(), err))?;
+    let mut project: Project = serde_json::from_str(&contents)
+        .map_err(|err| format!("Failed to parse {}: {}", path.display(), err))?;
+    project.migrate_default_ruleset();
+    let rules = shared::rulesets::resolve_project_rules(&project.config, &project.rules)?;
+    rules
+        .parse::<toml::Table>()
+        .map_err(|err| format!("Resolved ruleset TOML parse error: {}", err))
+}
+
+fn rules_table_for_terminal_command(args: &[String]) -> Result<(toml::Table, String), String> {
+    if let Some(path) = optional_rules_project_path(args)? {
+        Ok((project_rules_table(path)?, path.display().to_string()))
+    } else {
+        Ok((official_rules_table()?, "bundled official ruleset".into()))
+    }
+}
+
+fn format_rules_list(values: &[String]) -> String {
+    if values.is_empty() {
+        "-".into()
+    } else {
+        values.join(", ")
+    }
+}
+
+fn format_rules_catalog_summary(
+    source: &str,
+    catalog: &shared::rulesets::RulesetCatalog,
+) -> String {
+    format!(
+        "source: {}\n\
+         id: {}\n\
+         version: {}\n\
+         schema: {}\n\
+         races: {} ({})\n\
+         classes: {} ({})\n\
+         actions: {} ({})\n\
+         abilities: {} ({})\n\
+         spells: {} ({})\n\
+         weapons: {} ({})\n\
+         armor: {} ({})\n\
+         clothing: {} ({})\n\
+         item templates: {}\n\
+         fx presets: {} ({})",
+        source,
+        catalog.id.as_deref().unwrap_or("-"),
+        catalog.version.as_deref().unwrap_or("-"),
+        catalog.schema_version.as_deref().unwrap_or("-"),
+        catalog.races.len(),
+        format_rules_list(&catalog.races),
+        catalog.classes.len(),
+        format_rules_list(&catalog.classes),
+        catalog.actions.len(),
+        format_rules_list(&catalog.actions),
+        catalog.abilities.len(),
+        format_rules_list(&catalog.abilities),
+        catalog.spells.len(),
+        format_rules_list(&catalog.spells),
+        catalog.weapons.len(),
+        format_rules_list(&catalog.weapons),
+        catalog.armor.len(),
+        format_rules_list(&catalog.armor),
+        catalog.clothing.len(),
+        format_rules_list(&catalog.clothing),
+        catalog.item_templates.len(),
+        catalog.fx_presets.len(),
+        format_rules_list(&catalog.fx_presets),
+    )
+}
+
+fn format_rules_validation_report(
+    source: &str,
+    report: &shared::rulesets::RulesetValidationReport,
+) -> String {
+    let mut lines = vec![format!(
+        "ruleset check: {} ({} errors, {} warnings)",
+        if report.is_ok() { "ok" } else { "failed" },
+        report.error_count(),
+        report.warning_count()
+    )];
+    lines.push(format!("source: {}", source));
+
+    for issue in &report.issues {
+        let severity = match issue.severity {
+            shared::rulesets::RulesetValidationSeverity::Error => "error",
+            shared::rulesets::RulesetValidationSeverity::Warning => "warning",
+        };
+        lines.push(format!("{} {}: {}", severity, issue.path, issue.message));
+    }
+
+    lines.join("\n")
+}
+
+fn run_rules_summary_command(args: &[String]) -> Result<(), String> {
+    let (rules, source) = rules_table_for_terminal_command(args)?;
+    let catalog = shared::rulesets::ruleset_catalog(&rules);
+    println!("{}", format_rules_catalog_summary(&source, &catalog));
+    Ok(())
+}
+
+fn run_rules_check_command(args: &[String]) -> Result<(), String> {
+    let (rules, source) = rules_table_for_terminal_command(args)?;
+    let report = shared::rulesets::validate_ruleset(&rules);
+    println!("{}", format_rules_validation_report(&source, &report));
+    if report.error_count() > 0 {
+        return Err("Ruleset check failed.".into());
+    }
+    Ok(())
 }
 
 fn parse_rules_attributes(
@@ -1043,6 +1174,413 @@ fn join_or_dash(values: &[String]) -> String {
     } else {
         values.join(", ")
     }
+}
+
+fn parse_rules_character_value(raw: &str) -> Value {
+    let trimmed = raw.trim();
+    if trimmed.eq_ignore_ascii_case("true") {
+        Value::Bool(true)
+    } else if trimmed.eq_ignore_ascii_case("false") {
+        Value::Bool(false)
+    } else if let Ok(value) = trimmed.parse::<i32>() {
+        Value::Int(value)
+    } else if let Ok(value) = trimmed.parse::<f32>() {
+        Value::Float(value)
+    } else {
+        Value::Str(trimmed.to_string())
+    }
+}
+
+fn set_rules_character_arg(entity: &mut Entity, key: &str, value: &str) -> Result<(), String> {
+    let normalized_key = match key.trim().to_ascii_lowercase().as_str() {
+        "" => return Err("Character argument has an empty key.".into()),
+        "level" => "LEVEL".to_string(),
+        "race" => "race".to_string(),
+        "class" => "class".to_string(),
+        _ => key.trim().to_string(),
+    };
+    entity.set_attribute(&normalized_key, parse_rules_character_value(value));
+    Ok(())
+}
+
+fn rules_character_entity(args: &[String]) -> Result<Entity, String> {
+    let Some(class_id) = args.first() else {
+        return Err(rules_command_usage().into());
+    };
+    let mut entity = Entity::new();
+
+    if let Some((key, value)) = class_id.split_once('=') {
+        set_rules_character_arg(&mut entity, key, value)?;
+    } else {
+        entity.set_attribute("class", Value::Str(class_id.trim().to_string()));
+    }
+
+    for raw in &args[1..] {
+        let Some((key, value)) = raw.split_once('=') else {
+            return Err(format!(
+                "Character argument '{}' must use KEY=VALUE syntax.",
+                raw
+            ));
+        };
+        set_rules_character_arg(&mut entity, key, value)?;
+    }
+
+    Ok(entity)
+}
+
+fn rules_character_numeric_attributes(entity: &Entity) -> shared::rulesets::RulesetAttributeMap {
+    let mut attributes = shared::rulesets::RulesetAttributeMap::new();
+    for key in entity.attributes.keys() {
+        let Some(value) = entity.attributes.get(key) else {
+            continue;
+        };
+        let number = match value {
+            Value::Int(value) => Some(*value as f32),
+            Value::UInt(value) => Some(*value as f32),
+            Value::Int64(value) => Some(*value as f32),
+            Value::Float(value) => Some(*value),
+            _ => None,
+        };
+        if let Some(number) = number {
+            attributes.insert(key.clone(), number);
+        }
+    }
+    attributes
+}
+
+fn rules_character_string_array(entity: &Entity, key: &str) -> Vec<String> {
+    match entity.attributes.get(key) {
+        Some(Value::StrArray(values)) => values.clone(),
+        Some(Value::Str(value)) if !value.trim().is_empty() => vec![value.trim().to_string()],
+        _ => Vec::new(),
+    }
+}
+
+fn rules_character_attribute_lines(entity: &Entity) -> Vec<String> {
+    let preferred = [
+        "HP",
+        "MAX_HP",
+        "MP",
+        "MAX_MP",
+        "STR",
+        "DEX",
+        "INT",
+        "WIS",
+        "VIT",
+        "POWER",
+        "DMG",
+        "ARMOR",
+        "RESIST",
+        "INIT",
+        "SPEED",
+        "LEVEL",
+        "EXP",
+        "inventory_slots",
+    ];
+    let mut lines = Vec::new();
+    let mut seen = BTreeSet::new();
+    for key in preferred {
+        if let Some(value) = entity.attributes.get(key) {
+            lines.push(format!("{}: {}", key, value));
+            seen.insert(key.to_string());
+        }
+    }
+
+    let mut extra = entity
+        .attributes
+        .keys()
+        .filter(|key| {
+            !seen.contains(*key)
+                && !matches!(
+                    key.as_str(),
+                    "race"
+                        | "class"
+                        | "start_equipped_items"
+                        | "start_items"
+                        | "abilities"
+                        | "spells"
+                )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    extra.sort();
+    for key in extra {
+        if let Some(value) = entity.attributes.get(&key) {
+            lines.push(format!("{}: {}", key, value));
+        }
+    }
+    lines
+}
+
+fn rules_item_table<'a>(
+    rules: &'a toml::Table,
+    item_id: &str,
+) -> Option<(&'static str, &'a toml::value::Table)> {
+    for group in ["weapons", "armor", "clothing"] {
+        if let Some(table) = shared::rulesets::ruleset_table_at_path(rules, &["items", group])
+            .and_then(|items| items.get(item_id))
+            .and_then(toml::Value::as_table)
+        {
+            return Some((group, table));
+        }
+    }
+    None
+}
+
+fn table_string(table: &toml::value::Table, key: &str) -> Option<String> {
+    table
+        .get(key)
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn rules_item_label(rules: &toml::Table, item_id: &str) -> String {
+    if let Some((group, item)) = rules_item_table(rules, item_id) {
+        let name = table_string(item, "name").unwrap_or_else(|| item_id.to_string());
+        let slot = table_string(item, "slot").unwrap_or_else(|| "-".into());
+        let category = table_string(item, "category").unwrap_or_else(|| "-".into());
+        format!("{}: {} ({}, {})", slot, name, group, category)
+    } else {
+        format!("?: {}", item_id)
+    }
+}
+
+fn rules_character_loadout_lines(rules: &toml::Table, entity: &Entity, key: &str) -> Vec<String> {
+    rules_character_string_array(entity, key)
+        .iter()
+        .map(|item_id| rules_item_label(rules, item_id))
+        .collect()
+}
+
+fn format_roll_compact(summary: &shared::rulesets::RulesetRollSummary) -> String {
+    let attr = summary
+        .spec
+        .bonus_attribute
+        .as_deref()
+        .map(|attr| {
+            format!(
+                ", {}={} gives +{} every {}",
+                attr, summary.attribute_value, summary.attribute_bonus, summary.spec.bonus_every
+            )
+        })
+        .unwrap_or_default();
+    let kind = summary
+        .spec
+        .damage_kind
+        .as_deref()
+        .map(|kind| format!(", {}", kind))
+        .unwrap_or_default();
+    format!(
+        "{} + {}{}{} => min {}, max {}, avg {:.2}",
+        summary.spec.roll,
+        summary.spec.bonus,
+        attr,
+        kind,
+        summary.minimum,
+        summary.maximum,
+        summary.average
+    )
+}
+
+fn table_number(table: &toml::value::Table, key: &str) -> Option<f32> {
+    table.get(key).and_then(|value| {
+        value
+            .as_float()
+            .map(|value| value as f32)
+            .or_else(|| value.as_integer().map(|value| value as f32))
+    })
+}
+
+fn rules_action_for_spell<'a>(
+    rules: &'a toml::Table,
+    spell_id: &str,
+) -> Option<&'a toml::value::Table> {
+    let actions = shared::rulesets::ruleset_table_at_path(rules, &["actions"])?;
+    actions
+        .get(spell_id)
+        .and_then(toml::Value::as_table)
+        .filter(|action| {
+            action
+                .get("requires")
+                .and_then(toml::Value::as_table)
+                .and_then(|requires| requires.get("spell"))
+                .and_then(toml::Value::as_str)
+                .is_some_and(|value| value.trim() == spell_id)
+        })
+        .or_else(|| {
+            actions
+                .values()
+                .filter_map(toml::Value::as_table)
+                .find(|action| {
+                    action
+                        .get("requires")
+                        .and_then(toml::Value::as_table)
+                        .and_then(|requires| requires.get("spell"))
+                        .and_then(toml::Value::as_str)
+                        .is_some_and(|value| value.trim() == spell_id)
+                })
+        })
+}
+
+fn rules_action_costs(action: Option<&toml::value::Table>) -> String {
+    let Some(cost) = action
+        .and_then(|action| action.get("cost"))
+        .and_then(toml::Value::as_table)
+    else {
+        return "-".into();
+    };
+    let mut costs = cost
+        .iter()
+        .filter_map(|(key, value)| {
+            value
+                .as_integer()
+                .map(|value| format!("{}={}", key, value))
+                .or_else(|| value.as_float().map(|value| format!("{}={}", key, value)))
+        })
+        .collect::<Vec<_>>();
+    costs.sort();
+    if costs.is_empty() {
+        "-".into()
+    } else {
+        costs.join(", ")
+    }
+}
+
+fn rules_character_spell_lines(
+    rules: &toml::Table,
+    entity: &Entity,
+    numeric_attrs: &shared::rulesets::RulesetAttributeMap,
+) -> Vec<String> {
+    rules_character_string_array(entity, "spells")
+        .into_iter()
+        .map(|spell_id| {
+            let action = rules_action_for_spell(rules, &spell_id);
+            let cooldown = action.and_then(|action| table_number(action, "cooldown"));
+            let range = action.and_then(|action| table_number(action, "range"));
+            let action_bits = format!(
+                "cost {}, cooldown {}, range {}",
+                rules_action_costs(action),
+                cooldown
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "-".into()),
+                range
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "-".into())
+            );
+
+            match shared::rulesets::summarize_spell_roll(rules, &spell_id, numeric_attrs) {
+                Ok((kind, summary)) => format!(
+                    "{}: {}, {}; {}",
+                    spell_id,
+                    kind.label(),
+                    format_roll_compact(&summary),
+                    action_bits
+                ),
+                Err(_) => format!("{}: {}", spell_id, action_bits),
+            }
+        })
+        .collect()
+}
+
+fn rules_character_combat_lines(
+    rules: &toml::Table,
+    entity: &Entity,
+    numeric_attrs: &shared::rulesets::RulesetAttributeMap,
+) -> Vec<String> {
+    let mut lines = Vec::new();
+    if let Ok(unarmed) =
+        shared::rulesets::summarize_roll_path(rules, &["combat", "unarmed_damage"], numeric_attrs)
+    {
+        lines.push(format!("unarmed: {}", format_roll_compact(&unarmed)));
+    }
+
+    for item_id in rules_character_string_array(entity, "start_equipped_items") {
+        let Some((group, _)) = rules_item_table(rules, &item_id) else {
+            continue;
+        };
+        if group != "weapons" {
+            continue;
+        }
+        if let Ok(summary) =
+            shared::rulesets::summarize_weapon_damage(rules, &item_id, numeric_attrs)
+        {
+            lines.push(format!(
+                "{}: {}",
+                rules_item_label(rules, &item_id),
+                format_roll_compact(&summary)
+            ));
+        }
+    }
+
+    lines
+}
+
+fn format_rules_character(rules: &toml::Table, entity: &Entity) -> String {
+    let race = entity
+        .attributes
+        .get_str("race")
+        .map(str::to_string)
+        .unwrap_or_else(|| "-".into());
+    let class = entity
+        .attributes
+        .get_str("class")
+        .map(str::to_string)
+        .unwrap_or_else(|| "-".into());
+    let level = entity.attributes.get_int_default("LEVEL", 1);
+    let numeric_attrs = rules_character_numeric_attributes(entity);
+
+    let sections = vec![
+        ("attributes", rules_character_attribute_lines(entity)),
+        (
+            "abilities",
+            rules_character_string_array(entity, "abilities"),
+        ),
+        ("spells", rules_character_string_array(entity, "spells")),
+        (
+            "spell details",
+            rules_character_spell_lines(rules, entity, &numeric_attrs),
+        ),
+        (
+            "starting equipment",
+            rules_character_loadout_lines(rules, entity, "start_equipped_items"),
+        ),
+        (
+            "starting inventory",
+            rules_character_loadout_lines(rules, entity, "start_items"),
+        ),
+        (
+            "combat",
+            rules_character_combat_lines(rules, entity, &numeric_attrs),
+        ),
+    ];
+
+    let mut out = vec![
+        format!("class: {}", class),
+        format!("race: {}", race),
+        format!("level: {}", level),
+    ];
+
+    for (heading, lines) in sections {
+        out.push(String::new());
+        out.push(format!("{}:", heading));
+        if lines.is_empty() {
+            out.push("-".into());
+        } else {
+            out.extend(lines);
+        }
+    }
+
+    out.join("\n")
+}
+
+fn run_rules_character_command(args: &[String]) -> Result<(), String> {
+    let rules = official_rules_table()?;
+    let mut entity = rules_character_entity(args)?;
+    rusterix::server::region::apply_ruleset_character_defaults(&rules, &mut entity);
+    println!("{}", format_rules_character(&rules, &entity));
+    Ok(())
 }
 
 fn run_rules_class_command(args: &[String]) -> Result<(), String> {
@@ -1606,6 +2144,51 @@ fn clear_terminal_prompt_line() {
         print!("\r\x1b[2K");
     }
     println!();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn formats_rules_summary_for_catalog() {
+        let rules = official_rules_table().unwrap();
+        let catalog = shared::rulesets::ruleset_catalog(&rules);
+        let summary = format_rules_catalog_summary("test", &catalog);
+
+        assert!(summary.contains("source: test"));
+        assert!(summary.contains("id: eldiron.official"));
+        assert!(summary.contains("classes: 2"));
+        assert!(summary.contains("spells: 3"));
+    }
+
+    #[test]
+    fn formats_rules_validation_report_status() {
+        let rules = official_rules_table().unwrap();
+        let report = shared::rulesets::validate_ruleset(&rules);
+        let output = format_rules_validation_report("test", &report);
+
+        assert!(output.contains("ruleset check: ok (0 errors, 0 warnings)"));
+        assert!(output.contains("source: test"));
+    }
+
+    #[test]
+    fn formats_resolved_rules_character() {
+        let rules = official_rules_table().unwrap();
+        let mut entity =
+            rules_character_entity(&["Cleric".into(), "race=Human".into(), "level=2".into()])
+                .unwrap();
+        rusterix::server::region::apply_ruleset_character_defaults(&rules, &mut entity);
+        let output = format_rules_character(&rules, &entity);
+
+        assert!(output.contains("class: Cleric"));
+        assert!(output.contains("race: Human"));
+        assert!(output.contains("level: 2"));
+        assert!(output.contains("MAX_HP: 19"));
+        assert!(output.contains("holy_light"));
+        assert!(output.contains("cost MP=4"));
+        assert!(output.contains("main_hand: Novice Mace"));
+    }
 }
 
 fn main() {
