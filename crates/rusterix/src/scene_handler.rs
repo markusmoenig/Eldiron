@@ -183,6 +183,7 @@ pub struct SceneHandler {
     tile_emitters_3d: FxHashMap<u32, ParticleEmitter>,
     builder_emitters_2d: FxHashMap<u32, ParticleEmitter>,
     builder_emitters_3d: FxHashMap<u32, ParticleEmitter>,
+    ruleset_fx_first_seen: FxHashMap<u32, usize>,
 
     // Local render-frame counter for timing animations at fixed FPS
     frame_counter: usize,
@@ -217,8 +218,16 @@ impl SceneHandler {
     const PARTICLE_TIME_SCALE: f32 = 1.0;
 
     pub fn tick_particle_clocks(&mut self) {
+        self.tick_particle_clock_2d();
+        self.tick_particle_clock_3d();
+    }
+
+    fn tick_particle_clock_2d(&mut self) {
         self.pending_particle_steps_2d =
             (self.pending_particle_steps_2d + 1).min(Self::MAX_PARTICLE_STEPS_PER_BUILD);
+    }
+
+    fn tick_particle_clock_3d(&mut self) {
         self.pending_particle_steps_3d =
             (self.pending_particle_steps_3d + 1).min(Self::MAX_PARTICLE_STEPS_PER_BUILD);
     }
@@ -266,6 +275,10 @@ impl SceneHandler {
 
     fn particle_sprite_tile_id(tile_id: Uuid) -> Uuid {
         Uuid::from_u128(tile_id.as_u128() ^ 0x705f_6172_7469_636c_655f_7370_7269)
+    }
+
+    fn ruleset_fx_particle_sprite_tile_id() -> Uuid {
+        Uuid::from_u128(0x656c_6469_726f_6e5f_6678_5f70_6172_74)
     }
 
     fn build_particle_sprite_texture(color: [u8; 4], ramp: Option<&[[u8; 4]; 4]>) -> Texture {
@@ -669,6 +682,122 @@ impl SceneHandler {
             ^ slot.wrapping_mul(0x119d_e1f3)
     }
 
+    fn spawn_emitter_particles_2d(
+        emitters: &mut FxHashMap<u32, ParticleEmitter>,
+        vm: &mut SceneVM,
+        key: u32,
+        def: &ParticleEmitter,
+        sprite_tile_id: Uuid,
+        pos: Vec2<f32>,
+        size_scale: f32,
+        direction: Vec3<f32>,
+        layer: i32,
+        particle_steps: usize,
+        active_emitters: &mut FxHashSet<u32>,
+        has_particles: &mut bool,
+    ) {
+        active_emitters.insert(key);
+        let emitter = emitters.entry(key).or_insert_with(|| {
+            let mut emitter = def.clone();
+            emitter.origin = Vec3::new(pos.x, pos.y, 0.0);
+            emitter.direction = direction.normalized();
+            emitter.spawn_area = [
+                def.spawn_area[0],
+                def.spawn_area[2].max(def.spawn_area[1]),
+                0.0,
+            ];
+            emitter.time_accum = 0.0;
+            emitter.particles.clear();
+            emitter
+        });
+        emitter.origin = Vec3::new(pos.x, pos.y, 0.0);
+        emitter.direction = direction.normalized();
+        emitter.spawn_area = [
+            def.spawn_area[0],
+            def.spawn_area[2].max(def.spawn_area[1]),
+            0.0,
+        ];
+        Self::advance_emitter(emitter, particle_steps);
+
+        let lifetime_max = emitter.lifetime_range.1.max(0.001);
+        for (index, particle) in emitter.particles.iter().enumerate() {
+            *has_particles = true;
+            let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
+            let size = (particle.radius * 1.8 * size_scale).max(0.08);
+            let tint = Vec3::new(
+                (particle.color[0] as f32 / 255.0).powf(2.2),
+                (particle.color[1] as f32 / 255.0).powf(2.2),
+                (particle.color[2] as f32 / 255.0).powf(2.2),
+            );
+            let dynamic = DynamicObject::particle_tile_2d(
+                GeoId::Unknown(key.wrapping_mul(1024).wrapping_add(index as u32)),
+                sprite_tile_id,
+                Vec2::new(particle.pos.x, particle.pos.y),
+                size,
+                size,
+            )
+            .with_tint(tint)
+            .with_layer(layer)
+            .with_opacity(opacity);
+            vm.execute(Atom::AddDynamic { object: dynamic });
+        }
+    }
+
+    fn spawn_emitter_particles_3d(
+        emitters: &mut FxHashMap<u32, ParticleEmitter>,
+        vm: &mut SceneVM,
+        key: u32,
+        def: &ParticleEmitter,
+        sprite_tile_id: Uuid,
+        origin: Vec3<f32>,
+        size_scale: f32,
+        direction: Vec3<f32>,
+        basis: (Vec3<f32>, Vec3<f32>, Vec3<f32>),
+        particle_steps: usize,
+        active_emitters: &mut FxHashSet<u32>,
+        has_particles: &mut bool,
+    ) {
+        active_emitters.insert(key);
+        let emitter = emitters.entry(key).or_insert_with(|| {
+            let mut emitter = def.clone();
+            emitter.origin = origin;
+            emitter.direction = direction.normalized();
+            emitter.spawn_area = def.spawn_area;
+            emitter.time_accum = 0.0;
+            emitter.particles.clear();
+            emitter
+        });
+        emitter.origin = origin;
+        emitter.direction = direction.normalized();
+        emitter.spawn_area = def.spawn_area;
+        Self::advance_emitter(emitter, particle_steps);
+
+        let lifetime_max = emitter.lifetime_range.1.max(0.001);
+        for (index, particle) in emitter.particles.iter().enumerate() {
+            *has_particles = true;
+            let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
+            let size = (particle.radius * 1.9 * size_scale).max(0.08);
+            let center = particle.pos + Vec3::new(0.0, size * 0.2, 0.0);
+            let tint = Vec3::new(
+                (particle.color[0] as f32 / 255.0).powf(2.2),
+                (particle.color[1] as f32 / 255.0).powf(2.2),
+                (particle.color[2] as f32 / 255.0).powf(2.2),
+            );
+            let dynamic = DynamicObject::particle_tile(
+                GeoId::Unknown(key.wrapping_mul(1024).wrapping_add(index as u32)),
+                sprite_tile_id,
+                center,
+                basis.1,
+                basis.2,
+                size,
+                size,
+            )
+            .with_tint(tint)
+            .with_opacity(opacity);
+            vm.execute(Atom::AddDynamic { object: dynamic });
+        }
+    }
+
     fn hash_u32_label(label: &str) -> u32 {
         label
             .bytes()
@@ -682,6 +811,23 @@ impl SceneHandler {
             word[..chunk.len()].copy_from_slice(chunk);
             acc.wrapping_mul(16777619) ^ u32::from_le_bytes(word)
         })
+    }
+
+    fn ruleset_fx_should_render(&mut self, item: &Item) -> bool {
+        if !item.attributes.get_bool_default("is_ruleset_fx", false) {
+            return true;
+        }
+        let first_seen = *self
+            .ruleset_fx_first_seen
+            .entry(item.id)
+            .or_insert(self.frame_counter);
+        let elapsed =
+            self.frame_counter.saturating_sub(first_seen) as f32 / self.render_fps.max(1.0);
+        let lifetime = item
+            .attributes
+            .get_float_default("fx_lifetime", 0.6)
+            .clamp(0.1, 1.25);
+        elapsed <= lifetime
     }
 
     fn normalize_builder_material_key(name: &str) -> String {
@@ -1572,6 +1718,27 @@ impl SceneHandler {
         }
 
         for item in &map.items {
+            if self.ruleset_fx_should_render(item)
+                && let Some(Value::ParticleEmitter(def)) = item.attributes.get("particle_emitter")
+            {
+                Self::spawn_emitter_particles_2d(
+                    &mut self.tile_emitters_2d,
+                    &mut self.vm,
+                    Self::tile_particle_key(4, item.id, 1),
+                    def,
+                    Self::ruleset_fx_particle_sprite_tile_id(),
+                    Vec2::new(item.position.x, item.position.z),
+                    item.attributes
+                        .get_float_default("fx_size_scale", 1.0)
+                        .max(0.1),
+                    Vec3::new(0.0, -1.0, 0.0),
+                    35,
+                    particle_steps,
+                    &mut active_emitters,
+                    &mut has_particles,
+                );
+            }
+
             if item.attributes.get_bool_default("visible", false)
                 && let Some(Value::Source(source)) = item.attributes.get("source")
                 && let Some(tile) = source.tile_from_tile_list(assets)
@@ -1878,6 +2045,27 @@ impl SceneHandler {
         }
 
         for item in &map.items {
+            if self.ruleset_fx_should_render(item)
+                && let Some(Value::ParticleEmitter(def)) = item.attributes.get("particle_emitter")
+            {
+                Self::spawn_emitter_particles_3d(
+                    &mut self.tile_emitters_3d,
+                    &mut self.vm,
+                    Self::tile_particle_key(4, item.id, 1),
+                    def,
+                    Self::ruleset_fx_particle_sprite_tile_id(),
+                    item.position,
+                    item.attributes
+                        .get_float_default("fx_size_scale", 1.0)
+                        .max(0.1),
+                    Vec3::new(0.0, 1.0, 0.0),
+                    basis,
+                    particle_steps,
+                    &mut active_emitters,
+                    &mut has_particles,
+                );
+            }
+
             if item.attributes.get_bool_default("visible", false)
                 && let Some(Value::Source(source)) = item.attributes.get("source")
                 && let Some(tile) = source.tile_from_tile_list(assets)
@@ -1955,6 +2143,7 @@ impl SceneHandler {
         self.tile_emitters_3d.clear();
         self.builder_emitters_2d.clear();
         self.builder_emitters_3d.clear();
+        self.ruleset_fx_first_seen.clear();
         self.mark_dynamics_dirty();
     }
 
@@ -1968,6 +2157,7 @@ impl SceneHandler {
         self.campfire_emitters.clear();
         self.tile_emitters_2d.clear();
         self.tile_emitters_3d.clear();
+        self.ruleset_fx_first_seen.clear();
         self.mark_dynamics_dirty();
     }
 
@@ -2498,6 +2688,7 @@ impl SceneHandler {
             tile_emitters_3d: FxHashMap::default(),
             builder_emitters_2d: FxHashMap::default(),
             builder_emitters_3d: FxHashMap::default(),
+            ruleset_fx_first_seen: FxHashMap::default(),
             frame_counter: 0,
             avatar_builder: AvatarRuntimeBuilder::default(),
             last_dynamics_hash_2d: None,
@@ -3068,6 +3259,15 @@ impl SceneHandler {
     }
 
     pub fn build_atlas(&mut self, tiles: &IndexMap<Uuid, Tile>, editor: bool) {
+        let fx_sprite = Self::build_particle_sprite_texture([255, 255, 255, 255], None);
+        self.vm.execute(Atom::AddTile {
+            id: Self::ruleset_fx_particle_sprite_tile_id(),
+            width: fx_sprite.width as u32,
+            height: fx_sprite.height as u32,
+            frames: vec![fx_sprite.data],
+            material_frames: fx_sprite.data_ext.clone().map(|ext| vec![ext]),
+        });
+
         for (id, tile) in tiles {
             let mut b = vec![];
             for t in &tile.textures {
@@ -3325,6 +3525,7 @@ impl SceneHandler {
     pub fn build_dynamics_2d(&mut self, map: &Map, animation_frame: usize, assets: &Assets) {
         // Dynamics must always be built into base layer 0.
         self.vm.set_active_vm(0);
+        self.tick_particle_clock_2d();
         self.frame_counter = self.frame_counter.wrapping_add(1);
         self.avatar_builder
             .set_shading_options(AvatarShadingOptions {
@@ -3518,6 +3719,7 @@ impl SceneHandler {
     ) {
         // Dynamics must always be built into base layer 0.
         self.vm.set_active_vm(0);
+        self.tick_particle_clock_3d();
         self.avatar_builder
             .set_shading_options(AvatarShadingOptions {
                 enabled: self.settings.avatar_shading_enabled,

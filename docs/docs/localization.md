@@ -13,6 +13,8 @@ Locale data uses **TOML**. Each top-level table is one language, for example `[e
 [en]
 combat.damage.incoming = "{attacker} hits you for {amount} damage"
 combat.damage.outgoing = "You hit {defender} for {amount} damage"
+actions.not_ready = "{action} is not ready yet"
+spells.not_enough_mp = "Not enough MP to cast {spell}"
 system.cant_do_that_yet = "Can't do that yet"
 system.cant_afford = "You can't afford that"
 system.you_bought = "You bought"
@@ -50,7 +52,11 @@ This keeps project strings organized and avoids collisions.
 
 The currently used built-in system keys are:
 
+- `actions.*`: ruleset action feedback such as missing target, missing item, cooldown, and no effect
+- `spells.*`: ruleset spell feedback such as missing target, missing MP, cooldown, and healing
+- `system.cant_do_that`
 - `system.cant_do_that_yet`
+- `system.too_far_away`
 - `system.cant_afford`
 - `system.you_bought`
 - `system.exit_menu`
@@ -122,6 +128,26 @@ outgoing_category = "system"
 ```
 
 This lets you translate combat text without changing gameplay rules.
+
+Official rulesets also bundle their own locale defaults. The current v1 ruleset
+ships English strings in `rulesets/eldiron/v1/locales.toml`, and Eldiron loads
+those first. **Game / Locales** is then merged on top, so projects only need to
+store changed or additional text.
+
+The official ruleset also stores runtime feedback keys under `[messages]`:
+
+```toml
+[messages.actions]
+not_ready_key = "actions.not_ready"
+missing_target_key = "actions.missing_target"
+
+[messages.spells]
+not_enough_mp_key = "spells.not_enough_mp"
+heal_key = "spells.heal"
+```
+
+This keeps actions and spells on the same key-based path as combat and
+progression messages, while still giving each project a clean override layer.
 
 ## Text Widgets
 

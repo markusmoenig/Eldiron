@@ -263,13 +263,20 @@ loadout.
 | Level 1 spells | `minor_heal` |
 | Level 2 unlock | `holy_light` |
 
+Setting `LEVEL` on an authored character applies class progression during
+spawn/load. For example, a level 2 Cleric receives the Cleric level gains and
+level 2 spell unlocks from the ruleset. Explicit character overrides, such as a
+custom wounded `HP = 1`, are preserved.
+
 Class starting loadouts are applied only when a character does not define its
 own startup item attributes. This keeps the official defaults useful while still
 allowing special templates.
 
 ## Intents
 
-Intent rules define common player actions.
+Intent rules are fed by actions. For example, the `attack` intent resolves to
+the `basic_attack` action, and `take` resolves to the `take` action. This keeps
+buttons, scripts, and later sandbox tools on the same rules path.
 
 | Intent | Rule |
 | --- | --- |
@@ -280,7 +287,7 @@ Intent rules define common player actions.
 
 Attack cooldown is rules-owned. A character script should call `attack()` for a
 normal weapon or unarmed attack. The runtime uses the equipped weapon cooldown
-and falls back to `[combat].default_attack_cooldown`.
+and falls back to the `basic_attack` action cooldown.
 
 ## Combat
 
@@ -381,8 +388,29 @@ equipment, and ground item visuals use the same generated shape.
 
 ## Abilities And Spells
 
-Abilities are class-owned actions. Spells add school, cost, cast time, range,
-visual, audio, and damage or healing data.
+Abilities and spells define what exists. Actions define how an actor performs a
+gameplay verb. This keeps the current RPG layer compatible with future sandbox
+verbs such as harvesting, crafting, lockpicking, stealing, or taming.
+
+| Action | Kind | Target | Cost | Result |
+| --- | --- | --- | --- | --- |
+| `basic_attack` | attack | hostile entity | - | weapon damage |
+| `power_strike` | attack | hostile entity | - | `power_strike` damage |
+| `minor_heal` | spell | friendly or self | `3 MP` | `minor_heal` healing |
+| `holy_light` | spell | hostile entity | `4 MP` | `holy_light` damage |
+| `take` | interaction | ground item | - | move item to inventory |
+
+Action definitions already include a generic `consumes` list, so spells,
+crafting, and other sandbox actions can require reagents or materials without a
+new hardcoded system.
+
+Abilities are class-owned combat options. Spells add school, cast time, and
+damage or healing data. Actions connect those definitions to targets, costs,
+cooldowns, results, and FX.
+
+Scripts use `attack()` for the normal weapon attack. Named action buttons or
+text commands use `use_action("<id>")`; for example `use_action("power_strike")`
+or `use power strike orc` in text play.
 
 | Ability | Kind | Cooldown | Range | Effect |
 | --- | --- | ---: | --- | --- |
@@ -395,6 +423,25 @@ visual, audio, and damage or healing data.
 | `minor_heal` | restoration | heal | `3 MP` | `4.0` | `5` | `1d6`, bonus `1`, `WIS` every 4 |
 | `holy_light` | restoration | damage | `4 MP` | `5.0` | `5` | `1d6`, bonus `1`, `WIS` every 4 |
 | `fire_spark` | fire | damage | `2 MP` | `3.0` | `6` | `1d6`, bonus `0`, `INT` every 4 |
+
+Spell FX use semantic presets from `fx.toml`. The ruleset describes the visual
+intent, and the engine maps that to procedural particles and lighting.
+
+| Spell | Cast FX | Travel FX | Impact FX |
+| --- | --- | --- | --- |
+| `minor_heal` | `rising_motes` | - | `rising_motes` |
+| `holy_light` | `holy_glow` | `holy_bolt` | `hit_burst` |
+| `fire_spark` | - | `ember_trail` | `fire_burst` |
+
+| FX Preset | Description |
+| --- | --- |
+| `hit_burst` | short impact burst from the target center |
+| `rising_motes` | soft particles across the tile, moving upward |
+| `holy_glow` | warm divine aura around caster or target |
+| `holy_bolt` | focused holy projectile with trailing glow |
+| `fire_burst` | hot impact explosion with sparks and smoke |
+| `flame_patch` | small burning area on the tile |
+| `ember_trail` | embers behind a moving fire spell |
 
 ## Progression
 

@@ -23,7 +23,11 @@ rulesets/
       attributes.toml
       progression.toml
       combat.toml
+      messages.toml
+      locales.toml
       equipment.toml
+      fx.toml
+      actions.toml
       abilities_spells.toml
       races_classes.toml
       README.md
@@ -105,6 +109,13 @@ The effective ruleset is resolved like this:
 2. Load the matching bundled official ruleset.
 3. Merge **Game / Rules** TOML on top.
 4. Use the merged result for runtime and tools.
+
+Ruleset localizations are resolved the same way:
+
+1. Load the bundled English locale defaults for the selected official ruleset.
+2. Merge **Game / Locales** TOML on top.
+3. Use project locale entries as overrides, not as a required copy of every
+   ruleset message.
 
 ## No Backwards Compatibility Requirement
 

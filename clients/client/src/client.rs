@@ -239,11 +239,22 @@ impl TheTrait for Client {
                         }
                     }
                     TheEvent::KeyDown(v) => {
-                        if let Some(char) = v.to_char() {
+                        let key = if let Some(char) = v.to_char() {
+                            Some(char.to_string())
+                        } else {
+                            v.to_key_code().and_then(|code| match code {
+                                TheKeyCode::Return => Some("enter".to_string()),
+                                TheKeyCode::Delete => Some("backspace".to_string()),
+                                TheKeyCode::Escape => Some("escape".to_string()),
+                                TheKeyCode::Space => Some("space".to_string()),
+                                _ => None,
+                            })
+                        };
+                        if let Some(key) = key {
                             let action = self
                                 .rusterix
                                 .client
-                                .user_event("key_down".into(), Value::Str(char.to_string()));
+                                .user_event("key_down".into(), Value::Str(key));
 
                             self.rusterix.server.local_player_action(action);
                         }

@@ -3,8 +3,8 @@ use crate::server::py_fn::*;
 use crate::server::region_host::{run_client_fn, run_server_fn, run_server_named_fn};
 use crate::vm::*;
 use crate::{
-    Assets, Choice, Currency, Entity, EntityAction, Item, Map, MultipleChoice, PixelSource,
-    PlayerCamera, RegionCtx, Value, ValueContainer,
+    Assets, Choice, Currency, Entity, EntityAction, Item, Map, MultipleChoice, ParticleEmitter,
+    PixelSource, PlayerCamera, RegionCtx, Value, ValueContainer,
 };
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use instant::{Duration, Instant};
@@ -12,6 +12,7 @@ use pathfinding::prelude::astar;
 use rand::seq::SliceRandom;
 use rand::*;
 
+use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 
@@ -170,6 +171,195 @@ fn apply_ruleset_class_loadout_defaults(
     }
 }
 
+fn ruleset_table_string_values(table: &toml::value::Table, key: &str) -> Vec<String> {
+    table
+        .get(key)
+        .and_then(toml::Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn push_unique(values: &mut Vec<String>, value: String) {
+    if !values.iter().any(|existing| existing == &value) {
+        values.push(value);
+    }
+}
+
+fn ruleset_class_progression_unlocks(
+    class: &toml::value::Table,
+    level: u32,
+    key: &str,
+) -> Vec<String> {
+    let Some(unlocks) = class.get("unlocks").and_then(toml::Value::as_table) else {
+        return Vec::new();
+    };
+    let mut values = Vec::new();
+    let mut levels = unlocks
+        .iter()
+        .filter_map(|(name, value)| {
+            name.strip_prefix("level_")
+                .and_then(|suffix| suffix.parse::<u32>().ok())
+                .map(|unlock_level| (unlock_level, value))
+        })
+        .collect::<Vec<_>>();
+    levels.sort_by_key(|(unlock_level, _)| *unlock_level);
+    for (unlock_level, value) in levels {
+        if unlock_level > level {
+            continue;
+        }
+        if let Some(table) = value.as_table() {
+            for entry in ruleset_table_string_values(table, key) {
+                push_unique(&mut values, entry);
+            }
+        }
+    }
+    values
+}
+
+fn apply_ruleset_class_progression_list(
+    class: &toml::value::Table,
+    entity: &mut Entity,
+    explicit_keys: &FxHashSet<String>,
+    level: u32,
+    key: &str,
+) {
+    if explicit_keys.contains(key) {
+        return;
+    }
+
+    let mut values = Vec::new();
+    if let Some(loadout) = class
+        .get("starting_loadout")
+        .and_then(toml::Value::as_table)
+    {
+        for entry in ruleset_table_string_values(loadout, key) {
+            push_unique(&mut values, entry);
+        }
+    }
+    for entry in ruleset_class_progression_unlocks(class, level, key) {
+        push_unique(&mut values, entry);
+    }
+
+    if !values.is_empty() {
+        entity.set_attribute(key, Value::StrArray(values));
+    }
+}
+
+fn ruleset_max_level(rules: &toml::Table) -> u32 {
+    rules
+        .get("progression")
+        .and_then(toml::Value::as_table)
+        .and_then(|progression| progression.get("level"))
+        .and_then(toml::Value::as_table)
+        .and_then(|level| level.get("max_level"))
+        .and_then(toml::Value::as_integer)
+        .map(|level| level.max(1) as u32)
+        .unwrap_or(u32::MAX)
+}
+
+fn ruleset_entity_level(rules: &toml::Table, entity: &mut Entity) -> u32 {
+    let max_level = ruleset_max_level(rules);
+    let level = entity
+        .attributes
+        .get_float_default("LEVEL", 1.0)
+        .round()
+        .max(1.0) as u32;
+    let level = level.min(max_level);
+    entity.set_attribute("LEVEL", Value::Int(level as i32));
+    level
+}
+
+fn add_ruleset_int_attr(
+    entity: &mut Entity,
+    explicit_keys: &FxHashSet<String>,
+    key: &str,
+    amount: i32,
+) {
+    if amount == 0 || explicit_keys.contains(key) {
+        return;
+    }
+    let current = entity.attributes.get_int_default(key, 0);
+    entity.set_attribute(key, Value::Int(current.saturating_add(amount)));
+}
+
+fn add_ruleset_resource_progression(
+    entity: &mut Entity,
+    explicit_keys: &FxHashSet<String>,
+    current_key: &str,
+    max_key: &str,
+    amount: i32,
+) {
+    if amount == 0 {
+        return;
+    }
+    let mut max_value = entity.attributes.get_int_default(max_key, 0);
+    if !explicit_keys.contains(max_key) {
+        max_value = max_value.saturating_add(amount).max(0);
+        entity.set_attribute(max_key, Value::Int(max_value));
+    }
+    if !explicit_keys.contains(current_key) {
+        let current = entity.attributes.get_int_default(current_key, 0);
+        entity.set_attribute(
+            current_key,
+            Value::Int(current.saturating_add(amount).min(max_value).max(0)),
+        );
+    }
+}
+
+fn apply_ruleset_class_progression(
+    rules: &toml::Table,
+    entity: &mut Entity,
+    explicit_keys: &FxHashSet<String>,
+) {
+    let Some(class_name) = entity.get_attr_string("class") else {
+        return;
+    };
+    let Some(class) = ruleset_class_table(rules, class_name.trim()) else {
+        return;
+    };
+    let level = ruleset_entity_level(rules, entity);
+    let levels_gained = level.saturating_sub(1) as i32;
+    if levels_gained > 0
+        && let Some(level_progression) = class
+            .get("progression")
+            .and_then(toml::Value::as_table)
+            .and_then(|progression| progression.get("level"))
+            .and_then(toml::Value::as_table)
+    {
+        let hp_gain = rule_number(level_progression, "hp_per_level", 0.0)
+            .round()
+            .max(0.0) as i32
+            * levels_gained;
+        let mp_gain = rule_number(level_progression, "mp_per_level", 0.0)
+            .round()
+            .max(0.0) as i32
+            * levels_gained;
+        add_ruleset_resource_progression(entity, explicit_keys, "HP", "MAX_HP", hp_gain);
+        add_ruleset_resource_progression(entity, explicit_keys, "MP", "MAX_MP", mp_gain);
+
+        let primary_gain = rule_number(level_progression, "primary_attribute_gain", 0.0)
+            .round()
+            .max(0.0) as i32
+            * levels_gained;
+        if primary_gain > 0 {
+            for attr in ruleset_table_string_values(class, "primary_attributes") {
+                add_ruleset_int_attr(entity, explicit_keys, &attr, primary_gain);
+            }
+        }
+    }
+
+    apply_ruleset_class_progression_list(class, entity, explicit_keys, level, "abilities");
+    apply_ruleset_class_progression_list(class, entity, explicit_keys, level, "spells");
+}
+
 pub(crate) fn apply_ruleset_character_defaults(rules: &toml::Table, entity: &mut Entity) {
     let explicit_keys = entity.attributes.keys().cloned().collect::<FxHashSet<_>>();
 
@@ -214,6 +404,217 @@ pub(crate) fn apply_ruleset_character_defaults(rules: &toml::Table, entity: &mut
     }
 
     apply_ruleset_class_loadout_defaults(rules, entity, &explicit_keys);
+    apply_ruleset_class_progression(rules, entity, &explicit_keys);
+}
+
+#[cfg(test)]
+mod ruleset_progression_tests {
+    use super::*;
+
+    fn test_rules() -> toml::Table {
+        toml::from_str::<toml::Value>(
+            r#"
+        [attributes.defaults]
+        HP = 10
+        MAX_HP = 10
+        MP = 0
+        MAX_MP = 0
+        STR = 10
+        WIS = 10
+        VIT = 10
+        LEVEL = 1
+
+        [progression.level]
+        max_level = 20
+
+        [classes.Cleric]
+        primary_attributes = ["WIS", "VIT"]
+
+        [classes.Cleric.attributes]
+        HP = 14
+        MAX_HP = 14
+        MP = 8
+        MAX_MP = 8
+        WIS = 12
+        VIT = 11
+
+        [classes.Cleric.progression.level]
+        hp_per_level = 5
+        mp_per_level = 3
+        primary_attribute_gain = 1
+
+        [classes.Cleric.starting_loadout]
+        abilities = ["basic_attack", "guard"]
+        spells = ["minor_heal"]
+
+        [classes.Cleric.unlocks.level_2]
+        spells = ["holy_light"]
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone()
+    }
+
+    #[test]
+    fn ruleset_defaults_apply_level_progression() {
+        let rules = test_rules();
+        let mut entity = Entity::new();
+        entity.set_attribute("class", Value::Str("Cleric".into()));
+        entity.set_attribute("LEVEL", Value::Int(3));
+
+        apply_ruleset_character_defaults(&rules, &mut entity);
+
+        assert_eq!(entity.attributes.get_int_default("LEVEL", 0), 3);
+        assert_eq!(entity.attributes.get_int_default("MAX_HP", 0), 24);
+        assert_eq!(entity.attributes.get_int_default("HP", 0), 24);
+        assert_eq!(entity.attributes.get_int_default("MAX_MP", 0), 14);
+        assert_eq!(entity.attributes.get_int_default("MP", 0), 14);
+        assert_eq!(entity.attributes.get_int_default("WIS", 0), 14);
+        assert_eq!(entity.attributes.get_int_default("VIT", 0), 13);
+        assert!(matches!(
+            entity.attributes.get("spells"),
+            Some(Value::StrArray(spells))
+                if spells == &vec!["minor_heal".to_string(), "holy_light".to_string()]
+        ));
+    }
+
+    #[test]
+    fn ruleset_progression_preserves_explicit_current_hp() {
+        let rules = test_rules();
+        let mut entity = Entity::new();
+        entity.set_attribute("class", Value::Str("Cleric".into()));
+        entity.set_attribute("LEVEL", Value::Int(2));
+        entity.set_attribute("HP", Value::Int(1));
+
+        apply_ruleset_character_defaults(&rules, &mut entity);
+
+        assert_eq!(entity.attributes.get_int_default("MAX_HP", 0), 19);
+        assert_eq!(entity.attributes.get_int_default("HP", 0), 1);
+        assert_eq!(entity.attributes.get_int_default("WIS", 0), 13);
+    }
+
+    #[test]
+    fn attack_cooldown_uses_basic_attack_action_default() {
+        let mut ctx = RegionCtx::default();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [actions.basic_attack]
+        cooldown = 2.5
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+        let entity = Entity::new();
+
+        assert_eq!(current_attack_cooldown_for_entity(&ctx, &entity), 2.5);
+    }
+
+    #[test]
+    fn weapon_attack_cooldown_overrides_basic_attack_action_default() {
+        let mut ctx = RegionCtx::default();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [actions.basic_attack]
+        cooldown = 2.5
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+        let mut entity = Entity::new();
+        let mut sword = Item::new();
+        sword.set_attribute("attack_cooldown", Value::Float(0.75));
+        entity.equipped.insert("main_hand".into(), sword);
+
+        assert_eq!(current_attack_cooldown_for_entity(&ctx, &entity), 0.75);
+    }
+
+    #[test]
+    fn intent_rules_can_be_derived_from_actions() {
+        let mut ctx = RegionCtx::default();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [actions.basic_attack]
+        intent = "attack"
+        target = "hostile_entity"
+        range = "weapon"
+        cooldown = 1.25
+
+        [actions.take]
+        intent = "take"
+        target = "ground_item"
+        range = 1.5
+        cooldown = 0.0
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+
+        let attack = intent_rule_config(&ctx, 0, "attack");
+        assert_eq!(attack.allowed_target_kinds, vec!["entity".to_string()]);
+        assert_eq!(attack.allowed_dispositions, vec!["hostile".to_string()]);
+        assert_eq!(attack.distance.source.as_deref(), Some("weapon_range"));
+        assert_eq!(attack.cooldown_minutes, Some(1.25));
+
+        let take = intent_rule_config(&ctx, 0, "take");
+        assert_eq!(take.allowed_target_kinds, vec!["item".to_string()]);
+        assert_eq!(take.distance.fixed, Some(1.5));
+    }
+
+    #[test]
+    fn ruleset_action_queues_ability_damage_and_cooldown() {
+        let mut ctx = RegionCtx::default();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [actions.power_strike]
+        name = "Power Strike"
+        kind = "attack"
+        requires = { ability = "power_strike" }
+        target = "any_entity"
+        range = 2
+        cooldown = 4
+        result = { damage = "abilities.power_strike.damage" }
+
+        [abilities.power_strike]
+        damage_kind = "physical"
+
+        [abilities.power_strike.damage]
+        roll = "1d1"
+        bonus = 2
+        bonus_attribute = "STR"
+        bonus_every = 4
+        damage_kind = "physical"
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+        let mut actor = Entity::new();
+        actor.id = 1;
+        actor.set_attribute("abilities", Value::StrArray(vec!["power_strike".into()]));
+        actor.set_attribute("STR", Value::Int(8));
+        actor.position = Vec3::new(0.0, 1.0, 0.0);
+        let mut target = Entity::new();
+        target.id = 2;
+        target.position = Vec3::new(1.0, 1.0, 0.0);
+        ctx.map.entities.push(actor);
+        ctx.map.entities.push(target);
+
+        assert!(execute_ruleset_action(&mut ctx, 1, "power_strike", Some(2)));
+        assert!(is_action_on_cooldown(&ctx, 1, "power_strike"));
+        assert_eq!(ctx.to_execute_entity.len(), 1);
+        assert_eq!(ctx.to_execute_entity[0].0, 2);
+        assert_eq!(ctx.to_execute_entity[0].1, "take_damage");
+        assert_eq!(ctx.to_execute_entity[0].2.y, 5.0);
+    }
 }
 
 fn vertical_collision_ranges_overlap(a_y: f32, a_height: f32, b_y: f32, b_height: f32) -> bool {
@@ -816,6 +1217,272 @@ impl RegionInstance {
         Self::resolve_named_item_target(ctx, actor_id, target).map(|entry| entry.0)
     }
 
+    fn text_command_spell_ids(ctx: &RegionCtx) -> BTreeSet<String> {
+        ctx.rules
+            .get("spells")
+            .and_then(toml::Value::as_table)
+            .map(|spells| spells.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    fn text_command_action_ids(ctx: &RegionCtx) -> BTreeSet<String> {
+        ctx.rules
+            .get("actions")
+            .and_then(toml::Value::as_table)
+            .map(|actions| actions.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    fn text_command_spell_kind(ctx: &RegionCtx, spell_id: &str) -> String {
+        ctx.rules
+            .get("spells")
+            .and_then(toml::Value::as_table)
+            .and_then(|spells| spells.get(spell_id))
+            .and_then(toml::Value::as_table)
+            .and_then(|spell| spell.get("kind"))
+            .and_then(toml::Value::as_str)
+            .map(|kind| kind.trim().to_ascii_lowercase())
+            .unwrap_or_default()
+    }
+
+    fn text_command_spell_name(ctx: &RegionCtx, spell_id: &str) -> String {
+        ctx.rules
+            .get("spells")
+            .and_then(toml::Value::as_table)
+            .and_then(|spells| spells.get(spell_id))
+            .and_then(toml::Value::as_table)
+            .and_then(|spell| spell.get("name"))
+            .and_then(toml::Value::as_str)
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| spell_id.replace('_', " "))
+    }
+
+    fn text_command_supported_intents(ctx: &RegionCtx, entity_id: u32) -> BTreeSet<String> {
+        let mut intents = [
+            "attack", "take", "look", "use", "drop", "talk", "open", "close",
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect::<BTreeSet<_>>();
+
+        let Some(class_name) = ctx.entity_classes.get(&entity_id) else {
+            return intents;
+        };
+        let Some(data) = ctx.entity_class_data.get(class_name) else {
+            return intents;
+        };
+        let Ok(table) = data.parse::<toml::Table>() else {
+            return intents;
+        };
+        let Some(input) = table.get("input").and_then(toml::Value::as_table) else {
+            return intents;
+        };
+
+        for value in input.values().filter_map(toml::Value::as_str) {
+            let lower = value.trim().to_ascii_lowercase();
+            if let Some(inner) = lower
+                .strip_prefix("intent(")
+                .and_then(|value| value.strip_suffix(')'))
+                .map(str::trim)
+            {
+                let inner = inner.trim_matches('"').trim_matches('\'').trim();
+                if !inner.is_empty() {
+                    intents.insert(inner.to_string());
+                }
+            }
+        }
+        intents
+    }
+
+    fn send_text_command_feedback(
+        ctx: &mut RegionCtx,
+        entity_id: u32,
+        key: &str,
+        params: &[(&str, String)],
+    ) {
+        if let Some((domain, name)) = key.split_once('.') {
+            let key = ruleset_message_key(ctx, domain, name, key);
+            send_localized_message(ctx, entity_id, &key, params, "system");
+        } else {
+            send_localized_message(ctx, entity_id, key, params, "system");
+        }
+    }
+
+    fn handle_text_command(&self, ctx: &mut RegionCtx, entity_id: u32, input: &str) {
+        use crate::client::text_command::{TextCommand, parse_text_command};
+
+        let supported_intents = Self::text_command_supported_intents(ctx, entity_id);
+        let spell_ids = Self::text_command_spell_ids(ctx);
+        let action_ids = Self::text_command_action_ids(ctx);
+        match parse_text_command(input, &supported_intents, &spell_ids, &action_ids) {
+            TextCommand::Empty => {}
+            TextCommand::Look(None) => {
+                Self::send_text_command_feedback(ctx, entity_id, "system.look_at_what", &[]);
+            }
+            TextCommand::Look(Some(target)) => {
+                if !self.queue_sequence_use(ctx, entity_id, &target, "look") {
+                    Self::send_text_command_feedback(ctx, entity_id, "system.not_seen_here", &[]);
+                }
+            }
+            TextCommand::Inventory => {
+                let names = ctx
+                    .map
+                    .entities
+                    .iter()
+                    .find(|entity| entity.id == entity_id)
+                    .map(|entity| {
+                        entity
+                            .inventory
+                            .iter()
+                            .filter_map(|item| item.as_ref())
+                            .filter_map(|item| item.attributes.get_str("name"))
+                            .map(str::to_string)
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                if names.is_empty() {
+                    Self::send_text_command_feedback(ctx, entity_id, "system.inventory_empty", &[]);
+                } else {
+                    Self::send_text_command_feedback(
+                        ctx,
+                        entity_id,
+                        "system.inventory_list",
+                        &[("items", names.join(", "))],
+                    );
+                }
+            }
+            TextCommand::Stats => {
+                if let Some(entity) = ctx
+                    .map
+                    .entities
+                    .iter()
+                    .find(|entity| entity.id == entity_id)
+                {
+                    let hp = entity.attributes.get_int_default("HP", 0);
+                    let max_hp = entity.attributes.get_int_default("MAX_HP", hp);
+                    let mp = entity.attributes.get_int_default("MP", 0);
+                    let max_mp = entity.attributes.get_int_default("MAX_MP", mp);
+                    Self::send_text_command_feedback(
+                        ctx,
+                        entity_id,
+                        "system.stats",
+                        &[
+                            ("hp", hp.to_string()),
+                            ("max_hp", max_hp.to_string()),
+                            ("mp", mp.to_string()),
+                            ("max_mp", max_mp.to_string()),
+                        ],
+                    );
+                }
+            }
+            TextCommand::Move(_) | TextCommand::Go(_) => {
+                Self::send_text_command_feedback(ctx, entity_id, "system.text_movement_only", &[]);
+            }
+            TextCommand::Intent { intent, target } => {
+                if let Some(target) = target {
+                    if !self.queue_sequence_use(ctx, entity_id, &target, &intent) {
+                        Self::send_text_command_feedback(
+                            ctx,
+                            entity_id,
+                            "system.not_seen_here",
+                            &[],
+                        );
+                    }
+                } else if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
+                    entity.set_attribute("intent", Value::Str(intent));
+                }
+            }
+            TextCommand::Cast { spell, target } => {
+                let spell_name = Self::text_command_spell_name(ctx, &spell);
+                if !spell_ids.contains(&spell) {
+                    Self::send_text_command_feedback(
+                        ctx,
+                        entity_id,
+                        "spells.unknown",
+                        &[("spell", spell_name.clone())],
+                    );
+                    return;
+                }
+
+                let target_id = if let Some(target) = target {
+                    if let Some((target_id, _distance)) =
+                        Self::resolve_named_entity_target(ctx, entity_id, &target)
+                    {
+                        Some(target_id)
+                    } else {
+                        Self::send_text_command_feedback(
+                            ctx,
+                            entity_id,
+                            "system.not_seen_target",
+                            &[],
+                        );
+                        None
+                    }
+                } else if Self::text_command_spell_kind(ctx, &spell) == "heal" {
+                    Some(entity_id)
+                } else {
+                    Self::send_text_command_feedback(ctx, entity_id, "spells.missing_target", &[]);
+                    None
+                };
+
+                if let Some(target_id) = target_id {
+                    let spell_id = cast_spell_for_entity(ctx, entity_id, &spell, target_id, 100.0);
+                    if spell_id == -1 {
+                        Self::send_text_command_feedback(
+                            ctx,
+                            entity_id,
+                            "spells.could_not_cast",
+                            &[("spell", spell_name.clone())],
+                        );
+                    }
+                }
+            }
+            TextCommand::Action { action, target } => {
+                if !action_ids.contains(&action) {
+                    Self::send_text_command_feedback(
+                        ctx,
+                        entity_id,
+                        "actions.unknown",
+                        &[("action", action.replace('_', " "))],
+                    );
+                    return;
+                }
+                let target_id = if let Some(target) = target {
+                    if let Some((target_id, _distance)) =
+                        Self::resolve_named_entity_target(ctx, entity_id, &target)
+                    {
+                        Some(target_id)
+                    } else {
+                        Self::send_text_command_feedback(
+                            ctx,
+                            entity_id,
+                            "system.not_seen_target",
+                            &[],
+                        );
+                        None
+                    }
+                } else {
+                    None
+                };
+                if target_id.is_some() {
+                    _ = execute_ruleset_action(ctx, entity_id, &action, target_id);
+                } else {
+                    Self::send_text_command_feedback(ctx, entity_id, "actions.missing_target", &[]);
+                }
+            }
+            TextCommand::Unknown => {
+                Self::send_text_command_feedback(
+                    ctx,
+                    entity_id,
+                    "system.unknown_command_hint",
+                    &[],
+                );
+            }
+        }
+    }
+
     fn advance_entity_sequence(&self, ctx: &mut RegionCtx, entity: &mut Entity) {
         let mut state = match entity.active_sequence.clone() {
             Some(state) => state,
@@ -947,6 +1614,7 @@ impl RegionInstance {
             EntityAction::EntityClicked(_, _, _)
                 | EntityAction::ItemClicked(_, _, _, _)
                 | EntityAction::TerrainClicked(_)
+                | EntityAction::TextCommand(_)
                 | EntityAction::Choice(_)
         )
     }
@@ -2977,6 +3645,13 @@ impl RegionInstance {
                                 }
                             });
                         }
+                        TextCommand(input) => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                if ctx.entity_classes.get(&entity_id).is_some() {
+                                    self.handle_text_command(ctx, entity_id, &input);
+                                }
+                            });
+                        }
                         action
                             if Self::is_movement_input_action(&action)
                                 && action != EntityAction::Off =>
@@ -3043,6 +3718,24 @@ impl RegionInstance {
                                     .find(|e| e.id == entity_id)
                                     .map(|entity| Self::should_keep_player_intent(ctx, entity))
                                     .unwrap_or(false);
+
+                                if let Some(action_id) = intent.strip_prefix("action:") {
+                                    let handled = execute_ruleset_action(
+                                        ctx,
+                                        entity_id,
+                                        action_id.trim(),
+                                        Some(clicked_entity_id),
+                                    );
+                                    if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                        && !keep_intent
+                                    {
+                                        entity.set_attribute("intent", Value::Str(String::new()));
+                                    }
+                                    if handled {
+                                        return;
+                                    }
+                                }
+
                                 let subject = ctx.map.entities.iter().find(|e| e.id == entity_id);
                                 let target_entity =
                                     ctx.map.entities.iter().find(|e| e.id == clicked_entity_id);
@@ -3108,7 +3801,7 @@ impl RegionInstance {
                                             clicked_entity_id,
                                             100.0,
                                         );
-                                        handled_shortcut = spell_id >= 0;
+                                        handled_shortcut = spell_id != -1;
                                     }
                                 }
 
@@ -3821,6 +4514,14 @@ impl RegionInstance {
                         },
                         _ => {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                let click_intents_2d =
+                                    get_config_bool_default(ctx, "game", "click_intents_2d", false)
+                                        || get_config_bool_default(
+                                            ctx,
+                                            "game",
+                                            "persistent_2d_intents",
+                                            false,
+                                        );
                                 if let Some(entity) = ctx
                                     .map
                                     .entities
@@ -3855,6 +4556,15 @@ impl RegionInstance {
                                         && Self::is_movement_input_action(&action)
                                         && action == EntityAction::Off
                                     {
+                                        if Self::is_movement_input_action(&entity.action)
+                                            && entity.action != EntityAction::Off
+                                            && Self::should_use_directional_player_intent(
+                                                entity,
+                                                click_intents_2d,
+                                            )
+                                        {
+                                            return;
+                                        }
                                         entity.action = EntityAction::Off;
                                         return;
                                     }
@@ -5999,20 +6709,6 @@ impl RegionInstance {
                 }
                 // Store the tick we executed this in
                 state_data.set(&todo.1, Value::Int64(ticks));
-
-                if let Some(specific_intent_key) = &specific_intent_key {
-                    let pending_key = format!(
-                        "__pending_intent_cooldown:{}",
-                        todo.2
-                            .as_string()
-                            .map(|intent| intent.trim().to_ascii_lowercase())
-                            .unwrap_or_default()
-                    );
-                    if let Some(value) = state_data.get(&pending_key).cloned() {
-                        state_data.set(specific_intent_key, value);
-                        state_data.remove(&pending_key);
-                    }
-                }
             } else {
                 let mut vc = ValueContainer::default();
                 vc.set(&todo.1, Value::Int64(ticks));
@@ -6065,6 +6761,11 @@ impl RegionInstance {
                         }
                         flush_pending_entity_transfers(ctx);
                     }
+                }
+                if todo.1 == "intent"
+                    && let Some(intent) = todo.2.as_string()
+                {
+                    apply_pending_intent_cooldown(ctx, todo.0, intent);
                 }
                 ctx.current_damage_kind = None;
                 ctx.current_damage_source_item = None;
@@ -6463,6 +7164,23 @@ impl RegionInstance {
             let intent = entity.attributes.get_str_default("intent", "".into());
             let intent_lower = intent.trim().to_ascii_lowercase();
             let rules = intent_rule_config(ctx, entity.id, &intent_lower);
+
+            if let Some(action_id) = intent.trim().strip_prefix("action:") {
+                if let Some(target_entity_id) = target_entity_id {
+                    _ = execute_ruleset_action(
+                        ctx,
+                        entity.id,
+                        action_id.trim(),
+                        Some(target_entity_id),
+                    );
+                } else {
+                    send_message(ctx, entity.id, "{system.cant_do_that}".into(), "warning");
+                }
+                if !keep_intent {
+                    entity.set_attribute("intent", Value::Str(String::new()));
+                }
+                return;
+            }
 
             if let Some(spell_template) = intent.trim().strip_prefix("spell:") {
                 let spell_template = spell_template.trim();
@@ -7356,9 +8074,22 @@ pub(crate) fn spell_cooldown_key(template: &str) -> String {
     format!("__spell_cd_{}", template.trim().to_ascii_lowercase())
 }
 
+pub(crate) fn action_cooldown_key(action_id: &str) -> String {
+    format!("__action_cd_{}", action_id.trim().to_ascii_lowercase())
+}
+
 pub(crate) fn is_spell_on_cooldown(ctx: &RegionCtx, caster_id: u32, template: &str) -> bool {
     let key = spell_cooldown_key(template);
-    if let Some(state) = ctx.entity_state_data.get(&caster_id)
+    is_cooldown_key_active(ctx, caster_id, &key)
+}
+
+pub(crate) fn is_action_on_cooldown(ctx: &RegionCtx, actor_id: u32, action_id: &str) -> bool {
+    let key = action_cooldown_key(action_id);
+    is_cooldown_key_active(ctx, actor_id, &key)
+}
+
+fn is_cooldown_key_active(ctx: &RegionCtx, entity_id: u32, key: &str) -> bool {
+    if let Some(state) = ctx.entity_state_data.get(&entity_id)
         && let Some(value) = state.get(&key)
     {
         return match value {
@@ -7371,23 +8102,45 @@ pub(crate) fn is_spell_on_cooldown(ctx: &RegionCtx, caster_id: u32, template: &s
     false
 }
 
+fn set_cooldown_key(ctx: &mut RegionCtx, entity_id: u32, key: String, cooldown_seconds: f32) {
+    if cooldown_seconds <= 0.0 {
+        return;
+    }
+    if let Some(state) = ctx.entity_state_data.get_mut(&entity_id) {
+        state.set(&key, Value::Float(cooldown_seconds));
+    } else {
+        let mut vc = ValueContainer::default();
+        vc.set(&key, Value::Float(cooldown_seconds));
+        ctx.entity_state_data.insert(entity_id, vc);
+    }
+}
+
 pub(crate) fn set_spell_cooldown(
     ctx: &mut RegionCtx,
     caster_id: u32,
     template: &str,
     cooldown_seconds: f32,
 ) {
-    if cooldown_seconds <= 0.0 {
-        return;
-    }
-    let key = spell_cooldown_key(template);
-    if let Some(state) = ctx.entity_state_data.get_mut(&caster_id) {
-        state.set(&key, Value::Float(cooldown_seconds));
-    } else {
-        let mut vc = ValueContainer::default();
-        vc.set(&key, Value::Float(cooldown_seconds));
-        ctx.entity_state_data.insert(caster_id, vc);
-    }
+    set_cooldown_key(
+        ctx,
+        caster_id,
+        spell_cooldown_key(template),
+        cooldown_seconds,
+    );
+}
+
+pub(crate) fn set_action_cooldown(
+    ctx: &mut RegionCtx,
+    actor_id: u32,
+    action_id: &str,
+    cooldown_seconds: f32,
+) {
+    set_cooldown_key(
+        ctx,
+        actor_id,
+        action_cooldown_key(action_id),
+        cooldown_seconds,
+    );
 }
 
 fn update_spell_cooldowns(ctx: &mut RegionCtx, dt: f32) {
@@ -7397,7 +8150,7 @@ fn update_spell_cooldowns(ctx: &mut RegionCtx, dt: f32) {
     for state in ctx.entity_state_data.values_mut() {
         let keys: Vec<String> = state
             .keys()
-            .filter(|k| k.starts_with("__spell_cd_"))
+            .filter(|k| k.starts_with("__spell_cd_") || k.starts_with("__action_cd_"))
             .cloned()
             .collect();
         for key in keys {
@@ -7482,6 +8235,1080 @@ fn numeric_attr(attrs: &ValueContainer, key: &str) -> Option<f32> {
     }
 }
 
+enum RulesetSpellCastResult {
+    NotRulesetSpell,
+    Cast(i32),
+    HandledFailure,
+}
+
+fn ruleset_spell_table(ctx: &RegionCtx, spell_id: &str) -> Option<toml::value::Table> {
+    ctx.rules
+        .get("spells")
+        .and_then(toml::Value::as_table)
+        .and_then(|spells| spells.get(spell_id))
+        .and_then(toml::Value::as_table)
+        .cloned()
+}
+
+fn ruleset_action_table(ctx: &RegionCtx, action_id: &str) -> Option<toml::value::Table> {
+    ctx.rules
+        .get("actions")
+        .and_then(toml::Value::as_table)
+        .and_then(|actions| actions.get(action_id))
+        .and_then(toml::Value::as_table)
+        .cloned()
+}
+
+fn ruleset_action_for_spell(ctx: &RegionCtx, spell_id: &str) -> Option<toml::value::Table> {
+    if let Some(action) = ruleset_action_table(ctx, spell_id)
+        && action
+            .get("kind")
+            .and_then(toml::Value::as_str)
+            .is_some_and(|kind| kind.trim().eq_ignore_ascii_case("spell"))
+    {
+        return Some(action);
+    }
+
+    ctx.rules
+        .get("actions")
+        .and_then(toml::Value::as_table)?
+        .values()
+        .filter_map(toml::Value::as_table)
+        .find(|action| {
+            action
+                .get("requires")
+                .and_then(toml::Value::as_table)
+                .and_then(|requires| requires.get("spell"))
+                .and_then(toml::Value::as_str)
+                .is_some_and(|value| value.trim() == spell_id)
+        })
+        .cloned()
+}
+
+fn ruleset_action_for_intent(ctx: &RegionCtx, intent: &str) -> Option<toml::value::Table> {
+    let intent = intent.trim();
+    if intent.is_empty() {
+        return None;
+    }
+
+    ctx.rules
+        .get("actions")
+        .and_then(toml::Value::as_table)?
+        .get(intent)
+        .and_then(toml::Value::as_table)
+        .cloned()
+        .or_else(|| {
+            ctx.rules
+                .get("actions")
+                .and_then(toml::Value::as_table)?
+                .values()
+                .filter_map(toml::Value::as_table)
+                .find(|action| {
+                    action
+                        .get("intent")
+                        .and_then(toml::Value::as_str)
+                        .is_some_and(|value| value.trim().eq_ignore_ascii_case(intent))
+                })
+                .cloned()
+        })
+}
+
+fn ruleset_spell_display_name(spell_id: &str, spell: &toml::value::Table) -> String {
+    rule_string(spell, "name")
+        .map(str::to_string)
+        .unwrap_or_else(|| spell_id.replace('_', " "))
+}
+
+fn ruleset_fx_preset_table(ctx: &RegionCtx, preset_id: &str) -> Option<toml::value::Table> {
+    ctx.rules
+        .get("fx")
+        .and_then(toml::Value::as_table)
+        .and_then(|fx| fx.get("presets"))
+        .and_then(toml::Value::as_table)
+        .and_then(|presets| presets.get(preset_id))
+        .and_then(toml::Value::as_table)
+        .cloned()
+}
+
+fn ruleset_fx_stage_from_table(
+    table: &toml::value::Table,
+    stage: &str,
+) -> Option<toml::value::Table> {
+    let value = table
+        .get("fx")
+        .and_then(toml::Value::as_table)
+        .and_then(|fx| fx.get(stage))?;
+    if let Some(stage_table) = value.as_table() {
+        return Some(stage_table.clone());
+    }
+    value.as_str().map(|preset| {
+        let mut table = toml::value::Table::new();
+        table.insert(
+            "preset".into(),
+            toml::Value::String(preset.trim().to_string()),
+        );
+        table
+    })
+}
+
+fn ruleset_fx_stage_table(
+    action: Option<&toml::value::Table>,
+    spell: &toml::value::Table,
+    stage: &str,
+) -> Option<toml::value::Table> {
+    action
+        .and_then(|action| ruleset_fx_stage_from_table(action, stage))
+        .or_else(|| ruleset_fx_stage_from_table(spell, stage))
+}
+
+fn ruleset_fx_color(name: &str) -> [u8; 4] {
+    match name.trim().to_ascii_lowercase().as_str() {
+        "warm_white" => [252, 232, 183, 255],
+        "soft_yellow" => [245, 214, 117, 255],
+        "gold" => [224, 169, 64, 255],
+        "yellow" => [248, 222, 85, 255],
+        "orange" => [219, 114, 54, 255],
+        "red" => [172, 55, 45, 255],
+        "dark_smoke" => [62, 57, 55, 210],
+        "smoke" => [108, 101, 96, 220],
+        "blue" => [89, 143, 214, 255],
+        "green" => [91, 174, 103, 255],
+        _ => [240, 235, 214, 255],
+    }
+}
+
+fn ruleset_fx_colors(table: &toml::value::Table) -> Vec<[u8; 4]> {
+    table
+        .get("colors")
+        .and_then(toml::Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(ruleset_fx_color)
+                .collect::<Vec<_>>()
+        })
+        .filter(|colors| !colors.is_empty())
+        .unwrap_or_else(|| vec![ruleset_fx_color("warm_white"), ruleset_fx_color("gold")])
+}
+
+fn ruleset_fx_duration_seconds(value: Option<&toml::Value>) -> f32 {
+    match value {
+        Some(toml::Value::Integer(value)) => (*value as f32).max(0.05),
+        Some(toml::Value::Float(value)) => (*value as f32).max(0.05),
+        Some(toml::Value::String(value)) => match value.trim().to_ascii_lowercase().as_str() {
+            "instant" => 0.25,
+            "short" => 0.45,
+            "medium" => 0.85,
+            "long" => 1.4,
+            "travel" => 0.5,
+            _ => 0.55,
+        },
+        _ => 0.55,
+    }
+}
+
+fn ruleset_fx_size_scale(value: Option<&toml::Value>) -> f32 {
+    match value {
+        Some(toml::Value::Integer(value)) => (*value as f32).max(0.1),
+        Some(toml::Value::Float(value)) => (*value as f32).max(0.1),
+        Some(toml::Value::String(value)) => match value.trim().to_ascii_lowercase().as_str() {
+            "tiny" => 0.65,
+            "small" => 0.85,
+            "medium" => 1.1,
+            "large" => 1.45,
+            _ => 1.0,
+        },
+        _ => 1.0,
+    }
+}
+
+fn ruleset_fx_density_rate(value: Option<&toml::Value>) -> f32 {
+    match value {
+        Some(toml::Value::Integer(value)) => (*value as f32).max(1.0),
+        Some(toml::Value::Float(value)) => (*value as f32).max(1.0),
+        Some(toml::Value::String(value)) => match value.trim().to_ascii_lowercase().as_str() {
+            "light" => 32.0,
+            "medium" => 72.0,
+            "dense" => 140.0,
+            _ => 30.0,
+        },
+        _ => 30.0,
+    }
+}
+
+fn ruleset_fx_emitter(preset: &toml::value::Table) -> (ParticleEmitter, f32, f32) {
+    let colors = ruleset_fx_colors(preset);
+    let base_color = colors[0];
+    let mut ramp = [base_color; 4];
+    for (index, color) in colors.iter().take(4).enumerate() {
+        ramp[index] = *color;
+    }
+    for index in colors.len().min(4)..4 {
+        ramp[index] = *colors.last().unwrap_or(&base_color);
+    }
+
+    let shape = rule_string(preset, "shape").unwrap_or("motes");
+    let motion = rule_string(preset, "motion").unwrap_or("up");
+    let origin = rule_string(preset, "origin").unwrap_or("center");
+    let duration = ruleset_fx_duration_seconds(preset.get("duration"));
+    let size_scale = ruleset_fx_size_scale(preset.get("size"));
+    let density = ruleset_fx_density_rate(preset.get("density"));
+
+    let direction = match motion {
+        "radial_out" => Vec3::new(0.0, 1.0, 0.0),
+        "pulse" => Vec3::new(0.0, 1.0, 0.0),
+        "flicker_up" => Vec3::new(0.0, 1.0, 0.0),
+        _ => Vec3::new(0.0, 1.0, 0.0),
+    };
+    let mut emitter = ParticleEmitter::new(Vec3::new(0.0, 0.0, 0.0), direction);
+    emitter.color = base_color;
+    emitter.color_ramp = Some(ramp);
+    emitter.color_variation = if shape == "aura" { 12 } else { 24 };
+    emitter.rate = density;
+    emitter.spread = match motion {
+        "radial_out" | "pulse" => std::f32::consts::PI,
+        "up" => 0.18,
+        "flicker_up" => 0.9,
+        _ => 0.55,
+    };
+    emitter.lifetime_range = match shape {
+        "burst" => (0.24, 0.55),
+        "trail" => (0.25, 0.65),
+        "aura" => (0.35, 0.8),
+        _ => (0.28, 0.62),
+    };
+    emitter.radius_range = match shape {
+        "burst" => (0.06, 0.16),
+        "aura" => (0.08, 0.18),
+        "trail" => (0.04, 0.1),
+        _ => (0.055, 0.12),
+    };
+    emitter.speed_range = match motion {
+        "radial_out" => (1.4, 3.0),
+        "pulse" => (0.2, 0.8),
+        "flicker_up" => (0.5, 1.4),
+        "up" => (0.75, 1.6),
+        _ => (0.45, 1.2),
+    };
+    if origin == "tile" {
+        emitter.spawn_area = [0.42, 0.0, 0.42];
+    }
+    (emitter, duration, size_scale)
+}
+
+fn spawn_ruleset_fx_item(
+    ctx: &mut RegionCtx,
+    action: Option<&toml::value::Table>,
+    spell: &toml::value::Table,
+    stage: &str,
+    position: Vec3<f32>,
+) {
+    let Some(stage_table) = ruleset_fx_stage_table(action, spell, stage) else {
+        return;
+    };
+    let Some(preset_id) = rule_string(&stage_table, "preset") else {
+        return;
+    };
+    let Some(mut preset) = ruleset_fx_preset_table(ctx, preset_id) else {
+        return;
+    };
+    if let Some(colors) = stage_table.get("colors") {
+        preset.insert("colors".into(), colors.clone());
+    }
+    if let Some(size) = stage_table.get("size") {
+        preset.insert("size".into(), size.clone());
+    }
+    if let Some(duration) = stage_table.get("duration") {
+        preset.insert("duration".into(), duration.clone());
+    }
+    if let Some(density) = stage_table.get("density") {
+        preset.insert("density".into(), density.clone());
+    }
+
+    let (mut emitter, lifetime, size_scale) = ruleset_fx_emitter(&preset);
+    emitter.origin = position;
+    let mut item = Item::new();
+    item.id = get_global_id();
+    item.item_type = format!("ruleset_fx_{}_{}", stage, preset_id);
+    item.position = position;
+    item.set_attribute("is_ruleset_fx", Value::Bool(true));
+    item.set_attribute("visible", Value::Bool(false));
+    item.set_attribute("fx_preset", Value::Str(preset_id.to_string()));
+    item.set_attribute("fx_stage", Value::Str(stage.to_string()));
+    item.set_attribute("fx_lifetime", Value::Float(lifetime));
+    item.set_attribute("fx_lifetime_left", Value::Float(lifetime));
+    item.set_attribute("fx_size_scale", Value::Float(size_scale));
+    item.set_attribute("particle_emitter", Value::ParticleEmitter(emitter));
+    item.mark_all_dirty();
+    ctx.map.items.push(item);
+}
+
+fn action_cost_amount(action: Option<&toml::value::Table>, key: &str) -> Option<i32> {
+    action
+        .and_then(|action| action.get("cost"))
+        .and_then(toml::Value::as_table)
+        .and_then(|cost| cost.get(key))
+        .and_then(|value| match value {
+            toml::Value::Integer(value) => Some((*value).max(0) as i32),
+            toml::Value::Float(value) => Some(value.round().max(0.0) as i32),
+            _ => None,
+        })
+}
+
+fn action_number_or_spell(
+    action: Option<&toml::value::Table>,
+    spell: &toml::value::Table,
+    key: &str,
+    default: f32,
+) -> f32 {
+    if let Some(value) = action.and_then(|action| action.get(key)) {
+        match value {
+            toml::Value::Integer(value) => return *value as f32,
+            toml::Value::Float(value) => return *value as f32,
+            _ => {}
+        }
+    }
+    rule_number(spell, key, default)
+}
+
+fn ruleset_item_matches_id(item: &Item, item_id: &str) -> bool {
+    item.attributes
+        .get_str("ruleset_id")
+        .or_else(|| item.attributes.get_str("class_name"))
+        .or_else(|| item.attributes.get_str("name"))
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case(item_id))
+}
+
+fn action_consumes(action: Option<&toml::value::Table>) -> Vec<(String, usize)> {
+    let Some(action) = action else {
+        return Vec::new();
+    };
+    action
+        .get("consumes")
+        .and_then(toml::Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(toml::Value::as_table)
+                .filter_map(|entry| {
+                    let item = entry.get("item")?.as_str()?.trim();
+                    if item.is_empty() {
+                        return None;
+                    }
+                    let quantity = entry
+                        .get("quantity")
+                        .and_then(toml::Value::as_integer)
+                        .unwrap_or(1)
+                        .max(1) as usize;
+                    Some((item.to_string(), quantity))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn entity_has_action_consumes(entity: &Entity, consumes: &[(String, usize)]) -> Option<String> {
+    for (item_id, quantity) in consumes {
+        let count = entity
+            .inventory
+            .iter()
+            .filter_map(|item| item.as_ref())
+            .filter(|item| ruleset_item_matches_id(item, item_id))
+            .count();
+        if count < *quantity {
+            return Some(item_id.clone());
+        }
+    }
+    None
+}
+
+fn consume_action_items(ctx: &mut RegionCtx, entity_id: u32, consumes: &[(String, usize)]) {
+    if consumes.is_empty() {
+        return;
+    }
+    let Some(entity) = ctx
+        .map
+        .entities
+        .iter_mut()
+        .find(|entity| entity.id == entity_id)
+    else {
+        return;
+    };
+    for (item_id, quantity) in consumes {
+        let mut remaining = *quantity;
+        for slot in 0..entity.inventory.len() {
+            if remaining == 0 {
+                break;
+            }
+            let matches = entity
+                .inventory
+                .get(slot)
+                .and_then(|item| item.as_ref())
+                .is_some_and(|item| ruleset_item_matches_id(item, item_id));
+            if matches {
+                let _ = entity.remove_item_from_slot(slot);
+                remaining = remaining.saturating_sub(1);
+            }
+        }
+    }
+}
+
+fn table_string_array_contains(table: &toml::value::Table, key: &str, needle: &str) -> bool {
+    table
+        .get(key)
+        .and_then(toml::Value::as_array)
+        .is_some_and(|values| {
+            values
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .any(|value| value.trim() == needle)
+        })
+}
+
+fn ruleset_ability_table(ctx: &RegionCtx, ability_id: &str) -> Option<toml::value::Table> {
+    ctx.rules
+        .get("abilities")
+        .and_then(toml::Value::as_table)
+        .and_then(|abilities| abilities.get(ability_id))
+        .and_then(toml::Value::as_table)
+        .cloned()
+}
+
+fn entity_ability_attr_contains(entity: &Entity, ability_id: &str) -> bool {
+    match entity.attributes.get("abilities") {
+        Some(Value::StrArray(values)) => values.iter().any(|value| value.trim() == ability_id),
+        Some(Value::Str(value)) => value
+            .split(',')
+            .map(str::trim)
+            .any(|value| value == ability_id),
+        _ => false,
+    }
+}
+
+fn class_unlocks_ability(class: &toml::value::Table, ability_id: &str, level: f32) -> bool {
+    let Some(unlocks) = class.get("unlocks").and_then(toml::Value::as_table) else {
+        return false;
+    };
+    for (key, value) in unlocks {
+        let Some(unlock_level) = key
+            .strip_prefix("level_")
+            .and_then(|suffix| suffix.parse::<f32>().ok())
+        else {
+            continue;
+        };
+        if unlock_level <= level
+            && let Some(table) = value.as_table()
+            && table_string_array_contains(table, "abilities", ability_id)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn entity_knows_ruleset_ability(ctx: &RegionCtx, entity: &Entity, ability_id: &str) -> bool {
+    if entity_ability_attr_contains(entity, ability_id) {
+        return true;
+    }
+
+    let Some(class_name) = entity
+        .attributes
+        .get_str("class")
+        .or_else(|| entity.attributes.get_str("CLASS"))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return true;
+    };
+    let Some(class) = ruleset_class_table(&ctx.rules, class_name) else {
+        return true;
+    };
+
+    if table_string_array_contains(class, "abilities", ability_id) {
+        return true;
+    }
+    if class
+        .get("starting_loadout")
+        .and_then(toml::Value::as_table)
+        .is_some_and(|loadout| table_string_array_contains(loadout, "abilities", ability_id))
+    {
+        return true;
+    }
+
+    let level = entity.attributes.get_float_default(&ctx.level_attr, 1.0);
+    class_unlocks_ability(class, ability_id, level)
+}
+
+fn action_required_ability(action: &toml::value::Table) -> Option<&str> {
+    action
+        .get("requires")
+        .and_then(toml::Value::as_table)
+        .and_then(|requires| requires.get("ability"))
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn action_required_spell(action: &toml::value::Table) -> Option<&str> {
+    action
+        .get("requires")
+        .and_then(toml::Value::as_table)
+        .and_then(|requires| requires.get("spell"))
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn ruleset_table_at_path(ctx: &RegionCtx, path: &str) -> Option<toml::value::Table> {
+    let mut parts = path.split('.').filter(|part| !part.trim().is_empty());
+    let first = parts.next()?.trim();
+    let mut value = ctx.rules.get(first)?;
+    for part in parts {
+        value = value.as_table()?.get(part.trim())?;
+    }
+    value.as_table().cloned()
+}
+
+fn entity_spell_attr_contains(entity: &Entity, spell_id: &str) -> bool {
+    match entity.attributes.get("spells") {
+        Some(Value::StrArray(values)) => values.iter().any(|value| value.trim() == spell_id),
+        Some(Value::Str(value)) => value
+            .split(',')
+            .map(str::trim)
+            .any(|value| value == spell_id),
+        _ => false,
+    }
+}
+
+fn class_unlocks_spell(class: &toml::value::Table, spell_id: &str, level: f32) -> bool {
+    let Some(unlocks) = class.get("unlocks").and_then(toml::Value::as_table) else {
+        return false;
+    };
+    for (key, value) in unlocks {
+        let Some(unlock_level) = key
+            .strip_prefix("level_")
+            .and_then(|value| value.parse::<f32>().ok())
+        else {
+            continue;
+        };
+        if unlock_level > level {
+            continue;
+        }
+        if value
+            .as_table()
+            .is_some_and(|unlock| table_string_array_contains(unlock, "spells", spell_id))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn entity_knows_ruleset_spell(ctx: &RegionCtx, entity: &Entity, spell_id: &str) -> bool {
+    if entity_spell_attr_contains(entity, spell_id) {
+        return true;
+    }
+
+    let Some(class_name) = entity
+        .attributes
+        .get_str("class")
+        .or_else(|| entity.attributes.get_str("CLASS"))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return true;
+    };
+    let Some(class) = ruleset_class_table(&ctx.rules, class_name) else {
+        return true;
+    };
+
+    if table_string_array_contains(class, "spells", spell_id) {
+        return true;
+    }
+    if class
+        .get("starting_loadout")
+        .and_then(toml::Value::as_table)
+        .is_some_and(|loadout| table_string_array_contains(loadout, "spells", spell_id))
+    {
+        return true;
+    }
+
+    let level = entity.attributes.get_float_default(&ctx.level_attr, 1.0);
+    class_unlocks_spell(class, spell_id, level)
+}
+
+fn apply_ruleset_heal_direct(
+    ctx: &mut RegionCtx,
+    target_id: u32,
+    caster_id: u32,
+    amount: i32,
+    spell_name: &str,
+) -> bool {
+    if amount <= 0 {
+        return false;
+    }
+    let health_attr = ctx.health_attr.clone();
+    let mut healed = 0;
+    if let Some(entity) = ctx.map.entities.iter_mut().find(|e| e.id == target_id) {
+        let hp = entity.attributes.get_int_default(&health_attr, 0);
+        let max_health_attr = format!("MAX_{}", health_attr);
+        let max_hp = entity
+            .attributes
+            .get_float(&max_health_attr)
+            .or_else(|| entity.attributes.get_float("MAX_HP"))
+            .unwrap_or(hp.max(1) as f32)
+            .round()
+            .max(1.0) as i32;
+        let new_hp = (hp + amount).min(max_hp);
+        healed = (new_hp - hp).max(0);
+        entity.set_attribute(&health_attr, Value::Int(new_hp));
+    }
+    if healed > 0 {
+        let target_name = ctx.get_entity_name(target_id);
+        let caster_name = ctx.get_entity_name(caster_id);
+        send_ruleset_message(
+            ctx,
+            caster_id,
+            "spells",
+            "heal",
+            "spells.heal",
+            &[
+                ("caster", caster_name),
+                ("spell", spell_name.to_string()),
+                ("target", target_name),
+                ("amount", healed.to_string()),
+            ],
+            "success",
+        );
+    }
+    healed > 0
+}
+
+fn action_display_name(action_id: &str, action: &toml::value::Table) -> String {
+    rule_string(action, "name")
+        .map(str::to_string)
+        .unwrap_or_else(|| action_id.replace('_', " "))
+}
+
+fn action_target_allowed(
+    ctx: &RegionCtx,
+    action: &toml::value::Table,
+    actor_id: u32,
+    target_id: u32,
+) -> bool {
+    match rule_string(action, "target")
+        .unwrap_or("any_entity")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "hostile_entity" => entity_is_hostile_by_id(ctx, actor_id, target_id),
+        "friendly_entity" => {
+            entity_disposition_by_id(ctx, actor_id, target_id).as_deref() == Some("friendly")
+        }
+        "friendly_or_self" => {
+            actor_id == target_id
+                || entity_disposition_by_id(ctx, actor_id, target_id).as_deref() == Some("friendly")
+        }
+        "any_entity" => true,
+        _ => true,
+    }
+}
+
+fn action_range_limit(
+    ctx: &RegionCtx,
+    action: &toml::value::Table,
+    actor: &Entity,
+    fallback: f32,
+) -> f32 {
+    match action.get("range") {
+        Some(toml::Value::Integer(value)) => (*value as f32).max(0.0),
+        Some(toml::Value::Float(value)) => (*value as f32).max(0.0),
+        Some(toml::Value::String(value)) if value.trim().eq_ignore_ascii_case("weapon") => {
+            current_attack_range_for_entity(ctx, actor, Some(fallback)).unwrap_or(fallback)
+        }
+        _ => fallback.max(0.0),
+    }
+}
+
+fn action_damage_roll(
+    ctx: &RegionCtx,
+    actor: &Entity,
+    action: &toml::value::Table,
+) -> Option<(i32, String, Option<u32>)> {
+    let source_item_id = current_attack_source_item_id_for_entity(ctx, actor.id);
+    let result = action.get("result").and_then(toml::Value::as_table)?;
+    let damage = result.get("damage")?.as_str()?.trim();
+    if damage.eq_ignore_ascii_case("weapon") {
+        let kind = current_attack_kind_for_entity(ctx, actor.id, source_item_id);
+        return Some((
+            current_attack_base_damage_for_entity(ctx, actor.id),
+            kind,
+            source_item_id,
+        ));
+    }
+
+    let table = ruleset_table_at_path(ctx, damage)?;
+    let amount = roll_damage_table(Some(actor), &table)?.round().max(0.0) as i32;
+    let kind = rule_string(&table, "damage_kind")
+        .or_else(|| rule_string(action, "damage_kind"))
+        .map(str::to_string)
+        .or_else(|| {
+            action_required_ability(action)
+                .and_then(|ability_id| ruleset_ability_table(ctx, ability_id))
+                .and_then(|ability| rule_string(&ability, "damage_kind").map(str::to_string))
+        })
+        .unwrap_or_else(|| "physical".to_string());
+    Some((amount, kind, source_item_id))
+}
+
+pub(crate) fn execute_ruleset_action(
+    ctx: &mut RegionCtx,
+    actor_id: u32,
+    action_id: &str,
+    target_id: Option<u32>,
+) -> bool {
+    let action_id = action_id.trim();
+    let Some(action) = ruleset_action_table(ctx, action_id) else {
+        send_ruleset_message(
+            ctx,
+            actor_id,
+            "actions",
+            "unknown",
+            "actions.unknown",
+            &[("action", action_id.to_string())],
+            "warning",
+        );
+        return false;
+    };
+    if let Some(spell_id) = action_required_spell(&action) {
+        let Some(target_id) = target_id else {
+            send_ruleset_message(
+                ctx,
+                actor_id,
+                "actions",
+                "missing_target",
+                "actions.missing_target",
+                &[],
+                "warning",
+            );
+            return false;
+        };
+        return !matches!(
+            cast_ruleset_spell_for_entity(ctx, actor_id, spell_id, target_id),
+            RulesetSpellCastResult::HandledFailure | RulesetSpellCastResult::NotRulesetSpell
+        );
+    }
+
+    let action_name = action_display_name(action_id, &action);
+    let Some(actor) = ctx.map.entities.iter().find(|entity| entity.id == actor_id) else {
+        return false;
+    };
+    if let Some(ability_id) = action_required_ability(&action)
+        && !entity_knows_ruleset_ability(ctx, actor, ability_id)
+    {
+        send_ruleset_message(
+            ctx,
+            actor_id,
+            "actions",
+            "cannot_use",
+            "actions.cannot_use",
+            &[("action", action_name.clone())],
+            "warning",
+        );
+        return false;
+    }
+    if is_action_on_cooldown(ctx, actor_id, action_id) {
+        send_ruleset_message(
+            ctx,
+            actor_id,
+            "actions",
+            "not_ready",
+            "actions.not_ready",
+            &[("action", action_name.clone())],
+            "warning",
+        );
+        return false;
+    }
+
+    let consumes = action_consumes(Some(&action));
+    if let Some(missing_item) = entity_has_action_consumes(actor, &consumes) {
+        send_ruleset_message(
+            ctx,
+            actor_id,
+            "actions",
+            "missing_item",
+            "actions.missing_item",
+            &[
+                ("item", missing_item.replace('_', " ")),
+                ("action", action_name.clone()),
+            ],
+            "warning",
+        );
+        return false;
+    }
+
+    let Some(target_id) = target_id else {
+        send_ruleset_message(
+            ctx,
+            actor_id,
+            "actions",
+            "missing_target",
+            "actions.missing_target",
+            &[],
+            "warning",
+        );
+        return false;
+    };
+    let Some(target) = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == target_id)
+    else {
+        send_ruleset_message(
+            ctx,
+            actor_id,
+            "system",
+            "not_seen_target",
+            "system.not_seen_target",
+            &[],
+            "warning",
+        );
+        return false;
+    };
+    if !action_target_allowed(ctx, &action, actor_id, target_id) {
+        send_message(ctx, actor_id, "{system.cant_do_that}".into(), "warning");
+        return false;
+    }
+    let range = action_range_limit(ctx, &action, actor, 1.5);
+    if range > 0.0 && actor.get_pos_xz().distance(target.get_pos_xz()) > range {
+        send_message(ctx, actor_id, "{system.too_far_away}".into(), "warning");
+        return false;
+    }
+
+    let Some((base_dmg, kind, source_item_id)) = action_damage_roll(ctx, actor, &action) else {
+        send_ruleset_message(
+            ctx,
+            actor_id,
+            "actions",
+            "no_effect",
+            "actions.no_effect",
+            &[("action", action_name.clone())],
+            "system",
+        );
+        return false;
+    };
+    consume_action_items(ctx, actor_id, &consumes);
+    let cooldown = rule_number(&action, "cooldown", 0.0).max(0.0);
+    set_action_cooldown(ctx, actor_id, action_id, cooldown);
+    queue_entity_damage(ctx, actor_id, target_id, base_dmg, &kind, source_item_id);
+    true
+}
+
+fn cast_ruleset_spell_for_entity(
+    ctx: &mut RegionCtx,
+    caster_id: u32,
+    spell_id: &str,
+    target_id: u32,
+) -> RulesetSpellCastResult {
+    let Some(spell) = ruleset_spell_table(ctx, spell_id) else {
+        return RulesetSpellCastResult::NotRulesetSpell;
+    };
+    let action = ruleset_action_for_spell(ctx, spell_id);
+    let spell_name = ruleset_spell_display_name(spell_id, &spell);
+
+    let Some(caster) = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == caster_id)
+    else {
+        return RulesetSpellCastResult::HandledFailure;
+    };
+    if !entity_knows_ruleset_spell(ctx, caster, spell_id) {
+        send_ruleset_message(
+            ctx,
+            caster_id,
+            "spells",
+            "cannot_cast",
+            "spells.cannot_cast",
+            &[("spell", spell_name.clone())],
+            "warning",
+        );
+        return RulesetSpellCastResult::HandledFailure;
+    }
+    if is_spell_on_cooldown(ctx, caster_id, spell_id) {
+        send_ruleset_message(
+            ctx,
+            caster_id,
+            "spells",
+            "not_ready",
+            "spells.not_ready",
+            &[("spell", spell_name.clone())],
+            "warning",
+        );
+        return RulesetSpellCastResult::HandledFailure;
+    }
+
+    let Some(target) = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == target_id)
+    else {
+        return RulesetSpellCastResult::HandledFailure;
+    };
+    let caster_pos = caster.position;
+    let target_pos = target.position;
+    let range = action_number_or_spell(action.as_ref(), &spell, "range", 0.0).max(0.0);
+    if range > 0.0 && caster.get_pos_xz().distance(target.get_pos_xz()) > range {
+        send_message(ctx, caster_id, "{system.too_far_away}".into(), "warning");
+        return RulesetSpellCastResult::HandledFailure;
+    }
+
+    let cost_mp = action_cost_amount(action.as_ref(), "MP")
+        .unwrap_or_else(|| rule_number(&spell, "cost_mp", 0.0).round().max(0.0) as i32);
+    if cost_mp > 0 {
+        let mp = caster.attributes.get_int_default("MP", 0);
+        if mp < cost_mp {
+            send_ruleset_message(
+                ctx,
+                caster_id,
+                "spells",
+                "not_enough_mp",
+                "spells.not_enough_mp",
+                &[("spell", spell_name.clone())],
+                "warning",
+            );
+            return RulesetSpellCastResult::HandledFailure;
+        }
+    }
+    let consumes = action_consumes(action.as_ref());
+    if let Some(missing_item) = entity_has_action_consumes(caster, &consumes) {
+        send_ruleset_message(
+            ctx,
+            caster_id,
+            "spells",
+            "missing_item",
+            "spells.missing_item",
+            &[
+                ("item", missing_item.replace('_', " ")),
+                ("spell", spell_name.clone()),
+            ],
+            "warning",
+        );
+        return RulesetSpellCastResult::HandledFailure;
+    }
+
+    let kind = rule_string(&spell, "kind")
+        .unwrap_or("damage")
+        .to_ascii_lowercase();
+    let roll_key = if kind == "heal" { "healing" } else { "damage" };
+    let Some(roll_table) = spell.get(roll_key).and_then(toml::Value::as_table) else {
+        send_ruleset_message(
+            ctx,
+            caster_id,
+            "spells",
+            "no_rules",
+            "spells.no_rules",
+            &[
+                ("spell", spell_name.clone()),
+                ("rule", roll_key.to_string()),
+            ],
+            "warning",
+        );
+        return RulesetSpellCastResult::HandledFailure;
+    };
+    let amount = roll_damage_table(Some(caster), roll_table)
+        .unwrap_or(0.0)
+        .round()
+        .max(0.0) as i32;
+    if amount <= 0 {
+        send_ruleset_message(
+            ctx,
+            caster_id,
+            "spells",
+            "no_effect",
+            "spells.no_effect",
+            &[("spell", spell_name.clone())],
+            "system",
+        );
+        return RulesetSpellCastResult::HandledFailure;
+    }
+
+    if cost_mp > 0
+        && let Some(caster) = ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == caster_id)
+    {
+        let mp = caster.attributes.get_int_default("MP", 0);
+        caster.set_attribute("MP", Value::Int((mp - cost_mp).max(0)));
+    }
+    consume_action_items(ctx, caster_id, &consumes);
+    let cooldown = action_number_or_spell(action.as_ref(), &spell, "cooldown", 0.0).max(0.0);
+    set_spell_cooldown(ctx, caster_id, spell_id, cooldown);
+    spawn_ruleset_fx_item(
+        ctx,
+        action.as_ref(),
+        &spell,
+        "cast",
+        Vec3::new(caster_pos.x, caster_pos.y + 0.55, caster_pos.z),
+    );
+
+    if kind == "heal" {
+        if !apply_ruleset_heal_direct(ctx, target_id, caster_id, amount, &spell_name) {
+            send_ruleset_message(
+                ctx,
+                caster_id,
+                "spells",
+                "no_effect",
+                "spells.no_effect",
+                &[("spell", spell_name.clone())],
+                "system",
+            );
+        } else {
+            spawn_ruleset_fx_item(
+                ctx,
+                action.as_ref(),
+                &spell,
+                "impact",
+                Vec3::new(target_pos.x, target_pos.y + 0.55, target_pos.z),
+            );
+        }
+        return RulesetSpellCastResult::Cast(0);
+    }
+
+    let damage_kind = rule_string(roll_table, "damage_kind")
+        .or_else(|| rule_string(&spell, "damage_kind"))
+        .unwrap_or("spell")
+        .to_string();
+    let final_amount = apply_damage_rules(ctx, target_id, caster_id, amount, &damage_kind, 0);
+    if final_amount <= 0 {
+        send_ruleset_message(
+            ctx,
+            caster_id,
+            "spells",
+            "no_effect",
+            "spells.no_effect",
+            &[("spell", spell_name.clone())],
+            "system",
+        );
+        return RulesetSpellCastResult::Cast(0);
+    }
+    _ = apply_damage_direct(ctx, target_id, caster_id, final_amount, &damage_kind, None);
+    spawn_ruleset_fx_item(
+        ctx,
+        action.as_ref(),
+        &spell,
+        "impact",
+        Vec3::new(target_pos.x, target_pos.y + 0.55, target_pos.z),
+    );
+    RulesetSpellCastResult::Cast(0)
+}
+
 fn cast_spell_for_entity(
     ctx: &mut RegionCtx,
     caster_id: u32,
@@ -7489,6 +9316,12 @@ fn cast_spell_for_entity(
     target_id: u32,
     success_pct: f32,
 ) -> i32 {
+    match cast_ruleset_spell_for_entity(ctx, caster_id, template, target_id) {
+        RulesetSpellCastResult::Cast(spell_id) => return spell_id,
+        RulesetSpellCastResult::HandledFailure => return -2,
+        RulesetSpellCastResult::NotRulesetSpell => {}
+    }
+
     if is_spell_on_cooldown(ctx, caster_id, template) {
         return -1;
     }
@@ -7613,6 +9446,29 @@ fn cast_spell_for_entity_to_pos(
     target_pos_2d: Vec2<f32>,
     success_pct: f32,
 ) -> i32 {
+    if let Some(spell) = ruleset_spell_table(ctx, template) {
+        if rule_string(&spell, "kind")
+            .unwrap_or("damage")
+            .eq_ignore_ascii_case("heal")
+        {
+            return match cast_ruleset_spell_for_entity(ctx, caster_id, template, caster_id) {
+                RulesetSpellCastResult::Cast(spell_id) => spell_id,
+                RulesetSpellCastResult::HandledFailure => -2,
+                RulesetSpellCastResult::NotRulesetSpell => -1,
+            };
+        }
+        send_ruleset_message(
+            ctx,
+            caster_id,
+            "spells",
+            "missing_target",
+            "spells.missing_target",
+            &[],
+            "warning",
+        );
+        return -2;
+    }
+
     if is_spell_on_cooldown(ctx, caster_id, template) {
         return -1;
     }
@@ -8433,6 +10289,21 @@ fn queue_intent_cooldown(
     );
 }
 
+fn apply_pending_intent_cooldown(ctx: &mut RegionCtx, entity_id: u32, intent: &str) {
+    let intent = intent.trim().to_ascii_lowercase();
+    if intent.is_empty() {
+        return;
+    }
+    let pending_key = format!("__pending_intent_cooldown:{}", intent);
+    let active_key = format!("intent: {}", intent);
+    if let Some(state) = ctx.entity_state_data.get_mut(&entity_id)
+        && let Some(value) = state.get(&pending_key).cloned()
+    {
+        state.set(&active_key, value);
+        state.remove(&pending_key);
+    }
+}
+
 #[derive(Default)]
 struct IntentDistanceConfig {
     fixed: Option<f32>,
@@ -8513,6 +10384,51 @@ fn merge_intent_rule_config(config: &mut IntentRuleConfig, table: &toml::value::
     }
 }
 
+fn merge_action_intent_config(config: &mut IntentRuleConfig, action: &toml::value::Table) {
+    if let Some(target) = action.get("target").and_then(toml::Value::as_str) {
+        match target.trim().to_ascii_lowercase().as_str() {
+            "hostile_entity" => {
+                config.allowed_target_kinds = vec!["entity".into()];
+                config.allowed_dispositions = vec!["hostile".into()];
+            }
+            "friendly_entity" | "friendly_or_self" => {
+                config.allowed_target_kinds = vec!["entity".into()];
+                config.allowed_dispositions = vec!["friendly".into()];
+            }
+            "any_entity" => {
+                config.allowed_target_kinds = vec!["entity".into()];
+            }
+            "ground_item" | "item" => {
+                config.allowed_target_kinds = vec!["item".into()];
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(range) = action.get("range") {
+        if let Some(value) = range
+            .as_float()
+            .or_else(|| range.as_integer().map(|v| v as f64))
+        {
+            config.distance.fixed = Some(value as f32);
+        } else if range
+            .as_str()
+            .is_some_and(|value| value.trim().eq_ignore_ascii_case("weapon"))
+        {
+            config.distance.source = Some("weapon_range".into());
+            config.distance.fallback.get_or_insert(1.5);
+        }
+    }
+
+    if let Some(value) = action.get("cooldown").and_then(|value| {
+        value
+            .as_float()
+            .or_else(|| value.as_integer().map(|v| v as f64))
+    }) {
+        config.cooldown_minutes = Some(value as f32);
+    }
+}
+
 fn intent_rule_config_from_data(data: &str, intent: &str) -> Option<IntentRuleConfig> {
     let table = data.parse::<toml::Table>().ok()?;
     let intents = table.get("intents")?.as_table()?;
@@ -8524,6 +10440,10 @@ fn intent_rule_config_from_data(data: &str, intent: &str) -> Option<IntentRuleCo
 
 fn intent_rule_config(ctx: &RegionCtx, entity_id: u32, intent: &str) -> IntentRuleConfig {
     let mut config = IntentRuleConfig::default();
+    if let Some(action) = ruleset_action_for_intent(ctx, intent) {
+        merge_action_intent_config(&mut config, &action);
+    }
+
     if let Some(global) = ctx
         .rules
         .get("intents")
@@ -8789,6 +10709,70 @@ fn localized_template(ctx: &RegionCtx, key: &str) -> Option<String> {
                 .and_then(|translations| translations.get(key))
                 .cloned()
         })
+}
+
+fn locale_key_message(key: &str, params: &[(&str, String)]) -> String {
+    if params.is_empty() {
+        return format!("{{{}}}", key);
+    }
+    let params = params
+        .iter()
+        .map(|(name, value)| format!("{}={}", name, value))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{{{},{}}}", key, params)
+}
+
+fn render_localized_template(template: &str, params: &[(&str, String)]) -> String {
+    let mut rendered = template.to_string();
+    for (name, value) in params {
+        rendered = rendered.replace(&format!("{{{}}}", name), value);
+    }
+    rendered
+}
+
+fn localized_message(ctx: &RegionCtx, key: &str, params: &[(&str, String)]) -> String {
+    localized_template(ctx, key)
+        .map(|template| render_localized_template(&template, params))
+        .unwrap_or_else(|| locale_key_message(key, params))
+}
+
+fn ruleset_message_key(ctx: &RegionCtx, domain: &str, name: &str, fallback: &str) -> String {
+    let key_name = format!("{}_key", name);
+    ctx.rules
+        .get("messages")
+        .and_then(toml::Value::as_table)
+        .and_then(|messages| messages.get(domain))
+        .and_then(toml::Value::as_table)
+        .and_then(|messages| messages.get(&key_name))
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| fallback.to_string())
+}
+
+fn send_localized_message(
+    ctx: &RegionCtx,
+    entity_id: u32,
+    key: &str,
+    params: &[(&str, String)],
+    role: &str,
+) {
+    send_message(ctx, entity_id, localized_message(ctx, key, params), role);
+}
+
+fn send_ruleset_message(
+    ctx: &RegionCtx,
+    entity_id: u32,
+    domain: &str,
+    name: &str,
+    fallback_key: &str,
+    params: &[(&str, String)],
+    role: &str,
+) {
+    let key = ruleset_message_key(ctx, domain, name, fallback_key);
+    send_localized_message(ctx, entity_id, &key, params, role);
 }
 
 fn authored_description_from_entry(value: &toml::Value) -> Option<String> {
@@ -9984,16 +11968,17 @@ pub(crate) fn current_attack_cooldown_for_entity(ctx: &RegionCtx, entity: &Entit
         .map(|item| item.attributes.get_float_default("attack_cooldown", 0.0))
         .filter(|cooldown| *cooldown > 0.0)
         .unwrap_or_else(|| {
-            ctx.rules
-                .get("combat")
-                .and_then(toml::Value::as_table)
-                .and_then(|combat| combat.get("default_attack_cooldown"))
-                .and_then(|value| {
-                    value
-                        .as_float()
-                        .or_else(|| value.as_integer().map(|value| value as f64))
+            ruleset_action_table(ctx, "basic_attack")
+                .map(|action| rule_number(&action, "cooldown", 0.0))
+                .filter(|cooldown| *cooldown > 0.0)
+                .or_else(|| {
+                    ctx.rules
+                        .get("combat")
+                        .and_then(toml::Value::as_table)
+                        .and_then(|combat| combat.get("default_attack_cooldown"))
+                        .map(|value| progression_number(Some(value), 0.0))
+                        .filter(|cooldown| *cooldown > 0.0)
                 })
-                .map(|value| value as f32)
                 .unwrap_or(1.0)
         })
         .max(0.0)
@@ -10171,12 +12156,23 @@ fn queue_entity_attack_damage(ctx: &mut RegionCtx, attacker_id: u32, target_id: 
     let source_item_id = current_attack_source_item_id_for_entity(ctx, attacker_id);
     let kind = current_attack_kind_for_entity(ctx, attacker_id, source_item_id);
     let base_dmg = current_attack_base_damage_for_entity(ctx, attacker_id);
+    queue_entity_damage(ctx, attacker_id, target_id, base_dmg, &kind, source_item_id);
+}
+
+fn queue_entity_damage(
+    ctx: &mut RegionCtx,
+    attacker_id: u32,
+    target_id: u32,
+    base_dmg: i32,
+    kind: &str,
+    source_item_id: Option<u32>,
+) {
     let dmg = apply_damage_rules(
         ctx,
         target_id,
         attacker_id,
         base_dmg,
-        &kind,
+        kind,
         source_item_id.unwrap_or(0),
     );
 
@@ -10199,13 +12195,13 @@ fn queue_entity_attack_damage(ctx: &mut RegionCtx, attacker_id: u32, target_id: 
         .unwrap_or(false);
 
     if autodamage {
-        _ = apply_damage_direct(ctx, target_id, attacker_id, dmg, &kind, source_item_id);
+        _ = apply_damage_direct(ctx, target_id, attacker_id, dmg, kind, source_item_id);
     } else {
         let source_item_id = source_item_id.unwrap_or(0) as f32;
         ctx.to_execute_entity.push((
             target_id,
             "take_damage".into(),
-            VMValue::new_with_string(attacker_id as f32, dmg as f32, source_item_id, &kind),
+            VMValue::new_with_string(attacker_id as f32, dmg as f32, source_item_id, kind),
         ));
     }
 }
@@ -10717,6 +12713,19 @@ fn update_spell_items(ctx: &mut RegionCtx) {
     let mut pending_item_events: Vec<(u32, String, VMValue)> = Vec::new();
 
     for item in &mut ctx.map.items {
+        if item.attributes.get_bool_default("is_ruleset_fx", false) {
+            let mut lifetime_left = item.attributes.get_float_default(
+                "fx_lifetime_left",
+                item.attributes.get_float_default("fx_lifetime", 0.5),
+            );
+            lifetime_left -= dt;
+            item.set_attribute("fx_lifetime_left", Value::Float(lifetime_left));
+            if lifetime_left <= 0.0 {
+                despawn_item_ids.push(item.id);
+            }
+            continue;
+        }
+
         if !item.attributes.get_bool_default("is_spell", false) {
             continue;
         }

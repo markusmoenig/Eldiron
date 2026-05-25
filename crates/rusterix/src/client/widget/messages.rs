@@ -58,6 +58,11 @@ pub struct MessagesWidget {
     pub pause_blocks_input: bool,
     pub continue_prompt: String,
     pub continue_prompt_color: Pixel,
+    pub command_input: bool,
+    pub command_prompt: String,
+    pub command_prompt_color: Pixel,
+    pub command_text: String,
+    pub command_active: bool,
     pub max_messages: usize,
     pub scrollback: bool,
     pub(crate) paused: bool,
@@ -74,6 +79,17 @@ impl Default for MessagesWidget {
 
 impl MessagesWidget {
     const CHOICE_COLUMN_SEPARATOR: char = '\u{1f}';
+
+    fn command_input_enabled(&self) -> bool {
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        {
+            false
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        {
+            self.command_input
+        }
+    }
 
     pub fn new() -> Self {
         Self {
@@ -106,6 +122,11 @@ impl MessagesWidget {
             pause_blocks_input: true,
             continue_prompt: "Press to continue".into(),
             continue_prompt_color: [170, 170, 170, 255],
+            command_input: false,
+            command_prompt: "@".into(),
+            command_prompt_color: [215, 153, 33, 255],
+            command_text: String::new(),
+            command_active: false,
             max_messages: 100,
             scrollback: true,
             paused: false,
@@ -234,6 +255,15 @@ impl MessagesWidget {
                     .and_then(toml::Value::as_str)
                 {
                     self.continue_prompt_color = self.hex_to_rgba_u8(value);
+                }
+                if let Some(value) = ui.get("command_input").and_then(toml::Value::as_bool) {
+                    self.command_input = value;
+                }
+                if let Some(value) = ui.get("command_prompt").and_then(toml::Value::as_str) {
+                    self.command_prompt = value.to_string();
+                }
+                if let Some(value) = ui.get("command_prompt_color").and_then(toml::Value::as_str) {
+                    self.command_prompt_color = self.hex_to_rgba_u8(value);
                 }
                 if let Some(value) = ui.get("max_messages") {
                     if let Some(v) = value.as_integer() {
@@ -585,11 +615,12 @@ impl MessagesWidget {
                 self.rect.width.min(width as f32).max(0.0) as isize,
                 self.rect.height.min(height as f32).max(0.0) as isize,
             );
-            let prompt_reserved_height = if self.paused && self.pause_until.is_none() {
-                self.font_size.ceil() + self.message_spacing.max(self.spacing)
-            } else {
-                0.0
-            };
+            let prompt_reserved_height =
+                if self.command_input_enabled() || (self.paused && self.pause_until.is_none()) {
+                    self.font_size.ceil() + self.message_spacing.max(self.spacing)
+                } else {
+                    0.0
+                };
             let content_bottom = self.rect.y + (self.rect.height - prompt_reserved_height).max(0.0);
             let mut y = if self.top_down {
                 self.rect.y
@@ -818,6 +849,8 @@ impl MessagesWidget {
 
             if self.paused && self.pause_until.is_none() {
                 self.draw_continue_prompt(buffer, font, map, assets, time, stride, &clip_rect);
+            } else if self.command_input_enabled() {
+                self.draw_command_input(buffer, font, stride, &clip_rect);
             }
         }
 
@@ -942,6 +975,50 @@ impl MessagesWidget {
         );
     }
 
+    fn command_input_rect(&self) -> Rect {
+        Rect::new(
+            self.rect.x,
+            self.rect.y + self.rect.height - self.font_size.ceil(),
+            self.rect.width,
+            self.font_size.ceil(),
+        )
+    }
+
+    fn draw_command_input(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        font: &fontdue::Font,
+        stride: usize,
+        clip_rect: &(isize, isize, isize, isize),
+    ) {
+        let text = if self.command_active {
+            format!("{} {}_", self.command_prompt, self.command_text)
+        } else if self.command_text.is_empty() {
+            format!("{} ", self.command_prompt)
+        } else {
+            format!("{} {}", self.command_prompt, self.command_text)
+        };
+        let rect = self.command_input_rect();
+        let tuple = (
+            rect.x as isize,
+            rect.y as isize,
+            rect.width as isize,
+            rect.height as isize,
+        );
+        self.draw2d.text_rect_blend_safe_clip(
+            buffer.pixels_mut(),
+            &tuple,
+            stride,
+            font,
+            self.font_size,
+            &text,
+            &self.command_prompt_color,
+            draw2d::TheHorizontalAlign::Left,
+            draw2d::TheVerticalAlign::Center,
+            clip_rect,
+        );
+    }
+
     /// Converts a hex color string to a [u8; 4] (RGBA).
     /// Accepts "#RRGGBB" or "#RRGGBBAA" formats.
     fn hex_to_rgba_u8(&self, hex: &str) -> [u8; 4] {
@@ -973,6 +1050,14 @@ impl MessagesWidget {
         let inside = self
             .rect
             .contains(Vec2::new(coord.x as f32, coord.y as f32));
+        if self.command_input_enabled()
+            && self
+                .command_input_rect()
+                .contains(Vec2::new(coord.x as f32, coord.y as f32))
+        {
+            self.command_active = true;
+            return Some(EntityAction::Off);
+        }
         if inside && self.paused && self.pause_until.is_none() {
             self.continue_after_pause();
             self.reveal_pending_messages();
@@ -1025,6 +1110,56 @@ impl MessagesWidget {
 
     pub fn user_event(&mut self, event: &str, value: &Value) -> Option<EntityAction> {
         self.advance_pause_timer();
+        if self.command_input_enabled()
+            && !self.paused
+            && event == "key_down"
+            && let Value::Str(v) = value
+        {
+            let key = v.as_str();
+            let key_lower = key.trim().to_ascii_lowercase();
+            if !self.command_active {
+                if matches!(key_lower.as_str(), "enter" | "return" | "\n") || key == "/" {
+                    self.command_active = true;
+                    return Some(EntityAction::Off);
+                }
+                return None;
+            }
+
+            match key_lower.as_str() {
+                "enter" | "return" | "\n" => {
+                    let command = self.command_text.trim().to_string();
+                    self.command_text.clear();
+                    self.command_active = false;
+                    return if command.is_empty() {
+                        Some(EntityAction::Off)
+                    } else {
+                        Some(EntityAction::TextCommand(command))
+                    };
+                }
+                "escape" => {
+                    self.command_text.clear();
+                    self.command_active = false;
+                    return Some(EntityAction::Off);
+                }
+                "backspace" | "delete" => {
+                    self.command_text.pop();
+                    return Some(EntityAction::Off);
+                }
+                "space" => {
+                    self.command_text.push(' ');
+                    return Some(EntityAction::Off);
+                }
+                _ => {
+                    if key.chars().count() == 1
+                        && let Some(ch) = key.chars().next()
+                        && !ch.is_control()
+                    {
+                        self.command_text.push(ch);
+                        return Some(EntityAction::Off);
+                    }
+                }
+            }
+        }
         if !self.paused {
             return None;
         }

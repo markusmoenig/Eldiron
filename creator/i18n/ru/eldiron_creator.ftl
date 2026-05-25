@@ -27,6 +27,14 @@ dock_auto = Автоматически
 node_editor_create_button = Создать граф
 ## Render Editor
 render_editor_trace_button = Начать трассировку
+## Starter Project
+starter_dialog_title = Выберите стартовый проект
+starter_loading = Загрузка стартовых проектов...
+starter_loading_sub = Получение метаданных из репозитория Eldiron.
+starter_choose = Выбрать
+starter_cancel = Отмена
+starter_empty = Стартовые проекты не найдены.
+starter_empty_sub = Не удалось загрузить метаданные репозитория Eldiron.
 ## Tilemap
 tilemap_add_button = Добавить тайл(ы)
 
@@ -46,6 +54,9 @@ status_time_slider = Настроить время сервера.
 status_update_button = Обновить приложение.
 status_patreon_button = Посетить страницу Eldiron на Patreon. Спасибо за поддержку.
 status_help_button = Нажмите любой элемент интерфейса, чтобы открыть онлайн-документацию Eldiron.
+status_starter_choose = Выберите стартовый 2D- или 3D-проект.
+status_starter_initialized = Стартовый проект успешно создан.
+status_starter_load_failed = Не удалось загрузить стартовый проект!
 status_create_cutout_failed = Для выреза нужно выбрать минимум три точки линии поверхности на одной 3D-грани.
 status_create_cutout_open_loop = Для выреза нужны замкнутые контуры линий поверхности. Сначала завершите или замкните выбранную направляющую.
 status_create_cutout_multiple_faces = Для выреза пока нужны все выбранные направляющие контуры на одной базовой поверхности.

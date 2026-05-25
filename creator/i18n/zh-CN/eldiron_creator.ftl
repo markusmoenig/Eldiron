@@ -27,6 +27,14 @@ dock_auto = 自动
 node_editor_create_button = 创建图形
 ## Render Editor
 render_editor_trace_button = 开始追踪
+## Starter Project
+starter_dialog_title = 选择入门项目
+starter_loading = 正在加载入门项目...
+starter_loading_sub = 正在从 Eldiron 仓库获取元数据。
+starter_choose = 选择
+starter_cancel = 取消
+starter_empty = 未找到入门项目。
+starter_empty_sub = 无法加载 Eldiron 仓库元数据。
 ## Tilemap
 tilemap_add_button = 添加图块
 
@@ -46,6 +54,9 @@ status_time_slider = 调整服务器时间
 status_update_button = 更新应用程序
 status_patreon_button = 访问 Eldiron 的 Patreon 页面，感谢支持。
 status_help_button = 点击任意 UI 元素以访问 Eldiron 在线文档。
+status_starter_choose = 选择一个 2D 或 3D 入门项目。
+status_starter_initialized = 入门项目已成功初始化。
+status_starter_load_failed = 无法加载入门项目！
 status_create_cutout_failed = 创建开口需要在同一个 3D 面上至少选择三个表面线点。
 status_create_cutout_open_loop = 创建开口需要闭合的表面线环。请先结束或闭合选中的引导线。
 status_create_cutout_multiple_faces = 创建开口目前需要所有选中的引导线环位于同一个宿主表面。

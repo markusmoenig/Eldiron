@@ -85,6 +85,11 @@ defined in the ruleset, not repeated on the character.
 class = "Warrior"
 ```
 
+When `LEVEL` is set on a character, Eldiron applies the class progression rules
+for that level during spawn/load. Ruleset-managed values such as maximum HP/MP,
+primary attributes, abilities, and spells are derived from the class definition;
+explicit character attributes remain overrides.
+
 ---
 
 ## `color`
@@ -248,7 +253,7 @@ start_equipped_items = ["Shield", "Helmet"]
 
 *Character-only attribute.*
 
-The current mode of the entity. On startup of characters this is set to **"active"**. When the ruleset health attribute drops to zero or below, the server changes it to **"dead"** automatically. Dead characters do not receive events. Healers can set the mode attribute to **"active"** again. If health is still zero, `set_attr("mode", "active")` restores it from `MAX_<health>` or `MAX_HP`.
+The current mode of the entity. On startup of characters this is set to **"active"**. When the ruleset health attribute drops to zero or below, the server changes it to **"dead"** automatically. Dead characters do not receive events. Healers can set the mode attribute to **"active"** again. If health is still zero, `set_attr("mode", "active")` restores it to `1`.
 
 ```python
 set_attr("mode", "active")

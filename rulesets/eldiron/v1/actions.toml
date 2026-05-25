@@ -1,0 +1,81 @@
+# Actions are the sandbox-facing gameplay verbs.
+#
+# The first pass mirrors the current working combat, spell, and interaction
+# paths while giving them a shared data shape. Future sandbox actions such as
+# mining, crafting, lockpicking, stealing, taming, and talking should grow from
+# this same structure instead of becoming separate hardcoded systems.
+
+[actions.basic_attack]
+name = "Basic Attack"
+kind = "attack"
+intent = "attack"
+requires = { ability = "basic_attack" }
+target = "hostile_entity"
+range = "weapon"
+cooldown = 1.0
+result = { damage = "weapon" }
+
+[actions.power_strike]
+name = "Power Strike"
+kind = "attack"
+requires = { ability = "power_strike" }
+target = "hostile_entity"
+range = "weapon"
+cooldown = 4.0
+result = { damage = "abilities.power_strike.damage" }
+
+[actions.minor_heal]
+name = "Minor Heal"
+kind = "spell"
+requires = { spell = "minor_heal" }
+target = "friendly_or_self"
+range = 5
+cooldown = 4.0
+cost = { MP = 3 }
+consumes = []
+result = { healing = "spells.minor_heal.healing" }
+
+[actions.minor_heal.fx.cast]
+preset = "rising_motes"
+duration = 0.5
+density = "dense"
+size = "small"
+
+[actions.minor_heal.fx.impact]
+preset = "rising_motes"
+duration = 0.8
+density = "dense"
+size = "small"
+
+[actions.holy_light]
+name = "Holy Light"
+kind = "spell"
+requires = { spell = "holy_light" }
+target = "hostile_entity"
+range = 5
+cooldown = 5.0
+cost = { MP = 4 }
+consumes = []
+result = { damage = "spells.holy_light.damage" }
+
+[actions.holy_light.fx.cast]
+preset = "holy_glow"
+
+[actions.holy_light.fx.travel]
+preset = "holy_bolt"
+
+[actions.holy_light.fx.impact]
+preset = "hit_burst"
+colors = ["warm_white", "gold"]
+duration = 0.65
+density = "dense"
+size = "medium"
+
+[actions.take]
+name = "Take"
+kind = "interaction"
+intent = "take"
+target = "ground_item"
+range = 1.5
+cooldown = 0.0
+result = { take = true }

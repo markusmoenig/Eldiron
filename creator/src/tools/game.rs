@@ -229,6 +229,27 @@ impl Tool for GameTool {
                     }
                 }
             }
+            TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
+                if server_ctx.text_game_mode {
+                    return false;
+                }
+                let key = match code {
+                    TheKeyCode::Return => Some("enter"),
+                    TheKeyCode::Delete => Some("backspace"),
+                    TheKeyCode::Escape => Some("escape"),
+                    TheKeyCode::Space => Some("space"),
+                    _ => None,
+                };
+                if let Some(key) = key {
+                    let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                    if rusterix.server.state == rusterix::ServerState::Running {
+                        let action = rusterix
+                            .client
+                            .user_event("key_down".into(), Value::Str(key.to_string()));
+                        rusterix.server.local_player_action(action);
+                    }
+                }
+            }
             TheEvent::RenderViewHoverChanged(id, coord) => {
                 // Do not run "real game play" hover/cursor logic when only routing input
                 // from the editor view into the running server.

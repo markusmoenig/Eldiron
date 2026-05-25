@@ -1525,10 +1525,18 @@ impl DataDock {
     fn collect_project_validation_issues(project: &Project) -> Vec<String> {
         let mut issues = Vec::new();
 
-        let locale_tables = match Self::parse_locale_tables(&project.locales) {
+        let effective_locales =
+            match shared::rulesets::resolve_project_locales(&project.config, &project.locales) {
+                Ok(locales) => locales,
+                Err(err) => {
+                    issues.push(err);
+                    project.locales.clone()
+                }
+            };
+        let locale_tables = match Self::parse_locale_tables(&effective_locales) {
             Ok(locales) => locales,
             Err(err) => {
-                issues.push(format!("Locales TOML parse error: {}", err));
+                issues.push(format!("Effective locales TOML parse error: {}", err));
                 FxHashMap::default()
             }
         };
@@ -1685,23 +1693,24 @@ impl DataDock {
     }
 
     fn rules_locale_keys(rules: &Table) -> Vec<String> {
-        let mut keys = Vec::new();
-        if let Some(messages) = rules
-            .get("combat")
-            .and_then(toml::Value::as_table)
-            .and_then(|combat| combat.get("messages"))
-            .and_then(toml::Value::as_table)
-        {
-            for key in ["incoming_key", "outgoing_key"] {
-                if let Some(value) = messages
-                    .get(key)
-                    .and_then(toml::Value::as_str)
-                    .filter(|value| !value.trim().is_empty())
+        fn collect(table: &Table, keys: &mut Vec<String>) {
+            for (name, value) in table {
+                if name.ends_with("_key")
+                    && let Some(value) = value.as_str().map(str::trim)
+                    && !value.is_empty()
                 {
                     keys.push(value.to_string());
                 }
+                if let Some(child) = value.as_table() {
+                    collect(child, keys);
+                }
             }
         }
+
+        let mut keys = Vec::new();
+        collect(rules, &mut keys);
+        keys.sort();
+        keys.dedup();
         keys
     }
 

@@ -413,6 +413,9 @@ portrait_gap = 12
 - `pause_blocks_input`: blocks player input during message pauses, defaults to `true`
 - `scrollback`: lets the player use the mouse wheel to review older messages
 - `max_messages`: number of messages kept for scrollback, defaults to `100`
+- `command_input`: shows a desktop-only command input line at the bottom of the widget
+- `command_prompt`: prompt text for command input, defaults to `@`
+- `command_prompt_color`: command input color as `#RRGGBB`
 
 This is useful when long wrapped messages would otherwise run visually into the next message.
 
@@ -428,6 +431,26 @@ continue_prompt = "Press Space"
 pause_blocks_input = true
 scrollback = true
 max_messages = 200
+```
+
+### Command Input
+
+Enable `command_input` to add a desktop command line to the bottom of the Messages widget. It uses the same text command parser as text play, which makes it useful for testing ruleset actions directly in graphical play.
+
+```toml
+[ui]
+role = "messages"
+command_input = true
+command_prompt = "@"
+```
+
+Click the command line or press Return to focus it. Example commands:
+
+```text
+cast minor heal
+cast holy light orc
+take golden key
+look orc
 ```
 
 Scripts can also insert explicit pauses into the message stream. Use the `pause` category with an empty message to show the continue prompt, or with a number of seconds for a timed pause:

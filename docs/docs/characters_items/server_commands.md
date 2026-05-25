@@ -67,6 +67,33 @@ Use `attack()` for normal weapon or unarmed attacks.
 
 ---
 
+## `use_action`
+
+*This command can only be used with characters.*
+
+Runs a named ruleset action against the current target, or against an explicit
+target ID.
+
+```eldrin
+use_action("power_strike")
+use_action("power_strike", target_id)
+```
+
+Behavior:
+
+- reads the action from `[actions.<id>]` in the active ruleset
+- checks ability or spell requirements
+- checks target rules, range, cooldowns, and consumed reagents/items
+- applies the action result through the normal combat or spell path
+
+Text play can also trigger action names directly, for example:
+
+```text
+use power strike orc
+```
+
+---
+
 ## `close_in`
 
 *This command can only be used with characters.*
@@ -672,7 +699,7 @@ Sets an attribute on the current character or item.
 set_attr("key", value)
 ```
 
-Setting `mode` to `"dead"` hides a character. Setting `mode` to `"active"` shows the character again and, if the ruleset health attribute is zero, restores it from `MAX_<health>` or `MAX_HP`.
+Setting `mode` to `"dead"` hides a character. Setting `mode` to `"active"` shows the character again and, if the ruleset health attribute is zero, restores it to `1`.
 
 ---
 

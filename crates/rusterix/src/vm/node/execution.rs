@@ -498,7 +498,9 @@ impl Execution {
             NodeOp::Eq => {
                 let b = self.stack.pop().unwrap();
                 let a = self.stack.pop().unwrap();
-                let equals = if let (Some(sa), Some(sb)) = (a.as_string(), b.as_string()) {
+                let equals = if let (Some(sa), Some(sb)) =
+                    (vm_value_payload_string(&a), vm_value_payload_string(&b))
+                {
                     sa == sb
                 } else {
                     a.x == b.x
@@ -509,7 +511,9 @@ impl Execution {
             NodeOp::Ne => {
                 let b = self.stack.pop().unwrap();
                 let a = self.stack.pop().unwrap();
-                let not_equals = if let (Some(sa), Some(sb)) = (a.as_string(), b.as_string()) {
+                let not_equals = if let (Some(sa), Some(sb)) =
+                    (vm_value_payload_string(&a), vm_value_payload_string(&b))
+                {
                     sa != sb
                 } else {
                     a.x != b.x
@@ -520,7 +524,9 @@ impl Execution {
             NodeOp::Lt => {
                 let b = self.stack.pop().unwrap();
                 let a = self.stack.pop().unwrap();
-                let result = if let (Some(sa), Some(sb)) = (a.as_string(), b.as_string()) {
+                let result = if let (Some(sa), Some(sb)) =
+                    (vm_value_payload_string(&a), vm_value_payload_string(&b))
+                {
                     sa < sb
                 } else {
                     a.x < b.x
@@ -531,7 +537,9 @@ impl Execution {
             NodeOp::Le => {
                 let b = self.stack.pop().unwrap();
                 let a = self.stack.pop().unwrap();
-                let result = if let (Some(sa), Some(sb)) = (a.as_string(), b.as_string()) {
+                let result = if let (Some(sa), Some(sb)) =
+                    (vm_value_payload_string(&a), vm_value_payload_string(&b))
+                {
                     sa <= sb
                 } else {
                     a.x <= b.x
@@ -542,7 +550,9 @@ impl Execution {
             NodeOp::Gt => {
                 let b = self.stack.pop().unwrap();
                 let a = self.stack.pop().unwrap();
-                let result = if let (Some(sa), Some(sb)) = (a.as_string(), b.as_string()) {
+                let result = if let (Some(sa), Some(sb)) =
+                    (vm_value_payload_string(&a), vm_value_payload_string(&b))
+                {
                     sa > sb
                 } else {
                     a.x > b.x
@@ -553,7 +563,9 @@ impl Execution {
             NodeOp::Ge => {
                 let b = self.stack.pop().unwrap();
                 let a = self.stack.pop().unwrap();
-                let result = if let (Some(sa), Some(sb)) = (a.as_string(), b.as_string()) {
+                let result = if let (Some(sa), Some(sb)) =
+                    (vm_value_payload_string(&a), vm_value_payload_string(&b))
+                {
                     sa >= sb
                 } else {
                     a.x >= b.x
@@ -938,12 +950,21 @@ impl Execution {
 }
 
 fn vm_value_to_string(val: &VMValue) -> String {
-    if let Some(s) = val.as_string() {
+    if let Some(s) = vm_value_payload_string(val) {
         s.to_string()
     } else if val.y == val.x && val.z == val.x {
         format!("{}", val.x)
     } else {
         format!("{},{},{}", val.x, val.y, val.z)
+    }
+}
+
+fn vm_value_payload_string(val: &VMValue) -> Option<&str> {
+    let value = val.as_string()?;
+    match value.trim().to_ascii_lowercase().as_str() {
+        "bool" | "int" | "uint" | "i64" | "int64" | "float" | "f32" | "vec2" | "vec3" | "vec4"
+        | "str" | "string" => None,
+        _ => Some(value),
     }
 }
 

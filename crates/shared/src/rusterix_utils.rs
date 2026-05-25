@@ -36,7 +36,13 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
             project.rules.clone()
         });
     rusterix.assets.read_rules_metadata();
-    rusterix.assets.locales_src = project.locales.clone();
+    rusterix.assets.locales_src =
+        crate::rulesets::resolve_project_locales(&project.config, &project.locales).unwrap_or_else(
+            |err| {
+                eprintln!("Ruleset locale resolution error: {}", err);
+                project.locales.clone()
+            },
+        );
     rusterix.assets.audio_fx_src = project.audio_fx.clone();
     rusterix.assets.authoring_src = project.authoring.clone();
     if debug && !project.world_source_debug.is_empty() {
@@ -202,7 +208,13 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
             project.rules.clone()
         });
     rusterix.assets.read_rules_metadata();
-    rusterix.assets.locales_src = project.locales.clone();
+    rusterix.assets.locales_src =
+        crate::rulesets::resolve_project_locales(&project.config, &project.locales).unwrap_or_else(
+            |err| {
+                eprintln!("Ruleset locale resolution error: {}", err);
+                project.locales.clone()
+            },
+        );
     rusterix.assets.audio_fx_src = project.audio_fx.clone();
     rusterix.assets.authoring_src = project.authoring.clone();
     rusterix.assets.region_sources.clear();

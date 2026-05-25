@@ -24,16 +24,7 @@ hostile = -50
 friendly = 50
 
 [intents.attack]
-allowed_dispositions = ["hostile"]
 deny_message = "{system.cant_do_that}"
-
-[intents.attack.distance]
-source = "weapon_range"
-fallback = 1.5
-
-[intents.take]
-allowed_target_kinds = ["item"]
-distance = 1.5
 
 [intents.use]
 distance = 2

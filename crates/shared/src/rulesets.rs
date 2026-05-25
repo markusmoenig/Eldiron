@@ -31,12 +31,17 @@ const OFFICIAL_ELDIRON_V1_ATTRIBUTES: &str =
 const OFFICIAL_ELDIRON_V1_PROGRESSION: &str =
     include_str!("../../../rulesets/eldiron/v1/progression.toml");
 const OFFICIAL_ELDIRON_V1_COMBAT: &str = include_str!("../../../rulesets/eldiron/v1/combat.toml");
+const OFFICIAL_ELDIRON_V1_MESSAGES: &str =
+    include_str!("../../../rulesets/eldiron/v1/messages.toml");
 const OFFICIAL_ELDIRON_V1_EQUIPMENT: &str =
     include_str!("../../../rulesets/eldiron/v1/equipment.toml");
+const OFFICIAL_ELDIRON_V1_FX: &str = include_str!("../../../rulesets/eldiron/v1/fx.toml");
+const OFFICIAL_ELDIRON_V1_ACTIONS: &str = include_str!("../../../rulesets/eldiron/v1/actions.toml");
 const OFFICIAL_ELDIRON_V1_ABILITIES_SPELLS: &str =
     include_str!("../../../rulesets/eldiron/v1/abilities_spells.toml");
 const OFFICIAL_ELDIRON_V1_RACES_CLASSES: &str =
     include_str!("../../../rulesets/eldiron/v1/races_classes.toml");
+const OFFICIAL_ELDIRON_V1_LOCALES: &str = include_str!("../../../rulesets/eldiron/v1/locales.toml");
 const OFFICIAL_ELDIRON_V1_HUMANOID_AVATAR: &str =
     include_str!("../../../rulesets/eldiron/v1/assets/humanoid.eldiron_avatar");
 
@@ -47,7 +52,10 @@ static OFFICIAL_ELDIRON_V1: LazyLock<String> = LazyLock::new(|| {
         OFFICIAL_ELDIRON_V1_ATTRIBUTES,
         OFFICIAL_ELDIRON_V1_PROGRESSION,
         OFFICIAL_ELDIRON_V1_COMBAT,
+        OFFICIAL_ELDIRON_V1_MESSAGES,
         OFFICIAL_ELDIRON_V1_EQUIPMENT,
+        OFFICIAL_ELDIRON_V1_FX,
+        OFFICIAL_ELDIRON_V1_ACTIONS,
         OFFICIAL_ELDIRON_V1_ABILITIES_SPELLS,
         OFFICIAL_ELDIRON_V1_RACES_CLASSES,
     ]
@@ -80,6 +88,10 @@ pub fn bundled_rulesets() -> &'static [BundledRuleset] {
 
 pub fn latest_official_ruleset() -> &'static str {
     OFFICIAL_ELDIRON_V1.as_str()
+}
+
+pub fn latest_official_ruleset_locales() -> &'static str {
+    OFFICIAL_ELDIRON_V1_LOCALES
 }
 
 pub fn bundled_avatar_assets() -> &'static [BundledAvatarAsset] {
@@ -144,6 +156,19 @@ pub fn official_ruleset(id: &str, version: &str) -> Option<&'static str> {
         .map(|_| latest_official_ruleset())
 }
 
+pub fn official_ruleset_locales(id: &str, version: &str) -> Option<&'static str> {
+    bundled_rulesets()
+        .iter()
+        .find(|ruleset| {
+            ruleset.id == id
+                && (ruleset.version == version
+                    || version == "1"
+                    || version == "1.0"
+                    || version == "v1")
+        })
+        .map(|_| latest_official_ruleset_locales())
+}
+
 pub fn resolve_project_rules(config_src: &str, override_src: &str) -> Result<String, String> {
     let (id, version, source) = selected_ruleset(config_src);
     if source == "project" {
@@ -170,6 +195,37 @@ pub fn resolve_project_rules(config_src: &str, override_src: &str) -> Result<Str
     })?;
 
     merge_ruleset_sources(base_src, override_src)
+}
+
+pub fn resolve_project_locales(
+    config_src: &str,
+    locale_override_src: &str,
+) -> Result<String, String> {
+    let (id, version, source) = selected_ruleset(config_src);
+    if source == "project" {
+        if locale_override_src.trim().is_empty() {
+            return Ok(String::new());
+        }
+        let locales = locale_override_src
+            .parse::<Table>()
+            .map_err(|err| format!("Project locales TOML parse error: {}", err))?;
+        return toml::to_string(&locales)
+            .map_err(|err| format!("Project locales serialize error: {}", err));
+    }
+
+    let base_src = official_ruleset_locales(&id, &version).ok_or_else(|| {
+        let available = bundled_rulesets()
+            .iter()
+            .map(|ruleset| format!("{}@{}", ruleset.id, ruleset.version))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "Project requires locales for {}@{}, but this build includes: {}",
+            id, version, available
+        )
+    })?;
+
+    merge_locale_sources(base_src, locale_override_src)
 }
 
 pub fn selected_ruleset(config_src: &str) -> (String, String, String) {
@@ -239,6 +295,21 @@ pub fn merge_ruleset_sources(base_src: &str, override_src: &str) -> Result<Strin
     }
 
     toml::to_string(&base).map_err(|err| format!("Effective ruleset serialize error: {}", err))
+}
+
+pub fn merge_locale_sources(base_src: &str, override_src: &str) -> Result<String, String> {
+    let mut base = base_src
+        .parse::<Table>()
+        .map_err(|err| format!("Official ruleset locales TOML parse error: {}", err))?;
+
+    if !override_src.trim().is_empty() {
+        let overrides = override_src
+            .parse::<Table>()
+            .map_err(|err| format!("Project locales TOML parse error: {}", err))?;
+        merge_toml_tables(&mut base, overrides);
+    }
+
+    toml::to_string(&base).map_err(|err| format!("Effective locales serialize error: {}", err))
 }
 
 fn merge_toml_tables(base: &mut Table, overlay: Table) {
@@ -636,6 +707,8 @@ pub struct RulesetCatalog {
     pub clothing: Vec<String>,
     pub spells: Vec<String>,
     pub abilities: Vec<String>,
+    pub actions: Vec<String>,
+    pub fx_presets: Vec<String>,
     pub item_templates: Vec<String>,
 }
 
@@ -685,6 +758,8 @@ pub fn ruleset_catalog(root: &Table) -> RulesetCatalog {
         clothing: sorted_table_keys(root, &["items", "clothing"]),
         spells: sorted_table_keys(root, &["spells"]),
         abilities: sorted_table_keys(root, &["abilities"]),
+        actions: sorted_table_keys(root, &["actions"]),
+        fx_presets: sorted_table_keys(root, &["fx", "presets"]),
         item_templates,
     }
 }
@@ -702,6 +777,8 @@ fn section_path(section: &str) -> Option<&'static [&'static str]> {
         "armor" | "armors" => Some(&["items", "armor"]),
         "spell" | "spells" => Some(&["spells"]),
         "ability" | "abilities" => Some(&["abilities"]),
+        "action" | "actions" => Some(&["actions"]),
+        "fx" | "effect" | "effects" | "fx_preset" | "fx_presets" => Some(&["fx", "presets"]),
         "condition" | "conditions" => Some(&["conditions"]),
         "item" | "items" => Some(&["items"]),
         _ => None,
@@ -1101,6 +1178,56 @@ fn validate_ability_and_spell_rules(
             }
             if let Some(healing) = spell.get("healing").and_then(Value::as_table) {
                 validate_roll_table(report, &format!("{}.healing", path), healing);
+            }
+        }
+    }
+
+    let abilities = table_key_set(root, &["abilities"]);
+    let spells = table_key_set(root, &["spells"]);
+    let mut item_templates = BTreeSet::new();
+    for group in ruleset_item_group_names(root) {
+        item_templates.extend(table_key_set(root, &["items", &group]));
+    }
+    if let Some(actions) = ruleset_table_at_path(root, &["actions"]) {
+        for (id, value) in actions {
+            let Some(action) = value.as_table() else {
+                report.error(format!("actions.{}", id), "Action entry must be a table.");
+                continue;
+            };
+            let path = format!("actions.{}", id);
+            if let Some(requires) = action.get("requires").and_then(Value::as_table) {
+                validate_string_reference(
+                    report,
+                    &format!("{}.requires.ability", path),
+                    "Ability",
+                    table_string(requires, "ability").as_deref(),
+                    &abilities,
+                );
+                validate_string_reference(
+                    report,
+                    &format!("{}.requires.spell", path),
+                    "Spell",
+                    table_string(requires, "spell").as_deref(),
+                    &spells,
+                );
+            }
+            if let Some(consumes) = action.get("consumes").and_then(Value::as_array) {
+                for (index, value) in consumes.iter().enumerate() {
+                    let Some(entry) = value.as_table() else {
+                        report.error(
+                            format!("{}.consumes.{}", path, index),
+                            "Consumed item entry must be a table.",
+                        );
+                        continue;
+                    };
+                    validate_string_reference(
+                        report,
+                        &format!("{}.consumes.{}.item", path, index),
+                        "Item",
+                        table_string(entry, "item").as_deref(),
+                        &item_templates,
+                    );
+                }
             }
         }
     }
@@ -1652,6 +1779,80 @@ mod tests {
     }
 
     #[test]
+    fn resolves_default_official_ruleset_locales() {
+        let locales = resolve_project_locales("", "").unwrap();
+        let table = locales.parse::<Table>().unwrap();
+
+        assert_eq!(
+            table
+                .get("en")
+                .and_then(Value::as_table)
+                .and_then(|en| en.get("spells"))
+                .and_then(Value::as_table)
+                .and_then(|spells| spells.get("missing_target"))
+                .and_then(Value::as_str),
+            Some("Cast at what?")
+        );
+        assert_eq!(
+            table
+                .get("en")
+                .and_then(Value::as_table)
+                .and_then(|en| en.get("actions"))
+                .and_then(Value::as_table)
+                .and_then(|actions| actions.get("not_ready"))
+                .and_then(Value::as_str),
+            Some("{action} is not ready yet")
+        );
+    }
+
+    #[test]
+    fn project_locales_override_official_ruleset_locales() {
+        let locales = resolve_project_locales(
+            "",
+            r#"
+            [en.spells]
+            missing_target = "Choose a spell target"
+
+            [de.spells]
+            missing_target = "Zauber auf welches Ziel?"
+            "#,
+        )
+        .unwrap();
+        let table = locales.parse::<Table>().unwrap();
+
+        assert_eq!(
+            table
+                .get("en")
+                .and_then(Value::as_table)
+                .and_then(|en| en.get("spells"))
+                .and_then(Value::as_table)
+                .and_then(|spells| spells.get("missing_target"))
+                .and_then(Value::as_str),
+            Some("Choose a spell target")
+        );
+        assert_eq!(
+            table
+                .get("en")
+                .and_then(Value::as_table)
+                .and_then(|en| en.get("spells"))
+                .and_then(Value::as_table)
+                .and_then(|spells| spells.get("not_ready"))
+                .and_then(Value::as_str),
+            Some("{spell} is not ready yet")
+        );
+        assert_eq!(
+            table
+                .get("de")
+                .and_then(Value::as_table)
+                .and_then(|de| de.get("spells"))
+                .and_then(Value::as_table)
+                .and_then(|spells| spells.get("missing_target"))
+                .and_then(Value::as_str),
+            Some("Zauber auf welches Ziel?")
+        );
+    }
+
+    #[test]
     fn loads_bundled_humanoid_avatar() {
         let avatars = bundled_avatars_for_project("").unwrap();
         let (_, avatar) = avatars
@@ -1966,6 +2167,8 @@ mod tests {
         assert!(catalog.races.iter().any(|id| id == "Orc"));
         assert!(catalog.classes.iter().any(|id| id == "Warrior"));
         assert!(catalog.classes.iter().any(|id| id == "Cleric"));
+        assert!(catalog.actions.iter().any(|id| id == "basic_attack"));
+        assert!(catalog.actions.iter().any(|id| id == "holy_light"));
         assert!(catalog.weapons.iter().any(|id| id == "training_sword"));
         assert!(catalog.weapons.iter().any(|id| id == "novice_mace"));
         assert!(catalog.armor.iter().any(|id| id == "chain_shirt"));
@@ -1980,6 +2183,9 @@ mod tests {
         let classes =
             ruleset_section_ids_from_source(latest_official_ruleset(), "classes").unwrap();
         assert!(classes.iter().any(|id| id == "Warrior"));
+        let actions =
+            ruleset_section_ids_from_source(latest_official_ruleset(), "actions").unwrap();
+        assert!(actions.iter().any(|id| id == "minor_heal"));
 
         let sword = ruleset_show_path_from_source(
             latest_official_ruleset(),

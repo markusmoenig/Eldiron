@@ -490,7 +490,7 @@ impl ConsoleDock {
         "Usage:\n\
 rules overview\n\
 rules validate\n\
-rules list [races|classes|weapons|armor|spells|abilities]\n\
+rules list [races|classes|weapons|armor|spells|abilities|actions]\n\
 rules show <ruleset.path>\n\
 rules class <class_id>\n\
 rules xp <level>\n\
@@ -567,7 +567,7 @@ rules roll <ruleset.path.to.roll> [ATTR=VALUE ...]"
 
     fn format_ruleset_catalog(catalog: &shared::rulesets::RulesetCatalog) -> String {
         format!(
-            "ruleset: {}@{}\nschema: {}\nsource: {}\nraces: {}\nclasses: {}\nweapons: {}\narmor: {}\nclothing: {}\nspells: {}\nabilities: {}\nitem templates: {}",
+            "ruleset: {}@{}\nschema: {}\nsource: {}\nraces: {}\nclasses: {}\nweapons: {}\narmor: {}\nclothing: {}\nspells: {}\nabilities: {}\nactions: {}\nfx presets: {}\nitem templates: {}",
             catalog.id.as_deref().unwrap_or("-"),
             catalog.version.as_deref().unwrap_or("-"),
             catalog.schema_version.as_deref().unwrap_or("-"),
@@ -579,6 +579,8 @@ rules roll <ruleset.path.to.roll> [ATTR=VALUE ...]"
             catalog.clothing.len(),
             catalog.spells.len(),
             catalog.abilities.len(),
+            catalog.actions.len(),
+            catalog.fx_presets.len(),
             catalog.item_templates.len(),
         )
     }
@@ -662,6 +664,8 @@ rules roll <ruleset.path.to.roll> [ATTR=VALUE ...]"
                         Self::format_ruleset_list("clothing", &catalog.clothing),
                         Self::format_ruleset_list("spells", &catalog.spells),
                         Self::format_ruleset_list("abilities", &catalog.abilities),
+                        Self::format_ruleset_list("actions", &catalog.actions),
+                        Self::format_ruleset_list("fx presets", &catalog.fx_presets),
                     ]
                     .join("\n\n"),
                     Err(err) => err,
@@ -885,7 +889,7 @@ rules roll <ruleset.path.to.roll> [ATTR=VALUE ...]"
                 "get <key>  show one attribute from the current character or item",
                 "rules overview  show active ruleset counts and metadata",
                 "rules validate  validate the effective ruleset",
-                "rules list [section]  list ruleset races, classes, weapons, armor, spells, or abilities",
+                "rules list [section]  list ruleset races, classes, weapons, armor, spells, abilities, or actions",
                 "rules show <path>  show a TOML value from the effective ruleset",
                 "rules class <class_id>  inspect a ruleset class",
                 "rules xp <level>  show required XP for a level",

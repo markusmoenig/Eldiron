@@ -405,6 +405,14 @@ impl Default for Builtins {
             },
         );
         b.insert(
+            "use_action",
+            1,
+            NodeOp::HostCall {
+                name: "use_action".into(),
+                argc: 1,
+            },
+        );
+        b.insert(
             "deal_damage",
             0,
             NodeOp::HostCall {

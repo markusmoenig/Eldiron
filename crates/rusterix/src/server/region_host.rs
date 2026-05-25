@@ -3,7 +3,8 @@ use crate::server::region::{
     RegionInstance, add_debug_value, apply_damage_direct, apply_damage_rules,
     apply_spell_default_attrs, current_attack_base_damage_for_entity,
     current_attack_cooldown_for_entity, entity_disposition_by_id, entity_is_hostile_by_id,
-    grant_experience, is_spell_on_cooldown, open_dialog_node, set_spell_cooldown,
+    execute_ruleset_action, grant_experience, is_spell_on_cooldown, open_dialog_node,
+    set_spell_cooldown,
 };
 use crate::server::regionctx::ChoiceSession;
 use crate::vm::*;
@@ -349,15 +350,7 @@ fn restore_entity_health_if_revived(entity: &mut Entity, health_attr: &str) {
         return;
     }
 
-    let max_health_attr = format!("MAX_{}", health_attr);
-    let max_health = entity
-        .attributes
-        .get_float(&max_health_attr)
-        .or_else(|| entity.attributes.get_float("MAX_HP"))
-        .unwrap_or(1.0)
-        .round()
-        .max(1.0) as i32;
-    entity.set_attribute(health_attr, Value::Int(max_health));
+    entity.set_attribute(health_attr, Value::Int(1));
 }
 
 impl<'a> RegionHost<'a> {
@@ -994,20 +987,7 @@ impl<'a> RegionHost<'a> {
             .iter()
             .find(|entity| entity.id == self.ctx.curr_entity_id)
             .map(|entity| current_attack_cooldown_for_entity(self.ctx, entity))
-            .unwrap_or_else(|| {
-                self.ctx
-                    .rules
-                    .get("combat")
-                    .and_then(toml::Value::as_table)
-                    .and_then(|combat| combat.get("default_attack_cooldown"))
-                    .and_then(|value| {
-                        value
-                            .as_float()
-                            .or_else(|| value.as_integer().map(|value| value as f64))
-                    })
-                    .map(|value| value as f32)
-                    .unwrap_or(1.0)
-            });
+            .unwrap_or(1.0);
         RegionInstance::scheduled_delay_ticks(self.ctx, cooldown)
     }
 
@@ -2375,6 +2355,22 @@ impl<'a> HostHandler for RegionHost<'a> {
                 let kind = self.current_attack_kind(source_item_id);
                 let base_dmg = self.current_attack_base_damage();
                 self.queue_damage(target_id, base_dmg, &kind, source_item_id);
+            }
+            "use_action" => {
+                if let Some(action_id) = args.first().and_then(VMValue::as_string) {
+                    let target_id = args
+                        .get(1)
+                        .and_then(Self::parse_target_arg_id)
+                        .or_else(|| self.get_current_target_id());
+                    let ok = execute_ruleset_action(
+                        self.ctx,
+                        self.ctx.curr_entity_id,
+                        action_id,
+                        target_id,
+                    );
+                    return self.debug_return_bool(ok);
+                }
+                return self.debug_return_bool(false);
             }
             "took_damage" => {
                 if let (Some(from), Some(amount_val)) = (args.get(0), args.get(1)) {

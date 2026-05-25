@@ -30,6 +30,8 @@ pub struct ParticleEmitter {
     pub radius_range: (f32, f32),   // Radius size range
     pub speed_range: (f32, f32),    // Velocity magnitude range
     #[serde(default)]
+    pub spawn_area: [f32; 3], // Random +/- spawn offset per axis before velocity is applied.
+    #[serde(default)]
     pub flame_base: bool,
 
     pub particles: Vec<Particle>, // Active particles
@@ -52,6 +54,7 @@ impl ParticleEmitter {
             lifetime_range: (0.5, 1.5),
             radius_range: (0.05, 0.15),
             speed_range: (0.5, 1.5),
+            spawn_area: [0.0, 0.0, 0.0],
             flame_base: false,
 
             particles: vec![],
@@ -110,7 +113,12 @@ impl ParticleEmitter {
         );
 
         let p = Particle {
-            pos: self.origin,
+            pos: self.origin
+                + Vec3::new(
+                    rng.random_range(-self.spawn_area[0]..=self.spawn_area[0]),
+                    rng.random_range(-self.spawn_area[1]..=self.spawn_area[1]),
+                    rng.random_range(-self.spawn_area[2]..=self.spawn_area[2]),
+                ),
             vel: velocity,
             lifetime,
             initial_lifetime: lifetime,

@@ -179,6 +179,8 @@ pub enum EntityAction {
     },
     /// Intent: A string that represents an intent, e.g. "attack", "talk", etc.
     Intent(String),
+    /// Desktop text command submitted from a messages widget command input.
+    TextCommand(String),
     /// Goto: Move to a specific position with a given speed
     Goto(Vec2<f32>, f32),
     /// Grid-aware click-to-walk target for 2D grid movement.
@@ -259,6 +261,7 @@ impl fmt::Display for EntityAction {
             EntityAction::ForwardRight => "forward_right",
             EntityAction::BackwardLeft => "backward_left",
             EntityAction::BackwardRight => "backward_right",
+            EntityAction::TextCommand(_) => "text_command",
             _ => "none",
         };
         write!(f, "{}", s)

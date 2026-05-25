@@ -314,17 +314,67 @@ impl TextGameState {
                 }
             }
             _ => {
-                let mut parts = input.splitn(2, char::is_whitespace);
-                let verb =
-                    resolve_intent_alias(&project.authoring, parts.next().unwrap_or("").trim());
-                let target = parts.next().map(str::trim).unwrap_or("");
                 let supported_intents = current_player_supported_intents(project, server_ctx);
-                if !verb.is_empty() && !target.is_empty() && supported_intents.contains(&verb) {
-                    if let Some(error) = trigger_text_intent(project, server_ctx, &verb, target) {
-                        self.push_plain_line(&error);
+                let spell_ids = current_ruleset_spell_ids(project);
+                let action_ids = current_ruleset_action_ids(project);
+                match rusterix::client::text_command::parse_text_command(
+                    input,
+                    &supported_intents,
+                    &spell_ids,
+                    &action_ids,
+                ) {
+                    rusterix::client::text_command::TextCommand::Intent { intent, target } => {
+                        if let Some(target) = target {
+                            let intent = resolve_intent_alias(&project.authoring, &intent);
+                            if let Some(error) =
+                                trigger_text_intent(project, server_ctx, &intent, &target)
+                            {
+                                self.push_plain_line(&error);
+                            }
+                        } else {
+                            RUSTERIX
+                                .write()
+                                .unwrap()
+                                .server
+                                .local_player_action(EntityAction::Intent(intent));
+                        }
                     }
-                } else {
-                    self.push_plain_line("Unknown command. Type 'help' for available commands.");
+                    rusterix::client::text_command::TextCommand::Cast { spell, target } => {
+                        if let Some(error) =
+                            trigger_text_spell(project, server_ctx, &spell, target.as_deref())
+                        {
+                            self.push_plain_line(&error);
+                        }
+                    }
+                    rusterix::client::text_command::TextCommand::Action { action, target } => {
+                        if let Some(error) =
+                            trigger_text_action(project, server_ctx, &action, target.as_deref())
+                        {
+                            self.push_plain_line(&error);
+                        }
+                    }
+                    _ => {
+                        let mut parts = input.splitn(2, char::is_whitespace);
+                        let verb = resolve_intent_alias(
+                            &project.authoring,
+                            parts.next().unwrap_or("").trim(),
+                        );
+                        let target = parts.next().map(str::trim).unwrap_or("");
+                        if !verb.is_empty()
+                            && !target.is_empty()
+                            && supported_intents.contains(&verb)
+                        {
+                            if let Some(error) =
+                                trigger_text_intent(project, server_ctx, &verb, target)
+                            {
+                                self.push_plain_line(&error);
+                            }
+                        } else {
+                            self.push_plain_line(
+                                "Unknown command. Type 'help' for available commands.",
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -822,6 +872,102 @@ fn current_player_supported_intents(
         .unwrap_or_default()
 }
 
+fn current_ruleset_spell_ids(project: &Project) -> BTreeSet<String> {
+    shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+        .ok()
+        .and_then(|rules| shared::rulesets::ruleset_section_ids_from_source(&rules, "spells").ok())
+        .map(|spells| spells.into_iter().collect())
+        .unwrap_or_default()
+}
+
+fn current_ruleset_action_ids(project: &Project) -> BTreeSet<String> {
+    shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+        .ok()
+        .and_then(|rules| shared::rulesets::ruleset_section_ids_from_source(&rules, "actions").ok())
+        .map(|actions| actions.into_iter().collect())
+        .unwrap_or_default()
+}
+
+fn ruleset_spell_kind(project: &Project, spell_id: &str) -> String {
+    let Ok(rules) = shared::rulesets::resolve_project_rules(&project.config, &project.rules) else {
+        return String::new();
+    };
+    let Ok(table) = rules.parse::<Table>() else {
+        return String::new();
+    };
+    table
+        .get("spells")
+        .and_then(toml::Value::as_table)
+        .and_then(|spells| spells.get(spell_id))
+        .and_then(toml::Value::as_table)
+        .and_then(|spell| spell.get("kind"))
+        .and_then(toml::Value::as_str)
+        .map(|kind| kind.trim().to_ascii_lowercase())
+        .unwrap_or_default()
+}
+
+fn trigger_text_spell(
+    project: &Project,
+    server_ctx: &ServerContext,
+    spell: &str,
+    target: Option<&str>,
+) -> Option<String> {
+    if let Some(target) = target.filter(|target| !target.trim().is_empty()) {
+        return trigger_text_intent(
+            project,
+            server_ctx,
+            &format!("spell:{}", spell.trim()),
+            target,
+        );
+    }
+
+    if ruleset_spell_kind(project, spell) != "heal" {
+        return Some(project_locale_message(
+            project,
+            "spells.missing_target",
+            &[],
+        ));
+    }
+
+    let Some(region) = current_region(project, server_ctx) else {
+        return Some("Current region not found.".into());
+    };
+    let Some((player, _sector)) = sg::current_player_and_sector(&region.map) else {
+        return Some("No local player found.".into());
+    };
+    RUSTERIX
+        .write()
+        .unwrap()
+        .server
+        .local_player_action(EntityAction::EntityClicked(
+            player.id,
+            0.0,
+            Some(format!("spell:{}", spell.trim())),
+        ));
+    None
+}
+
+fn trigger_text_action(
+    project: &Project,
+    server_ctx: &ServerContext,
+    action: &str,
+    target: Option<&str>,
+) -> Option<String> {
+    let Some(target) = target.filter(|target| !target.trim().is_empty()) else {
+        return Some(project_locale_message(
+            project,
+            "actions.missing_target",
+            &[],
+        ));
+    };
+    trigger_text_intent(
+        project,
+        server_ctx,
+        &format!("action:{}", action.trim()),
+        target,
+    )
+}
+
 fn current_time_hour(project: &Project, server_ctx: &ServerContext) -> Option<u8> {
     let region = current_region(project, server_ctx)?;
     RUSTERIX
@@ -850,6 +996,77 @@ fn current_time_label(project: &Project, server_ctx: &ServerContext) -> Option<S
 }
 fn config_table(src: &str) -> Option<Table> {
     src.parse::<Table>().ok()
+}
+
+fn active_project_locale(project: &Project) -> String {
+    config_table(&project.config)
+        .and_then(|table| {
+            table
+                .get("game")
+                .and_then(toml::Value::as_table)
+                .and_then(|game| game.get("locale"))
+                .and_then(toml::Value::as_str)
+                .map(str::trim)
+                .filter(|locale| !locale.is_empty())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "en".to_string())
+}
+
+fn locale_key_message(key: &str, params: &[(&str, String)]) -> String {
+    if params.is_empty() {
+        return format!("{{{}}}", key);
+    }
+    let params = params
+        .iter()
+        .map(|(name, value)| format!("{}={}", name, value))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{{{},{}}}", key, params)
+}
+
+fn project_locale_message(project: &Project, key: &str, params: &[(&str, String)]) -> String {
+    fn locale_value<'a>(table: &'a Table, key: &str) -> Option<&'a str> {
+        if let Some(value) = table.get(key).and_then(toml::Value::as_str) {
+            return Some(value);
+        }
+        let mut parts = key.split('.').filter(|part| !part.is_empty());
+        let first = parts.next()?;
+        let mut value = table.get(first)?;
+        for part in parts {
+            value = value.as_table()?.get(part)?;
+        }
+        value.as_str()
+    }
+
+    let locales_src = resolve_project_locales(&project.config, &project.locales)
+        .unwrap_or_else(|_| project.locales.clone());
+    let Some(table) = config_table(&locales_src) else {
+        return locale_key_message(key, params);
+    };
+    let locale = active_project_locale(project);
+    let candidates = [
+        locale.as_str(),
+        locale.split_once('_').map(|(base, _)| base).unwrap_or(""),
+        "en",
+    ];
+    for candidate in candidates {
+        if candidate.is_empty() {
+            continue;
+        }
+        if let Some(template) = table
+            .get(candidate)
+            .and_then(toml::Value::as_table)
+            .and_then(|values| locale_value(values, key))
+        {
+            let mut rendered = template.to_string();
+            for (name, value) in params {
+                rendered = rendered.replace(&format!("{{{}}}", name), value);
+            }
+            return rendered;
+        }
+    }
+    locale_key_message(key, params)
 }
 
 fn authoring_auto_attack_mode(src: &str) -> AutoAttackMode {

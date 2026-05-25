@@ -5,7 +5,7 @@ This is the first bundled official ruleset for Eldiron.
 It defines the initial v1 gameplay baseline with explicit tables and dice-style
 values: core attributes, Human and Warrior defaults, progression, damage kinds,
 weapon and armor categories, starter equipment, cooldowns, abilities, spells,
-audio/message hooks, and default humanoid visuals.
+actions, procedural FX presets, audio/message hooks, and default humanoid visuals.
 
 Project-specific `Game / Rules` content is treated as an override on top of this
 official base.
@@ -19,7 +19,11 @@ identity.toml           default identity, dispositions, race relations, intents
 attributes.toml         attributes and derived stats
 progression.toml        XP, leveling, progression messages
 combat.toml             damage kinds, combat timing, combat audio/messages
+messages.toml           locale keys for rules-driven runtime feedback
+locales.toml            English defaults for ruleset-owned locale keys
 equipment.toml          equipment slots, categories, weapons, armor, clothing
+fx.toml                 semantic procedural FX presets for spells and actions
+actions.toml            sandbox-facing action definitions
 abilities_spells.toml   abilities and spells
 races_classes.toml      races, classes, unlocks, starting loadouts
 ```

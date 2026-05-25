@@ -27,6 +27,14 @@ dock_auto = Automatisch
 node_editor_create_button = Graph erstellen
 ## Render Editor
 render_editor_trace_button = Trace starten
+## Starter Project
+starter_dialog_title = Starterprojekt auswählen
+starter_loading = Starterprojekte werden geladen...
+starter_loading_sub = Metadaten werden aus dem Eldiron-Repository abgerufen.
+starter_choose = Auswählen
+starter_cancel = Abbrechen
+starter_empty = Keine Starterprojekte gefunden.
+starter_empty_sub = Die Metadaten des Eldiron-Repositorys konnten nicht geladen werden.
 ## Tilemap
 tilemap_add_button = Kachel(en) hinzufügen
 
@@ -46,6 +54,9 @@ status_time_slider = Die Serverzeit anpassen.
 status_update_button = Anwendung aktualisieren.
 status_patreon_button = Die Eldiron-Patreon-Seite besuchen. Danke für die Unterstützung.
 status_help_button = Auf ein beliebiges UI-Element klicken, um die Eldiron-Online-Dokumentation zu öffnen.
+status_starter_choose = Ein 2D- oder 3D-Starterprojekt auswählen.
+status_starter_initialized = Starterprojekt erfolgreich initialisiert.
+status_starter_load_failed = Starterprojekt konnte nicht geladen werden!
 status_create_cutout_failed = Ausschnitt erstellen benötigt mindestens drei ausgewählte Oberflächenlinien-Punkte auf einer 3D-Fläche.
 status_create_cutout_open_loop = Ausschnitt erstellen benötigt geschlossene Oberflächenlinien-Loops. Die ausgewählte Hilfslinie zuerst beenden oder schließen.
 status_create_cutout_multiple_faces = Ausschnitt erstellen benötigt derzeit alle ausgewählten Hilfslinien-Loops auf einer Host-Oberfläche.

@@ -190,6 +190,10 @@ add_item(class_name)
 # Attack the current target using weapon or unarmed rules.
 attack()
 
+# Use a named ruleset action against the current target or target id.
+use_action(action_id)
+use_action(action_id, target_id)
+
 # Returns an array of filtered item ids in the character's inventory.
 # Returns all items if filter_string is empty. Otherwise, returns items whose name
 # or class names contain the filter_string.

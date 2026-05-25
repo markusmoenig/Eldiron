@@ -162,13 +162,32 @@ pub struct Editor {
 }
 
 impl Editor {
+    const PROJECT_EXTENSION: &'static str = "eldiron";
     const STARTER_REPO_RAW_BASE: &'static str =
         "https://raw.githubusercontent.com/markusmoenig/Eldiron/master/";
-    const STARTER_DIALOG_TITLE: &'static str = "Choose Starter Project";
     const STARTER_LIST_ID: &'static str = "Starter Project List";
     const STARTER_PREVIEW_ID: &'static str = "Starter Project Preview";
     const STARTER_CREATE_ID: &'static str = "Starter Project Create";
     const STARTER_CANCEL_ID: &'static str = "Starter Project Cancel";
+
+    fn ensure_project_extension(mut path: PathBuf) -> PathBuf {
+        if let Some(file_name) = path.file_name().and_then(|name| name.to_str()) {
+            let file_name = file_name.to_string();
+            if !file_name
+                .to_ascii_lowercase()
+                .ends_with(&format!(".{}", Self::PROJECT_EXTENSION))
+            {
+                path.set_file_name(format!("{file_name}.{}", Self::PROJECT_EXTENSION));
+            }
+        } else if !path
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case(Self::PROJECT_EXTENSION))
+        {
+            path.set_extension(Self::PROJECT_EXTENSION);
+        }
+
+        path
+    }
 
     fn activate_edit_tile_meta_action(&mut self) {
         if self.server_ctx.curr_tile_id.is_none() {
@@ -670,8 +689,8 @@ impl Editor {
         let mut list = TheListLayout::new(TheId::named(Self::STARTER_LIST_ID));
         list.set_item_size(52);
         let mut item = TheListItem::new(TheId::named("Starter Project Loading"));
-        item.set_text("Loading starter projects...".to_string());
-        item.set_sub_text("Fetching metadata from the Eldiron repo.".to_string());
+        item.set_text(fl!("starter_loading"));
+        item.set_sub_text(fl!("starter_loading_sub"));
         item.set_size(52);
         item.set_text_color(WHITE);
         item.set_text_size(14.0);
@@ -694,17 +713,17 @@ impl Editor {
         actions.set_reverse_index(Some(2));
 
         let mut create = TheTraybarButton::new(TheId::named(Self::STARTER_CREATE_ID));
-        create.set_text("Choose".to_string());
+        create.set_text(fl!("starter_choose"));
         actions.add_widget(Box::new(create));
 
         let mut cancel = TheTraybarButton::new(TheId::named(Self::STARTER_CANCEL_ID));
-        cancel.set_text("Cancel".to_string());
+        cancel.set_text(fl!("starter_cancel"));
         actions.add_widget(Box::new(cancel));
 
         bottom.set_layout(actions);
         dialog.set_bottom(bottom);
 
-        ui.show_dialog(Self::STARTER_DIALOG_TITLE, dialog, vec![], ctx);
+        ui.show_dialog(&fl!("starter_dialog_title"), dialog, vec![], ctx);
         if let Some(starters) = self.starter_manifest_cache.clone() {
             self.starter_projects = starters;
             self.rebuild_starter_project_list(ui, ctx);
@@ -1006,7 +1025,7 @@ impl Editor {
             self.open_starter_project_dialog(ui, ctx);
             ctx.ui.send(TheEvent::SetStatusText(
                 TheId::empty(),
-                "Choose a 2D or 3D starter project.".to_string(),
+                fl!("status_starter_choose"),
             ));
             *redraw = true;
         }
@@ -1945,8 +1964,8 @@ impl TheTrait for Editor {
             } else if let Some(list) = ui.get_list_layout(Self::STARTER_LIST_ID) {
                 list.clear();
                 let mut item = TheListItem::new(TheId::named("Starter Project Empty"));
-                item.set_text("No starter projects found.".to_string());
-                item.set_sub_text("The Eldiron repo metadata could not be loaded.".to_string());
+                item.set_text(fl!("starter_empty"));
+                item.set_sub_text(fl!("starter_empty_sub"));
                 item.set_size(52);
                 item.set_text_color(WHITE);
                 item.set_text_size(14.0);
@@ -3440,6 +3459,7 @@ impl TheTrait for Editor {
                         }
                     } else if id.name == "Save As" {
                         for p in paths {
+                            let p = Self::ensure_project_extension(p);
                             self.persist_active_region_view_state();
                             let json = serde_json::to_string(&self.project);
                             if let Ok(json) = json {
@@ -3501,12 +3521,12 @@ impl TheTrait for Editor {
                                 );
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
-                                    "Starter project successfully initialized.".to_string(),
+                                    fl!("status_starter_initialized"),
                                 ));
                             } else {
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
-                                    "Unable to load starter project!".to_string(),
+                                    fl!("status_starter_load_failed"),
                                 ));
                             }
                         }
@@ -3536,7 +3556,7 @@ impl TheTrait for Editor {
                         self.open_starter_project_dialog(ui, ctx);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
-                            "Choose a 2D or 3D starter project.".to_string(),
+                            fl!("status_starter_choose"),
                         ));
                         ctx.ui
                             .set_widget_state("New".to_string(), TheWidgetState::None);
@@ -3665,11 +3685,13 @@ impl TheTrait for Editor {
                         redraw = true;
                     } else if id.name == "Save" {
                         if let Some(path) = self.project_path.clone() {
+                            let path = Self::ensure_project_extension(path);
                             let mut success = false;
                             // if let Ok(output) = postcard::to_allocvec(&self.project) {
                             self.persist_active_region_view_state();
                             if let Ok(output) = serde_json::to_string(&self.project) {
                                 if std::fs::write(&path, output).is_ok() {
+                                    self.project_path = Some(path.clone());
                                     UNDOMANAGER.write().unwrap().mark_saved();
                                     DOCKMANAGER.write().unwrap().mark_saved();
                                     if self.active_session < self.sessions.len() {
@@ -3703,7 +3725,10 @@ impl TheTrait for Editor {
                         ctx.ui.save_file_requester(
                             TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                             "Save".into(),
-                            TheFileExtension::new("Eldiron".into(), vec!["eldiron".to_string()]),
+                            TheFileExtension::new(
+                                "Eldiron".into(),
+                                vec![Self::PROJECT_EXTENSION.to_string()],
+                            ),
                         );
                         ctx.ui
                             .set_widget_state("Save As".to_string(), TheWidgetState::None);
@@ -4171,6 +4196,45 @@ impl TheTrait for Editor {
             self.window_state.height = Some(height);
             self.save_window_state();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ensure_project_extension_appends_when_missing() {
+        let path = PathBuf::from("/tmp/My Project");
+
+        assert_eq!(
+            Editor::ensure_project_extension(path),
+            PathBuf::from("/tmp/My Project.eldiron")
+        );
+    }
+
+    #[test]
+    fn ensure_project_extension_leaves_existing_extension() {
+        let path = PathBuf::from("/tmp/My Project.eldiron");
+
+        assert_eq!(Editor::ensure_project_extension(path.clone()), path);
+    }
+
+    #[test]
+    fn ensure_project_extension_treats_existing_extension_case_insensitively() {
+        let path = PathBuf::from("/tmp/My Project.ELDIRON");
+
+        assert_eq!(Editor::ensure_project_extension(path.clone()), path);
+    }
+
+    #[test]
+    fn ensure_project_extension_appends_after_other_suffixes() {
+        let path = PathBuf::from("/tmp/My Project.backup");
+
+        assert_eq!(
+            Editor::ensure_project_extension(path),
+            PathBuf::from("/tmp/My Project.backup.eldiron")
+        );
     }
 }
 

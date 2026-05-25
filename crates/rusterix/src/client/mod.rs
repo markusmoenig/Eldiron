@@ -4,6 +4,7 @@ pub mod daylight;
 pub mod draw2d;
 pub mod parser;
 pub mod resolver;
+pub mod text_command;
 pub mod widget;
 
 use instant::{Duration, Instant};
@@ -2582,7 +2583,50 @@ impl Client {
             .active_player_camera
             .clone()
             .or_else(|| self.active_game_widget_camera_mode());
-        matches!(camera, Some(crate::PlayerCamera::D2)) && !self.click_intents_2d
+        matches!(
+            camera,
+            Some(crate::PlayerCamera::D2 | crate::PlayerCamera::D2Grid)
+        ) && !self.click_intents_2d
+    }
+
+    fn is_movement_action(action: &EntityAction) -> bool {
+        matches!(
+            action,
+            EntityAction::Forward
+                | EntityAction::Backward
+                | EntityAction::Left
+                | EntityAction::Right
+                | EntityAction::StrafeLeft
+                | EntityAction::StrafeRight
+                | EntityAction::ForwardLeft
+                | EntityAction::ForwardRight
+                | EntityAction::BackwardLeft
+                | EntityAction::BackwardRight
+        )
+    }
+
+    fn consume_one_shot_2d_intent(&mut self) {
+        if self.click_intents_2d || !self.game_widget_is_2d() {
+            return;
+        }
+        self.intent.clear();
+        self.activated_widgets.retain(|id| {
+            self.button_widgets
+                .get(id)
+                .and_then(|widget| widget.intent.as_ref())
+                .map(|intent| intent.trim().is_empty())
+                .unwrap_or(true)
+        });
+        self.permanently_activated_widgets.retain(|id| {
+            self.button_widgets
+                .get(id)
+                .and_then(|widget| widget.intent.as_ref())
+                .map(|intent| intent.trim().is_empty())
+                .unwrap_or(true)
+        });
+        self.curr_intent_cursor = None;
+        self.curr_clicked_intent_cursor = None;
+        self.curr_cursor = self.default_cursor;
     }
 
     fn drop_position_at_viewport(&self, p: Vec2<i32>) -> Option<Vec2<f32>> {
@@ -2862,10 +2906,14 @@ impl Client {
 
         // If we hovered over an item in 3D, send an explicit ItemClicked intent
         if let Some(entity_id) = self.hovered_entity_id {
+            let intent = self.get_current_intent_for_action();
+            if intent.is_some() {
+                self.consume_one_shot_2d_intent();
+            }
             return Some(EntityAction::EntityClicked(
                 entity_id,
                 self.hover_distance,
-                self.get_current_intent_for_action(),
+                intent,
             ));
         }
 
@@ -2878,10 +2926,14 @@ impl Client {
                 self.drag_start_pos = self.screen_to_viewport(coord);
                 return None;
             }
+            let intent = self.get_current_intent_for_action();
+            if intent.is_some() {
+                self.consume_one_shot_2d_intent();
+            }
             return Some(EntityAction::ItemClicked(
                 item_id,
                 Self::item_click_distance(map, item_id),
-                self.get_current_intent_for_action(),
+                intent,
                 None,
             ));
         }
@@ -3056,10 +3108,12 @@ impl Client {
                             let entity_pos = entity.get_pos_xz();
                             if tile_pos == Self::quantize_2d_tile_pos(entity_pos) {
                                 let distance = player_pos.distance(entity_pos);
+                                let intent = self.get_current_intent_for_action();
+                                if intent.is_some() {
+                                    self.consume_one_shot_2d_intent();
+                                }
                                 return Some(EntityAction::EntityClicked(
-                                    entity.id,
-                                    distance,
-                                    self.get_current_intent_for_action(),
+                                    entity.id, distance, intent,
                                 ));
                             }
                         }
@@ -3068,11 +3122,12 @@ impl Client {
                             let item_pos = item.get_pos_xz();
                             if tile_pos == Self::quantize_2d_tile_pos(item_pos) {
                                 let distance = player_pos.distance(item_pos);
+                                let intent = self.get_current_intent_for_action();
+                                if intent.is_some() {
+                                    self.consume_one_shot_2d_intent();
+                                }
                                 return Some(EntityAction::ItemClicked(
-                                    item.id,
-                                    distance,
-                                    self.get_current_intent_for_action(),
-                                    None,
+                                    item.id, distance, intent, None,
                                 ));
                             }
                         }
@@ -3082,10 +3137,12 @@ impl Client {
                             let entity_pos = entity.get_pos_xz();
                             if tile_pos == Self::quantize_2d_tile_pos(entity_pos) {
                                 let distance = player_pos.distance(entity_pos);
+                                let intent = self.get_current_intent_for_action();
+                                if intent.is_some() {
+                                    self.consume_one_shot_2d_intent();
+                                }
                                 return Some(EntityAction::EntityClicked(
-                                    entity.id,
-                                    distance,
-                                    self.get_current_intent_for_action(),
+                                    entity.id, distance, intent,
                                 ));
                             }
                         }
@@ -3094,6 +3151,12 @@ impl Client {
                     }
                 }
             }
+        }
+
+        if action.as_ref().is_some_and(Self::is_movement_action)
+            && self.get_current_intent().is_some()
+        {
+            self.consume_one_shot_2d_intent();
         }
 
         action
@@ -3112,20 +3175,28 @@ impl Client {
         if let Some(item_id) = dragged_item_id {
             if !dragging_started {
                 if dragged_item_from_world {
+                    let intent = self.get_current_intent_for_action();
+                    if intent.is_some() {
+                        self.consume_one_shot_2d_intent();
+                    }
                     action = Some(EntityAction::ItemClicked(
                         item_id,
                         Self::item_click_distance(map, item_id),
-                        self.get_current_intent_for_action(),
+                        intent,
                         None,
                     ));
                 } else if let Some(source_id) = dragged_source_widget_id
                     && let Some(widget) = self.button_widgets.get(&source_id)
                     && widget.rect.contains(Vec2::new(p.x as f32, p.y as f32))
                 {
+                    let intent = self.get_current_intent_for_action();
+                    if intent.is_some() {
+                        self.consume_one_shot_2d_intent();
+                    }
                     action = Some(EntityAction::ItemClicked(
                         item_id,
                         0.0,
-                        self.get_current_intent_for_action(),
+                        intent,
                         dragged_item_owner_entity_id,
                     ));
                 }
@@ -3258,6 +3329,17 @@ impl Client {
                 // not toggle persistent button activation.
                 self.intent = intent_name.clone();
             }
+        }
+
+        if is_key_down
+            && immediate_2d_intent
+            && Self::is_movement_action(&action)
+            && self
+                .key_down_intent
+                .as_ref()
+                .is_some_and(|intent| !intent.trim().is_empty())
+        {
+            self.consume_one_shot_2d_intent();
         }
 
         let action_str: String = action.to_string();

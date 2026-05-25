@@ -27,6 +27,14 @@ dock_auto = Automatic
 node_editor_create_button = Create Graph
 ## Render Editor
 render_editor_trace_button = Start Trace
+## Starter Project
+starter_dialog_title = Choose Starter Project
+starter_loading = Loading starter projects...
+starter_loading_sub = Fetching metadata from the Eldiron repo.
+starter_choose = Choose
+starter_cancel = Cancel
+starter_empty = No starter projects found.
+starter_empty_sub = The Eldiron repo metadata could not be loaded.
 ## Tilemap
 tilemap_add_button = Add Tile(s)
 
@@ -46,6 +54,9 @@ status_time_slider = Adjust the server time.
 status_update_button = Update application.
 status_patreon_button = Visit the Eldiron Patreon page. Thanks for your support.
 status_help_button = Click on any UI element to visit the Eldiron Online Documentation.
+status_starter_choose = Choose a 2D or 3D starter project.
+status_starter_initialized = Starter project successfully initialized.
+status_starter_load_failed = Unable to load starter project!
 status_create_cutout_failed = Create Cutout needs at least three selected surface-line points on one 3D face.
 status_create_cutout_open_loop = Create Cutout needs closed surface-line loops. Finish or close the selected guide first.
 status_create_cutout_multiple_faces = Create Cutout currently needs all selected guide loops on one host surface.

@@ -1,0 +1,97 @@
+# Procedural FX presets describe visual intent in readable terms.
+#
+# The engine maps these semantic recipes to particle emitters, lighting, and
+# motion in 2D/3D. Rules and spells should reference presets and only override
+# mood, scale, or color when needed. Detailed numeric particle tuning can be
+# added later under explicit advanced override tables.
+
+[fx.presets.hit_burst]
+description = "A short impact burst from the target center."
+kind = "particles"
+shape = "burst"
+origin = "center"
+motion = "radial_out"
+mood = "sharp"
+duration = "instant"
+size = "small"
+density = "medium"
+colors = ["white", "gold"]
+
+[fx.presets.rising_motes]
+description = "Soft particles appear across the tile and float upward."
+kind = "particles"
+shape = "motes"
+origin = "tile"
+motion = "up"
+mood = "soft"
+duration = "medium"
+size = "small"
+density = "dense"
+colors = ["warm_white", "gold"]
+
+[fx.presets.holy_glow]
+description = "A warm divine glow around the caster or target."
+kind = "particles"
+shape = "aura"
+origin = "center"
+motion = "pulse"
+mood = "holy"
+duration = "short"
+size = "medium"
+density = "light"
+colors = ["warm_white", "gold", "soft_yellow"]
+light = "soft"
+
+[fx.presets.holy_bolt]
+description = "A focused holy projectile with a soft trailing glow."
+kind = "particles"
+shape = "trail"
+origin = "caster"
+motion = "towards_target"
+mood = "holy"
+duration = "travel"
+size = "small"
+density = "medium"
+colors = ["warm_white", "gold"]
+light = "soft"
+
+[fx.presets.fire_burst]
+description = "A hot impact explosion with sparks and smoke."
+kind = "particles"
+shape = "burst"
+origin = "center"
+motion = "radial_out"
+mood = "fire"
+duration = "short"
+size = "medium"
+density = "dense"
+colors = ["yellow", "orange", "red"]
+secondary = ["embers", "smoke"]
+light = "flash"
+
+[fx.presets.flame_patch]
+description = "A small burning area on the tile."
+kind = "particles"
+shape = "aura"
+origin = "tile"
+motion = "flicker_up"
+mood = "fire"
+duration = "long"
+size = "medium"
+density = "dense"
+colors = ["yellow", "orange", "red", "dark_smoke"]
+secondary = ["embers", "heat_waver"]
+light = "flicker"
+
+[fx.presets.ember_trail]
+description = "Small embers trailing behind a moving fire spell."
+kind = "particles"
+shape = "trail"
+origin = "caster"
+motion = "towards_target"
+mood = "fire"
+duration = "travel"
+size = "tiny"
+density = "medium"
+colors = ["yellow", "orange", "red"]
+secondary = ["embers"]

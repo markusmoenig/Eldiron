@@ -27,6 +27,14 @@ dock_auto = Automático
 node_editor_create_button = Crear grafo
 ## Render Editor
 render_editor_trace_button = Iniciar traza
+## Starter Project
+starter_dialog_title = Elegir proyecto inicial
+starter_loading = Cargando proyectos iniciales...
+starter_loading_sub = Obteniendo metadatos del repositorio de Eldiron.
+starter_choose = Elegir
+starter_cancel = Cancelar
+starter_empty = No se encontraron proyectos iniciales.
+starter_empty_sub = No se pudieron cargar los metadatos del repositorio de Eldiron.
 ## Tilemap
 tilemap_add_button = Añadir baldosa(s)
 
@@ -46,6 +54,9 @@ status_time_slider = Ajustar el tiempo del servidor.
 status_update_button = Actualizar aplicación.
 status_patreon_button = Visita la página de Patreon de Eldiron. Gracias por tu apoyo.
 status_help_button = Haz clic en cualquier elemento de la UI para visitar la Documentación en línea de Eldiron.
+status_starter_choose = Elige un proyecto inicial 2D o 3D.
+status_starter_initialized = Proyecto inicial inicializado correctamente.
+status_starter_load_failed = ¡No se pudo cargar el proyecto inicial!
 status_create_cutout_failed = Crear recorte necesita al menos tres puntos de línea de superficie seleccionados en una cara 3D.
 status_create_cutout_open_loop = Crear recorte necesita bucles cerrados de líneas de superficie. Termina o cierra primero la guía seleccionada.
 status_create_cutout_multiple_faces = Crear recorte actualmente necesita todos los bucles guía seleccionados en una sola superficie anfitriona.

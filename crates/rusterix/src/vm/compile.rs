@@ -732,6 +732,25 @@ impl Visitor for CompileVisitor {
                             loc,
                         ));
                     }
+                } else if name == "use_action" {
+                    if (1..=2).contains(&args.len()) {
+                        for arg in args {
+                            _ = arg.accept(self, ctx)?;
+                        }
+                        ctx.emit(NodeOp::HostCall {
+                            name: "use_action".into(),
+                            argc: args.len() as u8,
+                        });
+                    } else {
+                        return Err(RuntimeError::new(
+                            format!(
+                                "Wrong amount of arguments for '{}', expected '1..2' got '{}'",
+                                name,
+                                args.len(),
+                            ),
+                            loc,
+                        ));
+                    }
                 } else if name == "clear_audio" {
                     if args.len() <= 1 {
                         for arg in args {
