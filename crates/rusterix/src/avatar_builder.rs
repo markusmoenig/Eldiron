@@ -651,7 +651,8 @@ impl AvatarRuntimeBuilder {
         );
         let accent = Self::item_role_visual_color(item, assets, "accent", [48, 56, 67, 255]);
         let dark = [48, 56, 67, 255];
-        let highlight = [241, 246, 240, 255];
+        let highlight =
+            Self::item_role_visual_color(item, assets, "highlight", [241, 246, 240, 255]);
 
         if let Some((rgba, width, height)) =
             Self::item_template_mask_rgba(item, metal, wood, accent, highlight)

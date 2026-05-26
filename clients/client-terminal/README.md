@@ -51,6 +51,10 @@ starting a game:
 eldiron-client-terminal rules summary
 eldiron-client-terminal rules check
 eldiron-client-terminal rules character Cleric race=Human level=2
+eldiron-client-terminal rules character Ranger race=Human level=1
+eldiron-client-terminal rules item training_sword STR=12
+eldiron-client-terminal rules item hunting_bow DEX=12
+eldiron-client-terminal rules item linen_shirt
 eldiron-client-terminal rules class Warrior
 eldiron-client-terminal rules weapon training_sword STR=12
 eldiron-client-terminal rules spell minor_heal WIS=12

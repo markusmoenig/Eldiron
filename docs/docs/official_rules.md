@@ -227,6 +227,17 @@ loadout.
       <li>Minor Heal</li>
     </ul>
   </div>
+  <div class="rules-class-card">
+    <span class="rules-kicker">Ranged</span>
+    <h3>Ranger</h3>
+    <p>Mobile hunter. Establishes ranged weapon range, bow damage, ammunition, and DEX scaling.</p>
+    <ul>
+      <li>Primary: DEX, VIT</li>
+      <li>HP 14 / 14</li>
+      <li>Hunting Bow</li>
+      <li>Wooden Arrows</li>
+    </ul>
+  </div>
 </div>
 
 ### Warrior
@@ -263,6 +274,21 @@ loadout.
 | Level 1 spells | `minor_heal` |
 | Level 2 unlock | `holy_light` |
 
+### Ranger
+
+| Area | Rule |
+| --- | --- |
+| Role | `ranged` |
+| Primary attributes | `DEX`, `VIT` |
+| Weapons | bow, sword, axe |
+| Armor | cloth, leather |
+| Starting health | `HP 14`, `MAX_HP 14` |
+| Starter weapon | `hunting_bow` |
+| Starter armor | `leather_vest` |
+| Starter clothing | `wool_trousers`, `leather_shoes` |
+| Starter inventory | `wooden_arrows`, `linen_shirt` |
+| Level 1 abilities | `basic_attack` |
+
 Setting `LEVEL` on an authored character applies class progression during
 spawn/load. For example, a level 2 Cleric receives the Cleric level gains and
 level 2 spell unlocks from the ruleset. Explicit character overrides, such as a
@@ -284,6 +310,13 @@ buttons, scripts, and later sandbox tools on the same rules path.
 | `attack` distance | comes from equipped weapon range, fallback `1.5` tiles |
 | `take` | target must be an item, distance `1.5` tiles |
 | `use` | distance `2` tiles |
+
+Official action distances are resolved before legacy character
+`[intent_distance]` values. A single Attack button can therefore serve melee
+and ranged weapons: swords and maces use melee range, bows use the bow category
+range. In 2D directional play, choosing Attack and pressing a direction scans
+that lane out to the equipped weapon range, so a bow can target an enemy several
+tiles away without needing a separate ranged-attack intent.
 
 Attack cooldown is rules-owned. A character script should call `attack()` for a
 normal weapon or unarmed attack. The runtime uses the equipped weapon cooldown
@@ -349,11 +382,13 @@ the final amount is applied.
 Weapons define category, slot, cooldown, damage kind, visual data, and dice
 damage.
 
-| Weapon | Category | Slot | Cooldown | Damage |
-| --- | --- | --- | ---: | --- |
-| `training_sword` | sword | `main_hand` | `1.0` | `1d6`, bonus `1`, `STR` every 4 |
-| `hand_axe` | axe | `main_hand` | `1.2` | `1d8`, bonus `1`, `STR` every 4 |
-| `novice_mace` | mace | `main_hand` | `1.15` | `1d6`, bonus `0`, `STR` every 4 |
+| Weapon | Category | Slot | Cooldown | Damage | Visual |
+| --- | --- | --- | ---: | --- | --- |
+| `training_sword` | sword | `main_hand` | `1.0` | `1d6`, bonus `1`, `STR` every 4 | wooden diagonal sword mask |
+| `hand_axe` | axe | `main_hand` | `1.2` | `1d8`, bonus `1`, `STR` every 4 | diagonal axe mask |
+| `novice_mace` | mace | `main_hand` | `1.15` | `1d6`, bonus `0`, `STR` every 4 | diagonal mace mask |
+| `hunting_bow` | bow | `main_hand` | `1.5` | `1d6`, bonus `0`, `DEX` every 4 | diagonal bow mask |
+| `training_spear` | spear | `main_hand` | `1.25` | `1d6`, bonus `1`, `STR` every 4 | diagonal spear mask |
 
 Weapon categories add shared behavior.
 
@@ -378,13 +413,21 @@ natural future path.
 | `padded_armor` | cloth | torso | `1` | torso, arms |
 | `leather_vest` | leather | torso | `2` | torso |
 | `chain_shirt` | chain | torso | `3` | torso, arms |
-| `round_shield` | shield | shield | `1` | item visual |
+| `round_shield` | shield | shield | `1` | round shield mask |
 
 | Clothing | Family | Slot | Palette color | Avatar channels |
 | --- | --- | --- | ---: | --- |
 | `linen_shirt` | cloth | torso | `2` | torso, arms |
 | `wool_trousers` | cloth | legs | `28` | legs |
 | `leather_shoes` | leather | feet | `7` | feet |
+
+| Ammunition | Family | Quantity | Used by | Visual |
+| --- | --- | ---: | --- | --- |
+| `wooden_arrows` | arrow | `20` | bow | diagonal arrow mask |
+
+Bows consume one matching ammunition item from the attacker's inventory when a
+weapon attack resolves. Stackable ammunition decrements its `quantity`; when the
+stack reaches zero the inventory slot is emptied.
 
 When an item defines `avatar_channels` and no explicit icon or tile source,
 Eldiron derives its preview from the bundled humanoid avatar. Inventory,

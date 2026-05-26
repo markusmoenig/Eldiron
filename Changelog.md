@@ -32,6 +32,13 @@
 - Added official ruleset regressions for Warrior defaults/loadout, Cleric spell unlocks, Human/Orc hostility, official weapon damage, and official spell costs/cooldowns.
 - Added terminal ruleset validation and summary commands for the bundled official ruleset and resolved project rules overrides.
 - Added a terminal character rules inspector that resolves race, class, level, attributes, unlocks, loadout, spell details, and combat rolls from the official ruleset.
+- Added a terminal item rules inspector for weapons, armor, and clothing, including damage rolls, attributes, category rules, and visual/avatar metadata.
+- Added the first Ranger ruleset slice with bow-based DEX damage, a hunting bow, wooden arrows, ranged range validation, and terminal/rules regressions.
+- Added an official training spear and made bow attacks consume matching stackable ammunition from inventory.
+- Updated official item visuals with a wooden training sword, palette-driven axe, mace, spear, bow, shield, and arrow masks, and item descriptions for look/text paths.
+- Made attack intent range rules-owned so the same attack icon uses melee range for melee weapons and bow range for Rangers, even in projects with old character intent-distance data.
+- Fixed 2D directional attack targeting so ranged weapons scan along the chosen direction to weapon range instead of only checking the adjacent tile.
+- Fixed hostility resolution for placed race-named character templates, so attacking an Orc instance can use Orc/Human race relations even if the instance has no explicit race override.
 
 ---
 

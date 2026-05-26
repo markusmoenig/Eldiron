@@ -79,16 +79,201 @@ pixels = [
     "........................",
 ]
 
+[visual_templates.mace_diagonal]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    ".................BBBB...",
+    "................BHHBBB..",
+    "...............BBHHBBBB.",
+    "...............BBBBBBBB.",
+    "...............BBBBBBBB.",
+    "..............ABBBBBBBB.",
+    "..............AABBBBBB..",
+    "..............AAABBBB...",
+    ".............HAAAA......",
+    "............HAA.........",
+    "...........HAA..........",
+    "..........HAA...........",
+    ".........HAA............",
+    "........HAA.............",
+    ".......HAA..............",
+    "......HAA...............",
+    ".....HAA................",
+    "....GAA.................",
+    "...GGG..................",
+    "..GGG...................",
+    ".GGG....................",
+    ".GG.....................",
+    "........................",
+]
+
+[visual_templates.bow_diagonal]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "........................",
+    "...............GGGGGGG..",
+    "...........GGGG......H..",
+    ".........AGGG.......H...",
+    "........AAG........H....",
+    ".......AAAA.......H.....",
+    "......AAAA.......H......",
+    ".....AAAA.......H.......",
+    "....AAAA.......H........",
+    "....GGA.......H.........",
+    "...GG........H..........",
+    "...GG.......H...........",
+    "...G.......H............",
+    "...G......H.............",
+    "..G......H..............",
+    "..G.....H...............",
+    "..G....H................",
+    "..G...H.................",
+    "..G..H..................",
+    "..G.H...................",
+    "..GH....................",
+    "........................",
+    "........................",
+]
+
+[visual_templates.axe_diagonal]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "..........AAAA..........",
+    "...........AAAA.......B.",
+    "............AAAGG....AB.",
+    ".............AGGGAAAAAB.",
+    ".............GGGAAAAAAB.",
+    "............GGG.AAAAAAB.",
+    "...........GGG...AAAAB..",
+    "..........GGG....AAAAB..",
+    ".........GGG.....AAAB...",
+    "........GGG.....AAAB....",
+    ".......GGG.....AAAB.....",
+    "......GGG....BBBBB......",
+    ".....GGG................",
+    "....GGG.................",
+    "...GGG..................",
+    "..GGG...................",
+    ".GGG....................",
+    ".GG.....................",
+    "........................",
+    "........................",
+]
+
+[visual_templates.shield]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "........................",
+    ".........HHHAAA.........",
+    ".......HHHHHAAAAA.......",
+    "......HHHHHHAAAHAA......",
+    ".....HHHAHHHAAAAAAA.....",
+    "....AAHHHHHHAAAAAAAA....",
+    "...AAAAHHHHHAAAAAAAAA...",
+    "...AAAAAHHHHAAAAAAAAA...",
+    "..AAHAAAAHHHHAAAAAAAAA..",
+    "..AAHAAAAAHHAHAAAAABAA..",
+    "..AAAAAAAHAHAAAAAAAAAA..",
+    "..AAAAAAAAAB.B.BBBBBBB..",
+    "..AAAAAAAABB..BBBBBBBB..",
+    "..AAAAAAABAB.B.BBBBABB..",
+    "...ABAAABBBAB...BBB.B...",
+    "...AAAABBBBB.....BBBB...",
+    "....AABBBBBB......BB....",
+    ".....BBBABBB...B........",
+    "......BB.BBB............",
+    ".......BBBBB............",
+    ".........BBB............",
+    "........................",
+    "........................",
+]
+
+[visual_templates.arrow_diagonal]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "......................H.",
+    "....................HH..",
+    ".................HHHBH..",
+    "..................BBH...",
+    "..................GBH...",
+    ".................G..H...",
+    "................G.......",
+    "...............G........",
+    "..............G.........",
+    ".............G..........",
+    "............G...........",
+    "...........G............",
+    "..........G.............",
+    ".........G..............",
+    "........G...............",
+    ".......G................",
+    "....HBG.................",
+    "...HBGB.................",
+    "..HBGBH.................",
+    ".HBGBH..................",
+    "...BH...................",
+    "...H....................",
+    "........................",
+]
+
+[visual_templates.spear_diagonal]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    ".....................BB.",
+    "...................BBBB.",
+    "..................BAAB..",
+    ".................BAAAB..",
+    ".................AAAB...",
+    "..............BBGAAB....",
+    "...............AGG......",
+    "..............GAAB......",
+    ".............GGG.B......",
+    "............GGG.........",
+    "...........GGG..........",
+    "..........GGG...........",
+    ".........GGG............",
+    "........GGG.............",
+    ".......GGG..............",
+    "......GGG...............",
+    ".....GGG................",
+    "....GGG.................",
+    "...GGG..................",
+    "..GGG...................",
+    ".GGG....................",
+    ".GG.....................",
+    "........................",
+]
+
 [items.weapons.training_sword]
 name = "Training Sword"
+description = "A blunt wooden practice sword used for early drills and safe sparring."
 category = "sword"
 slot = "main_hand"
 rarity = "common"
-color = 25
+color = 10
 visual_template = "sword_diagonal"
 rig_scale = 0.85
 rig_pivot = [0.31, 0.82]
 rig_layer = "back"
+blade_color_index = 10
+grip_color_index = 7
+accent_color_index = 6
+highlight_color_index = 14
 
 [items.weapons.training_sword.attributes]
 DMG = 2
@@ -104,10 +289,19 @@ damage_kind = "physical"
 
 [items.weapons.hand_axe]
 name = "Hand Axe"
+description = "A compact iron axe with a worn wooden handle, useful as both tool and weapon."
 category = "axe"
 slot = "main_hand"
 rarity = "common"
 color = 25
+visual_template = "axe_diagonal"
+rig_scale = 0.85
+rig_pivot = [0.31, 0.82]
+rig_layer = "back"
+blade_color_index = 25
+grip_color_index = 10
+accent_color_index = 29
+highlight_color_index = 23
 
 [items.weapons.hand_axe.attributes]
 DMG = 3
@@ -123,10 +317,19 @@ damage_kind = "physical"
 
 [items.weapons.novice_mace]
 name = "Novice Mace"
+description = "A plain iron mace with a wooden haft, heavy enough for first combat lessons."
 category = "mace"
 slot = "main_hand"
 rarity = "common"
 color = 25
+visual_template = "mace_diagonal"
+rig_scale = 0.85
+rig_pivot = [0.31, 0.82]
+rig_layer = "back"
+blade_color_index = 25
+grip_color_index = 10
+accent_color_index = 29
+highlight_color_index = 23
 
 [items.weapons.novice_mace.attributes]
 DMG = 2
@@ -136,6 +339,62 @@ damage_kind = "physical"
 [items.weapons.novice_mace.damage]
 roll = "1d6"
 bonus = 0
+bonus_attribute = "STR"
+bonus_every = 4
+damage_kind = "physical"
+
+[items.weapons.hunting_bow]
+name = "Hunting Bow"
+description = "A simple wooden bow suitable for short patrols and first hunts."
+category = "bow"
+slot = "main_hand"
+rarity = "common"
+color = 7
+visual_template = "bow_diagonal"
+rig_scale = 0.9
+rig_pivot = [0.36, 0.84]
+rig_layer = "back"
+grip_color_index = 10
+accent_color_index = 7
+highlight_color_index = 23
+
+[items.weapons.hunting_bow.attributes]
+DMG = 1
+attack_cooldown = 1.5
+damage_kind = "physical"
+ammunition = "wooden_arrows"
+
+[items.weapons.hunting_bow.damage]
+roll = "1d6"
+bonus = 0
+bonus_attribute = "DEX"
+bonus_every = 4
+damage_kind = "physical"
+
+[items.weapons.training_spear]
+name = "Training Spear"
+description = "A simple practice spear with an iron tip and a long wooden shaft."
+category = "spear"
+slot = "main_hand"
+rarity = "common"
+color = 10
+visual_template = "spear_diagonal"
+rig_scale = 0.9
+rig_pivot = [0.31, 0.82]
+rig_layer = "back"
+blade_color_index = 25
+grip_color_index = 10
+accent_color_index = 29
+highlight_color_index = 23
+
+[items.weapons.training_spear.attributes]
+DMG = 2
+attack_cooldown = 1.25
+damage_kind = "physical"
+
+[items.weapons.training_spear.damage]
+roll = "1d6"
+bonus = 1
 bonus_attribute = "STR"
 bonus_every = 4
 damage_kind = "physical"
@@ -175,10 +434,18 @@ ARMOR = 3
 
 [items.armor.round_shield]
 name = "Round Shield"
+description = "A round wooden shield with a metal rim and a simple boss."
 category = "shield"
 slot = "shield"
 rarity = "common"
 color = 10
+visual_template = "shield"
+rig_scale = 0.9
+rig_pivot = [0.5, 0.5]
+rig_layer = "front"
+blade_color_index = 10
+accent_color_index = 25
+highlight_color_index = 23
 
 [items.armor.round_shield.attributes]
 ARMOR = 1
@@ -206,3 +473,20 @@ slot = "feet"
 rarity = "common"
 color = 7
 avatar_channels = ["feet"]
+
+[items.ammunition.wooden_arrows]
+name = "Wooden Arrows"
+description = "A bundle of plain wooden arrows for bows."
+category = "arrow"
+slot = "ammunition"
+rarity = "common"
+color = 8
+visual_template = "arrow_diagonal"
+grip_color_index = 10
+blade_color_index = 25
+highlight_color_index = 23
+
+[items.ammunition.wooden_arrows.attributes]
+stackable = true
+quantity = 20
+ammo_for = "bow"

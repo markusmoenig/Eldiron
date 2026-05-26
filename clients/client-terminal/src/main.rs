@@ -896,6 +896,7 @@ fn rules_command_usage() -> &'static str {
        eldiron-client-terminal rules check [game.eldiron]\n\
        eldiron-client-terminal rules summary [game.eldiron]\n\
        eldiron-client-terminal rules character <class_id> [race=Race] [level=N] [ATTR=VALUE ...]\n\
+       eldiron-client-terminal rules item <item_id> [ATTR=VALUE ...]\n\
        eldiron-client-terminal rules class <class_id>\n\
        eldiron-client-terminal rules xp <level>\n\
        eldiron-client-terminal rules weapon <weapon_id> [ATTR=VALUE ...]\n\
@@ -906,6 +907,7 @@ fn rules_command_usage() -> &'static str {
        eldiron-client-terminal rules check test_projects/Hideout2D.eldiron\n\
        eldiron-client-terminal rules summary\n\
        eldiron-client-terminal rules character Cleric race=Human level=2\n\
+       eldiron-client-terminal rules item training_sword STR=12\n\
        eldiron-client-terminal rules class Warrior\n\
        eldiron-client-terminal rules xp 5\n\
        eldiron-client-terminal rules weapon training_sword STR=12\n\
@@ -917,6 +919,7 @@ fn run_rules_command(args: &[String]) -> Result<(), String> {
         Some("check") => run_rules_check_command(&args[1..]),
         Some("summary") => run_rules_summary_command(&args[1..]),
         Some("character") => run_rules_character_command(&args[1..]),
+        Some("item") => run_rules_item_command(&args[1..]),
         Some("class") => run_rules_class_command(&args[1..]),
         Some("xp") => run_rules_xp_command(&args[1..]),
         Some("weapon") => run_rules_weapon_command(&args[1..]),
@@ -1316,7 +1319,7 @@ fn rules_item_table<'a>(
     rules: &'a toml::Table,
     item_id: &str,
 ) -> Option<(&'static str, &'a toml::value::Table)> {
-    for group in ["weapons", "armor", "clothing"] {
+    for group in ["weapons", "armor", "clothing", "ammunition"] {
         if let Some(table) = shared::rulesets::ruleset_table_at_path(rules, &["items", group])
             .and_then(|items| items.get(item_id))
             .and_then(toml::Value::as_table)
@@ -1345,6 +1348,173 @@ fn rules_item_label(rules: &toml::Table, item_id: &str) -> String {
     } else {
         format!("?: {}", item_id)
     }
+}
+
+fn rules_item_kind(group: &str) -> String {
+    group.strip_suffix('s').unwrap_or(group).to_string()
+}
+
+fn toml_value_inline(value: &toml::Value) -> String {
+    match value {
+        toml::Value::String(value) => value.clone(),
+        toml::Value::Integer(value) => value.to_string(),
+        toml::Value::Float(value) => value.to_string(),
+        toml::Value::Boolean(value) => value.to_string(),
+        toml::Value::Array(values) => values
+            .iter()
+            .map(toml_value_inline)
+            .collect::<Vec<_>>()
+            .join(", "),
+        _ => value.to_string(),
+    }
+}
+
+fn table_lines_sorted(table: &toml::value::Table) -> Vec<String> {
+    let mut lines = table
+        .iter()
+        .filter(|(_, value)| !value.is_table())
+        .map(|(key, value)| format!("{}: {}", key, toml_value_inline(value)))
+        .collect::<Vec<_>>();
+    lines.sort();
+    lines
+}
+
+fn rules_item_category_lines(
+    rules: &toml::Table,
+    group: &str,
+    item: &toml::value::Table,
+) -> Vec<String> {
+    let Some(category) = table_string(item, "category") else {
+        return Vec::new();
+    };
+    let category_group = match group {
+        "weapons" => "weapon_categories",
+        "armor" | "clothing" => "armor_categories",
+        _ => return Vec::new(),
+    };
+    shared::rulesets::ruleset_table_at_path(rules, &["equipment", category_group, &category])
+        .map(table_lines_sorted)
+        .unwrap_or_default()
+}
+
+fn rules_item_visual_lines(item: &toml::value::Table) -> Vec<String> {
+    let visual_keys = [
+        "color",
+        "avatar_channels",
+        "visual_template",
+        "icon_template",
+        "icon_shape",
+        "icon",
+        "rig_template",
+        "rig_scale",
+        "rig_pivot",
+        "rig_layer",
+        "rig_flip_back",
+        "blade_color",
+        "blade_color_index",
+        "grip_color",
+        "grip_color_index",
+        "accent_color",
+        "accent_color_index",
+        "highlight_color",
+        "highlight_color_index",
+    ];
+    let mut lines = visual_keys
+        .iter()
+        .filter_map(|key| {
+            item.get(*key)
+                .map(|value| format!("{}: {}", key, toml_value_inline(value)))
+        })
+        .collect::<Vec<_>>();
+    lines.sort();
+    lines
+}
+
+fn format_rules_item(
+    rules: &toml::Table,
+    item_id: &str,
+    attributes: &shared::rulesets::RulesetAttributeMap,
+) -> Result<String, String> {
+    let Some((group, item)) = rules_item_table(rules, item_id) else {
+        return Err(format!("Item '{}' was not found.", item_id));
+    };
+
+    let name = table_string(item, "name").unwrap_or_else(|| item_id.to_string());
+    let kind = rules_item_kind(group);
+    let category = table_string(item, "category").unwrap_or_else(|| "-".into());
+    let slot = table_string(item, "slot").unwrap_or_else(|| "-".into());
+    let rarity = table_string(item, "rarity").unwrap_or_else(|| "-".into());
+    let description = table_string(item, "description");
+
+    let mut out = vec![
+        format!("item: {}", name),
+        format!("id: {}", item_id),
+        format!("kind: {}", kind),
+        format!("category: {}", category),
+        format!("slot: {}", slot),
+        format!("rarity: {}", rarity),
+    ];
+    if let Some(description) = description {
+        out.push(format!("description: {}", description));
+    }
+
+    out.push(String::new());
+    out.push("damage:".into());
+    if item.get("damage").and_then(toml::Value::as_table).is_some() {
+        match shared::rulesets::summarize_roll_path(
+            rules,
+            &["items", group, item_id, "damage"],
+            attributes,
+        ) {
+            Ok(summary) => out.push(format_roll_compact(&summary)),
+            Err(err) => out.push(format!("invalid: {}", err)),
+        }
+    } else {
+        out.push("-".into());
+    }
+
+    out.push(String::new());
+    out.push("attributes:".into());
+    if let Some(attrs) = item.get("attributes").and_then(toml::Value::as_table) {
+        let lines = table_lines_sorted(attrs);
+        if lines.is_empty() {
+            out.push("-".into());
+        } else {
+            out.extend(lines);
+        }
+    } else {
+        out.push("-".into());
+    }
+
+    out.push(String::new());
+    out.push("category rules:".into());
+    let category_lines = rules_item_category_lines(rules, group, item);
+    if category_lines.is_empty() {
+        out.push("-".into());
+    } else {
+        out.extend(category_lines);
+    }
+
+    out.push(String::new());
+    out.push("visual:".into());
+    let visual_lines = rules_item_visual_lines(item);
+    if visual_lines.is_empty() {
+        out.push("-".into());
+    } else {
+        out.extend(visual_lines);
+    }
+
+    Ok(out.join("\n"))
+}
+
+fn run_rules_item_command(args: &[String]) -> Result<(), String> {
+    let Some(item_id) = args.first() else {
+        return Err(rules_command_usage().into());
+    };
+    let attributes = parse_rules_attributes(&args[1..])?;
+    let rules = official_rules_table()?;
+    println!("{}", format_rules_item(&rules, item_id, &attributes)?);
+    Ok(())
 }
 
 fn rules_character_loadout_lines(rules: &toml::Table, entity: &Entity, key: &str) -> Vec<String> {
@@ -2158,7 +2328,7 @@ mod tests {
 
         assert!(summary.contains("source: test"));
         assert!(summary.contains("id: eldiron.official"));
-        assert!(summary.contains("classes: 2"));
+        assert!(summary.contains("classes: 3"));
         assert!(summary.contains("spells: 3"));
     }
 
@@ -2188,6 +2358,58 @@ mod tests {
         assert!(output.contains("holy_light"));
         assert!(output.contains("cost MP=4"));
         assert!(output.contains("main_hand: Novice Mace"));
+
+        let mut ranger =
+            rules_character_entity(&["Ranger".into(), "race=Human".into(), "level=1".into()])
+                .unwrap();
+        rusterix::server::region::apply_ruleset_character_defaults(&rules, &mut ranger);
+        let output = format_rules_character(&rules, &ranger);
+        assert!(output.contains("class: Ranger"));
+        assert!(output.contains("main_hand: Hunting Bow"));
+        assert!(output.contains("Wooden Arrows"));
+    }
+
+    #[test]
+    fn formats_rules_item_details() {
+        let rules = official_rules_table().unwrap();
+        let attributes = shared::rulesets::RulesetAttributeMap::from([("STR".into(), 12.0)]);
+        let sword = format_rules_item(&rules, "training_sword", &attributes).unwrap();
+
+        assert!(sword.contains("item: Training Sword"));
+        assert!(sword.contains("kind: weapon"));
+        assert!(sword.contains("blunt wooden practice sword"));
+        assert!(sword.contains("1d6 + 1"));
+        assert!(sword.contains("STR=12 gives +3 every 4"));
+        assert!(sword.contains("visual_template: sword_diagonal"));
+        assert!(sword.contains("blade_color_index: 10"));
+
+        let bow_attrs = shared::rulesets::RulesetAttributeMap::from([("DEX".into(), 12.0)]);
+        let bow = format_rules_item(&rules, "hunting_bow", &bow_attrs).unwrap();
+        assert!(bow.contains("item: Hunting Bow"));
+        assert!(bow.contains("category: bow"));
+        assert!(bow.contains("simple wooden bow"));
+        assert!(bow.contains("DEX=12 gives +3 every 4"));
+        assert!(bow.contains("range: 6"));
+        assert!(bow.contains("visual_template: bow_diagonal"));
+
+        let shirt = format_rules_item(
+            &rules,
+            "linen_shirt",
+            &shared::rulesets::RulesetAttributeMap::new(),
+        )
+        .unwrap();
+        assert!(shirt.contains("kind: clothing"));
+        assert!(shirt.contains("avatar_channels: torso, arms"));
+        assert!(shirt.contains("crafting_family: tailoring"));
+
+        let arrows = format_rules_item(
+            &rules,
+            "wooden_arrows",
+            &shared::rulesets::RulesetAttributeMap::new(),
+        )
+        .unwrap();
+        assert!(arrows.contains("kind: ammunition"));
+        assert!(arrows.contains("quantity: 20"));
     }
 }
 

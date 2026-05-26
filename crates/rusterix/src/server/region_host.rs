@@ -1,10 +1,11 @@
 use crate::server::message::{AudioCommand, RegionMessage};
 use crate::server::region::{
     RegionInstance, add_debug_value, apply_damage_direct, apply_damage_rules,
-    apply_spell_default_attrs, current_attack_base_damage_for_entity,
-    current_attack_cooldown_for_entity, entity_disposition_by_id, entity_is_hostile_by_id,
-    entity_item_by_id, execute_ruleset_action, grant_experience, is_spell_on_cooldown,
-    open_dialog_node, set_spell_cooldown,
+    apply_spell_default_attrs, consume_attack_ammunition_for_source,
+    current_attack_base_damage_for_entity, current_attack_cooldown_for_entity,
+    entity_disposition_by_id, entity_is_hostile_by_id, entity_item_by_id, execute_ruleset_action,
+    grant_experience, has_attack_ammunition_or_message, is_spell_on_cooldown, open_dialog_node,
+    set_spell_cooldown,
 };
 use crate::server::regionctx::ChoiceSession;
 use crate::vm::*;
@@ -911,6 +912,9 @@ impl<'a> RegionHost<'a> {
             }
 
             let attacker_id = self.ctx.curr_entity_id;
+            if !consume_attack_ammunition_for_source(self.ctx, attacker_id, source_item_id) {
+                return;
+            }
             let source_item_id = source_item_id.unwrap_or(0);
             let dmg = apply_damage_rules(self.ctx, id, attacker_id, base_dmg, kind, source_item_id);
             if self.ctx.curr_item_id.is_none() && dmg > 0 {
@@ -2351,6 +2355,16 @@ impl<'a> HostHandler for RegionHost<'a> {
                     ),
                     _ => ruleset_damage(),
                 };
+                if target_id.is_some()
+                    && !has_attack_ammunition_or_message(
+                        self.ctx,
+                        self.ctx.curr_entity_id,
+                        source_item_id,
+                        "attack",
+                    )
+                {
+                    return self.debug_return(VMValue::zero());
+                }
                 if target_id.is_some() && !self.try_start_attack_cooldown() {
                     return self.debug_return(VMValue::zero());
                 }
@@ -2358,10 +2372,20 @@ impl<'a> HostHandler for RegionHost<'a> {
             }
             "attack" => {
                 let target_id = self.get_current_target_id();
+                let source_item_id = self.current_attack_source_item_id();
+                if target_id.is_some()
+                    && !has_attack_ammunition_or_message(
+                        self.ctx,
+                        self.ctx.curr_entity_id,
+                        source_item_id,
+                        "attack",
+                    )
+                {
+                    return self.debug_return(VMValue::zero());
+                }
                 if target_id.is_some() && !self.try_start_attack_cooldown() {
                     return self.debug_return(VMValue::zero());
                 }
-                let source_item_id = self.current_attack_source_item_id();
                 let kind = self.current_attack_kind(source_item_id);
                 let base_dmg = self.current_attack_base_damage();
                 self.queue_damage(target_id, base_dmg, &kind, source_item_id);
@@ -3063,7 +3087,15 @@ mod tests {
                 item.set_attribute(key, Value::Str(value));
             }
         }
-        for key in ["rig_scale", "rig_pivot", "color"] {
+        for key in [
+            "rig_scale",
+            "rig_pivot",
+            "color",
+            "blade_color_index",
+            "grip_color_index",
+            "accent_color_index",
+            "highlight_color_index",
+        ] {
             if let Some(value) = item_table.get(key).and_then(toml_value_to_attr) {
                 let attr = if key == "color" { "color_index" } else { key };
                 item.set_attribute(attr, value);
@@ -3259,6 +3291,27 @@ mod tests {
             entity.add_item(item).expect("free inventory slot");
         }
 
+        fn add_official_inventory_item(
+            &mut self,
+            entity_id: u32,
+            item_id: u32,
+            group: &str,
+            id: &str,
+        ) {
+            let (_, class_name, item, data) =
+                official_item_from_rules(&self.ctx.rules, item_id, group, id);
+            self.ctx.item_class_data.insert(class_name, data);
+            let entity = self
+                .ctx
+                .map
+                .entities
+                .iter_mut()
+                .find(|entity| entity.id == entity_id)
+                .expect("inventory owner");
+            entity.inventory.resize(8, None);
+            entity.add_item(item).expect("free inventory slot");
+        }
+
         fn equip_official_item(&mut self, entity_id: u32, item_id: u32, group: &str, id: &str) {
             let (slot, class_name, item, data) =
                 official_item_from_rules(&self.ctx.rules, item_id, group, id);
@@ -3321,6 +3374,18 @@ mod tests {
             self.entity(id)
                 .attributes
                 .get_str_default(key, String::new())
+        }
+
+        fn inventory_item_quantity(&self, entity_id: u32, ruleset_id: &str) -> i32 {
+            self.entity(entity_id)
+                .iter_inventory()
+                .find_map(|(_, item)| {
+                    item.attributes
+                        .get_str("ruleset_id")
+                        .filter(|id| id.trim() == ruleset_id)
+                        .map(|_| item.attributes.get_int_default("quantity", 1))
+                })
+                .unwrap_or(0)
         }
 
         fn target(&self, id: u32) -> Option<u32> {
@@ -3942,6 +4007,7 @@ mod tests {
         arena.add_official_entity(1, "Warrior", "Human", 1, None);
         arena.add_official_entity(2, "Cleric", "Human", 1, None);
         arena.add_official_entity(3, "Cleric", "Human", 2, None);
+        arena.add_official_entity(4, "Ranger", "Human", 1, None);
 
         assert_eq!(arena.hp(1), 16);
         assert_eq!(arena.entity(1).attributes.get_int_default("MAX_HP", 0), 16);
@@ -3958,6 +4024,11 @@ mod tests {
         assert!(arena.has_str_array_attr(3, "spells", "minor_heal"));
         assert!(arena.has_str_array_attr(3, "spells", "holy_light"));
         assert_eq!(arena.entity(3).attributes.get_int_default("MAX_MP", 0), 11);
+
+        assert_eq!(arena.hp(4), 14);
+        assert_eq!(arena.entity(4).attributes.get_int_default("DEX", 0), 12);
+        assert!(arena.has_str_array_attr(4, "start_equipped_items", "hunting_bow"));
+        assert!(arena.has_str_array_attr(4, "start_items", "wooden_arrows"));
     }
 
     #[test]
@@ -4066,6 +4137,96 @@ mod tests {
         assert!(arena.hp(1) <= arena.entity(1).attributes.get_int_default("MAX_HP", 0));
         assert_eq!(arena.mp(1), 4);
         assert!(is_spell_on_cooldown(&arena.ctx, 1, "minor_heal"));
+    }
+
+    #[test]
+    fn official_ruleset_ranger_uses_bow_damage_and_cooldown() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.add_script_class(
+            "Ranger",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "attack" {
+                    attack();
+                }
+            }
+            "#,
+        );
+        arena.add_script_class(
+            "Warrior",
+            r#"
+            fn event(event, value) {
+                if event == "damaged" {
+                    set_attr("last_attacker", value.attacker_id);
+                    set_attr("last_damage", value.amount);
+                    set_attr("last_kind", value.kind);
+                    set_attr("last_source_item", value.source_item_id);
+                }
+            }
+            "#,
+        );
+        arena.add_official_entity(1, "Ranger", "Human", 1, Some(2));
+        arena.add_official_entity(2, "Warrior", "Orc", 1, None);
+        arena.equip_official_item(1, 101, "weapons", "hunting_bow");
+        arena.add_official_inventory_item(1, 201, "ammunition", "wooden_arrows");
+        arena
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 1)
+            .unwrap()
+            .position = Vec3::new(0.0, 1.0, 0.0);
+        arena
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 2)
+            .unwrap()
+            .position = Vec3::new(4.0, 1.0, 0.0);
+
+        assert_eq!(
+            current_attack_cooldown_for_entity(&arena.ctx, arena.entity(1)),
+            1.5
+        );
+        let base_damage = current_attack_base_damage_for_entity(&arena.ctx, 1);
+        assert!((4..=9).contains(&base_damage));
+
+        let orc_hp = arena.hp(2);
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+
+        assert!(arena.hp(2) < orc_hp);
+        assert_eq!(arena.inventory_item_quantity(1, "wooden_arrows"), 19);
+        assert_eq!(arena.attr_str(2, "last_kind"), "physical");
+        assert_eq!(arena.attr_f32(2, "last_attacker") as u32, 1);
+        assert_eq!(arena.attr_f32(2, "last_source_item") as u32, 101);
+    }
+
+    #[test]
+    fn official_ruleset_ranger_bow_requires_arrows() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.add_script_class(
+            "Ranger",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "attack" {
+                    attack();
+                }
+            }
+            "#,
+        );
+        arena.add_official_entity(1, "Ranger", "Human", 1, Some(2));
+        arena.add_official_entity(2, "Warrior", "Orc", 1, None);
+        arena.equip_official_item(1, 101, "weapons", "hunting_bow");
+
+        let orc_hp = arena.hp(2);
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(2), orc_hp);
+        assert_eq!(arena.inventory_item_quantity(1, "wooden_arrows"), 0);
     }
 }
 

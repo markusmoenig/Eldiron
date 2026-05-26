@@ -1239,6 +1239,10 @@ fn validate_class_rules(report: &mut RulesetValidationReport, root: &Table) {
     let weapons = table_key_set(root, &["items", "weapons"]);
     let armor = table_key_set(root, &["items", "armor"]);
     let clothing = table_key_set(root, &["items", "clothing"]);
+    let mut item_templates = BTreeSet::new();
+    for group in ruleset_item_group_names(root) {
+        item_templates.extend(table_key_set(root, &["items", &group]));
+    }
     let abilities = table_key_set(root, &["abilities"]);
     let spells = table_key_set(root, &["spells"]);
 
@@ -1282,6 +1286,7 @@ fn validate_class_rules(report: &mut RulesetValidationReport, root: &Table) {
                     &weapons,
                     &armor,
                     &clothing,
+                    &item_templates,
                     &abilities,
                     &spells,
                 );
@@ -1297,6 +1302,7 @@ fn validate_class_reference_table(
     weapons: &BTreeSet<String>,
     armor: &BTreeSet<String>,
     clothing: &BTreeSet<String>,
+    item_templates: &BTreeSet<String>,
     abilities: &BTreeSet<String>,
     spells: &BTreeSet<String>,
 ) {
@@ -1310,6 +1316,7 @@ fn validate_class_reference_table(
                     weapons,
                     armor,
                     clothing,
+                    item_templates,
                     abilities,
                     spells,
                 );
@@ -1336,12 +1343,8 @@ fn validate_class_reference_table(
                 "clothing" => clothing.contains(entry),
                 "abilities" => abilities.contains(entry),
                 "spells" | "spell_lists" => spells.contains(entry),
-                "inventory" | "items" => {
-                    weapons.contains(entry) || armor.contains(entry) || clothing.contains(entry)
-                }
-                "equipment" => {
-                    weapons.contains(entry) || armor.contains(entry) || clothing.contains(entry)
-                }
+                "inventory" | "items" => item_templates.contains(entry),
+                "equipment" => item_templates.contains(entry),
                 _ => {
                     report.warning(
                         format!("{}.{}", path, key),
@@ -1572,6 +1575,10 @@ fn ruleset_item_template_data(
 
     let mut attributes = Table::new();
     insert_string(&mut attributes, "name", &name);
+    if let Some(description) = table_string(item, "description") {
+        insert_string(&mut attributes, "description", &description);
+        insert_string(&mut attributes, "on_look", description);
+    }
     insert_bool(&mut attributes, "visible", true);
     insert_bool(&mut attributes, "static", false);
     insert_bool(&mut attributes, "blocking", false);
@@ -1599,6 +1606,8 @@ fn ruleset_item_template_data(
         "grip_color_index",
         "accent_color",
         "accent_color_index",
+        "highlight_color",
+        "highlight_color_index",
     ] {
         if let Some(value) = item.get(key) {
             attributes.insert(key.to_string(), value.clone());
@@ -2017,6 +2026,21 @@ mod tests {
     }
 
     #[test]
+    fn summarizes_official_hunting_bow_damage() {
+        let table = latest_official_ruleset().parse::<Table>().unwrap();
+        let attributes = RulesetAttributeMap::from([("DEX".to_string(), 12.0)]);
+        let summary = summarize_weapon_damage(&table, "hunting_bow", &attributes).unwrap();
+
+        assert_eq!(summary.spec.roll, "1d6");
+        assert_eq!(summary.spec.bonus, 0.0);
+        assert_eq!(summary.attribute_value, 12.0);
+        assert_eq!(summary.attribute_bonus, 3.0);
+        assert_eq!(summary.minimum, 4.0);
+        assert_eq!(summary.maximum, 9.0);
+        assert_eq!(summary.spec.damage_kind.as_deref(), Some("physical"));
+    }
+
+    #[test]
     fn reads_official_xp_table() {
         let table = latest_official_ruleset().parse::<Table>().unwrap();
 
@@ -2092,6 +2116,28 @@ mod tests {
     }
 
     #[test]
+    fn summarizes_official_ranger_class() {
+        let table = latest_official_ruleset().parse::<Table>().unwrap();
+        let ranger = summarize_class(&table, "Ranger").unwrap();
+
+        assert_eq!(ranger.role.as_deref(), Some("ranged"));
+        assert_eq!(ranger.attributes.get("DEX").map(String::as_str), Some("12"));
+        assert!(ranger.allowed_weapons.iter().any(|weapon| weapon == "bow"));
+        assert!(
+            ranger
+                .starting_loadout
+                .get("weapons")
+                .is_some_and(|weapons| weapons.iter().any(|weapon| weapon == "hunting_bow"))
+        );
+        assert!(
+            ranger
+                .starting_loadout
+                .get("inventory")
+                .is_some_and(|items| items.iter().any(|item| item == "wooden_arrows"))
+        );
+    }
+
+    #[test]
     fn extracts_official_item_templates() {
         let templates = ruleset_item_templates_from_source(latest_official_ruleset()).unwrap();
 
@@ -2105,15 +2151,54 @@ mod tests {
                 && template
                     .data
                     .contains("visual_template = \"sword_diagonal\"")
+                && template
+                    .data
+                    .contains("description = \"A blunt wooden practice sword")
+                && template.data.contains("blade_color_index = 10")
+                && template.data.contains("highlight_color_index = 14")
                 && template.data.contains("visual_template_pixels")
                 && template.data.contains("rig_scale = 0.85")
         }));
-        assert!(templates.iter().any(|template| template.id == "hand_axe"));
-        assert!(
-            templates
-                .iter()
-                .any(|template| template.id == "novice_mace")
-        );
+        assert!(templates.iter().any(|template| {
+            template.id == "hand_axe"
+                && template.data.contains("visual_template = \"axe_diagonal\"")
+                && template.data.contains("visual_template_pixels")
+                && template.data.contains("on_look = \"A compact iron axe")
+        }));
+        assert!(templates.iter().any(|template| {
+            template.id == "novice_mace"
+                && template
+                    .data
+                    .contains("visual_template = \"mace_diagonal\"")
+                && template.data.contains("visual_template_pixels")
+        }));
+        assert!(templates.iter().any(|template| {
+            template.id == "hunting_bow"
+                && template.data.contains("visual_template = \"bow_diagonal\"")
+                && template.data.contains("visual_template_pixels")
+        }));
+        assert!(templates.iter().any(|template| {
+            template.id == "training_spear"
+                && template
+                    .data
+                    .contains("visual_template = \"spear_diagonal\"")
+                && template.data.contains("visual_template_pixels")
+                && template
+                    .data
+                    .contains("on_look = \"A simple practice spear")
+        }));
+        assert!(templates.iter().any(|template| {
+            template.id == "wooden_arrows"
+                && template.kind == "ammunition"
+                && template.ruleset_path == "items.ammunition.wooden_arrows"
+                && template
+                    .data
+                    .contains("visual_template = \"arrow_diagonal\"")
+                && template.data.contains("visual_template_pixels")
+                && template
+                    .data
+                    .contains("on_look = \"A bundle of plain wooden arrows for bows.\"")
+        }));
         assert!(
             templates
                 .iter()
@@ -2129,11 +2214,12 @@ mod tests {
                 .iter()
                 .any(|template| template.id == "chain_shirt")
         );
-        assert!(
-            templates
-                .iter()
-                .any(|template| template.id == "round_shield")
-        );
+        assert!(templates.iter().any(|template| {
+            template.id == "round_shield"
+                && template.data.contains("visual_template = \"shield\"")
+                && template.data.contains("visual_template_pixels")
+                && template.data.contains("on_look = \"A round wooden shield")
+        }));
         assert!(templates.iter().any(|template| {
             template.id == "linen_shirt"
                 && template.kind == "clothing"
@@ -2167,10 +2253,13 @@ mod tests {
         assert!(catalog.races.iter().any(|id| id == "Orc"));
         assert!(catalog.classes.iter().any(|id| id == "Warrior"));
         assert!(catalog.classes.iter().any(|id| id == "Cleric"));
+        assert!(catalog.classes.iter().any(|id| id == "Ranger"));
         assert!(catalog.actions.iter().any(|id| id == "basic_attack"));
         assert!(catalog.actions.iter().any(|id| id == "holy_light"));
         assert!(catalog.weapons.iter().any(|id| id == "training_sword"));
         assert!(catalog.weapons.iter().any(|id| id == "novice_mace"));
+        assert!(catalog.weapons.iter().any(|id| id == "hunting_bow"));
+        assert!(catalog.weapons.iter().any(|id| id == "training_spear"));
         assert!(catalog.armor.iter().any(|id| id == "chain_shirt"));
         assert!(catalog.clothing.iter().any(|id| id == "linen_shirt"));
         assert!(
@@ -2178,6 +2267,12 @@ mod tests {
                 .item_templates
                 .iter()
                 .any(|path| path == "items.weapons.training_sword")
+        );
+        assert!(
+            catalog
+                .item_templates
+                .iter()
+                .any(|path| path == "items.ammunition.wooden_arrows")
         );
 
         let classes =

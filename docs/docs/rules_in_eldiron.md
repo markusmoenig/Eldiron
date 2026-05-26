@@ -195,9 +195,11 @@ For example, a ruleset entry like:
 ```toml
 [items.weapons.training_sword]
 name = "Training Sword"
+description = "A blunt wooden practice sword used for early drills and safe sparring."
 category = "sword"
 slot = "main_hand"
 rarity = "common"
+visual_template = "sword_diagonal"
 ```
 
 becomes a normal project item template tagged with:
@@ -207,6 +209,7 @@ becomes a normal project item template tagged with:
 ruleset_path = "items.weapons.training_sword"
 ruleset_kind = "weapon"
 ruleset_id = "training_sword"
+on_look = "A blunt wooden practice sword used for early drills and safe sparring."
 ```
 
 Creator creates missing ruleset-backed items and refreshes existing
@@ -293,6 +296,10 @@ eldiron-client-terminal rules check
 eldiron-client-terminal rules check test_projects/Hideout2D.eldiron
 eldiron-client-terminal rules summary
 eldiron-client-terminal rules character Cleric race=Human level=2
+eldiron-client-terminal rules character Ranger race=Human level=1
+eldiron-client-terminal rules item training_sword STR=12
+eldiron-client-terminal rules item hunting_bow DEX=12
+eldiron-client-terminal rules item linen_shirt
 eldiron-client-terminal rules class Warrior
 eldiron-client-terminal rules xp 5
 eldiron-client-terminal rules weapon training_sword STR=12
@@ -325,6 +332,15 @@ Use the inspector commands to browse the effective ruleset:
 
 Use the calculator commands to answer balancing questions without needing to run
 a full gameplay scenario.
+
+In play, official action distances are resolved before legacy character
+`[intent_distance]` values. The same `attack` icon can therefore use melee
+range for swords and maces, or bow range for Rangers. Directional 2D intents
+scan the chosen lane up to that range, so `attack` plus a direction can select a
+hostile target beyond the adjacent tile when the equipped weapon allows it.
+Weapons can also declare ammunition. For example, `hunting_bow` requires
+`wooden_arrows`; a successful weapon attack consumes one matching inventory
+stack quantity before damage is queued.
 
 ## Future Versioning
 

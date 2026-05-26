@@ -126,3 +126,46 @@ clothing = ["wool_trousers", "leather_shoes"]
 inventory = ["linen_shirt"]
 abilities = ["basic_attack", "guard"]
 spells = ["minor_heal"]
+
+[classes.Ranger]
+description = "Mobile hunter trained for bows, light armor, and wilderness survival."
+role = "ranged"
+primary_attributes = ["DEX", "VIT"]
+allowed_weapons = ["bow", "sword", "axe"]
+allowed_armor = ["cloth", "leather"]
+abilities = ["basic_attack"]
+spells = []
+
+[classes.Ranger.attributes]
+HP = 14
+MAX_HP = 14
+MP = 0
+MAX_MP = 0
+STR = 10
+DEX = 12
+VIT = 11
+DMG = 0
+ARMOR = 0
+INIT = 2
+inventory_slots = 8
+
+[classes.Ranger.progression.damage]
+base = 1
+per_level = 1
+bonus_attribute = "DEX"
+bonus_every = 5
+
+[classes.Ranger.progression.level]
+hp_per_level = 5
+primary_attribute_gain = 1
+
+[classes.Ranger.unlocks.level_1]
+abilities = ["basic_attack"]
+equipment = ["hunting_bow", "leather_vest"]
+
+[classes.Ranger.starting_loadout]
+weapons = ["hunting_bow"]
+armor = ["leather_vest"]
+clothing = ["wool_trousers", "leather_shoes"]
+inventory = ["wooden_arrows", "linen_shirt"]
+abilities = ["basic_attack"]

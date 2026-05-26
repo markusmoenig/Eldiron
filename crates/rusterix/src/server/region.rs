@@ -569,6 +569,207 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn weapon_range_intent_uses_equipped_bow_category_range() {
+        let mut ctx = RegionCtx::default();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [actions.basic_attack]
+        intent = "attack"
+        target = "hostile_entity"
+        range = "weapon"
+
+        [equipment.weapon_categories.bow]
+        range = 6
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+        ctx.config = toml::from_str::<toml::Value>(
+            r#"
+        [game]
+        weapon_slots = ["main_hand"]
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+
+        let mut bow = Item::new();
+        bow.set_attribute("category", Value::Str("bow".into()));
+        let mut entity = Entity::new();
+        entity.id = 1;
+        entity.equipped.insert("main_hand".into(), bow);
+        ctx.map.entities.push(entity);
+        ctx.entity_classes.insert(1, "Ranger".into());
+        ctx.entity_class_data.insert(
+            "Ranger".into(),
+            r#"
+        [intent_distance]
+        default = 2
+        attack = 2
+        "#
+            .into(),
+        );
+
+        let rules = intent_rule_config(&ctx, 1, "attack");
+        assert_eq!(rules.distance.source.as_deref(), Some("weapon_range"));
+        assert_eq!(intent_distance_limit(&ctx, 1, "attack", &rules), 6.0);
+    }
+
+    #[test]
+    fn directional_attack_finds_hostile_target_at_weapon_range() {
+        let mut ctx = RegionCtx::default();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [actions.basic_attack]
+        intent = "attack"
+        target = "hostile_entity"
+        range = "weapon"
+
+        [equipment.weapon_categories.bow]
+        range = 6
+
+        [races.Human]
+        [races.Orc]
+
+        [identity.defaults]
+        race = "Human"
+
+        [race_relations.Human]
+        Orc = "hostile"
+
+        [reputation]
+        default = 0
+
+        [reputation.thresholds]
+        hostile = -50
+        friendly = 50
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+        ctx.config = toml::from_str::<toml::Value>(
+            r#"
+        [game]
+        weapon_slots = ["main_hand"]
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+
+        let mut bow = Item::new();
+        bow.set_attribute("category", Value::Str("bow".into()));
+        let mut ranger = Entity::new();
+        ranger.id = 1;
+        ranger.position = Vec3::new(0.0, 1.0, 0.0);
+        ranger.set_attribute("race", Value::Str("Human".into()));
+        ranger.equipped.insert("main_hand".into(), bow);
+
+        let mut orc = Entity::new();
+        orc.id = 2;
+        orc.position = Vec3::new(4.0, 1.0, 0.0);
+        orc.set_attribute("race", Value::Str("Orc".into()));
+        orc.set_attribute("mode", Value::Str("active".into()));
+
+        ctx.map.entities.push(ranger);
+        ctx.map.entities.push(orc);
+
+        let rules = intent_rule_config(&ctx, 1, "attack");
+        let range = intent_distance_limit(&ctx, 1, "attack", &rules);
+        let actor = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == 1)
+            .unwrap();
+        let (target_id, distance) =
+            directional_entity_target(&ctx, actor, Vec2::new(1.0, 0.0), range).unwrap();
+
+        assert_eq!(range, 6.0);
+        assert_eq!(target_id, 2);
+        assert_eq!(distance, 4.0);
+
+        let target = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == target_id)
+            .unwrap();
+        assert!(intent_allowed(
+            &ctx,
+            &rules,
+            distance,
+            Some(actor),
+            Some(target),
+            None
+        ));
+    }
+
+    #[test]
+    fn local_intent_distance_still_handles_non_rules_intents() {
+        let mut ctx = RegionCtx::default();
+        ctx.entity_classes.insert(1, "Player".into());
+        ctx.entity_class_data.insert(
+            "Player".into(),
+            r#"
+        [intent_distance]
+        default = 2
+        talk = 3
+        "#
+            .into(),
+        );
+
+        let rules = intent_rule_config(&ctx, 1, "talk");
+        assert_eq!(intent_distance_limit(&ctx, 1, "talk", &rules), 3.0);
+    }
+
+    #[test]
+    fn class_name_can_supply_race_for_hostility() {
+        let mut ctx = RegionCtx::default();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [races.Human]
+        [races.Orc]
+
+        [identity.defaults]
+        race = "Human"
+
+        [race_relations.Human]
+        Orc = "hostile"
+
+        [reputation]
+        default = 0
+
+        [reputation.thresholds]
+        hostile = -50
+        friendly = 50
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+
+        let mut player = Entity::new();
+        player.id = 1;
+        player.set_attribute("race", Value::Str("Human".into()));
+        let mut orc = Entity::new();
+        orc.id = 2;
+        orc.set_attribute("class_name", Value::Str("Orc".into()));
+        ctx.map.entities.push(player);
+        ctx.map.entities.push(orc);
+
+        assert!(entity_is_hostile_by_id(&ctx, 1, 2));
+    }
+
+    #[test]
     fn ruleset_action_queues_ability_damage_and_cooldown() {
         let mut ctx = RegionCtx::default();
         ctx.rules = toml::from_str::<toml::Value>(
@@ -7177,6 +7378,14 @@ impl RegionInstance {
             if let Some(entity_id) = get_entity_at(ctx, position, entity.id) {
                 if entity_id != entity.id && !ctx.is_entity_dead_ctx(entity_id) {
                     value.x = entity_id as f32;
+                    if let Some(target) = ctx
+                        .map
+                        .entities
+                        .iter()
+                        .find(|target| target.id == entity_id)
+                    {
+                        value.y = entity.get_pos_xz().distance(target.get_pos_xz());
+                    }
                     target_entity_id = Some(entity_id);
                     found_target = true;
                 }
@@ -7184,6 +7393,9 @@ impl RegionInstance {
             if !found_target {
                 if let Some(i_id) = get_item_at(ctx, position) {
                     value.x = i_id as f32;
+                    if let Some(item) = ctx.map.items.iter().find(|item| item.id == i_id) {
+                        value.y = entity.get_pos_xz().distance(item.get_pos_xz());
+                    }
                     target_item_id = Some(i_id);
                     found_target = true;
                 }
@@ -7192,6 +7404,26 @@ impl RegionInstance {
             let intent = entity.attributes.get_str_default("intent", "".into());
             let intent_lower = intent.trim().to_ascii_lowercase();
             let rules = intent_rule_config(ctx, entity.id, &intent_lower);
+
+            if !found_target
+                && target_entity_id.is_none()
+                && !intent_lower.is_empty()
+                && rules
+                    .allowed_target_kinds
+                    .iter()
+                    .any(|kind| kind == "entity")
+            {
+                let max_distance = intent_distance_limit(ctx, entity.id, &intent_lower, &rules);
+                if max_distance > value.y + 0.01
+                    && let Some((entity_id, distance)) =
+                        directional_entity_target(ctx, entity, position, max_distance)
+                {
+                    value.x = entity_id as f32;
+                    value.y = distance;
+                    target_entity_id = Some(entity_id);
+                    found_target = true;
+                }
+            }
 
             if let Some(action_id) = intent.trim().strip_prefix("action:") {
                 if let Some(target_entity_id) = target_entity_id {
@@ -7681,6 +7913,40 @@ fn get_entity_at(ctx: &RegionCtx, position: Vec2<f32>, but_not: u32) -> Option<u
     }
 
     entity
+}
+
+fn directional_entity_target(
+    ctx: &RegionCtx,
+    actor: &Entity,
+    target_position: Vec2<f32>,
+    max_distance: f32,
+) -> Option<(u32, f32)> {
+    let actor_pos = actor.get_pos_xz();
+    let direction = target_position - actor_pos;
+    if direction.magnitude_squared() <= 0.001 || max_distance <= 0.0 {
+        return None;
+    }
+
+    let direction = direction.normalized();
+    let lane_radius = 0.75_f32;
+    ctx.map
+        .entities
+        .iter()
+        .filter(|target| target.id != actor.id && !ctx.is_entity_dead_ctx(target.id))
+        .filter_map(|target| {
+            let to_target = target.get_pos_xz() - actor_pos;
+            let forward = to_target.dot(direction);
+            if forward <= 0.0 || forward > max_distance {
+                return None;
+            }
+            let lateral = to_target - direction * forward;
+            if lateral.magnitude_squared() > lane_radius * lane_radius {
+                return None;
+            }
+            Some((target.id, to_target.magnitude(), forward))
+        })
+        .min_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|(id, distance, _)| (id, distance))
 }
 
 /// Returns the item at the given position (if any)
@@ -8651,6 +8917,132 @@ fn entity_has_action_consumes(entity: &Entity, consumes: &[(String, usize)]) -> 
     None
 }
 
+fn item_stack_quantity(item: &Item) -> usize {
+    match item_quantity_attr(item) {
+        Some(quantity) => quantity.max(0) as usize,
+        None => 1,
+    }
+}
+
+fn item_quantity_attr(item: &Item) -> Option<i32> {
+    match item.attributes.get("quantity") {
+        Some(Value::Int(value)) => Some(*value),
+        Some(Value::UInt(value)) => Some(*value as i32),
+        Some(Value::Int64(value)) => Some(*value as i32),
+        Some(Value::Float(value)) => Some(value.round() as i32),
+        Some(Value::Str(value)) => value.trim().parse::<i32>().ok(),
+        _ => None,
+    }
+}
+
+fn entity_inventory_item_count(entity: &Entity, item_id: &str) -> usize {
+    entity
+        .inventory
+        .iter()
+        .filter_map(|item| item.as_ref())
+        .filter(|item| ruleset_item_matches_id(item, item_id))
+        .map(item_stack_quantity)
+        .sum()
+}
+
+fn attack_required_ammunition(
+    ctx: &RegionCtx,
+    attacker_id: u32,
+    source_item_id: Option<u32>,
+) -> Option<String> {
+    let source_item_id = source_item_id?;
+    let attacker = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == attacker_id)?;
+    entity_item_by_id(attacker, source_item_id)
+        .and_then(|item| item.attributes.get_str("ammunition"))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+pub(crate) fn has_attack_ammunition_or_message(
+    ctx: &mut RegionCtx,
+    attacker_id: u32,
+    source_item_id: Option<u32>,
+    action_name: &str,
+) -> bool {
+    let Some(ammunition_id) = attack_required_ammunition(ctx, attacker_id, source_item_id) else {
+        return true;
+    };
+    let Some(attacker) = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == attacker_id)
+    else {
+        return false;
+    };
+    if entity_inventory_item_count(attacker, &ammunition_id) > 0 {
+        return true;
+    }
+    send_ruleset_message(
+        ctx,
+        attacker_id,
+        "actions",
+        "missing_item",
+        "actions.missing_item",
+        &[
+            ("item", ammunition_id.replace('_', " ")),
+            ("action", action_name.to_string()),
+        ],
+        "warning",
+    );
+    false
+}
+
+pub(crate) fn consume_attack_ammunition_for_source(
+    ctx: &mut RegionCtx,
+    attacker_id: u32,
+    source_item_id: Option<u32>,
+) -> bool {
+    let Some(ammunition_id) = attack_required_ammunition(ctx, attacker_id, source_item_id) else {
+        return true;
+    };
+    let Some(attacker) = ctx
+        .map
+        .entities
+        .iter_mut()
+        .find(|entity| entity.id == attacker_id)
+    else {
+        return false;
+    };
+    for slot in 0..attacker.inventory.len() {
+        let matches = attacker
+            .inventory
+            .get(slot)
+            .and_then(|item| item.as_ref())
+            .is_some_and(|item| ruleset_item_matches_id(item, &ammunition_id));
+        if !matches {
+            continue;
+        }
+
+        let quantity = attacker
+            .inventory
+            .get(slot)
+            .and_then(|item| item.as_ref())
+            .and_then(item_quantity_attr)
+            .unwrap_or(1);
+        if quantity > 1 {
+            if let Some(Some(item)) = attacker.inventory.get_mut(slot) {
+                item.set_attribute("quantity", Value::Int(quantity - 1));
+            }
+            attacker.dirty_flags |= 0b1000;
+        } else {
+            let _ = attacker.remove_item_from_slot(slot);
+        }
+        return true;
+    }
+    false
+}
+
 fn consume_action_items(ctx: &mut RegionCtx, entity_id: u32, consumes: &[(String, usize)]) {
     if consumes.is_empty() {
         return;
@@ -9127,6 +9519,9 @@ pub(crate) fn execute_ruleset_action(
         );
         return false;
     };
+    if !has_attack_ammunition_or_message(ctx, actor_id, source_item_id, &action_name) {
+        return false;
+    }
     consume_action_items(ctx, actor_id, &consumes);
     let cooldown = rule_number(&action, "cooldown", 0.0).max(0.0);
     set_action_cooldown(ctx, actor_id, action_id, cooldown);
@@ -10531,9 +10926,6 @@ fn intent_distance_limit(
     intent: &str,
     rules: &IntentRuleConfig,
 ) -> f32 {
-    if let Some(local) = entity_intent_distance_limit(ctx, entity_id, intent) {
-        return local;
-    }
     if let Some(fixed) = rules.distance.fixed {
         return fixed.max(0.0);
     }
@@ -10549,6 +10941,10 @@ fn intent_distance_limit(
         return current_attack_range_for_entity(ctx, entity, Some(fallback)).unwrap_or(fallback);
     }
 
+    if let Some(local) = entity_intent_distance_limit(ctx, entity_id, intent) {
+        return local;
+    }
+
     fallback
 }
 
@@ -10557,6 +10953,16 @@ fn entity_race_for_rules(ctx: &RegionCtx, entity: &Entity) -> String {
         .get_attr_string("race")
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+        .or_else(|| {
+            let class_name = entity.get_attr_string("class_name")?;
+            let class_name = class_name.trim();
+            ctx.rules
+                .get("races")
+                .and_then(toml::Value::as_table)
+                .and_then(|races| races.get(class_name))
+                .and_then(toml::Value::as_table)
+                .map(|_| class_name.to_string())
+        })
         .or_else(|| {
             ctx.rules
                 .get("identity")
@@ -12212,6 +12618,9 @@ fn current_attack_kind_for_entity(
 
 fn queue_entity_attack_damage(ctx: &mut RegionCtx, attacker_id: u32, target_id: u32) {
     let source_item_id = current_attack_source_item_id_for_entity(ctx, attacker_id);
+    if !has_attack_ammunition_or_message(ctx, attacker_id, source_item_id, "attack") {
+        return;
+    }
     let kind = current_attack_kind_for_entity(ctx, attacker_id, source_item_id);
     let base_dmg = current_attack_base_damage_for_entity(ctx, attacker_id);
     queue_entity_damage(ctx, attacker_id, target_id, base_dmg, &kind, source_item_id);
@@ -12231,6 +12640,9 @@ fn queue_entity_damage(
         .iter()
         .any(|entity| entity.id == target_id && entity.get_mode() == "dead")
     {
+        return;
+    }
+    if !consume_attack_ammunition_for_source(ctx, attacker_id, source_item_id) {
         return;
     }
 

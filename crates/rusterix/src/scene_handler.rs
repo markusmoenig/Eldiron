@@ -2870,6 +2870,14 @@ impl SceneHandler {
             "visual_template_height",
             "visual_template_pixels",
             "ground_icon_size",
+            "blade_color",
+            "blade_color_index",
+            "grip_color",
+            "grip_color_index",
+            "accent_color",
+            "accent_color_index",
+            "highlight_color",
+            "highlight_color_index",
         ] {
             hasher.write(key.as_bytes());
             if let Some(value) = item.attributes.get(key) {

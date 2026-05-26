@@ -330,7 +330,8 @@ impl Widget {
         grip[3] = 255;
         let mut accent = Self::item_role_color(assets, item, "accent", [48, 56, 67, 255]);
         accent[3] = 255;
-        let highlight = [241, 246, 240, 255];
+        let mut highlight = Self::item_role_color(assets, item, "highlight", [241, 246, 240, 255]);
+        highlight[3] = 255;
 
         if let Some(icon) = Self::item_template_mask_square(item, blade, grip, accent, highlight) {
             return Some(icon);
