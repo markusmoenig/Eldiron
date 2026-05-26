@@ -154,6 +154,25 @@ class = "Warrior"
 The runtime can then apply Human and Warrior defaults from the effective
 ruleset.
 
+For settlement NPCs, keep combat identity and economic role separate:
+
+```toml
+[attributes]
+race = "Human"
+class = "Citizen"
+profession = "Blacksmith"
+```
+
+`Citizen` gives the NPC a civilian baseline. `profession` is available for shop,
+service, crafting, training, and dialogue rules without turning every merchant
+or smith into a combat class.
+
+Professions are role labels, not hard crafting caps. Recipe access is gated by
+ruleset skills such as `fletching`, `herbalism`, or `restoration`. A character
+can carry skill points with attributes like `skill_fletching = 25`, while simple
+recipes can require `0` skill and be available immediately. Recipes can also
+require known spells, such as `blessed_herb` requiring `minor_heal`.
+
 If a character does not define `start_equipped_items`,
 `startup_equipped_items`, or `add_equip_items`, the class loadout supplies
 equipped weapons, armor, and clothing. If a character does not define
@@ -301,6 +320,8 @@ eldiron-client-terminal rules item training_sword STR=12
 eldiron-client-terminal rules item hunting_bow DEX=12
 eldiron-client-terminal rules item linen_shirt
 eldiron-client-terminal rules class Warrior
+eldiron-client-terminal rules recipe wooden_arrows
+eldiron-client-terminal rules recipe hunting_bow
 eldiron-client-terminal rules xp 5
 eldiron-client-terminal rules weapon training_sword STR=12
 eldiron-client-terminal rules spell fire_spark INT=12
@@ -316,6 +337,8 @@ rules list
 rules list classes
 rules show items.weapons.training_sword
 rules class Warrior
+rules show recipes.wooden_arrows
+rules show recipes.hunting_bow
 rules xp 5
 rules weapon training_sword STR=12
 rules spell fire_spark INT=12
@@ -326,7 +349,7 @@ Use the inspector commands to browse the effective ruleset:
 
 - `rules overview`: show active ruleset metadata and section counts
 - `rules validate`: check references, rolls, XP tables, visuals, items, spells, and classes
-- `rules list`: list races, classes, weapons, armor, spells, and abilities
+- `rules list`: list races, classes, professions, skills, recipes, weapons, armor, spells, and abilities
 - `rules list <section>`: list one section
 - `rules show <path>`: show the TOML at a ruleset path
 
@@ -339,8 +362,48 @@ range for swords and maces, or bow range for Rangers. Directional 2D intents
 scan the chosen lane up to that range, so `attack` plus a direction can select a
 hostile target beyond the adjacent tile when the equipped weapon allows it.
 Weapons can also declare ammunition. For example, `hunting_bow` requires
-`wooden_arrows`; a successful weapon attack consumes one matching inventory
-stack quantity before damage is queued.
+`wooden_arrows` and `ammunition_quantity = 1`; a successful weapon attack
+consumes that quantity from matching inventory stacks before damage is queued.
+Stackable inventory items use `quantity` for the current count and `max_stack`
+for slot capacity. The same stack-counting path is used by action `consumes`
+entries for reagents, materials, and future crafting inputs. For example,
+`minor_heal` consumes `1 blessed_herb` only after target, range, MP, and effect
+checks pass.
+
+Resource nodes are separate from inventory materials. For example,
+`wild_herb_node` is a placed world item with `static = true`, `resource_id =
+"wild_herb_node"`, `respawn = 300`, and `amount = 2`. Gathering it with
+`gather_herbs` adds `wild_herb x2` to the actor's inventory, hides the node, and
+lets it become visible again after its respawn timer. The text command path can
+use the same action with:
+
+```text
+gather herbs
+```
+
+When no target is named, the text command chooses the nearest visible resource
+node for that action and leaves range validation to the rules action.
+
+## Recipes
+
+Recipes live in `recipes.toml` and use the same source of truth as items,
+actions, skills, professions, and spells. The first recipes are intentionally
+small:
+
+- `wooden_arrows`: consumes `green_wood x1` and `feather x2`, produces `wooden_arrows x10`
+- `blessed_herb`: requires `minor_heal`, consumes `wild_herb x1`, produces `blessed_herb x1`
+- `hunting_bow`: requires `skill_fletching = 25`, consumes `green_wood x3`, produces `hunting_bow x1`
+
+Recipe execution consumes input stack quantities and merges output stack
+quantities into existing inventory slots when possible. This is the same economy
+path that later shops, gathering nodes, crafting stations, quality rules, and
+profession services can use.
+
+Recipes use `required_skill` for hard gates and `difficulty` for balancing. The
+current runtime enforces required skill and required spells before consuming
+materials. The rules also name a supporting attribute, such as `DEX` for
+Fletching or `WIS` for Herbalism and Restoration, so future quality and success
+systems can use both practice and natural aptitude.
 
 ## Future Versioning
 
@@ -359,22 +422,3 @@ Future versions can add or change rules while older projects keep the version
 they selected. Bugfixes, localization improvements, and compatible additions can
 still be shipped through bundled ruleset updates according to the selected
 update policy.
-
-## Crafting Later
-
-Crafting should be part of the ruleset eventually, but it should wait until the
-base rules, items, classes, and tools are stable.
-
-When added, crafting should use the same ruleset source of truth for:
-
-- professions
-- recipes
-- reagents
-- tools
-- stations
-- skill requirements
-- outputs
-- quality rules
-
-The important decision now is to reserve a clear home for crafting without
-blocking the v1 foundation.

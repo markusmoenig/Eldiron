@@ -535,6 +535,45 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn action_consumes_use_stack_quantities() {
+        let mut entity = Entity::new();
+        entity.inventory.resize(1, None);
+        let mut arrows = Item::new();
+        arrows.set_attribute("ruleset_id", Value::Str("wooden_arrows".into()));
+        arrows.set_attribute("stackable", Value::Bool(true));
+        arrows.set_attribute("quantity", Value::Int(20));
+        entity.add_item(arrows).unwrap();
+
+        assert_eq!(
+            entity_has_action_consumes(&entity, &[("wooden_arrows".into(), 20)]),
+            None
+        );
+        assert_eq!(
+            entity_has_action_consumes(&entity, &[("wooden_arrows".into(), 21)]),
+            Some("wooden_arrows".into())
+        );
+    }
+
+    #[test]
+    fn consume_action_items_decrements_stack_quantities() {
+        let mut ctx = RegionCtx::default();
+        let mut entity = Entity::new();
+        entity.id = 1;
+        entity.inventory.resize(1, None);
+        let mut arrows = Item::new();
+        arrows.set_attribute("ruleset_id", Value::Str("wooden_arrows".into()));
+        arrows.set_attribute("stackable", Value::Bool(true));
+        arrows.set_attribute("quantity", Value::Int(20));
+        entity.add_item(arrows).unwrap();
+        ctx.map.entities.push(entity);
+
+        consume_action_items(&mut ctx, 1, &[("wooden_arrows".into(), 3)]);
+
+        let arrows = ctx.map.entities[0].inventory[0].as_ref().unwrap();
+        assert_eq!(arrows.stack_quantity(), 17);
+    }
+
+    #[test]
     fn intent_rules_can_be_derived_from_actions() {
         let mut ctx = RegionCtx::default();
         ctx.rules = toml::from_str::<toml::Value>(
@@ -1461,6 +1500,47 @@ impl RegionInstance {
             .unwrap_or_default()
     }
 
+    fn text_command_action_target_kind(ctx: &RegionCtx, action_id: &str) -> String {
+        ruleset_action_table(ctx, action_id)
+            .as_ref()
+            .map(action_target_kind)
+            .unwrap_or_default()
+    }
+
+    fn text_command_resource_target(
+        ctx: &RegionCtx,
+        actor_id: u32,
+        action_id: &str,
+        target: Option<&str>,
+    ) -> Option<u32> {
+        if let Some(target) = target {
+            return Self::resolve_named_item_target(ctx, actor_id, target).map(|entry| entry.0);
+        }
+
+        let actor = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == actor_id)?;
+        let actor_pos = actor.get_pos_xz();
+        ctx.map
+            .items
+            .iter()
+            .filter(|item| item.attributes.get_bool_default("visible", true))
+            .filter(|item| !item.attributes.get_bool_default("resource_depleted", false))
+            .filter(|item| item_is_resource_node(ctx, item))
+            .filter(|item| {
+                let resource_id = item_resource_id(item).unwrap_or_default();
+                resource_table(ctx, &resource_id)
+                    .and_then(|resource| rule_string(resource, "action"))
+                    .or_else(|| item.attributes.get_str("resource_action"))
+                    .is_none_or(|expected| expected.eq_ignore_ascii_case(action_id))
+            })
+            .map(|item| (item.id, actor_pos.distance_squared(item.get_pos_xz())))
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|entry| entry.0)
+    }
+
     fn text_command_spell_kind(ctx: &RegionCtx, spell_id: &str) -> String {
         ctx.rules
             .get("spells")
@@ -1677,7 +1757,21 @@ impl RegionInstance {
                     );
                     return;
                 }
-                let target_id = if let Some(target) = target {
+                let target_kind = Self::text_command_action_target_kind(ctx, &action);
+                let target_id = if matches!(target_kind.as_str(), "resource_node" | "resource") {
+                    let target = target.as_deref();
+                    let target_id =
+                        Self::text_command_resource_target(ctx, entity_id, &action, target);
+                    if target.is_some() && target_id.is_none() {
+                        Self::send_text_command_feedback(
+                            ctx,
+                            entity_id,
+                            "system.not_seen_target",
+                            &[],
+                        );
+                    }
+                    target_id
+                } else if let Some(target) = target {
                     if let Some((target_id, _distance)) =
                         Self::resolve_named_entity_target(ctx, entity_id, &target)
                     {
@@ -8874,12 +8968,9 @@ fn ruleset_item_matches_id(item: &Item, item_id: &str) -> bool {
         .is_some_and(|value| value.trim().eq_ignore_ascii_case(item_id))
 }
 
-fn action_consumes(action: Option<&toml::value::Table>) -> Vec<(String, usize)> {
-    let Some(action) = action else {
-        return Vec::new();
-    };
-    action
-        .get("consumes")
+fn item_quantity_entries(table: &toml::value::Table, key: &str) -> Vec<(String, usize)> {
+    table
+        .get(key)
         .and_then(toml::Value::as_array)
         .map(|values| {
             values
@@ -8902,14 +8993,15 @@ fn action_consumes(action: Option<&toml::value::Table>) -> Vec<(String, usize)> 
         .unwrap_or_default()
 }
 
+fn action_consumes(action: Option<&toml::value::Table>) -> Vec<(String, usize)> {
+    action
+        .map(|action| item_quantity_entries(action, "consumes"))
+        .unwrap_or_default()
+}
+
 fn entity_has_action_consumes(entity: &Entity, consumes: &[(String, usize)]) -> Option<String> {
     for (item_id, quantity) in consumes {
-        let count = entity
-            .inventory
-            .iter()
-            .filter_map(|item| item.as_ref())
-            .filter(|item| ruleset_item_matches_id(item, item_id))
-            .count();
+        let count = entity_inventory_item_count(entity, item_id);
         if count < *quantity {
             return Some(item_id.clone());
         }
@@ -8918,21 +9010,7 @@ fn entity_has_action_consumes(entity: &Entity, consumes: &[(String, usize)]) -> 
 }
 
 fn item_stack_quantity(item: &Item) -> usize {
-    match item_quantity_attr(item) {
-        Some(quantity) => quantity.max(0) as usize,
-        None => 1,
-    }
-}
-
-fn item_quantity_attr(item: &Item) -> Option<i32> {
-    match item.attributes.get("quantity") {
-        Some(Value::Int(value)) => Some(*value),
-        Some(Value::UInt(value)) => Some(*value as i32),
-        Some(Value::Int64(value)) => Some(*value as i32),
-        Some(Value::Float(value)) => Some(value.round() as i32),
-        Some(Value::Str(value)) => value.trim().parse::<i32>().ok(),
-        _ => None,
-    }
+    item.stack_quantity().max(0) as usize
 }
 
 fn entity_inventory_item_count(entity: &Entity, item_id: &str) -> usize {
@@ -8945,22 +9023,300 @@ fn entity_inventory_item_count(entity: &Entity, item_id: &str) -> usize {
         .sum()
 }
 
+fn consume_entity_items(entity: &mut Entity, consumes: &[(String, usize)]) {
+    for (item_id, quantity) in consumes {
+        let mut remaining = *quantity;
+        for slot in 0..entity.inventory.len() {
+            if remaining == 0 {
+                break;
+            }
+            let matches = entity
+                .inventory
+                .get(slot)
+                .and_then(|item| item.as_ref())
+                .is_some_and(|item| ruleset_item_matches_id(item, item_id));
+            if !matches {
+                continue;
+            }
+
+            let quantity = entity
+                .inventory
+                .get(slot)
+                .and_then(|item| item.as_ref())
+                .map(Item::stack_quantity)
+                .unwrap_or(1)
+                .max(0) as usize;
+            if quantity == 0 {
+                let _ = entity.remove_item_from_slot(slot);
+                continue;
+            }
+            if quantity > remaining {
+                if let Some(Some(item)) = entity.inventory.get_mut(slot) {
+                    item.set_stack_quantity((quantity - remaining) as i32);
+                }
+                entity.dirty_flags |= 0b1000;
+                remaining = 0;
+            } else {
+                let _ = entity.remove_item_from_slot(slot);
+                remaining = remaining.saturating_sub(quantity);
+            }
+        }
+    }
+}
+
+fn toml_value_to_attr(value: &toml::Value) -> Option<Value> {
+    match value {
+        toml::Value::String(value) => Some(Value::Str(value.clone())),
+        toml::Value::Integer(value) if *value >= 0 => Some(Value::UInt(*value as u32)),
+        toml::Value::Integer(value) => Some(Value::Int(*value as i32)),
+        toml::Value::Float(value) => Some(Value::Float(*value as f32)),
+        toml::Value::Boolean(value) => Some(Value::Bool(*value)),
+        toml::Value::Array(values) => {
+            let strings = values
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(str::to_string)
+                .collect::<Vec<_>>();
+            (!strings.is_empty()).then_some(Value::StrArray(strings))
+        }
+        _ => None,
+    }
+}
+
+fn ruleset_item_table_by_id<'a>(
+    rules: &'a toml::value::Table,
+    item_id: &str,
+) -> Option<(&'a str, &'a toml::value::Table)> {
+    let items = rules.get("items").and_then(toml::Value::as_table)?;
+    for (group, value) in items {
+        let Some(group_items) = value.as_table() else {
+            continue;
+        };
+        if let Some(item) = group_items.get(item_id).and_then(toml::Value::as_table) {
+            return Some((group.as_str(), item));
+        }
+    }
+    None
+}
+
+fn ruleset_item_kind_for_group(group: &str) -> String {
+    group.strip_suffix('s').unwrap_or(group).to_string()
+}
+
+fn ruleset_item_from_table(
+    rules: &toml::value::Table,
+    item_id: &str,
+    quantity: usize,
+) -> Option<Item> {
+    let (group, item_table) = ruleset_item_table_by_id(rules, item_id)?;
+    let name = rule_string(item_table, "name").unwrap_or(item_id);
+    let kind = ruleset_item_kind_for_group(group);
+    let slot = rule_string(item_table, "slot").unwrap_or("material");
+    let ruleset_path = format!("items.{}.{}", group, item_id);
+
+    let mut item = Item::new();
+    item.id = get_global_id();
+    item.item_type = name.to_string();
+    item.set_attribute("class_name", Value::Str(name.to_string()));
+    item.set_attribute("name", Value::Str(name.to_string()));
+    item.set_attribute("ruleset_id", Value::Str(item_id.to_string()));
+    item.set_attribute("ruleset_kind", Value::Str(kind));
+    item.set_attribute("ruleset_path", Value::Str(ruleset_path));
+    item.set_attribute("slot", Value::Str(slot.to_string()));
+
+    for key in ["category", "rarity", "visual_template", "rig_layer"] {
+        if let Some(value) = rule_string(item_table, key) {
+            item.set_attribute(key, Value::Str(value.to_string()));
+        }
+    }
+    for key in [
+        "rig_scale",
+        "rig_pivot",
+        "color",
+        "max_stack",
+        "blade_color_index",
+        "grip_color_index",
+        "accent_color_index",
+        "highlight_color_index",
+    ] {
+        if let Some(value) = item_table.get(key).and_then(toml_value_to_attr) {
+            let attr = if key == "color" { "color_index" } else { key };
+            item.set_attribute(attr, value);
+        }
+    }
+    if let Some(max_stack) = item_table
+        .get("max_stack")
+        .and_then(toml::Value::as_integer)
+    {
+        item.set_max_capacity(max_stack.max(1) as u32);
+    }
+    if let Some(attributes) = item_table.get("attributes").and_then(toml::Value::as_table) {
+        for (key, value) in attributes {
+            if let Some(value) = toml_value_to_attr(value) {
+                item.set_attribute(key, value);
+            }
+        }
+    }
+    if let Some(template_name) = rule_string(item_table, "visual_template")
+        && let Some(template) = rules
+            .get("visual_templates")
+            .and_then(toml::Value::as_table)
+            .and_then(|templates| templates.get(template_name))
+            .and_then(toml::Value::as_table)
+    {
+        if let Some(width) = template.get("width").and_then(toml::Value::as_integer) {
+            item.set_attribute("visual_template_width", Value::Int(width as i32));
+        }
+        if let Some(height) = template.get("height").and_then(toml::Value::as_integer) {
+            item.set_attribute("visual_template_height", Value::Int(height as i32));
+        }
+        if let Some(pixels) = template.get("pixels").and_then(toml::Value::as_array) {
+            let pixels = pixels
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(str::to_string)
+                .collect::<Vec<_>>();
+            if !pixels.is_empty() {
+                item.set_attribute("visual_template_pixels", Value::StrArray(pixels));
+            }
+        }
+    }
+    item.set_stack_quantity(quantity.max(1) as i32);
+    Some(item)
+}
+
+fn ruleset_recipe_table<'a>(ctx: &'a RegionCtx, recipe_id: &str) -> Option<&'a toml::value::Table> {
+    ctx.rules
+        .get("recipes")
+        .and_then(toml::Value::as_table)
+        .and_then(|recipes| recipes.get(recipe_id.trim()))
+        .and_then(toml::Value::as_table)
+}
+
+fn entity_skill_points(entity: &Entity, skill_id: &str) -> i32 {
+    let normalized = skill_id.trim();
+    if normalized.is_empty() {
+        return 0;
+    }
+    let lower = normalized.to_ascii_lowercase();
+    let upper = normalized.to_ascii_uppercase();
+    let skill_key = format!("skill_{}", lower);
+    let skill_upper_key = format!("SKILL_{}", upper);
+    entity
+        .attributes
+        .get_int(&skill_key)
+        .or_else(|| entity.attributes.get_int(&skill_upper_key))
+        .or_else(|| entity.attributes.get_int(&upper))
+        .or_else(|| entity.attributes.get_int(normalized))
+        .unwrap_or(0)
+        .max(0)
+}
+
+fn entity_meets_recipe_skill(entity: &Entity, recipe: &toml::value::Table) -> bool {
+    let required = rule_number(recipe, "required_skill", 0.0).round().max(0.0) as i32;
+    if required <= 0 {
+        return true;
+    }
+    let Some(skill_id) = rule_string(recipe, "skill") else {
+        return false;
+    };
+    entity_skill_points(entity, skill_id) >= required
+}
+
+fn recipe_required_spell(recipe: &toml::value::Table) -> Option<&str> {
+    recipe
+        .get("requires")
+        .and_then(toml::Value::as_table)
+        .and_then(|requires| requires.get("spell"))
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn entity_meets_recipe_requirements(
+    ctx: &RegionCtx,
+    entity: &Entity,
+    recipe: &toml::value::Table,
+) -> bool {
+    if !entity_meets_recipe_skill(entity, recipe) {
+        return false;
+    }
+    if let Some(spell_id) = recipe_required_spell(recipe)
+        && !entity_knows_ruleset_spell(ctx, entity, spell_id)
+    {
+        return false;
+    }
+    true
+}
+
+pub(crate) fn craft_ruleset_recipe(ctx: &mut RegionCtx, crafter_id: u32, recipe_id: &str) -> bool {
+    let Some(recipe) = ruleset_recipe_table(ctx, recipe_id) else {
+        return false;
+    };
+    let consumes = item_quantity_entries(recipe, "consumes");
+    let produces = item_quantity_entries(recipe, "produces");
+    let output_items = produces
+        .iter()
+        .filter_map(|(item_id, quantity)| ruleset_item_from_table(&ctx.rules, item_id, *quantity))
+        .collect::<Vec<_>>();
+    if output_items.len() != produces.len() {
+        return false;
+    }
+
+    let Some(entity_index) = ctx
+        .map
+        .entities
+        .iter()
+        .position(|entity| entity.id == crafter_id)
+    else {
+        return false;
+    };
+    if !entity_meets_recipe_requirements(ctx, &ctx.map.entities[entity_index], recipe) {
+        return false;
+    }
+    if entity_has_action_consumes(&ctx.map.entities[entity_index], &consumes).is_some() {
+        return false;
+    }
+
+    let mut entity = ctx.map.entities[entity_index].clone();
+    consume_entity_items(&mut entity, &consumes);
+    for item in output_items {
+        if entity.add_item(item).is_err() {
+            return false;
+        }
+    }
+    ctx.map.entities[entity_index] = entity;
+    true
+}
+
+struct AttackAmmunition {
+    item_id: String,
+    quantity: usize,
+}
+
 fn attack_required_ammunition(
     ctx: &RegionCtx,
     attacker_id: u32,
     source_item_id: Option<u32>,
-) -> Option<String> {
+) -> Option<AttackAmmunition> {
     let source_item_id = source_item_id?;
     let attacker = ctx
         .map
         .entities
         .iter()
         .find(|entity| entity.id == attacker_id)?;
-    entity_item_by_id(attacker, source_item_id)
-        .and_then(|item| item.attributes.get_str("ammunition"))
+    let source = entity_item_by_id(attacker, source_item_id)?;
+    let item_id = source
+        .attributes
+        .get_str("ammunition")
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .map(str::to_string)
+        .map(str::to_string)?;
+    let quantity = source
+        .attributes
+        .get_int_default("ammunition_quantity", 1)
+        .max(1) as usize;
+    Some(AttackAmmunition { item_id, quantity })
 }
 
 pub(crate) fn has_attack_ammunition_or_message(
@@ -8969,7 +9325,7 @@ pub(crate) fn has_attack_ammunition_or_message(
     source_item_id: Option<u32>,
     action_name: &str,
 ) -> bool {
-    let Some(ammunition_id) = attack_required_ammunition(ctx, attacker_id, source_item_id) else {
+    let Some(ammunition) = attack_required_ammunition(ctx, attacker_id, source_item_id) else {
         return true;
     };
     let Some(attacker) = ctx
@@ -8980,7 +9336,7 @@ pub(crate) fn has_attack_ammunition_or_message(
     else {
         return false;
     };
-    if entity_inventory_item_count(attacker, &ammunition_id) > 0 {
+    if entity_inventory_item_count(attacker, &ammunition.item_id) >= ammunition.quantity {
         return true;
     }
     send_ruleset_message(
@@ -8990,7 +9346,7 @@ pub(crate) fn has_attack_ammunition_or_message(
         "missing_item",
         "actions.missing_item",
         &[
-            ("item", ammunition_id.replace('_', " ")),
+            ("item", ammunition.item_id.replace('_', " ")),
             ("action", action_name.to_string()),
         ],
         "warning",
@@ -9003,7 +9359,7 @@ pub(crate) fn consume_attack_ammunition_for_source(
     attacker_id: u32,
     source_item_id: Option<u32>,
 ) -> bool {
-    let Some(ammunition_id) = attack_required_ammunition(ctx, attacker_id, source_item_id) else {
+    let Some(ammunition) = attack_required_ammunition(ctx, attacker_id, source_item_id) else {
         return true;
     };
     let Some(attacker) = ctx
@@ -9014,12 +9370,16 @@ pub(crate) fn consume_attack_ammunition_for_source(
     else {
         return false;
     };
+    let mut remaining = ammunition.quantity;
     for slot in 0..attacker.inventory.len() {
+        if remaining == 0 {
+            break;
+        }
         let matches = attacker
             .inventory
             .get(slot)
             .and_then(|item| item.as_ref())
-            .is_some_and(|item| ruleset_item_matches_id(item, &ammunition_id));
+            .is_some_and(|item| ruleset_item_matches_id(item, &ammunition.item_id));
         if !matches {
             continue;
         }
@@ -9028,49 +9388,38 @@ pub(crate) fn consume_attack_ammunition_for_source(
             .inventory
             .get(slot)
             .and_then(|item| item.as_ref())
-            .and_then(item_quantity_attr)
-            .unwrap_or(1);
-        if quantity > 1 {
+            .map(Item::stack_quantity)
+            .unwrap_or(1)
+            .max(0) as usize;
+        if quantity == 0 {
+            let _ = attacker.remove_item_from_slot(slot);
+            continue;
+        }
+        if quantity > remaining {
             if let Some(Some(item)) = attacker.inventory.get_mut(slot) {
-                item.set_attribute("quantity", Value::Int(quantity - 1));
+                item.set_stack_quantity((quantity - remaining) as i32);
             }
             attacker.dirty_flags |= 0b1000;
+            remaining = 0;
         } else {
             let _ = attacker.remove_item_from_slot(slot);
+            remaining = remaining.saturating_sub(quantity);
         }
-        return true;
     }
-    false
+    remaining == 0
 }
 
 fn consume_action_items(ctx: &mut RegionCtx, entity_id: u32, consumes: &[(String, usize)]) {
     if consumes.is_empty() {
         return;
     }
-    let Some(entity) = ctx
+    if let Some(entity) = ctx
         .map
         .entities
         .iter_mut()
         .find(|entity| entity.id == entity_id)
-    else {
-        return;
-    };
-    for (item_id, quantity) in consumes {
-        let mut remaining = *quantity;
-        for slot in 0..entity.inventory.len() {
-            if remaining == 0 {
-                break;
-            }
-            let matches = entity
-                .inventory
-                .get(slot)
-                .and_then(|item| item.as_ref())
-                .is_some_and(|item| ruleset_item_matches_id(item, item_id));
-            if matches {
-                let _ = entity.remove_item_from_slot(slot);
-                remaining = remaining.saturating_sub(1);
-            }
-        }
+    {
+        consume_entity_items(entity, consumes);
     }
 }
 
@@ -9351,6 +9700,175 @@ fn action_range_limit(
     }
 }
 
+fn action_target_kind(action: &toml::value::Table) -> String {
+    rule_string(action, "target")
+        .unwrap_or("any_entity")
+        .to_ascii_lowercase()
+}
+
+fn resource_table<'a>(ctx: &'a RegionCtx, resource_id: &str) -> Option<&'a toml::value::Table> {
+    ctx.rules
+        .get("resources")
+        .and_then(toml::Value::as_table)
+        .and_then(|resources| resources.get(resource_id.trim()))
+        .and_then(toml::Value::as_table)
+}
+
+fn item_resource_id(item: &Item) -> Option<String> {
+    item.attributes
+        .get_str("resource_id")
+        .or_else(|| item.attributes.get_str("ruleset_id"))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn item_is_resource_node(ctx: &RegionCtx, item: &Item) -> bool {
+    item.attributes
+        .get_str("ruleset_kind")
+        .is_some_and(|kind| kind.trim().eq_ignore_ascii_case("resource"))
+        || item.attributes.get_bool_default("resource_node", false)
+        || item_resource_id(item)
+            .is_some_and(|resource_id| resource_table(ctx, &resource_id).is_some())
+}
+
+fn quantity_from_table(table: &toml::value::Table, key: &str, default: usize) -> usize {
+    table
+        .get(key)
+        .and_then(toml::Value::as_integer)
+        .unwrap_or(default as i64)
+        .max(1) as usize
+}
+
+fn action_or_resource_output(
+    action: &toml::value::Table,
+    resource: Option<&toml::value::Table>,
+) -> Option<(String, usize)> {
+    let table = resource
+        .and_then(|resource| resource.get("produces").and_then(toml::Value::as_table))
+        .or_else(|| action.get("result").and_then(toml::Value::as_table))?;
+    let item_id = rule_string(table, "item")?.to_string();
+    let quantity = quantity_from_table(table, "quantity", 1);
+    Some((item_id, quantity))
+}
+
+fn execute_ruleset_resource_action(
+    ctx: &mut RegionCtx,
+    actor_id: u32,
+    action_id: &str,
+    action: &toml::value::Table,
+    target_id: Option<u32>,
+    action_name: &str,
+) -> bool {
+    let Some(target_id) = target_id else {
+        send_ruleset_message(
+            ctx,
+            actor_id,
+            "actions",
+            "missing_target",
+            "actions.missing_target",
+            &[],
+            "warning",
+        );
+        return false;
+    };
+    let Some(actor_index) = ctx
+        .map
+        .entities
+        .iter()
+        .position(|entity| entity.id == actor_id)
+    else {
+        return false;
+    };
+    let Some(item_index) = ctx.map.items.iter().position(|item| item.id == target_id) else {
+        send_ruleset_message(
+            ctx,
+            actor_id,
+            "system",
+            "not_seen_target",
+            "system.not_seen_target",
+            &[],
+            "warning",
+        );
+        return false;
+    };
+
+    let target = &ctx.map.items[item_index];
+    if !target.attributes.get_bool_default("visible", true)
+        || target
+            .attributes
+            .get_bool_default("resource_depleted", false)
+        || !item_is_resource_node(ctx, target)
+    {
+        send_message(ctx, actor_id, "{system.cant_do_that}".into(), "warning");
+        return false;
+    }
+
+    let resource_id = item_resource_id(target).unwrap_or_default();
+    let target_resource_action = target
+        .attributes
+        .get_str("resource_action")
+        .map(str::to_string);
+    let target_respawn = target.attributes.get_float_default("respawn", 0.0);
+    let (resource_action, output, respawn) = {
+        let resource = resource_table(ctx, &resource_id);
+        let resource_action = resource
+            .and_then(|resource| rule_string(resource, "action"))
+            .map(str::to_string)
+            .or(target_resource_action);
+        let output = action_or_resource_output(action, resource);
+        let respawn = resource
+            .map(|resource| rule_number(resource, "respawn", 0.0))
+            .unwrap_or(target_respawn)
+            .max(0.0);
+        (resource_action, output, respawn)
+    };
+    if resource_action.is_some_and(|expected| !expected.eq_ignore_ascii_case(action_id)) {
+        send_message(ctx, actor_id, "{system.cant_do_that}".into(), "warning");
+        return false;
+    }
+
+    let actor = &ctx.map.entities[actor_index];
+    let range = action_range_limit(ctx, action, actor, 1.5);
+    if range > 0.0 && actor.get_pos_xz().distance(target.get_pos_xz()) > range {
+        send_message(ctx, actor_id, "{system.too_far_away}".into(), "warning");
+        return false;
+    }
+
+    let Some((item_id, quantity)) = output else {
+        send_ruleset_message(
+            ctx,
+            actor_id,
+            "actions",
+            "no_effect",
+            "actions.no_effect",
+            &[("action", action_name.to_string())],
+            "system",
+        );
+        return false;
+    };
+    let Some(output_item) = ruleset_item_from_table(&ctx.rules, &item_id, quantity) else {
+        return false;
+    };
+
+    let mut entity = ctx.map.entities[actor_index].clone();
+    if entity.add_item(output_item).is_err() {
+        return false;
+    }
+    ctx.map.entities[actor_index] = entity;
+
+    let target = &mut ctx.map.items[item_index];
+    target.set_attribute("resource_depleted", Value::Bool(true));
+    if respawn > 0.0 {
+        target.set_attribute("visible", Value::Bool(false));
+        target.set_attribute("resource_respawn_left", Value::Float(respawn));
+    }
+
+    let cooldown = rule_number(action, "cooldown", 0.0).max(0.0);
+    set_action_cooldown(ctx, actor_id, action_id, cooldown);
+    true
+}
+
 fn action_damage_roll(
     ctx: &RegionCtx,
     actor: &Entity,
@@ -9466,6 +9984,20 @@ pub(crate) fn execute_ruleset_action(
             "warning",
         );
         return false;
+    }
+
+    if matches!(
+        action_target_kind(&action).as_str(),
+        "resource_node" | "resource"
+    ) {
+        return execute_ruleset_resource_action(
+            ctx,
+            actor_id,
+            action_id,
+            &action,
+            target_id,
+            &action_name,
+        );
     }
 
     let Some(target_id) = target_id else {
@@ -10847,6 +11379,9 @@ fn merge_action_intent_config(config: &mut IntentRuleConfig, action: &toml::valu
                 config.allowed_target_kinds = vec!["entity".into()];
             }
             "ground_item" | "item" => {
+                config.allowed_target_kinds = vec!["item".into()];
+            }
+            "resource_node" | "resource" => {
                 config.allowed_target_kinds = vec!["item".into()];
             }
             _ => {}
@@ -13156,7 +13691,7 @@ pub(crate) fn drop_all_items_for_entity(ctx: &mut RegionCtx, entity_id: u32) {
     }
 }
 
-fn update_spell_items(ctx: &mut RegionCtx) {
+pub(crate) fn update_spell_items(ctx: &mut RegionCtx) {
     let dt = ctx.delta_time.max(0.0);
     if dt <= 0.0 || ctx.map.items.is_empty() {
         return;
@@ -13203,6 +13738,22 @@ fn update_spell_items(ctx: &mut RegionCtx) {
                 despawn_item_ids.push(item.id);
             }
             continue;
+        }
+
+        if item.attributes.get_bool_default("resource_depleted", false) {
+            let mut respawn_left = item
+                .attributes
+                .get_float_default("resource_respawn_left", 0.0);
+            if respawn_left > 0.0 {
+                respawn_left -= dt;
+                if respawn_left <= 0.0 {
+                    item.set_attribute("resource_depleted", Value::Bool(false));
+                    item.set_attribute("resource_respawn_left", Value::Float(0.0));
+                    item.set_attribute("visible", Value::Bool(true));
+                } else {
+                    item.set_attribute("resource_respawn_left", Value::Float(respawn_left));
+                }
+            }
         }
 
         if !item.attributes.get_bool_default("is_spell", false) {

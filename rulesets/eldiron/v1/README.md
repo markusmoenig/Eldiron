@@ -14,16 +14,17 @@ The ruleset is authored as several TOML files so it stays readable as the
 simulation grows:
 
 ```text
-ruleset.toml            metadata, schema, bundled assets, visuals, palette
+ruleset.toml            metadata, schema, bundled assets, visuals, palette, skills, resources
 identity.toml           default identity, dispositions, race relations, intents
 attributes.toml         attributes and derived stats
 progression.toml        XP, leveling, progression messages
 combat.toml             damage kinds, combat timing, combat audio/messages
 messages.toml           locale keys for rules-driven runtime feedback
 locales.toml            English defaults for ruleset-owned locale keys
-equipment.toml          equipment slots, categories, weapons, armor, clothing
+equipment.toml          equipment slots, categories, weapons, armor, clothing, resource nodes
 fx.toml                 semantic procedural FX presets for spells and actions
 actions.toml            sandbox-facing action definitions
+recipes.toml            skill-gated crafting and preparation recipes
 abilities_spells.toml   abilities and spells
 races_classes.toml      races, classes, unlocks, starting loadouts
 ```

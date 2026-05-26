@@ -34,7 +34,15 @@
 - Added a terminal character rules inspector that resolves race, class, level, attributes, unlocks, loadout, spell details, and combat rolls from the official ruleset.
 - Added a terminal item rules inspector for weapons, armor, and clothing, including damage rolls, attributes, category rules, and visual/avatar metadata.
 - Added the first Ranger ruleset slice with bow-based DEX damage, a hunting bow, wooden arrows, ranged range validation, and terminal/rules regressions.
-- Added an official training spear and made bow attacks consume matching stackable ammunition from inventory.
+- Added an official training spear and first-class stackable inventory support for ammunition, including stack merge, quantity decrement, text display, and slot badges.
+- Made bow ammunition quantities rules-owned and updated generic action item costs to count and consume stack quantities, preparing the same path for spell reagents and crafting materials.
+- Added the first official spell reagent, `blessed_herb`, and made `minor_heal` consume it through the shared action resource path.
+- Added the `Citizen` civilian class and initial profession definitions for merchants, blacksmiths, tailors, herbalists, fletchers, innkeepers, and trainers.
+- Added the first official materials and recipes, including arrow fletching and blessed herb preparation with stack-consuming recipe tests.
+- Added open profession growth with skill-gated recipes, including the first `fletching` and `herbalism` recipe gates.
+- Changed `blessed_herb` into a Cleric restoration recipe that consumes gathered `wild_herb` and requires `minor_heal`.
+- Added the first official resource node, `wild_herb_node`, with gather output and respawn behavior.
+- Added `gather herbs` as a text command that resolves to the ruleset `gather_herbs` action.
 - Updated official item visuals with a wooden training sword, palette-driven axe, mace, spear, bow, shield, and arrow masks, and item descriptions for look/text paths.
 - Made attack intent range rules-owned so the same attack icon uses melee range for melee weapons and bow range for Rangers, even in projects with old character intent-distance data.
 - Fixed 2D directional attack targeting so ranged weapons scan along the chosen direction to weapon range instead of only checking the adjacent tile.

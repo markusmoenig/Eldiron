@@ -187,6 +187,7 @@ impl Widget {
     ) -> bool {
         let stride = buffer.stride();
         let rect = rect.with_border(4.0);
+        let mut drawn = false;
         if let Some(Value::Source(source)) = item.attributes.get("source")
             && let Some(tile) = source.tile_from_tile_list(assets)
         {
@@ -204,14 +205,79 @@ impl Widget {
                 &texture.data,
                 &(texture.width, texture.height),
             );
-            return true;
+            drawn = true;
         }
 
-        if Self::draw_generated_avatar_channel_icon(buffer, rect, assets, item, draw2d) {
-            return true;
+        if !drawn && Self::draw_generated_avatar_channel_icon(buffer, rect, assets, item, draw2d) {
+            drawn = true;
         }
 
-        Self::draw_generated_equipment_icon(buffer, rect, assets, item, draw2d)
+        if !drawn {
+            drawn = Self::draw_generated_equipment_icon(buffer, rect, assets, item, draw2d);
+        }
+        if drawn {
+            Self::draw_stack_badge(buffer, rect, item, draw2d);
+        }
+        drawn
+    }
+
+    fn draw_stack_badge(buffer: &mut TheRGBABuffer, rect: Rect, item: &Item, _draw2d: &Draw2D) {
+        let quantity = item.stack_quantity();
+        if quantity <= 1 {
+            return;
+        }
+        let text = quantity.min(999).to_string();
+        let digit_w = 6_i32;
+        let digit_h = 10_i32;
+        let spacing = 2_i32;
+        let text_w = text.len() as i32 * digit_w + (text.len().saturating_sub(1) as i32 * spacing);
+        let x = (rect.x + rect.width - text_w as f32 - 2.0).round() as i32;
+        let y = (rect.y + rect.height - digit_h as f32 - 2.0).round() as i32;
+        let mut cursor_x = x;
+        for ch in text.chars() {
+            Self::draw_stack_digit(buffer, cursor_x + 1, y + 1, ch, &[18, 18, 18, 210]);
+            Self::draw_stack_digit(buffer, cursor_x, y, ch, &[174, 179, 183, 255]);
+            cursor_x += digit_w + spacing;
+        }
+    }
+
+    fn draw_stack_digit(buffer: &mut TheRGBABuffer, x: i32, y: i32, ch: char, color: &[u8; 4]) {
+        let pattern = match ch {
+            '0' => ["111", "101", "101", "101", "111"],
+            '1' => ["010", "110", "010", "010", "111"],
+            '2' => ["111", "001", "111", "100", "111"],
+            '3' => ["111", "001", "111", "001", "111"],
+            '4' => ["101", "101", "111", "001", "001"],
+            '5' => ["111", "100", "111", "001", "111"],
+            '6' => ["111", "100", "111", "101", "111"],
+            '7' => ["111", "001", "010", "010", "010"],
+            '8' => ["111", "101", "111", "101", "111"],
+            '9' => ["111", "101", "111", "001", "111"],
+            _ => return,
+        };
+        let stride = buffer.stride();
+        let pixels = buffer.pixels_mut();
+        for (py, row) in pattern.iter().enumerate() {
+            for (px, bit) in row.chars().enumerate() {
+                if bit != '1' {
+                    continue;
+                }
+                for oy in 0..2 {
+                    for ox in 0..2 {
+                        let sx = x + px as i32 * 2 + ox;
+                        let sy = y + py as i32 * 2 + oy;
+                        if sx < 0 || sy < 0 {
+                            continue;
+                        }
+                        let index = (sy as usize * stride + sx as usize) * 4;
+                        if index + 3 >= pixels.len() {
+                            continue;
+                        }
+                        pixels[index..index + 4].copy_from_slice(color);
+                    }
+                }
+            }
+        }
     }
 
     pub(crate) fn item_generated_icon_square(

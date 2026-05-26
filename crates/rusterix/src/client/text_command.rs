@@ -199,6 +199,11 @@ pub fn parse_text_command(
         }
     }
 
+    let (action, target) = split_ruleset_id_and_target(trimmed, known_actions);
+    if known_actions.contains(&action) {
+        return TextCommand::Action { action, target };
+    }
+
     if let Some(payload) = trimmed.strip_prefix("intent ") {
         let payload = payload.trim();
         let mut parts = payload.splitn(2, char::is_whitespace);
@@ -316,6 +321,22 @@ mod tests {
             TextCommand::Action {
                 action: "power_strike".into(),
                 target: Some("orc".into()),
+            }
+        );
+    }
+
+    #[test]
+    fn parses_known_action_without_use_prefix() {
+        assert_eq!(
+            parse_text_command(
+                "gather herbs",
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                &actions(&["gather_herbs"]),
+            ),
+            TextCommand::Action {
+                action: "gather_herbs".into(),
+                target: None,
             }
         );
     }

@@ -898,6 +898,7 @@ fn rules_command_usage() -> &'static str {
        eldiron-client-terminal rules character <class_id> [race=Race] [level=N] [ATTR=VALUE ...]\n\
        eldiron-client-terminal rules item <item_id> [ATTR=VALUE ...]\n\
        eldiron-client-terminal rules class <class_id>\n\
+       eldiron-client-terminal rules recipe <recipe_id>\n\
        eldiron-client-terminal rules xp <level>\n\
        eldiron-client-terminal rules weapon <weapon_id> [ATTR=VALUE ...]\n\
        eldiron-client-terminal rules spell <spell_id> [ATTR=VALUE ...]\n\
@@ -909,6 +910,7 @@ fn rules_command_usage() -> &'static str {
        eldiron-client-terminal rules character Cleric race=Human level=2\n\
        eldiron-client-terminal rules item training_sword STR=12\n\
        eldiron-client-terminal rules class Warrior\n\
+       eldiron-client-terminal rules recipe wooden_arrows\n\
        eldiron-client-terminal rules xp 5\n\
        eldiron-client-terminal rules weapon training_sword STR=12\n\
        eldiron-client-terminal rules spell fire_spark INT=12"
@@ -921,6 +923,7 @@ fn run_rules_command(args: &[String]) -> Result<(), String> {
         Some("character") => run_rules_character_command(&args[1..]),
         Some("item") => run_rules_item_command(&args[1..]),
         Some("class") => run_rules_class_command(&args[1..]),
+        Some("recipe") => run_rules_recipe_command(&args[1..]),
         Some("xp") => run_rules_xp_command(&args[1..]),
         Some("weapon") => run_rules_weapon_command(&args[1..]),
         Some("spell") => run_rules_spell_command(&args[1..]),
@@ -976,6 +979,10 @@ fn format_rules_catalog_summary(
          schema: {}\n\
          races: {} ({})\n\
          classes: {} ({})\n\
+         professions: {} ({})\n\
+         skills: {} ({})\n\
+         resources: {} ({})\n\
+         recipes: {} ({})\n\
          actions: {} ({})\n\
          abilities: {} ({})\n\
          spells: {} ({})\n\
@@ -992,6 +999,14 @@ fn format_rules_catalog_summary(
         format_rules_list(&catalog.races),
         catalog.classes.len(),
         format_rules_list(&catalog.classes),
+        catalog.professions.len(),
+        format_rules_list(&catalog.professions),
+        catalog.skills.len(),
+        format_rules_list(&catalog.skills),
+        catalog.resources.len(),
+        format_rules_list(&catalog.resources),
+        catalog.recipes.len(),
+        format_rules_list(&catalog.recipes),
         catalog.actions.len(),
         format_rules_list(&catalog.actions),
         catalog.abilities.len(),
@@ -1319,7 +1334,15 @@ fn rules_item_table<'a>(
     rules: &'a toml::Table,
     item_id: &str,
 ) -> Option<(&'static str, &'a toml::value::Table)> {
-    for group in ["weapons", "armor", "clothing", "ammunition"] {
+    for group in [
+        "weapons",
+        "armor",
+        "clothing",
+        "ammunition",
+        "reagents",
+        "materials",
+        "resources",
+    ] {
         if let Some(table) = shared::rulesets::ruleset_table_at_path(rules, &["items", group])
             .and_then(|items| items.get(item_id))
             .and_then(toml::Value::as_table)
@@ -1517,6 +1540,124 @@ fn run_rules_item_command(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn rules_recipe_table<'a>(
+    rules: &'a toml::Table,
+    recipe_id: &str,
+) -> Option<&'a toml::value::Table> {
+    shared::rulesets::ruleset_table_at_path(rules, &["recipes"])
+        .and_then(|recipes| recipes.get(recipe_id))
+        .and_then(toml::Value::as_table)
+}
+
+fn recipe_item_quantity_lines(
+    rules: &toml::Table,
+    recipe: &toml::value::Table,
+    key: &str,
+) -> Vec<String> {
+    recipe
+        .get(key)
+        .and_then(toml::Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(toml::Value::as_table)
+                .filter_map(|entry| {
+                    let item_id = entry.get("item")?.as_str()?.trim();
+                    if item_id.is_empty() {
+                        return None;
+                    }
+                    let quantity = entry
+                        .get("quantity")
+                        .and_then(toml::Value::as_integer)
+                        .unwrap_or(1)
+                        .max(1);
+                    Some(format!(
+                        "{} x{}",
+                        rules_item_label(rules, item_id),
+                        quantity
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn format_rules_recipe(rules: &toml::Table, recipe_id: &str) -> Result<String, String> {
+    let Some(recipe) = rules_recipe_table(rules, recipe_id) else {
+        return Err(format!("Recipe '{}' was not found.", recipe_id));
+    };
+    let name = table_string(recipe, "name").unwrap_or_else(|| recipe_id.to_string());
+    let description = table_string(recipe, "description");
+    let skill = table_string(recipe, "skill").unwrap_or_else(|| "-".into());
+    let required_skill = table_number(recipe, "required_skill")
+        .map(|value| format!("{:.0}", value))
+        .unwrap_or_else(|| "-".into());
+    let difficulty = table_number(recipe, "difficulty")
+        .map(|value| format!("{:.0}", value))
+        .unwrap_or_else(|| "-".into());
+    let attribute = table_string(recipe, "attribute").unwrap_or_else(|| "-".into());
+    let profession_hint = table_string(recipe, "profession_hint").unwrap_or_else(|| "-".into());
+    let class_hint = table_string(recipe, "class_hint").unwrap_or_else(|| "-".into());
+    let required_spell = recipe
+        .get("requires")
+        .and_then(toml::Value::as_table)
+        .and_then(|requires| requires.get("spell"))
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("-");
+    let station = table_string(recipe, "station").unwrap_or_else(|| "-".into());
+    let time = table_number(recipe, "time")
+        .map(|value| format!("{:.1}", value))
+        .unwrap_or_else(|| "-".into());
+
+    let mut out = vec![
+        format!("recipe: {}", name),
+        format!("id: {}", recipe_id),
+        format!("skill: {}", skill),
+        format!("required_skill: {}", required_skill),
+        format!("difficulty: {}", difficulty),
+        format!("attribute: {}", attribute),
+        format!("profession_hint: {}", profession_hint),
+        format!("class_hint: {}", class_hint),
+        format!("requires_spell: {}", required_spell),
+        format!("station: {}", station),
+        format!("time: {}", time),
+    ];
+    if let Some(description) = description {
+        out.push(format!("description: {}", description));
+    }
+
+    out.push(String::new());
+    out.push("consumes:".into());
+    let consumes = recipe_item_quantity_lines(rules, recipe, "consumes");
+    if consumes.is_empty() {
+        out.push("-".into());
+    } else {
+        out.extend(consumes);
+    }
+
+    out.push(String::new());
+    out.push("produces:".into());
+    let produces = recipe_item_quantity_lines(rules, recipe, "produces");
+    if produces.is_empty() {
+        out.push("-".into());
+    } else {
+        out.extend(produces);
+    }
+
+    Ok(out.join("\n"))
+}
+
+fn run_rules_recipe_command(args: &[String]) -> Result<(), String> {
+    let Some(recipe_id) = args.first() else {
+        return Err(rules_command_usage().into());
+    };
+    let rules = official_rules_table()?;
+    println!("{}", format_rules_recipe(&rules, recipe_id)?);
+    Ok(())
+}
+
 fn rules_character_loadout_lines(rules: &toml::Table, entity: &Entity, key: &str) -> Vec<String> {
     rules_character_string_array(entity, key)
         .iter()
@@ -1700,6 +1841,9 @@ fn format_rules_character(rules: &toml::Table, entity: &Entity) -> String {
         .unwrap_or_else(|| "-".into());
     let level = entity.attributes.get_int_default("LEVEL", 1);
     let numeric_attrs = rules_character_numeric_attributes(entity);
+    let role = shared::rulesets::summarize_class(rules, &class)
+        .ok()
+        .and_then(|summary| summary.role);
 
     let sections = vec![
         ("attributes", rules_character_attribute_lines(entity)),
@@ -1731,6 +1875,9 @@ fn format_rules_character(rules: &toml::Table, entity: &Entity) -> String {
         format!("race: {}", race),
         format!("level: {}", level),
     ];
+    if let Some(role) = role {
+        out.push(format!("role: {}", role));
+    }
 
     for (heading, lines) in sections {
         out.push(String::new());
@@ -2328,7 +2475,11 @@ mod tests {
 
         assert!(summary.contains("source: test"));
         assert!(summary.contains("id: eldiron.official"));
-        assert!(summary.contains("classes: 3"));
+        assert!(summary.contains("classes: 4"));
+        assert!(summary.contains("professions: 7"));
+        assert!(summary.contains("skills: 7"));
+        assert!(summary.contains("resources: 1"));
+        assert!(summary.contains("recipes: 3"));
         assert!(summary.contains("spells: 3"));
     }
 
@@ -2367,6 +2518,20 @@ mod tests {
         assert!(output.contains("class: Ranger"));
         assert!(output.contains("main_hand: Hunting Bow"));
         assert!(output.contains("Wooden Arrows"));
+
+        let mut citizen = rules_character_entity(&[
+            "Citizen".into(),
+            "race=Human".into(),
+            "level=1".into(),
+            "profession=Blacksmith".into(),
+        ])
+        .unwrap();
+        rusterix::server::region::apply_ruleset_character_defaults(&rules, &mut citizen);
+        let output = format_rules_character(&rules, &citizen);
+        assert!(output.contains("class: Citizen"));
+        assert!(output.contains("role: civilian"));
+        assert!(output.contains("profession: Blacksmith"));
+        assert!(output.contains("Linen Shirt"));
     }
 
     #[test]
@@ -2410,6 +2575,60 @@ mod tests {
         .unwrap();
         assert!(arrows.contains("kind: ammunition"));
         assert!(arrows.contains("quantity: 20"));
+
+        let herb = format_rules_item(
+            &rules,
+            "blessed_herb",
+            &shared::rulesets::RulesetAttributeMap::new(),
+        )
+        .unwrap();
+        assert!(herb.contains("item: Blessed Herb"));
+        assert!(herb.contains("kind: reagent"));
+        assert!(herb.contains("quantity: 3"));
+        assert!(herb.contains("visual_template: herb_sprig"));
+
+        let wood = format_rules_item(
+            &rules,
+            "green_wood",
+            &shared::rulesets::RulesetAttributeMap::new(),
+        )
+        .unwrap();
+        assert!(wood.contains("item: Green Wood"));
+        assert!(wood.contains("kind: material"));
+        assert!(wood.contains("quantity: 5"));
+
+        let node = format_rules_item(
+            &rules,
+            "wild_herb_node",
+            &shared::rulesets::RulesetAttributeMap::new(),
+        )
+        .unwrap();
+        assert!(node.contains("item: Wild Herb Node"));
+        assert!(node.contains("kind: resource"));
+        assert!(node.contains("resource_action"));
+    }
+
+    #[test]
+    fn formats_rules_recipe_details() {
+        let rules = official_rules_table().unwrap();
+        let output = format_rules_recipe(&rules, "wooden_arrows").unwrap();
+
+        assert!(output.contains("recipe: Wooden Arrows"));
+        assert!(output.contains("skill: fletching"));
+        assert!(output.contains("required_skill: 0"));
+        assert!(output.contains("difficulty: 10"));
+        assert!(output.contains("profession_hint: Fletcher"));
+        assert!(output.contains("material: Green Wood"));
+        assert!(output.contains("material: Feather"));
+        assert!(output.contains("ammunition: Wooden Arrows"));
+        assert!(output.contains("x10"));
+
+        let herb = format_rules_recipe(&rules, "blessed_herb").unwrap();
+        assert!(herb.contains("skill: restoration"));
+        assert!(herb.contains("class_hint: Cleric"));
+        assert!(herb.contains("requires_spell: minor_heal"));
+        assert!(herb.contains("material: Wild Herb"));
+        assert!(herb.contains("reagent: Blessed Herb"));
     }
 }
 

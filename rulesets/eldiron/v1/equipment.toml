@@ -259,6 +259,36 @@ pixels = [
     "........................",
 ]
 
+[visual_templates.herb_sprig]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    ".............H..........",
+    "............HHH.........",
+    "...........HBAH.........",
+    "..........HBBBA.........",
+    "...........BBA..........",
+    "......H.....G.....H.....",
+    ".....HHH....G....HHH....",
+    "....HBAH....G...HBAH....",
+    "....ABBBG...G..GBBBA....",
+    ".....ABBG...G..GBBA.....",
+    ".......GGG..G.GGG.......",
+    "..........GGGGG.........",
+    "............G...........",
+    "............G...........",
+    "...........GG...........",
+    "...........G............",
+    "..........GG............",
+    "........................",
+    "........................",
+    "........................",
+]
+
 [items.weapons.training_sword]
 name = "Training Sword"
 description = "A blunt wooden practice sword used for early drills and safe sparring."
@@ -363,6 +393,7 @@ DMG = 1
 attack_cooldown = 1.5
 damage_kind = "physical"
 ammunition = "wooden_arrows"
+ammunition_quantity = 1
 
 [items.weapons.hunting_bow.damage]
 roll = "1d6"
@@ -481,6 +512,7 @@ category = "arrow"
 slot = "ammunition"
 rarity = "common"
 color = 8
+max_stack = 99
 visual_template = "arrow_diagonal"
 grip_color_index = 10
 blade_color_index = 25
@@ -490,3 +522,100 @@ highlight_color_index = 23
 stackable = true
 quantity = 20
 ammo_for = "bow"
+
+[items.reagents.blessed_herb]
+name = "Blessed Herb"
+description = "A small bundle of blessed herbs used for simple restoration rites."
+category = "herb"
+slot = "reagent"
+rarity = "common"
+color = 13
+max_stack = 20
+visual_template = "herb_sprig"
+blade_color_index = 13
+grip_color_index = 10
+accent_color_index = 14
+highlight_color_index = 23
+
+[items.reagents.blessed_herb.attributes]
+stackable = true
+quantity = 3
+reagent_for = "restoration"
+
+[items.materials.green_wood]
+name = "Green Wood"
+description = "Fresh flexible wood suitable for simple shafts, handles, and early crafting."
+category = "wood"
+slot = "material"
+rarity = "common"
+color = 10
+max_stack = 50
+visual_template = "spear_diagonal"
+grip_color_index = 10
+highlight_color_index = 14
+
+[items.materials.green_wood.attributes]
+stackable = true
+quantity = 5
+crafting_family = "woodworking"
+
+[items.materials.feather]
+name = "Feather"
+description = "A clean feather used for fletching arrows and light craftwork."
+category = "feather"
+slot = "material"
+rarity = "common"
+color = 23
+max_stack = 50
+visual_template = "arrow_diagonal"
+blade_color_index = 23
+grip_color_index = 23
+highlight_color_index = 1
+
+[items.materials.feather.attributes]
+stackable = true
+quantity = 5
+crafting_family = "fletching"
+
+[items.materials.wild_herb]
+name = "Wild Herb"
+description = "An unprepared herb gathered from the field."
+category = "herb"
+slot = "material"
+rarity = "common"
+color = 13
+max_stack = 50
+visual_template = "herb_sprig"
+blade_color_index = 13
+grip_color_index = 10
+accent_color_index = 14
+highlight_color_index = 23
+
+[items.materials.wild_herb.attributes]
+stackable = true
+quantity = 5
+crafting_family = "herbalism"
+
+[items.resources.wild_herb_node]
+name = "Wild Herb Node"
+description = "A small wild herb growth that can be gathered for fresh herbs."
+category = "herb"
+slot = "resource"
+rarity = "common"
+color = 13
+visual_template = "herb_sprig"
+blade_color_index = 13
+grip_color_index = 10
+accent_color_index = 14
+highlight_color_index = 23
+
+[items.resources.wild_herb_node.attributes]
+static = true
+blocking = false
+visible = true
+resource_id = "wild_herb_node"
+resource_kind = "herb"
+resource_action = "gather_herbs"
+respawn = 300
+amount = 2
+takeable = false

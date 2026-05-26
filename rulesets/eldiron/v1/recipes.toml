@@ -1,0 +1,58 @@
+# Recipes transform stackable materials into stackable outputs.
+#
+# The first recipes deliberately mirror the current combat resource loops:
+# arrows for Rangers and herbs for Clerics. Later stations, skills, quality,
+# vendor prices, failure chances, and professions can grow on this same shape.
+
+[recipes.wooden_arrows]
+name = "Wooden Arrows"
+description = "Shape green wood into arrow shafts and fletch them with feathers."
+skill = "fletching"
+required_skill = 0
+difficulty = 10
+attribute = "DEX"
+profession_hint = "Fletcher"
+station = "workbench"
+time = 3.0
+consumes = [
+    { item = "green_wood", quantity = 1 },
+    { item = "feather", quantity = 2 },
+]
+produces = [
+    { item = "wooden_arrows", quantity = 10 },
+]
+
+[recipes.blessed_herb]
+name = "Blessed Herb"
+description = "Bless a gathered wild herb into a simple restoration reagent."
+skill = "restoration"
+required_skill = 0
+difficulty = 8
+attribute = "WIS"
+class_hint = "Cleric"
+station = "none"
+time = 2.0
+requires = { spell = "minor_heal" }
+consumes = [
+    { item = "wild_herb", quantity = 1 },
+]
+produces = [
+    { item = "blessed_herb", quantity = 1 },
+]
+
+[recipes.hunting_bow]
+name = "Hunting Bow"
+description = "Craft a simple hunting bow from seasoned green wood."
+skill = "fletching"
+required_skill = 25
+difficulty = 35
+attribute = "DEX"
+profession_hint = "Fletcher"
+station = "workbench"
+time = 8.0
+consumes = [
+    { item = "green_wood", quantity = 3 },
+]
+produces = [
+    { item = "hunting_bow", quantity = 1 },
+]

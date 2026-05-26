@@ -79,6 +79,55 @@ impl Item {
         self.container.is_some()
     }
 
+    pub fn stack_quantity(&self) -> i32 {
+        match self.attributes.get("quantity") {
+            Some(Value::Int(value)) => (*value).max(0),
+            Some(Value::UInt(value)) => (*value as i32).max(0),
+            Some(Value::Int64(value)) => (*value as i32).max(0),
+            Some(Value::Float(value)) => value.round().max(0.0) as i32,
+            Some(Value::Str(value)) => value.trim().parse::<i32>().unwrap_or(1).max(0),
+            _ => 1,
+        }
+    }
+
+    pub fn set_stack_quantity(&mut self, quantity: i32) {
+        self.set_attribute("quantity", Value::Int(quantity.max(0)));
+    }
+
+    pub fn max_stack(&self) -> i32 {
+        match self.attributes.get("max_stack") {
+            Some(Value::Int(value)) => (*value).max(1),
+            Some(Value::UInt(value)) => (*value as i32).max(1),
+            Some(Value::Int64(value)) => (*value as i32).max(1),
+            Some(Value::Float(value)) => value.round().max(1.0) as i32,
+            Some(Value::Str(value)) => value.trim().parse::<i32>().unwrap_or(1).max(1),
+            _ => self.max_capacity.max(1) as i32,
+        }
+    }
+
+    pub fn is_stackable(&self) -> bool {
+        self.attributes.get_bool_default("stackable", false)
+            || self.max_stack() > 1
+            || self.stack_quantity() > 1
+    }
+
+    pub fn stack_key(&self) -> Option<String> {
+        self.attributes
+            .get_str("ruleset_id")
+            .or_else(|| self.attributes.get_str("class_name"))
+            .or_else(|| self.attributes.get_str("name"))
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| value.to_ascii_lowercase())
+    }
+
+    pub fn can_stack_with(&self, other: &Item) -> bool {
+        self.is_stackable()
+            && other.is_stackable()
+            && self.stack_key().is_some()
+            && self.stack_key() == other.stack_key()
+    }
+
     /// Check if there's space in the container
     pub fn has_space(&self) -> bool {
         if let Some(container) = &self.container {

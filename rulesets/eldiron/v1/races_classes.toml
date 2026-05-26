@@ -32,6 +32,70 @@ WIS = 8
 VIT = 12
 SPEED = 1
 
+[classes.Citizen]
+description = "Civilian baseline for settlement people, vendors, crafters, trainers, and other non-adventuring NPCs."
+role = "civilian"
+primary_attributes = ["VIT"]
+allowed_weapons = []
+allowed_armor = ["cloth", "leather"]
+abilities = []
+spells = []
+
+[classes.Citizen.attributes]
+HP = 10
+MAX_HP = 10
+MP = 0
+MAX_MP = 0
+STR = 9
+DEX = 10
+INT = 10
+WIS = 10
+VIT = 10
+DMG = 0
+ARMOR = 0
+INIT = 0
+inventory_slots = 8
+
+[classes.Citizen.progression.level]
+hp_per_level = 3
+primary_attribute_gain = 1
+
+[classes.Citizen.starting_loadout]
+clothing = ["linen_shirt", "wool_trousers", "leather_shoes"]
+inventory = []
+
+[professions.Merchant]
+description = "Buys and sells goods through shop inventories and price rules."
+services = ["buy", "sell"]
+
+[professions.Blacksmith]
+description = "Works metal weapons, armor, repairs, and future forge recipes."
+services = ["craft", "repair"]
+crafting_families = ["weaponsmithing", "armorsmithing"]
+
+[professions.Tailor]
+description = "Creates cloth clothing, light armor, and future dye or pattern work."
+services = ["craft"]
+crafting_families = ["tailoring"]
+
+[professions.Herbalist]
+description = "Gathers, sells, and prepares wild herbs for restoration work."
+services = ["gather", "buy", "sell"]
+crafting_families = ["herbalism"]
+
+[professions.Fletcher]
+description = "Makes arrows, bows, shafts, and other light ranged supplies."
+services = ["craft"]
+crafting_families = ["fletching", "woodworking"]
+
+[professions.Innkeeper]
+description = "Provides food, rest, rooms, rumors, and settlement services."
+services = ["rest", "buy", "sell"]
+
+[professions.Trainer]
+description = "Teaches class abilities, profession recipes, and future skill unlocks."
+services = ["train"]
+
 [classes.Warrior]
 description = "Durable martial adventurer trained for weapons and armor."
 role = "martial"
@@ -123,7 +187,7 @@ spells = ["holy_light"]
 weapons = ["novice_mace"]
 armor = ["padded_armor", "round_shield"]
 clothing = ["wool_trousers", "leather_shoes"]
-inventory = ["linen_shirt"]
+inventory = ["blessed_herb", "linen_shirt"]
 abilities = ["basic_attack", "guard"]
 spells = ["minor_heal"]
 

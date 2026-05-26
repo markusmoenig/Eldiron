@@ -530,7 +530,7 @@ pub fn render_player_inventory(map: &Map) -> Option<String> {
     } else {
         for index in 0..slot_count {
             let label = match player.inventory.get(index).and_then(|slot| slot.as_ref()) {
-                Some(item) => display_name_for_item(item),
+                Some(item) => display_name_for_inventory_item(item),
                 None => "<empty>".to_string(),
             };
             lines.push(format!("  {}. {}", index + 1, label));
@@ -538,6 +538,16 @@ pub fn render_player_inventory(map: &Map) -> Option<String> {
     }
 
     Some(lines.join("\n"))
+}
+
+fn display_name_for_inventory_item(item: &Item) -> String {
+    let name = display_name_for_item(item);
+    let quantity = item.stack_quantity();
+    if quantity > 1 {
+        format!("{} x{}", name, quantity)
+    } else {
+        name
+    }
 }
 
 fn configured_attr_name(config_src: &str, key: &str, default: &str) -> String {

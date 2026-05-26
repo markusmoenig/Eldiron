@@ -238,6 +238,17 @@ loadout.
       <li>Wooden Arrows</li>
     </ul>
   </div>
+  <div class="rules-class-card">
+    <span class="rules-kicker">Civilian</span>
+    <h3>Citizen</h3>
+    <p>Settlement baseline for vendors, crafters, trainers, and other non-adventuring NPCs.</p>
+    <ul>
+      <li>Primary: VIT</li>
+      <li>HP 10 / 10</li>
+      <li>No combat abilities</li>
+      <li>Profession services</li>
+    </ul>
+  </div>
 </div>
 
 ### Warrior
@@ -269,7 +280,7 @@ loadout.
 | Starter weapon | `novice_mace` |
 | Starter armor | `padded_armor`, `round_shield` |
 | Starter clothing | `wool_trousers`, `leather_shoes` |
-| Starter inventory | `linen_shirt` |
+| Starter inventory | `blessed_herb`, `linen_shirt` |
 | Level 1 abilities | `basic_attack`, `guard` |
 | Level 1 spells | `minor_heal` |
 | Level 2 unlock | `holy_light` |
@@ -288,6 +299,95 @@ loadout.
 | Starter clothing | `wool_trousers`, `leather_shoes` |
 | Starter inventory | `wooden_arrows`, `linen_shirt` |
 | Level 1 abilities | `basic_attack` |
+
+### Citizen
+
+| Area | Rule |
+| --- | --- |
+| Role | `civilian` |
+| Primary attributes | `VIT` |
+| Weapons | none by default |
+| Armor | cloth, leather |
+| Starting health | `HP 10`, `MAX_HP 10` |
+| Starter clothing | `linen_shirt`, `wool_trousers`, `leather_shoes` |
+| Combat abilities | none |
+| Professions | separate from class |
+
+Citizens are the default class for settlement NPCs. A blacksmith, merchant, or
+herbalist does not need to be a Warrior just to exist in the world. Use class
+for the character's combat baseline and profession for their economic or social
+role:
+
+```toml
+race = "Human"
+class = "Citizen"
+profession = "Blacksmith"
+```
+
+An armed town guard can still be a `Warrior` with `profession = "Guard"` or a
+future guard service role. The important split is that class answers "how does
+this character survive conflict?" while profession answers "what do they do in
+the settlement economy?"
+
+### Professions
+
+Professions define services and future crafting families. They are not combat
+classes.
+
+| Profession | Role |
+| --- | --- |
+| `Merchant` | buys and sells goods |
+| `Blacksmith` | metal weapons, armor, repairs, forge recipes |
+| `Tailor` | cloth clothing, light armor, dyes, patterns |
+| `Herbalist` | wild herbs, gathering, herb trade |
+| `Fletcher` | arrows, bows, shafts, and ranged supplies |
+| `Innkeeper` | rest, food, rooms, rumors |
+| `Trainer` | ability, recipe, and skill unlocks |
+
+Professions do not cap what a player can learn. They describe social and
+economic identity: who teaches, trades, repairs, or specializes in a settlement.
+Crafting power comes from skills and recipe gates, so a Ranger with high
+Fletching can naturally become better at bows and arrows without being locked
+into a hard profession slot.
+
+### Crafting Skills
+
+Official v1 starts with open sandbox crafting: there is no fixed two-profession
+limit. Recipes name a skill, a required skill value, a difficulty, and the
+attribute that naturally supports that work.
+
+| Skill | Attribute | Range | Early use |
+| --- | --- | --- | --- |
+| `fletching` | `DEX` | 0-100 | arrows, bows, shafts |
+| `herbalism` | `WIS` | 0-100 | wild herbs and preparation |
+| `restoration` | `WIS` | 0-100 | blessings, restoration reagents |
+| `weaponsmithing` | `STR` | 0-100 | metal weapons |
+| `armorsmithing` | `STR` | 0-100 | armor and repairs |
+| `tailoring` | `DEX` | 0-100 | cloth, leather, dyes, patterns |
+| `woodworking` | `DEX` | 0-100 | wooden handles, shields, furniture |
+
+Simple recipes can require `0` skill so they are available immediately. Better
+recipes can require higher skill values. A character can expose skill points as
+attributes such as `skill_fletching = 25`.
+
+### Recipes
+
+Recipes transform inventory stacks into item outputs. They use the same item
+templates as loot, shops, class loadouts, spell reagents, and text look paths.
+
+| Recipe | Skill | Required | Difficulty | Consumes | Produces |
+| --- | --- | --- | --- | --- | --- |
+| `wooden_arrows` | `fletching` | 0 | 10 | `green_wood x1`, `feather x2` | `wooden_arrows x10` |
+| `blessed_herb` | `restoration` | 0 | 8 | `wild_herb x1` | `blessed_herb x1` |
+| `hunting_bow` | `fletching` | 25 | 35 | `green_wood x3` | `hunting_bow x1` |
+
+`profession_hint` marks who usually teaches, sells, or performs the work, and
+`class_hint` can mark a class-flavored recipe such as Cleric blessing. The
+recipe gate itself is still the actual requirement: `blessed_herb` requires the
+`minor_heal` spell, so Herbalism supplies the `wild_herb` and Cleric restoration
+turns it into a reagent. This leaves room for Ultima Online-style character
+growth while still giving towns useful roles such as Fletcher, Herbalist,
+Tailor, and Blacksmith.
 
 Setting `LEVEL` on an authored character applies class progression during
 spawn/load. For example, a level 2 Cleric receives the Cleric level gains and
@@ -423,11 +523,31 @@ natural future path.
 
 | Ammunition | Family | Quantity | Used by | Visual |
 | --- | --- | ---: | --- | --- |
-| `wooden_arrows` | arrow | `20` | bow | diagonal arrow mask |
+| `wooden_arrows` | arrow | `20` | bow, 1 per attack | diagonal arrow mask |
+
+| Reagent | Family | Quantity | Used by | Visual |
+| --- | --- | ---: | --- | --- |
+| `blessed_herb` | herb | `3` | Cleric restoration reagent | herb sprig mask |
+
+| Material | Family | Quantity | Used by | Visual |
+| --- | --- | ---: | --- | --- |
+| `green_wood` | wood | `5` | shafts, handles, woodworking | wood shaft mask |
+| `feather` | feather | `5` | arrow fletching | feather mask |
+| `wild_herb` | herb | `5` | gathered herbalism material | herb sprig mask |
+
+Resource nodes are the world objects that produce materials. They are distinct
+from inventory items.
+
+| Resource node | Action | Produces | Respawn | Visual |
+| --- | --- | --- | ---: | --- |
+| `wild_herb_node` | `gather_herbs` | `wild_herb x2` | `300` seconds | herb sprig mask |
 
 Bows consume one matching ammunition item from the attacker's inventory when a
-weapon attack resolves. Stackable ammunition decrements its `quantity`; when the
-stack reaches zero the inventory slot is emptied.
+weapon attack resolves. `hunting_bow` declares `ammunition = "wooden_arrows"`
+and `ammunition_quantity = 1`, so the ruleset owns both which item is needed
+and how many are spent. Stackable ammunition decrements its `quantity`; when the
+stack reaches zero the inventory slot is emptied. `wooden_arrows` therefore
+means one inventory stack of arrows, not one single arrow item per slot.
 
 When an item defines `avatar_channels` and no explicit icon or tile source,
 Eldiron derives its preview from the bundled humanoid avatar. Inventory,
@@ -443,13 +563,16 @@ verbs such as harvesting, crafting, lockpicking, stealing, or taming.
 | --- | --- | --- | --- | --- |
 | `basic_attack` | attack | hostile entity | - | weapon damage |
 | `power_strike` | attack | hostile entity | - | `power_strike` damage |
-| `minor_heal` | spell | friendly or self | `3 MP` | `minor_heal` healing |
+| `minor_heal` | spell | friendly or self | `3 MP`, `1 blessed_herb` | `minor_heal` healing |
 | `holy_light` | spell | hostile entity | `4 MP` | `holy_light` damage |
 | `take` | interaction | ground item | - | move item to inventory |
+| `gather_herbs` | gather | resource node | - | resource output |
 
 Action definitions already include a generic `consumes` list, so spells,
 crafting, and other sandbox actions can require reagents or materials without a
-new hardcoded system.
+new hardcoded system. These costs use stack quantities too: consuming three
+arrows, herbs, ore, or reagents subtracts three from a matching stack before it
+removes an inventory slot.
 
 Abilities are class-owned combat options. Spells add school, cast time, and
 damage or healing data. Actions connect those definitions to targets, costs,
@@ -457,7 +580,9 @@ cooldowns, results, and FX.
 
 Scripts use `attack()` for the normal weapon attack. Named action buttons or
 text commands use `use_action("<id>")`; for example `use_action("power_strike")`
-or `use power strike orc` in text play.
+or `use power strike orc` in text play. Resource actions can also be typed by
+name, such as `gather herbs`, which targets the nearest matching visible
+resource node.
 
 | Ability | Kind | Cooldown | Range | Effect |
 | --- | --- | ---: | --- | --- |
@@ -467,7 +592,7 @@ or `use power strike orc` in text play.
 
 | Spell | School | Kind | Cost | Cooldown | Range | Roll |
 | --- | --- | --- | ---: | ---: | ---: | --- |
-| `minor_heal` | restoration | heal | `3 MP` | `4.0` | `5` | `1d6`, bonus `1`, `WIS` every 4 |
+| `minor_heal` | restoration | heal | `3 MP`, `1 blessed_herb` | `4.0` | `5` | `1d6`, bonus `1`, `WIS` every 4 |
 | `holy_light` | restoration | damage | `4 MP` | `5.0` | `5` | `1d6`, bonus `1`, `WIS` every 4 |
 | `fire_spark` | fire | damage | `2 MP` | `3.0` | `6` | `1d6`, bonus `0`, `INT` every 4 |
 
@@ -557,6 +682,8 @@ Already present or underway:
 - cloth, leather, chain, and shield armor families
 - starter weapons, armor, clothing, abilities, and spells
 - default humanoid avatar and rules-owned palette
+- stackable materials, reagents, ammunition, and first crafting recipes
+- skill-gated crafting with open profession growth
 - Creator integration and rules-aware tools
 
 Expected v1 growth areas:
@@ -564,7 +691,7 @@ Expected v1 growth areas:
 - more playable classes and enemy roles
 - more races and creature templates
 - a larger spell and ability catalogue
-- crafting professions, reagents, recipes, stations, and item outputs
+- larger crafting professions, reagents, recipes, stations, and item outputs
 - loot tables and treasure rules
 - conditions such as stunned, burning, poisoned, blessed, and guarded
 - armor proficiency, weapon proficiency, and class restrictions

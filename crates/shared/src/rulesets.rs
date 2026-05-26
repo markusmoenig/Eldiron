@@ -37,6 +37,7 @@ const OFFICIAL_ELDIRON_V1_EQUIPMENT: &str =
     include_str!("../../../rulesets/eldiron/v1/equipment.toml");
 const OFFICIAL_ELDIRON_V1_FX: &str = include_str!("../../../rulesets/eldiron/v1/fx.toml");
 const OFFICIAL_ELDIRON_V1_ACTIONS: &str = include_str!("../../../rulesets/eldiron/v1/actions.toml");
+const OFFICIAL_ELDIRON_V1_RECIPES: &str = include_str!("../../../rulesets/eldiron/v1/recipes.toml");
 const OFFICIAL_ELDIRON_V1_ABILITIES_SPELLS: &str =
     include_str!("../../../rulesets/eldiron/v1/abilities_spells.toml");
 const OFFICIAL_ELDIRON_V1_RACES_CLASSES: &str =
@@ -56,6 +57,7 @@ static OFFICIAL_ELDIRON_V1: LazyLock<String> = LazyLock::new(|| {
         OFFICIAL_ELDIRON_V1_EQUIPMENT,
         OFFICIAL_ELDIRON_V1_FX,
         OFFICIAL_ELDIRON_V1_ACTIONS,
+        OFFICIAL_ELDIRON_V1_RECIPES,
         OFFICIAL_ELDIRON_V1_ABILITIES_SPELLS,
         OFFICIAL_ELDIRON_V1_RACES_CLASSES,
     ]
@@ -702,6 +704,10 @@ pub struct RulesetCatalog {
     pub source: Option<String>,
     pub races: Vec<String>,
     pub classes: Vec<String>,
+    pub professions: Vec<String>,
+    pub skills: Vec<String>,
+    pub resources: Vec<String>,
+    pub recipes: Vec<String>,
     pub weapons: Vec<String>,
     pub armor: Vec<String>,
     pub clothing: Vec<String>,
@@ -753,6 +759,10 @@ pub fn ruleset_catalog(root: &Table) -> RulesetCatalog {
             .map(str::to_string),
         races: sorted_table_keys(root, &["races"]),
         classes: sorted_table_keys(root, &["classes"]),
+        professions: sorted_table_keys(root, &["professions"]),
+        skills: sorted_table_keys(root, &["skills"]),
+        resources: sorted_table_keys(root, &["resources"]),
+        recipes: sorted_table_keys(root, &["recipes"]),
         weapons: sorted_table_keys(root, &["items", "weapons"]),
         armor: sorted_table_keys(root, &["items", "armor"]),
         clothing: sorted_table_keys(root, &["items", "clothing"]),
@@ -773,6 +783,10 @@ fn section_path(section: &str) -> Option<&'static [&'static str]> {
     match section.to_ascii_lowercase().as_str() {
         "race" | "races" => Some(&["races"]),
         "class" | "classes" => Some(&["classes"]),
+        "profession" | "professions" => Some(&["professions"]),
+        "skill" | "skills" => Some(&["skills"]),
+        "resource" | "resources" => Some(&["resources"]),
+        "recipe" | "recipes" => Some(&["recipes"]),
         "weapon" | "weapons" => Some(&["items", "weapons"]),
         "armor" | "armors" => Some(&["items", "armor"]),
         "spell" | "spells" => Some(&["spells"]),
@@ -789,7 +803,7 @@ pub fn ruleset_section_ids_from_source(src: &str, section: &str) -> Result<Vec<S
     let root = parse_ruleset_table(src)?;
     let Some(path) = section_path(section) else {
         return Err(format!(
-            "Unknown ruleset section '{}'. Try races, classes, weapons, armor, spells, or abilities.",
+            "Unknown ruleset section '{}'. Try races, classes, professions, skills, recipes, weapons, armor, spells, or abilities.",
             section
         ));
     };
@@ -1032,6 +1046,10 @@ fn validate_item_rules(
 ) {
     let weapon_categories = table_key_set(root, &["equipment", "weapon_categories"]);
     let armor_categories = table_key_set(root, &["equipment", "armor_categories"]);
+    let mut item_templates = BTreeSet::new();
+    for group in ruleset_item_group_names(root) {
+        item_templates.extend(table_key_set(root, &["items", &group]));
+    }
     let weapon_slots = ruleset_table_at_path(root, &["equipment"])
         .map(|table| table_string_array(table, "weapon_slots"))
         .unwrap_or_default()
@@ -1084,6 +1102,13 @@ fn validate_item_rules(
                     "Damage kind",
                     table_string(attributes, "damage_kind").as_deref(),
                     damage_kinds,
+                );
+                validate_string_reference(
+                    report,
+                    &format!("{}.attributes.ammunition", path),
+                    "Ammunition item",
+                    table_string(attributes, "ammunition").as_deref(),
+                    &item_templates,
                 );
             }
         }
@@ -1184,6 +1209,8 @@ fn validate_ability_and_spell_rules(
 
     let abilities = table_key_set(root, &["abilities"]);
     let spells = table_key_set(root, &["spells"]);
+    let professions = table_key_set(root, &["professions"]);
+    let skills = table_key_set(root, &["skills"]);
     let mut item_templates = BTreeSet::new();
     for group in ruleset_item_group_names(root) {
         item_templates.extend(table_key_set(root, &["items", &group]));
@@ -1195,6 +1222,13 @@ fn validate_ability_and_spell_rules(
                 continue;
             };
             let path = format!("actions.{}", id);
+            validate_string_reference(
+                report,
+                &format!("{}.skill", path),
+                "Skill",
+                table_string(action, "skill").as_deref(),
+                &skills,
+            );
             if let Some(requires) = action.get("requires").and_then(Value::as_table) {
                 validate_string_reference(
                     report,
@@ -1210,24 +1244,148 @@ fn validate_ability_and_spell_rules(
                     table_string(requires, "spell").as_deref(),
                     &spells,
                 );
+                validate_string_reference(
+                    report,
+                    &format!("{}.requires.profession", path),
+                    "Profession",
+                    table_string(requires, "profession").as_deref(),
+                    &professions,
+                );
             }
-            if let Some(consumes) = action.get("consumes").and_then(Value::as_array) {
-                for (index, value) in consumes.iter().enumerate() {
-                    let Some(entry) = value.as_table() else {
-                        report.error(
-                            format!("{}.consumes.{}", path, index),
-                            "Consumed item entry must be a table.",
-                        );
-                        continue;
-                    };
-                    validate_string_reference(
-                        report,
-                        &format!("{}.consumes.{}.item", path, index),
-                        "Item",
-                        table_string(entry, "item").as_deref(),
-                        &item_templates,
-                    );
-                }
+            validate_item_quantity_list(report, &path, action, "consumes", &item_templates);
+            if let Some(result) = action.get("result").and_then(Value::as_table) {
+                validate_string_reference(
+                    report,
+                    &format!("{}.result.item", path),
+                    "Item",
+                    table_string(result, "item").as_deref(),
+                    &item_templates,
+                );
+            }
+        }
+    }
+}
+
+fn validate_item_quantity_list(
+    report: &mut RulesetValidationReport,
+    path: &str,
+    table: &Table,
+    key: &str,
+    item_templates: &BTreeSet<String>,
+) {
+    if let Some(entries) = table.get(key).and_then(Value::as_array) {
+        for (index, value) in entries.iter().enumerate() {
+            let Some(entry) = value.as_table() else {
+                report.error(
+                    format!("{}.{}.{}", path, key, index),
+                    "Item quantity entry must be a table.",
+                );
+                continue;
+            };
+            validate_string_reference(
+                report,
+                &format!("{}.{}.{}.item", path, key, index),
+                "Item",
+                table_string(entry, "item").as_deref(),
+                item_templates,
+            );
+        }
+    }
+}
+
+fn validate_recipe_rules(report: &mut RulesetValidationReport, root: &Table) {
+    let professions = table_key_set(root, &["professions"]);
+    let classes = table_key_set(root, &["classes"]);
+    let skills = table_key_set(root, &["skills"]);
+    let spells = table_key_set(root, &["spells"]);
+    let mut item_templates = BTreeSet::new();
+    for group in ruleset_item_group_names(root) {
+        item_templates.extend(table_key_set(root, &["items", &group]));
+    }
+
+    if let Some(recipes) = ruleset_table_at_path(root, &["recipes"]) {
+        for (id, value) in recipes {
+            let Some(recipe) = value.as_table() else {
+                report.error(format!("recipes.{}", id), "Recipe entry must be a table.");
+                continue;
+            };
+            let path = format!("recipes.{}", id);
+            validate_string_reference(
+                report,
+                &format!("{}.skill", path),
+                "Skill",
+                table_string(recipe, "skill").as_deref(),
+                &skills,
+            );
+            validate_string_reference(
+                report,
+                &format!("{}.profession_hint", path),
+                "Profession",
+                table_string(recipe, "profession_hint").as_deref(),
+                &professions,
+            );
+            validate_string_reference(
+                report,
+                &format!("{}.class_hint", path),
+                "Class",
+                table_string(recipe, "class_hint").as_deref(),
+                &classes,
+            );
+            if let Some(requires) = recipe.get("requires").and_then(Value::as_table) {
+                validate_string_reference(
+                    report,
+                    &format!("{}.requires.spell", path),
+                    "Spell",
+                    table_string(requires, "spell").as_deref(),
+                    &spells,
+                );
+            }
+            validate_item_quantity_list(report, &path, recipe, "consumes", &item_templates);
+            validate_item_quantity_list(report, &path, recipe, "produces", &item_templates);
+        }
+    }
+}
+
+fn validate_resource_rules(report: &mut RulesetValidationReport, root: &Table) {
+    let actions = table_key_set(root, &["actions"]);
+    let skills = table_key_set(root, &["skills"]);
+    let mut item_templates = BTreeSet::new();
+    for group in ruleset_item_group_names(root) {
+        item_templates.extend(table_key_set(root, &["items", &group]));
+    }
+
+    if let Some(resources) = ruleset_table_at_path(root, &["resources"]) {
+        for (id, value) in resources {
+            let Some(resource) = value.as_table() else {
+                report.error(
+                    format!("resources.{}", id),
+                    "Resource entry must be a table.",
+                );
+                continue;
+            };
+            let path = format!("resources.{}", id);
+            validate_string_reference(
+                report,
+                &format!("{}.action", path),
+                "Action",
+                table_string(resource, "action").as_deref(),
+                &actions,
+            );
+            validate_string_reference(
+                report,
+                &format!("{}.skill", path),
+                "Skill",
+                table_string(resource, "skill").as_deref(),
+                &skills,
+            );
+            if let Some(produces) = resource.get("produces").and_then(Value::as_table) {
+                validate_string_reference(
+                    report,
+                    &format!("{}.produces.item", path),
+                    "Item",
+                    table_string(produces, "item").as_deref(),
+                    &item_templates,
+                );
             }
         }
     }
@@ -1505,6 +1663,8 @@ pub fn validate_ruleset(root: &Table) -> RulesetValidationReport {
     validate_roll_path(&mut report, root, &["combat", "unarmed_damage"]);
     validate_item_rules(&mut report, root, &damage_kinds);
     validate_ability_and_spell_rules(&mut report, root, &damage_kinds);
+    validate_recipe_rules(&mut report, root);
+    validate_resource_rules(&mut report, root);
     validate_class_rules(&mut report, root);
 
     if let Err(err) = ruleset_item_templates(root) {
@@ -1608,10 +1768,16 @@ fn ruleset_item_template_data(
         "accent_color_index",
         "highlight_color",
         "highlight_color_index",
+        "max_stack",
+        "ammunition_quantity",
     ] {
         if let Some(value) = item.get(key) {
             attributes.insert(key.to_string(), value.clone());
         }
+    }
+
+    if let Some(max_stack) = item.get("max_stack").and_then(Value::as_integer) {
+        insert_integer(&mut attributes, "max_capacity", max_stack);
     }
 
     if let Some(template_name) = table_string(item, "visual_template")
@@ -2094,6 +2260,29 @@ mod tests {
     }
 
     #[test]
+    fn summarizes_official_citizen_class() {
+        let table = latest_official_ruleset().parse::<Table>().unwrap();
+        let citizen = summarize_class(&table, "Citizen").unwrap();
+
+        assert_eq!(citizen.role.as_deref(), Some("civilian"));
+        assert!(citizen.abilities.is_empty());
+        assert!(citizen.spells.is_empty());
+        assert_eq!(
+            citizen
+                .attributes
+                .get("inventory_slots")
+                .map(String::as_str),
+            Some("8")
+        );
+        assert!(
+            citizen
+                .starting_loadout
+                .get("clothing")
+                .is_some_and(|items| items.iter().any(|item| item == "linen_shirt"))
+        );
+    }
+
+    #[test]
     fn summarizes_official_cleric_class() {
         let table = latest_official_ruleset().parse::<Table>().unwrap();
         let cleric = summarize_class(&table, "Cleric").unwrap();
@@ -2106,6 +2295,12 @@ mod tests {
             cleric.level_unlocks.get("level_2").is_some_and(|unlocks| {
                 unlocks.iter().any(|entry| entry == "spells:holy_light")
             })
+        );
+        assert!(
+            cleric
+                .starting_loadout
+                .get("inventory")
+                .is_some_and(|items| items.iter().any(|item| item == "blessed_herb"))
         );
         assert!(
             cleric
@@ -2199,6 +2394,34 @@ mod tests {
                     .data
                     .contains("on_look = \"A bundle of plain wooden arrows for bows.\"")
         }));
+        assert!(templates.iter().any(|template| {
+            template.id == "blessed_herb"
+                && template.kind == "reagent"
+                && template.ruleset_path == "items.reagents.blessed_herb"
+                && template.data.contains("visual_template = \"herb_sprig\"")
+                && template.data.contains("visual_template_pixels")
+                && template
+                    .data
+                    .contains("on_look = \"A small bundle of blessed herbs")
+        }));
+        assert!(templates.iter().any(|template| {
+            template.id == "green_wood"
+                && template.kind == "material"
+                && template.ruleset_path == "items.materials.green_wood"
+                && template
+                    .data
+                    .contains("visual_template = \"spear_diagonal\"")
+        }));
+        assert!(templates.iter().any(|template| {
+            template.id == "feather"
+                && template.kind == "material"
+                && template.ruleset_path == "items.materials.feather"
+        }));
+        assert!(templates.iter().any(|template| {
+            template.id == "wild_herb"
+                && template.kind == "material"
+                && template.ruleset_path == "items.materials.wild_herb"
+        }));
         assert!(
             templates
                 .iter()
@@ -2251,10 +2474,20 @@ mod tests {
         assert_eq!(catalog.id.as_deref(), Some(OFFICIAL_RULESET_ID));
         assert!(catalog.races.iter().any(|id| id == "Human"));
         assert!(catalog.races.iter().any(|id| id == "Orc"));
+        assert!(catalog.classes.iter().any(|id| id == "Citizen"));
         assert!(catalog.classes.iter().any(|id| id == "Warrior"));
         assert!(catalog.classes.iter().any(|id| id == "Cleric"));
         assert!(catalog.classes.iter().any(|id| id == "Ranger"));
+        assert!(catalog.professions.iter().any(|id| id == "Blacksmith"));
+        assert!(catalog.professions.iter().any(|id| id == "Merchant"));
+        assert!(catalog.skills.iter().any(|id| id == "fletching"));
+        assert!(catalog.skills.iter().any(|id| id == "herbalism"));
+        assert!(catalog.skills.iter().any(|id| id == "restoration"));
+        assert!(catalog.resources.iter().any(|id| id == "wild_herb_node"));
+        assert!(catalog.recipes.iter().any(|id| id == "wooden_arrows"));
+        assert!(catalog.recipes.iter().any(|id| id == "blessed_herb"));
         assert!(catalog.actions.iter().any(|id| id == "basic_attack"));
+        assert!(catalog.actions.iter().any(|id| id == "gather_herbs"));
         assert!(catalog.actions.iter().any(|id| id == "holy_light"));
         assert!(catalog.weapons.iter().any(|id| id == "training_sword"));
         assert!(catalog.weapons.iter().any(|id| id == "novice_mace"));
@@ -2274,10 +2507,36 @@ mod tests {
                 .iter()
                 .any(|path| path == "items.ammunition.wooden_arrows")
         );
+        assert!(
+            catalog
+                .item_templates
+                .iter()
+                .any(|path| path == "items.reagents.blessed_herb")
+        );
+        assert!(
+            catalog
+                .item_templates
+                .iter()
+                .any(|path| path == "items.materials.green_wood")
+        );
+        assert!(
+            catalog
+                .item_templates
+                .iter()
+                .any(|path| path == "items.resources.wild_herb_node")
+        );
 
         let classes =
             ruleset_section_ids_from_source(latest_official_ruleset(), "classes").unwrap();
         assert!(classes.iter().any(|id| id == "Warrior"));
+        let professions =
+            ruleset_section_ids_from_source(latest_official_ruleset(), "professions").unwrap();
+        assert!(professions.iter().any(|id| id == "Herbalist"));
+        let recipes =
+            ruleset_section_ids_from_source(latest_official_ruleset(), "recipes").unwrap();
+        assert!(recipes.iter().any(|id| id == "wooden_arrows"));
+        let skills = ruleset_section_ids_from_source(latest_official_ruleset(), "skills").unwrap();
+        assert!(skills.iter().any(|id| id == "fletching"));
         let actions =
             ruleset_section_ids_from_source(latest_official_ruleset(), "actions").unwrap();
         assert!(actions.iter().any(|id| id == "minor_heal"));

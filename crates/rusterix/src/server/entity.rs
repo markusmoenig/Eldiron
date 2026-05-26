@@ -290,7 +290,49 @@ impl Entity {
     }
 
     /// Add an item to the entity's inventory and track additions
-    pub fn add_item(&mut self, item: Item) -> Result<usize, String> {
+    pub fn add_item(&mut self, mut item: Item) -> Result<usize, String> {
+        if item.is_stackable() {
+            let mut remaining = item.stack_quantity().max(1);
+            let mut merged_slot = None;
+            let mut merged_updates = Vec::new();
+            for slot in 0..self.inventory.len() {
+                if remaining <= 0 {
+                    break;
+                }
+                let moved = {
+                    let Some(existing) = self.inventory.get_mut(slot).and_then(Option::as_mut)
+                    else {
+                        continue;
+                    };
+                    if !existing.can_stack_with(&item) {
+                        continue;
+                    }
+                    let capacity = existing.max_stack();
+                    let current = existing.stack_quantity();
+                    if current >= capacity {
+                        continue;
+                    }
+                    let moved = (capacity - current).min(remaining);
+                    existing.set_stack_quantity(current + moved);
+                    merged_updates.push((slot, existing.get_update()));
+                    moved
+                };
+                self.inventory_removals.remove(&slot);
+                merged_slot.get_or_insert(slot);
+                remaining -= moved;
+            }
+            if !merged_updates.is_empty() {
+                for (slot, update) in merged_updates {
+                    self.inventory_updates.insert(slot, update);
+                }
+                self.mark_dirty_field(0b1000);
+            }
+            if remaining <= 0 {
+                return Ok(merged_slot.unwrap_or(0));
+            }
+            item.set_stack_quantity(remaining);
+        }
+
         if let Some(slot) = self.inventory.iter_mut().position(|i| i.is_none()) {
             self.inventory[slot] = Some(item.clone());
             self.inventory_additions.insert(slot, item);
@@ -764,6 +806,17 @@ mod tests {
     use super::*;
     use crate::{D3Camera, D3IsoCamera};
 
+    fn arrow_stack(id: u32, quantity: i32) -> Item {
+        let mut item = Item::new();
+        item.id = id;
+        item.set_max_capacity(99);
+        item.set_attribute("ruleset_id", Value::Str("wooden_arrows".into()));
+        item.set_attribute("stackable", Value::Bool(true));
+        item.set_attribute("max_stack", Value::Int(99));
+        item.set_attribute("quantity", Value::Int(quantity));
+        item
+    }
+
     #[test]
     fn iso_camera_follow_preserves_entity_height() {
         let mut entity = Entity::new();
@@ -776,6 +829,31 @@ mod tests {
 
         let after = camera.position();
         assert!((after.y - before.y - entity.position.y).abs() < 1e-4);
+    }
+
+    #[test]
+    fn add_item_merges_stackable_inventory_items() {
+        let mut entity = Entity::new();
+        entity.inventory.resize(2, None);
+
+        assert_eq!(entity.add_item(arrow_stack(1, 20)), Ok(0));
+        assert_eq!(entity.add_item(arrow_stack(2, 5)), Ok(0));
+
+        let stack = entity.inventory[0].as_ref().expect("merged stack");
+        assert_eq!(stack.stack_quantity(), 25);
+        assert!(entity.inventory[1].is_none());
+    }
+
+    #[test]
+    fn add_item_splits_stack_overflow_into_next_slot() {
+        let mut entity = Entity::new();
+        entity.inventory.resize(2, None);
+
+        assert_eq!(entity.add_item(arrow_stack(1, 98)), Ok(0));
+        assert_eq!(entity.add_item(arrow_stack(2, 5)), Ok(1));
+
+        assert_eq!(entity.inventory[0].as_ref().unwrap().stack_quantity(), 99);
+        assert_eq!(entity.inventory[1].as_ref().unwrap().stack_quantity(), 4);
     }
 }
 

@@ -25,6 +25,64 @@ tile_id = "explicit character tile_id wins over ruleset visuals"
 avatar = "explicit character avatar/avatar_id wins over ruleset visuals"
 empty_visual = "tile_id = \"\" or avatar = \"\" disables inherited default visuals"
 
+[resources.wild_herb_node]
+name = "Wild Herb Node"
+description = "A small wild herb growth that can be gathered for fresh herbs."
+kind = "herb"
+action = "gather_herbs"
+skill = "herbalism"
+respawn = 300
+amount = 2
+produces = { item = "wild_herb", quantity = 2 }
+visual_template = "herb_sprig"
+
+[crafting]
+profession_limit = 0
+learn_mode = "use_based"
+recipe_knowledge = "open_for_simple"
+
+[skills.fletching]
+name = "Fletching"
+attribute = "DEX"
+min = 0
+max = 100
+
+[skills.herbalism]
+name = "Herbalism"
+attribute = "WIS"
+min = 0
+max = 100
+
+[skills.restoration]
+name = "Restoration"
+attribute = "WIS"
+min = 0
+max = 100
+
+[skills.weaponsmithing]
+name = "Weaponsmithing"
+attribute = "STR"
+min = 0
+max = 100
+
+[skills.armorsmithing]
+name = "Armorsmithing"
+attribute = "STR"
+min = 0
+max = 100
+
+[skills.tailoring]
+name = "Tailoring"
+attribute = "DEX"
+min = 0
+max = 100
+
+[skills.woodworking]
+name = "Woodworking"
+attribute = "DEX"
+min = 0
+max = 100
+
 # Eldiron v1 uses a single mood palette based on Lospec's "31" palette by mattt.
 
 [palette]

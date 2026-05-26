@@ -32,7 +32,7 @@ target = "friendly_or_self"
 range = 5
 cooldown = 4.0
 cost = { MP = 3 }
-consumes = []
+consumes = [{ item = "blessed_herb", quantity = 1 }]
 result = { healing = "spells.minor_heal.healing" }
 
 [actions.minor_heal.fx.cast]
@@ -79,3 +79,12 @@ target = "ground_item"
 range = 1.5
 cooldown = 0.0
 result = { take = true }
+
+[actions.gather_herbs]
+name = "Gather Herbs"
+kind = "gather"
+skill = "herbalism"
+target = "resource_node"
+range = 1.5
+cooldown = 2.0
+result = { item = "wild_herb", quantity = 2 }
