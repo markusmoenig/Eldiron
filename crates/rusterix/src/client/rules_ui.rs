@@ -143,11 +143,18 @@ pub fn describe_command(
             subtitle: Some("Control".to_string()),
             lines: Vec::new(),
         },
-        ClientCommandBinding::Intent(intent) => RulesDescription {
-            title: title_case(&intent.replace(['_', ':'], " ")),
-            subtitle: None,
-            lines: Vec::new(),
-        },
+        ClientCommandBinding::Intent(intent) => {
+            let title = if intent.trim().is_empty() {
+                "Walk".to_string()
+            } else {
+                title_case(&intent.replace(['_', ':'], " "))
+            };
+            RulesDescription {
+                title,
+                subtitle: None,
+                lines: Vec::new(),
+            }
+        }
         ClientCommandBinding::Ui(command) => RulesDescription {
             title: title_case(&command.replace('_', " ")),
             subtitle: Some("Interface".to_string()),
@@ -179,7 +186,9 @@ pub fn command_state(assets: &Assets, actor: Option<&Entity>, command: &str) -> 
         }
         ClientCommandBinding::Intent(intent) => {
             let mut state = CommandState::default();
-            apply_cooldown_from_actor(actor, "intent", &intent, &mut state);
+            if !intent.trim().is_empty() {
+                apply_cooldown_from_actor(actor, "intent", &intent, &mut state);
+            }
             state
         }
         _ => CommandState::default(),
@@ -365,7 +374,6 @@ fn apply_cooldown_from_actor(actor: &Entity, namespace: &str, id: &str, state: &
     state.enabled = false;
     state.cooldown_remaining = state.cooldown_remaining.max(remaining);
     state.cooldown_total = state.cooldown_total.max(total);
-    state.disabled_reason = Some(format!("Cooling down: {:.1}s", remaining));
 }
 
 fn fallback_rules_action_description(action_id: &str) -> RulesDescription {

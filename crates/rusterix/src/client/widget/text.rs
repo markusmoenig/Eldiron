@@ -48,6 +48,11 @@ impl Default for TextWidget {
 }
 
 impl TextWidget {
+    const CORE_RULE_NUMBERS: [&'static str; 16] = [
+        "HP", "MAX_HP", "MP", "MAX_MP", "STR", "DEX", "INT", "WIS", "VIT", "DMG", "POWER", "ARMOR",
+        "RESIST", "INIT", "SPEED", "LEVEL",
+    ];
+
     pub fn new() -> Self {
         Self {
             name: String::new(),
@@ -145,6 +150,11 @@ impl TextWidget {
                             if let Some(entity) = player {
                                 if key == "FUNDS" {
                                     return Some(entity.wallet.get_balance(currencies).to_string());
+                                } else if key == "CLASS" || key == "CLASS_NAME" {
+                                    return Self::player_attr_value(entity, "class")
+                                        .or_else(|| Self::player_attr_value(entity, "class_name"));
+                                } else if key == "RACE" {
+                                    return Self::player_attr_value(entity, "race");
                                 } else if key == "LEVEL" || key == "EXP" || key == "EXPERIENCE" {
                                     let token =
                                         format!("{{E:{}.{} }}", entity.id, key).replace(" }", "}");
@@ -200,8 +210,10 @@ impl TextWidget {
                                             world_time: Some(*time),
                                         },
                                     ));
-                                } else if let Some(value) = entity.attributes.get(key) {
-                                    return Some(value.to_string());
+                                } else if let Some(value) = Self::player_attr_value(entity, key) {
+                                    return Some(value);
+                                } else if Self::CORE_RULE_NUMBERS.contains(&key) {
+                                    return Some("0".to_string());
                                 }
                             }
                             None
@@ -270,6 +282,20 @@ impl TextWidget {
                 y += self.font_size + self.spacing;
             }
         }
+    }
+
+    fn player_attr_value(entity: &crate::Entity, key: &str) -> Option<String> {
+        entity
+            .attributes
+            .get(key)
+            .or_else(|| {
+                entity
+                    .attributes
+                    .keys()
+                    .find(|candidate| candidate.eq_ignore_ascii_case(key))
+                    .and_then(|candidate| entity.attributes.get(candidate))
+            })
+            .map(|value| value.to_string())
     }
 
     /// Converts a hex color string to a [u8; 4] (RGBA).

@@ -44,6 +44,19 @@ This setting only affects **rendering**. It does **not** change how player input
 To define player camera behavior, see [set_player_camera](/docs/characters_items/server_commands/#set_player_camera).
 </Admonition>
 
+### Camera Safe Area Section
+
+Use `[camera_safe_area]` on a 2D game widget when HUD widgets overlay part of the game view. The game still renders into the full widget, but the player is framed inside the remaining usable area.
+
+```toml
+[camera_safe_area]
+right = 360
+bottom = 96
+```
+
+- **left**, **right**, **top**, **bottom**: safe-area margins in widget pixels. Omitted values default to `0`.
+- The safe area affects 2D camera framing only. It does not clip rendering or change input hit testing.
+
 ### Say Section
 
 Use `[say]` on a game widget to style speech bubbles produced by `say(...)`.
@@ -191,6 +204,7 @@ In this example, clicking the button causes the player to **move forward**.
 role = "button"
 command = "control.forward"
 # command = "intent.talk"
+# command = "intent." # Walk / default targeting mode
 # command = "rules.basic_attack"
 # party = "leader"
 # inventory_index = 0
@@ -199,6 +213,10 @@ command = "control.forward"
 # border_size = 1
 # border_color = "#888888"
 ```
+
+Use `command = "intent."` or `intent = ""` for a Walk button. This selects the normal map cursor and clears active targeting commands.
+
+If a button command matches a key in the active player's `[input]` table, the hover tooltip shows the shortcut.
 
 ### Example 2
 
@@ -300,7 +318,7 @@ This system is intentionally expandable. Current projects continue to work becau
 
 ### UI Section
 
-- **text**: multiline string content; placeholders like `{PLAYER.STR}`, `{PLAYER.DEX}`, `{PLAYER.FUNDS}`, `{PLAYER.LEVEL}`, `{PLAYER.EXP}`, `{PLAYER.ATTACK}`, and `{PLAYER.ARMOR}` are replaced at runtime.
+- **text**: multiline string content; placeholders like `{PLAYER.CLASS}`, `{PLAYER.RACE}`, `{PLAYER.STR}`, `{PLAYER.DEX}`, `{PLAYER.FUNDS}`, `{PLAYER.LEVEL}`, `{PLAYER.EXP}`, `{PLAYER.ATTACK}`, and `{PLAYER.ARMOR}` are replaced at runtime.
 - **tab_width**: optional tab stop width in pixels for `\t` alignment inside the text.
 - **font**: font family name.
 - **font_size**: size of the font.
@@ -311,6 +329,8 @@ You can customize the **font**, **size**, **line spacing**, and **color** of the
 
 Combat-related player placeholders:
 
+- `PLAYER.CLASS` is the player's rules class, falling back to the character template name.
+- `PLAYER.RACE` is the player's rules race.
 - `PLAYER.ATTACK` is the accumulated `DMG` value across the player's equipped weapon slots.
 - `PLAYER.ARMOR` is the accumulated `ARMOR` value across the player's equipped gear slots.
 - `PLAYER.LEVEL` resolves through `game.level`.
@@ -327,12 +347,14 @@ The slot groups come from `game.weapon_slots` and `game.gear_slots` in **Game / 
 [ui]
 role = "text"
 text = """
-Welcome, adventurer!
+Welcome, {PLAYER.CLASS}!
+
+LVL:\t{PLAYER.LEVEL}\tEXP:\t{PLAYER.EXP}\tG:\t{PLAYER.FUNDS}
+HP:\t{PLAYER.HP}/{PLAYER.MAX_HP}\tMP:\t{PLAYER.MP}/{PLAYER.MAX_MP}
 
 STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}
-EXP:\t{PLAYER.EXP}\tLEVEL:\t{PLAYER.LEVEL}
-HP:\t{PLAYER.HP}\tG:\t{PLAYER.FUNDS}
-ATK:\t{PLAYER.ATTACK}\tDEF:\t{PLAYER.ARMOR}
+INT:\t{PLAYER.INT}\tWIS:\t{PLAYER.WIS}
+ARM:\t{PLAYER.ARMOR}\tRES:\t{PLAYER.RESIST}\tPWR:\t{PLAYER.POWER}
 
 May the stars guide you!
 """
@@ -371,6 +393,7 @@ font = "Tiny5-Regular"
 font_size = 18.0
 spacing = 5
 message_spacing = 8
+background_color = "#00000099"
 warning = "#ff8888"
 default = "#ffffff"
 ```
@@ -418,6 +441,9 @@ portrait_gap = 12
 - `command_input`: shows a desktop-only command input line at the bottom of the widget
 - `command_prompt`: prompt text for command input, defaults to `@`
 - `command_prompt_color`: command input color as `#RRGGBB`
+- `background`: set to `true` to draw a semi-transparent default background
+- `background_color`: optional widget background as `#RRGGBB` or `#RRGGBBAA`; setting this also enables the background
+- `background_padding`: expands the background rectangle outside the widget bounds
 
 This is useful when long wrapped messages would otherwise run visually into the next message.
 

@@ -90,7 +90,7 @@ impl Widget {
                 self.intent.as_ref().and_then(|intent| {
                     let intent = intent.trim();
                     if intent.is_empty() {
-                        None
+                        Some(ClientCommandBinding::Intent(String::new()))
                     } else if intent.eq_ignore_ascii_case("spell") {
                         self.spell
                             .as_ref()

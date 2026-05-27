@@ -159,6 +159,7 @@ Example widget text:
 {ui.status.gold}: {PLAYER.FUNDS}
 ATK: {PLAYER.ATTACK}
 DEF: {PLAYER.ARMOR}
+Class: {PLAYER.CLASS}
 LV: {PLAYER.LEVEL}
 XP: {PLAYER.EXP}
 Weapon DMG: {PLAYER.WEAPON.DMG}
@@ -179,6 +180,8 @@ Current behavior:
 - locale keys like `{ui.status.gold}` are resolved through `Game / Locales`
 - existing `PLAYER.*` status placeholders still work in text widgets
 - `PLAYER.FUNDS` shows the current player funds
+- `PLAYER.CLASS` shows the player's rules class, falling back to the character template name
+- `PLAYER.RACE` shows the player's rules race
 - `PLAYER.<ATTR>` shows a player attribute value
 - `PLAYER.LEVEL` resolves through `game.level`
 - `PLAYER.EXP` and `PLAYER.EXPERIENCE` resolve through `game.experience`

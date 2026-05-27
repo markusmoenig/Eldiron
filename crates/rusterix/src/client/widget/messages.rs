@@ -63,6 +63,9 @@ pub struct MessagesWidget {
     pub command_prompt_color: Pixel,
     pub command_text: String,
     pub command_active: bool,
+    pub background: bool,
+    pub background_color: Pixel,
+    pub background_padding: f32,
     pub max_messages: usize,
     pub scrollback: bool,
     pub(crate) paused: bool,
@@ -127,6 +130,9 @@ impl MessagesWidget {
             command_prompt_color: [215, 153, 33, 255],
             command_text: String::new(),
             command_active: false,
+            background: false,
+            background_color: [0, 0, 0, 150],
+            background_padding: 0.0,
             max_messages: 100,
             scrollback: true,
             paused: false,
@@ -264,6 +270,24 @@ impl MessagesWidget {
                 }
                 if let Some(value) = ui.get("command_prompt_color").and_then(toml::Value::as_str) {
                     self.command_prompt_color = self.hex_to_rgba_u8(value);
+                }
+                if let Some(value) = ui.get("background").and_then(toml::Value::as_bool) {
+                    self.background = value;
+                }
+                if let Some(value) = ui
+                    .get("background_color")
+                    .or_else(|| ui.get("background"))
+                    .and_then(toml::Value::as_str)
+                {
+                    self.background = true;
+                    self.background_color = self.hex_to_rgba_u8(value);
+                }
+                if let Some(value) = ui.get("background_padding") {
+                    if let Some(v) = value.as_float() {
+                        self.background_padding = (v as f32).max(0.0);
+                    } else if let Some(v) = value.as_integer() {
+                        self.background_padding = (v as f32).max(0.0);
+                    }
                 }
                 if let Some(value) = ui.get("max_messages") {
                     if let Some(v) = value.as_integer() {
@@ -615,6 +639,23 @@ impl MessagesWidget {
                 self.rect.width.min(width as f32).max(0.0) as isize,
                 self.rect.height.min(height as f32).max(0.0) as isize,
             );
+            if self.background {
+                let padding = self.background_padding;
+                let bg_rect = (
+                    (self.rect.x - padding).round() as isize,
+                    (self.rect.y - padding).round() as isize,
+                    (self.rect.width + padding * 2.0).round().max(1.0) as isize,
+                    (self.rect.height + padding * 2.0).round().max(1.0) as isize,
+                );
+                let safe = (0_isize, 0_isize, width as isize, height as isize);
+                self.draw2d.blend_rect_safe(
+                    buffer.pixels_mut(),
+                    &bg_rect,
+                    stride,
+                    &self.background_color,
+                    &safe,
+                );
+            }
             let prompt_reserved_height =
                 if self.command_input_enabled() || (self.paused && self.pause_until.is_none()) {
                     self.font_size.ceil() + self.message_spacing.max(self.spacing)

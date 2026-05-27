@@ -77,6 +77,50 @@ impl ClientAction {
         EntityAction::Off
     }
 
+    pub fn shortcut_labels_for_binding(&self, binding: &ClientCommandBinding) -> Vec<String> {
+        let mut labels: Vec<String> = self
+            .input_map
+            .iter()
+            .filter_map(|(key, mapped)| {
+                Self::bindings_match(mapped, binding).then(|| Self::format_shortcut_key(key))
+            })
+            .collect();
+        labels.sort();
+        labels
+    }
+
+    fn bindings_match(a: &ClientCommandBinding, b: &ClientCommandBinding) -> bool {
+        match (a, b) {
+            (ClientCommandBinding::Control(a), ClientCommandBinding::Control(b)) => a == b,
+            (ClientCommandBinding::Intent(a), ClientCommandBinding::Intent(b)) => {
+                a.trim().eq_ignore_ascii_case(b.trim())
+            }
+            (ClientCommandBinding::RulesAction(a), ClientCommandBinding::RulesAction(b)) => {
+                a.trim().eq_ignore_ascii_case(b.trim())
+            }
+            (ClientCommandBinding::Ui(a), ClientCommandBinding::Ui(b)) => {
+                a.trim().eq_ignore_ascii_case(b.trim())
+            }
+            _ => false,
+        }
+    }
+
+    fn format_shortcut_key(key: &str) -> String {
+        match key.trim().to_ascii_lowercase().as_str() {
+            " " | "space" => "Space".to_string(),
+            "escape" | "esc" => "Esc".to_string(),
+            "return" | "enter" => "Enter".to_string(),
+            "tab" => "Tab".to_string(),
+            "backspace" => "Backspace".to_string(),
+            "up" | "arrowup" | "arrow_up" => "Up".to_string(),
+            "down" | "arrowdown" | "arrow_down" => "Down".to_string(),
+            "left" | "arrowleft" | "arrow_left" => "Left".to_string(),
+            "right" | "arrowright" | "arrow_right" => "Right".to_string(),
+            value if value.len() == 1 => value.to_ascii_uppercase(),
+            value => value.replace('_', " "),
+        }
+    }
+
     fn parse_input_map(entity_data: &str) -> FxHashMap<String, ClientCommandBinding> {
         let mut map = FxHashMap::default();
         let Ok(table) = entity_data.parse::<Table>() else {
@@ -291,6 +335,29 @@ mod tests {
         assert_eq!(
             ClientAction::parse_input_command("action(forward)"),
             Some(ClientCommandBinding::Control(EntityAction::Forward))
+        );
+    }
+
+    #[test]
+    fn shortcut_labels_match_command_bindings() {
+        let mut action = ClientAction::new();
+        action.input_map.insert(
+            "t".into(),
+            ClientCommandBinding::RulesAction("basic_attack".into()),
+        );
+        action
+            .input_map
+            .insert("space".into(), ClientCommandBinding::Intent(String::new()));
+
+        assert_eq!(
+            action.shortcut_labels_for_binding(&ClientCommandBinding::RulesAction(
+                "BASIC_ATTACK".into()
+            )),
+            vec!["T".to_string()]
+        );
+        assert_eq!(
+            action.shortcut_labels_for_binding(&ClientCommandBinding::Intent(String::new())),
+            vec!["Space".to_string()]
         );
     }
 }

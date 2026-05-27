@@ -23,6 +23,15 @@ impl ClientCommandBinding {
             _ => None,
         }
     }
+
+    pub fn command_string(&self) -> String {
+        match self {
+            Self::Control(action) => format!("control.{}", action),
+            Self::Intent(intent) => format!("intent.{}", intent),
+            Self::RulesAction(action) => format!("rules.{}", action),
+            Self::Ui(command) => format!("ui.{}", command),
+        }
+    }
 }
 
 pub fn parse_client_command(command: &str) -> Option<ClientCommandBinding> {
@@ -40,7 +49,7 @@ pub fn parse_client_command(command: &str) -> Option<ClientCommandBinding> {
     }
     if let Some(value) = command.strip_prefix("intent.") {
         let value = value.trim();
-        return (!value.is_empty()).then(|| ClientCommandBinding::Intent(value.to_string()));
+        return Some(ClientCommandBinding::Intent(value.to_string()));
     }
     if let Some(value) = command.strip_prefix("rules.") {
         let value = value.trim();
@@ -67,7 +76,7 @@ pub fn command_from_legacy_fields(
         return Some(command.to_string());
     }
 
-    if let Some(intent) = intent.map(str::trim).filter(|value| !value.is_empty()) {
+    if let Some(intent) = intent.map(str::trim) {
         if intent.eq_ignore_ascii_case("spell")
             && let Some(spell) = spell.map(str::trim).filter(|value| !value.is_empty())
         {
@@ -98,6 +107,10 @@ mod tests {
             Some(ClientCommandBinding::Intent("attack".into()))
         );
         assert_eq!(
+            parse_client_command("intent."),
+            Some(ClientCommandBinding::Intent(String::new()))
+        );
+        assert_eq!(
             parse_client_command("rules.basic_attack"),
             Some(ClientCommandBinding::RulesAction("basic_attack".into()))
         );
@@ -112,6 +125,10 @@ mod tests {
         assert_eq!(
             command_from_legacy_fields(None, None, Some("attack"), None).as_deref(),
             Some("intent.attack")
+        );
+        assert_eq!(
+            command_from_legacy_fields(None, None, Some(""), None).as_deref(),
+            Some("intent.")
         );
         assert_eq!(
             command_from_legacy_fields(None, Some("forward"), None, None).as_deref(),

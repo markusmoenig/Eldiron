@@ -62,6 +62,10 @@ pub struct GameWidget {
 
     pub grid_size: f32,
     pub top_left: Vec2<f32>,
+    pub camera_safe_left: f32,
+    pub camera_safe_right: f32,
+    pub camera_safe_top: f32,
+    pub camera_safe_bottom: f32,
 
     pub player_pos: Vec2<f32>,
 
@@ -131,6 +135,10 @@ impl GameWidget {
 
             grid_size: 32.0,
             top_left: Vec2::zero(),
+            camera_safe_left: 0.0,
+            camera_safe_right: 0.0,
+            camera_safe_top: 0.0,
+            camera_safe_bottom: 0.0,
 
             player_pos: Vec2::zero(),
 
@@ -268,6 +276,12 @@ impl GameWidget {
                 } else {
                     self.set_camera_mode(PlayerCamera::D2);
                 }
+            }
+            if let Some(safe_area) = self.table.get("camera_safe_area") {
+                self.camera_safe_left = safe_area.get_float_default("left", 0.0).max(0.0);
+                self.camera_safe_right = safe_area.get_float_default("right", 0.0).max(0.0);
+                self.camera_safe_top = safe_area.get_float_default("top", 0.0).max(0.0);
+                self.camera_safe_bottom = safe_area.get_float_default("bottom", 0.0).max(0.0);
             }
         }
         self.force_dynamics_rebuild = true;
@@ -894,6 +908,24 @@ impl GameWidget {
         };
 
         let screen_size = Vec2::new(width as f32, height as f32);
+        let safe_scale = self.upscale.max(1.0);
+        let mut safe_left = (self.camera_safe_left / safe_scale).clamp(0.0, screen_size.x);
+        let mut safe_right = (self.camera_safe_right / safe_scale).clamp(0.0, screen_size.x);
+        let mut safe_top = (self.camera_safe_top / safe_scale).clamp(0.0, screen_size.y);
+        let mut safe_bottom = (self.camera_safe_bottom / safe_scale).clamp(0.0, screen_size.y);
+        if safe_left + safe_right >= screen_size.x {
+            let scale = (screen_size.x - 1.0).max(1.0) / (safe_left + safe_right).max(1.0);
+            safe_left *= scale;
+            safe_right *= scale;
+        }
+        if safe_top + safe_bottom >= screen_size.y {
+            let scale = (screen_size.y - 1.0).max(1.0) / (safe_top + safe_bottom).max(1.0);
+            safe_top *= scale;
+            safe_bottom *= scale;
+        }
+        let safe_width = (screen_size.x - safe_left - safe_right).max(1.0);
+        let safe_height = (screen_size.y - safe_top - safe_bottom).max(1.0);
+        let focus_point = Vec2::new(safe_left + safe_width * 0.5, safe_top + safe_height * 0.5);
 
         let bbox = self.map_bbox;
 
@@ -913,7 +945,10 @@ impl GameWidget {
             start_pixels.y.max(end_pixels.y),
         );
 
-        let half_screen = screen_size / 2.0;
+        let left_extent = focus_point.x;
+        let right_extent = screen_size.x - focus_point.x;
+        let top_extent = focus_point.y;
+        let bottom_extent = screen_size.y - focus_point.y;
 
         // Compute unclamped camera center in world space
         let mut camera_pos = self.player_pos * self.grid_size;
@@ -924,7 +959,7 @@ impl GameWidget {
         if map_width_px > screen_size.x {
             camera_pos.x = camera_pos
                 .x
-                .clamp(min_world.x + half_screen.x, max_world.x - half_screen.x);
+                .clamp(min_world.x + left_extent, max_world.x - right_extent);
         } else {
             // Center map horizontally
             camera_pos.x = (min_world.x + max_world.x) / 2.0;
@@ -933,16 +968,15 @@ impl GameWidget {
         if map_height_px > screen_size.y {
             camera_pos.y = camera_pos
                 .y
-                .clamp(min_world.y + half_screen.y, max_world.y - half_screen.y);
+                .clamp(min_world.y + top_extent, max_world.y - bottom_extent);
         } else {
             // Center map vertically
             camera_pos.y = (min_world.y + max_world.y) / 2.0;
         }
 
-        let translation_matrix =
-            Mat3::<f32>::translation_2d((screen_size / 2.0 - camera_pos).floor());
+        let translation_matrix = Mat3::<f32>::translation_2d((focus_point - camera_pos).floor());
 
-        self.top_left = (camera_pos - screen_size / 2.0).floor() / self.grid_size;
+        self.top_left = (camera_pos - focus_point).floor() / self.grid_size;
 
         let scale_matrix = Mat3::new(
             self.grid_size,

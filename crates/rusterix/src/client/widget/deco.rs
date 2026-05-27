@@ -6,6 +6,7 @@ pub struct DecoWidget {
     pub rect: Rect,
     pub toml_str: String,
     pub buffer: TheRGBABuffer,
+    pub layer: i32,
     pub draw2d: Draw2D,
     pub table: toml::Table,
     pub text: String,
@@ -26,12 +27,13 @@ impl DecoWidget {
             rect: Rect::default(),
             toml_str: String::new(),
             buffer: TheRGBABuffer::default(),
+            layer: 0,
             draw2d: Draw2D::default(),
             table: toml::Table::default(),
             text: String::new(),
             color: BLACK,
             border_color: WHITE,
-            border_size: 1,
+            border_size: 0,
         }
     }
 
@@ -41,6 +43,11 @@ impl DecoWidget {
                 if let Some(value) = ui.get("border_size") {
                     if let Some(v) = value.as_integer() {
                         self.border_size = v as i32;
+                    }
+                }
+                if let Some(value) = ui.get("layer") {
+                    if let Some(v) = value.as_integer() {
+                        self.layer = v as i32;
                     }
                 }
                 if let Some(value) = ui.get("color") {

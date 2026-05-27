@@ -13,9 +13,7 @@ At a high level, player input is routed through commands:
 - **ui.\***: user-interface commands such as `ui.inventory` for future action bars and panels
 
 Keyboard input is configured in character data via [Input Mapping](input_mapping).  
-UI buttons on screens can also trigger the same actions and intents.
-
-Legacy `action = "forward"` and `intent = "attack"` button fields are migrated to `command = "control.forward"` and `command = "intent.attack"` when projects are loaded.
+UI buttons on screens can also trigger the same actions and intents. Button fields such as `action = "forward"` and `intent = "attack"` are read as `command = "control.forward"` and `command = "intent.attack"` when projects are loaded. Use `intent = ""` or `command = "intent."` for a Walk button which clears active targeting commands.
 
 Rules commands are also rules-aware on the UI side. A button assigned to `rules.minor_heal` can show the action name, description, costs, reagent requirements, and cooldown state from the active ruleset. If that command is cooling down, the button is dimmed and receives a cooldown overlay.
 

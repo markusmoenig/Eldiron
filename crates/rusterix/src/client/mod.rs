@@ -412,6 +412,44 @@ impl Client {
         false
     }
 
+    fn shortcut_labels_for_binding(&self, binding: &ClientCommandBinding) -> Vec<String> {
+        self.client_action
+            .lock()
+            .map(|action| action.shortcut_labels_for_binding(binding))
+            .unwrap_or_default()
+    }
+
+    fn add_shortcut_line(description: &mut RulesDescription, shortcuts: Vec<String>) {
+        if shortcuts.is_empty() {
+            return;
+        }
+        let label = if shortcuts.len() == 1 {
+            "Shortcut"
+        } else {
+            "Shortcuts"
+        };
+        description
+            .lines
+            .push(format!("{}: {}", label, shortcuts.join(", ")));
+    }
+
+    fn draw_deco_widgets_with_layer<F>(
+        deco_widgets: &mut FxHashMap<Uuid, DecoWidget>,
+        buffer: &mut TheRGBABuffer,
+        map: &Map,
+        currencies: &Currencies,
+        assets: &Assets,
+        layer_filter: F,
+    ) where
+        F: Fn(i32) -> bool,
+    {
+        for widget in deco_widgets.values_mut() {
+            if layer_filter(widget.layer) {
+                widget.update_draw(buffer, map, currencies, assets);
+            }
+        }
+    }
+
     /// Returns the currently active game-widget camera mode if present.
     /// Prioritizes first-person over iso over 2D when multiple game widgets exist.
     pub fn active_game_widget_camera_mode(&self) -> Option<PlayerCamera> {
@@ -1629,6 +1667,17 @@ impl Client {
                 .copy_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
         }
 
+        // Negative-layer deco widgets sit between the game view and screen-rendered
+        // controls, so they can dim the game without dimming command icons.
+        Self::draw_deco_widgets_with_layer(
+            &mut self.deco_widgets,
+            &mut self.target,
+            map,
+            &self.currencies,
+            assets,
+            |layer| layer < 0,
+        );
+
         if let Some(screen) = assets.screens.get(&self.current_screen) {
             if let Some(screen_widget) = &mut self.screen_widget {
                 let (start_x, start_y) = crate::utils::align_screen_to_grid(
@@ -1661,12 +1710,15 @@ impl Client {
             }
         }
 
-        // Draw the deco widgets on top
-        for widget in self.deco_widgets.values_mut() {
-            widget.update_draw(&mut self.target, map, &self.currencies, assets);
-            self.target
-                .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
-        }
+        // Draw normal deco widgets on top of the screen render.
+        Self::draw_deco_widgets_with_layer(
+            &mut self.deco_widgets,
+            &mut self.target,
+            map,
+            &self.currencies,
+            assets,
+            |layer| layer >= 0,
+        );
 
         // Draw the messages on top
         for widget in &mut self.messages_widgets {
@@ -2045,6 +2097,17 @@ impl Client {
                 .unwrap_or_default();
         }
 
+        // Negative-layer deco widgets sit below screen-rendered controls in the
+        // direct presentation path too.
+        Self::draw_deco_widgets_with_layer(
+            &mut self.deco_widgets,
+            &mut self.overlay,
+            map,
+            &self.currencies,
+            assets,
+            |layer| layer < 0,
+        );
+
         if let Some(screen) = assets.screens.get(&self.current_screen)
             && let Some(screen_widget) = &mut self.screen_widget
         {
@@ -2151,11 +2214,14 @@ impl Client {
             }
         }
 
-        for widget in self.deco_widgets.values_mut() {
-            widget.update_draw(&mut self.overlay, map, &self.currencies, assets);
-            self.overlay
-                .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
-        }
+        Self::draw_deco_widgets_with_layer(
+            &mut self.deco_widgets,
+            &mut self.overlay,
+            map,
+            &self.currencies,
+            assets,
+            |layer| layer >= 0,
+        );
 
         for widget in &mut self.messages_widgets {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
@@ -2645,6 +2711,42 @@ impl Client {
         self.curr_cursor = self.default_cursor;
     }
 
+    fn is_targeting_button(widget: &Widget) -> bool {
+        matches!(
+            widget.command_binding(),
+            Some(ClientCommandBinding::Intent(_) | ClientCommandBinding::RulesAction(_))
+        )
+    }
+
+    fn activate_walk_button(&mut self, button_id: u32) {
+        self.intent.clear();
+        self.activated_widgets.retain(|id| {
+            *id == button_id
+                || self
+                    .button_widgets
+                    .get(id)
+                    .map(|widget| !Self::is_targeting_button(widget))
+                    .unwrap_or(true)
+        });
+        self.permanently_activated_widgets.retain(|id| {
+            *id == button_id
+                || self
+                    .button_widgets
+                    .get(id)
+                    .map(|widget| !Self::is_targeting_button(widget))
+                    .unwrap_or(true)
+        });
+        if !self.activated_widgets.contains(&button_id) {
+            self.activated_widgets.push(button_id);
+        }
+        if !self.permanently_activated_widgets.contains(&button_id) {
+            self.permanently_activated_widgets.push(button_id);
+        }
+        self.curr_intent_cursor = None;
+        self.curr_clicked_intent_cursor = None;
+        self.curr_cursor = self.default_cursor;
+    }
+
     fn drop_position_at_viewport(&self, p: Vec2<i32>) -> Option<Vec2<f32>> {
         for widget in self.game_widgets.values() {
             if !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
@@ -2892,6 +2994,7 @@ impl Client {
         let mut action = None;
         let mut camera_action = None;
         let mut render_camera_switches: Vec<(Option<String>, PlayerCamera)> = Vec::new();
+        let mut selected_walk_button_id = None;
         let active_intent = self.get_current_intent_for_action();
         self.dragging_item_id = None;
         self.dragging_item_owner_entity_id = None;
@@ -2994,9 +3097,14 @@ impl Client {
                         }
                         ClientCommandBinding::Intent(intent) => {
                             let payload = intent;
-                            self.intent = payload.clone();
-                            if self.game_widget_is_2d() {
+                            if payload.trim().is_empty() {
+                                self.intent.clear();
+                                selected_walk_button_id = Some(*id);
+                            } else if self.game_widget_is_2d() {
+                                self.intent = payload.clone();
                                 action = Some(EntityAction::Intent(payload));
+                            } else {
+                                self.intent = payload;
                             }
                         }
                         ClientCommandBinding::RulesAction(rules_action) => {
@@ -3069,6 +3177,9 @@ impl Client {
                     self.permanently_activated_widgets.push(widget.id);
                 }
             }
+        }
+        if let Some(button_id) = selected_walk_button_id {
+            self.activate_walk_button(button_id);
         }
         for (target, camera) in render_camera_switches {
             self.set_game_widget_camera_mode(target.as_deref(), camera);
@@ -3429,10 +3540,11 @@ impl Client {
 
             // Fallbacks for projects that encoded intent-ish data in action.
             let action_norm = widget.action.trim().to_ascii_lowercase();
-            let action_match = action_norm == intent_norm
-                || action_norm == format!("intent({})", intent_norm)
-                || action_norm == format!("intent(\"{}\")", intent_norm)
-                || action_norm == format!("intent('{}')", intent_norm);
+            let action_match = !intent_norm.is_empty()
+                && (action_norm == intent_norm
+                    || action_norm == format!("intent({})", intent_norm)
+                    || action_norm == format!("intent(\"{}\")", intent_norm)
+                    || action_norm == format!("intent('{}')", intent_norm));
 
             if intent_match || action_match {
                 // Prefer dedicated intent toggle buttons (e.g. UseIntent/LookIntent)
@@ -3478,6 +3590,11 @@ impl Client {
         let Some(button_id) = selected_button_id else {
             return;
         };
+
+        if intent_raw.is_empty() {
+            self.activate_walk_button(button_id);
+            return;
+        }
 
         // Deactivate all other intent buttons so shortcut intent is authoritative.
         for (id, widget) in self.button_widgets.iter() {
@@ -4052,20 +4169,12 @@ impl Client {
             rect.width.round().max(1.0) as isize,
             rect.height.round().max(1.0) as isize,
         );
-        draw2d.blend_rect_safe(target.pixels_mut(), &r, stride, &[0, 0, 0, 130], &safe);
-
-        if state.cooldown_remaining > 0.0 && state.cooldown_total > 0.0 {
-            let fraction = (state.cooldown_remaining / state.cooldown_total).clamp(0.0, 1.0);
-            let overlay_h = (r.3 as f32 * fraction).round().max(1.0) as isize;
-            let cooldown_rect = (r.0, r.1 + r.3 - overlay_h, r.2, overlay_h);
-            draw2d.blend_rect_safe(
-                target.pixels_mut(),
-                &cooldown_rect,
-                stride,
-                &[43, 47, 54, 175],
-                &safe,
-            );
-        }
+        let alpha = if state.cooldown_remaining > 0.0 {
+            145
+        } else {
+            175
+        };
+        draw2d.blend_rect_safe(target.pixels_mut(), &r, stride, &[0, 0, 0, alpha], &safe);
     }
 
     fn draw_hover_tooltip(&mut self, map: &Map, assets: &Assets) {
@@ -4132,7 +4241,7 @@ impl Client {
             raw_lines.push((reason, 3));
         }
 
-        let min_text_width = 48_i32;
+        let min_text_width = 72_i32;
         let max_text_width = 244_i32;
         let mut desired_text_width = min_text_width;
         for (line, _) in &raw_lines {
@@ -4141,8 +4250,8 @@ impl Client {
                 if paragraph.is_empty() {
                     continue;
                 }
-                desired_text_width = desired_text_width
-                    .max(self.draw2d.get_text_size(font, font_size, paragraph).0 as i32);
+                let measured_width = self.draw2d.get_text_size(font, font_size, paragraph).0 as i32;
+                desired_text_width = desired_text_width.max(measured_width + 12);
             }
         }
         let tooltip_text_width = desired_text_width.clamp(min_text_width, max_text_width);
@@ -4377,15 +4486,18 @@ impl Client {
                     ));
                 }
             }
-            if let Some(command) = widget.command.as_deref() {
-                let Some(binding) = widget.command_binding() else {
-                    continue;
-                };
+            if let Some(binding) = widget.command_binding() {
+                let command = widget
+                    .command
+                    .clone()
+                    .unwrap_or_else(|| binding.command_string());
+                let shortcuts = self.shortcut_labels_for_binding(&binding);
                 match binding {
                     ClientCommandBinding::Control(_) => return None,
                     ClientCommandBinding::RulesAction(_) => {
-                        let description = rules_ui::describe_command(assets, entity, command);
-                        let state = rules_ui::command_state(assets, entity, command);
+                        let mut description = rules_ui::describe_command(assets, entity, &command);
+                        Self::add_shortcut_line(&mut description, shortcuts);
+                        let state = rules_ui::command_state(assets, entity, &command);
                         return Some((
                             description,
                             widget.rect,
@@ -4396,8 +4508,9 @@ impl Client {
                         ));
                     }
                     ClientCommandBinding::Intent(_) | ClientCommandBinding::Ui(_) => {
-                        let description = rules_ui::describe_command(assets, entity, command);
-                        let state = rules_ui::command_state(assets, entity, command);
+                        let mut description = rules_ui::describe_command(assets, entity, &command);
+                        Self::add_shortcut_line(&mut description, shortcuts);
+                        let state = rules_ui::command_state(assets, entity, &command);
                         return Some((
                             description,
                             widget.rect,

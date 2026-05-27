@@ -112,6 +112,7 @@ Behavior:
 - `cooldown` blocks the specific intent for the ruleset-defined duration
 
 For UI-driven intents, you can also use [button widgets](/docs/screens/widgets#button-widgets).
+If a button command matches a key in the active player's `[input]` table, its hover tooltip shows the shortcut.
 
 For how intents behave in 2D vs 3D and how they become `intent` events, see [Player Input](player_input).
 

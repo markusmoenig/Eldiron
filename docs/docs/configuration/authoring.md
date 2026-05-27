@@ -425,6 +425,8 @@ lines = [
 Supported placeholders use the same `PLAYER.*` style as screen text widgets, including:
 
 - `PLAYER.<ATTR>`
+- `PLAYER.CLASS`
+- `PLAYER.RACE`
 - `PLAYER.LEVEL`
 - `PLAYER.EXP`
 - `PLAYER.ATTACK`
