@@ -16,6 +16,9 @@ pub enum TextCommand {
         spell: String,
         target: Option<String>,
     },
+    Craft {
+        recipe: String,
+    },
     Action {
         action: String,
         target: Option<String>,
@@ -129,6 +132,7 @@ pub fn parse_text_command(
     supported_intents: &BTreeSet<String>,
     known_spells: &BTreeSet<String>,
     known_actions: &BTreeSet<String>,
+    known_recipes: &BTreeSet<String>,
 ) -> TextCommand {
     let trimmed = input.trim();
     if trimmed.is_empty() {
@@ -168,8 +172,8 @@ pub fn parse_text_command(
         };
     }
 
-    if let Some(payload) = lower.strip_prefix("cast ") {
-        let original_payload = &trimmed[trimmed.len() - payload.len()..];
+    if lower.starts_with("cast ") {
+        let original_payload = trimmed.get("cast ".len()..).unwrap_or("").trim_start();
         let (spell, target) = split_ruleset_id_and_target(original_payload, known_spells);
         return if spell.is_empty() {
             TextCommand::Unknown
@@ -178,11 +182,31 @@ pub fn parse_text_command(
         };
     }
 
-    if let Some(payload) = lower
-        .strip_prefix("action ")
-        .or_else(|| lower.strip_prefix("use action "))
-    {
-        let original_payload = &trimmed[trimmed.len() - payload.len()..];
+    if lower.starts_with("craft ") {
+        let original_payload = trimmed.get("craft ".len()..).unwrap_or("").trim_start();
+        let (recipe, _) = split_ruleset_id_and_target(original_payload, known_recipes);
+        return if recipe.is_empty() {
+            TextCommand::Unknown
+        } else {
+            TextCommand::Craft { recipe }
+        };
+    }
+
+    if lower.starts_with("action ") {
+        let original_payload = trimmed.get("action ".len()..).unwrap_or("").trim_start();
+        let (action, target) = split_ruleset_id_and_target(original_payload, known_actions);
+        return if action.is_empty() {
+            TextCommand::Unknown
+        } else {
+            TextCommand::Action { action, target }
+        };
+    }
+
+    if lower.starts_with("use action ") {
+        let original_payload = trimmed
+            .get("use action ".len()..)
+            .unwrap_or("")
+            .trim_start();
         let (action, target) = split_ruleset_id_and_target(original_payload, known_actions);
         return if action.is_empty() {
             TextCommand::Unknown
@@ -269,6 +293,7 @@ mod tests {
                 &BTreeSet::new(),
                 &spells(&["minor_heal"]),
                 &BTreeSet::new(),
+                &BTreeSet::new(),
             ),
             TextCommand::Cast {
                 spell: "minor_heal".into(),
@@ -285,6 +310,7 @@ mod tests {
                 &BTreeSet::new(),
                 &spells(&["minor_heal"]),
                 &BTreeSet::new(),
+                &BTreeSet::new(),
             ),
             TextCommand::Cast {
                 spell: "minor_heal".into(),
@@ -298,6 +324,7 @@ mod tests {
         assert_eq!(
             parse_text_command(
                 "cast holy light",
+                &BTreeSet::new(),
                 &BTreeSet::new(),
                 &BTreeSet::new(),
                 &BTreeSet::new(),
@@ -317,6 +344,7 @@ mod tests {
                 &BTreeSet::new(),
                 &BTreeSet::new(),
                 &actions(&["power_strike"]),
+                &BTreeSet::new(),
             ),
             TextCommand::Action {
                 action: "power_strike".into(),
@@ -333,10 +361,27 @@ mod tests {
                 &BTreeSet::new(),
                 &BTreeSet::new(),
                 &actions(&["gather_herbs"]),
+                &BTreeSet::new(),
             ),
             TextCommand::Action {
                 action: "gather_herbs".into(),
                 target: None,
+            }
+        );
+    }
+
+    #[test]
+    fn parses_known_recipe_with_spaced_name() {
+        assert_eq!(
+            parse_text_command(
+                "craft blessed herb",
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                &actions(&["blessed_herb"]),
+            ),
+            TextCommand::Craft {
+                recipe: "blessed_herb".into(),
             }
         );
     }

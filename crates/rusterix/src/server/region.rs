@@ -1500,6 +1500,28 @@ impl RegionInstance {
             .unwrap_or_default()
     }
 
+    fn text_command_recipe_ids(ctx: &RegionCtx) -> BTreeSet<String> {
+        ctx.rules
+            .get("recipes")
+            .and_then(toml::Value::as_table)
+            .map(|recipes| recipes.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    fn text_command_recipe_name(ctx: &RegionCtx, recipe_id: &str) -> String {
+        ctx.rules
+            .get("recipes")
+            .and_then(toml::Value::as_table)
+            .and_then(|recipes| recipes.get(recipe_id))
+            .and_then(toml::Value::as_table)
+            .and_then(|recipe| recipe.get("name"))
+            .and_then(toml::Value::as_str)
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| recipe_id.replace('_', " "))
+    }
+
     fn text_command_action_target_kind(ctx: &RegionCtx, action_id: &str) -> String {
         ruleset_action_table(ctx, action_id)
             .as_ref()
@@ -1624,7 +1646,14 @@ impl RegionInstance {
         let supported_intents = Self::text_command_supported_intents(ctx, entity_id);
         let spell_ids = Self::text_command_spell_ids(ctx);
         let action_ids = Self::text_command_action_ids(ctx);
-        match parse_text_command(input, &supported_intents, &spell_ids, &action_ids) {
+        let recipe_ids = Self::text_command_recipe_ids(ctx);
+        match parse_text_command(
+            input,
+            &supported_intents,
+            &spell_ids,
+            &action_ids,
+            &recipe_ids,
+        ) {
             TextCommand::Empty => {}
             TextCommand::Look(None) => {
                 Self::send_text_command_feedback(ctx, entity_id, "system.look_at_what", &[]);
@@ -1745,6 +1774,33 @@ impl RegionInstance {
                             &[("spell", spell_name.clone())],
                         );
                     }
+                }
+            }
+            TextCommand::Craft { recipe } => {
+                let recipe_name = Self::text_command_recipe_name(ctx, &recipe);
+                if !recipe_ids.contains(&recipe) {
+                    Self::send_text_command_feedback(
+                        ctx,
+                        entity_id,
+                        "recipes.unknown",
+                        &[("recipe", recipe_name.clone())],
+                    );
+                    return;
+                }
+                if craft_ruleset_recipe(ctx, entity_id, &recipe) {
+                    Self::send_text_command_feedback(
+                        ctx,
+                        entity_id,
+                        "recipes.crafted",
+                        &[("recipe", recipe_name)],
+                    );
+                } else {
+                    Self::send_text_command_feedback(
+                        ctx,
+                        entity_id,
+                        "recipes.could_not_craft",
+                        &[("recipe", recipe_name)],
+                    );
                 }
             }
             TextCommand::Action { action, target } => {
@@ -9223,6 +9279,17 @@ fn entity_meets_recipe_skill(entity: &Entity, recipe: &toml::value::Table) -> bo
     entity_skill_points(entity, skill_id) >= required
 }
 
+fn entity_meets_action_skill(entity: &Entity, action: &toml::value::Table) -> bool {
+    let required = rule_number(action, "required_skill", 0.0).round().max(0.0) as i32;
+    if required <= 0 {
+        return true;
+    }
+    let Some(skill_id) = rule_string(action, "skill") else {
+        return false;
+    };
+    entity_skill_points(entity, skill_id) >= required
+}
+
 fn recipe_required_spell(recipe: &toml::value::Table) -> Option<&str> {
     recipe
         .get("requires")
@@ -9952,6 +10019,24 @@ pub(crate) fn execute_ruleset_action(
             "cannot_use",
             "actions.cannot_use",
             &[("action", action_name.clone())],
+            "warning",
+        );
+        return false;
+    }
+    if !entity_meets_action_skill(actor, &action) {
+        let skill_id = rule_string(&action, "skill").unwrap_or("skill");
+        let required = rule_number(&action, "required_skill", 0.0).round().max(0.0) as i32;
+        send_ruleset_message(
+            ctx,
+            actor_id,
+            "actions",
+            "skill_too_low",
+            "actions.skill_too_low",
+            &[
+                ("action", action_name.clone()),
+                ("skill", skill_id.replace('_', " ")),
+                ("required", required.to_string()),
+            ],
             "warning",
         );
         return false;

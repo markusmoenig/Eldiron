@@ -2483,11 +2483,15 @@ mod tests {
         assert!(catalog.skills.iter().any(|id| id == "fletching"));
         assert!(catalog.skills.iter().any(|id| id == "herbalism"));
         assert!(catalog.skills.iter().any(|id| id == "restoration"));
+        assert!(catalog.resources.iter().any(|id| id == "bird_nest_node"));
         assert!(catalog.resources.iter().any(|id| id == "wild_herb_node"));
+        assert!(catalog.resources.iter().any(|id| id == "green_wood_node"));
         assert!(catalog.recipes.iter().any(|id| id == "wooden_arrows"));
         assert!(catalog.recipes.iter().any(|id| id == "blessed_herb"));
         assert!(catalog.actions.iter().any(|id| id == "basic_attack"));
+        assert!(catalog.actions.iter().any(|id| id == "gather_feathers"));
         assert!(catalog.actions.iter().any(|id| id == "gather_herbs"));
+        assert!(catalog.actions.iter().any(|id| id == "gather_wood"));
         assert!(catalog.actions.iter().any(|id| id == "holy_light"));
         assert!(catalog.weapons.iter().any(|id| id == "training_sword"));
         assert!(catalog.weapons.iter().any(|id| id == "novice_mace"));
@@ -2524,6 +2528,18 @@ mod tests {
                 .item_templates
                 .iter()
                 .any(|path| path == "items.resources.wild_herb_node")
+        );
+        assert!(
+            catalog
+                .item_templates
+                .iter()
+                .any(|path| path == "items.resources.green_wood_node")
+        );
+        assert!(
+            catalog
+                .item_templates
+                .iter()
+                .any(|path| path == "items.resources.bird_nest_node")
         );
 
         let classes =

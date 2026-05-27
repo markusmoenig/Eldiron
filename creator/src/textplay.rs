@@ -317,11 +317,13 @@ impl TextGameState {
                 let supported_intents = current_player_supported_intents(project, server_ctx);
                 let spell_ids = current_ruleset_spell_ids(project);
                 let action_ids = current_ruleset_action_ids(project);
+                let recipe_ids = current_ruleset_recipe_ids(project);
                 match rusterix::client::text_command::parse_text_command(
                     input,
                     &supported_intents,
                     &spell_ids,
                     &action_ids,
+                    &recipe_ids,
                 ) {
                     rusterix::client::text_command::TextCommand::Intent { intent, target } => {
                         if let Some(target) = target {
@@ -346,8 +348,21 @@ impl TextGameState {
                             self.push_plain_line(&error);
                         }
                     }
+                    rusterix::client::text_command::TextCommand::Craft { recipe: _ } => {
+                        RUSTERIX
+                            .write()
+                            .unwrap()
+                            .server
+                            .local_player_action(EntityAction::TextCommand(input.to_string()));
+                    }
                     rusterix::client::text_command::TextCommand::Action { action, target } => {
-                        if let Some(error) =
+                        if target.is_none() {
+                            RUSTERIX
+                                .write()
+                                .unwrap()
+                                .server
+                                .local_player_action(EntityAction::TextCommand(input.to_string()));
+                        } else if let Some(error) =
                             trigger_text_action(project, server_ctx, &action, target.as_deref())
                         {
                             self.push_plain_line(&error);
@@ -885,6 +900,14 @@ fn current_ruleset_action_ids(project: &Project) -> BTreeSet<String> {
         .ok()
         .and_then(|rules| shared::rulesets::ruleset_section_ids_from_source(&rules, "actions").ok())
         .map(|actions| actions.into_iter().collect())
+        .unwrap_or_default()
+}
+
+fn current_ruleset_recipe_ids(project: &Project) -> BTreeSet<String> {
+    shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+        .ok()
+        .and_then(|rules| shared::rulesets::ruleset_section_ids_from_source(&rules, "recipes").ok())
+        .map(|recipes| recipes.into_iter().collect())
         .unwrap_or_default()
 }
 

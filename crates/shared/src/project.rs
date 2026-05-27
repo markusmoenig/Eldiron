@@ -1295,7 +1295,7 @@ mod tests {
         project.config = crate::rulesets::DEFAULT_RULESET_CONFIG.to_string();
         project.rules = crate::rulesets::DEFAULT_RULES_OVERRIDE.to_string();
 
-        assert_eq!(project.sync_ruleset_items().unwrap(), 18);
+        assert_eq!(project.sync_ruleset_items().unwrap(), 20);
         assert_eq!(project.sync_ruleset_items().unwrap(), 0);
         assert_eq!(
             project.palette.colors[2]

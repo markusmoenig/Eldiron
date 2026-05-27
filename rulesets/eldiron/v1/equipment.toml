@@ -619,3 +619,48 @@ resource_action = "gather_herbs"
 respawn = 300
 amount = 2
 takeable = false
+
+[items.resources.green_wood_node]
+name = "Green Wood Node"
+description = "A young flexible wood growth that can be gathered for green wood."
+category = "wood"
+slot = "resource"
+rarity = "common"
+color = 10
+visual_template = "spear_diagonal"
+grip_color_index = 10
+highlight_color_index = 14
+
+[items.resources.green_wood_node.attributes]
+static = true
+blocking = false
+visible = true
+resource_id = "green_wood_node"
+resource_kind = "wood"
+resource_action = "gather_wood"
+respawn = 300
+amount = 3
+takeable = false
+
+[items.resources.bird_nest_node]
+name = "Bird Nest Node"
+description = "A small nest that can be gathered for usable feathers."
+category = "nest"
+slot = "resource"
+rarity = "common"
+color = 10
+visual_template = "arrow_diagonal"
+blade_color_index = 10
+grip_color_index = 23
+highlight_color_index = 14
+
+[items.resources.bird_nest_node.attributes]
+static = true
+blocking = false
+visible = true
+resource_id = "bird_nest_node"
+resource_kind = "nest"
+resource_action = "gather_feathers"
+respawn = 300
+amount = 2
+takeable = false

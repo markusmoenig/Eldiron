@@ -36,6 +36,28 @@ amount = 2
 produces = { item = "wild_herb", quantity = 2 }
 visual_template = "herb_sprig"
 
+[resources.green_wood_node]
+name = "Green Wood Node"
+description = "A young flexible wood growth that can be gathered for green wood."
+kind = "wood"
+action = "gather_wood"
+skill = "woodworking"
+respawn = 300
+amount = 3
+produces = { item = "green_wood", quantity = 3 }
+visual_template = "spear_diagonal"
+
+[resources.bird_nest_node]
+name = "Bird Nest Node"
+description = "A small nest that can be gathered for usable feathers."
+kind = "nest"
+action = "gather_feathers"
+skill = "fletching"
+respawn = 300
+amount = 2
+produces = { item = "feather", quantity = 2 }
+visual_template = "arrow_diagonal"
+
 [crafting]
 profession_limit = 0
 learn_mode = "use_based"

@@ -374,11 +374,18 @@ Resource nodes are separate from inventory materials. For example,
 `wild_herb_node` is a placed world item with `static = true`, `resource_id =
 "wild_herb_node"`, `respawn = 300`, and `amount = 2`. Gathering it with
 `gather_herbs` adds `wild_herb x2` to the actor's inventory, hides the node, and
-lets it become visible again after its respawn timer. The text command path can
-use the same action with:
+lets it become visible again after its respawn timer. `green_wood_node` works
+the same way for `gather_wood`, producing `green_wood x3`, while
+`bird_nest_node` uses `gather_feathers` to produce `feather x2`. The text
+command path can use the same action with:
 
 ```text
 gather herbs
+gather wood
+gather feathers
+craft blessed herb
+craft wooden arrows
+craft hunting bow
 ```
 
 When no target is named, the text command chooses the nearest visible resource
@@ -398,6 +405,14 @@ Recipe execution consumes input stack quantities and merges output stack
 quantities into existing inventory slots when possible. This is the same economy
 path that later shops, gathering nodes, crafting stations, quality rules, and
 profession services can use.
+
+The text command path can craft known recipes by name:
+
+```text
+craft wooden arrows
+craft hunting bow
+craft blessed herb
+```
 
 Recipes use `required_skill` for hard gates and `difficulty` for balancing. The
 current runtime enforces required skill and required spells before consuming

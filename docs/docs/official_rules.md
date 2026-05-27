@@ -541,6 +541,8 @@ from inventory items.
 | Resource node | Action | Produces | Respawn | Visual |
 | --- | --- | --- | ---: | --- |
 | `wild_herb_node` | `gather_herbs` | `wild_herb x2` | `300` seconds | herb sprig mask |
+| `green_wood_node` | `gather_wood` | `green_wood x3` | `300` seconds | wood shaft mask |
+| `bird_nest_node` | `gather_feathers` | `feather x2` | `300` seconds | feather/nest mask |
 
 Bows consume one matching ammunition item from the attacker's inventory when a
 weapon attack resolves. `hunting_bow` declares `ammunition = "wooden_arrows"`
@@ -567,12 +569,18 @@ verbs such as harvesting, crafting, lockpicking, stealing, or taming.
 | `holy_light` | spell | hostile entity | `4 MP` | `holy_light` damage |
 | `take` | interaction | ground item | - | move item to inventory |
 | `gather_herbs` | gather | resource node | - | resource output |
+| `gather_wood` | gather | resource node | - | resource output |
+| `gather_feathers` | gather | resource node | - | resource output |
 
 Action definitions already include a generic `consumes` list, so spells,
 crafting, and other sandbox actions can require reagents or materials without a
 new hardcoded system. These costs use stack quantities too: consuming three
 arrows, herbs, ore, or reagents subtracts three from a matching stack before it
 removes an inventory slot.
+
+Actions can also declare `skill` and `required_skill`. The first gather actions
+are open at `required_skill = 0`, but the same mechanism is now available for
+higher-tier ore, wood, herbs, locks, traps, and profession actions.
 
 Abilities are class-owned combat options. Spells add school, cast time, and
 damage or healing data. Actions connect those definitions to targets, costs,
@@ -581,8 +589,9 @@ cooldowns, results, and FX.
 Scripts use `attack()` for the normal weapon attack. Named action buttons or
 text commands use `use_action("<id>")`; for example `use_action("power_strike")`
 or `use power strike orc` in text play. Resource actions can also be typed by
-name, such as `gather herbs`, which targets the nearest matching visible
-resource node.
+name, such as `gather herbs`, `gather wood`, or `gather feathers`, which targets
+the nearest matching visible resource node. Recipes can be typed by name too,
+such as `craft blessed herb`, `craft wooden arrows`, or `craft hunting bow`.
 
 | Ability | Kind | Cooldown | Range | Effect |
 | --- | --- | ---: | --- | --- |

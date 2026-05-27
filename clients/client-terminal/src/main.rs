@@ -2478,7 +2478,7 @@ mod tests {
         assert!(summary.contains("classes: 4"));
         assert!(summary.contains("professions: 7"));
         assert!(summary.contains("skills: 7"));
-        assert!(summary.contains("resources: 1"));
+        assert!(summary.contains("resources: 3"));
         assert!(summary.contains("recipes: 3"));
         assert!(summary.contains("spells: 3"));
     }
@@ -2606,6 +2606,26 @@ mod tests {
         assert!(node.contains("item: Wild Herb Node"));
         assert!(node.contains("kind: resource"));
         assert!(node.contains("resource_action"));
+
+        let wood_node = format_rules_item(
+            &rules,
+            "green_wood_node",
+            &shared::rulesets::RulesetAttributeMap::new(),
+        )
+        .unwrap();
+        assert!(wood_node.contains("item: Green Wood Node"));
+        assert!(wood_node.contains("kind: resource"));
+        assert!(wood_node.contains("gather_wood"));
+
+        let nest = format_rules_item(
+            &rules,
+            "bird_nest_node",
+            &shared::rulesets::RulesetAttributeMap::new(),
+        )
+        .unwrap();
+        assert!(nest.contains("item: Bird Nest Node"));
+        assert!(nest.contains("kind: resource"));
+        assert!(nest.contains("gather_feathers"));
     }
 
     #[test]

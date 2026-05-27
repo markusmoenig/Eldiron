@@ -84,7 +84,28 @@ result = { take = true }
 name = "Gather Herbs"
 kind = "gather"
 skill = "herbalism"
+required_skill = 0
 target = "resource_node"
 range = 1.5
 cooldown = 2.0
 result = { item = "wild_herb", quantity = 2 }
+
+[actions.gather_wood]
+name = "Gather Wood"
+kind = "gather"
+skill = "woodworking"
+required_skill = 0
+target = "resource_node"
+range = 1.5
+cooldown = 3.0
+result = { item = "green_wood", quantity = 3 }
+
+[actions.gather_feathers]
+name = "Gather Feathers"
+kind = "gather"
+skill = "fletching"
+required_skill = 0
+target = "resource_node"
+range = 1.5
+cooldown = 2.0
+result = { item = "feather", quantity = 2 }

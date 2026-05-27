@@ -3372,6 +3372,19 @@ mod tests {
             entity.set_attribute(key, value);
         }
 
+        fn clear_inventory(&mut self, entity_id: u32) {
+            let entity = self
+                .ctx
+                .map
+                .entities
+                .iter_mut()
+                .find(|entity| entity.id == entity_id)
+                .expect("arena entity");
+            for slot in &mut entity.inventory {
+                *slot = None;
+            }
+        }
+
         fn entity(&self, id: u32) -> &Entity {
             self.ctx
                 .map
@@ -4282,6 +4295,114 @@ mod tests {
             Some(301)
         ));
         assert_eq!(arena.inventory_item_quantity(1, "wild_herb"), 4);
+    }
+
+    #[test]
+    fn official_ruleset_gather_wood_uses_resource_node_and_skill_gate() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.add_official_entity(1, "Citizen", "Human", 1, None);
+        arena.add_official_world_item(301, "resources", "green_wood_node", 1.0, 0.0);
+
+        arena
+            .ctx
+            .rules
+            .get_mut("actions")
+            .and_then(toml::Value::as_table_mut)
+            .and_then(|actions| actions.get_mut("gather_wood"))
+            .and_then(toml::Value::as_table_mut)
+            .expect("gather_wood action")
+            .insert("required_skill".into(), toml::Value::Integer(25));
+
+        assert!(!execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "gather_wood",
+            Some(301)
+        ));
+        assert_eq!(arena.inventory_item_quantity(1, "green_wood"), 0);
+
+        arena.set_entity_attr(1, "skill_woodworking", Value::Int(25));
+
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "gather_wood",
+            Some(301)
+        ));
+        assert_eq!(arena.inventory_item_quantity(1, "green_wood"), 3);
+        let node = arena
+            .ctx
+            .map
+            .items
+            .iter()
+            .find(|item| item.id == 301)
+            .expect("green wood node");
+        assert!(node.attributes.get_bool_default("resource_depleted", false));
+    }
+
+    #[test]
+    fn official_ruleset_gathered_materials_craft_arrows_and_power_bow() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.add_script_class(
+            "Ranger",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "attack" {
+                    attack();
+                }
+            }
+            "#,
+        );
+        arena.add_official_entity(1, "Ranger", "Human", 1, Some(2));
+        arena.add_official_entity(2, "Warrior", "Orc", 1, None);
+        arena.clear_inventory(1);
+        arena.equip_official_item(1, 101, "weapons", "hunting_bow");
+        arena.add_official_world_item(301, "resources", "green_wood_node", 1.0, 0.0);
+        arena.add_official_world_item(302, "resources", "bird_nest_node", 1.0, 0.0);
+
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "gather_wood",
+            Some(301)
+        ));
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "gather_feathers",
+            Some(302)
+        ));
+        assert_eq!(arena.inventory_item_quantity(1, "green_wood"), 3);
+        assert_eq!(arena.inventory_item_quantity(1, "feather"), 2);
+
+        assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "wooden_arrows"));
+        assert_eq!(arena.inventory_item_quantity(1, "green_wood"), 2);
+        assert_eq!(arena.inventory_item_quantity(1, "feather"), 0);
+        assert_eq!(arena.inventory_item_quantity(1, "wooden_arrows"), 10);
+
+        arena
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 1)
+            .unwrap()
+            .position = Vec3::new(0.0, 1.0, 0.0);
+        arena
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 2)
+            .unwrap()
+            .position = Vec3::new(4.0, 1.0, 0.0);
+
+        let orc_hp = arena.hp(2);
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+
+        assert!(arena.hp(2) < orc_hp);
+        assert_eq!(arena.inventory_item_quantity(1, "wooden_arrows"), 9);
     }
 
     #[test]

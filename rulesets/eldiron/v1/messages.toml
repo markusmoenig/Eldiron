@@ -7,9 +7,15 @@
 unknown_key = "actions.unknown"
 missing_target_key = "actions.missing_target"
 cannot_use_key = "actions.cannot_use"
+skill_too_low_key = "actions.skill_too_low"
 not_ready_key = "actions.not_ready"
 missing_item_key = "actions.missing_item"
 no_effect_key = "actions.no_effect"
+
+[messages.recipes]
+unknown_key = "recipes.unknown"
+could_not_craft_key = "recipes.could_not_craft"
+crafted_key = "recipes.crafted"
 
 [messages.spells]
 unknown_key = "spells.unknown"

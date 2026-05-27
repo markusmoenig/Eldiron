@@ -43,6 +43,9 @@
 - Changed `blessed_herb` into a Cleric restoration recipe that consumes gathered `wild_herb` and requires `minor_heal`.
 - Added the first official resource node, `wild_herb_node`, with gather output and respawn behavior.
 - Added `gather herbs` as a text command that resolves to the ruleset `gather_herbs` action.
+- Added `craft <recipe>` text commands for ruleset recipes such as `craft blessed herb`.
+- Added action skill gates and a first `green_wood_node` / `gather_wood` loop for woodworking materials.
+- Added `bird_nest_node` / `gather_feathers` and a headless gather-to-craft-to-bow regression for wooden arrows.
 - Updated official item visuals with a wooden training sword, palette-driven axe, mace, spear, bow, shield, and arrow masks, and item descriptions for look/text paths.
 - Made attack intent range rules-owned so the same attack icon uses melee range for melee weapons and bow range for Rangers, even in projects with old character intent-distance data.
 - Fixed 2D directional attack targeting so ranged weapons scan along the chosen direction to weapon range instead of only checking the adjacent tile.
