@@ -98,6 +98,46 @@ With that enabled, 2D behaves more like 3D:
 
 Movement keys still walk normally. Intent hover / clicked cursors from screen buttons also apply in 2D when this mode is enabled.
 
+### Recommended Rules-Based 2D Setup
+
+For a rules-driven top-down game, the recommended starting point is:
+
+```toml
+[game]
+auto_walk_2d = true
+click_intents_2d = false
+```
+
+This gives the player mouse click-to-walk in Walk mode while keeping keyboard intents one-shot. A typical player input map then keeps movement, targeting, and rules actions separate:
+
+```toml
+[input]
+w = "control.forward"
+a = "control.left"
+s = "control.backward"
+d = "control.right"
+t = "command(rules.basic_attack)"
+u = "intent(use)"
+l = "intent(look)"
+```
+
+For the screen action bar, use a Walk/default button plus rules command buttons:
+
+```toml
+[ui]
+role = "button"
+command = "intent."
+
+# Another button:
+[ui]
+role = "button"
+command = "rules.basic_attack"
+```
+
+`command = "intent."` selects Walk mode and clears active targeting commands. Rules command buttons get their name, description, cooldown, reagent/cost status, disabled state, and shortcut hint from the active ruleset and the active player's `[input]` table.
+
+For a readable action bar overlay, place a `role = "deco"` widget behind the buttons and give it `layer = -1`. Negative-layer deco widgets draw below screen-rendered command icons, so a semi-transparent background can dim the game without dimming the icons.
+
 ### Isometric / First-Person
 
 In isometric and first-person play, intents behave more like a **persistent interaction mode**:

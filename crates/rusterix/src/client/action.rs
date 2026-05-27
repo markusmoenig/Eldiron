@@ -329,8 +329,16 @@ mod tests {
             Some(ClientCommandBinding::RulesAction("basic_attack".into()))
         );
         assert_eq!(
+            ClientAction::parse_input_command("command(intent.)"),
+            Some(ClientCommandBinding::Intent(String::new()))
+        );
+        assert_eq!(
             ClientAction::parse_input_command("intent(attack)"),
             Some(ClientCommandBinding::Intent("attack".into()))
+        );
+        assert_eq!(
+            ClientAction::parse_input_command("intent()"),
+            Some(ClientCommandBinding::Intent(String::new()))
         );
         assert_eq!(
             ClientAction::parse_input_command("action(forward)"),

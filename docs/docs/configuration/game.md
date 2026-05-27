@@ -148,12 +148,14 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
   - When enabled, selecting an intent changes mouse interaction, but movement keys still walk as usual.
   - Click a target to apply the current intent; the selected intent stays active until you switch it.
   - Intent hover / clicked cursors also apply in 2D while this mode is active.
+  - For rules-driven one-shot keyboard actions, keep this `false` and use `auto_walk_2d = true`.
   - Default: `false`.
 
 - **`auto_walk_2d`**
   - Enables terrain click-to-walk for `2d` and `2d_grid` input modes.
   - Only applies when no intent is active, so walk mode stays separate from click-targeted intents.
   - Uses the normal runtime `Goto` pathing action.
+  - Recommended for 2D rules screens that use a Walk/default command button.
   - Default: `false`.
 
 - **`gear_slots`**

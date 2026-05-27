@@ -111,6 +111,10 @@ mod tests {
             Some(ClientCommandBinding::Intent(String::new()))
         );
         assert_eq!(
+            parse_client_command("intent.   "),
+            Some(ClientCommandBinding::Intent(String::new()))
+        );
+        assert_eq!(
             parse_client_command("rules.basic_attack"),
             Some(ClientCommandBinding::RulesAction("basic_attack".into()))
         );
@@ -128,6 +132,10 @@ mod tests {
         );
         assert_eq!(
             command_from_legacy_fields(None, None, Some(""), None).as_deref(),
+            Some("intent.")
+        );
+        assert_eq!(
+            command_from_legacy_fields(None, None, Some("   "), None).as_deref(),
             Some("intent.")
         );
         assert_eq!(

@@ -218,6 +218,8 @@ Use `command = "intent."` or `intent = ""` for a Walk button. This selects the n
 
 If a button command matches a key in the active player's `[input]` table, the hover tooltip shows the shortcut.
 
+For 2D action bars that sit on top of the game view, put a `role = "deco"` widget behind the buttons with `layer = -1` and a semi-transparent `color`. Negative-layer deco widgets draw below screen-rendered controls, which lets the background dim the map without dimming the icons.
+
 ### Example 2
 
 This button:

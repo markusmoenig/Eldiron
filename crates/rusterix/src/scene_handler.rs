@@ -3531,6 +3531,11 @@ impl SceneHandler {
 
     /// Build dynamic elements of the 2D Map: Entities, Items, Lights ...
     pub fn build_dynamics_2d(&mut self, map: &Map, animation_frame: usize, assets: &Assets) {
+        // SceneVM's current 2D dynamic ordering consumes higher layer numbers first.
+        // Give ground items a numerically higher layer so characters are composited over them.
+        const D2_GROUND_ITEM_LAYER: i32 = 20;
+        const D2_CHARACTER_LAYER: i32 = 10;
+
         // Dynamics must always be built into base layer 0.
         self.vm.set_active_vm(0);
         self.tick_particle_clock_2d();
@@ -3588,7 +3593,7 @@ impl SceneHandler {
                         }
                         let dynamic =
                             DynamicObject::billboard_tile_2d(geo_id, tile.id, pos, 1.0, 1.0)
-                                .with_layer(10)
+                                .with_layer(D2_GROUND_ITEM_LAYER)
                                 .with_anim_start_counter(anim_start);
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                     }
@@ -3607,7 +3612,7 @@ impl SceneHandler {
                 let ground_size = Self::generated_ground_item_size(item);
                 let dynamic =
                     DynamicObject::billboard_avatar_2d(geo_id, pos, ground_size, ground_size)
-                        .with_layer(10);
+                        .with_layer(D2_GROUND_ITEM_LAYER);
                 self.vm.execute(Atom::AddDynamic { object: dynamic });
             }
         }
@@ -3682,7 +3687,7 @@ impl SceneHandler {
                         active_avatar_geo.insert(geo_id);
                         let dynamic =
                             DynamicObject::billboard_avatar_2d(geo_id, pos, size_2d, size_2d)
-                                .with_layer(20);
+                                .with_layer(D2_CHARACTER_LAYER);
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                         continue;
                     }
@@ -3693,7 +3698,7 @@ impl SceneHandler {
                         active_avatar_geo.insert(geo_id);
                         let dynamic =
                             DynamicObject::billboard_avatar_2d(geo_id, pos, size_2d, size_2d)
-                                .with_layer(20);
+                                .with_layer(D2_CHARACTER_LAYER);
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                     }
                     continue;
@@ -3703,7 +3708,7 @@ impl SceneHandler {
                     if let Some(tile) = source.tile_from_tile_list(assets) {
                         let dynamic =
                             DynamicObject::billboard_tile_2d(geo_id, tile.id, pos, 1.0, 1.0)
-                                .with_layer(20);
+                                .with_layer(D2_CHARACTER_LAYER);
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                     }
                 }
