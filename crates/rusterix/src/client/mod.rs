@@ -4,18 +4,20 @@ pub mod daylight;
 pub mod draw2d;
 pub mod parser;
 pub mod resolver;
+pub mod rules_ui;
 pub mod text_command;
 pub mod widget;
 
 use instant::{Duration, Instant};
 use scenevm::GeoId;
-use std::str::FromStr;
 
 use crate::prelude::*;
 use crate::{
     BrushPreview, Command, D2ConceptBuilder, D2PreviewBuilder, EntityAction, MapMini, PlayerCamera,
     Rect, SceneHandler, Surface, Value,
     client::action::ClientAction,
+    client::command::{ClientCommandBinding, command_from_legacy_fields},
+    client::rules_ui::{CommandState, RulesDescription},
     client::widget::{
         Widget, avatar::AvatarWidget, deco::DecoWidget, game::GameWidget, messages::MessagesWidget,
         screen::ScreenWidget, text::TextWidget,
@@ -217,6 +219,8 @@ pub struct Client {
     hover_distance: f32,
     hovered_world_pos: Option<Vec3<f32>>,
     last_3d_hover_pick_at: Option<Instant>,
+    tooltip_hover_key: Option<String>,
+    tooltip_hover_since: Option<Instant>,
 
     // Dragged inventory/equipped item id
     dragging_item_id: Option<u32>,
@@ -554,6 +558,8 @@ impl Client {
 
             hover_distance: f32::MAX,
             last_3d_hover_pick_at: None,
+            tooltip_hover_key: None,
+            tooltip_hover_since: None,
             dragging_item_id: None,
             dragging_item_owner_entity_id: None,
             dragging_source_widget_id: None,
@@ -1636,7 +1642,7 @@ impl Client {
 
                 // Add the current intent to the activated widgets
                 for w in self.button_widgets.iter() {
-                    if w.1.intent.is_some() && w.1.intent.as_ref().unwrap() == &self.intent {
+                    if w.1.intent_payload().as_deref() == Some(self.intent.as_str()) {
                         screen_widget.builder_d2.activated_widgets.push(w.0.clone());
                     }
                 }
@@ -1770,6 +1776,17 @@ impl Client {
                         0
                     },
                 );
+                if let Some(command) = widget.command.as_deref() {
+                    let state = rules_ui::command_state(assets, entity, command);
+                    if !state.enabled || state.cooldown_remaining > 0.0 {
+                        Self::draw_command_state_overlay(
+                            &mut self.target,
+                            &self.draw2d,
+                            widget.rect,
+                            &state,
+                        );
+                    }
+                }
             }
         }
 
@@ -1798,6 +1815,7 @@ impl Client {
         }
 
         self.draw_current_target_rect(map);
+        self.draw_hover_tooltip(map, assets);
 
         // Draw the cursor (centered on cursor_pos)
         if let Some(cursor) = self.curr_cursor {
@@ -2037,7 +2055,7 @@ impl Client {
             screen_widget.grid_size = self.grid_size;
 
             for w in self.button_widgets.iter() {
-                if w.1.intent.is_some() && w.1.intent.as_ref().unwrap() == &self.intent {
+                if w.1.intent_payload().as_deref() == Some(self.intent.as_str()) {
                     screen_widget.builder_d2.activated_widgets.push(w.0.clone());
                 }
             }
@@ -2536,11 +2554,8 @@ impl Client {
     ) -> Option<(Option<Uuid>, Option<Uuid>, Option<Uuid>, Option<Uuid>)> {
         self.activated_widgets.iter().rev().find_map(|button_id| {
             self.button_widgets.get(button_id).and_then(|widget| {
-                widget
-                    .intent
-                    .as_ref()
-                    .filter(|intent| !intent.trim().is_empty())
-                    .map(|_| {
+                widget.intent_payload().and_then(|intent| {
+                    (!intent.trim().is_empty()).then(|| {
                         (
                             widget.entity_cursor_id,
                             widget.entity_clicked_cursor_id,
@@ -2548,6 +2563,7 @@ impl Client {
                             widget.item_clicked_cursor_id,
                         )
                     })
+                })
             })
         })
     }
@@ -2613,14 +2629,14 @@ impl Client {
         self.activated_widgets.retain(|id| {
             self.button_widgets
                 .get(id)
-                .and_then(|widget| widget.intent.as_ref())
+                .and_then(Widget::intent_payload)
                 .map(|intent| intent.trim().is_empty())
                 .unwrap_or(true)
         });
         self.permanently_activated_widgets.retain(|id| {
             self.button_widgets
                 .get(id)
-                .and_then(|widget| widget.intent.as_ref())
+                .and_then(Widget::intent_payload)
                 .map(|intent| intent.trim().is_empty())
                 .unwrap_or(true)
         });
@@ -2968,24 +2984,29 @@ impl Client {
                     }
                 }
 
-                // Action buttons should work in both 2D and 3D. Intent (if present) sets
-                // the active intent state and only becomes a one-shot action in 2D when no
-                // directional action is defined.
-                let parsed_action = EntityAction::from_str(&widget.action).ok();
-                if let Some(act) = parsed_action.clone() {
-                    action = Some(act);
-                }
-                if let Some(intent) = &widget.intent {
-                    self.intent = intent.clone();
-                    if parsed_action.is_none() && self.game_widget_is_2d() {
-                        if intent.eq_ignore_ascii_case("spell")
-                            && let Some(spell) = &widget.spell
-                            && !spell.trim().is_empty()
-                        {
-                            action = Some(EntityAction::Intent(format!("spell:{}", spell.trim())));
-                        } else {
-                            action = Some(EntityAction::Intent(intent.clone()));
+                // Command buttons work in both 2D and 3D. Control commands become
+                // immediate movement/camera input; intent and rules commands set the
+                // active targeting state and become one-shot actions in classic 2D.
+                if let Some(binding) = widget.command_binding() {
+                    match binding {
+                        ClientCommandBinding::Control(act) => {
+                            action = Some(act);
                         }
+                        ClientCommandBinding::Intent(intent) => {
+                            let payload = intent;
+                            self.intent = payload.clone();
+                            if self.game_widget_is_2d() {
+                                action = Some(EntityAction::Intent(payload));
+                            }
+                        }
+                        ClientCommandBinding::RulesAction(rules_action) => {
+                            let payload = format!("action:{}", rules_action);
+                            self.intent = payload.clone();
+                            if self.game_widget_is_2d() {
+                                action = Some(EntityAction::Intent(payload));
+                            }
+                        }
+                        ClientCommandBinding::Ui(_) => {}
                     }
                 }
 
@@ -3347,7 +3368,10 @@ impl Client {
             self.activated_widgets = self.permanently_activated_widgets.clone();
         } else {
             for (id, widget) in self.button_widgets.iter_mut() {
-                if widget.action == action_str && !self.activated_widgets.contains(id) {
+                let command_matches = matches!(widget.command_binding(), Some(ClientCommandBinding::Control(ref control)) if control.to_string() == action_str);
+                if (widget.action == action_str || command_matches)
+                    && !self.activated_widgets.contains(id)
+                {
                     self.activated_widgets.push(*id);
                 }
             }
@@ -3387,10 +3411,14 @@ impl Client {
 
         for (id, widget) in self.button_widgets.iter() {
             let mut intent_match = widget
-                .intent
-                .as_ref()
-                .map(|s| s.trim().eq_ignore_ascii_case(&intent_norm))
-                .unwrap_or(false);
+                .intent_payload()
+                .map(|s| s.trim().eq_ignore_ascii_case(intent_raw))
+                .unwrap_or(false)
+                || widget
+                    .intent
+                    .as_ref()
+                    .map(|s| s.trim().eq_ignore_ascii_case(&intent_norm))
+                    .unwrap_or(false);
             if intent_match && let Some(spell_template_norm) = &spell_template_norm {
                 intent_match = widget
                     .spell
@@ -3437,18 +3465,9 @@ impl Client {
                     best_score = score;
                     selected_button_id = Some(*id);
                     deactivate_names = widget.deactivate.clone();
-                    selected_intent = if spell_template_norm.is_some() {
-                        widget
-                            .spell
-                            .as_ref()
-                            .map(|s| format!("spell:{}", s.trim()))
-                            .or_else(|| widget.intent.clone())
-                    } else {
-                        widget
-                            .intent
-                            .clone()
-                            .or_else(|| Some(intent_name.to_string()))
-                    };
+                    selected_intent = widget
+                        .intent_payload()
+                        .or_else(|| Some(intent_name.to_string()));
                 }
             }
         }
@@ -3463,7 +3482,7 @@ impl Client {
         // Deactivate all other intent buttons so shortcut intent is authoritative.
         for (id, widget) in self.button_widgets.iter() {
             if *id != button_id
-                && let Some(intent) = &widget.intent
+                && let Some(intent) = widget.intent_payload()
                 && !intent.is_empty()
             {
                 self.activated_widgets.retain(|x| x != id);
@@ -3588,6 +3607,7 @@ impl Client {
                             }
                             self.game_widgets.insert(widget.creator_id, game_widget);
                         } else if role == "button" {
+                            let mut command = None;
                             let mut action = "";
                             let mut intent = None;
                             let mut spell = None;
@@ -3612,6 +3632,16 @@ impl Client {
                             let mut border_color: [u8; 4] = [255, 255, 255, 255];
 
                             if let Some(ui) = table.get("ui").and_then(toml::Value::as_table) {
+                                // Check for command. This is the preferred button API.
+                                if let Some(value) = ui.get("command")
+                                    && let Some(v) = value.as_str()
+                                {
+                                    let trimmed = v.trim();
+                                    if !trimmed.is_empty() {
+                                        command = Some(trimmed.to_string());
+                                    }
+                                }
+
                                 // Check for action
                                 if let Some(value) = ui.get("action") {
                                     if let Some(v) = value.as_str() {
@@ -3778,6 +3808,13 @@ impl Client {
                                         border_color = Self::hex_to_rgba_u8(v);
                                     }
                                 }
+
+                                command = command_from_legacy_fields(
+                                    command.as_deref(),
+                                    (!action.trim().is_empty()).then_some(action),
+                                    intent.as_deref(),
+                                    spell.as_deref(),
+                                );
                             }
 
                             let button_widget = Widget {
@@ -3785,6 +3822,7 @@ impl Client {
                                 id: widget.id,
                                 rect: Rect::new(x, y, width, height),
                                 action: action.into(),
+                                command,
                                 intent,
                                 spell,
                                 group,
@@ -3883,10 +3921,10 @@ impl Client {
         // must not mask an existing intent.
         for button_id in self.activated_widgets.iter().rev() {
             if let Some(widget) = self.button_widgets.get(button_id) {
-                if let Some(intent) = &widget.intent
+                if let Some(intent) = widget.intent_payload()
                     && !intent.is_empty()
                 {
-                    return Some(intent.clone());
+                    return Some(intent);
                 }
             }
         }
@@ -3902,18 +3940,12 @@ impl Client {
     fn get_current_intent_for_action(&self) -> Option<String> {
         for button_id in self.activated_widgets.iter().rev() {
             if let Some(widget) = self.button_widgets.get(button_id)
-                && let Some(intent) = &widget.intent
+                && let Some(intent) = widget.intent_payload()
             {
                 if intent.is_empty() {
                     continue;
                 }
-                if intent.eq_ignore_ascii_case("spell")
-                    && let Some(spell) = &widget.spell
-                    && !spell.trim().is_empty()
-                {
-                    return Some(format!("spell:{}", spell.trim()));
-                }
-                return Some(intent.clone());
+                return Some(intent);
             }
         }
         if self.intent.is_empty() {
@@ -3999,5 +4031,399 @@ impl Client {
             self.draw2d
                 .rect_outline_thickness(self.target.pixels_mut(), &rect, stride, &color, 2);
         }
+    }
+
+    fn draw_command_state_overlay(
+        target: &mut TheRGBABuffer,
+        draw2d: &Draw2D,
+        rect: Rect,
+        state: &CommandState,
+    ) {
+        let stride = target.stride();
+        let safe = (
+            0_isize,
+            0_isize,
+            target.dim().width as isize,
+            target.dim().height as isize,
+        );
+        let r = (
+            rect.x.round() as isize,
+            rect.y.round() as isize,
+            rect.width.round().max(1.0) as isize,
+            rect.height.round().max(1.0) as isize,
+        );
+        draw2d.blend_rect_safe(target.pixels_mut(), &r, stride, &[0, 0, 0, 130], &safe);
+
+        if state.cooldown_remaining > 0.0 && state.cooldown_total > 0.0 {
+            let fraction = (state.cooldown_remaining / state.cooldown_total).clamp(0.0, 1.0);
+            let overlay_h = (r.3 as f32 * fraction).round().max(1.0) as isize;
+            let cooldown_rect = (r.0, r.1 + r.3 - overlay_h, r.2, overlay_h);
+            draw2d.blend_rect_safe(
+                target.pixels_mut(),
+                &cooldown_rect,
+                stride,
+                &[43, 47, 54, 175],
+                &safe,
+            );
+        }
+    }
+
+    fn draw_hover_tooltip(&mut self, map: &Map, assets: &Assets) {
+        if self.dragging_started || self.dragging_item_id.is_some() {
+            self.tooltip_hover_key = None;
+            self.tooltip_hover_since = None;
+            return;
+        }
+
+        let Some((description, anchor, state, hover_key, delay, prefer_below)) =
+            self.hover_description(map, assets)
+        else {
+            self.tooltip_hover_key = None;
+            self.tooltip_hover_since = None;
+            return;
+        };
+        if description.title.trim().is_empty() {
+            self.tooltip_hover_key = None;
+            self.tooltip_hover_since = None;
+            return;
+        }
+
+        let now = Instant::now();
+        if self.tooltip_hover_key.as_deref() != Some(hover_key.as_str()) {
+            self.tooltip_hover_key = Some(hover_key);
+            self.tooltip_hover_since = Some(now);
+            if delay > Duration::ZERO {
+                return;
+            }
+        } else if delay > Duration::ZERO
+            && self
+                .tooltip_hover_since
+                .map(|since| now.saturating_duration_since(since) < delay)
+                .unwrap_or(true)
+        {
+            return;
+        }
+
+        let Some(font) = self
+            .messages_font
+            .as_ref()
+            .or_else(|| assets.fonts.values().next())
+        else {
+            return;
+        };
+
+        let font_size = self.messages_font_size.clamp(12.0, 18.0);
+        let mut raw_lines: Vec<(String, usize)> = Vec::new();
+        raw_lines.push((description.title, 0));
+        if let Some(subtitle) = description.subtitle
+            && !subtitle.trim().is_empty()
+        {
+            raw_lines.push((subtitle, 1));
+        }
+
+        for line in description.lines.into_iter().take(7) {
+            let role = if line.contains(':') { 4 } else { 2 };
+            raw_lines.push((line, role));
+        }
+        if let Some(state) = state
+            && !state.enabled
+            && let Some(reason) = state.disabled_reason
+        {
+            raw_lines.push((reason, 3));
+        }
+
+        let min_text_width = 48_i32;
+        let max_text_width = 244_i32;
+        let mut desired_text_width = min_text_width;
+        for (line, _) in &raw_lines {
+            for paragraph in line.split('\n') {
+                let paragraph = paragraph.trim();
+                if paragraph.is_empty() {
+                    continue;
+                }
+                desired_text_width = desired_text_width
+                    .max(self.draw2d.get_text_size(font, font_size, paragraph).0 as i32);
+            }
+        }
+        let tooltip_text_width = desired_text_width.clamp(min_text_width, max_text_width);
+
+        let mut lines: Vec<(String, usize)> = Vec::new();
+        for (line, role) in raw_lines {
+            for wrapped in Self::wrap_tooltip_line(
+                &self.draw2d,
+                font,
+                font_size,
+                &line,
+                tooltip_text_width as f32,
+            ) {
+                lines.push((wrapped, role));
+            }
+        }
+
+        let padding = 7_i32;
+        let line_h = (font_size + 3.0).ceil() as i32;
+        let mut line_offsets = Vec::with_capacity(lines.len());
+        let mut cursor_y = padding;
+        for index in 0..lines.len() {
+            if index > 0 {
+                let previous_role = lines[index - 1].1;
+                let role = lines[index].1;
+                if previous_role != role {
+                    cursor_y += match role {
+                        1 => 2,
+                        2 => 5,
+                        3 => 6,
+                        4 => 6,
+                        _ => 3,
+                    };
+                }
+            }
+            line_offsets.push(cursor_y);
+            cursor_y += line_h;
+        }
+        let text_w = tooltip_text_width;
+        let width = text_w + padding * 2;
+        let height = cursor_y + padding;
+
+        let target_dim = self.target.dim();
+        let (mut x, mut y) = if prefer_below {
+            (
+                (anchor.x + (anchor.width - width as f32) * 0.5).round() as i32,
+                (anchor.y + anchor.height + 8.0).round() as i32,
+            )
+        } else {
+            let right_x = (anchor.x + anchor.width + 8.0).round() as i32;
+            let left_x = (anchor.x.round() as i32 - width - 8).max(2);
+            let x = if right_x + width <= target_dim.width {
+                right_x
+            } else {
+                left_x
+            };
+            (x, (anchor.y + 2.0).round() as i32)
+        };
+        if x + width > target_dim.width {
+            x = (target_dim.width - width - 2).max(2);
+        }
+        x = x.max(2);
+        if y + height > target_dim.height {
+            y = if prefer_below {
+                (anchor.y.round() as i32 - height - 8).max(2)
+            } else {
+                (target_dim.height - height - 2).max(2)
+            };
+        }
+        y = y.max(2);
+
+        let stride = self.target.stride();
+        let safe = (
+            0_isize,
+            0_isize,
+            target_dim.width as isize,
+            target_dim.height as isize,
+        );
+        let rect = (x as isize, y as isize, width as isize, height as isize);
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &rect,
+            stride,
+            &[10, 12, 15, 230],
+            &safe,
+        );
+        self.draw2d.rect_outline_thickness(
+            self.target.pixels_mut(),
+            &(x as usize, y as usize, width as usize, height as usize),
+            stride,
+            &[98, 105, 116, 255],
+            1,
+        );
+
+        for (index, (line, role)) in lines.iter().enumerate() {
+            let color = match role {
+                0 => [236, 233, 214, 255],
+                1 => [174, 179, 183, 255],
+                3 => [218, 184, 129, 255],
+                _ => [207, 211, 214, 255],
+            };
+            let text_rect = (
+                (x + padding) as isize,
+                (y + line_offsets[index]) as isize,
+                text_w as isize,
+                line_h as isize,
+            );
+            self.draw2d.text_rect_blend_safe(
+                self.target.pixels_mut(),
+                &text_rect,
+                stride,
+                font,
+                font_size,
+                line,
+                &color,
+                draw2d::TheHorizontalAlign::Left,
+                draw2d::TheVerticalAlign::Center,
+                &safe,
+            );
+        }
+    }
+
+    fn wrap_tooltip_line(
+        draw2d: &Draw2D,
+        font: &Font,
+        font_size: f32,
+        text: &str,
+        max_width: f32,
+    ) -> Vec<String> {
+        let max_width = max_width.max(font_size);
+        let mut lines = Vec::new();
+
+        for paragraph in text.split('\n') {
+            if paragraph.trim().is_empty() {
+                lines.push(String::new());
+                continue;
+            }
+
+            let mut current = String::new();
+            for word in paragraph.split_whitespace() {
+                let candidate = if current.is_empty() {
+                    word.to_string()
+                } else {
+                    format!("{} {}", current, word)
+                };
+
+                if draw2d.get_text_size(font, font_size, &candidate).0 as f32 <= max_width {
+                    current = candidate;
+                    continue;
+                }
+
+                if !current.is_empty() {
+                    lines.push(current);
+                }
+
+                if draw2d.get_text_size(font, font_size, word).0 as f32 <= max_width {
+                    current = word.to_string();
+                    continue;
+                }
+
+                let mut chunk = String::new();
+                for ch in word.chars() {
+                    let candidate = format!("{}{}", chunk, ch);
+                    if !chunk.is_empty()
+                        && draw2d.get_text_size(font, font_size, &candidate).0 as f32 > max_width
+                    {
+                        lines.push(chunk);
+                        chunk = ch.to_string();
+                    } else {
+                        chunk = candidate;
+                    }
+                }
+                current = chunk;
+            }
+
+            if !current.is_empty() {
+                lines.push(current);
+            }
+        }
+
+        if lines.is_empty() {
+            lines.push(String::new());
+        }
+
+        lines
+    }
+
+    fn hover_description(
+        &self,
+        map: &Map,
+        assets: &Assets,
+    ) -> Option<(
+        RulesDescription,
+        Rect,
+        Option<CommandState>,
+        String,
+        Duration,
+        bool,
+    )> {
+        let p = self.cursor_pos;
+        for widget in self.button_widgets.values() {
+            if !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
+                continue;
+            }
+            let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+            if let Some(entity) = entity {
+                if let Some(inventory_index) = widget.inventory_index
+                    && let Some(item) = entity
+                        .inventory
+                        .get(inventory_index)
+                        .and_then(|item| item.as_ref())
+                {
+                    return Some((
+                        rules_ui::describe_item(item),
+                        widget.rect,
+                        None,
+                        format!("inventory:{}:{}", widget.id, item.id),
+                        Duration::from_millis(650),
+                        false,
+                    ));
+                }
+                if let Some(slot) = &widget.equipped_slot
+                    && let Some(item) = entity.get_equipped_item(slot)
+                {
+                    return Some((
+                        rules_ui::describe_item(item),
+                        widget.rect,
+                        None,
+                        format!("equipped:{}:{}", widget.id, item.id),
+                        Duration::from_millis(650),
+                        false,
+                    ));
+                }
+            }
+            if let Some(command) = widget.command.as_deref() {
+                let Some(binding) = widget.command_binding() else {
+                    continue;
+                };
+                match binding {
+                    ClientCommandBinding::Control(_) => return None,
+                    ClientCommandBinding::RulesAction(_) => {
+                        let description = rules_ui::describe_command(assets, entity, command);
+                        let state = rules_ui::command_state(assets, entity, command);
+                        return Some((
+                            description,
+                            widget.rect,
+                            Some(state),
+                            format!("command:{}:{}", widget.id, command),
+                            Duration::from_millis(650),
+                            true,
+                        ));
+                    }
+                    ClientCommandBinding::Intent(_) | ClientCommandBinding::Ui(_) => {
+                        let description = rules_ui::describe_command(assets, entity, command);
+                        let state = rules_ui::command_state(assets, entity, command);
+                        return Some((
+                            description,
+                            widget.rect,
+                            Some(state),
+                            format!("command:{}:{}", widget.id, command),
+                            Duration::from_millis(650),
+                            true,
+                        ));
+                    }
+                }
+            }
+        }
+
+        if let Some(item_id) = self.hovered_item_id
+            && let Some(item) = map.items.iter().find(|item| item.id == item_id)
+        {
+            return Some((
+                rules_ui::describe_item(item),
+                Rect::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32, 1.0, 1.0),
+                None,
+                format!("world_item:{}", item.id),
+                Duration::from_millis(650),
+                false,
+            ));
+        }
+
+        None
     }
 }

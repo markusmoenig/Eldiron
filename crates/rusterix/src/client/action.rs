@@ -1,17 +1,14 @@
-use crate::{Assets, EntityAction, Value};
+use crate::{
+    Assets, EntityAction, Value,
+    client::command::{ClientCommandBinding, parse_client_command},
+};
 use rustc_hash::FxHashMap;
 use std::str::FromStr;
 use toml::Table;
 
-#[derive(Debug, Clone)]
-enum InputCommand {
-    Action(EntityAction),
-    Intent(String),
-}
-
 pub struct ClientAction {
     class_name: String,
-    input_map: FxHashMap<String, InputCommand>,
+    input_map: FxHashMap<String, ClientCommandBinding>,
     forward_down: bool,
     backward_down: bool,
     left_down: bool,
@@ -80,7 +77,7 @@ impl ClientAction {
         EntityAction::Off
     }
 
-    fn parse_input_map(entity_data: &str) -> FxHashMap<String, InputCommand> {
+    fn parse_input_map(entity_data: &str) -> FxHashMap<String, ClientCommandBinding> {
         let mut map = FxHashMap::default();
         let Ok(table) = entity_data.parse::<Table>() else {
             return map;
@@ -101,10 +98,15 @@ impl ClientAction {
         map
     }
 
-    fn parse_input_command(command: &str) -> Option<InputCommand> {
+    fn parse_input_command(command: &str) -> Option<ClientCommandBinding> {
         let s = command.trim();
+        if let Some(command) = parse_client_command(s) {
+            return Some(command);
+        }
         let Some(open) = s.find('(') else {
-            return EntityAction::from_str(s).ok().map(InputCommand::Action);
+            return EntityAction::from_str(s)
+                .ok()
+                .map(ClientCommandBinding::Control);
         };
         let Some(close) = s.rfind(')') else {
             return None;
@@ -121,31 +123,48 @@ impl ClientAction {
             .to_string();
 
         match func.as_str() {
-            "action" => EntityAction::from_str(&arg).ok().map(InputCommand::Action),
-            "intent" => Some(InputCommand::Intent(arg)),
+            "command" => parse_client_command(&arg),
+            "action" => EntityAction::from_str(&arg)
+                .ok()
+                .map(ClientCommandBinding::Control),
+            "control" => EntityAction::from_str(&arg)
+                .ok()
+                .map(ClientCommandBinding::Control),
+            "intent" => Some(ClientCommandBinding::Intent(arg)),
+            "rules" | "rules_action" => {
+                if arg.is_empty() {
+                    None
+                } else {
+                    Some(ClientCommandBinding::RulesAction(arg))
+                }
+            }
             "spell" => {
                 if arg.is_empty() {
                     None
                 } else {
-                    Some(InputCommand::Intent(format!("spell:{}", arg)))
+                    Some(ClientCommandBinding::Intent(format!("spell:{}", arg)))
                 }
             }
             _ => None,
         }
     }
 
-    fn handle_key_down(&mut self, cmd: InputCommand) -> EntityAction {
+    fn handle_key_down(&mut self, cmd: ClientCommandBinding) -> EntityAction {
         match cmd {
-            InputCommand::Intent(name) => EntityAction::Intent(name),
-            InputCommand::Action(action) => {
+            ClientCommandBinding::Intent(name) => EntityAction::Intent(name),
+            ClientCommandBinding::RulesAction(action) => {
+                EntityAction::Intent(format!("action:{}", action))
+            }
+            ClientCommandBinding::Control(action) => {
                 self.set_movement_key(action, true);
                 self.current_movement_action()
             }
+            ClientCommandBinding::Ui(_) => EntityAction::Off,
         }
     }
 
-    fn handle_key_up(&mut self, cmd: InputCommand) -> EntityAction {
-        if let InputCommand::Action(action) = cmd {
+    fn handle_key_up(&mut self, cmd: ClientCommandBinding) -> EntityAction {
+        if let ClientCommandBinding::Control(action) = cmd {
             self.set_movement_key(action, false);
         }
         self.current_movement_action()
@@ -226,11 +245,11 @@ mod tests {
     use super::*;
 
     fn press(action: &mut ClientAction, entity_action: EntityAction) -> EntityAction {
-        action.handle_key_down(InputCommand::Action(entity_action))
+        action.handle_key_down(ClientCommandBinding::Control(entity_action))
     }
 
     fn release(action: &mut ClientAction, entity_action: EntityAction) -> EntityAction {
-        action.handle_key_up(InputCommand::Action(entity_action))
+        action.handle_key_up(ClientCommandBinding::Control(entity_action))
     }
 
     #[test]
@@ -253,5 +272,25 @@ mod tests {
             EntityAction::Left
         );
         assert_eq!(release(&mut action, EntityAction::Left), EntityAction::Off);
+    }
+
+    #[test]
+    fn input_commands_accept_namespaced_commands() {
+        assert_eq!(
+            ClientAction::parse_input_command("control.forward"),
+            Some(ClientCommandBinding::Control(EntityAction::Forward))
+        );
+        assert_eq!(
+            ClientAction::parse_input_command("command(rules.basic_attack)"),
+            Some(ClientCommandBinding::RulesAction("basic_attack".into()))
+        );
+        assert_eq!(
+            ClientAction::parse_input_command("intent(attack)"),
+            Some(ClientCommandBinding::Intent("attack".into()))
+        );
+        assert_eq!(
+            ClientAction::parse_input_command("action(forward)"),
+            Some(ClientCommandBinding::Control(EntityAction::Forward))
+        );
     }
 }

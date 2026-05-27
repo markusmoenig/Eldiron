@@ -44,6 +44,41 @@ fn default_shortcuts() -> String {
     .to_string()
 }
 
+fn command_from_legacy_ui(ui: &toml::value::Table) -> Option<String> {
+    if let Some(command) = ui
+        .get("command")
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Some(command.to_string());
+    }
+
+    if let Some(intent) = ui
+        .get("intent")
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if intent.eq_ignore_ascii_case("spell")
+            && let Some(spell) = ui
+                .get("spell")
+                .and_then(toml::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+        {
+            return Some(format!("intent.spell:{}", spell));
+        }
+        return Some(format!("intent.{}", intent));
+    }
+
+    ui.get("action")
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|action| format!("control.{}", action))
+}
+
 fn default_world_module() -> Module {
     Module::as_type(codegridfx::ModuleType::World)
 }
@@ -526,6 +561,39 @@ impl Project {
         crate::rulesets::prefix_default_ruleset_config(&mut self.config);
         self.rules = crate::rulesets::DEFAULT_RULES_OVERRIDE.to_string();
         true
+    }
+
+    pub fn migrate_button_commands(&mut self) -> bool {
+        let mut changed = false;
+        for screen in self.screens.values_mut() {
+            for sector in &mut screen.map.sectors {
+                let Some(Value::Str(data)) = sector.properties.get("data").cloned() else {
+                    continue;
+                };
+                let Ok(mut table) = data.parse::<toml::Table>() else {
+                    continue;
+                };
+                let Some(ui) = table.get_mut("ui").and_then(toml::Value::as_table_mut) else {
+                    continue;
+                };
+                let role_is_button = ui
+                    .get("role")
+                    .and_then(toml::Value::as_str)
+                    .is_some_and(|role| role.trim().eq_ignore_ascii_case("button"));
+                if !role_is_button || ui.get("command").is_some() {
+                    continue;
+                }
+                let Some(command) = command_from_legacy_ui(ui) else {
+                    continue;
+                };
+                ui.insert("command".to_string(), toml::Value::String(command));
+                if let Ok(serialized) = toml::to_string(&table) {
+                    sector.properties.set("data", Value::Str(serialized));
+                    changed = true;
+                }
+            }
+        }
+        changed
     }
 
     pub fn sync_ruleset_palette(&mut self) -> Result<bool, String> {
@@ -1247,6 +1315,7 @@ impl Project {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusterix::Sector;
 
     #[test]
     fn project_can_load_3d_starter_fixture() {
@@ -1287,6 +1356,61 @@ mod tests {
         assert!(!project.migrate_default_ruleset());
 
         assert_eq!(project.rules, "[spells.minor_heal]\ncost_mp = 3\n");
+    }
+
+    #[test]
+    fn project_migrates_legacy_button_fields_to_commands() {
+        let mut project = Project::new();
+        let mut screen = crate::screen::Screen::new();
+
+        let mut attack = Sector::new(1, vec![]);
+        attack.properties.set(
+            "data",
+            Value::Str("[ui]\nrole = \"button\"\nintent = \"attack\"\n".into()),
+        );
+        let mut forward = Sector::new(2, vec![]);
+        forward.properties.set(
+            "data",
+            Value::Str("[ui]\nrole = \"button\"\naction = \"forward\"\n".into()),
+        );
+        let mut spell = Sector::new(3, vec![]);
+        spell.properties.set(
+            "data",
+            Value::Str(
+                "[ui]\nrole = \"button\"\nintent = \"spell\"\nspell = \"minor_heal\"\n".into(),
+            ),
+        );
+
+        screen.map.sectors.push(attack);
+        screen.map.sectors.push(forward);
+        screen.map.sectors.push(spell);
+        project.screens.insert(screen.id, screen);
+
+        assert!(project.migrate_button_commands());
+        assert!(!project.migrate_button_commands());
+
+        let data = project
+            .screens
+            .values()
+            .next()
+            .unwrap()
+            .map
+            .sectors
+            .iter()
+            .filter_map(|sector| sector.properties.get_str("data"))
+            .collect::<Vec<_>>();
+        assert!(
+            data.iter()
+                .any(|data| data.contains("command = \"intent.attack\""))
+        );
+        assert!(
+            data.iter()
+                .any(|data| data.contains("command = \"control.forward\""))
+        );
+        assert!(
+            data.iter()
+                .any(|data| data.contains("command = \"intent.spell:minor_heal\""))
+        );
     }
 
     #[test]

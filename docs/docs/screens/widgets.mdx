@@ -108,7 +108,7 @@ scale = 6.0
 
 ## Button Widgets
 
-**Button widgets** define interactive UI elements that trigger **game actions**, **intents** or other logic when clicked.
+**Button widgets** define interactive UI elements that trigger commands when clicked.
 
 Buttons are **visually styled** using the **tiles** assigned through the **Tile Picker** dock.
 
@@ -119,9 +119,10 @@ In the HUD you can select between two icons per sector:
 
 ### UI Section
 
-- **action** - Trigger a game action (mutually exclusive with **intent**).
-- **intent** - Send an intent such as **"use"**; empty string means walking intent.
-- **spell** - Spell template name used when `intent = "spell"`. Clicking a character casts that spell at the clicked target.
+- **command** - Preferred input binding. Use `control.forward`, `intent.attack`, `rules.basic_attack`, or `ui.inventory`.
+- **action** - Legacy movement action such as `forward`; loaded as `control.forward`.
+- **intent** - Legacy intent such as `use`; loaded as `intent.use`.
+- **spell** - Legacy spell template name used when `intent = "spell"`; loaded as `intent.spell:<template>`.
 - **inventory_index** - Draw and interact with the inventory item at that slot using the intent.
 - **equipped_slot** - Draw and interact with the equipped item in that slot (for example `main_hand`, `off_hand`) using the intent.
 - **party** - Optional UI binding target for this widget. If omitted, Eldiron uses the current **leader** for backward compatibility. Supported values today are `leader`, `party.0`, `party.1`, ... and named bindings that match a character's `party_role` or `name`.
@@ -135,6 +136,8 @@ In the HUD you can select between two icons per sector:
 - **camera_target** - Optional target game widget name; if omitted, applies to all game widgets.
 - **border_size** - An optional border for the button. Default size is 0 (no border).
 - **border_color** - The color for the border. Default is white ("#FFFFFF").
+
+Buttons with `rules.*` commands resolve their label, description, costs, requirements, and cooldown display from the active ruleset. During cooldown the button is visually dimmed and shows a cooldown fill overlay. Inventory, equipped-slot, command, and hovered world-item buttons also use the same rules description data for hover tooltips.
 
 The following attributes let `intent` buttons show specific mouse cursors when hovering or clicking an entity or item. They work in 3D, and also in 2D when `[game].click_intents_2d = true`:
 - **entity_cursor_id** - The [tile id](/docs/what_is/#tileid) for the mouse cursor when hovering above a character.
@@ -183,13 +186,12 @@ party = "leader"
 
 In this example, clicking the button causes the player to **move forward**.
 
-See the list of available actions [here](/docs/reference/scripting_client#action).
-
 ```toml
 [ui]
 role = "button"
-action = "forward"
-# intent = "talk"
+command = "control.forward"
+# command = "intent.talk"
+# command = "rules.basic_attack"
 # party = "leader"
 # inventory_index = 0
 # equipped_slot = "main_hand"

@@ -5,7 +5,7 @@ use crate::server::region::{
     current_attack_base_damage_for_entity, current_attack_cooldown_for_entity,
     entity_disposition_by_id, entity_is_hostile_by_id, entity_item_by_id, execute_ruleset_action,
     grant_experience, has_attack_ammunition_or_message, is_spell_on_cooldown, open_dialog_node,
-    set_spell_cooldown,
+    set_entity_cooldown_attrs, set_spell_cooldown,
 };
 use crate::server::regionctx::ChoiceSession;
 use crate::vm::*;
@@ -1026,6 +1026,12 @@ impl<'a> RegionHost<'a> {
 
         let state = self.ctx.entity_state_data.entry(entity_id).or_default();
         state.set(key, Value::Int64(self.ctx.ticks + cooldown_ticks));
+        let cooldown_seconds = cooldown_ticks as f32 / self.ctx.ticks_per_minute as f32;
+        state.set(
+            &format!("__cooldown_total:{}", key),
+            Value::Float(cooldown_seconds),
+        );
+        set_entity_cooldown_attrs(self.ctx, entity_id, key, cooldown_seconds, cooldown_seconds);
         true
     }
 

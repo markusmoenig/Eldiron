@@ -437,6 +437,7 @@ impl Editor {
         let contents = std::fs::read_to_string(path).ok()?;
         let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
         loaded.migrate_default_ruleset();
+        loaded.migrate_button_commands();
         let _ = loaded.sync_ruleset_items();
         loaded.palette.current_index = 0;
         Some(loaded)
@@ -530,6 +531,7 @@ impl Editor {
         let contents = Self::fetch_url_text(&Self::starter_repo_url(&choice.project_path))?;
         let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
         loaded.migrate_default_ruleset();
+        loaded.migrate_button_commands();
         let _ = loaded.sync_ruleset_items();
         loaded.palette.current_index = 0;
         self.starter_project_cache
@@ -935,6 +937,7 @@ impl Editor {
     }
 
     fn sanitize_loaded_project(project: &mut Project) {
+        project.migrate_button_commands();
         insert_content_into_maps(project);
 
         let mut char_names = FxHashMap::default();

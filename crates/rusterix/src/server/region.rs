@@ -850,6 +850,24 @@ mod ruleset_progression_tests {
 
         assert!(execute_ruleset_action(&mut ctx, 1, "power_strike", Some(2)));
         assert!(is_action_on_cooldown(&ctx, 1, "power_strike"));
+        let actor = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == 1)
+            .unwrap();
+        assert_eq!(
+            actor
+                .attributes
+                .get_float("cooldown_left_rules_power_strike"),
+            Some(4.0)
+        );
+        assert_eq!(
+            actor
+                .attributes
+                .get_float("cooldown_total_rules_power_strike"),
+            Some(4.0)
+        );
         assert_eq!(ctx.to_execute_entity.len(), 1);
         assert_eq!(ctx.to_execute_entity[0].0, 2);
         assert_eq!(ctx.to_execute_entity[0].1, "damaged");
@@ -8522,6 +8540,60 @@ pub(crate) fn action_cooldown_key(action_id: &str) -> String {
     format!("__action_cd_{}", action_id.trim().to_ascii_lowercase())
 }
 
+fn cooldown_attr_suffix(namespace: &str, id: &str) -> String {
+    let mut suffix = namespace.trim().to_ascii_lowercase();
+    suffix.push('_');
+    for ch in id.trim().chars() {
+        if ch.is_ascii_alphanumeric() {
+            suffix.push(ch.to_ascii_lowercase());
+        } else {
+            suffix.push('_');
+        }
+    }
+    while suffix.contains("__") {
+        suffix = suffix.replace("__", "_");
+    }
+    suffix.trim_matches('_').to_string()
+}
+
+fn cooldown_attr_names_from_state_key(key: &str) -> Option<(String, String)> {
+    let (namespace, id) = if let Some(id) = key.strip_prefix("__spell_cd_") {
+        ("spell", id)
+    } else if let Some(id) = key.strip_prefix("__action_cd_") {
+        ("rules", id)
+    } else if let Some(id) = key.strip_prefix("intent: ") {
+        ("intent", id)
+    } else {
+        return None;
+    };
+    let suffix = cooldown_attr_suffix(namespace, id);
+    Some((
+        format!("cooldown_left_{}", suffix),
+        format!("cooldown_total_{}", suffix),
+    ))
+}
+
+pub(crate) fn set_entity_cooldown_attrs(
+    ctx: &mut RegionCtx,
+    entity_id: u32,
+    state_key: &str,
+    remaining: f32,
+    total: f32,
+) {
+    let Some((left_attr, total_attr)) = cooldown_attr_names_from_state_key(state_key) else {
+        return;
+    };
+    if let Some(entity) = ctx
+        .map
+        .entities
+        .iter_mut()
+        .find(|entity| entity.id == entity_id)
+    {
+        entity.set_attribute(&left_attr, Value::Float(remaining.max(0.0)));
+        entity.set_attribute(&total_attr, Value::Float(total.max(remaining).max(0.0)));
+    }
+}
+
 pub(crate) fn is_spell_on_cooldown(ctx: &RegionCtx, caster_id: u32, template: &str) -> bool {
     let key = spell_cooldown_key(template);
     is_cooldown_key_active(ctx, caster_id, &key)
@@ -8552,11 +8624,20 @@ fn set_cooldown_key(ctx: &mut RegionCtx, entity_id: u32, key: String, cooldown_s
     }
     if let Some(state) = ctx.entity_state_data.get_mut(&entity_id) {
         state.set(&key, Value::Float(cooldown_seconds));
+        state.set(
+            &format!("__cooldown_total:{}", key),
+            Value::Float(cooldown_seconds),
+        );
     } else {
         let mut vc = ValueContainer::default();
         vc.set(&key, Value::Float(cooldown_seconds));
+        vc.set(
+            &format!("__cooldown_total:{}", key),
+            Value::Float(cooldown_seconds),
+        );
         ctx.entity_state_data.insert(entity_id, vc);
     }
+    set_entity_cooldown_attrs(ctx, entity_id, &key, cooldown_seconds, cooldown_seconds);
 }
 
 pub(crate) fn set_spell_cooldown(
@@ -8591,17 +8672,39 @@ fn update_spell_cooldowns(ctx: &mut RegionCtx, dt: f32) {
     if dt <= 0.0 {
         return;
     }
-    for state in ctx.entity_state_data.values_mut() {
+    let mut attr_updates: Vec<(u32, String, f32, f32)> = Vec::new();
+    for (entity_id, state) in ctx.entity_state_data.iter_mut() {
         let keys: Vec<String> = state
             .keys()
-            .filter(|k| k.starts_with("__spell_cd_") || k.starts_with("__action_cd_"))
+            .filter(|k| {
+                k.starts_with("__spell_cd_")
+                    || k.starts_with("__action_cd_")
+                    || k.starts_with("intent: ")
+            })
             .cloned()
             .collect();
         for key in keys {
             if let Some(Value::Float(left)) = state.get(&key).cloned() {
-                state.set(&key, Value::Float((left - dt).max(0.0)));
+                let remaining = (left - dt).max(0.0);
+                let total = state
+                    .get(&format!("__cooldown_total:{}", key))
+                    .and_then(Value::to_f32)
+                    .unwrap_or(left.max(remaining));
+                state.set(&key, Value::Float(remaining));
+                attr_updates.push((*entity_id, key, remaining, total));
+            } else if let Some(Value::Int64(until_tick)) = state.get(&key).cloned() {
+                let remaining_ticks = until_tick.saturating_sub(ctx.ticks);
+                let remaining = (remaining_ticks as f32 / ctx.ticks_per_minute as f32).max(0.0);
+                let total = state
+                    .get(&format!("__cooldown_total:{}", key))
+                    .and_then(Value::to_f32)
+                    .unwrap_or(remaining);
+                attr_updates.push((*entity_id, key, remaining, total));
             }
         }
+    }
+    for (entity_id, key, remaining, total) in attr_updates {
+        set_entity_cooldown_attrs(ctx, entity_id, &key, remaining, total);
     }
 }
 
@@ -9180,9 +9283,28 @@ fn ruleset_item_from_table(
     item.set_attribute("ruleset_path", Value::Str(ruleset_path));
     item.set_attribute("slot", Value::Str(slot.to_string()));
 
-    for key in ["category", "rarity", "visual_template", "rig_layer"] {
+    for key in [
+        "category",
+        "description",
+        "rarity",
+        "visual_template",
+        "rig_layer",
+    ] {
         if let Some(value) = rule_string(item_table, key) {
             item.set_attribute(key, Value::Str(value.to_string()));
+        }
+    }
+    if let Some(channels) = item_table
+        .get("avatar_channels")
+        .and_then(toml::Value::as_array)
+    {
+        let channels = channels
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        if !channels.is_empty() {
+            item.set_attribute("avatar_channels", Value::StrArray(channels));
         }
     }
     for key in [

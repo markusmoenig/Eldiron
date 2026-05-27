@@ -46,6 +46,8 @@
 - Added `craft <recipe>` text commands for ruleset recipes such as `craft blessed herb`.
 - Added action skill gates and a first `green_wood_node` / `gather_wood` loop for woodworking materials.
 - Added `bird_nest_node` / `gather_feathers` and a headless gather-to-craft-to-bow regression for wooden arrows.
+- Added the first command-slot input model for screen buttons and key mappings, with `control.*`, `intent.*`, `rules.*`, and `ui.*` command namespaces plus legacy button migration.
+- Added the first rules-aware UI description/state pass: inventory/equipment/world-item and command button tooltips, plus visual cooldown overlays for rules command buttons.
 - Updated official item visuals with a wooden training sword, palette-driven axe, mace, spear, bow, shield, and arrow masks, and item descriptions for look/text paths.
 - Made attack intent range rules-owned so the same attack icon uses melee range for melee weapons and bow range for Rangers, even in projects with old character intent-distance data.
 - Fixed 2D directional attack targeting so ranged weapons scan along the chosen direction to weapon range instead of only checking the adjacent tile.

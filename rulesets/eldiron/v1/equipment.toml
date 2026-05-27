@@ -432,6 +432,7 @@ damage_kind = "physical"
 
 [items.armor.padded_armor]
 name = "Padded Armor"
+description = "Layered cloth padding that softens early blows without slowing movement."
 category = "cloth"
 slot = "torso"
 rarity = "common"
@@ -443,6 +444,7 @@ ARMOR = 1
 
 [items.armor.leather_vest]
 name = "Leather Vest"
+description = "A flexible leather vest for scouts, hunters, and light guards."
 category = "leather"
 slot = "torso"
 rarity = "common"
@@ -454,6 +456,7 @@ ARMOR = 2
 
 [items.armor.chain_shirt]
 name = "Chain Shirt"
+description = "Interlinked metal rings worn over padding for reliable protection."
 category = "chain"
 slot = "torso"
 rarity = "common"
@@ -483,6 +486,7 @@ ARMOR = 1
 
 [items.clothing.linen_shirt]
 name = "Linen Shirt"
+description = "A plain linen shirt for everyday travel and layering under armor."
 category = "cloth"
 slot = "torso"
 rarity = "common"
@@ -491,6 +495,7 @@ avatar_channels = ["torso", "arms"]
 
 [items.clothing.wool_trousers]
 name = "Wool Trousers"
+description = "Sturdy wool trousers suited for road dust and cold evenings."
 category = "cloth"
 slot = "legs"
 rarity = "common"
@@ -499,6 +504,7 @@ avatar_channels = ["legs"]
 
 [items.clothing.leather_shoes]
 name = "Leather Shoes"
+description = "Simple leather shoes with enough grip for town paths and dry trails."
 category = "leather"
 slot = "feet"
 rarity = "common"

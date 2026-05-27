@@ -7,7 +7,9 @@ pub mod screen;
 pub mod text;
 
 use crate::{
-    Assets, Entity, Item, Map, Pixel, PlayerCamera, Rect, Texture, Value, WHITE, client::draw2d,
+    Assets, Entity, Item, Map, Pixel, PlayerCamera, Rect, Texture, Value, WHITE,
+    client::command::{ClientCommandBinding, parse_client_command},
+    client::draw2d,
 };
 use draw2d::Draw2D;
 use theframework::prelude::*;
@@ -18,6 +20,7 @@ pub struct Widget {
     pub id: u32,
     pub rect: Rect,
     pub action: String,
+    pub command: Option<String>,
     pub intent: Option<String>,
     pub spell: Option<String>,
     pub group: Option<String>,
@@ -54,6 +57,7 @@ impl Widget {
             id: 0,
             rect: Rect::default(),
             action: String::new(),
+            command: None,
             intent: None,
             spell: None,
             group: None,
@@ -76,6 +80,41 @@ impl Widget {
             border_color: WHITE,
             border_size: 0,
         }
+    }
+
+    pub fn command_binding(&self) -> Option<ClientCommandBinding> {
+        self.command
+            .as_deref()
+            .and_then(parse_client_command)
+            .or_else(|| {
+                self.intent.as_ref().and_then(|intent| {
+                    let intent = intent.trim();
+                    if intent.is_empty() {
+                        None
+                    } else if intent.eq_ignore_ascii_case("spell") {
+                        self.spell
+                            .as_ref()
+                            .map(|spell| spell.trim())
+                            .filter(|spell| !spell.is_empty())
+                            .map(|spell| ClientCommandBinding::Intent(format!("spell:{}", spell)))
+                            .or_else(|| Some(ClientCommandBinding::Intent(intent.to_string())))
+                    } else {
+                        Some(ClientCommandBinding::Intent(intent.to_string()))
+                    }
+                })
+            })
+            .or_else(|| {
+                self.action
+                    .trim()
+                    .parse::<crate::EntityAction>()
+                    .ok()
+                    .map(ClientCommandBinding::Control)
+            })
+    }
+
+    pub fn intent_payload(&self) -> Option<String> {
+        self.command_binding()
+            .and_then(|binding| binding.intent_payload())
     }
 
     pub fn update_draw(

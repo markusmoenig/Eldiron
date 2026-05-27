@@ -76,7 +76,7 @@ Each entry value supports one of:
 - **First-Person**: Sidestep right without changing facing.
 - **First-Person Grid**: Sidestep one tile right with smooth interpolation without changing facing.
 
-How these actions are interpreted depends on the current runtime player input mode set by [`set_player_camera`](server_commands#set_player_camera):
+How these control commands are interpreted depends on the current runtime player input mode set by [`set_player_camera`](server_commands#set_player_camera):
 
 - `2d`
 - `2d_grid`
@@ -87,7 +87,7 @@ How these actions are interpreted depends on the current runtime player input mo
 
 ## Intents
 
-`intent(<name>)` sets the player intent (for example `use`, `attack`, `take`).
+`intent(<name>)` or `command(intent.<name>)` sets the player intent (for example `use`, `attack`, `take`).
 
 Intent policy comes from the official ruleset. Character input should map keys
 to intent names; ranges, target restrictions, cooldowns, and disposition checks
@@ -117,17 +117,17 @@ For how intents behave in 2D vs 3D and how they become `intent` events, see [Pla
 
 ## Spell Shortcuts
 
-`spell(<template>)` selects a specific spell intent button by template name.
+`spell(<template>)` is still accepted and maps to `intent.spell:<template>`.
+New mappings can use the command form directly.
 
 Example:
 
 ```toml
-f = "spell(Fireball)"
+f = "command(intent.spell:Fireball)"
 ```
 
 This activates the button with:
 
 ```toml
-intent = "spell"
-spell = "Fireball"
+command = "intent.spell:Fireball"
 ```

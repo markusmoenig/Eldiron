@@ -5,17 +5,23 @@ sidebar_position: 6.5
 
 This page explains how **player input** works in Eldiron.
 
-At a high level, player input is split into two concepts:
+At a high level, player input is routed through commands:
 
-- **Actions**: direct movement or turning commands such as `forward`, `left`, `right`, and `backward`
-- **Intents**: interaction modes such as `use`, `attack`, `look`, `take`, `drop`, or `spell`
+- **control.\***: direct movement or turning commands such as `control.forward`, `control.left`, `control.right`, and `control.backward`
+- **intent.\***: programmable interaction modes such as `intent.use`, `intent.attack`, `intent.look`, `intent.take`, or `intent.drop`
+- **rules.\***: ruleset actions such as `rules.basic_attack`, `rules.minor_heal`, or `rules.gather_wood`
+- **ui.\***: user-interface commands such as `ui.inventory` for future action bars and panels
 
 Keyboard input is configured in character data via [Input Mapping](input_mapping).  
 UI buttons on screens can also trigger the same actions and intents.
 
-## Actions
+Legacy `action = "forward"` and `intent = "attack"` button fields are migrated to `command = "control.forward"` and `command = "intent.attack"` when projects are loaded.
 
-Actions are immediate movement-style commands.
+Rules commands are also rules-aware on the UI side. A button assigned to `rules.minor_heal` can show the action name, description, costs, reagent requirements, and cooldown state from the active ruleset. If that command is cooling down, the button is dimmed and receives a cooldown overlay.
+
+## Control Commands
+
+Control commands are immediate movement-style commands.
 
 Examples:
 
@@ -172,14 +178,13 @@ Keyboard mapping:
 
 ```toml
 [input]
-f = "spell(Fireball)"
+f = "command(intent.spell:Fireball)"
 ```
 
 Screen button mapping:
 
 ```toml
-intent = "spell"
-spell = "Fireball"
+command = "intent.spell:Fireball"
 ```
 
 In both cases the runtime treats this as a spell intent and routes it through the normal intent system.
