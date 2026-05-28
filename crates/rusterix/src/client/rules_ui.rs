@@ -30,6 +30,57 @@ impl Default for CommandState {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContainerUiTemplate {
+    pub id: String,
+    pub mode: String,
+    pub columns: usize,
+    pub rows: Option<usize>,
+    pub slot_size: i32,
+    pub gap: i32,
+    pub padding: i32,
+    pub title: bool,
+    pub background_color: [u8; 4],
+    pub border_color: [u8; 4],
+    pub slot_color: [u8; 4],
+    pub slot_border_color: [u8; 4],
+    pub tiles: ContainerUiTiles,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ContainerUiTiles {
+    pub top_left: Option<String>,
+    pub top: Option<String>,
+    pub top_right: Option<String>,
+    pub left: Option<String>,
+    pub center: Option<String>,
+    pub right: Option<String>,
+    pub bottom_left: Option<String>,
+    pub bottom: Option<String>,
+    pub bottom_right: Option<String>,
+    pub slot: Option<String>,
+}
+
+impl Default for ContainerUiTemplate {
+    fn default() -> Self {
+        Self {
+            id: "default".to_string(),
+            mode: "procedural".to_string(),
+            columns: 4,
+            rows: None,
+            slot_size: 32,
+            gap: 4,
+            padding: 8,
+            title: true,
+            background_color: [10, 12, 15, 230],
+            border_color: [98, 105, 116, 255],
+            slot_color: [16, 21, 27, 204],
+            slot_border_color: [98, 105, 116, 255],
+            tiles: ContainerUiTiles::default(),
+        }
+    }
+}
+
 pub fn cooldown_attr_suffix(namespace: &str, id: &str) -> String {
     let mut suffix = namespace.trim().to_ascii_lowercase();
     suffix.push('_');
@@ -116,12 +167,44 @@ pub fn describe_item(item: &Item) -> RulesDescription {
             title_case(&ammunition.replace('_', " "))
         ));
     }
+    let container_slots = item.attributes.get_int_default("container_slots", 0).max(0) as usize;
+    if item.is_container()
+        || item.attributes.get_bool_default("container", false)
+        || container_slots > 0
+    {
+        let used = item.container.as_ref().map(Vec::len).unwrap_or(0);
+        let slots = container_slots.max(item.max_capacity as usize).max(used);
+        lines.push(format!("Container: {} / {} slots", used, slots.max(1)));
+    }
 
     RulesDescription {
         title,
         subtitle: (!tags.is_empty()).then(|| tags.join(", ")),
         lines,
     }
+}
+
+pub fn container_template_for_item(assets: &Assets, item: &Item) -> ContainerUiTemplate {
+    let template_id = item
+        .attributes
+        .get_str("container_template")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("default");
+    let Ok(root) = assets.rules.parse::<Table>() else {
+        return ContainerUiTemplate::default();
+    };
+
+    let default = table_at(&root, &["ui", "container_templates", "default"])
+        .map(|table| parse_container_template("default", table, ContainerUiTemplate::default()))
+        .unwrap_or_default();
+    if template_id == "default" {
+        return default;
+    }
+
+    table_at(&root, &["ui", "container_templates", template_id])
+        .map(|table| parse_container_template(template_id, table, default.clone()))
+        .unwrap_or(default)
 }
 
 pub fn describe_command(
@@ -392,6 +475,110 @@ fn table_at<'a>(root: &'a Table, path: &[&str]) -> Option<&'a Table> {
     value.as_table()
 }
 
+fn parse_container_template(
+    id: &str,
+    table: &Table,
+    mut template: ContainerUiTemplate,
+) -> ContainerUiTemplate {
+    template.id = id.to_string();
+    if let Some(mode) = table.get("mode").and_then(toml::Value::as_str) {
+        template.mode = mode.trim().to_string();
+    }
+    if let Some(columns) = table.get("columns").map(value_number) {
+        template.columns = (columns.round() as i32).max(1) as usize;
+    }
+    template.rows = table
+        .get("rows")
+        .map(value_number)
+        .map(|value| (value.round() as i32).max(1) as usize)
+        .or(template.rows);
+    if let Some(slot_size) = table.get("slot_size").map(value_number) {
+        template.slot_size = (slot_size.round() as i32).max(8);
+    }
+    if let Some(gap) = table.get("gap").map(value_number) {
+        template.gap = (gap.round() as i32).max(0);
+    }
+    if let Some(padding) = table.get("padding").map(value_number) {
+        template.padding = (padding.round() as i32).max(0);
+    }
+    if let Some(title) = table.get("title").and_then(toml::Value::as_bool) {
+        template.title = title;
+    }
+    if let Some(color) = table
+        .get("background_color")
+        .and_then(toml::Value::as_str)
+        .and_then(parse_hex_rgba)
+    {
+        template.background_color = color;
+    }
+    if let Some(color) = table
+        .get("border_color")
+        .and_then(toml::Value::as_str)
+        .and_then(parse_hex_rgba)
+    {
+        template.border_color = color;
+    }
+    if let Some(color) = table
+        .get("slot_color")
+        .and_then(toml::Value::as_str)
+        .and_then(parse_hex_rgba)
+    {
+        template.slot_color = color;
+    }
+    if let Some(color) = table
+        .get("slot_border_color")
+        .and_then(toml::Value::as_str)
+        .and_then(parse_hex_rgba)
+    {
+        template.slot_border_color = color;
+    }
+    if let Some(tiles) = table.get("tiles").and_then(toml::Value::as_table) {
+        template.tiles = parse_container_tiles(tiles, template.tiles);
+    }
+    template
+}
+
+fn parse_container_tiles(table: &Table, mut tiles: ContainerUiTiles) -> ContainerUiTiles {
+    for (key, target) in [
+        ("top_left", &mut tiles.top_left),
+        ("top", &mut tiles.top),
+        ("top_right", &mut tiles.top_right),
+        ("left", &mut tiles.left),
+        ("center", &mut tiles.center),
+        ("right", &mut tiles.right),
+        ("bottom_left", &mut tiles.bottom_left),
+        ("bottom", &mut tiles.bottom),
+        ("bottom_right", &mut tiles.bottom_right),
+        ("slot", &mut tiles.slot),
+    ] {
+        if let Some(value) = table
+            .get(key)
+            .and_then(toml::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            *target = Some(value.to_string());
+        }
+    }
+    tiles
+}
+
+fn parse_hex_rgba(value: &str) -> Option<[u8; 4]> {
+    let value = value.trim().trim_start_matches('#');
+    if value.len() != 6 && value.len() != 8 {
+        return None;
+    }
+    let r = u8::from_str_radix(&value[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&value[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&value[4..6], 16).ok()?;
+    let a = if value.len() == 8 {
+        u8::from_str_radix(&value[6..8], 16).ok()?
+    } else {
+        255
+    };
+    Some([r, g, b, a])
+}
+
 fn value_number(value: &toml::Value) -> f32 {
     value
         .as_float()
@@ -543,5 +730,57 @@ mod tests {
                 .iter()
                 .any(|line| line == "Quantity: 12 / 99")
         );
+    }
+
+    #[test]
+    fn container_description_and_template_use_rules() {
+        let mut assets = Assets::new();
+        assets.rules = r##"
+            [ui.container_templates.default]
+            columns = 4
+            slot_size = 32
+            background_color = "#0a0c0fe6"
+
+            [ui.container_templates.bag_small]
+            columns = 3
+            rows = 2
+            slot_size = 40
+            gap = 6
+            padding = 10
+            title = false
+            slot_color = "#112233cc"
+
+            [ui.container_templates.bag_small.tiles]
+            top_left = "bag_tl"
+            slot = "bag_slot"
+        "##
+        .to_string();
+
+        let mut bag = Item::new();
+        bag.set_attribute("name", Value::Str("Small Bag".to_string()));
+        bag.set_attribute("container", Value::Bool(true));
+        bag.set_attribute("container_slots", Value::Int(6));
+        bag.set_attribute("container_template", Value::Str("bag_small".to_string()));
+        bag.apply_container_attributes();
+
+        let description = describe_item(&bag);
+        assert!(
+            description
+                .lines
+                .iter()
+                .any(|line| line == "Container: 0 / 6 slots")
+        );
+
+        let template = container_template_for_item(&assets, &bag);
+        assert_eq!(template.id, "bag_small");
+        assert_eq!(template.columns, 3);
+        assert_eq!(template.rows, Some(2));
+        assert_eq!(template.slot_size, 40);
+        assert_eq!(template.gap, 6);
+        assert_eq!(template.padding, 10);
+        assert!(!template.title);
+        assert_eq!(template.slot_color, [17, 34, 51, 204]);
+        assert_eq!(template.tiles.top_left.as_deref(), Some("bag_tl"));
+        assert_eq!(template.tiles.slot.as_deref(), Some("bag_slot"));
     }
 }

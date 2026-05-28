@@ -306,6 +306,7 @@ pub fn apply_item_data(item: &mut Item, toml: &str) {
                             }
                         }
                     }
+                    item.apply_container_attributes();
                 } else if attr == "light" {
                     let mut light = Light::new(LightType::Point);
                     read_light(&mut light, v);

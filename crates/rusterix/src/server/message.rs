@@ -203,10 +203,35 @@ pub enum EntityAction {
         to_inventory_index: Option<usize>,
         to_equipped_slot: Option<String>,
     },
+    /// Move an item into a container item.
+    MoveItemToContainer {
+        item_id: u32,
+        owner_entity_id: Option<u32>,
+        source_container_item_id: Option<u32>,
+        source_container_owner_entity_id: Option<u32>,
+        container_item_id: u32,
+        container_owner_entity_id: Option<u32>,
+    },
+    /// Move an item out of a container item.
+    MoveContainerItem {
+        item_id: u32,
+        container_item_id: u32,
+        container_owner_entity_id: Option<u32>,
+        target_entity_id: Option<u32>,
+        to_inventory_index: Option<usize>,
+        to_equipped_slot: Option<String>,
+    },
     /// Drop an owned item onto terrain/world at a specific position.
     DropItemAt {
         item_id: u32,
         owner_entity_id: Option<u32>,
+        position: Vec2<f32>,
+    },
+    /// Drop an item from a container onto terrain/world at a specific position.
+    DropContainerItemAt {
+        item_id: u32,
+        container_item_id: u32,
+        container_owner_entity_id: Option<u32>,
         position: Vec2<f32>,
     },
     /// A multiple choice item was selected by the user

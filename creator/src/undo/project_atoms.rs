@@ -1088,7 +1088,7 @@ impl ProjectUndoAtom {
                     {
                         character_node.remove_child_by_uuid(&item.id);
                     }
-                    project.remove_character(&item.id);
+                    project.remove_item(&item.id);
 
                     if let Some(item) = project.items.first() {
                         if let Some(item_node) = tree_layout.get_node_by_id_mut(item.0) {

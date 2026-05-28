@@ -140,6 +140,7 @@ The official ruleset also stores runtime feedback keys under `[messages]`:
 [messages.actions]
 not_ready_key = "actions.not_ready"
 missing_target_key = "actions.missing_target"
+gathered_key = "actions.gathered"
 
 [messages.spells]
 not_enough_mp_key = "spells.not_enough_mp"
@@ -148,6 +149,8 @@ heal_key = "spells.heal"
 
 This keeps actions and spells on the same key-based path as combat and
 progression messages, while still giving each project a clean override layer.
+The bundled English ruleset locale also includes text command feedback for
+inventory, containers, gathering, recipes, and action failures.
 
 ## Text Widgets
 

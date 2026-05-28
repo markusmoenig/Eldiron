@@ -11,6 +11,7 @@ skill_too_low_key = "actions.skill_too_low"
 not_ready_key = "actions.not_ready"
 missing_item_key = "actions.missing_item"
 no_effect_key = "actions.no_effect"
+gathered_key = "actions.gathered"
 
 [messages.recipes]
 unknown_key = "recipes.unknown"

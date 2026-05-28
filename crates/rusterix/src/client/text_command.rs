@@ -19,6 +19,14 @@ pub enum TextCommand {
     Craft {
         recipe: String,
     },
+    PutIn {
+        item: String,
+        container: String,
+    },
+    TakeFrom {
+        item: String,
+        container: String,
+    },
     Action {
         action: String,
         target: Option<String>,
@@ -192,6 +200,25 @@ pub fn parse_text_command(
         };
     }
 
+    if lower.starts_with("put ") {
+        let payload = trimmed.get("put ".len()..).unwrap_or("").trim();
+        if let Some((item, container)) = split_container_transfer(payload, &[" in ", " into "]) {
+            return TextCommand::PutIn { item, container };
+        }
+    }
+
+    if lower.starts_with("take ") || lower.starts_with("get ") {
+        let offset = if lower.starts_with("take ") {
+            "take ".len()
+        } else {
+            "get ".len()
+        };
+        let payload = trimmed.get(offset..).unwrap_or("").trim();
+        if let Some((item, container)) = split_container_transfer(payload, &[" from "]) {
+            return TextCommand::TakeFrom { item, container };
+        }
+    }
+
     if lower.starts_with("action ") {
         let original_payload = trimmed.get("action ".len()..).unwrap_or("").trim_start();
         let (action, target) = split_ruleset_id_and_target(original_payload, known_actions);
@@ -271,6 +298,20 @@ pub fn parse_text_command(
     }
 
     TextCommand::Unknown
+}
+
+fn split_container_transfer(payload: &str, separators: &[&str]) -> Option<(String, String)> {
+    let lower = payload.to_ascii_lowercase();
+    for separator in separators {
+        if let Some(index) = lower.find(separator) {
+            let item = payload.get(..index)?.trim();
+            let container = payload.get(index + separator.len()..)?.trim();
+            if !item.is_empty() && !container.is_empty() {
+                return Some((item.to_string(), container.to_string()));
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -382,6 +423,36 @@ mod tests {
             ),
             TextCommand::Craft {
                 recipe: "blessed_herb".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn parses_container_transfer_commands() {
+        assert_eq!(
+            parse_text_command(
+                "put wild herb in bag",
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+            ),
+            TextCommand::PutIn {
+                item: "wild herb".into(),
+                container: "bag".into(),
+            }
+        );
+        assert_eq!(
+            parse_text_command(
+                "take wild herb from small bag",
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+            ),
+            TextCommand::TakeFrom {
+                item: "wild herb".into(),
+                container: "small bag".into(),
             }
         );
     }

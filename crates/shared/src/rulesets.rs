@@ -1754,6 +1754,7 @@ fn ruleset_item_template_data(
 
     for key in [
         "visual_template",
+        "container_template",
         "icon_template",
         "rig_template",
         "rig_scale",
@@ -2450,6 +2451,16 @@ mod tests {
                 && template.data.contains("color_index = 2")
                 && template.data.contains("torso_index = 2")
                 && template.data.contains("arms_index = 2")
+        }));
+        assert!(templates.iter().any(|template| {
+            template.id == "small_bag"
+                && template.kind == "container"
+                && template.ruleset_path == "items.containers.small_bag"
+                && template.data.contains("container = true")
+                && template.data.contains("container_slots = 6")
+                && template.data.contains("container_template = \"bag_small\"")
+                && template.data.contains("visual_template = \"bag_pouch\"")
+                && template.data.contains("visual_template_pixels")
         }));
     }
 

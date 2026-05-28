@@ -3039,6 +3039,10 @@ mod tests {
         .join("\n\n")
     }
 
+    fn official_locales_source() -> &'static str {
+        include_str!("../../../../rulesets/eldiron/v1/locales.toml")
+    }
+
     fn toml_value_to_attr(value: &toml::Value) -> Option<Value> {
         match value {
             toml::Value::String(value) => Some(Value::Str(value.clone())),
@@ -3130,6 +3134,7 @@ mod tests {
                 }
             }
         }
+        item.apply_container_attributes();
 
         let mut data = toml::value::Table::new();
         if let Some(damage) = item_table.get("damage").and_then(toml::Value::as_table) {
@@ -3232,6 +3237,11 @@ mod tests {
             .parse::<toml::Table>()
             .expect("valid arena config TOML");
             arena
+        }
+
+        fn load_official_locales(&mut self) {
+            self.ctx.assets.locales_src = official_locales_source().to_string();
+            self.ctx.assets.read_locales();
         }
 
         fn add_official_entity(
@@ -3445,6 +3455,16 @@ mod tests {
                 .iter()
                 .find(|item| item.id == id)
                 .expect("map item")
+        }
+
+        fn message_texts(&self) -> Vec<(String, String)> {
+            self._messages
+                .try_iter()
+                .filter_map(|message| match message {
+                    RegionMessage::Message(_, _, _, _, text, role) => Some((text, role)),
+                    _ => None,
+                })
+                .collect()
         }
 
         fn run_entity_event(&mut self, entity_id: u32, event: &str, payload: VMValue) {
@@ -4253,6 +4273,7 @@ mod tests {
     #[test]
     fn official_ruleset_gather_herbs_uses_resource_node_and_respawns() {
         let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.load_official_locales();
         arena.add_official_entity(1, "Citizen", "Human", 1, None);
         arena.add_official_world_item(301, "resources", "wild_herb_node", 1.0, 0.0);
 
@@ -4263,6 +4284,12 @@ mod tests {
             Some(301)
         ));
         assert_eq!(arena.inventory_item_quantity(1, "wild_herb"), 2);
+        assert!(
+            arena
+                .message_texts()
+                .iter()
+                .any(|(text, role)| text == "You gather Wild Herb x2" && role == "success")
+        );
         let node = arena
             .ctx
             .map
@@ -4409,6 +4436,154 @@ mod tests {
 
         assert!(arena.hp(2) < orc_hp);
         assert_eq!(arena.inventory_item_quantity(1, "wooden_arrows"), 9);
+    }
+
+    #[test]
+    fn official_ruleset_end_to_end_resource_craft_combat_and_spells() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.load_official_locales();
+        arena.add_script_class(
+            "Warrior",
+            r#"
+            fn event(event, value) {
+                if event == "damaged" {
+                    set_attr("last_attacker", value.attacker_id);
+                    set_attr("last_damage", value.amount);
+                    set_attr("last_kind", value.kind);
+                    set_attr("last_source_item", value.source_item_id);
+                    set_target(value.attacker_id);
+                }
+            }
+            "#,
+        );
+        arena.add_official_entity(1, "Ranger", "Human", 1, None);
+        arena.add_official_entity(2, "Cleric", "Human", 2, None);
+        arena.add_official_entity(3, "Warrior", "Orc", 1, None);
+        arena.add_official_entity(4, "Warrior", "Orc", 1, None);
+        arena.clear_inventory(1);
+        arena.clear_inventory(2);
+        arena.equip_official_item(1, 101, "weapons", "hunting_bow");
+        arena.add_official_inventory_item(2, 201, "reagents", "blessed_herb");
+        arena.add_official_world_item(301, "resources", "wild_herb_node", 1.0, 0.0);
+        arena.add_official_world_item(302, "resources", "green_wood_node", 1.0, 0.0);
+        arena.add_official_world_item(303, "resources", "green_wood_node", 1.0, 0.5);
+        arena.add_official_world_item(304, "resources", "bird_nest_node", 1.0, 1.0);
+
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "gather_herbs",
+            Some(301)
+        ));
+        assert!(
+            arena
+                .message_texts()
+                .iter()
+                .any(|(text, role)| text == "You gather Wild Herb x2" && role == "success")
+        );
+        arena.ctx.entity_state_data.clear();
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "gather_wood",
+            Some(302)
+        ));
+        arena.ctx.entity_state_data.clear();
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "gather_wood",
+            Some(303)
+        ));
+        arena.ctx.entity_state_data.clear();
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "gather_feathers",
+            Some(304)
+        ));
+        assert_eq!(arena.inventory_item_quantity(1, "wild_herb"), 2);
+        assert_eq!(arena.inventory_item_quantity(1, "green_wood"), 6);
+        assert_eq!(arena.inventory_item_quantity(1, "feather"), 2);
+
+        assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "wooden_arrows"));
+        assert_eq!(arena.inventory_item_quantity(1, "wooden_arrows"), 10);
+        arena.set_entity_attr(1, "skill_fletching", Value::Int(25));
+        assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "hunting_bow"));
+        assert_eq!(arena.inventory_item_quantity(1, "hunting_bow"), 1);
+
+        arena.set_entity_attr(3, "HP", Value::Int(30));
+        arena
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 1)
+            .unwrap()
+            .position = Vec3::new(0.0, 1.0, 0.0);
+        arena
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 3)
+            .unwrap()
+            .position = Vec3::new(4.0, 1.0, 0.0);
+
+        let orc_hp = arena.hp(3);
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "basic_attack",
+            Some(3)
+        ));
+        arena.drain_entity_events();
+        assert!(arena.hp(3) < orc_hp);
+        assert_eq!(arena.inventory_item_quantity(1, "wooden_arrows"), 9);
+        assert_eq!(arena.attr_f32(3, "last_attacker") as u32, 1);
+        assert_eq!(arena.attr_str(3, "last_kind"), "physical");
+        assert_eq!(arena.target(3), Some(1));
+
+        arena.set_entity_attr(2, "HP", Value::Int(6));
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            2,
+            "minor_heal",
+            Some(2)
+        ));
+        assert!(arena.hp(2) > 6);
+        assert_eq!(arena.inventory_item_quantity(2, "blessed_herb"), 2);
+        arena.ctx.entity_state_data.clear();
+
+        arena.set_entity_attr(4, "HP", Value::Int(30));
+        arena
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 2)
+            .unwrap()
+            .position = Vec3::new(0.0, 1.0, 0.0);
+        arena
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 4)
+            .unwrap()
+            .position = Vec3::new(3.0, 1.0, 0.0);
+
+        let second_orc_hp = arena.hp(4);
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            2,
+            "holy_light",
+            Some(4)
+        ));
+        arena.drain_entity_events();
+        assert!(arena.hp(4) < second_orc_hp);
+        assert_eq!(arena.attr_f32(4, "last_attacker") as u32, 2);
+        assert_eq!(arena.attr_str(4, "last_kind"), "arcane");
     }
 
     #[test]

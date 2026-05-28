@@ -289,6 +289,36 @@ pixels = [
     "........................",
 ]
 
+[visual_templates.bag_pouch]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "........AHHAAGAAG.......",
+    "........AHHAAGAG........",
+    ".........AAAAGGG........",
+    ".........GGGGGG.........",
+    "........BBBBBBBB........",
+    ".......AAAAAAABBBB......",
+    "......AAAHAAAAABGBB.....",
+    ".....AAHHAAAAAABGGB.....",
+    ".....AHHHHAAAAAAGGB.....",
+    "....AAHHHHAAAAAAGGGG....",
+    "....AAAHHAAAAAAAGGGG....",
+    "....AAAAAAAAAAAAGGGG....",
+    "....GAAAAAAAAAAGGGGG....",
+    "....GGAAAAAAAAGGGGGG....",
+    "....GGGAAAAAAGGGGGGG....",
+    "....GGGGGGGGGGGGGGGG....",
+    ".....GGGGGGGGGGGGGG.....",
+    "......GGGGGGGGGGGG......",
+    "........................",
+    "........................",
+]
+
 [items.weapons.training_sword]
 name = "Training Sword"
 description = "A blunt wooden practice sword used for early drills and safe sparring."
@@ -510,6 +540,25 @@ slot = "feet"
 rarity = "common"
 color = 7
 avatar_channels = ["feet"]
+
+[items.containers.small_bag]
+name = "Small Bag"
+description = "A simple cloth pouch for carrying a few loose items."
+category = "bag"
+slot = "container"
+rarity = "common"
+color = 10
+max_stack = 1
+container_template = "bag_small"
+visual_template = "bag_pouch"
+grip_color_index = 10
+accent_color_index = 11
+highlight_color_index = 14
+
+[items.containers.small_bag.attributes]
+container = true
+container_slots = 6
+takeable = true
 
 [items.ammunition.wooden_arrows]
 name = "Wooden Arrows"

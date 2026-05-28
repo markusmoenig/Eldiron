@@ -17,7 +17,7 @@ use crate::{
     Rect, SceneHandler, Surface, Value,
     client::action::ClientAction,
     client::command::{ClientCommandBinding, command_from_legacy_fields},
-    client::rules_ui::{CommandState, RulesDescription},
+    client::rules_ui::{CommandState, ContainerUiTemplate, RulesDescription},
     client::widget::{
         Widget, avatar::AvatarWidget, deco::DecoWidget, game::GameWidget, messages::MessagesWidget,
         screen::ScreenWidget, text::TextWidget,
@@ -98,6 +98,28 @@ pub(crate) fn apply_2d_visibility_mask(
             }
         }
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct OpenContainerPanel {
+    item_id: u32,
+    owner_entity_id: Option<u32>,
+    position: Vec2<i32>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ContainerItemSource {
+    container_item_id: u32,
+    container_owner_entity_id: Option<u32>,
+}
+
+#[derive(Clone, Debug)]
+struct ContainerPanelLayout {
+    rect: Rect,
+    slots: Vec<Rect>,
+    title_bar_rect: Option<Rect>,
+    close_rect: Option<Rect>,
+    title_rect: Option<(isize, isize, isize, isize)>,
 }
 
 pub struct Client {
@@ -227,8 +249,17 @@ pub struct Client {
     dragging_item_owner_entity_id: Option<u32>,
     dragging_source_widget_id: Option<u32>,
     dragging_item_from_world: bool,
+    dragging_item_container_source: Option<ContainerItemSource>,
     dragging_started: bool,
     drag_start_pos: Vec2<i32>,
+    open_container_panel: Option<OpenContainerPanel>,
+    open_container_panel_positions: FxHashMap<(u32, Option<u32>), Vec2<i32>>,
+    open_container_panel_rect: Option<Rect>,
+    open_container_slot_rects: Vec<Rect>,
+    open_container_title_rect: Option<Rect>,
+    open_container_close_rect: Option<Rect>,
+    dragging_container_panel: bool,
+    container_panel_drag_offset: Vec2<i32>,
 }
 
 impl Default for Client {
@@ -602,8 +633,17 @@ impl Client {
             dragging_item_owner_entity_id: None,
             dragging_source_widget_id: None,
             dragging_item_from_world: false,
+            dragging_item_container_source: None,
             dragging_started: false,
             drag_start_pos: Vec2::zero(),
+            open_container_panel: None,
+            open_container_panel_positions: FxHashMap::default(),
+            open_container_panel_rect: None,
+            open_container_slot_rects: Vec::new(),
+            open_container_title_rect: None,
+            open_container_close_rect: None,
+            dragging_container_panel: false,
+            container_panel_drag_offset: Vec2::zero(),
         }
     }
 
@@ -1842,11 +1882,14 @@ impl Client {
             }
         }
 
+        self.draw_open_container_panel(map, assets);
+        self.draw_drag_drop_highlights(map);
+
         // Drag preview icon for inventory/equipped drag & drop.
         if self.dragging_started && self.dragging_item_id.is_some() {
             let dragged_item = self.find_dragged_item(map);
             if let Some(item) = dragged_item {
-                let preview_size = 28usize;
+                let preview_size = 48usize;
                 let x = self.cursor_pos.x as usize;
                 let y = self.cursor_pos.y as usize;
                 let half = preview_size / 2;
@@ -2512,6 +2555,251 @@ impl Client {
         })
     }
 
+    fn item_is_container(item: &crate::Item) -> bool {
+        item.is_container()
+            || item.attributes.get_bool_default("container", false)
+            || item.attributes.get_int_default("container_slots", 0) > 0
+    }
+
+    fn item_can_enter_container(item: &Item, container: &Item) -> bool {
+        let max_capacity = container.max_capacity.max(1) as usize;
+        let contents = container.container.as_ref();
+        if contents.is_none_or(|contents| contents.len() < max_capacity) {
+            return true;
+        }
+        contents.is_some_and(|contents| {
+            contents
+                .iter()
+                .any(|existing| existing.can_stack_with(item))
+        })
+    }
+
+    fn find_container_item<'a>(
+        map: &'a Map,
+        item_id: u32,
+        owner_entity_id: Option<u32>,
+    ) -> Option<&'a crate::Item> {
+        if let Some(owner_id) = owner_entity_id
+            && let Some(entity) = map.entities.iter().find(|entity| entity.id == owner_id)
+        {
+            return entity
+                .inventory
+                .iter()
+                .flatten()
+                .chain(entity.equipped.values())
+                .find(|item| item.id == item_id);
+        }
+
+        map.items
+            .iter()
+            .find(|item| item.id == item_id)
+            .or_else(|| {
+                map.entities.iter().find_map(|entity| {
+                    entity
+                        .inventory
+                        .iter()
+                        .flatten()
+                        .chain(entity.equipped.values())
+                        .find(|item| item.id == item_id)
+                })
+            })
+    }
+
+    fn toggle_container_panel(&mut self, item_id: u32, owner_entity_id: Option<u32>, anchor: Rect) {
+        if self.open_container_panel.is_some_and(|panel| {
+            panel.item_id == item_id && panel.owner_entity_id == owner_entity_id
+        }) {
+            self.close_floaters();
+        } else {
+            let target_width = self.target.dim().width as i32;
+            let target_height = self.target.dim().height as i32;
+            let position = self
+                .open_container_panel_positions
+                .get(&(item_id, owner_entity_id))
+                .copied()
+                .unwrap_or_else(|| {
+                    let x = (anchor.x + anchor.width + 12.0)
+                        .round()
+                        .clamp(2.0, (target_width - 24).max(2) as f32)
+                        as i32;
+                    let y = anchor
+                        .y
+                        .round()
+                        .clamp(2.0, (target_height - 24).max(2) as f32)
+                        as i32;
+                    Vec2::new(x, y)
+                });
+            self.open_container_panel = Some(OpenContainerPanel {
+                item_id,
+                owner_entity_id,
+                position: Vec2::new(
+                    position.x.clamp(2, (target_width - 24).max(2)),
+                    position.y.clamp(2, (target_height - 24).max(2)),
+                ),
+            });
+            self.open_container_panel_rect = None;
+            self.open_container_slot_rects.clear();
+            self.open_container_title_rect = None;
+            self.open_container_close_rect = None;
+            self.dragging_container_panel = false;
+        }
+    }
+
+    fn close_floaters(&mut self) -> bool {
+        let had_floater = self.open_container_panel.is_some();
+        if let Some(panel) = self.open_container_panel {
+            self.open_container_panel_positions
+                .insert((panel.item_id, panel.owner_entity_id), panel.position);
+        }
+        self.open_container_panel = None;
+        self.open_container_panel_rect = None;
+        self.open_container_slot_rects.clear();
+        self.open_container_title_rect = None;
+        self.open_container_close_rect = None;
+        self.dragging_container_panel = false;
+        self.tooltip_hover_key = None;
+        self.tooltip_hover_since = None;
+        had_floater
+    }
+
+    fn open_container_item<'a>(&self, map: &'a Map) -> Option<&'a crate::Item> {
+        let panel = self.open_container_panel?;
+        let item = Self::find_container_item(map, panel.item_id, panel.owner_entity_id)?;
+        Self::item_is_container(item).then_some(item)
+    }
+
+    fn container_panel_layout(&self, map: &Map, assets: &Assets) -> Option<ContainerPanelLayout> {
+        let item = self.open_container_item(map)?;
+        let template = rules_ui::container_template_for_item(assets, item);
+        let slots = item.attributes.get_int_default("container_slots", 0).max(0) as usize;
+        let item_count = item.container.as_ref().map(Vec::len).unwrap_or(0);
+        let slot_count = slots.max(item.max_capacity as usize).max(item_count).max(1);
+        Some(Self::build_container_panel_layout(
+            self.open_container_panel?.position,
+            &template,
+            slot_count,
+            self.target.dim().width as i32,
+            self.target.dim().height as i32,
+        ))
+    }
+
+    fn open_container_slot_item_at_point<'a>(
+        &'a self,
+        map: &'a Map,
+        p: Vec2<i32>,
+    ) -> Option<(ContainerItemSource, &'a Item, Rect)> {
+        let panel = self.open_container_panel?;
+        let container = self.open_container_item(map)?;
+        let point = Vec2::new(p.x as f32, p.y as f32);
+        self.open_container_slot_rects
+            .iter()
+            .enumerate()
+            .find_map(|(index, slot)| {
+                if !slot.contains(point) {
+                    return None;
+                }
+                let item = container
+                    .container
+                    .as_ref()
+                    .and_then(|items| items.get(index))?;
+                Some((
+                    ContainerItemSource {
+                        container_item_id: panel.item_id,
+                        container_owner_entity_id: panel.owner_entity_id,
+                    },
+                    item,
+                    *slot,
+                ))
+            })
+    }
+
+    fn clear_item_drag(&mut self) {
+        self.dragging_item_id = None;
+        self.dragging_item_owner_entity_id = None;
+        self.dragging_source_widget_id = None;
+        self.dragging_item_from_world = false;
+        self.dragging_item_container_source = None;
+        self.dragging_started = false;
+    }
+
+    fn build_container_panel_layout(
+        position: Vec2<i32>,
+        template: &ContainerUiTemplate,
+        slot_count: usize,
+        target_width: i32,
+        target_height: i32,
+    ) -> ContainerPanelLayout {
+        let columns = template.columns.max(1);
+        let rows = template
+            .rows
+            .unwrap_or_else(|| slot_count.div_ceil(columns))
+            .max(1);
+        let slot_size = template.slot_size.max(8);
+        let gap = template.gap.max(0);
+        let padding = template.padding.max(0);
+        let title_h = if template.title { 26 } else { 0 };
+        let content_w = columns as i32 * slot_size + (columns.saturating_sub(1) as i32 * gap);
+        let content_h = rows as i32 * slot_size + (rows.saturating_sub(1) as i32 * gap);
+        let width = content_w + padding * 2;
+        let height = content_h + padding * 2 + title_h;
+
+        let mut x = position.x;
+        let mut y = position.y;
+        if x + width > target_width {
+            x = (target_width - width - 2).max(2);
+        }
+        x = x.max(2);
+        if y + height > target_height {
+            y = (target_height - height - 2).max(2);
+        }
+        y = y.max(2);
+
+        let title_bar_rect = template.title.then_some(Rect {
+            x: x as f32,
+            y: y as f32,
+            width: width as f32,
+            height: title_h as f32,
+        });
+        let close_rect = template.title.then_some(Rect {
+            x: (x + width - 27) as f32,
+            y: (y + 3) as f32,
+            width: 22.0,
+            height: 20.0,
+        });
+
+        let start_x = x + padding;
+        let start_y = y + padding + title_h;
+        let mut slot_rects = Vec::with_capacity(slot_count);
+        for index in 0..slot_count {
+            let col = index % columns;
+            let row = index / columns;
+            slot_rects.push(Rect {
+                x: (start_x + col as i32 * (slot_size + gap)) as f32,
+                y: (start_y + row as i32 * (slot_size + gap)) as f32,
+                width: slot_size as f32,
+                height: slot_size as f32,
+            });
+        }
+
+        ContainerPanelLayout {
+            rect: Rect {
+                x: x as f32,
+                y: y as f32,
+                width: width as f32,
+                height: height as f32,
+            },
+            slots: slot_rects,
+            title_bar_rect,
+            close_rect,
+            title_rect: template.title.then_some((
+                (x + padding) as isize,
+                (y + 3) as isize,
+                (width - padding * 2 - 30).max(1) as isize,
+                20,
+            )),
+        }
+    }
+
     fn party_members<'a>(map: &'a Map) -> Vec<&'a Entity> {
         let mut members: Vec<&Entity> = map
             .entities
@@ -2588,6 +2876,20 @@ impl Client {
     fn find_dragged_item<'a>(&self, map: &'a Map) -> Option<&'a Item> {
         let item_id = self.dragging_item_id?;
 
+        if let Some(source) = self.dragging_item_container_source {
+            return Self::find_container_item(
+                map,
+                source.container_item_id,
+                source.container_owner_entity_id,
+            )
+            .and_then(|container| {
+                container
+                    .container
+                    .as_ref()
+                    .and_then(|items| items.iter().find(|item| item.id == item_id))
+            });
+        }
+
         if let Some(owner_id) = self.dragging_item_owner_entity_id
             && let Some(owner) = map.entities.iter().find(|entity| entity.id == owner_id)
             && let Some(item) = owner
@@ -2609,6 +2911,23 @@ impl Client {
 
     fn drag_distance_exceeded(&self, p: Vec2<i32>) -> bool {
         (p - self.drag_start_pos).map(|v| v as f32).magnitude() >= 6.0
+    }
+
+    fn move_open_container_panel_to_cursor(&mut self, p: Vec2<i32>) {
+        if let Some(panel) = self.open_container_panel.as_mut() {
+            let target_width = self.target.dim().width as i32;
+            let target_height = self.target.dim().height as i32;
+            panel.position = Vec2::new(
+                (p.x - self.container_panel_drag_offset.x).clamp(2, (target_width - 24).max(2)),
+                (p.y - self.container_panel_drag_offset.y).clamp(2, (target_height - 24).max(2)),
+            );
+            self.open_container_panel_rect = None;
+            self.open_container_slot_rects.clear();
+            self.open_container_title_rect = None;
+            self.open_container_close_rect = None;
+        }
+        self.tooltip_hover_key = None;
+        self.tooltip_hover_since = None;
     }
 
     fn quantize_2d_tile_pos(pos: Vec2<f32>) -> Vec2<f32> {
@@ -2801,6 +3120,10 @@ impl Client {
     ) {
         let p = self.screen_to_viewport(coord);
         self.cursor_pos = p;
+        if self.dragging_container_panel {
+            self.move_open_container_panel_to_cursor(p);
+            return;
+        }
         if self.dragging_item_id.is_some() && !self.dragging_started {
             if self.drag_distance_exceeded(p) {
                 self.dragging_started = true;
@@ -2839,6 +3162,12 @@ impl Client {
     pub fn touch_hover(&mut self, coord: Vec2<i32>, map: &Map, scene_handler: &mut SceneHandler) {
         let p = self.screen_to_viewport(coord);
         self.cursor_pos = p;
+        if self.dragging_container_panel {
+            self.move_open_container_panel_to_cursor(p);
+            self.tooltip_hover_key = None;
+            self.tooltip_hover_since = None;
+            return;
+        }
         let drop_intent_active = self
             .get_current_intent()
             .map(|i| i.eq_ignore_ascii_case("drop"))
@@ -2860,6 +3189,13 @@ impl Client {
         self.curr_clicked_intent_cursor = None;
         self.hover_distance = f32::MAX;
         let mut pending_cursor_target: Option<(bool, bool)> = None;
+
+        if self
+            .open_container_panel_rect
+            .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+        {
+            return;
+        }
 
         // Drop intent targets inventory/equipped widgets, not world billboards/items.
         if drop_intent_active {
@@ -3000,6 +3336,7 @@ impl Client {
         self.dragging_item_owner_entity_id = None;
         self.dragging_source_widget_id = None;
         self.dragging_item_from_world = false;
+        self.dragging_item_container_source = None;
         self.dragging_started = false;
 
         // Adjust cursor
@@ -3012,6 +3349,38 @@ impl Client {
         // Transform screen coordinates to viewport coordinates
         let p = self.screen_to_viewport(coord);
 
+        if let Some(close_rect) = self.open_container_close_rect
+            && close_rect.contains(Vec2::new(p.x as f32, p.y as f32))
+        {
+            self.close_floaters();
+            return None;
+        }
+
+        if let Some(title_rect) = self.open_container_title_rect
+            && title_rect.contains(Vec2::new(p.x as f32, p.y as f32))
+            && let Some(panel) = self.open_container_panel
+        {
+            self.dragging_container_panel = true;
+            self.container_panel_drag_offset =
+                Vec2::new(p.x - panel.position.x, p.y - panel.position.y);
+            self.tooltip_hover_key = None;
+            self.tooltip_hover_since = None;
+            return None;
+        }
+
+        if let Some((source, item, _)) = self.open_container_slot_item_at_point(map, p) {
+            self.dragging_item_id = Some(item.id);
+            self.dragging_item_container_source = Some(source);
+            self.drag_start_pos = p;
+            return None;
+        }
+
+        if let Some(rect) = self.open_container_panel_rect
+            && rect.contains(Vec2::new(p.x as f32, p.y as f32))
+        {
+            return None;
+        }
+
         // Give paused/scrollback message widgets first chance to consume input before
         // buttons or the game map turn it into player actions.
         for widget in self.messages_widgets.iter_mut() {
@@ -3022,7 +3391,6 @@ impl Client {
                 return Some(action);
             }
         }
-
         // If we hovered over an item in 3D, send an explicit ItemClicked intent
         if let Some(entity_id) = self.hovered_entity_id {
             let intent = self.get_current_intent_for_action();
@@ -3046,6 +3414,17 @@ impl Client {
                 return None;
             }
             let intent = self.get_current_intent_for_action();
+            if intent.is_none()
+                && let Some(item) = Self::find_container_item(map, item_id, None)
+                && Self::item_is_container(item)
+            {
+                self.toggle_container_panel(
+                    item_id,
+                    None,
+                    Rect::new(p.x as f32, p.y as f32, 1.0, 1.0),
+                );
+                return None;
+            }
             if intent.is_some() {
                 self.consume_one_shot_2d_intent();
             }
@@ -3136,6 +3515,10 @@ impl Client {
                             .get(*inventory_index)
                             .and_then(|item| item.as_ref())
                     {
+                        if active_intent.is_none() && Self::item_is_container(item) {
+                            self.toggle_container_panel(item.id, Some(entity.id), widget.rect);
+                            return None;
+                        }
                         action = Some(EntityAction::ItemClicked(
                             item.id,
                             0.0,
@@ -3297,16 +3680,36 @@ impl Client {
     /// Click / touch up event
     pub fn touch_up(&mut self, coord: Vec2<i32>, map: &Map) -> Option<EntityAction> {
         let mut action = None;
+        if self.dragging_container_panel {
+            self.dragging_container_panel = false;
+            return None;
+        }
         let dragged_item_id = self.dragging_item_id;
         let dragged_item_owner_entity_id = self.dragging_item_owner_entity_id;
         let dragged_source_widget_id = self.dragging_source_widget_id;
         let dragged_item_from_world = self.dragging_item_from_world;
+        let dragged_container_source = self.dragging_item_container_source;
         let p = self.screen_to_viewport(coord);
         let dragging_started = self.dragging_started || self.drag_distance_exceeded(p);
 
         if let Some(item_id) = dragged_item_id {
             if !dragging_started {
                 if dragged_item_from_world {
+                    if let Some(item) = Self::find_container_item(map, item_id, None)
+                        && Self::item_is_container(item)
+                    {
+                        self.toggle_container_panel(
+                            item_id,
+                            None,
+                            Rect::new(p.x as f32, p.y as f32, 1.0, 1.0),
+                        );
+                        self.dragging_item_id = None;
+                        self.dragging_item_owner_entity_id = None;
+                        self.dragging_source_widget_id = None;
+                        self.dragging_item_from_world = false;
+                        self.dragging_started = false;
+                        return None;
+                    }
                     let intent = self.get_current_intent_for_action();
                     if intent.is_some() {
                         self.consume_one_shot_2d_intent();
@@ -3321,6 +3724,18 @@ impl Client {
                     && let Some(widget) = self.button_widgets.get(&source_id)
                     && widget.rect.contains(Vec2::new(p.x as f32, p.y as f32))
                 {
+                    if let Some(owner_id) = dragged_item_owner_entity_id
+                        && let Some(item) = Self::find_container_item(map, item_id, Some(owner_id))
+                        && Self::item_is_container(item)
+                    {
+                        self.toggle_container_panel(item_id, Some(owner_id), widget.rect);
+                        self.dragging_item_id = None;
+                        self.dragging_item_owner_entity_id = None;
+                        self.dragging_source_widget_id = None;
+                        self.dragging_item_from_world = false;
+                        self.dragging_started = false;
+                        return None;
+                    }
                     let intent = self.get_current_intent_for_action();
                     if intent.is_some() {
                         self.consume_one_shot_2d_intent();
@@ -3333,7 +3748,31 @@ impl Client {
                     ));
                 }
             } else {
+                if let Some(panel) = self.open_container_panel
+                    && self
+                        .open_container_panel_rect
+                        .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+                    && item_id != panel.item_id
+                    && dragged_container_source.is_none_or(|source| {
+                        source.container_item_id != panel.item_id
+                            || source.container_owner_entity_id != panel.owner_entity_id
+                    })
+                {
+                    action = Some(EntityAction::MoveItemToContainer {
+                        item_id,
+                        owner_entity_id: dragged_item_owner_entity_id,
+                        source_container_item_id: dragged_container_source
+                            .map(|source| source.container_item_id),
+                        source_container_owner_entity_id: dragged_container_source
+                            .and_then(|source| source.container_owner_entity_id),
+                        container_item_id: panel.item_id,
+                        container_owner_entity_id: panel.owner_entity_id,
+                    });
+                }
                 for (_, widget) in self.button_widgets.iter() {
+                    if action.is_some() {
+                        break;
+                    }
                     if !widget.drag_drop || !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32))
                     {
                         continue;
@@ -3341,43 +3780,69 @@ impl Client {
                     let target_entity_id = Self::resolve_party_entity(map, widget.party.as_deref())
                         .map(|entity| entity.id);
                     if let Some(target_index) = widget.inventory_index {
-                        action = Some(EntityAction::MoveItem {
-                            item_id,
-                            owner_entity_id: dragged_item_owner_entity_id,
-                            target_entity_id,
-                            to_inventory_index: Some(target_index),
-                            to_equipped_slot: None,
+                        action = Some(if let Some(source) = dragged_container_source {
+                            EntityAction::MoveContainerItem {
+                                item_id,
+                                container_item_id: source.container_item_id,
+                                container_owner_entity_id: source.container_owner_entity_id,
+                                target_entity_id,
+                                to_inventory_index: Some(target_index),
+                                to_equipped_slot: None,
+                            }
+                        } else {
+                            EntityAction::MoveItem {
+                                item_id,
+                                owner_entity_id: dragged_item_owner_entity_id,
+                                target_entity_id,
+                                to_inventory_index: Some(target_index),
+                                to_equipped_slot: None,
+                            }
                         });
                         break;
                     }
                     if let Some(target_slot) = &widget.equipped_slot {
-                        action = Some(EntityAction::MoveItem {
-                            item_id,
-                            owner_entity_id: dragged_item_owner_entity_id,
-                            target_entity_id,
-                            to_inventory_index: None,
-                            to_equipped_slot: Some(target_slot.clone()),
+                        action = Some(if let Some(source) = dragged_container_source {
+                            EntityAction::MoveContainerItem {
+                                item_id,
+                                container_item_id: source.container_item_id,
+                                container_owner_entity_id: source.container_owner_entity_id,
+                                target_entity_id,
+                                to_inventory_index: None,
+                                to_equipped_slot: Some(target_slot.clone()),
+                            }
+                        } else {
+                            EntityAction::MoveItem {
+                                item_id,
+                                owner_entity_id: dragged_item_owner_entity_id,
+                                target_entity_id,
+                                to_inventory_index: None,
+                                to_equipped_slot: Some(target_slot.clone()),
+                            }
                         });
                         break;
                     }
                 }
                 if action.is_none()
-                    && !dragged_item_from_world
                     && let Some(position) = self.drop_position_at_viewport(p)
                 {
-                    action = Some(EntityAction::DropItemAt {
-                        item_id,
-                        owner_entity_id: dragged_item_owner_entity_id,
-                        position,
+                    action = Some(if let Some(source) = dragged_container_source {
+                        EntityAction::DropContainerItemAt {
+                            item_id,
+                            container_item_id: source.container_item_id,
+                            container_owner_entity_id: source.container_owner_entity_id,
+                            position,
+                        }
+                    } else {
+                        EntityAction::DropItemAt {
+                            item_id,
+                            owner_entity_id: dragged_item_owner_entity_id,
+                            position,
+                        }
                     });
                 }
             }
         }
-        self.dragging_item_id = None;
-        self.dragging_item_owner_entity_id = None;
-        self.dragging_source_widget_id = None;
-        self.dragging_item_from_world = false;
-        self.dragging_started = false;
+        self.clear_item_drag();
 
         self.activated_widgets = self.permanently_activated_widgets.clone();
 
@@ -3392,11 +3857,20 @@ impl Client {
 
     pub fn user_event(&mut self, event: String, value: Value) -> EntityAction {
         let immediate_2d_intent = self.immediate_2d_intent_mode();
+        let is_escape = event == "key_down"
+            && matches!(
+                &value,
+                Value::Str(v) if matches!(v.trim().to_ascii_lowercase().as_str(), "escape" | "esc")
+            );
 
         // Make sure we do not send action events after a key down intent was handled
         // Otherwise the character would move a bit because "intent" is already cleared
         if event == "key_up" {
             self.key_down_intent = None;
+        }
+
+        if is_escape && self.close_floaters() {
+            return EntityAction::Off;
         }
 
         // --- Check for multiple choice
@@ -4177,8 +4651,449 @@ impl Client {
         draw2d.blend_rect_safe(target.pixels_mut(), &r, stride, &[0, 0, 0, alpha], &safe);
     }
 
+    fn draw_drag_drop_highlights(&mut self, map: &Map) {
+        if !self.dragging_started || self.dragging_item_id.is_none() {
+            return;
+        }
+        let Some(item) = self.find_dragged_item(map).cloned() else {
+            return;
+        };
+        let point = Vec2::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32);
+
+        if let Some(panel) = self.open_container_panel
+            && let Some(container) = self.open_container_item(map)
+            && self
+                .open_container_panel_rect
+                .is_some_and(|rect| rect.contains(point))
+            && item.id != panel.item_id
+            && self.dragging_item_container_source.is_none_or(|source| {
+                source.container_item_id != panel.item_id
+                    || source.container_owner_entity_id != panel.owner_entity_id
+            })
+            && Self::item_can_enter_container(&item, container)
+        {
+            if let Some(slot) = self
+                .open_container_slot_rects
+                .iter()
+                .copied()
+                .find(|slot| slot.contains(point))
+            {
+                Self::draw_drag_target_highlight(&mut self.target, &self.draw2d, slot);
+                return;
+            }
+        }
+
+        for widget in self.button_widgets.values() {
+            if !widget.drag_drop || !widget.rect.contains(point) {
+                continue;
+            }
+            if widget.inventory_index.is_some() {
+                Self::draw_drag_target_highlight(&mut self.target, &self.draw2d, widget.rect);
+                return;
+            }
+            if let Some(target_slot) = &widget.equipped_slot {
+                let item_slot = item
+                    .attributes
+                    .get_str("slot")
+                    .map(|slot| slot.trim().to_ascii_lowercase());
+                if item_slot.as_deref() == Some(target_slot.trim().to_ascii_lowercase().as_str()) {
+                    Self::draw_drag_target_highlight(&mut self.target, &self.draw2d, widget.rect);
+                    return;
+                }
+            }
+        }
+    }
+
+    fn draw_drag_target_highlight(target: &mut TheRGBABuffer, draw2d: &Draw2D, rect: Rect) {
+        let stride = target.stride();
+        let safe = (
+            0_isize,
+            0_isize,
+            target.dim().width as isize,
+            target.dim().height as isize,
+        );
+        let fill = (
+            rect.x.round() as isize,
+            rect.y.round() as isize,
+            rect.width.round().max(1.0) as isize,
+            rect.height.round().max(1.0) as isize,
+        );
+        draw2d.blend_rect_safe(
+            target.pixels_mut(),
+            &fill,
+            stride,
+            &[238, 210, 96, 70],
+            &safe,
+        );
+        draw2d.rect_outline_thickness(
+            target.pixels_mut(),
+            &(
+                rect.x.round().max(0.0) as usize,
+                rect.y.round().max(0.0) as usize,
+                rect.width.round().max(1.0) as usize,
+                rect.height.round().max(1.0) as usize,
+            ),
+            stride,
+            &[255, 236, 132, 255],
+            2,
+        );
+    }
+
+    fn draw_open_container_panel(&mut self, map: &Map, assets: &Assets) {
+        let Some(item) = self.open_container_item(map).cloned() else {
+            self.close_floaters();
+            return;
+        };
+        let Some(layout) = self.container_panel_layout(map, assets) else {
+            self.close_floaters();
+            return;
+        };
+        if let Some(panel) = self.open_container_panel.as_mut() {
+            panel.position = Vec2::new(layout.rect.x.round() as i32, layout.rect.y.round() as i32);
+        }
+        self.open_container_panel_rect = Some(layout.rect);
+        self.open_container_slot_rects = layout.slots.clone();
+        self.open_container_title_rect = layout.title_bar_rect;
+        self.open_container_close_rect = layout.close_rect;
+        let template = rules_ui::container_template_for_item(assets, &item);
+        let stride = self.target.stride();
+        let target_dim = self.target.dim();
+        let safe = (
+            0_isize,
+            0_isize,
+            target_dim.width as isize,
+            target_dim.height as isize,
+        );
+        let panel_rect = (
+            layout.rect.x.round() as isize,
+            layout.rect.y.round() as isize,
+            layout.rect.width.round().max(1.0) as isize,
+            layout.rect.height.round().max(1.0) as isize,
+        );
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &panel_rect,
+            stride,
+            &template.background_color,
+            &safe,
+        );
+        self.draw_container_template_tiles(&layout, &template, assets);
+        self.draw2d.rect_outline_thickness(
+            self.target.pixels_mut(),
+            &(
+                layout.rect.x.round() as usize,
+                layout.rect.y.round() as usize,
+                layout.rect.width.round().max(1.0) as usize,
+                layout.rect.height.round().max(1.0) as usize,
+            ),
+            stride,
+            &template.border_color,
+            1,
+        );
+
+        if let Some(title_bar) = layout.title_bar_rect {
+            let rect = (
+                title_bar.x.round() as isize,
+                title_bar.y.round() as isize,
+                title_bar.width.round().max(1.0) as isize,
+                title_bar.height.round().max(1.0) as isize,
+            );
+            self.draw2d.blend_rect_safe(
+                self.target.pixels_mut(),
+                &rect,
+                stride,
+                &[20, 24, 30, 220],
+                &safe,
+            );
+        }
+
+        if let Some(title_rect) = layout.title_rect
+            && let Some(font) = self
+                .messages_font
+                .as_ref()
+                .or_else(|| assets.fonts.values().next())
+        {
+            let title = item
+                .attributes
+                .get_str("name")
+                .map(str::to_string)
+                .unwrap_or_else(|| "Container".to_string());
+            self.draw2d.text_rect_blend_safe(
+                self.target.pixels_mut(),
+                &title_rect,
+                stride,
+                font,
+                self.messages_font_size.clamp(12.0, 16.0),
+                &title,
+                &[236, 233, 214, 255],
+                draw2d::TheHorizontalAlign::Left,
+                draw2d::TheVerticalAlign::Center,
+                &safe,
+            );
+        }
+        if let Some(close_rect) = layout.close_rect {
+            let close_hovered = close_rect.contains(Vec2::new(
+                self.cursor_pos.x as f32,
+                self.cursor_pos.y as f32,
+            ));
+            let close_background = if close_hovered {
+                [70, 78, 88, 245]
+            } else {
+                [42, 47, 54, 230]
+            };
+            let close_border = if close_hovered {
+                [174, 179, 183, 255]
+            } else {
+                [98, 105, 116, 255]
+            };
+            let close_color = if close_hovered {
+                [245, 238, 220, 255]
+            } else {
+                [220, 220, 210, 255]
+            };
+            let rect = (
+                close_rect.x.round() as isize,
+                close_rect.y.round() as isize,
+                close_rect.width.round().max(1.0) as isize,
+                close_rect.height.round().max(1.0) as isize,
+            );
+            self.draw2d.blend_rect_safe(
+                self.target.pixels_mut(),
+                &rect,
+                stride,
+                &close_background,
+                &safe,
+            );
+            self.draw2d.rect_outline_thickness(
+                self.target.pixels_mut(),
+                &(
+                    close_rect.x.round() as usize,
+                    close_rect.y.round() as usize,
+                    close_rect.width.round().max(1.0) as usize,
+                    close_rect.height.round().max(1.0) as usize,
+                ),
+                stride,
+                &close_border,
+                1,
+            );
+            Self::draw_close_x(&self.draw2d, &mut self.target, close_rect, &close_color);
+        }
+
+        for (index, slot_rect) in layout.slots.iter().enumerate() {
+            let rect = (
+                slot_rect.x.round() as isize,
+                slot_rect.y.round() as isize,
+                slot_rect.width.round().max(1.0) as isize,
+                slot_rect.height.round().max(1.0) as isize,
+            );
+            if !template
+                .tiles
+                .slot
+                .as_deref()
+                .is_some_and(|tile| self.draw_tile_reference(assets, tile, *slot_rect))
+            {
+                self.draw2d.blend_rect_safe(
+                    self.target.pixels_mut(),
+                    &rect,
+                    stride,
+                    &template.slot_color,
+                    &safe,
+                );
+            }
+            self.draw2d.rect_outline_thickness(
+                self.target.pixels_mut(),
+                &(
+                    slot_rect.x.round() as usize,
+                    slot_rect.y.round() as usize,
+                    slot_rect.width.round().max(1.0) as usize,
+                    slot_rect.height.round().max(1.0) as usize,
+                ),
+                stride,
+                &template.slot_border_color,
+                1,
+            );
+            if let Some(container_item) = item.container.as_ref().and_then(|items| items.get(index))
+            {
+                Widget::draw_item_icon(
+                    &mut self.target,
+                    *slot_rect,
+                    assets,
+                    container_item,
+                    &self.draw2d,
+                    self.animation_frame,
+                );
+            }
+        }
+    }
+
+    fn draw_container_template_tiles(
+        &mut self,
+        layout: &ContainerPanelLayout,
+        template: &ContainerUiTemplate,
+        assets: &Assets,
+    ) {
+        let rect = layout.rect;
+        let edge = template
+            .slot_size
+            .min((rect.width as i32 / 3).max(1))
+            .min((rect.height as i32 / 3).max(1))
+            .max(8) as f32;
+
+        if let Some(tile) = template.tiles.center.as_deref() {
+            self.draw_tile_reference(assets, tile, rect);
+        }
+        if let Some(tile) = template.tiles.top.as_deref() {
+            self.draw_tile_reference(
+                assets,
+                tile,
+                Rect::new(
+                    rect.x + edge,
+                    rect.y,
+                    (rect.width - edge * 2.0).max(1.0),
+                    edge,
+                ),
+            );
+        }
+        if let Some(tile) = template.tiles.bottom.as_deref() {
+            self.draw_tile_reference(
+                assets,
+                tile,
+                Rect::new(
+                    rect.x + edge,
+                    rect.y + rect.height - edge,
+                    (rect.width - edge * 2.0).max(1.0),
+                    edge,
+                ),
+            );
+        }
+        if let Some(tile) = template.tiles.left.as_deref() {
+            self.draw_tile_reference(
+                assets,
+                tile,
+                Rect::new(
+                    rect.x,
+                    rect.y + edge,
+                    edge,
+                    (rect.height - edge * 2.0).max(1.0),
+                ),
+            );
+        }
+        if let Some(tile) = template.tiles.right.as_deref() {
+            self.draw_tile_reference(
+                assets,
+                tile,
+                Rect::new(
+                    rect.x + rect.width - edge,
+                    rect.y + edge,
+                    edge,
+                    (rect.height - edge * 2.0).max(1.0),
+                ),
+            );
+        }
+        for (tile, tile_rect) in [
+            (
+                template.tiles.top_left.as_deref(),
+                Rect::new(rect.x, rect.y, edge, edge),
+            ),
+            (
+                template.tiles.top_right.as_deref(),
+                Rect::new(rect.x + rect.width - edge, rect.y, edge, edge),
+            ),
+            (
+                template.tiles.bottom_left.as_deref(),
+                Rect::new(rect.x, rect.y + rect.height - edge, edge, edge),
+            ),
+            (
+                template.tiles.bottom_right.as_deref(),
+                Rect::new(
+                    rect.x + rect.width - edge,
+                    rect.y + rect.height - edge,
+                    edge,
+                    edge,
+                ),
+            ),
+        ] {
+            if let Some(tile) = tile {
+                self.draw_tile_reference(assets, tile, tile_rect);
+            }
+        }
+    }
+
+    fn draw_tile_reference(&mut self, assets: &Assets, tile_ref: &str, rect: Rect) -> bool {
+        let Some(tile) = Self::resolve_tile_reference(assets, tile_ref) else {
+            return false;
+        };
+        let Some(texture) = tile
+            .textures
+            .get(self.animation_frame % tile.textures.len().max(1))
+        else {
+            return false;
+        };
+        let stride = self.target.stride();
+        self.draw2d.blend_scale_chunk(
+            self.target.pixels_mut(),
+            &(
+                rect.x.round().max(0.0) as usize,
+                rect.y.round().max(0.0) as usize,
+                rect.width.round().max(1.0) as usize,
+                rect.height.round().max(1.0) as usize,
+            ),
+            stride,
+            &texture.data,
+            &(texture.width, texture.height),
+        );
+        true
+    }
+
+    fn draw_close_x(draw2d: &Draw2D, target: &mut TheRGBABuffer, rect: Rect, color: &Pixel) {
+        let stride = target.stride();
+        let safe = (
+            0_isize,
+            0_isize,
+            target.dim().width as isize,
+            target.dim().height as isize,
+        );
+        let left = rect.x.round() as i32 + 6;
+        let top = rect.y.round() as i32 + 5;
+        let size = (rect.width.min(rect.height).round() as i32 - 10).max(6);
+        for step in 0..size {
+            for (x, y) in [
+                (left + step, top + step),
+                (left + size - 1 - step, top + step),
+            ] {
+                draw2d.blend_rect_safe(
+                    target.pixels_mut(),
+                    &(x as isize, y as isize, 2, 2),
+                    stride,
+                    color,
+                    &safe,
+                );
+            }
+        }
+    }
+
+    fn resolve_tile_reference<'a>(assets: &'a Assets, tile_ref: &str) -> Option<&'a crate::Tile> {
+        let trimmed = tile_ref.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        if let Ok(id) = Uuid::parse_str(trimmed) {
+            return assets.tiles.get(&id);
+        }
+        let needle = trimmed.to_ascii_lowercase();
+        assets.tiles.values().find(|tile| {
+            tile.alias
+                .split([',', ';'])
+                .map(str::trim)
+                .filter(|alias| !alias.is_empty())
+                .any(|alias| alias.eq_ignore_ascii_case(&needle))
+                || tile.alias.eq_ignore_ascii_case(&needle)
+        })
+    }
+
     fn draw_hover_tooltip(&mut self, map: &Map, assets: &Assets) {
-        if self.dragging_started || self.dragging_item_id.is_some() {
+        if self.dragging_started || self.dragging_item_id.is_some() || self.dragging_container_panel
+        {
             self.tooltip_hover_key = None;
             self.tooltip_hover_since = None;
             return;
@@ -4452,6 +5367,36 @@ impl Client {
         bool,
     )> {
         let p = self.cursor_pos;
+        if let Some(item) = self.open_container_item(map)
+            && let Some(layout) = self.container_panel_layout(map, assets)
+        {
+            for (index, slot_rect) in layout.slots.iter().enumerate() {
+                if !slot_rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
+                    continue;
+                }
+                if let Some(container_item) =
+                    item.container.as_ref().and_then(|items| items.get(index))
+                {
+                    return Some((
+                        rules_ui::describe_item(container_item),
+                        *slot_rect,
+                        None,
+                        format!("container:{}:{}", item.id, container_item.id),
+                        Duration::from_millis(650),
+                        false,
+                    ));
+                }
+            }
+        }
+        if self
+            .open_container_panel_rect
+            .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+        {
+            return None;
+        }
+
+        let open_container = self.open_container_panel;
+        let open_container_rect = self.open_container_panel_rect;
         for widget in self.button_widgets.values() {
             if !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
                 continue;
@@ -4464,6 +5409,13 @@ impl Client {
                         .get(inventory_index)
                         .and_then(|item| item.as_ref())
                 {
+                    if open_container.is_some_and(|panel| {
+                        panel.item_id == item.id && panel.owner_entity_id == Some(entity.id)
+                    }) || open_container_rect
+                        .is_some_and(|rect| Self::rects_intersect(rect, widget.rect))
+                    {
+                        return None;
+                    }
                     return Some((
                         rules_ui::describe_item(item),
                         widget.rect,
@@ -4538,5 +5490,9 @@ impl Client {
         }
 
         None
+    }
+
+    fn rects_intersect(a: Rect, b: Rect) -> bool {
+        a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
     }
 }

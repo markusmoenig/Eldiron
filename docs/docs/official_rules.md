@@ -411,7 +411,7 @@ buttons, scripts, and later sandbox tools on the same rules path.
 | `take` | target must be an item, distance `1.5` tiles |
 | `use` | distance `2` tiles |
 
-Official action distances are resolved before legacy character
+Official action distances are resolved before per-character
 `[intent_distance]` values. A single Attack button can therefore serve melee
 and ranged weapons: swords and maces use melee range, bows use the bow category
 range. In 2D directional play, choosing Attack and pressing a direction scans
@@ -521,6 +521,16 @@ natural future path.
 | `wool_trousers` | cloth | legs | `28` | legs |
 | `leather_shoes` | leather | feet | `7` | feet |
 
+| Container | Family | Slots | Visual |
+| --- | --- | ---: | --- |
+| `small_bag` | bag | `6` | pouch mask |
+
+Containers open as floating UI panels. They use procedural UI templates by
+default; a template defines columns, slot size, padding, gap, title, and palette
+colors. Projects can later skin the same template with tile ids for frame
+corners, edges, center fill, and slots without turning every bag into a custom
+screen.
+
 | Ammunition | Family | Quantity | Used by | Visual |
 | --- | --- | ---: | --- | --- |
 | `wooden_arrows` | arrow | `20` | bow, 1 per attack | diagonal arrow mask |
@@ -590,8 +600,11 @@ Scripts use `attack()` for the normal weapon attack. Named action buttons or
 text commands use `use_action("<id>")`; for example `use_action("power_strike")`
 or `use power strike orc` in text play. Resource actions can also be typed by
 name, such as `gather herbs`, `gather wood`, or `gather feathers`, which targets
-the nearest matching visible resource node. Recipes can be typed by name too,
-such as `craft blessed herb`, `craft wooden arrows`, or `craft hunting bow`.
+the nearest matching visible resource node. Successful gathering sends a
+localized result message such as `You gather Wild Herb x2`. Recipes can be
+typed by name too, such as `craft blessed herb`, `craft wooden arrows`, or
+`craft hunting bow`. Container transfers start with simple text commands such
+as `put wild herb in bag` and `take wild herb from bag`.
 
 | Ability | Kind | Cooldown | Range | Effect |
 | --- | --- | ---: | --- | --- |
@@ -693,6 +706,7 @@ Already present or underway:
 - default humanoid avatar and rules-owned palette
 - stackable materials, reagents, ammunition, and first crafting recipes
 - skill-gated crafting with open profession growth
+- first item container, `small_bag`, with text transfer commands
 - Creator integration and rules-aware tools
 
 Expected v1 growth areas:
@@ -701,6 +715,7 @@ Expected v1 growth areas:
 - more races and creature templates
 - a larger spell and ability catalogue
 - larger crafting professions, reagents, recipes, stations, and item outputs
+- container popups, bags, chests, corpses, and loot transfer UI
 - loot tables and treasure rules
 - conditions such as stunned, burning, poisoned, blessed, and guarded
 - armor proficiency, weapon proficiency, and class restrictions

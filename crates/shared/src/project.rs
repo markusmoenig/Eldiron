@@ -133,6 +133,35 @@ fn item_ruleset_path(item: &Item) -> Option<String> {
         })
 }
 
+fn item_is_ruleset_owned(item: &Item) -> bool {
+    item_ruleset_path(item).is_some()
+}
+
+fn sort_ruleset_items_after_custom(items: &mut IndexMap<Uuid, Item>) {
+    let mut ruleset_items = items
+        .iter()
+        .filter(|(_, item)| item_is_ruleset_owned(item))
+        .map(|(id, item)| (*id, item.clone()))
+        .collect::<Vec<_>>();
+    ruleset_items.sort_by(|(_, a), (_, b)| {
+        a.name
+            .to_ascii_lowercase()
+            .cmp(&b.name.to_ascii_lowercase())
+            .then_with(|| item_ruleset_path(a).cmp(&item_ruleset_path(b)))
+    });
+
+    let custom_items = items
+        .iter()
+        .filter(|(_, item)| !item_is_ruleset_owned(item))
+        .map(|(id, item)| (*id, item.clone()))
+        .collect::<Vec<_>>();
+
+    items.clear();
+    for (id, item) in custom_items.into_iter().chain(ruleset_items) {
+        items.insert(id, item);
+    }
+}
+
 pub fn merge_config_toml(project_config: &str, region_config: &str) -> String {
     if project_config.trim().is_empty() {
         return region_config.to_string();
@@ -673,6 +702,7 @@ impl Project {
                 changed += 1;
             }
         }
+        sort_ruleset_items_after_custom(&mut self.items);
 
         Ok(changed)
     }
@@ -1419,7 +1449,7 @@ mod tests {
         project.config = crate::rulesets::DEFAULT_RULESET_CONFIG.to_string();
         project.rules = crate::rulesets::DEFAULT_RULES_OVERRIDE.to_string();
 
-        assert_eq!(project.sync_ruleset_items().unwrap(), 20);
+        assert_eq!(project.sync_ruleset_items().unwrap(), 21);
         assert_eq!(project.sync_ruleset_items().unwrap(), 0);
         assert_eq!(
             project.palette.colors[2]
@@ -1450,5 +1480,37 @@ mod tests {
                 && item.data.contains("torso_index = 2")
                 && item.data.contains("arms_index = 2")
         }));
+    }
+
+    #[test]
+    fn project_sorts_ruleset_items_below_custom_items_by_display_name() {
+        let mut project = Project::new();
+        let mut custom = Item::new();
+        custom.name = "Custom Idol".to_string();
+        let custom_id = custom.id;
+        project.add_item(custom);
+        project.config = crate::rulesets::DEFAULT_RULESET_CONFIG.to_string();
+        project.rules = crate::rulesets::DEFAULT_RULES_OVERRIDE.to_string();
+
+        assert_eq!(project.sync_ruleset_items().unwrap(), 21);
+        assert_eq!(project.items.first().map(|(id, _)| *id), Some(custom_id));
+        let names = project
+            .items
+            .values()
+            .map(|item| item.name.as_str())
+            .collect::<Vec<_>>();
+        let green_wood = names.iter().position(|name| *name == "Green Wood").unwrap();
+        let green_wood_node = names
+            .iter()
+            .position(|name| *name == "Green Wood Node")
+            .unwrap();
+        let wild_herb = names.iter().position(|name| *name == "Wild Herb").unwrap();
+        let wild_herb_node = names
+            .iter()
+            .position(|name| *name == "Wild Herb Node")
+            .unwrap();
+
+        assert_eq!(green_wood_node, green_wood + 1);
+        assert_eq!(wild_herb_node, wild_herb + 1);
     }
 }

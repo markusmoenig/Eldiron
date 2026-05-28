@@ -79,6 +79,23 @@ impl Item {
         self.container.is_some()
     }
 
+    pub fn apply_container_attributes(&mut self) {
+        let slots = self.attributes.get_int_default("container_slots", 0).max(0) as u32;
+        let is_container = self.attributes.get_bool_default("container", false) || slots > 0;
+        if !is_container {
+            return;
+        }
+        if slots > 0 {
+            self.set_max_capacity(slots);
+        } else if self.max_capacity == 0 {
+            self.set_max_capacity(1);
+        }
+        if self.container.is_none() {
+            self.container = Some(Vec::new());
+            self.mark_dirty_field(0b0001);
+        }
+    }
+
     pub fn stack_quantity(&self) -> i32 {
         match self.attributes.get("quantity") {
             Some(Value::Int(value)) => (*value).max(0),
@@ -139,14 +156,75 @@ impl Item {
 
     /// Add an item to the container
     pub fn add_to_container(&mut self, item: Item) -> Result<(), String> {
+        self.add_item_to_container(item).map(|_| ())
+    }
+
+    pub fn add_item_to_container(&mut self, mut item: Item) -> Result<usize, String> {
+        self.apply_container_attributes();
         if let Some(container) = self.container.as_mut() {
-            if container.len() < self.max_capacity as usize {
+            if item.is_stackable() {
+                let mut remaining = item.stack_quantity().max(1);
+                let available_stack_space = container
+                    .iter()
+                    .filter(|existing| existing.can_stack_with(&item))
+                    .map(|existing| (existing.max_stack() - existing.stack_quantity()).max(0))
+                    .sum::<i32>();
+                let remaining_after_merge = remaining.saturating_sub(available_stack_space);
+                if remaining_after_merge > 0 && container.len() >= self.max_capacity.max(1) as usize
+                {
+                    return Err("Container is full.".to_string());
+                }
+
+                let mut merged_index = None;
+                for (index, existing) in container.iter_mut().enumerate() {
+                    if remaining <= 0 {
+                        break;
+                    }
+                    if !existing.can_stack_with(&item) {
+                        continue;
+                    }
+                    let capacity = existing.max_stack();
+                    let current = existing.stack_quantity();
+                    if current >= capacity {
+                        continue;
+                    }
+                    let moved = (capacity - current).min(remaining);
+                    existing.set_stack_quantity(current + moved);
+                    remaining -= moved;
+                    merged_index.get_or_insert(index);
+                }
+                if remaining <= 0 {
+                    self.mark_dirty_field(0b0001);
+                    return Ok(merged_index.unwrap_or(0));
+                }
+                item.set_stack_quantity(remaining);
+            }
+
+            if container.len() < self.max_capacity.max(1) as usize {
+                let index = container.len();
                 container.push(item);
                 self.mark_dirty_field(0b0001);
-                Ok(())
+                Ok(index)
             } else {
                 Err("Container is full.".to_string())
             }
+        } else {
+            Err("This item is not a container.".to_string())
+        }
+    }
+
+    pub fn remove_from_container_where<F>(&mut self, mut predicate: F) -> Result<Item, String>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        self.apply_container_attributes();
+        if let Some(container) = self.container.as_mut() {
+            if let Some(index) = container.iter().position(|item| predicate(item)) {
+                let item = container.remove(index);
+                self.mark_dirty_field(0b0001);
+                return Ok(item);
+            }
+            Err("Item not found in container.".to_string())
         } else {
             Err("This item is not a container.".to_string())
         }
@@ -273,6 +351,11 @@ impl Item {
                 None
             },
             attributes: updated_attributes,
+            container: if self.dirty_flags & 0b0001 != 0 {
+                self.container.clone()
+            } else {
+                None
+            },
             container_updates,
         }
     }
@@ -303,6 +386,10 @@ impl Item {
             self.attributes.set(&key, value.clone());
         }
 
+        if let Some(container) = update.container {
+            self.container = Some(container);
+        }
+
         // Recursively apply updates to items in the container
         if let Some(container_updates) = update.container_updates {
             if let Some(container) = &mut self.container {
@@ -316,6 +403,61 @@ impl Item {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn stack(id: u32, quantity: i32, max_stack: i32) -> Item {
+        let mut item = Item::new();
+        item.id = id;
+        item.set_attribute("ruleset_id", Value::Str("wild_herb".into()));
+        item.set_attribute("stackable", Value::Bool(true));
+        item.set_attribute("quantity", Value::Int(quantity));
+        item.set_attribute("max_stack", Value::Int(max_stack));
+        item
+    }
+
+    #[test]
+    fn container_stack_merge_is_atomic_when_full() {
+        let mut bag = Item::new();
+        bag.set_attribute("container", Value::Bool(true));
+        bag.set_attribute("container_slots", Value::Int(1));
+        bag.apply_container_attributes();
+        bag.add_item_to_container(stack(1, 4, 5)).unwrap();
+
+        assert!(bag.add_item_to_container(stack(2, 3, 5)).is_err());
+        let container = bag.container.as_ref().unwrap();
+        assert_eq!(container.len(), 1);
+        assert_eq!(container[0].stack_quantity(), 4);
+    }
+
+    #[test]
+    fn container_update_carries_new_contents() {
+        let mut bag = Item::new();
+        bag.id = 10;
+        bag.set_attribute("container", Value::Bool(true));
+        bag.set_attribute("container_slots", Value::Int(6));
+        bag.apply_container_attributes();
+        bag.clear_dirty();
+
+        bag.add_item_to_container(stack(11, 2, 50)).unwrap();
+        let update = bag.get_update();
+
+        let mut client_bag = Item::new();
+        client_bag.id = 10;
+        client_bag.set_attribute("container", Value::Bool(true));
+        client_bag.set_attribute("container_slots", Value::Int(6));
+        client_bag.apply_container_attributes();
+        client_bag.clear_dirty();
+        client_bag.apply_update(update);
+
+        let contents = client_bag.container.as_ref().unwrap();
+        assert_eq!(contents.len(), 1);
+        assert_eq!(contents[0].id, 11);
+        assert_eq!(contents[0].stack_quantity(), 2);
+    }
+}
+
 /// Represents a partial update for an `Item`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemUpdate {
@@ -325,6 +467,7 @@ pub struct ItemUpdate {
     pub max_capacity: Option<u32>,
     pub position: Option<Vec3<f32>>,
     pub attributes: FxHashMap<String, Value>,
+    pub container: Option<Vec<Item>>,
     pub container_updates: Option<Vec<ItemUpdate>>,
 }
 
@@ -343,6 +486,7 @@ impl ItemUpdate {
             max_capacity: None,
             position: None,
             attributes: FxHashMap::default(),
+            container: None,
             container_updates: None,
         })
     }

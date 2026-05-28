@@ -356,7 +356,7 @@ Use the inspector commands to browse the effective ruleset:
 Use the calculator commands to answer balancing questions without needing to run
 a full gameplay scenario.
 
-In play, official action distances are resolved before legacy character
+In play, official action distances are resolved before per-character
 `[intent_distance]` values. The same `attack` icon can therefore use melee
 range for swords and maces, or bow range for Rangers. Directional 2D intents
 scan the chosen lane up to that range, so `attack` plus a direction can select a
@@ -374,10 +374,11 @@ Resource nodes are separate from inventory materials. For example,
 `wild_herb_node` is a placed world item with `static = true`, `resource_id =
 "wild_herb_node"`, `respawn = 300`, and `amount = 2`. Gathering it with
 `gather_herbs` adds `wild_herb x2` to the actor's inventory, hides the node, and
-lets it become visible again after its respawn timer. `green_wood_node` works
-the same way for `gather_wood`, producing `green_wood x3`, while
-`bird_nest_node` uses `gather_feathers` to produce `feather x2`. The text
-command path can use the same action with:
+lets it become visible again after its respawn timer. It also sends a localized
+success message such as `You gather Wild Herb x2`. `green_wood_node` works the
+same way for `gather_wood`, producing `green_wood x3`, while `bird_nest_node`
+uses `gather_feathers` to produce `feather x2`. The text command path can use
+the same action with:
 
 ```text
 gather herbs
@@ -390,6 +391,49 @@ craft hunting bow
 
 When no target is named, the text command chooses the nearest visible resource
 node for that action and leaves range validation to the rules action.
+
+## Containers
+
+Item containers are normal ruleset item templates with `container = true` and
+`container_slots`. The first official container is `small_bag`, a takeable
+six-slot pouch.
+
+Container UI is ruleset-driven, not screen-driven. Items can select a
+`container_template`, and the runtime opens a floating draggable panel. The
+panel can be closed with Escape or its close button. Inventory items can be
+dragged into the panel, and items inside the panel can be dragged back to
+inventory slots, equipment slots, or the map. It is drawn procedurally when no
+tile skin is supplied:
+
+```toml
+[ui.container_templates.bag_small]
+mode = "procedural"
+columns = 3
+rows = 2
+slot_size = 32
+gap = 4
+padding = 8
+title = true
+
+[items.containers.small_bag]
+container_template = "bag_small"
+```
+
+Template tile fields can be supplied under
+`[ui.container_templates.<id>.tiles]` for `top_left`, `top`, `top_right`,
+`left`, `center`, `right`, `bottom_left`, `bottom`, `bottom_right`, and `slot`.
+If those fields are absent, the procedural renderer is used.
+
+The current text command path can move top-level inventory items into and out
+of an inventory or visible world container:
+
+```text
+put wild herb in bag
+take wild herb from bag
+```
+
+Stackable items merge inside containers. This is the base path for bags now and
+for chests, lootable corpses, and larger scrollable container layouts later.
 
 ## Recipes
 

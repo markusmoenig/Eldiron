@@ -25,6 +25,31 @@ tile_id = "explicit character tile_id wins over ruleset visuals"
 avatar = "explicit character avatar/avatar_id wins over ruleset visuals"
 empty_visual = "tile_id = \"\" or avatar = \"\" disables inherited default visuals"
 
+[ui.container_templates.default]
+mode = "procedural"
+columns = 4
+slot_size = 32
+gap = 4
+padding = 8
+title = true
+background_color = "#0a0c0fe6"
+border_color = "#626974ff"
+slot_color = "#10151bcc"
+slot_border_color = "#626974ff"
+
+[ui.container_templates.bag_small]
+mode = "procedural"
+columns = 3
+rows = 2
+slot_size = 32
+gap = 4
+padding = 8
+title = true
+background_color = "#0a0c0fe6"
+border_color = "#626974ff"
+slot_color = "#10151bcc"
+slot_border_color = "#626974ff"
+
 [resources.wild_herb_node]
 name = "Wild Herb Node"
 description = "A small wild herb growth that can be gathered for fresh herbs."

@@ -574,6 +574,168 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn item_containers_move_and_stack_inventory_items() {
+        let mut ctx = RegionCtx::default();
+        let mut entity = Entity::new();
+        entity.id = 1;
+        entity.inventory.resize(4, None);
+
+        let mut bag = Item::new();
+        bag.id = 10;
+        bag.set_attribute("name", Value::Str("Small Bag".into()));
+        bag.set_attribute("ruleset_id", Value::Str("small_bag".into()));
+        bag.set_attribute("category", Value::Str("bag".into()));
+        bag.set_attribute("container", Value::Bool(true));
+        bag.set_attribute("container_slots", Value::Int(6));
+        bag.apply_container_attributes();
+        entity.add_item(bag).unwrap();
+
+        let mut herbs = Item::new();
+        herbs.id = 11;
+        herbs.set_attribute("name", Value::Str("Wild Herb".into()));
+        herbs.set_attribute("ruleset_id", Value::Str("wild_herb".into()));
+        herbs.set_attribute("stackable", Value::Bool(true));
+        herbs.set_attribute("max_stack", Value::Int(50));
+        herbs.set_attribute("quantity", Value::Int(2));
+        entity.add_item(herbs).unwrap();
+        ctx.map.entities.push(entity);
+
+        let put = RegionInstance::put_inventory_item_in_container(&mut ctx, 1, "wild herb", "bag");
+        assert_eq!(put, Ok(("Wild Herb".into(), "Small Bag".into())));
+        let bag = ctx.map.entities[0].inventory[0].as_ref().unwrap();
+        assert_eq!(bag.container.as_ref().unwrap()[0].stack_quantity(), 2);
+        assert!(ctx.map.entities[0].inventory[1].is_none());
+
+        let mut more_herbs = Item::new();
+        more_herbs.id = 12;
+        more_herbs.set_attribute("name", Value::Str("Wild Herb".into()));
+        more_herbs.set_attribute("ruleset_id", Value::Str("wild_herb".into()));
+        more_herbs.set_attribute("stackable", Value::Bool(true));
+        more_herbs.set_attribute("max_stack", Value::Int(50));
+        more_herbs.set_attribute("quantity", Value::Int(3));
+        ctx.map.entities[0].add_item(more_herbs).unwrap();
+
+        assert_eq!(
+            RegionInstance::put_inventory_item_in_container(&mut ctx, 1, "wild herb", "small bag"),
+            Ok(("Wild Herb".into(), "Small Bag".into()))
+        );
+        let bag = ctx.map.entities[0].inventory[0].as_ref().unwrap();
+        assert_eq!(bag.container.as_ref().unwrap()[0].stack_quantity(), 5);
+
+        assert_eq!(
+            RegionInstance::take_item_from_container(&mut ctx, 1, "wild herb", "bag"),
+            Ok(("Wild Herb".into(), "Small Bag".into()))
+        );
+        assert_eq!(
+            ctx.map.entities[0]
+                .inventory
+                .iter()
+                .filter_map(|item| item.as_ref())
+                .find(|item| ruleset_item_matches_id(item, "wild_herb"))
+                .map(Item::stack_quantity),
+            Some(5)
+        );
+
+        let herb_id = ctx.map.entities[0]
+            .inventory
+            .iter()
+            .filter_map(|item| item.as_ref())
+            .find(|item| ruleset_item_matches_id(item, "wild_herb"))
+            .map(|item| item.id)
+            .unwrap();
+        assert!(RegionInstance::move_item_to_container_for_entity(
+            &mut ctx,
+            1,
+            herb_id,
+            Some(1),
+            None,
+            None,
+            10,
+            Some(1),
+        ));
+        assert!(
+            ctx.map.entities[0].inventory[0]
+                .as_ref()
+                .unwrap()
+                .container
+                .as_ref()
+                .unwrap()
+                .iter()
+                .any(|item| item.id == herb_id)
+        );
+
+        assert!(RegionInstance::move_container_item_for_entity(
+            &mut ctx,
+            1,
+            herb_id,
+            10,
+            Some(1),
+            Some(1),
+            Some(2),
+            None,
+        ));
+        assert_eq!(
+            ctx.map.entities[0].inventory[2]
+                .as_ref()
+                .map(|item| item.id),
+            Some(herb_id)
+        );
+        assert!(
+            ctx.map.entities[0].inventory[0]
+                .as_ref()
+                .unwrap()
+                .container
+                .as_ref()
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn item_drag_drop_respects_take_range() {
+        let mut ctx = RegionCtx::default();
+        let (from_sender, _from_receiver) = unbounded();
+        let _ = ctx.from_sender.set(from_sender);
+
+        let mut entity = Entity::new();
+        entity.id = 1;
+        entity.position = Vec3::new(0.0, 1.0, 0.0);
+        entity.inventory.resize(2, None);
+
+        let mut carried = Item::new();
+        carried.id = 20;
+        carried.position = entity.position;
+        entity.add_item(carried).unwrap();
+        ctx.map.entities.push(entity);
+
+        assert!(!drop_item_for_entity_at(
+            &mut ctx,
+            1,
+            20,
+            Some(Vec2::new(10.0, 10.0))
+        ));
+        assert!(ctx.map.entities[0].get_item(20).is_some());
+
+        let mut world_item = Item::new();
+        world_item.id = 30;
+        world_item.position = Vec3::new(10.0, 1.0, 10.0);
+        ctx.map.items.push(world_item);
+
+        assert!(!move_item_for_entity(&mut ctx, 1, 1, 30, Some(1), None));
+        assert!(ctx.map.entities[0].inventory[1].is_none());
+        assert_eq!(ctx.map.items[0].id, 30);
+
+        ctx.map.items[0].position = Vec3::new(0.5, 1.0, 0.5);
+        assert!(move_world_item_for_entity_at(
+            &mut ctx,
+            1,
+            30,
+            Vec2::new(0.5, 0.5)
+        ));
+        assert_eq!(ctx.map.items[0].get_pos_xz(), Vec2::new(0.5, 0.5));
+    }
+
+    #[test]
     fn intent_rules_can_be_derived_from_actions() {
         let mut ctx = RegionCtx::default();
         ctx.rules = toml::from_str::<toml::Value>(
@@ -1122,6 +1284,37 @@ struct DynamicCollisionProbe {
     blocking_collision: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ItemContainerLocation {
+    InventorySlot(usize),
+    WorldItem(usize),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ContainerTransferError {
+    ItemNotFound,
+    ContainerNotFound,
+    SameItem,
+    ContainerFull,
+    InventoryFull,
+    ItemNotInContainer,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum DragContainerLocation {
+    InventorySlot { entity_index: usize, slot: usize },
+    EquippedSlot { entity_index: usize, slot: String },
+    WorldItem { index: usize },
+}
+
+#[derive(Clone, Debug)]
+enum DragItemSource {
+    Inventory { entity_index: usize, slot: usize },
+    Equipped { entity_index: usize, slot: String },
+    World { index: usize },
+    Container { location: DragContainerLocation },
+}
+
 pub struct RegionInstance {
     pub id: u32,
 
@@ -1502,6 +1695,626 @@ impl RegionInstance {
         Self::resolve_named_item_target(ctx, actor_id, target).map(|entry| entry.0)
     }
 
+    fn item_display_name(item: &Item) -> String {
+        item.attributes
+            .get_str("name")
+            .or_else(|| item.attributes.get_str("class_name"))
+            .or_else(|| item.attributes.get_str("ruleset_id"))
+            .map(str::to_string)
+            .unwrap_or_else(|| item.item_type.clone())
+    }
+
+    fn item_matches_text(item: &Item, text: &str) -> bool {
+        let needle = crate::text_command::normalize_ruleset_id(text);
+        if needle.is_empty() {
+            return false;
+        }
+        for key in ["name", "class_name", "ruleset_id", "category", "slot"] {
+            if let Some(value) = item.attributes.get_str(key) {
+                let value = crate::text_command::normalize_ruleset_id(value);
+                if value == needle || value.ends_with(&format!("_{}", needle)) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn item_is_container(item: &Item) -> bool {
+        item.is_container()
+            || item.attributes.get_bool_default("container", false)
+            || item.attributes.get_int_default("container_slots", 0) > 0
+    }
+
+    fn find_inventory_item_slot(entity: &Entity, name: &str) -> Option<usize> {
+        entity.inventory.iter().position(|item| {
+            item.as_ref()
+                .is_some_and(|item| Self::item_matches_text(item, name))
+        })
+    }
+
+    fn find_container_location(
+        ctx: &RegionCtx,
+        actor_id: u32,
+        name: &str,
+    ) -> Option<ItemContainerLocation> {
+        let actor = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == actor_id)?;
+        if let Some(slot) = actor.inventory.iter().position(|item| {
+            item.as_ref().is_some_and(|item| {
+                Self::item_is_container(item) && Self::item_matches_text(item, name)
+            })
+        }) {
+            return Some(ItemContainerLocation::InventorySlot(slot));
+        }
+
+        let actor_pos = actor.get_pos_xz();
+        ctx.map
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| item.attributes.get_bool_default("visible", true))
+            .filter(|(_, item)| Self::item_is_container(item))
+            .filter(|(_, item)| Self::item_matches_text(item, name))
+            .map(|(index, item)| (index, actor_pos.distance_squared(item.get_pos_xz())))
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|entry| ItemContainerLocation::WorldItem(entry.0))
+    }
+
+    fn put_inventory_item_in_container(
+        ctx: &mut RegionCtx,
+        actor_id: u32,
+        item_name: &str,
+        container_name: &str,
+    ) -> Result<(String, String), ContainerTransferError> {
+        let actor_index = ctx
+            .map
+            .entities
+            .iter()
+            .position(|entity| entity.id == actor_id)
+            .ok_or(ContainerTransferError::ItemNotFound)?;
+        let location = Self::find_container_location(ctx, actor_id, container_name)
+            .ok_or(ContainerTransferError::ContainerNotFound)?;
+        let item_slot = Self::find_inventory_item_slot(&ctx.map.entities[actor_index], item_name)
+            .ok_or(ContainerTransferError::ItemNotFound)?;
+        if matches!(location, ItemContainerLocation::InventorySlot(slot) if slot == item_slot) {
+            return Err(ContainerTransferError::SameItem);
+        }
+
+        let moved_item = ctx.map.entities[actor_index]
+            .remove_item_from_slot(item_slot)
+            .ok_or(ContainerTransferError::ItemNotFound)?;
+        let item_label = Self::item_display_name(&moved_item);
+        let result = match location {
+            ItemContainerLocation::InventorySlot(slot) => {
+                let actor = &mut ctx.map.entities[actor_index];
+                let container = actor
+                    .inventory
+                    .get_mut(slot)
+                    .and_then(Option::as_mut)
+                    .ok_or(ContainerTransferError::ContainerNotFound)?;
+                let container_label = Self::item_display_name(container);
+                container
+                    .add_item_to_container(moved_item.clone())
+                    .map_err(|_| ContainerTransferError::ContainerFull)?;
+                actor.inventory_updates.insert(slot, container.get_update());
+                Ok(container_label)
+            }
+            ItemContainerLocation::WorldItem(index) => {
+                let container = ctx
+                    .map
+                    .items
+                    .get_mut(index)
+                    .ok_or(ContainerTransferError::ContainerNotFound)?;
+                let container_label = Self::item_display_name(container);
+                container
+                    .add_item_to_container(moved_item.clone())
+                    .map_err(|_| ContainerTransferError::ContainerFull)?;
+                Ok(container_label)
+            }
+        };
+
+        match result {
+            Ok(container_label) => Ok((item_label, container_label)),
+            Err(err) => {
+                let _ = ctx.map.entities[actor_index].add_item(moved_item);
+                Err(err)
+            }
+        }
+    }
+
+    fn take_item_from_container(
+        ctx: &mut RegionCtx,
+        actor_id: u32,
+        item_name: &str,
+        container_name: &str,
+    ) -> Result<(String, String), ContainerTransferError> {
+        let actor_index = ctx
+            .map
+            .entities
+            .iter()
+            .position(|entity| entity.id == actor_id)
+            .ok_or(ContainerTransferError::ItemNotFound)?;
+        let location = Self::find_container_location(ctx, actor_id, container_name)
+            .ok_or(ContainerTransferError::ContainerNotFound)?;
+
+        let (removed_item, container_label) = match location {
+            ItemContainerLocation::InventorySlot(slot) => {
+                let actor = &mut ctx.map.entities[actor_index];
+                let container = actor
+                    .inventory
+                    .get_mut(slot)
+                    .and_then(Option::as_mut)
+                    .ok_or(ContainerTransferError::ContainerNotFound)?;
+                let container_label = Self::item_display_name(container);
+                let removed_item = container
+                    .remove_from_container_where(|item| Self::item_matches_text(item, item_name))
+                    .map_err(|_| ContainerTransferError::ItemNotInContainer)?;
+                actor.inventory_updates.insert(slot, container.get_update());
+                (removed_item, container_label)
+            }
+            ItemContainerLocation::WorldItem(index) => {
+                let container = ctx
+                    .map
+                    .items
+                    .get_mut(index)
+                    .ok_or(ContainerTransferError::ContainerNotFound)?;
+                let container_label = Self::item_display_name(container);
+                let removed_item = container
+                    .remove_from_container_where(|item| Self::item_matches_text(item, item_name))
+                    .map_err(|_| ContainerTransferError::ItemNotInContainer)?;
+                (removed_item, container_label)
+            }
+        };
+
+        let item_label = Self::item_display_name(&removed_item);
+        if ctx.map.entities[actor_index]
+            .add_item(removed_item.clone())
+            .is_err()
+        {
+            match location {
+                ItemContainerLocation::InventorySlot(slot) => {
+                    let update = {
+                        ctx.map.entities[actor_index]
+                            .inventory
+                            .get_mut(slot)
+                            .and_then(Option::as_mut)
+                            .map(|container| {
+                                let _ = container.add_item_to_container(removed_item);
+                                container.get_update()
+                            })
+                    };
+                    if let Some(update) = update {
+                        ctx.map.entities[actor_index]
+                            .inventory_updates
+                            .insert(slot, update);
+                    }
+                }
+                ItemContainerLocation::WorldItem(index) => {
+                    if let Some(container) = ctx.map.items.get_mut(index) {
+                        let _ = container.add_item_to_container(removed_item);
+                    }
+                }
+            }
+            return Err(ContainerTransferError::InventoryFull);
+        }
+
+        Ok((item_label, container_label))
+    }
+
+    fn find_drag_container_location(
+        ctx: &RegionCtx,
+        container_item_id: u32,
+        owner_entity_id: Option<u32>,
+    ) -> Option<DragContainerLocation> {
+        let entity_indices: Vec<usize> = if let Some(owner_id) = owner_entity_id {
+            ctx.map
+                .entities
+                .iter()
+                .position(|entity| entity.id == owner_id)
+                .into_iter()
+                .collect()
+        } else {
+            (0..ctx.map.entities.len()).collect()
+        };
+
+        for entity_index in entity_indices {
+            let entity = &ctx.map.entities[entity_index];
+            if let Some(slot) = entity.inventory.iter().position(|item| {
+                item.as_ref().is_some_and(|item| {
+                    item.id == container_item_id && Self::item_is_container(item)
+                })
+            }) {
+                return Some(DragContainerLocation::InventorySlot { entity_index, slot });
+            }
+            if let Some((slot, _)) = entity
+                .equipped
+                .iter()
+                .find(|(_, item)| item.id == container_item_id && Self::item_is_container(item))
+            {
+                return Some(DragContainerLocation::EquippedSlot {
+                    entity_index,
+                    slot: slot.clone(),
+                });
+            }
+        }
+
+        if owner_entity_id.is_none()
+            && let Some(index) = ctx
+                .map
+                .items
+                .iter()
+                .position(|item| item.id == container_item_id && Self::item_is_container(item))
+        {
+            return Some(DragContainerLocation::WorldItem { index });
+        }
+
+        None
+    }
+
+    fn drag_container_mut<'a>(
+        ctx: &'a mut RegionCtx,
+        location: &DragContainerLocation,
+    ) -> Option<&'a mut Item> {
+        match location {
+            DragContainerLocation::InventorySlot { entity_index, slot } => ctx
+                .map
+                .entities
+                .get_mut(*entity_index)?
+                .inventory
+                .get_mut(*slot)?
+                .as_mut(),
+            DragContainerLocation::EquippedSlot { entity_index, slot } => ctx
+                .map
+                .entities
+                .get_mut(*entity_index)?
+                .equipped
+                .get_mut(slot),
+            DragContainerLocation::WorldItem { index } => ctx.map.items.get_mut(*index),
+        }
+    }
+
+    fn mark_drag_container_changed(ctx: &mut RegionCtx, location: &DragContainerLocation) {
+        match location {
+            DragContainerLocation::InventorySlot { entity_index, slot } => {
+                let update = ctx.map.entities[*entity_index]
+                    .inventory
+                    .get(*slot)
+                    .and_then(Option::as_ref)
+                    .map(Item::get_update);
+                if let Some(update) = update {
+                    ctx.map.entities[*entity_index]
+                        .inventory_updates
+                        .insert(*slot, update);
+                    ctx.map.entities[*entity_index].dirty_flags |= 0b1000;
+                }
+            }
+            DragContainerLocation::EquippedSlot { entity_index, .. } => {
+                ctx.map.entities[*entity_index].dirty_flags |= 0b10000;
+            }
+            DragContainerLocation::WorldItem { .. } => {}
+        }
+    }
+
+    fn remove_item_from_drag_container(
+        ctx: &mut RegionCtx,
+        location: &DragContainerLocation,
+        item_id: u32,
+    ) -> Option<Item> {
+        let item = Self::drag_container_mut(ctx, location)?
+            .remove_from_container(item_id)
+            .ok()?;
+        Self::mark_drag_container_changed(ctx, location);
+        Some(item)
+    }
+
+    fn add_item_to_drag_container(
+        ctx: &mut RegionCtx,
+        location: &DragContainerLocation,
+        item: Item,
+    ) -> Result<(), Item> {
+        let Some(container) = Self::drag_container_mut(ctx, location) else {
+            return Err(item);
+        };
+        match container.add_item_to_container(item.clone()) {
+            Ok(_) => {
+                Self::mark_drag_container_changed(ctx, location);
+                Ok(())
+            }
+            Err(_) => Err(item),
+        }
+    }
+
+    fn remove_dragged_item(
+        ctx: &mut RegionCtx,
+        actor_id: u32,
+        item_id: u32,
+        owner_entity_id: Option<u32>,
+        source_container_item_id: Option<u32>,
+        source_container_owner_entity_id: Option<u32>,
+    ) -> Option<(Item, DragItemSource)> {
+        if let Some(container_item_id) = source_container_item_id {
+            let location = Self::find_drag_container_location(
+                ctx,
+                container_item_id,
+                source_container_owner_entity_id,
+            )?;
+            let item = Self::remove_item_from_drag_container(ctx, &location, item_id)?;
+            return Some((item, DragItemSource::Container { location }));
+        }
+
+        let source_entity_id = owner_entity_id.unwrap_or(actor_id);
+        if let Some(entity_index) = ctx
+            .map
+            .entities
+            .iter()
+            .position(|entity| entity.id == source_entity_id)
+        {
+            if let Some(slot) = ctx.map.entities[entity_index].get_item_slot(item_id) {
+                let item = ctx.map.entities[entity_index].remove_item_from_slot(slot)?;
+                return Some((item, DragItemSource::Inventory { entity_index, slot }));
+            }
+            if let Some(slot) = ctx.map.entities[entity_index]
+                .equipped
+                .iter()
+                .find_map(|(slot, item)| (item.id == item_id).then(|| slot.clone()))
+            {
+                let item = ctx.map.entities[entity_index].unequip_item(&slot).ok()?;
+                return Some((item, DragItemSource::Equipped { entity_index, slot }));
+            }
+        }
+
+        if owner_entity_id.is_none()
+            && let Some(index) = ctx.map.items.iter().position(|item| {
+                item.id == item_id && !item.attributes.get_bool_default("static", false)
+            })
+        {
+            let item = ctx.map.items.remove(index);
+            return Some((item, DragItemSource::World { index }));
+        }
+
+        None
+    }
+
+    fn restore_dragged_item(ctx: &mut RegionCtx, source: DragItemSource, item: Item) {
+        match source {
+            DragItemSource::Inventory { entity_index, slot } => {
+                if let Some(entity) = ctx.map.entities.get_mut(entity_index) {
+                    if slot < entity.inventory.len() && entity.inventory[slot].is_none() {
+                        entity.inventory[slot] = Some(item.clone());
+                        entity.inventory_additions.insert(slot, item);
+                        entity.inventory_removals.remove(&slot);
+                        entity.dirty_flags |= 0b1000;
+                    } else {
+                        let _ = entity.add_item(item);
+                    }
+                }
+            }
+            DragItemSource::Equipped { entity_index, slot } => {
+                if let Some(entity) = ctx.map.entities.get_mut(entity_index) {
+                    entity.equipped.insert(slot, item);
+                    entity.dirty_flags |= 0b10000;
+                }
+            }
+            DragItemSource::World { index } => {
+                let insert_at = index.min(ctx.map.items.len());
+                ctx.map.items.insert(insert_at, item);
+            }
+            DragItemSource::Container { location } => {
+                let _ = Self::add_item_to_drag_container(ctx, &location, item);
+            }
+        }
+    }
+
+    fn move_item_to_container_for_entity(
+        ctx: &mut RegionCtx,
+        actor_id: u32,
+        item_id: u32,
+        owner_entity_id: Option<u32>,
+        source_container_item_id: Option<u32>,
+        source_container_owner_entity_id: Option<u32>,
+        container_item_id: u32,
+        container_owner_entity_id: Option<u32>,
+    ) -> bool {
+        if item_id == container_item_id {
+            return false;
+        }
+        if source_container_item_id == Some(container_item_id)
+            && source_container_owner_entity_id == container_owner_entity_id
+        {
+            return true;
+        }
+        let source_world_container_out_of_reach = source_container_item_id.is_some_and(|id| {
+            source_container_owner_entity_id.is_none()
+                && !world_item_in_drag_reach(ctx, actor_id, id)
+        });
+        let source_world_item_out_of_reach = source_container_item_id.is_none()
+            && owner_entity_id.is_none()
+            && ctx.map.items.iter().any(|item| item.id == item_id)
+            && !world_item_in_drag_reach(ctx, actor_id, item_id);
+        let target_world_container_out_of_reach = container_owner_entity_id.is_none()
+            && !world_item_in_drag_reach(ctx, actor_id, container_item_id);
+        if source_world_container_out_of_reach
+            || source_world_item_out_of_reach
+            || target_world_container_out_of_reach
+        {
+            send_drag_too_far_message(ctx, actor_id);
+            return false;
+        }
+
+        let Some((item, source)) = Self::remove_dragged_item(
+            ctx,
+            actor_id,
+            item_id,
+            owner_entity_id,
+            source_container_item_id,
+            source_container_owner_entity_id,
+        ) else {
+            return false;
+        };
+        if item.attributes.get_bool_default("is_spell", false) {
+            Self::restore_dragged_item(ctx, source, item);
+            return false;
+        }
+
+        let Some(target_location) =
+            Self::find_drag_container_location(ctx, container_item_id, container_owner_entity_id)
+        else {
+            Self::restore_dragged_item(ctx, source, item);
+            return false;
+        };
+
+        let from_world = matches!(source, DragItemSource::World { .. });
+        match Self::add_item_to_drag_container(ctx, &target_location, item) {
+            Ok(()) => {
+                if from_world {
+                    let _ = ctx
+                        .from_sender
+                        .get()
+                        .unwrap()
+                        .send(RegionMessage::RemoveItem(ctx.region_id, item_id));
+                }
+                true
+            }
+            Err(item) => {
+                Self::restore_dragged_item(ctx, source, item);
+                false
+            }
+        }
+    }
+
+    fn move_container_item_for_entity(
+        ctx: &mut RegionCtx,
+        actor_id: u32,
+        item_id: u32,
+        container_item_id: u32,
+        container_owner_entity_id: Option<u32>,
+        target_entity_id: Option<u32>,
+        to_inventory_index: Option<usize>,
+        to_equipped_slot: Option<String>,
+    ) -> bool {
+        let Some(source_location) =
+            Self::find_drag_container_location(ctx, container_item_id, container_owner_entity_id)
+        else {
+            return false;
+        };
+        if container_owner_entity_id.is_none()
+            && !world_item_in_drag_reach(ctx, actor_id, container_item_id)
+        {
+            send_drag_too_far_message(ctx, actor_id);
+            return false;
+        }
+        let Some(item) = Self::remove_item_from_drag_container(ctx, &source_location, item_id)
+        else {
+            return false;
+        };
+        if item.attributes.get_bool_default("is_spell", false) {
+            let _ = Self::add_item_to_drag_container(ctx, &source_location, item);
+            return false;
+        }
+
+        let target_id = target_entity_id.unwrap_or(actor_id);
+        let Some(target_entity_index) = ctx
+            .map
+            .entities
+            .iter()
+            .position(|entity| entity.id == target_id)
+        else {
+            let _ = Self::add_item_to_drag_container(ctx, &source_location, item);
+            return false;
+        };
+
+        if let Some(target_index) = to_inventory_index {
+            if target_index >= ctx.map.entities[target_entity_index].inventory.len() {
+                let _ = Self::add_item_to_drag_container(ctx, &source_location, item);
+                return false;
+            }
+            let displaced =
+                ctx.map.entities[target_entity_index].remove_item_from_slot(target_index);
+            ctx.map.entities[target_entity_index].inventory[target_index] = Some(item.clone());
+            ctx.map.entities[target_entity_index]
+                .inventory_additions
+                .insert(target_index, item);
+            ctx.map.entities[target_entity_index]
+                .inventory_removals
+                .remove(&target_index);
+            ctx.map.entities[target_entity_index].dirty_flags |= 0b1000;
+            if let Some(displaced) = displaced
+                && Self::add_item_to_drag_container(ctx, &source_location, displaced).is_err()
+            {
+                return false;
+            }
+            return true;
+        }
+
+        if let Some(target_slot) = to_equipped_slot {
+            let moving_slot = item
+                .attributes
+                .get_str("slot")
+                .map(|slot| slot.trim().to_ascii_lowercase());
+            if moving_slot.as_deref() != Some(target_slot.trim().to_ascii_lowercase().as_str()) {
+                let _ = Self::add_item_to_drag_container(ctx, &source_location, item);
+                return false;
+            }
+            let displaced = ctx.map.entities[target_entity_index]
+                .unequip_item(&target_slot)
+                .ok();
+            ctx.map.entities[target_entity_index]
+                .equipped
+                .insert(target_slot, item);
+            ctx.map.entities[target_entity_index].dirty_flags |= 0b10000;
+            if let Some(displaced) = displaced
+                && Self::add_item_to_drag_container(ctx, &source_location, displaced).is_err()
+            {
+                return false;
+            }
+            return true;
+        }
+
+        let _ = Self::add_item_to_drag_container(ctx, &source_location, item);
+        false
+    }
+
+    fn drop_container_item_for_entity_at(
+        ctx: &mut RegionCtx,
+        actor_id: u32,
+        item_id: u32,
+        container_item_id: u32,
+        container_owner_entity_id: Option<u32>,
+        position: Vec2<f32>,
+    ) -> bool {
+        let Some(source_location) =
+            Self::find_drag_container_location(ctx, container_item_id, container_owner_entity_id)
+        else {
+            return false;
+        };
+        let final_position = quantize_item_drop_position(position);
+        if container_owner_entity_id.is_none()
+            && !world_item_in_drag_reach(ctx, actor_id, container_item_id)
+            || !drag_position_in_reach(ctx, actor_id, final_position)
+        {
+            send_drag_too_far_message(ctx, actor_id);
+            return false;
+        }
+        let Some(mut item) = Self::remove_item_from_drag_container(ctx, &source_location, item_id)
+        else {
+            return false;
+        };
+        if item.attributes.get_bool_default("is_spell", false) {
+            let _ = Self::add_item_to_drag_container(ctx, &source_location, item);
+            return false;
+        }
+        item.position.x = final_position.x;
+        item.position.z = final_position.y;
+        item.mark_all_dirty();
+        ctx.map.items.push(item);
+        ctx.send_item_drop_message_for_position(final_position, 1);
+        true
+    }
+
     fn text_command_spell_ids(ctx: &RegionCtx) -> BTreeSet<String> {
         ctx.rules
             .get("spells")
@@ -1819,6 +2632,78 @@ impl RegionInstance {
                         "recipes.could_not_craft",
                         &[("recipe", recipe_name)],
                     );
+                }
+            }
+            TextCommand::PutIn { item, container } => {
+                match Self::put_inventory_item_in_container(ctx, entity_id, &item, &container) {
+                    Ok((item, container)) => Self::send_text_command_feedback(
+                        ctx,
+                        entity_id,
+                        "system.container_put",
+                        &[("item", item), ("container", container)],
+                    ),
+                    Err(ContainerTransferError::ContainerFull) => {
+                        Self::send_text_command_feedback(
+                            ctx,
+                            entity_id,
+                            "system.container_full",
+                            &[("container", container)],
+                        );
+                    }
+                    Err(ContainerTransferError::ItemNotFound) => {
+                        Self::send_text_command_feedback(
+                            ctx,
+                            entity_id,
+                            "system.item_not_found",
+                            &[],
+                        );
+                    }
+                    Err(ContainerTransferError::SameItem) => {
+                        Self::send_text_command_feedback(
+                            ctx,
+                            entity_id,
+                            "system.cant_do_that",
+                            &[],
+                        );
+                    }
+                    Err(_) => Self::send_text_command_feedback(
+                        ctx,
+                        entity_id,
+                        "system.container_not_found",
+                        &[("container", container)],
+                    ),
+                }
+            }
+            TextCommand::TakeFrom { item, container } => {
+                match Self::take_item_from_container(ctx, entity_id, &item, &container) {
+                    Ok((item, container)) => Self::send_text_command_feedback(
+                        ctx,
+                        entity_id,
+                        "system.container_take",
+                        &[("item", item), ("container", container)],
+                    ),
+                    Err(ContainerTransferError::InventoryFull) => {
+                        Self::send_text_command_feedback(
+                            ctx,
+                            entity_id,
+                            "system.inventory_full",
+                            &[],
+                        );
+                    }
+                    Err(ContainerTransferError::ItemNotInContainer) => {
+                        Self::send_text_command_feedback(
+                            ctx,
+                            entity_id,
+                            "system.container_item_not_found",
+                            &[("container", container)],
+                        );
+                    }
+                    Err(_) => Self::send_text_command_feedback(
+                        ctx,
+                        entity_id,
+                        "system.container_not_found",
+                        &[("container", container)],
+                    ),
                 }
             }
             TextCommand::Action { action, target } => {
@@ -4696,17 +5581,84 @@ impl RegionInstance {
                                 );
                             });
                         }
+                        MoveItemToContainer {
+                            item_id,
+                            owner_entity_id,
+                            source_container_item_id,
+                            source_container_owner_entity_id,
+                            container_item_id,
+                            container_owner_entity_id,
+                        } => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                _ = Self::move_item_to_container_for_entity(
+                                    ctx,
+                                    entity_id,
+                                    item_id,
+                                    owner_entity_id,
+                                    source_container_item_id,
+                                    source_container_owner_entity_id,
+                                    container_item_id,
+                                    container_owner_entity_id,
+                                );
+                            });
+                        }
+                        MoveContainerItem {
+                            item_id,
+                            container_item_id,
+                            container_owner_entity_id,
+                            target_entity_id,
+                            to_inventory_index,
+                            to_equipped_slot,
+                        } => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                _ = Self::move_container_item_for_entity(
+                                    ctx,
+                                    entity_id,
+                                    item_id,
+                                    container_item_id,
+                                    container_owner_entity_id,
+                                    target_entity_id,
+                                    to_inventory_index,
+                                    to_equipped_slot,
+                                );
+                            });
+                        }
                         DropItemAt {
                             item_id,
                             owner_entity_id,
                             position,
                         } => {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                                _ = drop_item_for_entity_at(
+                                if owner_entity_id.is_none()
+                                    && ctx.map.items.iter().any(|item| item.id == item_id)
+                                {
+                                    _ = move_world_item_for_entity_at(
+                                        ctx, entity_id, item_id, position,
+                                    );
+                                } else {
+                                    _ = drop_item_for_entity_at(
+                                        ctx,
+                                        owner_entity_id.unwrap_or(entity_id),
+                                        item_id,
+                                        Some(position),
+                                    );
+                                }
+                            });
+                        }
+                        DropContainerItemAt {
+                            item_id,
+                            container_item_id,
+                            container_owner_entity_id,
+                            position,
+                        } => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                _ = Self::drop_container_item_for_entity_at(
                                     ctx,
-                                    owner_entity_id.unwrap_or(entity_id),
+                                    entity_id,
                                     item_id,
-                                    Some(position),
+                                    container_item_id,
+                                    container_owner_entity_id,
+                                    position,
                                 );
                             });
                         }
@@ -9335,6 +10287,7 @@ fn ruleset_item_from_table(
             }
         }
     }
+    item.apply_container_attributes();
     if let Some(template_name) = rule_string(item_table, "visual_template")
         && let Some(template) = rules
             .get("visual_templates")
@@ -10039,6 +10992,11 @@ fn execute_ruleset_resource_action(
     let Some(output_item) = ruleset_item_from_table(&ctx.rules, &item_id, quantity) else {
         return false;
     };
+    let output_name = output_item
+        .attributes
+        .get_str("name")
+        .map(str::to_string)
+        .unwrap_or_else(|| item_id.replace('_', " "));
 
     let mut entity = ctx.map.entities[actor_index].clone();
     if entity.add_item(output_item).is_err() {
@@ -10055,6 +11013,19 @@ fn execute_ruleset_resource_action(
 
     let cooldown = rule_number(action, "cooldown", 0.0).max(0.0);
     set_action_cooldown(ctx, actor_id, action_id, cooldown);
+    send_ruleset_message(
+        ctx,
+        actor_id,
+        "actions",
+        "gathered",
+        "actions.gathered",
+        &[
+            ("item", output_name),
+            ("quantity", quantity.to_string()),
+            ("action", action_name.to_string()),
+        ],
+        "success",
+    );
     true
 }
 
@@ -14322,6 +15293,51 @@ fn quantize_item_drop_position(pos: Vec2<f32>) -> Vec2<f32> {
     Vec2::new(pos.x.floor() + 0.5, pos.y.floor() + 0.5)
 }
 
+fn drag_interaction_range_limit(ctx: &RegionCtx, entity_id: u32) -> f32 {
+    let Some(actor) = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)
+    else {
+        return 1.5;
+    };
+    ctx.rules
+        .get("actions")
+        .and_then(toml::Value::as_table)
+        .and_then(|actions| actions.get("take"))
+        .and_then(toml::Value::as_table)
+        .map(|action| action_range_limit(ctx, action, actor, 1.5))
+        .unwrap_or(1.5)
+}
+
+fn drag_position_in_reach(ctx: &RegionCtx, entity_id: u32, position: Vec2<f32>) -> bool {
+    let Some(actor_pos) = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)
+        .map(|entity| entity.get_pos_xz())
+    else {
+        return false;
+    };
+    actor_pos.distance(position) <= drag_interaction_range_limit(ctx, entity_id) + 0.01
+}
+
+fn world_item_in_drag_reach(ctx: &RegionCtx, entity_id: u32, item_id: u32) -> bool {
+    RegionInstance::item_click_distance(ctx, entity_id, item_id, None)
+        .is_some_and(|distance| distance <= drag_interaction_range_limit(ctx, entity_id) + 0.01)
+}
+
+fn send_drag_too_far_message(ctx: &mut RegionCtx, entity_id: u32) {
+    send_message(
+        ctx,
+        entity_id,
+        "{system.too_far_away}".to_string(),
+        "warning",
+    );
+}
+
 fn drop_item_for_entity_at(
     ctx: &mut RegionCtx,
     entity_id: u32,
@@ -14337,6 +15353,13 @@ fn drop_item_for_entity_at(
     let final_drop_position = drop_position_override
         .or(drop_position)
         .map(quantize_item_drop_position);
+    if drop_position_override.is_some()
+        && let Some(drop_position) = final_drop_position
+        && !drag_position_in_reach(ctx, entity_id, drop_position)
+    {
+        send_drag_too_far_message(ctx, entity_id);
+        return false;
+    }
 
     if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id) {
         // Drop from inventory.
@@ -14387,6 +15410,38 @@ fn drop_item_for_entity_at(
         }
     }
     false
+}
+
+fn move_world_item_for_entity_at(
+    ctx: &mut RegionCtx,
+    entity_id: u32,
+    item_id: u32,
+    drop_position: Vec2<f32>,
+) -> bool {
+    let final_drop_position = quantize_item_drop_position(drop_position);
+    if !world_item_in_drag_reach(ctx, entity_id, item_id)
+        || !drag_position_in_reach(ctx, entity_id, final_drop_position)
+    {
+        send_drag_too_far_message(ctx, entity_id);
+        return false;
+    }
+
+    let Some(item) = ctx
+        .map
+        .items
+        .iter_mut()
+        .find(|item| item.id == item_id && !item.attributes.get_bool_default("static", false))
+    else {
+        return false;
+    };
+    if item.attributes.get_bool_default("is_spell", false) {
+        return false;
+    }
+    item.position.x = final_drop_position.x;
+    item.position.z = final_drop_position.y;
+    item.mark_all_dirty();
+    ctx.send_item_drop_message_for_position(final_drop_position, 1);
+    true
 }
 
 fn move_item_for_entity(
@@ -14460,6 +15515,10 @@ fn move_item_for_entity(
             return false;
         };
     let from_world = matches!(source, Source::World(_));
+    if from_world && !world_item_in_drag_reach(ctx, source_entity_id, item_id) {
+        send_drag_too_far_message(ctx, source_entity_id);
+        return false;
+    }
 
     let moving_item_slot = match (&source, source_entity_index) {
         (Source::Inventory(source_index), Some(source_entity_index)) => ctx.map.entities
