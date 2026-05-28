@@ -1,5 +1,6 @@
 use crate::{
     Assets, Batch3D, D3Camera, Map, PixelSource, Scene, SceneHandler, Value, ValueContainer,
+    avatar_builder::AvatarRuntimeBuilder,
 };
 use scenevm::{Atom, DynamicObject, GeoId, Light};
 use uuid::Uuid;
@@ -572,7 +573,7 @@ impl D3Builder {
                             let center3 = Vec3::new(item.position.x, y, item.position.z);
 
                             let dynamic = DynamicObject::billboard_tile(
-                                GeoId::Item(item.id),
+                                creator_geo_id(item.creator_id, 20_000, true),
                                 tile.id,
                                 center3,
                                 basis.1,
@@ -597,6 +598,39 @@ impl D3Builder {
                             }
                         }
                     }
+                } else if item.attributes.get_bool_default("visible", false)
+                    && let Some(tile) = AvatarRuntimeBuilder::explicit_item_tile(item, assets)
+                {
+                    let size = 1.0;
+                    let pos_xz = item.get_pos_xz();
+                    let mut ground_y = map
+                        .geometry_floor_height_nearest(pos_xz, item.position.y)
+                        .or_else(|| {
+                            map.find_sector_at(pos_xz)
+                                .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                        })
+                        .unwrap_or(0.0);
+                    if ground_y == 0.0 {
+                        let config =
+                            crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                        ground_y = crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                            map, pos_xz, &config,
+                        );
+                    }
+                    let center3 =
+                        Vec3::new(item.position.x, ground_y + size * 0.5, item.position.z);
+                    let dynamic = DynamicObject::billboard_tile(
+                        creator_geo_id(item.creator_id, 20_000, true),
+                        tile.id,
+                        center3,
+                        basis.1,
+                        basis.2,
+                        size,
+                        size,
+                    );
+                    scene_handler
+                        .vm
+                        .execute(Atom::AddDynamic { object: dynamic });
                 } else if let Some(Value::Source(source)) = item.attributes.get("_source_seq") {
                     if item.attributes.get_bool_default("visible", false) {
                         let size = 2.0;

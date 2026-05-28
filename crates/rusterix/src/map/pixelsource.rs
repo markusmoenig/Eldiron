@@ -46,8 +46,16 @@ pub enum PixelSource {
 use PixelSource::*;
 
 impl PixelSource {
-    fn palette_tile_uuid(index: u16) -> Uuid {
+    pub fn palette_tile_uuid(index: u16) -> Uuid {
         Uuid::from_u128(0x50414C455454455F0000000000000000u128 | index as u128)
+    }
+
+    pub fn render_tile_id(&self, assets: &Assets) -> Option<Uuid> {
+        match self {
+            TileId(id) | MaterialId(id) => Some(*id),
+            PaletteIndex(index) => Some(Self::palette_tile_uuid(*index)),
+            _ => self.tile_from_tile_list(assets).map(|tile| tile.id),
+        }
     }
 
     fn synthetic_palette_tile(assets: &Assets, index: u16) -> Option<Tile> {
@@ -147,7 +155,11 @@ impl PixelSource {
                 if let Some(index) = assets.tile_indices.get(id) {
                     assets.tile_list.get(*index as usize).cloned()
                 } else {
-                    None
+                    assets
+                        .tiles
+                        .get(id)
+                        .cloned()
+                        .or_else(|| assets.materials.get(id).cloned())
                 }
             }
             TileGroup(_) | TileGroupMember { .. } | ProceduralTile(_) => None,

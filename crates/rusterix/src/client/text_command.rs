@@ -27,6 +27,9 @@ pub enum TextCommand {
         item: String,
         container: String,
     },
+    Open {
+        container: String,
+    },
     Action {
         action: String,
         target: Option<String>,
@@ -217,6 +220,17 @@ pub fn parse_text_command(
         if let Some((item, container)) = split_container_transfer(payload, &[" from "]) {
             return TextCommand::TakeFrom { item, container };
         }
+    }
+
+    if lower.starts_with("open ") {
+        let container = trimmed.get("open ".len()..).unwrap_or("").trim();
+        return if container.is_empty() {
+            TextCommand::Unknown
+        } else {
+            TextCommand::Open {
+                container: container.to_string(),
+            }
+        };
     }
 
     if lower.starts_with("action ") {
@@ -452,6 +466,22 @@ mod tests {
             ),
             TextCommand::TakeFrom {
                 item: "wild herb".into(),
+                container: "small bag".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn parses_open_container_command() {
+        assert_eq!(
+            parse_text_command(
+                "open small bag",
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+            ),
+            TextCommand::Open {
                 container: "small bag".into(),
             }
         );

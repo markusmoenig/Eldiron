@@ -1706,6 +1706,7 @@ impl Client {
             self.target
                 .copy_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
         }
+        self.draw_hovered_world_item_pile(map);
 
         // Negative-layer deco widgets sit between the game view and screen-rendered
         // controls, so they can dim the game without dimming command icons.
@@ -2611,13 +2612,33 @@ impl Client {
         }) {
             self.close_floaters();
         } else {
-            let target_width = self.target.dim().width as i32;
-            let target_height = self.target.dim().height as i32;
-            let position = self
-                .open_container_panel_positions
-                .get(&(item_id, owner_entity_id))
-                .copied()
-                .unwrap_or_else(|| {
+            self.open_container_panel_at_anchor(item_id, owner_entity_id, Some(anchor));
+        }
+    }
+
+    pub fn process_open_container_requests(
+        &mut self,
+        requests: Vec<crate::server::OpenContainerRequest>,
+    ) {
+        for (item_id, owner_entity_id) in requests {
+            self.open_container_panel_at_anchor(item_id, owner_entity_id, None);
+        }
+    }
+
+    fn open_container_panel_at_anchor(
+        &mut self,
+        item_id: u32,
+        owner_entity_id: Option<u32>,
+        anchor: Option<Rect>,
+    ) {
+        let target_width = self.target.dim().width as i32;
+        let target_height = self.target.dim().height as i32;
+        let position = self
+            .open_container_panel_positions
+            .get(&(item_id, owner_entity_id))
+            .copied()
+            .unwrap_or_else(|| {
+                if let Some(anchor) = anchor {
                     let x = (anchor.x + anchor.width + 12.0)
                         .round()
                         .clamp(2.0, (target_width - 24).max(2) as f32)
@@ -2628,21 +2649,26 @@ impl Client {
                         .clamp(2.0, (target_height - 24).max(2) as f32)
                         as i32;
                     Vec2::new(x, y)
-                });
-            self.open_container_panel = Some(OpenContainerPanel {
-                item_id,
-                owner_entity_id,
-                position: Vec2::new(
-                    position.x.clamp(2, (target_width - 24).max(2)),
-                    position.y.clamp(2, (target_height - 24).max(2)),
-                ),
+                } else {
+                    Vec2::new(
+                        (target_width / 2 - 96).max(2),
+                        (target_height / 2 - 64).max(2),
+                    )
+                }
             });
-            self.open_container_panel_rect = None;
-            self.open_container_slot_rects.clear();
-            self.open_container_title_rect = None;
-            self.open_container_close_rect = None;
-            self.dragging_container_panel = false;
-        }
+        self.open_container_panel = Some(OpenContainerPanel {
+            item_id,
+            owner_entity_id,
+            position: Vec2::new(
+                position.x.clamp(2, (target_width - 24).max(2)),
+                position.y.clamp(2, (target_height - 24).max(2)),
+            ),
+        });
+        self.open_container_panel_rect = None;
+        self.open_container_slot_rects.clear();
+        self.open_container_title_rect = None;
+        self.open_container_close_rect = None;
+        self.dragging_container_panel = false;
     }
 
     fn close_floaters(&mut self) -> bool {
@@ -3252,6 +3278,7 @@ impl Client {
                     } else if let Some(item) = map
                         .items
                         .iter()
+                        .rev()
                         .find(|item| Self::quantize_2d_tile_pos(item.get_pos_xz()) == tile_pos)
                     {
                         self.hovered_item_id = Some(item.id);
@@ -3604,7 +3631,7 @@ impl Client {
                         // When drag-drop targets exist, prefer starting an item drag before
                         // the broader entity click path consumes the cell.
                         if self.has_drag_drop_targets()
-                            && let Some(item) = map.items.iter().find(|item| {
+                            && let Some(item) = map.items.iter().rev().find(|item| {
                                 tile_pos == Self::quantize_2d_tile_pos(item.get_pos_xz())
                             })
                         {
@@ -3633,7 +3660,7 @@ impl Client {
                             }
                         }
 
-                        for item in map.items.iter() {
+                        for item in map.items.iter().rev() {
                             let item_pos = item.get_pos_xz();
                             if tile_pos == Self::quantize_2d_tile_pos(item_pos) {
                                 let distance = player_pos.distance(item_pos);
@@ -3694,7 +3721,16 @@ impl Client {
 
         if let Some(item_id) = dragged_item_id {
             if !dragging_started {
-                if dragged_item_from_world {
+                if let Some(source) = dragged_container_source {
+                    action = Some(EntityAction::MoveContainerItem {
+                        item_id,
+                        container_item_id: source.container_item_id,
+                        container_owner_entity_id: source.container_owner_entity_id,
+                        target_entity_id: None,
+                        to_inventory_index: None,
+                        to_equipped_slot: None,
+                    });
+                } else if dragged_item_from_world {
                     if let Some(item) = Self::find_container_item(map, item_id, None)
                         && Self::item_is_container(item)
                     {
@@ -4651,6 +4687,98 @@ impl Client {
         draw2d.blend_rect_safe(target.pixels_mut(), &r, stride, &[0, 0, 0, alpha], &safe);
     }
 
+    fn draw_hovered_world_item_pile(&mut self, map: &Map) {
+        let Some(item_id) = self.hovered_item_id else {
+            return;
+        };
+        if self.dragging_item_id.is_some() || self.dragging_container_panel {
+            return;
+        }
+        let Some(item) = map.items.iter().find(|item| item.id == item_id) else {
+            return;
+        };
+        let tile_pos = Self::quantize_2d_tile_pos(item.get_pos_xz());
+        let pile_count = map
+            .items
+            .iter()
+            .filter(|item| Self::quantize_2d_tile_pos(item.get_pos_xz()) == tile_pos)
+            .count();
+
+        let point = Vec2::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32);
+        let Some(tile_rect) = self.game_widgets.values().find_map(|widget| {
+            if !Self::is_2d_camera(&widget.camera) || !widget.rect.contains(point) {
+                return None;
+            }
+            Some(Rect::new(
+                widget.rect.x + (tile_pos.x - widget.top_left.x) * widget.grid_size,
+                widget.rect.y + (tile_pos.y - widget.top_left.y) * widget.grid_size,
+                widget.grid_size,
+                widget.grid_size,
+            ))
+        }) else {
+            return;
+        };
+
+        Self::draw_drag_target_highlight(&mut self.target, &self.draw2d, tile_rect);
+
+        if pile_count <= 1 {
+            return;
+        }
+        let badge_size = 18.0_f32.min(tile_rect.width.max(12.0));
+        let badge_rect = Rect::new(
+            tile_rect.x + tile_rect.width - badge_size,
+            tile_rect.y,
+            badge_size,
+            badge_size,
+        );
+        let stride = self.target.stride();
+        let safe = (
+            0_isize,
+            0_isize,
+            self.target.dim().width as isize,
+            self.target.dim().height as isize,
+        );
+        let rect = (
+            badge_rect.x.round() as isize,
+            badge_rect.y.round() as isize,
+            badge_rect.width.round().max(1.0) as isize,
+            badge_rect.height.round().max(1.0) as isize,
+        );
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &rect,
+            stride,
+            &[20, 24, 30, 220],
+            &safe,
+        );
+        self.draw2d.rect_outline_thickness(
+            self.target.pixels_mut(),
+            &(
+                badge_rect.x.round().max(0.0) as usize,
+                badge_rect.y.round().max(0.0) as usize,
+                badge_rect.width.round().max(1.0) as usize,
+                badge_rect.height.round().max(1.0) as usize,
+            ),
+            stride,
+            &[255, 236, 132, 255],
+            1,
+        );
+        if let Some(font) = self.messages_font.as_ref() {
+            self.draw2d.text_rect_blend_safe(
+                self.target.pixels_mut(),
+                &rect,
+                stride,
+                font,
+                self.messages_font_size.clamp(10.0, 13.0),
+                &pile_count.to_string(),
+                &[245, 238, 220, 255],
+                draw2d::TheHorizontalAlign::Center,
+                draw2d::TheVerticalAlign::Center,
+                &safe,
+            );
+        }
+    }
+
     fn draw_drag_drop_highlights(&mut self, map: &Map) {
         if !self.dragging_started || self.dragging_item_id.is_none() {
             return;
@@ -5479,8 +5607,20 @@ impl Client {
         if let Some(item_id) = self.hovered_item_id
             && let Some(item) = map.items.iter().find(|item| item.id == item_id)
         {
+            let mut description = rules_ui::describe_item(item);
+            let tile_pos = Self::quantize_2d_tile_pos(item.get_pos_xz());
+            let pile_count = map
+                .items
+                .iter()
+                .filter(|item| Self::quantize_2d_tile_pos(item.get_pos_xz()) == tile_pos)
+                .count();
+            if pile_count > 1 {
+                description
+                    .lines
+                    .push(format!("Pile: {} items", pile_count));
+            }
             return Some((
-                rules_ui::describe_item(item),
+                description,
                 Rect::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32, 1.0, 1.0),
                 None,
                 format!("world_item:{}", item.id),

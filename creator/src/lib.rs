@@ -16,6 +16,8 @@ pub mod i18n;
 pub mod mapeditor;
 pub mod minimap;
 pub mod misc;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod scepter;
 #[cfg(all(
     feature = "self-update",
     any(target_os = "windows", target_os = "linux", target_os = "macos")

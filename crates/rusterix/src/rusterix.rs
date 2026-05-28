@@ -429,6 +429,9 @@ impl Rusterix {
         choices: Vec<crate::MultipleChoice>,
     ) {
         self.apply_runtime_render_state(map, false);
+        let open_container_requests = self.server.get_open_container_requests(&map.id);
+        self.client
+            .process_open_container_requests(open_container_requests);
         self.client.process_messages(map, says);
         self.client.draw_game(
             map,

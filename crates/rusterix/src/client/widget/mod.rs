@@ -8,6 +8,7 @@ pub mod text;
 
 use crate::{
     Assets, Entity, Item, Map, Pixel, PlayerCamera, Rect, Texture, Value, WHITE,
+    avatar_builder::AvatarRuntimeBuilder,
     client::command::{ClientCommandBinding, parse_client_command},
     client::draw2d,
 };
@@ -247,11 +248,29 @@ impl Widget {
             drawn = true;
         }
 
+        if !drawn && let Some(tile) = AvatarRuntimeBuilder::explicit_item_tile(item, assets) {
+            let index = animation_frame % tile.textures.len();
+            let texture = &tile.textures[index];
+            draw2d.blend_scale_chunk(
+                buffer.pixels_mut(),
+                &(
+                    rect.x as usize,
+                    rect.y as usize,
+                    rect.width as usize,
+                    rect.height as usize,
+                ),
+                stride,
+                &texture.data,
+                &(texture.width, texture.height),
+            );
+            drawn = true;
+        }
+
         if !drawn && Self::draw_generated_avatar_channel_icon(buffer, rect, assets, item, draw2d) {
             drawn = true;
         }
 
-        if !drawn {
+        if !drawn && !AvatarRuntimeBuilder::item_has_explicit_tile(item, assets) {
             drawn = Self::draw_generated_equipment_icon(buffer, rect, assets, item, draw2d);
         }
         if drawn {
@@ -323,6 +342,9 @@ impl Widget {
         assets: &Assets,
         item: &Item,
     ) -> Option<(u32, Vec<u8>)> {
+        if !AvatarRuntimeBuilder::item_allows_generated_icon(item, assets) {
+            return None;
+        }
         Self::item_avatar_channel_icon_square(assets, item)
             .or_else(|| Self::item_equipment_icon_square(assets, item))
     }

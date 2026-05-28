@@ -146,6 +146,120 @@ impl AvatarRuntimeBuilder {
         Some(out)
     }
 
+    pub(crate) fn explicit_item_tile(item: &Item, assets: &Assets) -> Option<crate::Tile> {
+        if let Some(tile_id) = Self::item_tile_id_for_direction(item, AvatarDirection::Front) {
+            return assets.tiles.get(&tile_id).cloned();
+        }
+        Self::item_class_tile_source(item, assets)
+            .and_then(|source| Self::tile_from_pixel_source(&source, assets))
+    }
+
+    pub(crate) fn explicit_item_tile_id(item: &Item, assets: &Assets) -> Option<Uuid> {
+        Self::item_tile_id_for_direction(item, AvatarDirection::Front).or_else(|| {
+            Self::item_class_tile_source(item, assets)
+                .and_then(|source| source.render_tile_id(assets))
+        })
+    }
+
+    pub(crate) fn item_has_explicit_tile(item: &Item, assets: &Assets) -> bool {
+        Self::item_tile_id_for_direction(item, AvatarDirection::Front).is_some()
+            || Self::item_class_tile_source(item, assets).is_some()
+    }
+
+    pub(crate) fn item_allows_generated_icon(item: &Item, assets: &Assets) -> bool {
+        if Self::item_has_explicit_tile(item, assets) {
+            return false;
+        }
+        if Self::item_has_project_item_class(item, assets)
+            && item.attributes.get_str("ruleset_id").is_none()
+        {
+            return false;
+        }
+        true
+    }
+
+    pub(crate) fn generated_item_tile(item: &Item, assets: &Assets) -> Option<crate::Tile> {
+        let slot = item.attributes.get_str("slot").unwrap_or("item");
+        let (rgba, width, height, _) = Self::generated_rig_texture(item, assets, slot)?;
+        Some(crate::Tile::from_texture(crate::Texture::new(
+            rgba, width, height,
+        )))
+    }
+
+    fn item_has_project_item_class(item: &Item, assets: &Assets) -> bool {
+        let Some(class_name) = item
+            .attributes
+            .get_str("class_name")
+            .or_else(|| (!item.item_type.trim().is_empty()).then_some(item.item_type.as_str()))
+        else {
+            return false;
+        };
+        let class_name = class_name.trim();
+        assets.items.contains_key(class_name)
+            || assets
+                .items
+                .keys()
+                .any(|name| name.eq_ignore_ascii_case(class_name))
+    }
+
+    fn item_class_tile_source(item: &Item, assets: &Assets) -> Option<PixelSource> {
+        let class_name = item
+            .attributes
+            .get_str("class_name")
+            .or_else(|| (!item.item_type.trim().is_empty()).then_some(item.item_type.as_str()))?
+            .trim();
+        let (_, data) = assets.items.get(class_name).or_else(|| {
+            assets
+                .items
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case(class_name))
+                .map(|(_, value)| value)
+        })?;
+        let table = data.parse::<toml::Table>().ok()?;
+        Self::tile_source_from_item_data_table(&table)
+    }
+
+    fn tile_from_pixel_source(source: &PixelSource, assets: &Assets) -> Option<crate::Tile> {
+        match source {
+            PixelSource::TileId(id) => assets.tiles.get(id).cloned(),
+            PixelSource::MaterialId(id) => assets.materials.get(id).cloned(),
+            _ => source.tile_from_tile_list(assets),
+        }
+    }
+
+    fn tile_source_from_item_data_table(table: &toml::Table) -> Option<PixelSource> {
+        for key in ["tile_id", "rig_tile_id", "tile"] {
+            if let Some(source) = table.get(key).and_then(Self::tile_source_from_toml_value) {
+                return Some(source);
+            }
+        }
+        let attrs = table.get("attributes").and_then(toml::Value::as_table)?;
+        for key in ["tile_id", "rig_tile_id", "tile"] {
+            if let Some(source) = attrs.get(key).and_then(Self::tile_source_from_toml_value) {
+                return Some(source);
+            }
+        }
+        None
+    }
+
+    fn tile_source_from_toml_value(value: &toml::Value) -> Option<PixelSource> {
+        if let Some(raw) = value.as_str() {
+            let raw = raw.trim();
+            if let Ok(id) = Uuid::parse_str(raw) {
+                return Some(PixelSource::TileId(id));
+            }
+            if let Ok(index) = raw.parse::<u16>() {
+                return Some(PixelSource::PaletteIndex(index));
+            }
+        }
+        if let Some(index) = value.as_integer()
+            && (0..=u16::MAX as i64).contains(&index)
+        {
+            return Some(PixelSource::PaletteIndex(index as u16));
+        }
+        None
+    }
+
     fn find_avatar_by_name<'a>(name: &str, assets: &'a Assets) -> Option<&'a Avatar> {
         if name.trim().is_empty() {
             return None;

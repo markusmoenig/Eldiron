@@ -721,13 +721,22 @@ impl D2PreviewBuilder {
 
         if self.map_tool_type != MapToolType::Effects {
             // Items
-            let mut item_counter = 0;
-            for item in &map.items {
+            for (item_index, item) in map.items.iter().enumerate() {
                 let item_pos = Vec2::new(item.position.x, item.position.z);
                 let pos =
                     self.map_grid_to_local(screen_size, Vec2::new(item_pos.x, item_pos.y), map);
                 let size = 1.0;
                 let hsize = 0.5;
+                let item_geo_id = if item.id != 0 {
+                    GeoId::Item(item.id)
+                } else {
+                    GeoId::Item(u32::MAX.saturating_sub(item_index as u32))
+                };
+                let item_light_geo_id = if item.id != 0 {
+                    GeoId::ItemLight(item.id)
+                } else {
+                    GeoId::ItemLight(u32::MAX.saturating_sub(item_index as u32))
+                };
 
                 if let Some(Value::Light(light)) = item.attributes.get("light") {
                     // if light.active {
@@ -737,7 +746,7 @@ impl D2PreviewBuilder {
                     // }
 
                     scene_handler.vm.execute(Atom::AddLight {
-                        id: GeoId::ItemLight(item.id),
+                        id: item_light_geo_id,
                         light: Light::new_pointlight(item.position)
                             .with_color(Vec3::from(light.get_color()))
                             .with_intensity(light.get_intensity())
@@ -750,7 +759,7 @@ impl D2PreviewBuilder {
 
                 if let Some(Value::Source(source)) = item.attributes.get("source") {
                     if item.attributes.get_bool_default("visible", false) {
-                        if let Some(tile) = source.tile_from_tile_list(assets) {
+                        if let Some(tile_id) = source.render_tile_id(assets) {
                             // scene_handler.overlay.add_square_2d(
                             //     GeoId::Character(item.id),
                             //     tile.id,
@@ -761,11 +770,11 @@ impl D2PreviewBuilder {
                             // );
 
                             let dynamic = DynamicObject::billboard_tile_2d(
-                                GeoId::Item(item.id),
-                                tile.id,
+                                item_geo_id,
+                                tile_id,
                                 pos,
-                                1.0,
-                                1.0,
+                                size,
+                                size,
                             );
                             scene_handler
                                 .vm
@@ -783,6 +792,14 @@ impl D2PreviewBuilder {
                             // }
                         }
                     }
+                } else if item.attributes.get_bool_default("visible", false)
+                    && let Some(tile_id) = AvatarRuntimeBuilder::explicit_item_tile_id(item, assets)
+                {
+                    let dynamic =
+                        DynamicObject::billboard_tile_2d(item_geo_id, tile_id, pos, size, size);
+                    scene_handler
+                        .vm
+                        .execute(Atom::AddDynamic { object: dynamic });
                 } else if let Some(Value::Source(source)) = item.attributes.get("_source_seq") {
                     if item.attributes.get_bool_default("visible", false) {
                         if let Some(entity_tile) = source.item_tile_id(item.id, assets) {
@@ -798,28 +815,26 @@ impl D2PreviewBuilder {
                     scene.d2_dynamic.push(batch);
 
                     scene_handler.overlay_2d.add_square_2d(
-                        GeoId::Item(item_counter),
+                        item_geo_id,
                         scene_handler.item_on,
                         [pos.x, pos.y],
                         size,
                         100,
                         true,
                     );
-                    item_counter += 1;
                 } else {
                     let batch = Batch2D::from_rectangle(pos.x - hsize, pos.y - hsize, size, size)
                         .source(PixelSource::DynamicTileIndex(3));
                     scene.d2_dynamic.push(batch);
 
                     scene_handler.overlay_2d.add_square_2d(
-                        GeoId::Item(item_counter),
+                        item_geo_id,
                         scene_handler.item_off,
                         [pos.x, pos.y],
                         size,
                         100,
                         true,
                     );
-                    item_counter += 1;
                 }
             }
 

@@ -3,9 +3,9 @@ use crate::server::region::{
     RegionInstance, add_debug_value, apply_damage_direct, apply_damage_rules,
     apply_spell_default_attrs, consume_attack_ammunition_for_source, craft_ruleset_recipe,
     current_attack_base_damage_for_entity, current_attack_cooldown_for_entity,
-    entity_disposition_by_id, entity_is_hostile_by_id, entity_item_by_id, execute_ruleset_action,
-    grant_experience, has_attack_ammunition_or_message, is_spell_on_cooldown, open_dialog_node,
-    set_entity_cooldown_attrs, set_spell_cooldown,
+    drop_items_into_ruleset_loot_container, entity_disposition_by_id, entity_is_hostile_by_id,
+    entity_item_by_id, execute_ruleset_action, grant_experience, has_attack_ammunition_or_message,
+    is_spell_on_cooldown, open_dialog_node, set_entity_cooldown_attrs, set_spell_cooldown,
 };
 use crate::server::regionctx::ChoiceSession;
 use crate::vm::*;
@@ -2689,6 +2689,10 @@ impl<'a> HostHandler for RegionHost<'a> {
             }
             "drop_items" => {
                 if let Some(filter) = args.get(0).and_then(|v| v.as_string()) {
+                    let entity_id = self.ctx.curr_entity_id;
+                    if drop_items_into_ruleset_loot_container(self.ctx, entity_id, filter) {
+                        return None;
+                    }
                     let mut removed_items = Vec::new();
                     if let Some(entity) = self.ctx.get_current_entity_mut() {
                         let matching_slots: Vec<usize> = entity
@@ -3100,7 +3104,14 @@ mod tests {
         item.set_attribute("ruleset_path", Value::Str(ruleset_path));
         item.set_attribute("slot", Value::Str(slot.clone()));
 
-        for key in ["category", "rarity", "visual_template", "rig_layer"] {
+        for key in [
+            "category",
+            "description",
+            "rarity",
+            "container_template",
+            "visual_template",
+            "rig_layer",
+        ] {
             if let Some(value) = table_string(item_table, key) {
                 item.set_attribute(key, Value::Str(value));
             }
@@ -3685,6 +3696,65 @@ mod tests {
         assert_eq!(arena.attr_f32(1, "kill_count") as i32, 1);
         assert_eq!(arena.ctx.map.items.len(), 1);
         assert_eq!(arena.hp(1), warrior_hp_after_first_attack);
+    }
+
+    #[test]
+    fn dead_drop_items_uses_ruleset_loot_container() {
+        let mut arena = HeadlessRulesArena::with_rules(
+            r#"
+            [loot.corpse]
+            enabled = true
+            item = "loot_corpse"
+            include_equipped = true
+            create_empty = false
+            name = "{name}'s Remains"
+            description = "Search {name} for carried loot."
+
+            [items.containers.loot_corpse]
+            name = "Loot Corpse"
+            description = "A lootable body containing carried items."
+            category = "corpse"
+            slot = "container"
+            rarity = "common"
+            container_template = "default"
+            visual_template = "bag_pouch"
+
+            [items.containers.loot_corpse.attributes]
+            container = true
+            container_slots = 8
+            static = true
+            takeable = false
+            "#,
+        );
+        arena.add_script_class(
+            "Orc",
+            r#"
+            fn event(event, value) {
+                if event == "death" {
+                    drop_items("");
+                }
+            }
+            "#,
+        );
+        arena.add_entity(2, "Orc", 0, 0, None);
+        arena.set_entity_attr(2, "mode", Value::Str("dead".into()));
+        arena.add_inventory_item(2, 10, "Golden Key");
+
+        arena.run_entity_event(2, "death", VMValue::zero());
+
+        assert_eq!(arena.entity(2).iter_inventory().count(), 0);
+        assert_eq!(arena.ctx.map.items.len(), 1);
+        let corpse = &arena.ctx.map.items[0];
+        assert_eq!(corpse.attributes.get_str("name"), Some("Orc's Remains"));
+        assert_eq!(corpse.attributes.get_bool_default("static", false), true);
+        assert_eq!(corpse.attributes.get_bool_default("takeable", true), false);
+        let contents = corpse.container.as_ref().expect("corpse contents");
+        assert_eq!(contents.len(), 1);
+        assert_eq!(contents[0].id, 10);
+        assert_eq!(
+            contents[0].attributes.get_str("class_name"),
+            Some("Golden Key")
+        );
     }
 
     #[test]

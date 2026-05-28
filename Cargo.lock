@@ -1180,6 +1180,7 @@ dependencies = [
  "codegridfx",
  "earcutr",
  "eldiron-shared",
+ "eldiron_scepter",
  "fontdue",
  "i18n-embed",
  "i18n-embed-fl",
@@ -1232,6 +1233,14 @@ dependencies = [
  "vek",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "eldiron_scepter"
+version = "0.9.12"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

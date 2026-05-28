@@ -21,6 +21,7 @@ rusteria.workspace = true
 scenevm = { path = "../crates/scenevm", version = "0.9.12", default-features = false, features = ["gpu"] }
 
 shared = { path = "../crates/shared", version = "0.9.12", package = "eldiron-shared", default-features = false, features = ["graphics"] }
+eldiron_scepter = { path = "../crates/scepter", version = "0.9.12" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 vectorize = "0.2.0"

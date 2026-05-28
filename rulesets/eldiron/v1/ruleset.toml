@@ -50,6 +50,15 @@ border_color = "#626974ff"
 slot_color = "#10151bcc"
 slot_border_color = "#626974ff"
 
+[loot.corpse]
+enabled = true
+item = "loot_corpse"
+include_equipped = true
+create_empty = false
+despawn_when_empty = true
+name = "{name}'s Remains"
+description = "What remains of {name}. Open it to search the carried loot."
+
 [resources.wild_herb_node]
 name = "Wild Herb Node"
 description = "A small wild herb growth that can be gathered for fresh herbs."

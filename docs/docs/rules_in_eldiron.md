@@ -402,8 +402,9 @@ Container UI is ruleset-driven, not screen-driven. Items can select a
 `container_template`, and the runtime opens a floating draggable panel. The
 panel can be closed with Escape or its close button. Inventory items can be
 dragged into the panel, and items inside the panel can be dragged back to
-inventory slots, equipment slots, or the map. It is drawn procedurally when no
-tile skin is supplied:
+inventory slots, equipment slots, or the map. Clicking an item inside an open
+container transfers it to the first free player inventory slot. It is drawn
+procedurally when no tile skin is supplied:
 
 ```toml
 [ui.container_templates.bag_small]
@@ -425,15 +426,20 @@ Template tile fields can be supplied under
 If those fields are absent, the procedural renderer is used.
 
 The current text command path can move top-level inventory items into and out
-of an inventory or visible world container:
+of an inventory or visible world container, and can open a container floater:
 
 ```text
+open small bag
 put wild herb in bag
 take wild herb from bag
 ```
 
-Stackable items merge inside containers. This is the base path for bags now and
-for chests, lootable corpses, and larger scrollable container layouts later.
+Stackable items merge inside containers. When a dead character script calls
+`drop_items("")`, the official rules create a lootable corpse container instead
+of placing every carried item directly on the map. The corpse uses the normal
+container UI and can be opened with `open <name>` or by clicking it. Once the
+corpse is empty, the tombstone disappears when `despawn_when_empty = true` in
+`[loot.corpse]`.
 
 ## Recipes
 

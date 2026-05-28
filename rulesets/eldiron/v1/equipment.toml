@@ -319,6 +319,36 @@ pixels = [
     "........................",
 ]
 
+[visual_templates.tombstone_mark]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "........................",
+    ".........HHHHHHH........",
+    ".......HHHHHHHHHHH......",
+    "......HHHHHHHHHHHHH.....",
+    ".....HHHHHHHHHHHHHHH....",
+    ".....HHHHHHHHHHHHHHH....",
+    ".....HHHHHHHHHHHHHHH....",
+    ".....HHHHHHHHHHHHHHH....",
+    ".....GHHAAAAAAAAAHHG....",
+    ".....HHGAHAHAHAHAGHH....",
+    ".....HHHAHAAAHAAHHHH....",
+    ".....GHHGGGGGGGGGHHH....",
+    ".....HHHHGHHHHHHHHHH....",
+    ".....HHHHHHHHHHHHHHG....",
+    ".....HHHHHHHHHHHHHHH....",
+    ".....GHHHHHHHHGHHGGH....",
+    ".....GHGGGGHHGGHGGGG....",
+    ".....GGA.GGGHGGGGA......",
+    ".GGG..A.GA......G..GGGG.",
+    "GGG.GA..A.......A.GA.GGG",
+    "..AG.AA...GG......A.GA..",
+    "...A.....GA.........A...",
+    "........................",
+]
+
 [items.weapons.training_sword]
 name = "Training Sword"
 description = "A blunt wooden practice sword used for early drills and safe sparring."
@@ -559,6 +589,28 @@ highlight_color_index = 14
 container = true
 container_slots = 6
 takeable = true
+
+[items.containers.loot_corpse]
+name = "Loot Corpse"
+description = "A lootable body containing carried items."
+category = "corpse"
+slot = "container"
+rarity = "common"
+color = 28
+max_stack = 1
+container_template = "default"
+visual_template = "tombstone_mark"
+blade_color_index = 30
+grip_color_index = 25
+accent_color_index = 29
+highlight_color_index = 23
+
+[items.containers.loot_corpse.attributes]
+container = true
+container_slots = 8
+static = true
+takeable = false
+visible = true
 
 [items.ammunition.wooden_arrows]
 name = "Wooden Arrows"

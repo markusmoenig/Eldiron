@@ -351,8 +351,9 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
                     instance.source.clone()
                 }),
             );
-            if let Some(character) = project.items.get(&instance.item_id) {
-                item.set_attribute("class_name", Value::Str(character.name.clone()));
+            if let Some(item_template) = project.items.get(&instance.item_id) {
+                item.set_attribute("class_name", Value::Str(item_template.name.clone()));
+                rusterix::server::data::apply_item_data(&mut item, &item_template.data);
             }
             region.map.items.push(item);
         }

@@ -34,6 +34,8 @@ static LOCAL_PLAYERS: LazyLock<Player> = LazyLock::new(|| Arc::new(RwLock::new(V
 pub type Message = (Option<u32>, Option<u32>, u32, String, String);
 // SenderEntityId, SenderItemId, Message, Category
 pub type Say = (Option<u32>, Option<u32>, String, String);
+// ContainerItemId, OwnerEntityId
+pub type OpenContainerRequest = (u32, Option<u32>);
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ServerState {
@@ -61,6 +63,7 @@ pub struct Server {
     pub items: FxHashMap<u32, Vec<Item>>,
     pub messages: FxHashMap<u32, Vec<Message>>,
     pub says: FxHashMap<u32, Vec<Say>>,
+    pub open_container_requests: FxHashMap<u32, Vec<OpenContainerRequest>>,
     pub multiple_choice: FxHashMap<u32, Vec<MultipleChoice>>,
     pub audio_commands: FxHashMap<u32, Vec<AudioCommand>>,
     pub world_render: RuntimeRenderState,
@@ -102,6 +105,7 @@ impl Server {
             items: FxHashMap::default(),
             messages: FxHashMap::default(),
             says: FxHashMap::default(),
+            open_container_requests: FxHashMap::default(),
             multiple_choice: FxHashMap::default(),
             audio_commands: FxHashMap::default(),
             world_render: RuntimeRenderState::default(),
@@ -259,6 +263,17 @@ impl Server {
         }
     }
 
+    /// Get queued container panel requests for a given region and clear them.
+    pub fn get_open_container_requests(&mut self, region_id: &Uuid) -> Vec<OpenContainerRequest> {
+        if let Some(region_id) = self.region_id_map.get(region_id) {
+            let requests = self.open_container_requests.get(region_id).cloned();
+            self.open_container_requests.remove(region_id);
+            requests.unwrap_or_default()
+        } else {
+            vec![]
+        }
+    }
+
     /// Get multi-choice for a given region and clear them.
     pub fn get_choices(&mut self, region_id: &Uuid) -> Vec<MultipleChoice> {
         if let Some(region_id) = self.region_id_map.get(region_id) {
@@ -405,6 +420,12 @@ impl Server {
                         if let Some(items) = self.items.get_mut(&region_id) {
                             items.retain(|item| item.id != item_id);
                         }
+                    }
+                    RegionMessage::OpenContainer(region_id, item_id, owner_entity_id) => {
+                        self.open_container_requests
+                            .entry(region_id)
+                            .or_default()
+                            .push((item_id, owner_entity_id));
                     }
                     RegionMessage::LogMessage(message) => {
                         if self.print_log_messages {
@@ -873,6 +894,7 @@ impl Server {
         self.items.clear();
         self.messages.clear();
         self.says.clear();
+        self.open_container_requests.clear();
         self.audio_commands.clear();
         self.world_render = RuntimeRenderState::default();
         self.region_render.clear();

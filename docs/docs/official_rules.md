@@ -524,12 +524,18 @@ natural future path.
 | Container | Family | Slots | Visual |
 | --- | --- | ---: | --- |
 | `small_bag` | bag | `6` | pouch mask |
+| `loot_corpse` | corpse | `8+` | tombstone mask |
 
 Containers open as floating UI panels. They use procedural UI templates by
 default; a template defines columns, slot size, padding, gap, title, and palette
 colors. Projects can later skin the same template with tile ids for frame
 corners, edges, center fill, and slots without turning every bag into a custom
 screen.
+
+Dead characters that call `drop_items("")` create a lootable corpse container
+under the official rules. The corpse expands to fit the carried loot and uses
+the same open, click-to-take, drag, and text transfer paths as bags. Empty
+corpses despawn by default so cleaned-out tombstones do not remain on the map.
 
 | Ammunition | Family | Quantity | Used by | Visual |
 | --- | --- | ---: | --- | --- |
@@ -604,7 +610,7 @@ the nearest matching visible resource node. Successful gathering sends a
 localized result message such as `You gather Wild Herb x2`. Recipes can be
 typed by name too, such as `craft blessed herb`, `craft wooden arrows`, or
 `craft hunting bow`. Container transfers start with simple text commands such
-as `put wild herb in bag` and `take wild herb from bag`.
+as `open small bag`, `put wild herb in bag`, and `take wild herb from bag`.
 
 | Ability | Kind | Cooldown | Range | Effect |
 | --- | --- | ---: | --- | --- |

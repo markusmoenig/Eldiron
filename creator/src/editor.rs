@@ -1,11 +1,17 @@
 use crate::Embedded;
 use crate::prelude::*;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::scepter::{ScepterEvent, ScepterRegionRequest, ScepterService};
 #[cfg(all(
     feature = "self-update",
     any(target_os = "windows", target_os = "linux", target_os = "macos")
 ))]
 use crate::self_update::{SelfUpdateEvent, SelfUpdater};
 use codegridfx::Module;
+#[cfg(not(target_arch = "wasm32"))]
+use eldiron_scepter::{
+    GridPoint, RegionPaintCells, RegionPaintRect, RegionRef, RegionRenderPreview, TileSelector,
+};
 use rusterix::render_settings::RendererBackend;
 use rusterix::server::message::AudioCommand;
 use rusterix::{
@@ -126,6 +132,8 @@ pub struct Editor {
 
     update_tracker: UpdateTracker,
     event_receiver: Option<Receiver<TheEvent>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    scepter_receiver: Option<Receiver<ScepterEvent>>,
     last_3d_hover_redraw_at: Option<std::time::Instant>,
 
     #[cfg(all(
@@ -1038,6 +1046,1534 @@ impl Editor {
         UNDOMANAGER.read().unwrap().has_unsaved() || DOCKMANAGER.read().unwrap().has_dock_changes()
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_project_snapshot(&self) -> serde_json::Value {
+        let current_region = self
+            .project
+            .regions
+            .iter()
+            .find(|region| region.id == self.server_ctx.curr_region)
+            .map(|region| {
+                serde_json::json!({
+                    "id": region.id.to_string(),
+                    "name": region.name,
+                    "map_name": region.map.name,
+                    "camera": format!("{:?}", region.map.camera),
+                })
+            });
+
+        let regions = self
+            .project
+            .regions
+            .iter()
+            .map(|region| {
+                serde_json::json!({
+                    "id": region.id.to_string(),
+                    "name": region.name,
+                    "map_name": region.map.name,
+                    "camera": format!("{:?}", region.map.camera),
+                    "sectors": region.map.sectors.len(),
+                    "items": region.items.len(),
+                    "characters": region.characters.len(),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        serde_json::json!({
+            "name": self.project.name,
+            "path": self.project_path.as_ref().map(|path| path.display().to_string()),
+            "dirty": self.active_session_has_changes(),
+            "active_session": self.active_session,
+            "session_count": self.sessions.len(),
+            "current_region": current_region,
+            "regions": regions,
+            "counts": {
+                "regions": self.project.regions.len(),
+                "tiles": self.project.tiles.len(),
+                "tile_groups": self.project.tile_groups.len(),
+                "tile_node_groups": self.project.tile_node_groups.len(),
+                "characters": self.project.characters.len(),
+                "items": self.project.items.len(),
+                "screens": self.project.screens.len(),
+                "assets": self.project.assets.len(),
+            }
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_tiles_snapshot(&self) -> serde_json::Value {
+        let mut tiles = self
+            .project
+            .tiles
+            .values()
+            .map(|tile| {
+                let first_frame = tile.textures.first().map(|texture| {
+                    serde_json::json!({
+                        "width": texture.width,
+                        "height": texture.height,
+                    })
+                });
+
+                serde_json::json!({
+                    "id": tile.id.to_string(),
+                    "alias": tile.alias,
+                    "role": tile.role.to_string(),
+                    "blocking": tile.blocking,
+                    "scale": tile.scale,
+                    "frame_count": tile.textures.len(),
+                    "first_frame": first_frame,
+                    "procedural": {
+                        "style": tile.procedural.style,
+                        "kind": tile.procedural.kind,
+                        "weight": tile.procedural.weight,
+                    },
+                    "has_module": tile.module.is_some(),
+                    "has_particle_emitter": tile.particle_emitter.is_some(),
+                    "has_light_emitter": tile.light_emitter.is_some(),
+                })
+            })
+            .collect::<Vec<_>>();
+        tiles.sort_by(|a, b| {
+            let alias_a = a["alias"].as_str().unwrap_or_default();
+            let alias_b = b["alias"].as_str().unwrap_or_default();
+            alias_a.cmp(alias_b).then_with(|| {
+                a["id"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .cmp(b["id"].as_str().unwrap_or_default())
+            })
+        });
+
+        let mut tile_groups = self
+            .project
+            .tile_groups
+            .values()
+            .map(|group| {
+                let members = group
+                    .members
+                    .iter()
+                    .map(|member| {
+                        serde_json::json!({
+                            "tile_id": member.tile_id.to_string(),
+                            "x": member.x,
+                            "y": member.y,
+                        })
+                    })
+                    .collect::<Vec<_>>();
+
+                serde_json::json!({
+                    "id": group.id.to_string(),
+                    "name": group.name,
+                    "width": group.width,
+                    "height": group.height,
+                    "tags": group.tags,
+                    "members": members,
+                })
+            })
+            .collect::<Vec<_>>();
+        tile_groups.sort_by(|a, b| {
+            let name_a = a["name"].as_str().unwrap_or_default();
+            let name_b = b["name"].as_str().unwrap_or_default();
+            name_a.cmp(name_b).then_with(|| {
+                a["id"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .cmp(b["id"].as_str().unwrap_or_default())
+            })
+        });
+
+        let roles = rusterix::TileRole::iterator()
+            .map(|role| role.to_string())
+            .collect::<Vec<_>>();
+
+        serde_json::json!({
+            "roles": roles,
+            "tiles": tiles,
+            "tile_groups": tile_groups,
+            "counts": {
+                "tiles": self.project.tiles.len(),
+                "tile_groups": self.project.tile_groups.len(),
+            }
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_tile_summary(&self, tile_id: &Uuid) -> Option<serde_json::Value> {
+        self.project.tiles.get(tile_id).map(|tile| {
+            let first_frame = tile.textures.first().map(|texture| {
+                serde_json::json!({
+                    "width": texture.width,
+                    "height": texture.height,
+                })
+            });
+
+            serde_json::json!({
+                "id": tile.id.to_string(),
+                "alias": tile.alias,
+                "role": tile.role.to_string(),
+                "blocking": tile.blocking,
+                "frame_count": tile.textures.len(),
+                "first_frame": first_frame,
+                "procedural": {
+                    "style": tile.procedural.style,
+                    "kind": tile.procedural.kind,
+                    "weight": tile.procedural.weight,
+                },
+            })
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_source_summary(&self, source: &rusterix::PixelSource) -> serde_json::Value {
+        use rusterix::PixelSource;
+
+        let mut summary = match source {
+            PixelSource::Off => serde_json::json!({ "kind": "off" }),
+            PixelSource::TileId(tile_id) => serde_json::json!({
+                "kind": "tile_id",
+                "tile_id": tile_id.to_string(),
+            }),
+            PixelSource::TileGroup(group_id) => {
+                let group = self.project.tile_groups.get(group_id);
+                serde_json::json!({
+                    "kind": "tile_group",
+                    "group_id": group_id.to_string(),
+                    "group": group.map(|group| serde_json::json!({
+                        "id": group.id.to_string(),
+                        "name": group.name,
+                        "width": group.width,
+                        "height": group.height,
+                        "member_count": group.members.len(),
+                        "tags": group.tags,
+                    })),
+                })
+            }
+            PixelSource::TileGroupMember {
+                group_id,
+                member_index,
+            } => {
+                let member = self
+                    .project
+                    .tile_groups
+                    .get(group_id)
+                    .and_then(|group| group.members.get(*member_index as usize));
+                serde_json::json!({
+                    "kind": "tile_group_member",
+                    "group_id": group_id.to_string(),
+                    "member_index": member_index,
+                    "tile_id": member.map(|member| member.tile_id.to_string()),
+                    "member": member.map(|member| serde_json::json!({
+                        "x": member.x,
+                        "y": member.y,
+                    })),
+                })
+            }
+            PixelSource::ProceduralTile(tile_id) => serde_json::json!({
+                "kind": "procedural_tile",
+                "tile_id": tile_id.to_string(),
+            }),
+            PixelSource::PaletteIndex(index) => serde_json::json!({
+                "kind": "palette_index",
+                "index": index,
+            }),
+            PixelSource::MaterialId(material_id) => serde_json::json!({
+                "kind": "material_id",
+                "material_id": material_id.to_string(),
+            }),
+            PixelSource::Sequence(name) => serde_json::json!({
+                "kind": "sequence",
+                "name": name,
+            }),
+            PixelSource::EntityTile(entity_id, tile_index) => serde_json::json!({
+                "kind": "entity_tile",
+                "entity_id": entity_id,
+                "tile_index": tile_index,
+            }),
+            PixelSource::ItemTile(item_id, tile_index) => serde_json::json!({
+                "kind": "item_tile",
+                "item_id": item_id,
+                "tile_index": tile_index,
+            }),
+            PixelSource::Color(color) => serde_json::json!({
+                "kind": "color",
+                "rgba": color.to_u8_array(),
+            }),
+            PixelSource::LegacyShapeFXGraphId(graph_id) => serde_json::json!({
+                "kind": "legacy_shape_fx_graph_id",
+                "graph_id": graph_id.to_string(),
+            }),
+            PixelSource::StaticTileIndex(index) => serde_json::json!({
+                "kind": "static_tile_index",
+                "index": index,
+            }),
+            PixelSource::DynamicTileIndex(index) => serde_json::json!({
+                "kind": "dynamic_tile_index",
+                "index": index,
+            }),
+            PixelSource::Pixel(_) => serde_json::json!({
+                "kind": "pixel",
+            }),
+        };
+
+        let resolved_tile_id = match source {
+            PixelSource::TileId(tile_id)
+            | PixelSource::ProceduralTile(tile_id)
+            | PixelSource::MaterialId(tile_id) => Some(*tile_id),
+            PixelSource::TileGroupMember {
+                group_id,
+                member_index,
+            } => self
+                .project
+                .tile_groups
+                .get(group_id)
+                .and_then(|group| group.members.get(*member_index as usize))
+                .map(|member| member.tile_id),
+            _ => None,
+        };
+
+        if let Some(tile_id) = resolved_tile_id
+            && let Some(tile) = self.scepter_tile_summary(&tile_id)
+            && let Some(object) = summary.as_object_mut()
+        {
+            object.insert("resolved_tile".to_string(), tile);
+        }
+
+        summary
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_resolved_tile_id(&self, source: &rusterix::PixelSource) -> Option<Uuid> {
+        use rusterix::PixelSource;
+
+        match source {
+            PixelSource::TileId(tile_id)
+            | PixelSource::ProceduralTile(tile_id)
+            | PixelSource::MaterialId(tile_id) => Some(*tile_id),
+            PixelSource::TileGroupMember {
+                group_id,
+                member_index,
+            } => self
+                .project
+                .tile_groups
+                .get(group_id)
+                .and_then(|group| group.members.get(*member_index as usize))
+                .map(|member| member.tile_id),
+            _ => None,
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_value_snapshot(&self, value: &Value) -> serde_json::Value {
+        match value {
+            Value::Source(source) => serde_json::json!({
+                "type": "source",
+                "source": self.scepter_source_summary(source),
+            }),
+            Value::TileOverrides(tiles) => {
+                let mut entries = tiles
+                    .iter()
+                    .map(|((x, y), source)| {
+                        serde_json::json!({
+                            "cell": [x, y],
+                            "source": self.scepter_source_summary(source),
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                entries.sort_by_key(|entry| {
+                    (
+                        entry["cell"][0].as_i64().unwrap_or_default(),
+                        entry["cell"][1].as_i64().unwrap_or_default(),
+                    )
+                });
+                serde_json::json!({
+                    "type": "tile_overrides",
+                    "entries": entries,
+                })
+            }
+            Value::BlendOverrides(blend_tiles) => {
+                let mut entries = blend_tiles
+                    .iter()
+                    .map(|((x, y), (preset, source))| {
+                        serde_json::json!({
+                            "cell": [x, y],
+                            "preset": serde_json::to_value(preset)
+                                .unwrap_or_else(|_| serde_json::json!(format!("{preset:?}"))),
+                            "source": self.scepter_source_summary(source),
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                entries.sort_by_key(|entry| {
+                    (
+                        entry["cell"][0].as_i64().unwrap_or_default(),
+                        entry["cell"][1].as_i64().unwrap_or_default(),
+                    )
+                });
+                serde_json::json!({
+                    "type": "blend_overrides",
+                    "entries": entries,
+                })
+            }
+            _ => {
+                serde_json::to_value(value).unwrap_or_else(|_| serde_json::json!(value.to_string()))
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_properties_snapshot(&self, properties: &ValueContainer) -> serde_json::Value {
+        let mut values = serde_json::Map::new();
+        for key in properties.keys_sorted() {
+            if let Some(value) = properties.get(key) {
+                values.insert(key.clone(), self.scepter_value_snapshot(value));
+            }
+        }
+        serde_json::Value::Object(values)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_region_snapshot(&self, request: &ScepterRegionRequest) -> serde_json::Value {
+        let region = if let Some(id) = &request.id {
+            Uuid::from_str(id)
+                .ok()
+                .and_then(|id| self.project.regions.iter().find(|region| region.id == id))
+        } else if let Some(name) = &request.name {
+            self.project
+                .regions
+                .iter()
+                .find(|region| region.name.eq_ignore_ascii_case(name))
+        } else {
+            self.project
+                .regions
+                .iter()
+                .find(|region| region.id == self.server_ctx.curr_region)
+                .or_else(|| self.project.regions.first())
+        };
+
+        let Some(region) = region else {
+            return serde_json::json!({
+                "error": "region not found",
+                "request": {
+                    "id": request.id,
+                    "name": request.name,
+                }
+            });
+        };
+
+        let vertices = region
+            .map
+            .vertices
+            .iter()
+            .map(|vertex| {
+                serde_json::json!({
+                    "id": vertex.id,
+                    "name": vertex.name,
+                    "position": [vertex.x, vertex.y, vertex.z],
+                    "properties": self.scepter_properties_snapshot(&vertex.properties),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let linedefs = region
+            .map
+            .linedefs
+            .iter()
+            .map(|linedef| {
+                let start = region.map.find_vertex(linedef.start_vertex);
+                let end = region.map.find_vertex(linedef.end_vertex);
+                serde_json::json!({
+                    "id": linedef.id,
+                    "creator_id": linedef.creator_id.to_string(),
+                    "name": linedef.name,
+                    "start_vertex": linedef.start_vertex,
+                    "end_vertex": linedef.end_vertex,
+                    "start": start.map(|vertex| serde_json::json!([vertex.x, vertex.y, vertex.z])),
+                    "end": end.map(|vertex| serde_json::json!([vertex.x, vertex.y, vertex.z])),
+                    "sector_ids": linedef.sector_ids,
+                    "length": linedef.length(&region.map),
+                    "properties": self.scepter_properties_snapshot(&linedef.properties),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let sectors = region
+            .map
+            .sectors
+            .iter()
+            .map(|sector| {
+                let polygon = sector
+                    .linedefs
+                    .iter()
+                    .filter_map(|linedef_id| {
+                        let linedef = region.map.find_linedef(*linedef_id)?;
+                        let vertex = region.map.find_vertex(linedef.start_vertex)?;
+                        Some(serde_json::json!([vertex.x, vertex.y, vertex.z]))
+                    })
+                    .collect::<Vec<_>>();
+                let bbox = sector.bounding_box(&region.map);
+                let center = sector.center(&region.map);
+
+                serde_json::json!({
+                    "id": sector.id,
+                    "creator_id": sector.creator_id.to_string(),
+                    "name": sector.name,
+                    "layer": sector.layer,
+                    "linedefs": sector.linedefs,
+                    "polygon": polygon,
+                    "bbox": {
+                        "min": [bbox.min.x, bbox.min.y],
+                        "max": [bbox.max.x, bbox.max.y],
+                    },
+                    "center": center.map(|center| serde_json::json!([center.x, center.y])),
+                    "area": sector.area(&region.map),
+                    "properties": self.scepter_properties_snapshot(&sector.properties),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let mut body = serde_json::json!({
+            "id": region.id.to_string(),
+            "name": region.name,
+            "map": {
+                "id": region.map.id.to_string(),
+                "name": region.map.name,
+                "camera": format!("{:?}", region.map.camera),
+                "grid_size": region.map.grid_size,
+                "subdivisions": region.map.subdivisions,
+                "authoring_notes": {
+                    "primary_2d_surface_source_key": "source",
+                    "coordinate_system": "2D origin uses x right, negative y up, positive y down",
+                    "ceiling_source": "screen/button selected-state legacy usage; not current 2D map authoring",
+                    "terrain": "deprecated in current form; defer Scepter terrain commands until the replacement terrain system exists",
+                },
+                "vertices": vertices,
+                "linedefs": linedefs,
+                "sectors": sectors,
+                "counts": {
+                    "vertices": region.map.vertices.len(),
+                    "linedefs": region.map.linedefs.len(),
+                    "sectors": region.map.sectors.len(),
+                    "geometry_objects": region.map.geometry_objects.len(),
+                    "lights": region.map.lights.len(),
+                    "entities": region.map.entities.len(),
+                    "items": region.map.items.len(),
+                    "region_characters": region.characters.len(),
+                    "region_items": region.items.len(),
+                },
+            },
+        });
+
+        if request.include_tiles
+            && let Some(object) = body.as_object_mut()
+        {
+            object.insert("tile_lookup".to_string(), self.scepter_tiles_snapshot());
+        }
+
+        body
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_source_overview_char(&self, source: Option<&rusterix::PixelSource>) -> char {
+        let Some(source) = source else {
+            return ' ';
+        };
+        let Some(tile_id) = self.scepter_resolved_tile_id(source) else {
+            return ' ';
+        };
+        let Some(tile) = self.project.tiles.get(&tile_id) else {
+            return '?';
+        };
+
+        match tile.procedural.kind.as_str() {
+            "entrance" => 'E',
+            "exit" => 'X',
+            "wall" => '#',
+            "floor" => '.',
+            "door" => 'D',
+            _ => match tile.role {
+                rusterix::TileRole::Water => '~',
+                rusterix::TileRole::Mountain => '^',
+                rusterix::TileRole::Road => '=',
+                rusterix::TileRole::Nature => {
+                    if tile.blocking {
+                        'T'
+                    } else {
+                        ','
+                    }
+                }
+                rusterix::TileRole::ManMade => {
+                    if tile.blocking {
+                        '#'
+                    } else {
+                        '.'
+                    }
+                }
+                rusterix::TileRole::Dungeon => {
+                    if tile.blocking {
+                        '#'
+                    } else {
+                        '.'
+                    }
+                }
+                _ => '?',
+            },
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_base64_encode(bytes: &[u8]) -> String {
+        const TABLE: &[u8; 64] =
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
+
+        for chunk in bytes.chunks(3) {
+            let b0 = chunk[0];
+            let b1 = chunk.get(1).copied().unwrap_or(0);
+            let b2 = chunk.get(2).copied().unwrap_or(0);
+            let triple = ((b0 as u32) << 16) | ((b1 as u32) << 8) | b2 as u32;
+
+            encoded.push(TABLE[((triple >> 18) & 0x3f) as usize] as char);
+            encoded.push(TABLE[((triple >> 12) & 0x3f) as usize] as char);
+            if chunk.len() > 1 {
+                encoded.push(TABLE[((triple >> 6) & 0x3f) as usize] as char);
+            } else {
+                encoded.push('=');
+            }
+            if chunk.len() > 2 {
+                encoded.push(TABLE[(triple & 0x3f) as usize] as char);
+            } else {
+                encoded.push('=');
+            }
+        }
+
+        encoded
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_region_render_preview(&self, command: &RegionRenderPreview) -> serde_json::Value {
+        let region_index = match self.scepter_resolve_region_index(&command.region) {
+            Ok(index) => index,
+            Err(error) => return serde_json::json!({ "ok": false, "error": error }),
+        };
+        let region = &self.project.regions[region_index];
+        let map = &region.map;
+
+        let (min_x, max_x, min_y, max_y) = if let Some([x, y, width, height]) = command.bounds {
+            if width == 0 || height == 0 {
+                return serde_json::json!({
+                    "ok": false,
+                    "error": "region.render_preview bounds require non-zero width and height",
+                });
+            }
+            (
+                x.min(x + width),
+                x.max(x + width),
+                y.min(y + height),
+                y.max(y + height),
+            )
+        } else if map.vertices.is_empty() {
+            return serde_json::json!({
+                "ok": false,
+                "error": "region has no geometry to render",
+            });
+        } else {
+            let min_x = map
+                .vertices
+                .iter()
+                .map(|vertex| vertex.x)
+                .fold(f32::INFINITY, f32::min)
+                .floor() as i32;
+            let max_x = map
+                .vertices
+                .iter()
+                .map(|vertex| vertex.x)
+                .fold(f32::NEG_INFINITY, f32::max)
+                .ceil() as i32;
+            let min_y = map
+                .vertices
+                .iter()
+                .map(|vertex| vertex.y)
+                .fold(f32::INFINITY, f32::min)
+                .floor() as i32;
+            let max_y = map
+                .vertices
+                .iter()
+                .map(|vertex| vertex.y)
+                .fold(f32::NEG_INFINITY, f32::max)
+                .ceil() as i32;
+            (min_x, max_x, min_y, max_y)
+        };
+
+        let grid_width = (max_x - min_x).max(0) as usize;
+        let grid_height = (max_y - min_y).max(0) as usize;
+        if grid_width == 0 || grid_height == 0 {
+            return serde_json::json!({
+                "ok": false,
+                "error": "region.render_preview resolved empty bounds",
+            });
+        }
+        if grid_width > 128 || grid_height > 128 {
+            return serde_json::json!({
+                "ok": false,
+                "error": "region.render_preview bounds exceed 128x128 cells",
+                "bounds": {
+                    "min": [min_x, min_y],
+                    "max": [max_x, max_y],
+                    "size": [grid_width, grid_height],
+                }
+            });
+        }
+
+        let zoom = command.zoom.unwrap_or(2).clamp(1, 8) as usize;
+        let cell_pixels = 16usize * zoom;
+        let width = grid_width * cell_pixels;
+        let height = grid_height * cell_pixels;
+        let mut rgb = vec![16u8; width * height * 3];
+
+        for sector in &map.sectors {
+            let Some(source) = sector
+                .properties
+                .get("source")
+                .and_then(|value| value.to_source())
+            else {
+                continue;
+            };
+            let Some(tile_id) = self.scepter_resolved_tile_id(source) else {
+                continue;
+            };
+            let Some(tile) = self.project.tiles.get(&tile_id) else {
+                continue;
+            };
+            let Some(texture) = tile.textures.first() else {
+                continue;
+            };
+
+            let bbox = sector.bounding_box(map);
+            let sx0 = (bbox.min.x.floor() as i32).max(min_x);
+            let sx1 = (bbox.max.x.ceil() as i32).min(max_x);
+            let sy0 = (bbox.min.y.floor() as i32).max(min_y);
+            let sy1 = (bbox.max.y.ceil() as i32).min(max_y);
+
+            for cell_y in sy0..sy1 {
+                for cell_x in sx0..sx1 {
+                    let cell_origin_x = (cell_x - min_x) as usize * cell_pixels;
+                    let cell_origin_y = (cell_y - min_y) as usize * cell_pixels;
+
+                    for py in 0..cell_pixels {
+                        let ty = py * texture.height / cell_pixels;
+                        for px in 0..cell_pixels {
+                            let tx = px * texture.width / cell_pixels;
+                            let source_index = (ty * texture.width + tx) * 4;
+                            if source_index + 3 >= texture.data.len() {
+                                continue;
+                            }
+
+                            let alpha = texture.data[source_index + 3] as u16;
+                            if alpha == 0 {
+                                continue;
+                            }
+                            let image_x = cell_origin_x + px;
+                            let image_y = cell_origin_y + py;
+                            let target_index = (image_y * width + image_x) * 3;
+                            for channel in 0..3 {
+                                let src = texture.data[source_index + channel] as u16;
+                                let dst = rgb[target_index + channel] as u16;
+                                rgb[target_index + channel] =
+                                    ((src * alpha + dst * (255 - alpha)) / 255) as u8;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut png_data = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut png_data, width as u32, height as u32);
+            encoder.set_color(png::ColorType::Rgb);
+            encoder.set_depth(png::BitDepth::Eight);
+            match encoder.write_header() {
+                Ok(mut writer) => {
+                    if let Err(error) = writer.write_image_data(&rgb) {
+                        return serde_json::json!({
+                            "ok": false,
+                            "error": format!("could not encode preview PNG: {error}"),
+                        });
+                    }
+                }
+                Err(error) => {
+                    return serde_json::json!({
+                        "ok": false,
+                        "error": format!("could not write preview PNG header: {error}"),
+                    });
+                }
+            }
+        }
+
+        serde_json::json!({
+            "ok": true,
+            "region": {
+                "id": region.id.to_string(),
+                "name": region.name,
+            },
+            "bounds": {
+                "min": [min_x, min_y],
+                "max": [max_x, max_y],
+                "size": [grid_width, grid_height],
+                "coordinate_system": "x right, negative y up; first image row is min_y/up",
+            },
+            "image": {
+                "mime": "image/png",
+                "encoding": "base64",
+                "data": Self::scepter_base64_encode(&png_data),
+                "width": width,
+                "height": height,
+                "grid_width": grid_width,
+                "grid_height": grid_height,
+                "cell_pixels": cell_pixels,
+                "bytes": png_data.len(),
+            }
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_region_summary(&self, request: &ScepterRegionRequest) -> serde_json::Value {
+        let region = if let Some(id) = &request.id {
+            Uuid::from_str(id)
+                .ok()
+                .and_then(|id| self.project.regions.iter().find(|region| region.id == id))
+        } else if let Some(name) = &request.name {
+            self.project
+                .regions
+                .iter()
+                .find(|region| region.name.eq_ignore_ascii_case(name))
+        } else {
+            self.project
+                .regions
+                .iter()
+                .find(|region| region.id == self.server_ctx.curr_region)
+                .or_else(|| self.project.regions.first())
+        };
+
+        let Some(region) = region else {
+            return serde_json::json!({
+                "error": "region not found",
+                "request": {
+                    "id": request.id,
+                    "name": request.name,
+                }
+            });
+        };
+
+        let bounds = if region.map.vertices.is_empty() {
+            None
+        } else {
+            let min_x = region
+                .map
+                .vertices
+                .iter()
+                .map(|vertex| vertex.x)
+                .fold(f32::INFINITY, f32::min);
+            let max_x = region
+                .map
+                .vertices
+                .iter()
+                .map(|vertex| vertex.x)
+                .fold(f32::NEG_INFINITY, f32::max);
+            let min_y = region
+                .map
+                .vertices
+                .iter()
+                .map(|vertex| vertex.y)
+                .fold(f32::INFINITY, f32::min);
+            let max_y = region
+                .map
+                .vertices
+                .iter()
+                .map(|vertex| vertex.y)
+                .fold(f32::NEG_INFINITY, f32::max);
+            Some((min_x, max_x, min_y, max_y))
+        };
+
+        let mut layer_counts: HashMap<String, usize> = HashMap::new();
+        let mut sector_source_counts: HashMap<Uuid, usize> = HashMap::new();
+        let mut linedef_source_counts: HashMap<Uuid, usize> = HashMap::new();
+        let mut role_counts: HashMap<String, (usize, usize)> = HashMap::new();
+        let mut kind_counts: HashMap<String, usize> = HashMap::new();
+        let mut off_sector_count = 0usize;
+        let mut named_sectors = Vec::new();
+        let mut procedural_sectors: HashMap<String, usize> = HashMap::new();
+
+        for sector in &region.map.sectors {
+            *layer_counts
+                .entry(
+                    sector
+                        .layer
+                        .map(|layer| layer.to_string())
+                        .unwrap_or_else(|| "none".to_string()),
+                )
+                .or_default() += 1;
+
+            if let Some(Value::Source(source)) = sector.properties.get("source") {
+                if let Some(tile_id) = self.scepter_resolved_tile_id(source) {
+                    *sector_source_counts.entry(tile_id).or_default() += 1;
+                    if let Some(tile) = self.project.tiles.get(&tile_id) {
+                        let role = tile.role.to_string().to_string();
+                        let entry = role_counts.entry(role).or_default();
+                        entry.0 += 1;
+                        if tile.blocking {
+                            entry.1 += 1;
+                        }
+                        if !tile.procedural.kind.is_empty() {
+                            *kind_counts.entry(tile.procedural.kind.clone()).or_default() += 1;
+                        }
+                    }
+                } else if matches!(source, rusterix::PixelSource::Off) {
+                    off_sector_count += 1;
+                }
+            }
+
+            if sector
+                .properties
+                .get_bool_default("procedural_generated", false)
+            {
+                let kind = sector
+                    .properties
+                    .get_str("procedural_kind")
+                    .unwrap_or("unknown")
+                    .to_string();
+                *procedural_sectors.entry(kind).or_default() += 1;
+            }
+
+            if !sector.name.is_empty() {
+                let bbox = sector.bounding_box(&region.map);
+                let center = sector.center(&region.map);
+                named_sectors.push(serde_json::json!({
+                    "id": sector.id,
+                    "name": sector.name,
+                    "layer": sector.layer,
+                    "bbox": {
+                        "min": [bbox.min.x, bbox.min.y],
+                        "max": [bbox.max.x, bbox.max.y],
+                    },
+                    "center": center.map(|center| serde_json::json!([center.x, center.y])),
+                    "source": sector
+                        .properties
+                        .get("source")
+                        .and_then(|value| value.to_source())
+                        .map(|source| self.scepter_source_summary(source)),
+                    "data": sector.properties.get_str("data"),
+                }));
+            }
+        }
+
+        for linedef in &region.map.linedefs {
+            for key in [
+                "source",
+                "row1_source",
+                "row2_source",
+                "row3_source",
+                "row4_source",
+            ] {
+                if let Some(Value::Source(source)) = linedef.properties.get(key)
+                    && let Some(tile_id) = self.scepter_resolved_tile_id(source)
+                {
+                    *linedef_source_counts.entry(tile_id).or_default() += 1;
+                }
+            }
+        }
+
+        let source_usage = |counts: HashMap<Uuid, usize>| {
+            let mut usage = counts
+                .into_iter()
+                .map(|(tile_id, count)| {
+                    serde_json::json!({
+                        "tile_id": tile_id.to_string(),
+                        "count": count,
+                        "tile": self.scepter_tile_summary(&tile_id),
+                    })
+                })
+                .collect::<Vec<_>>();
+            usage.sort_by(|a, b| {
+                b["count"]
+                    .as_u64()
+                    .unwrap_or_default()
+                    .cmp(&a["count"].as_u64().unwrap_or_default())
+            });
+            usage.truncate(30);
+            usage
+        };
+
+        let mut layers = layer_counts
+            .into_iter()
+            .map(|(layer, count)| serde_json::json!({ "layer": layer, "count": count }))
+            .collect::<Vec<_>>();
+        layers.sort_by(|a, b| {
+            a["layer"]
+                .as_str()
+                .unwrap_or_default()
+                .cmp(b["layer"].as_str().unwrap_or_default())
+        });
+
+        let mut roles = role_counts
+            .into_iter()
+            .map(|(role, (count, blocking_count))| {
+                serde_json::json!({
+                    "role": role,
+                    "count": count,
+                    "blocking": blocking_count,
+                    "walkable": count.saturating_sub(blocking_count),
+                })
+            })
+            .collect::<Vec<_>>();
+        roles.sort_by(|a, b| {
+            b["count"]
+                .as_u64()
+                .unwrap_or_default()
+                .cmp(&a["count"].as_u64().unwrap_or_default())
+        });
+
+        let mut kinds = kind_counts
+            .into_iter()
+            .map(|(kind, count)| serde_json::json!({ "kind": kind, "count": count }))
+            .collect::<Vec<_>>();
+        kinds.sort_by(|a, b| {
+            b["count"]
+                .as_u64()
+                .unwrap_or_default()
+                .cmp(&a["count"].as_u64().unwrap_or_default())
+        });
+
+        let mut procedural = procedural_sectors
+            .into_iter()
+            .map(|(kind, count)| serde_json::json!({ "kind": kind, "count": count }))
+            .collect::<Vec<_>>();
+        procedural.sort_by(|a, b| {
+            b["count"]
+                .as_u64()
+                .unwrap_or_default()
+                .cmp(&a["count"].as_u64().unwrap_or_default())
+        });
+
+        let characters = region
+            .characters
+            .values()
+            .map(|character| {
+                serde_json::json!({
+                    "id": character.id.to_string(),
+                    "name": character.name,
+                    "position": [character.position.x, character.position.y, character.position.z],
+                    "orientation": [character.orientation.x, character.orientation.y],
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let items = region
+            .items
+            .values()
+            .map(|item| {
+                serde_json::json!({
+                    "id": item.id.to_string(),
+                    "name": item.name,
+                    "position": [item.position.x, item.position.y, item.position.z],
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let overview = if request.include_ascii {
+            bounds.map(|(min_x, max_x, min_y, max_y)| {
+                let min_x_i = min_x.floor() as i32;
+                let max_x_i = max_x.ceil() as i32;
+                let min_y_i = min_y.floor() as i32;
+                let max_y_i = max_y.ceil() as i32;
+                let width = (max_x_i - min_x_i).max(0) as usize;
+                let height = (max_y_i - min_y_i).max(0) as usize;
+                let mut grid = vec![vec![' '; width]; height];
+
+                if width <= 100 && height <= 100 {
+                    for sector in &region.map.sectors {
+                        let bbox = sector.bounding_box(&region.map);
+                        let ch = self.scepter_source_overview_char(
+                            sector
+                                .properties
+                                .get("source")
+                                .and_then(|value| value.to_source()),
+                        );
+                        let sx0 = (bbox.min.x.floor() as i32).max(min_x_i);
+                        let sx1 = (bbox.max.x.ceil() as i32).min(max_x_i);
+                        let sy0 = (bbox.min.y.floor() as i32).max(min_y_i);
+                        let sy1 = (bbox.max.y.ceil() as i32).min(max_y_i);
+                        for y in sy0..sy1 {
+                            for x in sx0..sx1 {
+                                let gx = (x - min_x_i) as usize;
+                                let gy = (y - min_y_i) as usize;
+                                if let Some(row) = grid.get_mut(gy)
+                                    && let Some(cell) = row.get_mut(gx)
+                                {
+                                    *cell = ch;
+                                }
+                            }
+                        }
+                    }
+
+                    for character in region.characters.values() {
+                        let x = character.position.x.floor() as i32 - min_x_i;
+                        let y = character.position.z.floor() as i32 - min_y_i;
+                        if let Some(row) = grid.get_mut(y as usize)
+                            && let Some(cell) = row.get_mut(x as usize)
+                        {
+                            *cell = if character.name == "Player" { 'P' } else { 'C' };
+                        }
+                    }
+
+                    for item in region.items.values() {
+                        let x = item.position.x.floor() as i32 - min_x_i;
+                        let y = item.position.z.floor() as i32 - min_y_i;
+                        if let Some(row) = grid.get_mut(y as usize)
+                            && let Some(cell) = row.get_mut(x as usize)
+                        {
+                            *cell = if item.name == "Door" { 'D' } else { 'i' };
+                        }
+                    }
+                }
+
+                let rows = if width <= 100 && height <= 100 {
+                    grid.into_iter()
+                        .map(|row| row.into_iter().collect::<String>())
+                        .collect::<Vec<_>>()
+                } else {
+                    Vec::new()
+                };
+
+                serde_json::json!({
+                    "bounds": {
+                        "min": [min_x_i, min_y_i],
+                        "max": [max_x_i, max_y_i],
+                        "width": width,
+                        "height": height,
+                        "orientation": "first row is most negative y/up; later rows move downward toward positive y",
+                    },
+                    "legend": {
+                        "~": "water",
+                        "^": "mountain/blocking terrain",
+                        "#": "blocking wall or manmade blocker",
+                        ".": "floor/manmade walkable",
+                        ",": "nature walkable",
+                        "T": "blocking nature",
+                        "=": "road/path",
+                        "E": "entrance",
+                        "X": "exit",
+                        "P": "player",
+                        "C": "character",
+                        "D": "door item or door tile",
+                        "i": "item"
+                    },
+                    "rows": rows,
+                    "omitted": width > 100 || height > 100,
+                })
+            })
+        } else {
+            None
+        };
+
+        serde_json::json!({
+            "id": region.id.to_string(),
+            "name": region.name,
+            "map": {
+                "id": region.map.id.to_string(),
+                "name": region.map.name,
+                "camera": format!("{:?}", region.map.camera),
+                "grid_size": region.map.grid_size,
+                "subdivisions": region.map.subdivisions,
+                "bounds": bounds.map(|(min_x, max_x, min_y, max_y)| serde_json::json!({
+                    "min": [min_x, min_y],
+                    "max": [max_x, max_y],
+                    "size": [max_x - min_x, max_y - min_y],
+                })),
+                "counts": {
+                    "vertices": region.map.vertices.len(),
+                    "linedefs": region.map.linedefs.len(),
+                    "sectors": region.map.sectors.len(),
+                    "geometry_objects": region.map.geometry_objects.len(),
+                    "characters": region.characters.len(),
+                    "items": region.items.len(),
+                    "off_sectors": off_sector_count,
+                },
+                "layers": layers,
+                "tile_roles": roles,
+                "procedural_kinds": kinds,
+                "procedural_sectors": procedural,
+                "sector_source_usage": source_usage(sector_source_counts),
+                "linedef_source_usage": source_usage(linedef_source_counts),
+                "named_sectors": named_sectors,
+                "characters": characters,
+                "items": items,
+                "overview": overview,
+                "authoring_notes": {
+                    "primary_2d_surface_source_key": "source",
+                    "coordinate_system": "2D origin uses x right, negative y up, positive y down",
+                    "ceiling_source": "screen/button selected-state legacy usage; not current 2D map authoring",
+                    "terrain": "deprecated in current form; defer Scepter terrain commands until the replacement terrain system exists",
+                },
+            },
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_resolve_region_index(&self, region: &RegionRef) -> Result<usize, String> {
+        match region {
+            RegionRef::Id { id } => {
+                let id = Uuid::from_str(id).map_err(|err| format!("invalid region id: {err}"))?;
+                self.project
+                    .regions
+                    .iter()
+                    .position(|region| region.id == id)
+                    .ok_or_else(|| format!("region id not found: {id}"))
+            }
+            RegionRef::Name { name } => self
+                .project
+                .regions
+                .iter()
+                .position(|region| region.name.eq_ignore_ascii_case(name))
+                .ok_or_else(|| format!("region name not found: {name}")),
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_normalize_match_text(value: &str) -> String {
+        value
+            .chars()
+            .filter(|ch| !ch.is_whitespace() && *ch != '_' && *ch != '-')
+            .flat_map(char::to_lowercase)
+            .collect()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_resolve_tile_selector(&self, selector: &TileSelector) -> Result<Uuid, String> {
+        if let Some(id) = &selector.id {
+            let id = Uuid::from_str(id).map_err(|err| format!("invalid tile id: {err}"))?;
+            if self.project.tiles.contains_key(&id) {
+                return Ok(id);
+            }
+            return Err(format!("tile id not found: {id}"));
+        }
+
+        if let Some(alias) = &selector.alias
+            && let Some(tile) = self
+                .project
+                .tiles
+                .values()
+                .find(|tile| tile.alias.eq_ignore_ascii_case(alias))
+        {
+            return Ok(tile.id);
+        }
+
+        let role = selector
+            .role
+            .as_deref()
+            .map(Self::scepter_normalize_match_text);
+        let kind = selector
+            .kind
+            .as_deref()
+            .map(Self::scepter_normalize_match_text);
+        let style = selector
+            .style
+            .as_deref()
+            .map(Self::scepter_normalize_match_text);
+        let tags = selector
+            .tags
+            .iter()
+            .map(|tag| Self::scepter_normalize_match_text(tag))
+            .collect::<Vec<_>>();
+
+        self.project
+            .tiles
+            .values()
+            .find(|tile| {
+                role.as_ref().is_none_or(|role| {
+                    Self::scepter_normalize_match_text(tile.role.to_string()) == *role
+                }) && kind.as_ref().is_none_or(|kind| {
+                    Self::scepter_normalize_match_text(&tile.procedural.kind) == *kind
+                }) && style.as_ref().is_none_or(|style| {
+                    Self::scepter_normalize_match_text(&tile.procedural.style) == *style
+                }) && tags.iter().all(|tag| {
+                    let alias = Self::scepter_normalize_match_text(&tile.alias);
+                    let kind = Self::scepter_normalize_match_text(&tile.procedural.kind);
+                    let style = Self::scepter_normalize_match_text(&tile.procedural.style);
+                    alias.contains(tag) || kind.contains(tag) || style.contains(tag)
+                })
+            })
+            .map(|tile| tile.id)
+            .ok_or_else(|| format!("no tile matched selector: {selector:?}"))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_find_rect_sector(map: &rusterix::Map, expected: &[(f32, f32); 4]) -> Option<u32> {
+        Self::scepter_find_rect_sectors(map, expected)
+            .into_iter()
+            .next()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_find_rect_sectors(map: &rusterix::Map, expected: &[(f32, f32); 4]) -> Vec<u32> {
+        map.sectors
+            .iter()
+            .filter_map(|sector| {
+                let mut points = sector
+                    .linedefs
+                    .iter()
+                    .filter_map(|linedef_id| {
+                        let linedef = map.find_linedef(*linedef_id)?;
+                        let vertex = map.find_vertex(linedef.start_vertex)?;
+                        Some((vertex.x, vertex.y))
+                    })
+                    .collect::<Vec<_>>();
+                points.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.total_cmp(&b.1)));
+                points.dedup();
+
+                let mut expected = expected.to_vec();
+                expected.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.total_cmp(&b.1)));
+                expected.dedup();
+
+                if points == expected {
+                    Some(sector.id)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_find_cell_replacement_sectors(map: &rusterix::Map, x: i32, y: i32) -> Vec<u32> {
+        let x0 = x as f32;
+        let y0 = y as f32;
+        let x1 = x0 + 1.0;
+        let y1 = y0 + 1.0;
+        let epsilon = 0.0001;
+
+        map.sectors
+            .iter()
+            .filter_map(|sector| {
+                let source = sector.properties.get_default_source()?;
+                if matches!(source, rusterix::PixelSource::Off) {
+                    return None;
+                }
+
+                let mut min_x = f32::MAX;
+                let mut min_y = f32::MAX;
+                let mut max_x = f32::MIN;
+                let mut max_y = f32::MIN;
+                for linedef_id in &sector.linedefs {
+                    let linedef = map.find_linedef(*linedef_id)?;
+                    let vertex = map.find_vertex(linedef.start_vertex)?;
+                    min_x = min_x.min(vertex.x);
+                    min_y = min_y.min(vertex.y);
+                    max_x = max_x.max(vertex.x);
+                    max_y = max_y.max(vertex.y);
+                }
+
+                let overlaps = min_x < x1 - epsilon
+                    && max_x > x0 + epsilon
+                    && min_y < y1 - epsilon
+                    && max_y > y0 + epsilon;
+
+                overlaps.then_some(sector.id)
+            })
+            .collect()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_create_cell_sector(
+        map: &mut rusterix::Map,
+        x: i32,
+        y: i32,
+        source: rusterix::PixelSource,
+        layer: u8,
+    ) -> Option<u32> {
+        let x0 = x as f32;
+        let y0 = y as f32;
+        let x1 = x0 + 1.0;
+        let y1 = y0 + 1.0;
+        let expected = [(x0, y0), (x0, y1), (x1, y1), (x1, y0)];
+
+        let v0 = map.add_vertex_at(x0, y0);
+        let v1 = map.add_vertex_at(x0, y1);
+        let v2 = map.add_vertex_at(x1, y1);
+        let v3 = map.add_vertex_at(x1, y0);
+
+        map.possible_polygon.clear();
+        let _ = map.create_linedef_manual(v0, v1);
+        let _ = map.create_linedef_manual(v1, v2);
+        let _ = map.create_linedef_manual(v2, v3);
+        let _ = map.create_linedef_manual(v3, v0);
+
+        let sector_id = map
+            .close_polygon_manual()
+            .or_else(|| Self::scepter_find_rect_sector(map, &expected))?;
+
+        if let Some(sector) = map.find_sector_mut(sector_id) {
+            sector.properties.set("rect", Value::Bool(true));
+            sector.properties.set("source", Value::Source(source));
+            sector.layer = Some(layer);
+        }
+
+        Some(sector_id)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_apply_region_paint_cells_batch(
+        &mut self,
+        region: &RegionRef,
+        tile: &TileSelector,
+        cells: &[GridPoint],
+        layer: Option<&str>,
+        select: bool,
+        replace_existing: bool,
+        command_name: &str,
+        ctx: &mut TheContext,
+    ) -> serde_json::Value {
+        let region_index = match self.scepter_resolve_region_index(region) {
+            Ok(index) => index,
+            Err(error) => return serde_json::json!({ "ok": false, "error": error }),
+        };
+        let tile_id = match self.scepter_resolve_tile_selector(tile) {
+            Ok(tile_id) => tile_id,
+            Err(error) => return serde_json::json!({ "ok": false, "error": error }),
+        };
+
+        if cells.is_empty() {
+            return serde_json::json!({
+                "ok": false,
+                "error": format!("{command_name} requires at least one cell"),
+            });
+        }
+
+        let layer = layer
+            .and_then(|layer| layer.parse::<u8>().ok())
+            .unwrap_or(1);
+        let source = rusterix::PixelSource::TileId(tile_id);
+        let region_id = self.project.regions[region_index].id;
+        let old_map = self.project.regions[region_index].map.clone();
+
+        let mut created_sector_ids = Vec::new();
+        let mut replaced_sector_ids = Vec::new();
+        {
+            let map = &mut self.project.regions[region_index].map;
+
+            for [x, y] in cells {
+                if replace_existing {
+                    let sectors = Self::scepter_find_cell_replacement_sectors(map, *x, *y);
+                    if !sectors.is_empty() {
+                        let linedefs = sectors
+                            .iter()
+                            .filter_map(|sector_id| map.find_sector(*sector_id))
+                            .flat_map(|sector| sector.linedefs.clone())
+                            .collect::<Vec<_>>();
+                        map.delete_elements(&[], &linedefs, &sectors);
+                        replaced_sector_ids.extend(sectors);
+                    }
+                }
+
+                match Self::scepter_create_cell_sector(map, *x, *y, source.clone(), layer) {
+                    Some(sector_id) => created_sector_ids.push(sector_id),
+                    None => {
+                        return serde_json::json!({
+                            "ok": false,
+                            "error": format!("could not create cell sector at [{x}, {y}]"),
+                            "created_sector_ids": created_sector_ids,
+                            "replaced_sector_ids": replaced_sector_ids,
+                        });
+                    }
+                }
+            }
+
+            if select {
+                map.selected_vertices.clear();
+                map.selected_linedefs.clear();
+                map.selected_sectors = created_sector_ids.clone();
+            }
+            map.changed = map.changed.saturating_add(created_sector_ids.len() as u32);
+        }
+
+        let new_map = self.project.regions[region_index].map.clone();
+        let undo_atom = ProjectUndoAtom::MapEdit(
+            ProjectContext::Region(region_id),
+            Box::new(old_map.clone()),
+            Box::new(new_map.clone()),
+        );
+        editor_scene_apply_map_edit(&self.project, &self.server_ctx, &old_map, &new_map);
+        update_region(ctx);
+        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+
+        serde_json::json!({
+            "ok": true,
+            "command": command_name,
+            "region_id": region_id.to_string(),
+            "sector_ids": created_sector_ids,
+            "replaced_sector_ids": replaced_sector_ids,
+            "tile_id": tile_id.to_string(),
+            "cell_count": cells.len(),
+            "layer": layer,
+            "replace_existing": replace_existing,
+            "tile": self.scepter_tile_summary(&tile_id),
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_apply_region_paint_rect(
+        &mut self,
+        command: RegionPaintRect,
+        ctx: &mut TheContext,
+    ) -> serde_json::Value {
+        let [x, y, width, height] = command.rect;
+        if width == 0 || height == 0 {
+            return serde_json::json!({
+                "ok": false,
+                "error": "region.paint_rect requires non-zero width and height",
+            });
+        }
+
+        let x0 = x.min(x + width);
+        let x1 = x.max(x + width);
+        let y0 = y.min(y + height);
+        let y1 = y.max(y + height);
+        let mut cells = Vec::new();
+        for y in y0..y1 {
+            for x in x0..x1 {
+                cells.push([x, y]);
+            }
+        }
+
+        self.scepter_apply_region_paint_cells_batch(
+            &command.region,
+            &command.tile,
+            &cells,
+            command.layer.as_deref(),
+            command.select.unwrap_or(false),
+            command.replace_existing.unwrap_or(true),
+            "region.paint_rect",
+            ctx,
+        )
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_apply_region_paint_cells(
+        &mut self,
+        command: RegionPaintCells,
+        ctx: &mut TheContext,
+    ) -> serde_json::Value {
+        self.scepter_apply_region_paint_cells_batch(
+            &command.region,
+            &command.tile,
+            &command.cells,
+            command.layer.as_deref(),
+            command.select.unwrap_or(false),
+            command.replace_existing.unwrap_or(true),
+            "region.paint_cells",
+            ctx,
+        )
+    }
+
     fn is_realtime_mode(&self) -> bool {
         self.server_ctx.game_mode
             || RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running
@@ -1239,6 +2775,8 @@ impl TheTrait for Editor {
 
             update_tracker: UpdateTracker::new(),
             event_receiver: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            scepter_receiver: None,
             last_3d_hover_redraw_at: None,
 
             #[cfg(all(
@@ -1276,6 +2814,13 @@ impl TheTrait for Editor {
     }
 
     fn init(&mut self, _ctx: &mut TheContext) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let (service, receiver) = ScepterService::start();
+            self.scepter_receiver = Some(receiver);
+            println!("{}", service.status_line());
+        }
+
         #[cfg(all(
             feature = "self-update",
             any(target_os = "windows", target_os = "linux", target_os = "macos")
@@ -1795,6 +3340,107 @@ impl TheTrait for Editor {
     fn update_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
         let mut redraw = false;
         let mut update_server_icons = false;
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let mut scepter_events = Vec::new();
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(receiver) = &mut self.scepter_receiver {
+            while let Ok(event) = receiver.try_recv() {
+                scepter_events.push(event);
+            }
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        for event in scepter_events {
+            match event {
+                ScepterEvent::Ping { message, peer } => {
+                    let status = if message.trim().is_empty() {
+                        format!("Scepter ping received from {peer}.")
+                    } else {
+                        format!("Scepter ping received from {peer}: {message}")
+                    };
+                    println!("{status}");
+                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+                    redraw = true;
+                }
+                ScepterEvent::ServiceError(message) => {
+                    let status = format!("Scepter service: {message}");
+                    println!("{status}");
+                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+                    redraw = true;
+                }
+                ScepterEvent::ProjectSnapshot { reply } => {
+                    let _ = reply.send(self.scepter_project_snapshot());
+                }
+                ScepterEvent::RegionSnapshot { request, reply } => {
+                    let _ = reply.send(self.scepter_region_snapshot(&request));
+                }
+                ScepterEvent::RegionSummary { request, reply } => {
+                    let _ = reply.send(self.scepter_region_summary(&request));
+                }
+                ScepterEvent::RegionRenderPreview { command, reply } => {
+                    let _ = reply.send(self.scepter_region_render_preview(&command));
+                }
+                ScepterEvent::RegionPaintRect { command, reply } => {
+                    let result = self.scepter_apply_region_paint_rect(command, ctx);
+                    let ok = result
+                        .get("ok")
+                        .and_then(|value| value.as_bool())
+                        .unwrap_or(false);
+                    let status = if ok {
+                        format!(
+                            "Scepter painted {} region cells.",
+                            result
+                                .get("cell_count")
+                                .and_then(|value| value.as_u64())
+                                .unwrap_or_default()
+                        )
+                    } else {
+                        format!(
+                            "Scepter paint failed: {}",
+                            result
+                                .get("error")
+                                .and_then(|value| value.as_str())
+                                .unwrap_or("unknown error")
+                        )
+                    };
+                    println!("{status}");
+                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+                    let _ = reply.send(result);
+                    redraw = true;
+                }
+                ScepterEvent::RegionPaintCells { command, reply } => {
+                    let result = self.scepter_apply_region_paint_cells(command, ctx);
+                    let ok = result
+                        .get("ok")
+                        .and_then(|value| value.as_bool())
+                        .unwrap_or(false);
+                    let status = if ok {
+                        format!(
+                            "Scepter painted {} region cells.",
+                            result
+                                .get("cell_count")
+                                .and_then(|value| value.as_u64())
+                                .unwrap_or_default()
+                        )
+                    } else {
+                        format!(
+                            "Scepter paint failed: {}",
+                            result
+                                .get("error")
+                                .and_then(|value| value.as_str())
+                                .unwrap_or("unknown error")
+                        )
+                    };
+                    println!("{status}");
+                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+                    let _ = reply.send(result);
+                    redraw = true;
+                }
+                ScepterEvent::TilesSnapshot { reply } => {
+                    let _ = reply.send(self.scepter_tiles_snapshot());
+                }
+            }
+        }
 
         if let Some((input_id, command)) = self.pending_text_game_command.take() {
             TEXTGAME.write().unwrap().handle_input(

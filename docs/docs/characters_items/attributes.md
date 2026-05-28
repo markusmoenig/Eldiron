@@ -52,6 +52,8 @@ autodamage = true
 *Character-only attribute.*
 
 If set to `true`, the character automatically drops all inventory and equipped items to the floor on death.
+With the official ruleset active, death loot is placed into a lootable corpse
+container instead. Empty corpse containers despawn by default.
 
 ```toml
 autodrop = true

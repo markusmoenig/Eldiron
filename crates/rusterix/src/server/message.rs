@@ -101,6 +101,8 @@ pub enum RegionMessage {
     ItemsUpdate(u32, Vec<Vec<u8>>),
     /// Remove the given item from the Region
     RemoveItem(u32, u32),
+    /// Open a container panel for the local client: RegionId, ContainerItemId, OwnerEntityId
+    OpenContainer(u32, u32, Option<u32>),
     /// Log Message
     LogMessage(String),
     /// Time event of a Region

@@ -260,6 +260,22 @@ impl SceneHandler {
             .clamp(0.1, 1.0)
     }
 
+    fn item_render_geo_id(item: &Item, index: usize) -> GeoId {
+        if item.id != 0 {
+            GeoId::Item(item.id)
+        } else {
+            GeoId::Item(u32::MAX.saturating_sub(index as u32))
+        }
+    }
+
+    fn item_light_geo_id(item: &Item, index: usize) -> GeoId {
+        if item.id != 0 {
+            GeoId::ItemLight(item.id)
+        } else {
+            GeoId::ItemLight(u32::MAX.saturating_sub(index as u32))
+        }
+    }
+
     fn update_generated_item_avatar_data(&mut self, active_geo: &FxHashSet<GeoId>) {
         let stale: Vec<GeoId> = self
             .generated_item_avatar_geo
@@ -3566,13 +3582,13 @@ impl SceneHandler {
         let mut active_generated_item_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
 
-        for item in &map.items {
+        for (item_index, item) in map.items.iter().enumerate() {
             let item_pos = Vec2::new(item.position.x, item.position.z);
             let pos = Vec2::new(item_pos.x, item_pos.y);
 
             if let Some(Value::Light(light)) = item.attributes.get("light") {
                 self.vm.execute(Atom::AddLight {
-                    id: GeoId::ItemLight(item.id),
+                    id: Self::item_light_geo_id(item, item_index),
                     light: Light::new_pointlight(item.position)
                         .with_color(Vec3::from(light.get_color()))
                         .with_intensity(light.get_intensity())
@@ -3585,23 +3601,30 @@ impl SceneHandler {
 
             if let Some(Value::Source(source)) = item.attributes.get("source") {
                 if item.attributes.get_bool_default("visible", false) {
-                    if let Some(tile) = source.tile_from_tile_list(assets) {
-                        let geo_id = GeoId::Item(item.id);
+                    if let Some(tile_id) = source.render_tile_id(assets) {
+                        let geo_id = Self::item_render_geo_id(item, item_index);
                         let anim_start = self.impact_anim_start_for_item(geo_id, item);
                         if anim_start.is_some() {
                             active_impact_geo.insert(geo_id);
                         }
                         let dynamic =
-                            DynamicObject::billboard_tile_2d(geo_id, tile.id, pos, 1.0, 1.0)
+                            DynamicObject::billboard_tile_2d(geo_id, tile_id, pos, 1.0, 1.0)
                                 .with_layer(D2_GROUND_ITEM_LAYER)
                                 .with_anim_start_counter(anim_start);
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                     }
                 }
             } else if item.attributes.get_bool_default("visible", false)
+                && let Some(tile_id) = AvatarRuntimeBuilder::explicit_item_tile_id(item, assets)
+            {
+                let geo_id = Self::item_render_geo_id(item, item_index);
+                let dynamic = DynamicObject::billboard_tile_2d(geo_id, tile_id, pos, 1.0, 1.0)
+                    .with_layer(D2_GROUND_ITEM_LAYER);
+                self.vm.execute(Atom::AddDynamic { object: dynamic });
+            } else if item.attributes.get_bool_default("visible", false)
                 && let Some((size, rgba)) = Widget::item_generated_icon_square(assets, item)
             {
-                let geo_id = GeoId::Item(item.id);
+                let geo_id = Self::item_render_geo_id(item, item_index);
                 self.vm.execute(Atom::SetAvatarBillboardData {
                     id: geo_id,
                     size,
@@ -3906,7 +3929,7 @@ impl SceneHandler {
         }
 
         // Items
-        for item in &map.items {
+        for (item_index, item) in map.items.iter().enumerate() {
             // Skip items that are bound to a profile/host sector; they are rendered as billboards for gates/doors.
             let is_profile_bound = matches!(
                 item.attributes.get("profile_host_sector_id"),
@@ -3921,7 +3944,7 @@ impl SceneHandler {
 
             if let Some(Value::Light(light)) = item.attributes.get("light") {
                 self.vm.execute(Atom::AddLight {
-                    id: GeoId::ItemLight(item.id),
+                    id: Self::item_light_geo_id(item, item_index),
                     light: Light::new_pointlight(item.position)
                         .with_color(Vec3::from(light.get_color().map(|c| c.powf(2.2)))) // Convert light to linear
                         .with_intensity(light.get_intensity())
@@ -3952,9 +3975,10 @@ impl SceneHandler {
 
             if visible
                 && item.attributes.get("source").is_none()
+                && AvatarRuntimeBuilder::item_allows_generated_icon(item, assets)
                 && let Some((icon_size, rgba)) = Widget::item_generated_icon_square(assets, item)
             {
-                let geo_id = GeoId::Item(item.id);
+                let geo_id = Self::item_render_geo_id(item, item_index);
                 self.vm.execute(Atom::SetAvatarBillboardData {
                     id: geo_id,
                     size: icon_size,
@@ -3978,8 +4002,18 @@ impl SceneHandler {
                 );
                 self.vm.execute(Atom::AddDynamic { object: dynamic });
             } else if visible
+                && item.attributes.get("source").is_none()
+                && let Some(tile_id) = AvatarRuntimeBuilder::explicit_item_tile_id(item, assets)
+            {
+                let geo_id = Self::item_render_geo_id(item, item_index);
+                let center3 = Vec3::new(item.position.x, ground_y + size * 0.5, item.position.z);
+                let dynamic = DynamicObject::billboard_tile(
+                    geo_id, tile_id, center3, basis.1, basis.2, size, size,
+                );
+                self.vm.execute(Atom::AddDynamic { object: dynamic });
+            } else if visible
                 && let Some(Value::Source(source)) = item.attributes.get("source")
-                && let Some(tile) = source.tile_from_tile_list(assets)
+                && let Some(tile_id) = source.render_tile_id(assets)
             {
                 let alignment = item
                     .attributes
@@ -4008,8 +4042,8 @@ impl SceneHandler {
                 };
 
                 let dynamic = DynamicObject::billboard_tile(
-                    GeoId::Item(item.id),
-                    tile.id,
+                    Self::item_render_geo_id(item, item_index),
+                    tile_id,
                     center3,
                     view_right,
                     view_up,
@@ -4017,7 +4051,7 @@ impl SceneHandler {
                     size,
                 )
                 .with_anim_start_counter({
-                    let geo_id = GeoId::Item(item.id);
+                    let geo_id = Self::item_render_geo_id(item, item_index);
                     let anim_start = self.impact_anim_start_for_item(geo_id, item);
                     if anim_start.is_some() {
                         active_impact_geo.insert(geo_id);
@@ -4033,7 +4067,7 @@ impl SceneHandler {
                     self.item_off
                 };
                 let dynamic = DynamicObject::billboard_tile(
-                    GeoId::Item(item.id),
+                    Self::item_render_geo_id(item, item_index),
                     icon,
                     center3,
                     basis.1,
