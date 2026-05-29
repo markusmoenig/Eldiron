@@ -101,6 +101,8 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
   - Defines the **number of ticks per in-game minute**.
   - Default: `4`, meaning **1 in-game minute = 1 real-time second**.
   - To sync in-game time with real time, set this value to **`60 * 4 = 240`**.
+  - This controls world-clock timing such as `notify_in`, `block_events`, patrol waits, sector message cooldowns, and day/night progression.
+  - Ruleset cooldowns and delays use seconds instead and are converted through `game_tick_ms`.
 
 - **`movement_units_per_sec`**
   - Defines the base movement speed in world units per second.
@@ -220,7 +222,7 @@ individual character or item attributes.
 
 ### **Using In-Game Time for Events**
 
-Some commands use **in-game minutes** for timing.
+Script scheduling commands use **in-game minutes** for timing.
 For example, the `notify_in` command schedules events **after a set number of in-game minutes**:
 
 ```python
@@ -228,6 +230,12 @@ notify_in(2, "close_door")
 ```
 
 With the **default settings**, this means the event will trigger **after 2 real-time seconds**.
+
+Ruleset values such as action cooldowns, spell cooldowns, FX durations,
+resource respawn delays, corpse lifetimes, and NPC respawn delays use
+**seconds**. In `turn_based` and `hybrid` simulation modes those seconds are
+converted to gameplay ticks using `game_tick_ms`, and the countdown advances
+when gameplay simulation advances.
 
 ---
 

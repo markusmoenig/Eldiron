@@ -993,16 +993,14 @@ impl<'a> RegionHost<'a> {
         }
     }
 
-    fn attack_cooldown_ticks(&self) -> i64 {
-        let cooldown = self
-            .ctx
+    fn attack_cooldown_seconds(&self) -> f32 {
+        self.ctx
             .map
             .entities
             .iter()
             .find(|entity| entity.id == self.ctx.curr_entity_id)
             .map(|entity| current_attack_cooldown_for_entity(self.ctx, entity))
-            .unwrap_or(1.0);
-        RegionInstance::scheduled_delay_ticks(self.ctx, cooldown)
+            .unwrap_or(1.0)
     }
 
     fn try_start_attack_cooldown(&mut self) -> bool {
@@ -1019,14 +1017,14 @@ impl<'a> RegionHost<'a> {
             return false;
         }
 
-        let cooldown_ticks = self.attack_cooldown_ticks();
+        let cooldown_seconds = self.attack_cooldown_seconds();
+        let cooldown_ticks = RegionInstance::realtime_seconds_to_ticks(self.ctx, cooldown_seconds);
         if cooldown_ticks <= 0 {
             return true;
         }
 
         let state = self.ctx.entity_state_data.entry(entity_id).or_default();
         state.set(key, Value::Int64(self.ctx.ticks + cooldown_ticks));
-        let cooldown_seconds = cooldown_ticks as f32 / self.ctx.ticks_per_minute as f32;
         state.set(
             &format!("__cooldown_total:{}", key),
             Value::Float(cooldown_seconds),
@@ -1809,7 +1807,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                 {
                     let minutes = mins.x as i32;
                     let target_tick = self.ctx.ticks
-                        + RegionInstance::scheduled_delay_ticks(&self.ctx, minutes as f32);
+                        + RegionInstance::game_minutes_to_ticks(&self.ctx, minutes as f32);
                     if let Some(item_id) = self.ctx.curr_item_id {
                         self.ctx.notifications_items.push((
                             item_id,
@@ -2452,7 +2450,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                     (args.get(0), args.get(1).and_then(|v| v.as_string()))
                 {
                     let target_tick =
-                        self.ctx.ticks + (self.ctx.ticks_per_minute as f32 * minutes.x) as i64;
+                        self.ctx.ticks + RegionInstance::game_minutes_to_ticks(self.ctx, minutes.x);
                     if let Some(item_id) = self.ctx.curr_item_id {
                         if let Some(state) = self.ctx.item_state_data.get_mut(&item_id) {
                             state.set(event, Value::Int64(target_tick));
@@ -3021,7 +3019,10 @@ impl<'a> HostHandler for RegionHost<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::server::region::apply_ruleset_character_defaults;
+    use crate::server::region::{
+        apply_ruleset_character_defaults, drop_items_into_ruleset_loot_container,
+        update_entity_respawns,
+    };
     use crate::vm::{Execution, Program, VM, VMValue};
     use std::sync::Arc;
 
@@ -3707,6 +3708,8 @@ mod tests {
             item = "loot_corpse"
             include_equipped = true
             create_empty = false
+            despawn_seconds = 600
+            despawn_before_respawn_seconds = 1
             name = "{name}'s Remains"
             description = "Search {name} for carried loot."
 
@@ -3755,6 +3758,148 @@ mod tests {
             contents[0].attributes.get_str("class_name"),
             Some("Golden Key")
         );
+    }
+
+    #[test]
+    fn dead_npc_respawns_at_full_health_and_removes_corpse() {
+        let mut arena = HeadlessRulesArena::with_rules(
+            r#"
+            [loot.corpse]
+            enabled = true
+            item = "loot_corpse"
+            include_equipped = true
+            create_empty = false
+            despawn_seconds = 600
+            despawn_before_respawn_seconds = 1
+            name = "{name}'s Remains"
+            description = "Search {name} for carried loot."
+
+            [respawn.npc]
+            enabled = true
+            delay_seconds = 2
+            health = "full"
+            clear_corpse_on_respawn = true
+
+            [items.containers.loot_corpse]
+            name = "Loot Corpse"
+            description = "A lootable body containing carried items."
+            category = "corpse"
+            slot = "container"
+            rarity = "common"
+            container_template = "default"
+            visual_template = "bag_pouch"
+
+            [items.containers.loot_corpse.attributes]
+            container = true
+            container_slots = 8
+            static = true
+            takeable = false
+            "#,
+        );
+        arena.add_entity(2, "Orc", 10, 2, None);
+        arena.add_inventory_item(2, 10, "Golden Key");
+        arena.ctx.map.entities[0].action =
+            EntityAction::RandomWalkInSector(1.0, 1.0, 4, 0, Vec2::zero());
+        arena.ctx.entity_proximity_alerts.insert(2, 4.0);
+        update_entity_respawns(&mut arena.ctx);
+
+        arena.set_entity_attr(2, "HP", Value::Int(0));
+        arena.set_entity_attr(2, "mode", Value::Str("dead".into()));
+        arena.set_entity_attr(2, "visible", Value::Bool(false));
+        arena.ctx.map.entities[0].action = EntityAction::Off;
+        arena.ctx.entity_proximity_alerts.remove(&2);
+        arena.ctx.map.entities[0].set_position(Vec3::new(7.5, 1.0, 3.5));
+
+        assert!(drop_items_into_ruleset_loot_container(
+            &mut arena.ctx,
+            2,
+            ""
+        ));
+        assert_eq!(arena.ctx.map.items.len(), 1);
+        assert_eq!(
+            arena.ctx.map.items[0]
+                .attributes
+                .get("despawn_at_tick")
+                .and_then(|value| match value {
+                    Value::Int64(value) => Some(*value),
+                    Value::Int(value) => Some(*value as i64),
+                    _ => None,
+                }),
+            Some(4)
+        );
+        assert_eq!(arena.entity(2).iter_inventory().count(), 0);
+
+        update_entity_respawns(&mut arena.ctx);
+        assert_eq!(arena.mode(2), "dead");
+        assert_eq!(arena.ctx.map.items.len(), 1);
+
+        arena.ctx.ticks = 4;
+        update_entity_respawns(&mut arena.ctx);
+        assert_eq!(arena.mode(2), "dead");
+        assert!(arena.ctx.map.items.is_empty());
+
+        arena.ctx.ticks = 8;
+        arena.ctx.map.entities[0].set_position(Vec3::new(1.5, 1.0, 1.5));
+        update_entity_respawns(&mut arena.ctx);
+
+        assert_eq!(arena.mode(2), "active");
+        assert_eq!(arena.hp(2), 10);
+        assert!(arena.entity(2).get_update().snap_position);
+        assert!(
+            arena
+                .entity(2)
+                .attributes
+                .get_bool_default("visible", false)
+        );
+        assert_eq!(arena.entity(2).position, Vec3::new(2.0, 1.0, 0.0));
+        assert!(arena.ctx.map.items.is_empty());
+        assert_eq!(arena.entity(2).iter_inventory().count(), 1);
+        assert!(matches!(
+            arena.entity(2).action,
+            EntityAction::RandomWalkInSector(_, _, _, _, _)
+        ));
+        assert_eq!(arena.ctx.entity_proximity_alerts.get(&2), Some(&4.0));
+        assert!(
+            arena
+                .ctx
+                .to_execute_entity
+                .iter()
+                .any(|(id, event, _)| *id == 2 && event == "respawn")
+        );
+
+        arena.set_entity_attr(2, "HP", Value::Int(0));
+        arena.set_entity_attr(2, "mode", Value::Str("dead".into()));
+        arena.set_entity_attr(2, "visible", Value::Bool(false));
+        assert!(drop_items_into_ruleset_loot_container(
+            &mut arena.ctx,
+            2,
+            ""
+        ));
+        assert_eq!(arena.ctx.map.items.len(), 1);
+    }
+
+    #[test]
+    fn player_death_does_not_auto_respawn() {
+        let mut arena = HeadlessRulesArena::with_rules(
+            r#"
+            [respawn.npc]
+            enabled = true
+            delay_seconds = 1
+            "#,
+        );
+        arena.add_entity(1, "Player", 10, 2, None);
+        arena.set_entity_attr(1, "player", Value::Bool(true));
+        arena.set_entity_attr(1, "HP", Value::Int(0));
+        arena.set_entity_attr(1, "mode", Value::Str("dead".into()));
+        arena.set_entity_attr(1, "visible", Value::Bool(false));
+
+        update_entity_respawns(&mut arena.ctx);
+        arena.ctx.ticks = 10;
+        update_entity_respawns(&mut arena.ctx);
+
+        assert_eq!(arena.mode(1), "dead");
+        assert_eq!(arena.hp(1), 0);
+        assert!(!arena.entity(1).attributes.get_bool_default("visible", true));
     }
 
     #[test]

@@ -504,20 +504,131 @@ pub fn built_in_commands() -> Vec<ScepterCommandMeta> {
             }
         })]),
         ScepterCommandMeta::new("script.get", "Read an Eldrin script from a target.")
-            .capabilities(vec![ScriptRead]),
+            .params(vec![ScepterParamMeta::new(
+                "target",
+                "World, region, character, or item target. Character/item targets use project templates unless a region is supplied.",
+                true,
+                "ScriptTarget",
+            )])
+            .capabilities(vec![ScriptRead])
+            .examples(vec![json!({
+                "command": "script.get",
+                "params": {
+                    "target": {
+                        "kind": "character",
+                        "region": { "name": "Harbor" },
+                        "name": "Old Smuggler"
+                    }
+                }
+            })]),
         ScepterCommandMeta::new(
             "script.patch",
             "Apply a patch to an Eldrin script, optionally validating before apply.",
         )
+        .params(vec![
+            ScepterParamMeta::new(
+                "target",
+                "World, region, character, or item target.",
+                true,
+                "ScriptTarget",
+            ),
+            ScepterParamMeta::new(
+                "patch",
+                "Replacement Eldrin source for this first executable version.",
+                true,
+                "string",
+            ),
+            ScepterParamMeta::new(
+                "validate",
+                "Parse/validate before applying when validation support exists.",
+                false,
+                "boolean",
+            ),
+        ])
         .capabilities(vec![ScriptRead, ScriptWrite])
         .previewable()
-        .undoable(),
+        .undoable()
+        .examples(vec![json!({
+            "command": "script.patch",
+            "params": {
+                "target": { "kind": "item", "name": "Sign" },
+                "patch": "on examine {\n    say(\"Weathered letters mark the path.\")\n}",
+                "validate": true
+            }
+        })]),
         ScepterCommandMeta::new(
             "script.validate",
             "Validate Eldrin source for a target without applying it.",
         )
         .capabilities(vec![ScriptRead, Preview])
         .previewable(),
+        ScepterCommandMeta::new(
+            "attributes.get",
+            "Read TOML attributes from a character or item template/instance.",
+        )
+        .params(vec![ScepterParamMeta::new(
+            "target",
+            "Character or item target. Add region to select a placed instance.",
+            true,
+            "ScriptTarget",
+        )])
+        .capabilities(vec![AttributeRead])
+        .examples(vec![json!({
+            "command": "attributes.get",
+            "params": {
+                "target": { "kind": "character", "name": "Orc" }
+            }
+        })]),
+        ScepterCommandMeta::new(
+            "attributes.patch",
+            "Patch the [attributes] table of a character or item template/instance.",
+        )
+        .params(vec![
+            ScepterParamMeta::new(
+                "target",
+                "Character or item target. Add region to select a placed instance.",
+                true,
+                "ScriptTarget",
+            ),
+            ScepterParamMeta::new(
+                "values",
+                "Attribute key/value pairs to set under [attributes]. JSON strings, numbers, booleans, arrays, and objects are converted to TOML.",
+                false,
+                "object",
+            ),
+            ScepterParamMeta::new(
+                "remove",
+                "Attribute keys to remove from [attributes].",
+                false,
+                "string[]",
+            ),
+            ScepterParamMeta::new(
+                "validate",
+                "Validate resulting TOML before applying.",
+                false,
+                "boolean",
+            ),
+        ])
+        .capabilities(vec![AttributeRead, AttributeWrite])
+        .previewable()
+        .undoable()
+        .examples(vec![json!({
+            "command": "attributes.patch",
+            "params": {
+                "target": {
+                    "kind": "character",
+                    "region": { "name": "Harbor" },
+                    "name": "Harbor Lookout"
+                },
+                "values": {
+                    "faction": "dock_watch",
+                    "visible": true,
+                    "radius": 0.5
+                },
+                "remove": ["temporary_note"],
+                "validate": true
+            }
+        })]),
         ScepterCommandMeta::new(
             "geometry.create_room",
             "Create a high-level 3D room primitive with optional floor and wall tiles.",

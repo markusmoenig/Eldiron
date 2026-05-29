@@ -56,8 +56,16 @@ item = "loot_corpse"
 include_equipped = true
 create_empty = false
 despawn_when_empty = true
+despawn_seconds = 600
+despawn_before_respawn_seconds = 5
 name = "{name}'s Remains"
 description = "What remains of {name}. Open it to search the carried loot."
+
+[respawn.npc]
+enabled = true
+delay_seconds = 60
+health = "full"
+clear_corpse_on_respawn = true
 
 [resources.wild_herb_node]
 name = "Wild Herb Node"

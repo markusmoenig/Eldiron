@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::vm::{Program, VMValue};
-use crate::{CollisionWorld, MapMini, PlayerCamera};
+use crate::{CollisionWorld, Entity, MapMini, PlayerCamera};
 use crossbeam_channel::{Receiver, Sender};
 use std::sync::{Arc, LazyLock, OnceLock, RwLock};
 use theframework::prelude::*;
@@ -80,6 +80,7 @@ pub struct RegionCtx {
 
     pub entity_state_data: FxHashMap<u32, ValueContainer>,
     pub item_state_data: FxHashMap<u32, ValueContainer>,
+    pub entity_respawn_snapshots: FxHashMap<u32, Entity>,
     pub region_state: ValueContainer,
     pub procedural_spawn_guard: u8,
 

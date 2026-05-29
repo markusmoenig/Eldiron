@@ -111,6 +111,9 @@ pub struct Entity {
     /// Total interpolation duration in seconds.
     #[serde(skip)]
     pub interp_duration: f32,
+    /// Force the next position update to snap on clients instead of interpolating.
+    #[serde(skip)]
+    pub snap_position_update: bool,
 }
 
 impl Default for Entity {
@@ -152,6 +155,7 @@ impl Entity {
             interp_target_position: None,
             interp_remaining: 0.0,
             interp_duration: 0.0,
+            snap_position_update: false,
         }
     }
 
@@ -557,6 +561,7 @@ impl Entity {
         self.inventory_additions.clear();
         self.inventory_removals.clear();
         self.inventory_updates.clear();
+        self.snap_position_update = false;
         for item in self.inventory.iter_mut() {
             if let Some(item) = item {
                 item.clear_dirty();
@@ -574,6 +579,7 @@ impl Entity {
             } else {
                 None
             },
+            snap_position: self.snap_position_update,
             orientation: if self.dirty_flags & 0b0010 != 0 {
                 Some(self.orientation)
             } else {
@@ -863,6 +869,8 @@ pub struct EntityUpdate {
     pub id: u32,
     pub creator_id: Uuid,
     pub position: Option<Vec3<f32>>,
+    #[serde(default)]
+    pub snap_position: bool,
     pub orientation: Option<Vec2<f32>>,
     pub tilt: Option<f32>,
     pub attributes: FxHashMap<String, Value>,
@@ -885,6 +893,7 @@ impl EntityUpdate {
             id: 0,
             creator_id: Uuid::nil(),
             position: None,
+            snap_position: false,
             orientation: None,
             tilt: None,
             attributes: FxHashMap::default(),

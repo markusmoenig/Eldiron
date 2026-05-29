@@ -9,6 +9,7 @@ use theframework::prelude::*;
 pub enum ProjectUndoAtom {
     MapEdit(ProjectContext, Box<Map>, Box<Map>),
     TilePickerEdit(Box<Project>, Box<Project>),
+    ProjectEdit(String, Box<Project>, Box<Project>),
     AddRegion(Region),
     RemoveRegion(usize, Region),
     RenameRegion(Uuid, String, String),
@@ -109,6 +110,7 @@ impl ProjectUndoAtom {
         match self {
             MapEdit(_, _, _) => "Map Edit".to_string(),
             TilePickerEdit(_, _) => "Tile Picker Edit".to_string(),
+            ProjectEdit(label, _, _) => label.clone(),
             AddRegion(region) => format!("Add Region: {}", region.name),
             RemoveRegion(_, region) => format!("Remove Region: {}", region.name),
             RenameRegion(_, old, new) => format!("Rename Region: {} -> {}", old, new),
@@ -187,6 +189,11 @@ impl ProjectUndoAtom {
                     TheId::named("Update Tilepicker"),
                     TheValue::Empty,
                 ));
+            }
+            ProjectEdit(_, old, _new) => {
+                *project = (*old.clone()).clone();
+                shared::rusterix_utils::insert_content_into_maps(project);
+                update_region(ctx);
             }
             AddRegion(region) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
@@ -794,6 +801,11 @@ impl ProjectUndoAtom {
                     TheId::named("Update Tilepicker"),
                     TheValue::Empty,
                 ));
+            }
+            ProjectEdit(_, _old, new) => {
+                *project = (*new.clone()).clone();
+                shared::rusterix_utils::insert_content_into_maps(project);
+                update_region(ctx);
             }
             AddRegion(region) => {
                 // Add Region

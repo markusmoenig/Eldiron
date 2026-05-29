@@ -80,6 +80,12 @@ clients, runtime systems, and tools read.
 The current bundled ruleset is assembled from split TOML files under the
 `eldiron.official` id.
 
+Ruleset timing values are measured in seconds. Cooldowns, spell durations, FX
+durations, resource respawns, corpse lifetimes, and NPC respawn delays all use
+seconds so combat and abilities remain easy to tune. Script scheduling commands
+such as `notify_in` and `block_events` are different: they use in-game minutes
+because they schedule world-clock events.
+
 | Field | Current value |
 | --- | --- |
 | Ruleset id | `eldiron.official` |
@@ -536,6 +542,17 @@ Dead characters that call `drop_items("")` create a lootable corpse container
 under the official rules. The corpse expands to fit the carried loot and uses
 the same open, click-to-take, drag, and text transfer paths as bags. Empty
 corpses despawn by default so cleaned-out tombstones do not remain on the map.
+Non-empty corpses also have a lifetime. For respawning NPCs, the corpse
+disappears shortly before the NPC returns, using
+`despawn_before_respawn_seconds`; other corpses use `despawn_seconds`.
+
+NPCs respawn by default. `[respawn.npc]` defines the delay, restores health to
+full, restores the NPC's startup loadout and behavior state, and removes that
+NPC's corpse when it returns. Player death remains script-controlled so games
+can decide whether the player wakes at a shrine, returns to town, loses gold,
+keeps a tombstone, or follows another custom death loop. Individual NPCs can
+override the timer with `respawn_seconds` or disable automatic respawn with
+`respawn = false`.
 
 | Ammunition | Family | Quantity | Used by | Visual |
 | --- | --- | ---: | --- | --- |

@@ -9,6 +9,20 @@ This chapter lists all available scripting **commands** for Eldiron, used by cha
 
 For a complete audio workflow (assets + buses + command examples), see [Audio](../audio).
 
+### Timing Units
+
+Script scheduling commands use the world clock and measure delays in
+**in-game minutes**. This includes `notify_in`, `block_events`, `patrol` waits,
+and random-walk sleeps.
+
+Ruleset gameplay timings use **seconds**. This includes attack cooldowns, spell
+cooldowns, action cooldowns, FX durations, corpse lifetimes, and NPC respawn
+delays.
+
+With the default game settings, `1` in-game minute also lasts about `1` real
+second in realtime play, but the two units are intentionally separate: scripts
+schedule world events, while rules define moment-to-moment gameplay.
+
 ---
 
 ## `add_item`

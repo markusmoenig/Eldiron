@@ -103,6 +103,11 @@ and item attributes and into the official ruleset or this project-level
 **Game / Rules** override. Character and item attributes should not redefine
 cooldowns, spell behavior, class permissions, intent distance, or combat math.
 
+Ruleset timing values use seconds. Script scheduling commands such as
+`notify_in`, `block_events`, patrol waits, and random-walk sleeps still use
+in-game minutes because they operate on the world clock. This keeps ruleset
+combat tuning separate from authoring-time world schedules.
+
 The effective ruleset is resolved like this:
 
 1. Read `[ruleset]` from **Game / Settings**.
@@ -439,7 +444,17 @@ Stackable items merge inside containers. When a dead character script calls
 of placing every carried item directly on the map. The corpse uses the normal
 container UI and can be opened with `open <name>` or by clicking it. Once the
 corpse is empty, the tombstone disappears when `despawn_when_empty = true` in
-`[loot.corpse]`.
+`[loot.corpse]`. Non-empty corpses use `despawn_seconds`. If the corpse belongs
+to a respawning NPC, the timer is shortened by
+`despawn_before_respawn_seconds`, so the body disappears shortly before the NPC
+returns.
+
+NPC respawn is also rules-driven. `[respawn.npc]` defaults to enabled, restores
+NPC health to full, restores startup loadout and behavior state, and removes
+the NPC corpse on respawn. Player characters are excluded from this automatic
+path; their death and resurrection flow stays in the player script. For one
+NPC, use `respawn_seconds = 120` to change the delay or `respawn = false` to
+keep it dead.
 
 ## Recipes
 

@@ -710,8 +710,11 @@ impl Server {
 
                 let previous_position = entities[index].position;
                 let new_position = update.position;
-                let should_interpolate =
-                    interp_duration > 0.0 && new_position.is_some() && !entities[index].is_player();
+                let snap_position = update.snap_position;
+                let should_interpolate = interp_duration > 0.0
+                    && new_position.is_some()
+                    && !snap_position
+                    && !entities[index].is_player();
                 // Entity exists, apply the update
                 if entities[index].apply_update(update) {
                     assets.entity_tiles.remove(&entities[index].id);

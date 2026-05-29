@@ -10,6 +10,8 @@ pub enum ScepterCapability {
     TileWrite,
     RegionRead,
     RegionWrite,
+    AttributeRead,
+    AttributeWrite,
     ScriptRead,
     ScriptWrite,
     Preview,
@@ -330,7 +332,7 @@ pub struct TilesetImportBatch {
     pub imports: Vec<TilesetImportSpec>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ScriptTargetKind {
     World,
@@ -367,6 +369,22 @@ pub struct ScriptPatch {
 pub struct ScriptValidate {
     pub target: ScriptTarget,
     pub source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AttributesGet {
+    pub target: ScriptTarget,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AttributesPatch {
+    pub target: ScriptTarget,
+    #[serde(default)]
+    pub values: serde_json::Map<String, serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub remove: Vec<String>,
+    #[serde(default)]
+    pub validate: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -458,6 +476,10 @@ pub enum ScepterCommand {
     ScriptPatch(ScriptPatch),
     #[serde(rename = "script.validate")]
     ScriptValidate(ScriptValidate),
+    #[serde(rename = "attributes.get")]
+    AttributesGet(AttributesGet),
+    #[serde(rename = "attributes.patch")]
+    AttributesPatch(AttributesPatch),
     #[serde(rename = "geometry.create_room")]
     GeometryCreateRoom(GeometryCreateRoom),
     #[serde(rename = "geometry.place_builder_asset")]
@@ -499,6 +521,8 @@ impl ScepterCommand {
             Self::ScriptGet(_) => "script.get",
             Self::ScriptPatch(_) => "script.patch",
             Self::ScriptValidate(_) => "script.validate",
+            Self::AttributesGet(_) => "attributes.get",
+            Self::AttributesPatch(_) => "attributes.patch",
             Self::GeometryCreateRoom(_) => "geometry.create_room",
             Self::GeometryPlaceBuilderAsset(_) => "geometry.place_builder_asset",
         }

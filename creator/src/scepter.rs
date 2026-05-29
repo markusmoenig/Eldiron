@@ -1,6 +1,6 @@
 use eldiron_scepter::{
-    RegionPaintCells, RegionPaintRect, RegionRef, RegionRenderPreview, ScepterCommand,
-    ScepterLorebook,
+    AttributesGet, AttributesPatch, RegionPaintCells, RegionPaintRect, RegionRef,
+    RegionRenderPreview, ScepterCommand, ScepterLorebook, ScriptGet, ScriptPatch, ScriptValidate,
 };
 use serde_json::json;
 use std::io::{Read, Write};
@@ -19,6 +19,12 @@ pub enum ScepterEvent {
         peer: String,
     },
     ProjectSnapshot {
+        reply: Sender<serde_json::Value>,
+    },
+    ProjectUndo {
+        reply: Sender<serde_json::Value>,
+    },
+    ProjectRedo {
         reply: Sender<serde_json::Value>,
     },
     TilesSnapshot {
@@ -42,6 +48,26 @@ pub enum ScepterEvent {
     },
     RegionPaintCells {
         command: RegionPaintCells,
+        reply: Sender<serde_json::Value>,
+    },
+    ScriptGet {
+        command: ScriptGet,
+        reply: Sender<serde_json::Value>,
+    },
+    ScriptPatch {
+        command: ScriptPatch,
+        reply: Sender<serde_json::Value>,
+    },
+    ScriptValidate {
+        command: ScriptValidate,
+        reply: Sender<serde_json::Value>,
+    },
+    AttributesGet {
+        command: AttributesGet,
+        reply: Sender<serde_json::Value>,
+    },
+    AttributesPatch {
+        command: AttributesPatch,
         reply: Sender<serde_json::Value>,
     },
     ServiceError(String),
@@ -380,6 +406,22 @@ fn handle_command(command: ScepterCommand, stream: &mut TcpStream, tx: &Sender<S
             "Creator did not accept project snapshot request",
             "project snapshot timed out",
         ),
+        ScepterCommand::ProjectUndo => request_creator_snapshot(
+            stream,
+            tx,
+            "result",
+            |reply| ScepterEvent::ProjectUndo { reply },
+            "Creator did not accept undo request",
+            "undo timed out",
+        ),
+        ScepterCommand::ProjectRedo => request_creator_snapshot(
+            stream,
+            tx,
+            "result",
+            |reply| ScepterEvent::ProjectRedo { reply },
+            "Creator did not accept redo request",
+            "redo timed out",
+        ),
         ScepterCommand::RegionSnapshot(params) => {
             let mut request = ScepterRegionRequest {
                 include_tiles: params.include_tiles,
@@ -451,6 +493,46 @@ fn handle_command(command: ScepterCommand, stream: &mut TcpStream, tx: &Sender<S
             |reply| ScepterEvent::TilesSnapshot { reply },
             "Creator did not accept tile snapshot request",
             "tile snapshot timed out",
+        ),
+        ScepterCommand::ScriptGet(command) => request_creator_snapshot(
+            stream,
+            tx,
+            "script",
+            |reply| ScepterEvent::ScriptGet { command, reply },
+            "Creator did not accept script read request",
+            "script read timed out",
+        ),
+        ScepterCommand::ScriptPatch(command) => request_creator_snapshot(
+            stream,
+            tx,
+            "result",
+            |reply| ScepterEvent::ScriptPatch { command, reply },
+            "Creator did not accept script patch request",
+            "script patch timed out",
+        ),
+        ScepterCommand::ScriptValidate(command) => request_creator_snapshot(
+            stream,
+            tx,
+            "validation",
+            |reply| ScepterEvent::ScriptValidate { command, reply },
+            "Creator did not accept script validation request",
+            "script validation timed out",
+        ),
+        ScepterCommand::AttributesGet(command) => request_creator_snapshot(
+            stream,
+            tx,
+            "attributes",
+            |reply| ScepterEvent::AttributesGet { command, reply },
+            "Creator did not accept attributes read request",
+            "attributes read timed out",
+        ),
+        ScepterCommand::AttributesPatch(command) => request_creator_snapshot(
+            stream,
+            tx,
+            "result",
+            |reply| ScepterEvent::AttributesPatch { command, reply },
+            "Creator did not accept attributes patch request",
+            "attributes patch timed out",
         ),
         command => {
             let _ = write_json(

@@ -66,6 +66,13 @@ Events are categorized as:
 
 ---
 
+### `death`
+
+- **Value**: *(None)*
+- **Description**: Sent to a character when ruleset damage reduces its health to zero. The server has already set `mode = "dead"` and `visible = false` before this event runs. NPC scripts commonly call `drop_items("")` here to let the official rules create a corpse container.
+
+---
+
 ### `entered`
 
 - **Value**: `sector_name` *(string)*
@@ -136,6 +143,13 @@ Sent to a character after `gain_xp(...)` causes it to reach a new level.
 
 - **Value**: `entity_ids` *(array)*
 - **Description**: Called when proximity tracking was enabled via [set_proximity_tracking](server_commands#set_proximity_tracking) and other entities are in radius. Useful for NPCs to interact with other characters (attack, talk, heal, etc.).
+
+---
+
+### `respawn`
+
+- **Value**: *(None)*
+- **Description**: Sent to NPCs after the official ruleset respawns them. At this point the NPC is visible, active, back at its spawn point, restored to full health, and has its startup loadout and behavior state restored. Player respawn is script-controlled and does not use this automatic event.
 
 ---
 

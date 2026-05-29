@@ -53,7 +53,15 @@ autodamage = true
 
 If set to `true`, the character automatically drops all inventory and equipped items to the floor on death.
 With the official ruleset active, death loot is placed into a lootable corpse
-container instead. Empty corpse containers despawn by default.
+container instead. Empty corpse containers despawn by default. Non-empty
+corpses use the ruleset corpse lifetime, and NPC corpses disappear shortly
+before their owner respawns.
+
+NPCs automatically respawn through the official ruleset unless disabled. The
+default NPC respawn restores health to full, restores startup loadout and
+behavior state, and removes that NPC's corpse. Add `respawn_seconds = 120` to
+an NPC instance to change the timer, or `respawn = false` to opt out. Player
+death stays script-controlled.
 
 ```toml
 autodrop = true

@@ -19,3 +19,5 @@ At the bottom of the screen you see the currently active **dock**, in this scree
 - node groups can be edited in the tile node graph editor
 
 To the right of the **dock** area is the **action list**, it lists all [actions](actions/) which can be performed at the current moment (depending on the selected geometry, item and camera).
+
+Creator can also be controlled by local automation through [Scepter: Remote Editing](scepter_remote_editing). Scepter is the command layer used by AI assistants, scripts, and future tools to inspect projects, preview maps, paint regions, and edit character or item data while Creator keeps ownership of undo, validation, and project state.

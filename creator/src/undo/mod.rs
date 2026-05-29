@@ -101,6 +101,10 @@ impl UndoManager {
         false
     }
 
+    pub fn has_redo(&self) -> bool {
+        self.project.has_redo()
+    }
+
     /// Returns true if current state differs from the last saved checkpoint.
     pub fn has_unsaved(&self) -> bool {
         self.project.has_unsaved()

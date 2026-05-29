@@ -10,7 +10,8 @@ use crate::self_update::{SelfUpdateEvent, SelfUpdater};
 use codegridfx::Module;
 #[cfg(not(target_arch = "wasm32"))]
 use eldiron_scepter::{
-    GridPoint, RegionPaintCells, RegionPaintRect, RegionRef, RegionRenderPreview, TileSelector,
+    AttributesGet, AttributesPatch, GridPoint, RegionPaintCells, RegionPaintRect, RegionRef,
+    RegionRenderPreview, ScriptGet, ScriptPatch, ScriptTarget, ScriptTargetKind, TileSelector,
 };
 use rusterix::render_settings::RendererBackend;
 use rusterix::server::message::AudioCommand;
@@ -1079,6 +1080,37 @@ impl Editor {
             })
             .collect::<Vec<_>>();
 
+        let characters = self
+            .project
+            .characters
+            .values()
+            .map(|character| {
+                serde_json::json!({
+                    "id": character.id.to_string(),
+                    "name": character.name,
+                    "source_len": character.source.len(),
+                    "data_len": character.data.len(),
+                    "has_authoring": !character.authoring.trim().is_empty(),
+                    "has_preview_rigging": !character.preview_rigging.trim().is_empty(),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let items = self
+            .project
+            .items
+            .values()
+            .map(|item| {
+                serde_json::json!({
+                    "id": item.id.to_string(),
+                    "name": item.name,
+                    "source_len": item.source.len(),
+                    "data_len": item.data.len(),
+                    "has_authoring": !item.authoring.trim().is_empty(),
+                })
+            })
+            .collect::<Vec<_>>();
+
         serde_json::json!({
             "name": self.project.name,
             "path": self.project_path.as_ref().map(|path| path.display().to_string()),
@@ -1087,6 +1119,8 @@ impl Editor {
             "session_count": self.sessions.len(),
             "current_region": current_region,
             "regions": regions,
+            "characters": characters,
+            "items": items,
             "counts": {
                 "regions": self.project.regions.len(),
                 "tiles": self.project.tiles.len(),
@@ -1530,6 +1564,37 @@ impl Editor {
             })
             .collect::<Vec<_>>();
 
+        let characters = region
+            .characters
+            .values()
+            .map(|character| {
+                serde_json::json!({
+                    "id": character.id.to_string(),
+                    "template_id": character.character_id.to_string(),
+                    "name": character.name,
+                    "position": [character.position.x, character.position.y, character.position.z],
+                    "orientation": [character.orientation.x, character.orientation.y],
+                    "source_len": character.source.len(),
+                    "data_len": character.data.len(),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let items = region
+            .items
+            .values()
+            .map(|item| {
+                serde_json::json!({
+                    "id": item.id.to_string(),
+                    "template_id": item.item_id.to_string(),
+                    "name": item.name,
+                    "position": [item.position.x, item.position.y, item.position.z],
+                    "source_len": item.source.len(),
+                    "data_len": item.data.len(),
+                })
+            })
+            .collect::<Vec<_>>();
+
         let mut body = serde_json::json!({
             "id": region.id.to_string(),
             "name": region.name,
@@ -1548,6 +1613,8 @@ impl Editor {
                 "vertices": vertices,
                 "linedefs": linedefs,
                 "sectors": sectors,
+                "characters": characters,
+                "items": items,
                 "counts": {
                     "vertices": region.map.vertices.len(),
                     "linedefs": region.map.linedefs.len(),
@@ -2574,6 +2641,702 @@ impl Editor {
         )
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_script_target_region_index(
+        &self,
+        target: &ScriptTarget,
+    ) -> Result<Option<usize>, String> {
+        if let Some(region) = &target.region {
+            return self.scepter_resolve_region_index(region).map(Some);
+        }
+
+        if target.kind == ScriptTargetKind::Region {
+            if let Some(id) = &target.id {
+                return self
+                    .scepter_resolve_region_index(&RegionRef::Id { id: id.clone() })
+                    .map(Some);
+            }
+            if let Some(name) = &target.name {
+                return self
+                    .scepter_resolve_region_index(&RegionRef::Name { name: name.clone() })
+                    .map(Some);
+            }
+            return self
+                .project
+                .regions
+                .iter()
+                .position(|region| region.id == self.server_ctx.curr_region)
+                .or(Some(0))
+                .ok_or_else(|| "project has no regions".to_string())
+                .map(Some);
+        }
+
+        Ok(None)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_target_match(id: &Uuid, name: &str, target: &ScriptTarget) -> Result<bool, String> {
+        if let Some(target_id) = &target.id {
+            let target_id =
+                Uuid::from_str(target_id).map_err(|err| format!("invalid target id: {err}"))?;
+            return Ok(*id == target_id);
+        }
+
+        if let Some(target_name) = &target.name {
+            return Ok(name.eq_ignore_ascii_case(target_name));
+        }
+
+        Ok(false)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_target_missing_error(target: &ScriptTarget) -> String {
+        match target.kind {
+            ScriptTargetKind::World => "world target not found".to_string(),
+            ScriptTargetKind::Region => "region target not found".to_string(),
+            ScriptTargetKind::Character => {
+                "character target requires an id or name and must exist".to_string()
+            }
+            ScriptTargetKind::Item => {
+                "item target requires an id or name and must exist".to_string()
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_script_payload(
+        kind: &str,
+        scope: &str,
+        id: Option<Uuid>,
+        name: &str,
+        source: &str,
+        source_debug: &str,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "ok": true,
+            "kind": kind,
+            "scope": scope,
+            "id": id.map(|id| id.to_string()),
+            "name": name,
+            "source": source,
+            "source_debug": source_debug,
+            "source_len": source.len(),
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_get_script(&self, command: &ScriptGet) -> serde_json::Value {
+        let target = &command.target;
+        match target.kind {
+            ScriptTargetKind::World => Self::scepter_script_payload(
+                "world",
+                "project",
+                None,
+                "World",
+                &self.project.world_source,
+                &self.project.world_source_debug,
+            ),
+            ScriptTargetKind::Region => {
+                let region_index = match self.scepter_script_target_region_index(target) {
+                    Ok(Some(index)) => index,
+                    Ok(None) => {
+                        return serde_json::json!({ "ok": false, "error": "region not found" });
+                    }
+                    Err(error) => return serde_json::json!({ "ok": false, "error": error }),
+                };
+                let region = &self.project.regions[region_index];
+                Self::scepter_script_payload(
+                    "region",
+                    "project",
+                    Some(region.id),
+                    &region.name,
+                    &region.source,
+                    &region.source_debug,
+                )
+            }
+            ScriptTargetKind::Character => {
+                if let Ok(Some(region_index)) = self.scepter_script_target_region_index(target) {
+                    let region = &self.project.regions[region_index];
+                    if let Some(character) = region.characters.values().find(|character| {
+                        Self::scepter_target_match(&character.id, &character.name, target)
+                            .unwrap_or(false)
+                    }) {
+                        return Self::scepter_script_payload(
+                            "character",
+                            "region_instance",
+                            Some(character.id),
+                            &character.name,
+                            &character.source,
+                            &character.source_debug,
+                        );
+                    }
+                } else if let Err(error) = self.scepter_script_target_region_index(target) {
+                    return serde_json::json!({ "ok": false, "error": error });
+                }
+
+                if let Some(character) = self.project.characters.values().find(|character| {
+                    Self::scepter_target_match(&character.id, &character.name, target)
+                        .unwrap_or(false)
+                }) {
+                    return Self::scepter_script_payload(
+                        "character",
+                        "template",
+                        Some(character.id),
+                        &character.name,
+                        &character.source,
+                        &character.source_debug,
+                    );
+                }
+
+                serde_json::json!({ "ok": false, "error": Self::scepter_target_missing_error(target) })
+            }
+            ScriptTargetKind::Item => {
+                if let Ok(Some(region_index)) = self.scepter_script_target_region_index(target) {
+                    let region = &self.project.regions[region_index];
+                    if let Some(item) = region.items.values().find(|item| {
+                        Self::scepter_target_match(&item.id, &item.name, target).unwrap_or(false)
+                    }) {
+                        return Self::scepter_script_payload(
+                            "item",
+                            "region_instance",
+                            Some(item.id),
+                            &item.name,
+                            &item.source,
+                            &item.source_debug,
+                        );
+                    }
+                } else if let Err(error) = self.scepter_script_target_region_index(target) {
+                    return serde_json::json!({ "ok": false, "error": error });
+                }
+
+                if let Some(item) = self.project.items.values().find(|item| {
+                    Self::scepter_target_match(&item.id, &item.name, target).unwrap_or(false)
+                }) {
+                    return Self::scepter_script_payload(
+                        "item",
+                        "template",
+                        Some(item.id),
+                        &item.name,
+                        &item.source,
+                        &item.source_debug,
+                    );
+                }
+
+                serde_json::json!({ "ok": false, "error": Self::scepter_target_missing_error(target) })
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_validate_eldrin_source(
+        &self,
+        target: &ScriptTarget,
+        source: &str,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "ok": true,
+            "valid": true,
+            "target": {
+                "kind": format!("{:?}", target.kind).to_lowercase(),
+                "id": target.id,
+                "name": target.name,
+                "region": target.region,
+            },
+            "source_len": source.len(),
+            "diagnostics": [],
+            "note": "Scepter currently stores Eldrin source and reports structural command validity; parser-backed diagnostics can be wired in a later pass.",
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_apply_script_patch(
+        &mut self,
+        command: ScriptPatch,
+        ctx: &mut TheContext,
+    ) -> serde_json::Value {
+        if command.validate {
+            let validation = self.scepter_validate_eldrin_source(&command.target, &command.patch);
+            if !validation
+                .get("valid")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false)
+            {
+                return validation;
+            }
+        }
+
+        let old_project = self.project.clone();
+        let target = command.target;
+        let new_source = command.patch;
+        let mut changed = None::<(String, String, String)>;
+
+        match target.kind {
+            ScriptTargetKind::World => {
+                self.project.world_source = new_source.clone();
+                self.project.world_source_debug = new_source.clone();
+                changed = Some((
+                    "world".to_string(),
+                    "project".to_string(),
+                    "World".to_string(),
+                ));
+            }
+            ScriptTargetKind::Region => {
+                let region_index = match self.scepter_script_target_region_index(&target) {
+                    Ok(Some(index)) => index,
+                    Ok(None) => {
+                        return serde_json::json!({ "ok": false, "error": "region not found" });
+                    }
+                    Err(error) => return serde_json::json!({ "ok": false, "error": error }),
+                };
+                let region = &mut self.project.regions[region_index];
+                region.source = new_source.clone();
+                region.source_debug = new_source.clone();
+                changed = Some((
+                    "region".to_string(),
+                    "project".to_string(),
+                    region.name.clone(),
+                ));
+            }
+            ScriptTargetKind::Character => {
+                if let Ok(Some(region_index)) = self.scepter_script_target_region_index(&target) {
+                    let region = &mut self.project.regions[region_index];
+                    if let Some(character) = region.characters.values_mut().find(|character| {
+                        Self::scepter_target_match(&character.id, &character.name, &target)
+                            .unwrap_or(false)
+                    }) {
+                        character.source = new_source.clone();
+                        character.source_debug = new_source.clone();
+                        changed = Some((
+                            "character".to_string(),
+                            "region_instance".to_string(),
+                            character.name.clone(),
+                        ));
+                    }
+                } else if let Err(error) = self.scepter_script_target_region_index(&target) {
+                    return serde_json::json!({ "ok": false, "error": error });
+                }
+
+                if changed.is_none()
+                    && let Some(character) =
+                        self.project.characters.values_mut().find(|character| {
+                            Self::scepter_target_match(&character.id, &character.name, &target)
+                                .unwrap_or(false)
+                        })
+                {
+                    character.source = new_source.clone();
+                    character.source_debug = new_source.clone();
+                    changed = Some((
+                        "character".to_string(),
+                        "template".to_string(),
+                        character.name.clone(),
+                    ));
+                }
+            }
+            ScriptTargetKind::Item => {
+                if let Ok(Some(region_index)) = self.scepter_script_target_region_index(&target) {
+                    let region = &mut self.project.regions[region_index];
+                    if let Some(item) = region.items.values_mut().find(|item| {
+                        Self::scepter_target_match(&item.id, &item.name, &target).unwrap_or(false)
+                    }) {
+                        item.source = new_source.clone();
+                        item.source_debug = new_source.clone();
+                        changed = Some((
+                            "item".to_string(),
+                            "region_instance".to_string(),
+                            item.name.clone(),
+                        ));
+                    }
+                } else if let Err(error) = self.scepter_script_target_region_index(&target) {
+                    return serde_json::json!({ "ok": false, "error": error });
+                }
+
+                if changed.is_none()
+                    && let Some(item) = self.project.items.values_mut().find(|item| {
+                        Self::scepter_target_match(&item.id, &item.name, &target).unwrap_or(false)
+                    })
+                {
+                    item.source = new_source.clone();
+                    item.source_debug = new_source.clone();
+                    changed = Some((
+                        "item".to_string(),
+                        "template".to_string(),
+                        item.name.clone(),
+                    ));
+                }
+            }
+        }
+
+        let Some((kind, scope, name)) = changed else {
+            self.project = old_project;
+            return serde_json::json!({ "ok": false, "error": Self::scepter_target_missing_error(&target) });
+        };
+
+        let new_project = self.project.clone();
+        UNDOMANAGER.write().unwrap().add_undo(
+            ProjectUndoAtom::ProjectEdit(
+                format!("Scepter Script Edit: {kind} {name}"),
+                Box::new(old_project),
+                Box::new(new_project),
+            ),
+            ctx,
+        );
+        shared::rusterix_utils::insert_content_into_maps(&mut self.project);
+        update_region(ctx);
+
+        serde_json::json!({
+            "ok": true,
+            "command": "script.patch",
+            "mode": "replace_source",
+            "kind": kind,
+            "scope": scope,
+            "name": name,
+            "source_len": new_source.len(),
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_json_to_toml(value: serde_json::Value) -> Result<toml::Value, String> {
+        match value {
+            serde_json::Value::Null => {
+                Err("null is not a TOML value; use remove for deletion".to_string())
+            }
+            serde_json::Value::Bool(value) => Ok(toml::Value::Boolean(value)),
+            serde_json::Value::Number(value) => {
+                if let Some(value) = value.as_i64() {
+                    Ok(toml::Value::Integer(value))
+                } else if let Some(value) = value.as_f64() {
+                    Ok(toml::Value::Float(value))
+                } else {
+                    Err("number is outside TOML's supported range".to_string())
+                }
+            }
+            serde_json::Value::String(value) => Ok(toml::Value::String(value)),
+            serde_json::Value::Array(values) => values
+                .into_iter()
+                .map(Self::scepter_json_to_toml)
+                .collect::<Result<Vec<_>, _>>()
+                .map(toml::Value::Array),
+            serde_json::Value::Object(values) => {
+                let mut table = toml::Table::new();
+                for (key, value) in values {
+                    table.insert(key, Self::scepter_json_to_toml(value)?);
+                }
+                Ok(toml::Value::Table(table))
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_attributes_payload(
+        kind: &str,
+        scope: &str,
+        id: Uuid,
+        name: &str,
+        data: &str,
+    ) -> serde_json::Value {
+        let parsed = data.parse::<toml::Table>();
+        let (attributes, parse_error) = match parsed {
+            Ok(table) => (
+                table
+                    .get("attributes")
+                    .and_then(toml::Value::as_table)
+                    .cloned()
+                    .unwrap_or_default(),
+                None,
+            ),
+            Err(error) => (toml::Table::new(), Some(error.to_string())),
+        };
+
+        serde_json::json!({
+            "ok": parse_error.is_none(),
+            "kind": kind,
+            "scope": scope,
+            "id": id.to_string(),
+            "name": name,
+            "data": data,
+            "attributes": attributes,
+            "parse_error": parse_error,
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_get_attributes(&self, command: &AttributesGet) -> serde_json::Value {
+        let target = &command.target;
+        match target.kind {
+            ScriptTargetKind::Character => {
+                if let Ok(Some(region_index)) = self.scepter_script_target_region_index(target) {
+                    let region = &self.project.regions[region_index];
+                    if let Some(character) = region.characters.values().find(|character| {
+                        Self::scepter_target_match(&character.id, &character.name, target)
+                            .unwrap_or(false)
+                    }) {
+                        return Self::scepter_attributes_payload(
+                            "character",
+                            "region_instance",
+                            character.id,
+                            &character.name,
+                            &character.data,
+                        );
+                    }
+                } else if let Err(error) = self.scepter_script_target_region_index(target) {
+                    return serde_json::json!({ "ok": false, "error": error });
+                }
+
+                if let Some(character) = self.project.characters.values().find(|character| {
+                    Self::scepter_target_match(&character.id, &character.name, target)
+                        .unwrap_or(false)
+                }) {
+                    return Self::scepter_attributes_payload(
+                        "character",
+                        "template",
+                        character.id,
+                        &character.name,
+                        &character.data,
+                    );
+                }
+            }
+            ScriptTargetKind::Item => {
+                if let Ok(Some(region_index)) = self.scepter_script_target_region_index(target) {
+                    let region = &self.project.regions[region_index];
+                    if let Some(item) = region.items.values().find(|item| {
+                        Self::scepter_target_match(&item.id, &item.name, target).unwrap_or(false)
+                    }) {
+                        return Self::scepter_attributes_payload(
+                            "item",
+                            "region_instance",
+                            item.id,
+                            &item.name,
+                            &item.data,
+                        );
+                    }
+                } else if let Err(error) = self.scepter_script_target_region_index(target) {
+                    return serde_json::json!({ "ok": false, "error": error });
+                }
+
+                if let Some(item) = self.project.items.values().find(|item| {
+                    Self::scepter_target_match(&item.id, &item.name, target).unwrap_or(false)
+                }) {
+                    return Self::scepter_attributes_payload(
+                        "item", "template", item.id, &item.name, &item.data,
+                    );
+                }
+            }
+            ScriptTargetKind::World | ScriptTargetKind::Region => {
+                return serde_json::json!({
+                    "ok": false,
+                    "error": "attributes.get currently supports character and item targets",
+                });
+            }
+        }
+
+        serde_json::json!({ "ok": false, "error": Self::scepter_target_missing_error(target) })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_patch_data_source(
+        data: &str,
+        values: serde_json::Map<String, serde_json::Value>,
+        remove: &[String],
+    ) -> Result<(String, Vec<String>, Vec<String>), String> {
+        let mut table = if data.trim().is_empty() {
+            toml::Table::new()
+        } else {
+            data.parse::<toml::Table>()
+                .map_err(|err| format!("existing TOML data is invalid: {err}"))?
+        };
+
+        let attributes_value = table
+            .entry("attributes".to_string())
+            .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+        if !attributes_value.is_table() {
+            return Err("[attributes] exists but is not a TOML table".to_string());
+        }
+        let attributes = attributes_value
+            .as_table_mut()
+            .ok_or_else(|| "could not access [attributes] table".to_string())?;
+
+        let mut changed = Vec::new();
+        for (key, value) in values {
+            attributes.insert(key.clone(), Self::scepter_json_to_toml(value)?);
+            changed.push(key);
+        }
+
+        let mut removed = Vec::new();
+        for key in remove {
+            if attributes.remove(key).is_some() {
+                removed.push(key.clone());
+            }
+        }
+
+        let source = toml::to_string_pretty(&table)
+            .map_err(|err| format!("could not serialize TOML data: {err}"))?;
+        Ok((source, changed, removed))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_apply_attributes_patch(
+        &mut self,
+        command: AttributesPatch,
+        ctx: &mut TheContext,
+    ) -> serde_json::Value {
+        let old_project = self.project.clone();
+        let target = command.target;
+        let values = command.values;
+        let remove = command.remove;
+        let mut changed = None::<(String, String, String, Vec<String>, Vec<String>)>;
+
+        match target.kind {
+            ScriptTargetKind::Character => {
+                if let Ok(Some(region_index)) = self.scepter_script_target_region_index(&target) {
+                    let region = &mut self.project.regions[region_index];
+                    if let Some(character) = region.characters.values_mut().find(|character| {
+                        Self::scepter_target_match(&character.id, &character.name, &target)
+                            .unwrap_or(false)
+                    }) {
+                        match Self::scepter_patch_data_source(
+                            &character.data,
+                            values.clone(),
+                            &remove,
+                        ) {
+                            Ok((data, keys, removed)) => {
+                                if command.validate
+                                    && let Err(err) = data.parse::<toml::Table>()
+                                {
+                                    return serde_json::json!({ "ok": false, "error": format!("patched TOML is invalid: {err}") });
+                                }
+                                character.data = data;
+                                changed = Some((
+                                    "character".to_string(),
+                                    "region_instance".to_string(),
+                                    character.name.clone(),
+                                    keys,
+                                    removed,
+                                ));
+                            }
+                            Err(error) => return serde_json::json!({ "ok": false, "error": error }),
+                        }
+                    }
+                } else if let Err(error) = self.scepter_script_target_region_index(&target) {
+                    return serde_json::json!({ "ok": false, "error": error });
+                }
+
+                if changed.is_none()
+                    && let Some(character) =
+                        self.project.characters.values_mut().find(|character| {
+                            Self::scepter_target_match(&character.id, &character.name, &target)
+                                .unwrap_or(false)
+                        })
+                {
+                    match Self::scepter_patch_data_source(&character.data, values, &remove) {
+                        Ok((data, keys, removed)) => {
+                            if command.validate
+                                && let Err(err) = data.parse::<toml::Table>()
+                            {
+                                return serde_json::json!({ "ok": false, "error": format!("patched TOML is invalid: {err}") });
+                            }
+                            character.data = data;
+                            changed = Some((
+                                "character".to_string(),
+                                "template".to_string(),
+                                character.name.clone(),
+                                keys,
+                                removed,
+                            ));
+                        }
+                        Err(error) => return serde_json::json!({ "ok": false, "error": error }),
+                    }
+                }
+            }
+            ScriptTargetKind::Item => {
+                if let Ok(Some(region_index)) = self.scepter_script_target_region_index(&target) {
+                    let region = &mut self.project.regions[region_index];
+                    if let Some(item) = region.items.values_mut().find(|item| {
+                        Self::scepter_target_match(&item.id, &item.name, &target).unwrap_or(false)
+                    }) {
+                        match Self::scepter_patch_data_source(&item.data, values.clone(), &remove) {
+                            Ok((data, keys, removed)) => {
+                                if command.validate
+                                    && let Err(err) = data.parse::<toml::Table>()
+                                {
+                                    return serde_json::json!({ "ok": false, "error": format!("patched TOML is invalid: {err}") });
+                                }
+                                item.data = data;
+                                changed = Some((
+                                    "item".to_string(),
+                                    "region_instance".to_string(),
+                                    item.name.clone(),
+                                    keys,
+                                    removed,
+                                ));
+                            }
+                            Err(error) => return serde_json::json!({ "ok": false, "error": error }),
+                        }
+                    }
+                } else if let Err(error) = self.scepter_script_target_region_index(&target) {
+                    return serde_json::json!({ "ok": false, "error": error });
+                }
+
+                if changed.is_none()
+                    && let Some(item) = self.project.items.values_mut().find(|item| {
+                        Self::scepter_target_match(&item.id, &item.name, &target).unwrap_or(false)
+                    })
+                {
+                    match Self::scepter_patch_data_source(&item.data, values, &remove) {
+                        Ok((data, keys, removed)) => {
+                            if command.validate
+                                && let Err(err) = data.parse::<toml::Table>()
+                            {
+                                return serde_json::json!({ "ok": false, "error": format!("patched TOML is invalid: {err}") });
+                            }
+                            item.data = data;
+                            changed = Some((
+                                "item".to_string(),
+                                "template".to_string(),
+                                item.name.clone(),
+                                keys,
+                                removed,
+                            ));
+                        }
+                        Err(error) => return serde_json::json!({ "ok": false, "error": error }),
+                    }
+                }
+            }
+            ScriptTargetKind::World | ScriptTargetKind::Region => {
+                return serde_json::json!({
+                    "ok": false,
+                    "error": "attributes.patch currently supports character and item targets",
+                });
+            }
+        }
+
+        let Some((kind, scope, name, changed_keys, removed_keys)) = changed else {
+            self.project = old_project;
+            return serde_json::json!({ "ok": false, "error": Self::scepter_target_missing_error(&target) });
+        };
+
+        let new_project = self.project.clone();
+        UNDOMANAGER.write().unwrap().add_undo(
+            ProjectUndoAtom::ProjectEdit(
+                format!("Scepter Attribute Edit: {kind} {name}"),
+                Box::new(old_project),
+                Box::new(new_project),
+            ),
+            ctx,
+        );
+        shared::rusterix_utils::insert_content_into_maps(&mut self.project);
+        update_region(ctx);
+
+        serde_json::json!({
+            "ok": true,
+            "command": "attributes.patch",
+            "kind": kind,
+            "scope": scope,
+            "name": name,
+            "changed": changed_keys,
+            "removed": removed_keys,
+        })
+    }
+
     fn is_realtime_mode(&self) -> bool {
         self.server_ctx.game_mode
             || RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running
@@ -3371,6 +4134,52 @@ impl TheTrait for Editor {
                 ScepterEvent::ProjectSnapshot { reply } => {
                     let _ = reply.send(self.scepter_project_snapshot());
                 }
+                ScepterEvent::ProjectUndo { reply } => {
+                    let had_undo = UNDOMANAGER.read().unwrap().has_undo();
+                    if had_undo {
+                        UNDOMANAGER.write().unwrap().undo(
+                            &mut self.server_ctx,
+                            &mut self.project,
+                            ui,
+                            ctx,
+                        );
+                    }
+                    let result = serde_json::json!({
+                        "ok": had_undo,
+                        "command": "project.undo",
+                        "dirty": self.active_session_has_changes(),
+                        "message": if had_undo { "undo applied" } else { "nothing to undo" },
+                    });
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        "Scepter undo.".into(),
+                    ));
+                    let _ = reply.send(result);
+                    redraw = true;
+                }
+                ScepterEvent::ProjectRedo { reply } => {
+                    let had_redo = UNDOMANAGER.read().unwrap().has_redo();
+                    if had_redo {
+                        UNDOMANAGER.write().unwrap().redo(
+                            &mut self.server_ctx,
+                            &mut self.project,
+                            ui,
+                            ctx,
+                        );
+                    }
+                    let result = serde_json::json!({
+                        "ok": had_redo,
+                        "command": "project.redo",
+                        "dirty": self.active_session_has_changes(),
+                        "message": if had_redo { "redo applied" } else { "nothing to redo" },
+                    });
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        "Scepter redo.".into(),
+                    ));
+                    let _ = reply.send(result);
+                    redraw = true;
+                }
                 ScepterEvent::RegionSnapshot { request, reply } => {
                     let _ = reply.send(self.scepter_region_snapshot(&request));
                 }
@@ -3425,6 +4234,81 @@ impl TheTrait for Editor {
                     } else {
                         format!(
                             "Scepter paint failed: {}",
+                            result
+                                .get("error")
+                                .and_then(|value| value.as_str())
+                                .unwrap_or("unknown error")
+                        )
+                    };
+                    println!("{status}");
+                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+                    let _ = reply.send(result);
+                    redraw = true;
+                }
+                ScepterEvent::ScriptGet { command, reply } => {
+                    let _ = reply.send(self.scepter_get_script(&command));
+                }
+                ScepterEvent::ScriptValidate { command, reply } => {
+                    let _ = reply.send(
+                        self.scepter_validate_eldrin_source(&command.target, &command.source),
+                    );
+                }
+                ScepterEvent::ScriptPatch { command, reply } => {
+                    let result = self.scepter_apply_script_patch(command, ctx);
+                    let ok = result
+                        .get("ok")
+                        .and_then(|value| value.as_bool())
+                        .unwrap_or(false);
+                    let status = if ok {
+                        format!(
+                            "Scepter edited {} script: {}.",
+                            result
+                                .get("kind")
+                                .and_then(|value| value.as_str())
+                                .unwrap_or("target"),
+                            result
+                                .get("name")
+                                .and_then(|value| value.as_str())
+                                .unwrap_or("unknown")
+                        )
+                    } else {
+                        format!(
+                            "Scepter script edit failed: {}",
+                            result
+                                .get("error")
+                                .and_then(|value| value.as_str())
+                                .unwrap_or("unknown error")
+                        )
+                    };
+                    println!("{status}");
+                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+                    let _ = reply.send(result);
+                    redraw = true;
+                }
+                ScepterEvent::AttributesGet { command, reply } => {
+                    let _ = reply.send(self.scepter_get_attributes(&command));
+                }
+                ScepterEvent::AttributesPatch { command, reply } => {
+                    let result = self.scepter_apply_attributes_patch(command, ctx);
+                    let ok = result
+                        .get("ok")
+                        .and_then(|value| value.as_bool())
+                        .unwrap_or(false);
+                    let status = if ok {
+                        format!(
+                            "Scepter edited {} attributes: {}.",
+                            result
+                                .get("kind")
+                                .and_then(|value| value.as_str())
+                                .unwrap_or("target"),
+                            result
+                                .get("name")
+                                .and_then(|value| value.as_str())
+                                .unwrap_or("unknown")
+                        )
+                    } else {
+                        format!(
+                            "Scepter attribute edit failed: {}",
                             result
                                 .get("error")
                                 .and_then(|value| value.as_str())

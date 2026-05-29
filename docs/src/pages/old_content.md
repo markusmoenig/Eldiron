@@ -165,11 +165,11 @@ class Door:
 2. The door **opens** by setting:
    - `visible = False` (door disappears).
    - `blocking = False` (door no longer blocks movement).
-3. The `notify_in(2, "close_door")` function **delays closing** the door for **2 seconds**.
+3. The `notify_in(2, "close_door")` function **delays closing** the door for **2 in-game minutes**.
 4. When `close_door` is triggered, the script:
    - **Checks if the area is empty** (`entities_in_radius() == 0`).
    - If **empty**, the door **closes** (`visible = True`, `blocking = True`).
-   - If **not empty**, it **delays the closing** again by 2 seconds.
+   - If **not empty**, it **delays the closing** again by 2 in-game minutes.
 
 :::note
 Setting the `blocking` attribute isn’t strictly necessary in this case, since the door **instantly opens** on contact. However, it is included here for **clarity and flexibility** in different scenarios.
@@ -210,11 +210,11 @@ class Gate:
 4. If the character **has the key**, the gate **opens** by setting:
    - `visible = False` (gate disappears).
    - `blocking = False` (gate no longer blocks movement).
-5. The `notify_in(2, "close_gate")` function **delays closing** the gate for **2 seconds**.
+5. The `notify_in(2, "close_gate")` function **delays closing** the gate for **2 in-game minutes**.
 6. When `close_gate` is triggered, the script:
    - **Checks if the area is empty** (`entities_in_radius() == 0`).
    - If **empty**, the gate **closes** (`visible = True`, `blocking = True`).
-   - If **not empty**, it **delays closing** again by **2 seconds**.
+   - If **not empty**, it **delays closing** again by **2 in-game minutes**.
 
 :::tip
 The `value` parameter in `bumped_by_entity` holds the **ID of the character** who collided with the gate.

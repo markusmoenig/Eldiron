@@ -1132,6 +1132,23 @@ mod ruleset_progression_tests {
         assert!(state.get("__pending_intent_cooldown:attack").is_none());
         assert!(is_cooldown_key_active(&ctx, 1, "intent: attack"));
     }
+
+    #[test]
+    fn timing_helpers_separate_seconds_from_game_minutes() {
+        let mut ctx = RegionCtx::default();
+        ctx.ticks_per_minute = 10;
+        ctx.config = toml::from_str::<toml::Table>(
+            r#"
+            [game]
+            game_tick_ms = 250
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(RegionInstance::realtime_seconds_to_ticks(&ctx, 2.0), 8);
+        assert_eq!(RegionInstance::ticks_to_realtime_seconds(&ctx, 8), 2.0);
+        assert_eq!(RegionInstance::game_minutes_to_ticks(&ctx, 2.0), 20);
+    }
 }
 
 fn vertical_collision_ranges_overlap(a_y: f32, a_height: f32, b_y: f32, b_height: f32) -> bool {
@@ -3126,7 +3143,7 @@ impl RegionInstance {
                 }
                 "wait" => {
                     let seconds = step.seconds.unwrap_or(1.0).max(0.0);
-                    let wait_ticks = (seconds * ctx.ticks_per_minute as f32 / 60.0).round() as i64;
+                    let wait_ticks = Self::realtime_seconds_to_ticks(ctx, seconds);
                     state.step_index += 1;
                     if wait_ticks > 0 {
                         state.wait_until_tick = Some(ctx.ticks + wait_ticks.max(1));
@@ -3250,7 +3267,7 @@ impl RegionInstance {
 
     fn follow_attack_cooldown_ticks(ctx: &RegionCtx, entity: &Entity) -> i64 {
         let cooldown = current_attack_cooldown_for_entity(ctx, entity);
-        (cooldown * ctx.ticks_per_minute as f32).ceil().max(1.0) as i64
+        Self::realtime_seconds_to_ticks(ctx, cooldown)
     }
 
     fn end_follow_attack(ctx: &mut RegionCtx, entity: &mut Entity, reason: &str) {
@@ -3268,19 +3285,29 @@ impl RegionInstance {
         }
     }
 
-    pub(crate) fn scheduled_delay_ticks(ctx: &RegionCtx, units: f32) -> i64 {
-        let units = units.max(0.0);
-        if units <= 0.0 {
+    pub(crate) fn realtime_seconds_to_ticks(ctx: &RegionCtx, seconds: f32) -> i64 {
+        let seconds = seconds.max(0.0);
+        if seconds <= 0.0 {
             return 0;
         }
-        if matches!(
-            ctx.simulation_mode,
-            crate::server::regionctx::SimulationMode::Realtime
-        ) {
-            (ctx.ticks_per_minute as f32 * units).round().max(1.0) as i64
-        } else {
-            units.round().max(1.0) as i64
+        let tick_seconds =
+            get_config_i32_default(ctx, "game", "game_tick_ms", 250).max(1) as f32 / 1000.0;
+        (seconds / tick_seconds).round().max(1.0) as i64
+    }
+
+    pub(crate) fn ticks_to_realtime_seconds(ctx: &RegionCtx, ticks: i64) -> f32 {
+        let ticks = ticks.max(0);
+        let tick_seconds =
+            get_config_i32_default(ctx, "game", "game_tick_ms", 250).max(1) as f32 / 1000.0;
+        ticks as f32 * tick_seconds
+    }
+
+    pub(crate) fn game_minutes_to_ticks(ctx: &RegionCtx, minutes: f32) -> i64 {
+        let minutes = minutes.max(0.0);
+        if minutes <= 0.0 {
+            return 0;
         }
+        (ctx.ticks_per_minute as f32 * minutes).round().max(1.0) as i64
     }
 
     fn queue_simulation_step(&mut self) {
@@ -4795,6 +4822,10 @@ impl RegionInstance {
                 });
             }
         }
+
+        with_regionctx(self.id, |ctx| {
+            remember_entity_respawn_points(ctx);
+        });
 
         // Wrapping up ...
         let mut error_count = 0;
@@ -7516,7 +7547,7 @@ impl RegionInstance {
                                 let sleep_minutes =
                                     rng.random_range(min_sleep..=max_sleep_guard) as u32;
                                 let wake_tick = ctx.ticks
-                                    + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
+                                    + Self::game_minutes_to_ticks(ctx, sleep_minutes as f32);
                                 entity.action = SleepAndSwitch(
                                     wake_tick,
                                     Box::new(RandomWalk(
@@ -7748,7 +7779,7 @@ impl RegionInstance {
                                     let sleep_minutes =
                                         rng.random_range(min_sleep..=max_sleep_guard) as u32;
                                     let wake_tick = ctx.ticks
-                                        + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
+                                        + Self::game_minutes_to_ticks(ctx, sleep_minutes as f32);
                                     entity.action = SleepAndSwitch(
                                         wake_tick,
                                         Box::new(RandomWalk(
@@ -8053,7 +8084,7 @@ impl RegionInstance {
                                     let sleep_minutes =
                                         rng.random_range(min_sleep..=max_sleep_guard) as u32;
                                     let wake_tick = ctx.ticks
-                                        + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
+                                        + Self::game_minutes_to_ticks(ctx, sleep_minutes as f32);
                                     entity.action = SleepAndSwitch(
                                         wake_tick,
                                         Box::new(RandomWalkInSector(
@@ -8070,7 +8101,7 @@ impl RegionInstance {
                                     let sleep_minutes =
                                         rng.random_range(min_sleep..=max_sleep_guard) as u32;
                                     let wake_tick = ctx.ticks
-                                        + Self::scheduled_delay_ticks(ctx, sleep_minutes as f32);
+                                        + Self::game_minutes_to_ticks(ctx, sleep_minutes as f32);
                                     entity.action = SleepAndSwitch(
                                         wake_tick,
                                         Box::new(RandomWalkInSector(
@@ -8193,7 +8224,7 @@ impl RegionInstance {
                             entity.set_pos_xz(new_position);
                             entity.position.y = new_y;
                             if arrived {
-                                let wait_ticks = Self::scheduled_delay_ticks(ctx, *route_wait);
+                                let wait_ticks = Self::game_minutes_to_ticks(ctx, *route_wait);
                                 wait_until = ctx.ticks + wait_ticks;
                                 if len > 1 {
                                     let pingpong = route_mode.eq_ignore_ascii_case("pingpong");
@@ -8274,6 +8305,7 @@ impl RegionInstance {
 
         with_regionctx(self.id, |ctx| {
             ctx.map.entities = entities;
+            update_entity_respawns(ctx);
             update_spell_items(ctx);
         });
 
@@ -8592,7 +8624,7 @@ impl RegionInstance {
     /// Create a sleep action which switches back to the previous action.
     fn create_sleep_switch_action(&self, minutes: u32, switchback: EntityAction) -> EntityAction {
         with_regionctx(self.id, |ctx| {
-            let tick = ctx.ticks + Self::scheduled_delay_ticks(ctx, minutes as f32);
+            let tick = ctx.ticks + Self::game_minutes_to_ticks(ctx, minutes as f32);
             SleepAndSwitch(tick, Box::new(switchback))
         })
         .unwrap()
@@ -9695,7 +9727,7 @@ pub fn block_events(args: rustpython_vm::function::FuncArgs, vm: &VirtualMachine
             }
         }
 
-        let target_tick = Value::Int64(ctx.ticks + Self::scheduled_delay_ticks(ctx, minutes));
+        let target_tick = Value::Int64(ctx.ticks + Self::game_minutes_to_ticks(ctx, minutes));
 
         if let Some(item_id) = ctx.curr_item_id {
             let state_data = &mut ctx.item_state_data;
@@ -9917,6 +9949,7 @@ fn update_spell_cooldowns(ctx: &mut RegionCtx, dt: f32) {
     if dt <= 0.0 {
         return;
     }
+    let tick_seconds = RegionInstance::ticks_to_realtime_seconds(ctx, 1);
     let mut attr_updates: Vec<(u32, String, f32, f32)> = Vec::new();
     for (entity_id, state) in ctx.entity_state_data.iter_mut() {
         let keys: Vec<String> = state
@@ -9939,7 +9972,7 @@ fn update_spell_cooldowns(ctx: &mut RegionCtx, dt: f32) {
                 attr_updates.push((*entity_id, key, remaining, total));
             } else if let Some(Value::Int64(until_tick)) = state.get(&key).cloned() {
                 let remaining_ticks = until_tick.saturating_sub(ctx.ticks);
-                let remaining = (remaining_ticks as f32 / ctx.ticks_per_minute as f32).max(0.0);
+                let remaining = (remaining_ticks as f32 * tick_seconds).max(0.0);
                 let total = state
                     .get(&format!("__cooldown_total:{}", key))
                     .and_then(Value::to_f32)
@@ -12724,16 +12757,16 @@ fn queue_intent_cooldown(
     ctx: &mut RegionCtx,
     entity_id: u32,
     intent: &str,
-    cooldown_minutes: Option<f32>,
+    cooldown_seconds: Option<f32>,
 ) {
-    let Some(minutes) = cooldown_minutes else {
+    let Some(seconds) = cooldown_seconds else {
         return;
     };
     let intent = intent.trim().to_ascii_lowercase();
     if intent.is_empty() {
         return;
     }
-    let target_tick = ctx.ticks + RegionInstance::scheduled_delay_ticks(ctx, minutes);
+    let target_tick = ctx.ticks + RegionInstance::realtime_seconds_to_ticks(ctx, seconds);
     let state = ctx.entity_state_data.entry(entity_id).or_default();
     state.set(
         &format!("__pending_intent_cooldown:{}", intent),
@@ -15241,6 +15274,7 @@ pub(crate) fn drop_items_into_ruleset_loot_container(
     let name_template = rule_string(corpse_rules, "name").unwrap_or("{name}'s Remains");
     let description_template = rule_string(corpse_rules, "description")
         .unwrap_or("What remains of {name}. Open it to search the carried loot.");
+    let corpse_despawn_at_tick = corpse_despawn_tick_for_entity(ctx, entity_id, corpse_rules);
 
     let (entity_position, entity_name, mut removed_items) = {
         let entity = &mut ctx.map.entities[entity_index];
@@ -15312,6 +15346,9 @@ pub(crate) fn drop_items_into_ruleset_loot_container(
     corpse.set_attribute("static", Value::Bool(true));
     corpse.set_attribute("takeable", Value::Bool(false));
     corpse.set_attribute("visible", Value::Bool(true));
+    if let Some(tick) = corpse_despawn_at_tick {
+        corpse.set_attribute("despawn_at_tick", Value::Int64(tick));
+    }
     let required_slots = removed_items.len().max(1) as i32;
     let slots = corpse
         .attributes
@@ -15323,6 +15360,378 @@ pub(crate) fn drop_items_into_ruleset_loot_container(
     corpse.mark_all_dirty();
     ctx.map.items.push(corpse);
     true
+}
+
+fn corpse_despawn_tick_for_entity(
+    ctx: &RegionCtx,
+    entity_id: u32,
+    corpse_rules: &toml::value::Table,
+) -> Option<i64> {
+    if let Some(entity) = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)
+        && entity_respawn_enabled(ctx, entity)
+    {
+        let respawn_seconds = entity_respawn_delay_seconds(ctx, entity);
+        let respawn_ticks = RegionInstance::realtime_seconds_to_ticks(ctx, respawn_seconds);
+        if respawn_ticks > 0 {
+            let before_respawn =
+                rule_number(corpse_rules, "despawn_before_respawn_seconds", 5.0).max(0.0);
+            let requested_before_ticks =
+                RegionInstance::realtime_seconds_to_ticks(ctx, before_respawn);
+            let before_ticks = if respawn_ticks <= 1 {
+                0
+            } else if requested_before_ticks <= 0 {
+                1
+            } else {
+                requested_before_ticks.min(respawn_ticks - 1)
+            };
+            return Some(ctx.ticks + respawn_ticks - before_ticks);
+        }
+    }
+
+    let despawn_seconds = rule_number(corpse_rules, "despawn_seconds", 0.0);
+    (despawn_seconds > 0.0)
+        .then(|| ctx.ticks + RegionInstance::realtime_seconds_to_ticks(ctx, despawn_seconds))
+}
+
+fn ruleset_npc_respawn_rules(ctx: &RegionCtx) -> Option<&toml::value::Table> {
+    ctx.rules
+        .get("respawn")
+        .and_then(toml::Value::as_table)
+        .and_then(|respawn| respawn.get("npc"))
+        .and_then(toml::Value::as_table)
+}
+
+fn entity_respawn_enabled(ctx: &RegionCtx, entity: &Entity) -> bool {
+    if entity.is_player() {
+        return false;
+    }
+    if entity.attributes.get_bool_default("no_respawn", false) {
+        return false;
+    }
+    if let Some(value) = entity.attributes.get("respawn_enabled") {
+        return match value {
+            Value::Bool(enabled) => *enabled,
+            Value::Int(value) => *value != 0,
+            Value::Int64(value) => *value != 0,
+            Value::Str(value) => {
+                let value = value.trim().to_ascii_lowercase();
+                !matches!(value.as_str(), "false" | "no" | "off" | "0")
+            }
+            _ => true,
+        };
+    }
+    if let Some(value) = entity.attributes.get("respawn") {
+        return match value {
+            Value::Bool(enabled) => *enabled,
+            Value::Str(value) => {
+                let value = value.trim().to_ascii_lowercase();
+                !matches!(value.as_str(), "false" | "no" | "off" | "0")
+            }
+            _ => true,
+        };
+    }
+
+    ruleset_npc_respawn_rules(ctx)
+        .map(|rules| rule_bool(rules, "enabled", true))
+        .unwrap_or(true)
+}
+
+fn entity_respawn_delay_seconds(ctx: &RegionCtx, entity: &Entity) -> f32 {
+    for key in [
+        "respawn_seconds",
+        "respawn_delay",
+        "respawn_time",
+        "respawn",
+    ] {
+        if let Some(value) = entity.attributes.get(key) {
+            match value {
+                Value::Int(value) => return (*value).max(0) as f32,
+                Value::Int64(value) => return (*value).max(0) as f32,
+                Value::Float(value) => return (*value).max(0.0),
+                Value::Str(value) => {
+                    if let Ok(value) = value.trim().parse::<f32>() {
+                        return value.max(0.0);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    ruleset_npc_respawn_rules(ctx)
+        .map(|rules| rule_number(rules, "delay_seconds", 60.0).max(0.0))
+        .unwrap_or(60.0)
+}
+
+fn entity_respawn_clears_corpse(ctx: &RegionCtx) -> bool {
+    ruleset_npc_respawn_rules(ctx)
+        .map(|rules| rule_bool(rules, "clear_corpse_on_respawn", true))
+        .unwrap_or(true)
+}
+
+fn remember_entity_respawn_points(ctx: &mut RegionCtx) {
+    for entity in &ctx.map.entities {
+        if entity.is_player() {
+            continue;
+        }
+        ctx.entity_respawn_snapshots
+            .entry(entity.id)
+            .or_insert_with(|| entity.clone());
+        let state = ctx.entity_state_data.entry(entity.id).or_default();
+        if state.get("__respawn_spawn_x").is_some() {
+            continue;
+        }
+        state.set("__respawn_spawn_x", Value::Float(entity.position.x));
+        state.set("__respawn_spawn_y", Value::Float(entity.position.y));
+        state.set("__respawn_spawn_z", Value::Float(entity.position.z));
+        state.set(
+            "__respawn_orientation_x",
+            Value::Float(entity.orientation.x),
+        );
+        state.set(
+            "__respawn_orientation_z",
+            Value::Float(entity.orientation.y),
+        );
+        if let Some(distance) = ctx.entity_proximity_alerts.get(&entity.id).copied() {
+            state.set("__respawn_proximity_distance", Value::Float(distance));
+        }
+    }
+}
+
+fn reset_respawn_item_ids(item: &mut Item) {
+    item.id = get_global_id();
+    if let Some(container) = item.container.as_mut() {
+        for child in container {
+            reset_respawn_item_ids(child);
+        }
+    }
+    item.mark_all_dirty();
+}
+
+fn value_matches_entity_id(value: &Value, entity_id: u32) -> bool {
+    match value {
+        Value::UInt(id) => *id == entity_id,
+        Value::Int(id) => *id >= 0 && *id as u32 == entity_id,
+        Value::Int64(id) => *id >= 0 && *id as u32 == entity_id,
+        Value::Str(id) => id.trim().parse::<u32>().ok() == Some(entity_id),
+        _ => false,
+    }
+}
+
+fn value_as_i64(value: &Value) -> Option<i64> {
+    match value {
+        Value::Int(value) => Some(*value as i64),
+        Value::Int64(value) => Some(*value),
+        Value::UInt(value) => Some(*value as i64),
+        Value::Float(value) => Some(*value as i64),
+        Value::Str(value) => value.trim().parse::<i64>().ok(),
+        _ => None,
+    }
+}
+
+fn remove_world_items_by_id(ctx: &mut RegionCtx, removed_ids: &[u32]) {
+    if removed_ids.is_empty() {
+        return;
+    }
+    ctx.map
+        .items
+        .retain(|item| !removed_ids.iter().any(|id| *id == item.id));
+    for item_id in removed_ids {
+        ctx.item_classes.remove(item_id);
+        ctx.item_state_data.remove(item_id);
+    }
+    if let Some(sender) = ctx.from_sender.get() {
+        for item_id in removed_ids {
+            let _ = sender.send(RegionMessage::RemoveItem(ctx.region_id, *item_id));
+        }
+    }
+}
+
+fn remove_respawn_corpse_for_entity(ctx: &mut RegionCtx, entity_id: u32) {
+    let mut removed_ids = Vec::new();
+    for item in &ctx.map.items {
+        let is_corpse_for_entity = item
+            .attributes
+            .get("corpse_entity_id")
+            .is_some_and(|value| value_matches_entity_id(value, entity_id));
+        if is_corpse_for_entity {
+            removed_ids.push(item.id);
+        }
+    }
+    remove_world_items_by_id(ctx, &removed_ids);
+}
+
+fn update_corpse_despawns(ctx: &mut RegionCtx) {
+    if ctx.map.items.is_empty() {
+        return;
+    }
+    let now = ctx.ticks;
+    let mut removed_ids = Vec::new();
+    for item in &ctx.map.items {
+        if let Some(despawn_at_tick) = item
+            .attributes
+            .get("despawn_at_tick")
+            .and_then(value_as_i64)
+            && now >= despawn_at_tick
+        {
+            removed_ids.push(item.id);
+        }
+    }
+    remove_world_items_by_id(ctx, &removed_ids);
+}
+
+fn respawn_npc_entity(ctx: &mut RegionCtx, entity_id: u32) {
+    let Some(entity_index) = ctx
+        .map
+        .entities
+        .iter()
+        .position(|entity| entity.id == entity_id)
+    else {
+        return;
+    };
+
+    let health_attr = ctx.health_attr.clone();
+    let max_health_attr = format!("MAX_{}", health_attr);
+    let clear_corpse = entity_respawn_clears_corpse(ctx);
+    let state = ctx.entity_state_data.entry(entity_id).or_default().clone();
+    let snapshot = ctx.entity_respawn_snapshots.get(&entity_id).cloned();
+
+    {
+        let entity = &mut ctx.map.entities[entity_index];
+        let max_health = entity
+            .attributes
+            .get_int(&max_health_attr)
+            .or_else(|| entity.attributes.get_int("MAX_HP"))
+            .unwrap_or(1)
+            .max(1);
+
+        let spawn_x = state
+            .get_float("__respawn_spawn_x")
+            .unwrap_or(entity.position.x);
+        let spawn_y = state
+            .get_float("__respawn_spawn_y")
+            .unwrap_or(entity.position.y);
+        let spawn_z = state
+            .get_float("__respawn_spawn_z")
+            .unwrap_or(entity.position.z);
+        let orient_x = state
+            .get_float("__respawn_orientation_x")
+            .unwrap_or(entity.orientation.x);
+        let orient_z = state
+            .get_float("__respawn_orientation_z")
+            .unwrap_or(entity.orientation.y);
+
+        entity.set_attribute("mode", Value::Str("active".into()));
+        entity.set_attribute("visible", Value::Bool(true));
+        entity.set_attribute(&health_attr, Value::Int(max_health));
+        entity.set_attribute("target", Value::Str(String::new()));
+        entity.set_attribute("attack_target", Value::Str(String::new()));
+        entity.set_attribute("avatar_animation", Value::Str("Idle".into()));
+        entity.set_position(Vec3::new(spawn_x, spawn_y, spawn_z));
+        entity.set_orientation(Vec2::new(orient_x, orient_z));
+        entity.action = EntityAction::Off;
+        entity.active_sequence = None;
+        entity.paused_sequence = None;
+        if let Some(snapshot) = snapshot {
+            entity.attributes = snapshot.attributes;
+            entity.inventory = snapshot.inventory;
+            entity.equipped = snapshot.equipped;
+            entity.wallet = snapshot.wallet;
+            entity.sequences = snapshot.sequences;
+            entity.active_sequence = snapshot.active_sequence;
+            entity.paused_sequence = snapshot.paused_sequence;
+            entity.action = snapshot.action;
+            for item in entity.inventory.iter_mut().flatten() {
+                reset_respawn_item_ids(item);
+            }
+            for item in entity.equipped.values_mut() {
+                reset_respawn_item_ids(item);
+            }
+        }
+        entity.set_attribute("mode", Value::Str("active".into()));
+        entity.set_attribute("visible", Value::Bool(true));
+        entity.set_attribute(&health_attr, Value::Int(max_health));
+        entity.set_attribute("target", Value::Str(String::new()));
+        entity.set_attribute("attack_target", Value::Str(String::new()));
+        entity.set_position(Vec3::new(spawn_x, spawn_y, spawn_z));
+        entity.set_orientation(Vec2::new(orient_x, orient_z));
+        entity.snap_position_update = true;
+        entity.mark_all_dirty();
+    }
+
+    ctx.notifications_entities
+        .retain(|(id, _, _)| *id != entity_id);
+    ctx.entity_proximity_alerts.remove(&entity_id);
+
+    if let Some(state) = ctx.entity_state_data.get_mut(&entity_id) {
+        if let Some(distance) = state.get_float("__respawn_proximity_distance")
+            && distance > 0.0
+        {
+            ctx.entity_proximity_alerts.insert(entity_id, distance);
+        }
+        state.remove("__respawn_at_tick");
+    }
+
+    if clear_corpse {
+        remove_respawn_corpse_for_entity(ctx, entity_id);
+    }
+
+    ctx.to_execute_entity
+        .push((entity_id, "respawn".into(), VMValue::zero()));
+}
+
+pub(crate) fn update_entity_respawns(ctx: &mut RegionCtx) {
+    remember_entity_respawn_points(ctx);
+    update_corpse_despawns(ctx);
+
+    let entity_ids: Vec<u32> = ctx.map.entities.iter().map(|entity| entity.id).collect();
+    let mut ready_to_respawn = Vec::new();
+
+    for entity_id in entity_ids {
+        let Some(entity) = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == entity_id)
+        else {
+            continue;
+        };
+
+        if entity.get_mode() != "dead" {
+            if let Some(state) = ctx.entity_state_data.get_mut(&entity_id) {
+                state.remove("__respawn_at_tick");
+            }
+            continue;
+        }
+
+        if !entity_respawn_enabled(ctx, entity) {
+            continue;
+        }
+
+        let delay_seconds = entity_respawn_delay_seconds(ctx, entity);
+        let target_tick = ctx.ticks + RegionInstance::realtime_seconds_to_ticks(ctx, delay_seconds);
+        let state = ctx.entity_state_data.entry(entity_id).or_default();
+        let respawn_at_tick = match state.get("__respawn_at_tick") {
+            Some(Value::Int64(tick)) => *tick,
+            Some(Value::Int(tick)) => *tick as i64,
+            _ => {
+                state.set("__respawn_at_tick", Value::Int64(target_tick));
+                target_tick
+            }
+        };
+
+        if ctx.ticks >= respawn_at_tick {
+            ready_to_respawn.push(entity_id);
+        }
+    }
+
+    for entity_id in ready_to_respawn {
+        respawn_npc_entity(ctx, entity_id);
+    }
 }
 
 pub(crate) fn update_spell_items(ctx: &mut RegionCtx) {
@@ -15361,6 +15770,16 @@ pub(crate) fn update_spell_items(ctx: &mut RegionCtx) {
     let mut pending_item_events: Vec<(u32, String, VMValue)> = Vec::new();
 
     for item in &mut ctx.map.items {
+        if item.attributes.contains("despawn_left") {
+            let mut despawn_left = item.attributes.get_float_default("despawn_left", 0.0);
+            despawn_left -= dt;
+            item.set_attribute("despawn_left", Value::Float(despawn_left));
+            if despawn_left <= 0.0 {
+                despawn_item_ids.push(item.id);
+                continue;
+            }
+        }
+
         if item.attributes.get_bool_default("is_ruleset_fx", false) {
             let mut lifetime_left = item.attributes.get_float_default(
                 "fx_lifetime_left",
@@ -16964,7 +17383,7 @@ fn equip(item_id: u32, vm: &VirtualMachine) {
 /// Notify the entity / item in the given amount of minutes.
 fn notify_in(minutes: i32, notification: String, vm: &VirtualMachine) {
     with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
-        let tick = ctx.ticks + RegionInstance::scheduled_delay_ticks(ctx, minutes as f32);
+        let tick = ctx.ticks + RegionInstance::game_minutes_to_ticks(ctx, minutes as f32);
         if let Some(item_id) = ctx.curr_item_id {
             ctx.notifications_items.push((item_id, tick, notification));
         } else {
