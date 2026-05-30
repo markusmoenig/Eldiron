@@ -571,7 +571,17 @@ impl Server {
                         }
 
                         // Add entity to the dest region
-                        if let Some(removed_local) = removed_local {
+                        if let Some(mut removed_local) = removed_local {
+                            if let Some(dest_map) = self
+                                .runtime_maps
+                                .get(&dest_id)
+                                .or_else(|| assets.maps.get(&dest_region_name))
+                                && let Some(dest_center) =
+                                    dest_map.named_area_center(&dest_sector_name)
+                            {
+                                removed_local.set_pos_xz(dest_center);
+                                removed_local.mark_all_dirty();
+                            }
                             if let Some(entities) = self.entities.get_mut(&dest_id) {
                                 entities.push(removed_local);
                             } else {

@@ -15,6 +15,23 @@ use crate::{
 use draw2d::Draw2D;
 use theframework::prelude::*;
 
+#[derive(Clone, Copy, Default)]
+pub struct ButtonStateStyle {
+    pub background_color: Option<Pixel>,
+    pub border_color: Option<Pixel>,
+    pub label_color: Option<Pixel>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ButtonVisualState {
+    #[default]
+    Normal,
+    Hover,
+    Pressed,
+    Selected,
+    Disabled,
+}
+
 /// Used right now for button widgets
 pub struct Widget {
     pub name: String,
@@ -25,6 +42,9 @@ pub struct Widget {
     pub intent: Option<String>,
     pub spell: Option<String>,
     pub group: Option<String>,
+    pub binding: Option<String>,
+    pub value: Option<String>,
+    pub selection: Option<String>,
     pub show: Option<Vec<String>>,
     pub hide: Option<Vec<String>>,
     pub deactivate: Vec<String>,
@@ -43,6 +63,106 @@ pub struct Widget {
     pub item_clicked_cursor_id: Option<Uuid>,
     pub border_color: Pixel,
     pub border_size: i32,
+    pub label: String,
+    pub label_font: String,
+    pub label_font_size: f32,
+    pub label_color: Pixel,
+    pub background_color: Option<Pixel>,
+    pub hover_style: ButtonStateStyle,
+    pub selected_style: ButtonStateStyle,
+    pub pressed_style: ButtonStateStyle,
+    pub disabled_style: ButtonStateStyle,
+}
+
+pub struct TextInputWidget {
+    pub name: String,
+    pub id: u32,
+    pub rect: Rect,
+    pub binding: String,
+    pub text: String,
+    pub font: String,
+    pub font_size: f32,
+    pub color: Pixel,
+    pub background_color: Pixel,
+    pub border_color: Pixel,
+    pub border_size: i32,
+}
+
+impl TextInputWidget {
+    pub fn update_draw(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        assets: &Assets,
+        draw2d: &Draw2D,
+        focused: bool,
+    ) {
+        let stride = buffer.stride();
+        let width = buffer.dim().width as isize;
+        let height = buffer.dim().height as isize;
+        let rect = (
+            self.rect.x.floor() as isize,
+            self.rect.y.floor() as isize,
+            self.rect.width.ceil() as isize,
+            self.rect.height.ceil() as isize,
+        );
+
+        draw2d.blend_rect_safe(
+            buffer.pixels_mut(),
+            &rect,
+            stride,
+            &self.background_color,
+            &(0, 0, width, height),
+        );
+
+        let border_color = if focused {
+            [238, 214, 118, 255]
+        } else {
+            self.border_color
+        };
+        if self.border_size > 0 {
+            draw2d.rect_outline_thickness(
+                buffer.pixels_mut(),
+                &(
+                    self.rect.x.max(0.0) as usize,
+                    self.rect.y.max(0.0) as usize,
+                    self.rect.width.max(0.0) as usize,
+                    self.rect.height.max(0.0) as usize,
+                ),
+                stride,
+                &border_color,
+                self.border_size as usize,
+            );
+        }
+
+        if let Some(font) = assets
+            .fonts
+            .get(self.font.trim())
+            .or_else(|| assets.fonts.values().next())
+        {
+            let display_text = if focused {
+                format!("{}_", self.text)
+            } else {
+                self.text.clone()
+            };
+            draw2d.text_rect_blend_safe(
+                buffer.pixels_mut(),
+                &(
+                    self.rect.x.floor() as isize + 8,
+                    self.rect.y.floor() as isize,
+                    self.rect.width.ceil() as isize - 16,
+                    self.rect.height.ceil() as isize,
+                ),
+                stride,
+                font,
+                self.font_size,
+                &display_text,
+                &self.color,
+                draw2d::TheHorizontalAlign::Left,
+                draw2d::TheVerticalAlign::Center,
+                &(0, 0, width, height),
+            );
+        }
+    }
 }
 
 impl Default for Widget {
@@ -62,6 +182,9 @@ impl Widget {
             intent: None,
             spell: None,
             group: None,
+            binding: None,
+            value: None,
+            selection: None,
             show: None,
             hide: None,
             deactivate: vec![],
@@ -80,6 +203,15 @@ impl Widget {
             item_clicked_cursor_id: None,
             border_color: WHITE,
             border_size: 0,
+            label: String::new(),
+            label_font: String::new(),
+            label_font_size: 18.0,
+            label_color: WHITE,
+            background_color: None,
+            hover_style: ButtonStateStyle::default(),
+            selected_style: ButtonStateStyle::default(),
+            pressed_style: ButtonStateStyle::default(),
+            disabled_style: ButtonStateStyle::default(),
         }
     }
 
@@ -126,11 +258,63 @@ impl Widget {
         entity: Option<&Entity>,
         draw2d: &Draw2D,
         animation_frame: &usize,
-        texture_index: usize,
+        visual_state: ButtonVisualState,
     ) {
         let stride = buffer.stride();
+        let buffer_width = buffer.dim().width as isize;
+        let buffer_height = buffer.dim().height as isize;
+        let state_style = match visual_state {
+            ButtonVisualState::Normal => ButtonStateStyle::default(),
+            ButtonVisualState::Hover => self.hover_style,
+            ButtonVisualState::Pressed => self.pressed_style,
+            ButtonVisualState::Selected => self.selected_style,
+            ButtonVisualState::Disabled => self.disabled_style,
+        };
+
+        if let Some(background_color) = state_style.background_color.or(self.background_color) {
+            let color = match visual_state {
+                ButtonVisualState::Selected => state_style.background_color.unwrap_or([
+                    background_color[0].saturating_add(34),
+                    background_color[1].saturating_add(30),
+                    background_color[2].saturating_add(16),
+                    background_color[3],
+                ]),
+                ButtonVisualState::Hover => state_style.background_color.unwrap_or([
+                    background_color[0].saturating_add(18),
+                    background_color[1].saturating_add(18),
+                    background_color[2].saturating_add(18),
+                    background_color[3],
+                ]),
+                ButtonVisualState::Pressed => state_style.background_color.unwrap_or([
+                    background_color[0].saturating_sub(20),
+                    background_color[1].saturating_sub(20),
+                    background_color[2].saturating_sub(20),
+                    background_color[3],
+                ]),
+                ButtonVisualState::Disabled => state_style.background_color.unwrap_or([
+                    background_color[0] / 2,
+                    background_color[1] / 2,
+                    background_color[2] / 2,
+                    background_color[3],
+                ]),
+                ButtonVisualState::Normal => background_color,
+            };
+            draw2d.blend_rect_safe(
+                buffer.pixels_mut(),
+                &(
+                    self.rect.x.floor() as isize,
+                    self.rect.y.floor() as isize,
+                    self.rect.width.ceil() as isize,
+                    self.rect.height.ceil() as isize,
+                ),
+                stride,
+                &color,
+                &(0, 0, buffer_width, buffer_height),
+            );
+        }
 
         if !self.textures.is_empty() {
+            let texture_index = self.texture_index_for_state(visual_state);
             draw2d.blend_scale_chunk(
                 buffer.pixels_mut(),
                 &(
@@ -188,6 +372,30 @@ impl Widget {
         }
 
         if self.border_size > 0 {
+            let border_color = match visual_state {
+                ButtonVisualState::Selected => {
+                    state_style.border_color.unwrap_or([238, 214, 118, 255])
+                }
+                ButtonVisualState::Hover => state_style.border_color.unwrap_or([
+                    self.border_color[0].saturating_add(34),
+                    self.border_color[1].saturating_add(34),
+                    self.border_color[2].saturating_add(34),
+                    self.border_color[3],
+                ]),
+                ButtonVisualState::Pressed => state_style.border_color.unwrap_or([
+                    self.border_color[0].saturating_sub(24),
+                    self.border_color[1].saturating_sub(24),
+                    self.border_color[2].saturating_sub(24),
+                    self.border_color[3],
+                ]),
+                ButtonVisualState::Disabled => state_style.border_color.unwrap_or([
+                    self.border_color[0] / 2,
+                    self.border_color[1] / 2,
+                    self.border_color[2] / 2,
+                    self.border_color[3],
+                ]),
+                ButtonVisualState::Normal => self.border_color,
+            };
             draw2d.rect_outline_thickness(
                 buffer.pixels_mut(),
                 &(
@@ -197,9 +405,70 @@ impl Widget {
                     self.rect.height as usize,
                 ),
                 stride,
-                &self.border_color,
+                &border_color,
                 self.border_size as usize,
             );
+        }
+
+        if !self.label.trim().is_empty() {
+            let font = if self.label_font.trim().is_empty() {
+                assets.fonts.values().next()
+            } else {
+                assets
+                    .fonts
+                    .get(self.label_font.trim())
+                    .or_else(|| assets.fonts.values().next())
+            };
+
+            if let Some(font) = font {
+                draw2d.text_rect_blend_safe(
+                    buffer.pixels_mut(),
+                    &(
+                        self.rect.x.floor() as isize + 4,
+                        self.rect.y.floor() as isize,
+                        self.rect.width.ceil() as isize - 8,
+                        self.rect.height.ceil() as isize,
+                    ),
+                    stride,
+                    font,
+                    self.label_font_size,
+                    &self.label,
+                    &state_style.label_color.unwrap_or(self.label_color),
+                    draw2d::TheHorizontalAlign::Center,
+                    draw2d::TheVerticalAlign::Center,
+                    &(0, 0, buffer_width, buffer_height),
+                );
+            }
+        }
+    }
+
+    fn texture_index_for_state(&self, visual_state: ButtonVisualState) -> usize {
+        let len = self.textures.len();
+        match visual_state {
+            ButtonVisualState::Selected => {
+                if len > 1 {
+                    1
+                } else {
+                    0
+                }
+            }
+            ButtonVisualState::Pressed => {
+                if len > 2 {
+                    2
+                } else if len > 1 {
+                    1
+                } else {
+                    0
+                }
+            }
+            ButtonVisualState::Disabled => {
+                if len > 3 {
+                    3
+                } else {
+                    0
+                }
+            }
+            ButtonVisualState::Hover | ButtonVisualState::Normal => 0,
         }
     }
 

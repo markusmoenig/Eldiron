@@ -12,6 +12,8 @@ pub enum ClientCommandBinding {
     Control(EntityAction),
     Intent(String),
     RulesAction(String),
+    Screen(String),
+    Game(String),
     Ui(String),
 }
 
@@ -29,6 +31,8 @@ impl ClientCommandBinding {
             Self::Control(action) => format!("control.{}", action),
             Self::Intent(intent) => format!("intent.{}", intent),
             Self::RulesAction(action) => format!("rules.{}", action),
+            Self::Screen(command) => format!("screen.{}", command),
+            Self::Game(command) => format!("game.{}", command),
             Self::Ui(command) => format!("ui.{}", command),
         }
     }
@@ -54,6 +58,14 @@ pub fn parse_client_command(command: &str) -> Option<ClientCommandBinding> {
     if let Some(value) = command.strip_prefix("rules.") {
         let value = value.trim();
         return (!value.is_empty()).then(|| ClientCommandBinding::RulesAction(value.to_string()));
+    }
+    if let Some(value) = command.strip_prefix("screen.") {
+        let value = value.trim();
+        return (!value.is_empty()).then(|| ClientCommandBinding::Screen(value.to_string()));
+    }
+    if let Some(value) = command.strip_prefix("game.") {
+        let value = value.trim();
+        return (!value.is_empty()).then(|| ClientCommandBinding::Game(value.to_string()));
     }
     if let Some(value) = command.strip_prefix("ui.") {
         let value = value.trim();
@@ -121,6 +133,14 @@ mod tests {
         assert_eq!(
             parse_client_command("ui.inventory"),
             Some(ClientCommandBinding::Ui("inventory".into()))
+        );
+        assert_eq!(
+            parse_client_command("screen.goto.Title"),
+            Some(ClientCommandBinding::Screen("goto.Title".into()))
+        );
+        assert_eq!(
+            parse_client_command("game.start_class.Warrior"),
+            Some(ClientCommandBinding::Game("start_class.Warrior".into()))
         );
     }
 

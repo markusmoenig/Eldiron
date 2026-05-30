@@ -82,7 +82,7 @@ public class RMTKView       : MTKView
                 renderer.needsUpdate()
             }
         } else
-        if event.keyCode == Keycode.delete {
+        if event.keyCode == Keycode.delete || event.keyCode == Keycode.forwardDelete {
             if rust_special_key_down(UInt32(KEY_DELETE)) {
                 renderer.needsUpdate()
             }

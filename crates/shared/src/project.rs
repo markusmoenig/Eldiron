@@ -1366,6 +1366,27 @@ mod tests {
     }
 
     #[test]
+    fn project_can_load_hideout2d_fixture() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../test_projects/Hideout2D.eldiron");
+        if !path.exists() {
+            return;
+        }
+
+        let contents = std::fs::read_to_string(path).expect("read Hideout2D fixture");
+        let project: Project =
+            serde_json::from_str(&contents).expect("Hideout2D fixture deserializes");
+
+        assert!(
+            project
+                .screens
+                .values()
+                .any(|screen| screen.map.name == "Start"),
+            "Hideout2D fixture should contain the Start screen"
+        );
+    }
+
+    #[test]
     fn old_project_gets_default_ruleset_and_empty_rules_override() {
         let mut project = Project::new();
         project.config = "[game]\nname = \"Old Project\"\n".to_string();

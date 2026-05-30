@@ -243,6 +243,16 @@ pub fn describe_command(
             subtitle: Some("Interface".to_string()),
             lines: Vec::new(),
         },
+        ClientCommandBinding::Screen(command) => RulesDescription {
+            title: title_case(&command.replace(['_', '.'], " ")),
+            subtitle: Some("Screen".to_string()),
+            lines: Vec::new(),
+        },
+        ClientCommandBinding::Game(command) => RulesDescription {
+            title: title_case(&command.replace(['_', '.'], " ")),
+            subtitle: Some("Game".to_string()),
+            lines: Vec::new(),
+        },
         ClientCommandBinding::RulesAction(action_id) => {
             let Ok(root) = assets.rules.parse::<Table>() else {
                 return fallback_rules_action_description(&action_id);

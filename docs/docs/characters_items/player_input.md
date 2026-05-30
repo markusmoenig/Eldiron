@@ -10,6 +10,8 @@ At a high level, player input is routed through commands:
 - **control.\***: direct movement or turning commands such as `control.forward`, `control.left`, `control.right`, and `control.backward`
 - **intent.\***: programmable interaction modes such as `intent.use`, `intent.attack`, `intent.look`, `intent.take`, or `intent.drop`
 - **rules.\***: ruleset actions such as `rules.basic_attack`, `rules.minor_heal`, or `rules.gather_wood`
+- **screen.\***: screen flow commands such as `screen.goto.Title` or `screen.goto.Play`
+- **game.\***: game flow commands such as `game.start` or `game.start_class.Warrior`
 - **ui.\***: user-interface commands such as `ui.inventory` for future action bars and panels
 
 Keyboard input is configured in character data via [Input Mapping](input_mapping).  
@@ -135,6 +137,37 @@ command = "rules.basic_attack"
 ```
 
 `command = "intent."` selects Walk mode and clears active targeting commands. Rules command buttons get their name, description, cooldown, reagent/cost status, disabled state, and shortcut hint from the active ruleset and the active player's `[input]` table.
+
+Screen flow buttons use the same command field:
+
+```toml
+[ui]
+role = "button"
+command = "screen.goto.Play"
+
+[ui]
+role = "button"
+command = "game.start"
+```
+
+`game.start` creates the configured player template using generic screen UI state. Start screens usually bind class buttons to `start.class` and text input to `start.name`:
+
+```toml
+[ui]
+role = "button"
+bind = "start.class"
+value = "Warrior"
+selection = "single"
+
+[ui]
+role = "input"
+bind = "start.name"
+text = "Eldiron"
+```
+
+Text widgets on the start screen can preview those choices with placeholders such as `{START.CLASS}`, `{START.CLASS_ROLE}`, `{START.CLASS_ATTRIBUTES}`, `{START.CLASS_ABILITIES}`, and `{START.CLASS_EQUIPMENT}`. The class details come from the active ruleset.
+
+`game.start_class.<Class>` starts immediately with the requested class. If `[game].play_screen` is set, Eldiron switches to that screen after starting.
 
 For a readable action bar overlay, place a `role = "deco"` widget behind the buttons and give it `layer = -1`. Negative-layer deco widgets draw below screen-rendered command icons, so a semi-transparent background can dim the game without dimming the icons.
 

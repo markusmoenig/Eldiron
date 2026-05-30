@@ -945,32 +945,30 @@ impl GameWidget {
             start_pixels.y.max(end_pixels.y),
         );
 
-        let left_extent = focus_point.x;
-        let right_extent = screen_size.x - focus_point.x;
-        let top_extent = focus_point.y;
-        let bottom_extent = screen_size.y - focus_point.y;
-
         // Compute unclamped camera center in world space
         let mut camera_pos = self.player_pos * self.grid_size;
 
         let map_width_px = max_world.x - min_world.x;
         let map_height_px = max_world.y - min_world.y;
+        let safe_half_width = safe_width * 0.5;
+        let safe_half_height = safe_height * 0.5;
 
-        if map_width_px > screen_size.x {
+        if map_width_px > safe_width {
             camera_pos.x = camera_pos
                 .x
-                .clamp(min_world.x + left_extent, max_world.x - right_extent);
+                .clamp(min_world.x + safe_half_width, max_world.x - safe_half_width);
         } else {
-            // Center map horizontally
+            // Center small maps inside the safe camera area.
             camera_pos.x = (min_world.x + max_world.x) / 2.0;
         }
 
-        if map_height_px > screen_size.y {
-            camera_pos.y = camera_pos
-                .y
-                .clamp(min_world.y + top_extent, max_world.y - bottom_extent);
+        if map_height_px > safe_height {
+            camera_pos.y = camera_pos.y.clamp(
+                min_world.y + safe_half_height,
+                max_world.y - safe_half_height,
+            );
         } else {
-            // Center map vertically
+            // Center small maps inside the safe camera area.
             camera_pos.y = (min_world.y + max_world.y) / 2.0;
         }
 

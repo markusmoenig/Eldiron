@@ -123,12 +123,14 @@ scale = 6.0
 
 **Button widgets** define interactive UI elements that trigger commands when clicked.
 
-Buttons are **visually styled** using the **tiles** assigned through the **Tile Picker** dock.
+Buttons are **visually styled** using the **tiles** assigned through the **Tile Picker** dock, or with text styling for menu/start-screen buttons.
 
 In the HUD you can select between two icons per sector:
 
 - The **default (normal)** state.
-- The **active** state is shown when the button is clicked or when its associated action is currently active.
+- The **selected** state is shown when the button is active or when its bound `value` matches the current `bind` value.
+
+If only those two icons exist, Eldiron keeps using them. Pressed buttons temporarily use the selected icon as their fallback; disabled buttons use the normal icon plus the disabled/cooldown overlay.
 
 ### UI Section
 
@@ -144,11 +146,50 @@ In the HUD you can select between two icons per sector:
 - **show / hide** - Toggle specific widgets when clicked.
 - **deactivate** - Turn off other buttons when clicked.
 - **active** - Set this button’s state to active by default.
+- **bind** / **binding** - Optional UI state key updated by this button, for example `start.class`.
+- **value** - Value written to the bound UI state key when clicked.
+- **selection** - Use `"single"` for mutually exclusive choice buttons. A button is selected when its `value` matches the current value of `bind`.
+- **group** - Optional group name. Buttons with `bind` and `group` default to single-choice behavior.
 - **camera** - Switch game widget rendering camera: `2d`, `iso`, `firstp`.
 - **player_camera** - Switch player input mapping camera mode on the server: `2d`, `iso`, `firstp`.
 - **camera_target** - Optional target game widget name; if omitted, applies to all game widgets.
 - **border_size** - An optional border for the button. Default size is 0 (no border).
 - **border_color** - The color for the border. Default is white ("#FFFFFF").
+- **text** / **label** - Optional centered button text.
+- **font** - Font used by text buttons.
+- **font_size** - Text size for text buttons.
+- **color** - Text color for text buttons.
+- **background_color** - Optional button background color. Supports alpha, for example `"#111111cc"`.
+
+Button state colors can be set either as flat fields or with nested style tables. Nested tables keep larger widgets more readable:
+
+```toml
+[ui]
+role = "button"
+text = "Warrior"
+background_color = "#111111cc"
+border_color = "#888888"
+
+[ui.style.hover]
+background = "#222222dd"
+border = "#aaaaaa"
+
+[ui.style.selected]
+background = "#3a3320dd"
+border = "#eed676"
+text = "#fff1a8"
+
+[ui.style.pressed]
+background = "#262018dd"
+border = "#d8bd5f"
+
+[ui.style.disabled]
+background = "#080808aa"
+border = "#555555"
+text = "#888888"
+```
+
+Equivalent flat fields are also supported: `hover_background_color`, `hover_border_color`, `hover_color`, `selected_background_color`, `selected_border_color`, `selected_color`, `pressed_background_color`, `pressed_border_color`, `pressed_color`, `disabled_background_color`, `disabled_border_color`, and `disabled_color`.
 
 Buttons with `rules.*` commands resolve their label, description, costs, requirements, and cooldown display from the active ruleset. During cooldown the button is visually dimmed and shows a cooldown fill overlay. Inventory, equipped-slot, command, and hovered world-item buttons also use the same rules description data for hover tooltips.
 
@@ -210,6 +251,11 @@ command = "control.forward"
 # inventory_index = 0
 # equipped_slot = "main_hand"
 # portrait = true
+# text = "Start Game"
+# font = "Tiny5-Regular"
+# font_size = 28.0
+# color = "#f2f2f2"
+# background_color = "#111111cc"
 # border_size = 1
 # border_color = "#888888"
 ```
@@ -219,6 +265,37 @@ Use `command = "intent."` or `intent = ""` for a Walk button. This selects the n
 If a button command matches a key in the active player's `[input]` table, the hover tooltip shows the shortcut.
 
 For 2D action bars that sit on top of the game view, put a `role = "deco"` widget behind the buttons with `layer = -1` and a semi-transparent `color`. Negative-layer deco widgets draw below screen-rendered controls, which lets the background dim the map without dimming the icons.
+
+For start screens, use generic UI state bindings for choices. The selected class button stays highlighted because the button's `value` matches the current `bind` value. `game.start` reads `start.class` and `start.name` when spawning the player.
+
+```toml
+[ui]
+role = "button"
+bind = "start.class"
+value = "Warrior"
+selection = "single"
+active = true
+text = "Warrior"
+```
+
+---
+
+## Input Widgets
+
+Use `role = "input"` for simple text entry on screens. Inputs write to generic UI state via `bind` / `binding`; `game.start` reads `start.name`.
+
+```toml
+[ui]
+role = "input"
+bind = "start.name"
+text = "Edliron"
+font = "Tiny5-Regular"
+font_size = 24.0
+color = "#f2f2f2"
+background_color = "#111111cc"
+border_color = "#888888"
+border_size = 2
+```
 
 ### Example 2
 
@@ -320,12 +397,13 @@ This system is intentionally expandable. Current projects continue to work becau
 
 ### UI Section
 
-- **text**: multiline string content; placeholders like `{PLAYER.CLASS}`, `{PLAYER.RACE}`, `{PLAYER.STR}`, `{PLAYER.DEX}`, `{PLAYER.FUNDS}`, `{PLAYER.LEVEL}`, `{PLAYER.EXP}`, `{PLAYER.ATTACK}`, and `{PLAYER.ARMOR}` are replaced at runtime.
+- **text**: multiline string content; placeholders like `{PLAYER.CLASS}`, `{PLAYER.RACE}`, `{PLAYER.STR}`, `{PLAYER.DEX}`, `{PLAYER.FUNDS}`, `{PLAYER.LEVEL}`, `{PLAYER.EXP}`, `{PLAYER.ATTACK}`, `{PLAYER.ARMOR}`, and start-screen placeholders like `{START.CLASS}` are replaced at runtime.
 - **tab_width**: optional tab stop width in pixels for `\t` alignment inside the text.
 - **font**: font family name.
 - **font_size**: size of the font.
 - **spacing**: line spacing.
 - **color**: text color.
+- **align** or **horizontal_align**: optional text alignment. Supported values are `left`, `center`, and `right`. Lines containing tab stops stay left-aligned so stat tables remain predictable.
 
 You can customize the **font**, **size**, **line spacing**, and **color** of the text.
 
@@ -342,6 +420,12 @@ Combat-related player placeholders:
 - `PLAYER.ARMOR.<ATTR>` sums an attribute across the player's gear slots.
 
 The slot groups come from `game.weapon_slots` and `game.gear_slots` in **Game / Settings**.
+
+Start-screen placeholders use generic UI state and work before the player has spawned:
+
+- `START.NAME` is the current `start.name` input value.
+- `START.CLASS` is the current `start.class` choice.
+- `START.CLASS_ROLE`, `START.CLASS_ATTRIBUTES`, `START.CLASS_WEAPONS`, `START.CLASS_ARMOR`, `START.CLASS_ABILITIES`, `START.CLASS_SPELLS`, `START.CLASS_EQUIPMENT`, and `START.CLASS_INVENTORY` are resolved from the active ruleset class.
 
 ### Example
 

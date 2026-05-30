@@ -1,4 +1,4 @@
-use crate::{Command, PlayerCamera, SceneHandler, Surface, prelude::*};
+use crate::{Command, EntityAction, PlayerCamera, SceneHandler, Surface, prelude::*};
 use indexmap::IndexMap;
 use scenevm::Atom;
 use theframework::prelude::*;
@@ -478,6 +478,18 @@ impl Rusterix {
     /// Clear active say bubbles from the client.
     pub fn clear_say_messages(&mut self) {
         self.client.clear_say_messages();
+    }
+
+    /// Send a touch down event to the client.
+    pub fn client_touch_down(&mut self, coord: Vec2<i32>, map: &Map) -> Option<EntityAction> {
+        let action = self.client.touch_down(coord, map);
+        let commands = self
+            .client
+            .process_pending_runtime_commands(&mut self.assets, &mut self.scene_handler);
+        if !commands.is_empty() {
+            self.server.process_client_commands(commands);
+        }
+        action
     }
 
     /// Send a touch dragged event to the client.

@@ -816,7 +816,7 @@ impl EntityTool {
         let is_running = rusterix.server.state == rusterix::ServerState::Running;
 
         if is_running {
-            if let Some(action) = rusterix.client.touch_down(coord, map) {
+            if let Some(action) = rusterix.client_touch_down(coord, map) {
                 rusterix.server.local_player_action(action);
             }
             return true;

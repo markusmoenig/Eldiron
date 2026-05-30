@@ -70,6 +70,10 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
                 status: "Screen name shown at startup. Empty means no startup screen.",
             },
             SettingNavEntry {
+                key: "play_screen",
+                status: "Optional screen shown after a game.start command.",
+            },
+            SettingNavEntry {
                 key: "click_intents_2d",
                 status: "Enable persistent click-targeted intents in 2D while keeping WASD movement.",
             },

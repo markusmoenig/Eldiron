@@ -19,8 +19,9 @@ use crate::{
     client::command::{ClientCommandBinding, command_from_legacy_fields},
     client::rules_ui::{CommandState, ContainerUiTemplate, RulesDescription},
     client::widget::{
-        Widget, avatar::AvatarWidget, deco::DecoWidget, game::GameWidget, messages::MessagesWidget,
-        screen::ScreenWidget, text::TextWidget,
+        ButtonStateStyle, ButtonVisualState, TextInputWidget, Widget, avatar::AvatarWidget,
+        deco::DecoWidget, game::GameWidget, messages::MessagesWidget, screen::ScreenWidget,
+        text::TextWidget,
     },
 };
 use draw2d::Draw2D;
@@ -181,6 +182,7 @@ pub struct Client {
     button_widgets: FxHashMap<u32, Widget>,
     avatar_widgets: FxHashMap<Uuid, AvatarWidget>,
     text_widgets: FxHashMap<Uuid, TextWidget>,
+    text_input_widgets: FxHashMap<u32, TextInputWidget>,
     deco_widgets: FxHashMap<Uuid, DecoWidget>,
     screen_widget: Option<ScreenWidget>,
 
@@ -191,6 +193,13 @@ pub struct Client {
 
     // Button widgets which are permanently active
     permanently_activated_widgets: Vec<u32>,
+    pressed_widget: Option<u32>,
+
+    pending_runtime_commands: Vec<ClientCommandBinding>,
+    game_started: bool,
+    ui_state: FxHashMap<String, String>,
+    focused_text_input: Option<u32>,
+    pending_game_camera_pos: Option<Vec2<f32>>,
 
     /// Client Action
     client_action: Arc<Mutex<ClientAction>>,
@@ -594,6 +603,7 @@ impl Client {
             button_widgets: FxHashMap::default(),
             avatar_widgets: FxHashMap::default(),
             text_widgets: FxHashMap::default(),
+            text_input_widgets: FxHashMap::default(),
             deco_widgets: FxHashMap::default(),
             screen_widget: None,
 
@@ -601,6 +611,12 @@ impl Client {
 
             activated_widgets: vec![],
             permanently_activated_widgets: vec![],
+            pressed_widget: None,
+            pending_runtime_commands: vec![],
+            game_started: false,
+            ui_state: FxHashMap::default(),
+            focused_text_input: None,
+            pending_game_camera_pos: None,
             widgets_to_hide: vec![],
 
             client_action: Arc::new(Mutex::new(ClientAction::default())),
@@ -1423,14 +1439,87 @@ impl Client {
         }
     }
 
+    fn color_from_table(table: &toml::value::Table, key: &str) -> Option<[u8; 4]> {
+        table
+            .get(key)
+            .and_then(toml::Value::as_str)
+            .map(Self::hex_to_rgba_u8)
+    }
+
+    fn ui_style_color(
+        ui: &toml::value::Table,
+        state: Option<&str>,
+        key: &str,
+        flat_key: &str,
+    ) -> Option<[u8; 4]> {
+        if let Some(color) = Self::color_from_table(ui, flat_key) {
+            return Some(color);
+        }
+
+        let style = ui.get("style").and_then(toml::Value::as_table)?;
+        match state {
+            Some(state) => style
+                .get(state)
+                .and_then(toml::Value::as_table)
+                .and_then(|state_style| Self::color_from_table(state_style, key)),
+            None => Self::color_from_table(style, key),
+        }
+    }
+
+    fn button_state_style_from_ui(
+        ui: &toml::value::Table,
+        state: &str,
+        background_key: &str,
+        border_key: &str,
+        label_key: &str,
+    ) -> ButtonStateStyle {
+        ButtonStateStyle {
+            background_color: Self::ui_style_color(ui, Some(state), "background", background_key),
+            border_color: Self::ui_style_color(ui, Some(state), "border", border_key),
+            label_color: Self::ui_style_color(ui, Some(state), "text", label_key)
+                .or_else(|| Self::ui_style_color(ui, Some(state), "color", label_key)),
+        }
+    }
+
+    fn button_visual_state(
+        hovered: bool,
+        selected: bool,
+        pressed: bool,
+        command_state: Option<&CommandState>,
+    ) -> ButtonVisualState {
+        if command_state.is_some_and(|state| !state.enabled || state.cooldown_remaining > 0.0) {
+            return ButtonVisualState::Disabled;
+        }
+
+        if pressed {
+            return ButtonVisualState::Pressed;
+        }
+
+        if selected {
+            return ButtonVisualState::Selected;
+        }
+
+        if hovered {
+            return ButtonVisualState::Hover;
+        }
+
+        ButtonVisualState::Normal
+    }
+
     /// Setup the client with the given assets.
     pub fn setup(&mut self, assets: &mut Assets, scene_handler: &mut SceneHandler) -> Vec<Command> {
         let mut commands = vec![];
         self.first_game_draw = true;
         self.intent = String::new();
+        self.game_started = false;
+        self.ui_state.clear();
+        self.focused_text_input = None;
+        self.pending_game_camera_pos = None;
 
         self.permanently_activated_widgets.clear();
         self.activated_widgets.clear();
+        self.pressed_widget = None;
+        self.pending_runtime_commands.clear();
 
         scene_handler.sync_base_render_settings(&assets.config);
 
@@ -1455,6 +1544,7 @@ impl Client {
         self.currencies = currencies;
 
         // Get all player entities
+        self.player_entities.clear();
         for (name, character) in assets.entities.iter() {
             match character.1.parse::<Table>() {
                 Ok(data) => {
@@ -1505,15 +1595,20 @@ impl Client {
 
         // Find the start screen
         self.current_screen = self.get_config_string_default("game", "start_screen", "");
+        let has_start_screen = !self.current_screen.trim().is_empty()
+            && assets.screens.contains_key(&self.current_screen);
+        let start_screen_has_game_widget =
+            has_start_screen && Self::screen_has_widget_role(assets, &self.current_screen, "game");
 
         // Auto Init Players
         let auto_init_player = self.get_config_bool_default("game", "auto_create_player", false);
         if let Some(map) = assets.maps.get(&self.current_map) {
-            if auto_init_player {
+            if auto_init_player && (!has_start_screen || start_screen_has_game_widget) {
                 for entity in map.entities.iter() {
                     if let Some(class_name) = entity.get_attr_string("class_name") {
                         if self.player_entities.contains(&class_name) {
                             commands.push(Command::CreateEntity(map.id, entity.clone()));
+                            self.game_started = true;
                             // Init scripting for this entity
                             self.client_action = Arc::new(Mutex::new(ClientAction::default()));
                             self.client_action.lock().unwrap().init(class_name, assets);
@@ -1526,13 +1621,249 @@ impl Client {
             eprintln!("Did not find start map");
         }
 
-        if assets.screens.contains_key(&self.current_screen) {
+        if has_start_screen {
             self.init_screen(self.current_screen.clone(), assets, scene_handler);
-        } else {
+        } else if !self.current_screen.trim().is_empty() {
             eprintln!("Did not find start screen");
         }
 
         commands
+    }
+
+    fn screen_has_widget_role(assets: &Assets, screen_name: &str, role_name: &str) -> bool {
+        let Some(screen) = assets.screens.get(screen_name) else {
+            return false;
+        };
+
+        screen
+            .sectors
+            .iter()
+            .any(|sector| Self::sector_ui_role(sector).is_some_and(|role| role == role_name))
+    }
+
+    fn sector_ui_role(sector: &crate::Sector) -> Option<String> {
+        let crate::Value::Str(data) = sector.properties.get("data")? else {
+            return None;
+        };
+        let table = data.parse::<Table>().ok()?;
+        table
+            .get("ui")
+            .and_then(toml::Value::as_table)
+            .and_then(|ui| ui.get("role"))
+            .and_then(toml::Value::as_str)
+            .map(str::trim)
+            .filter(|role| !role.is_empty())
+            .map(str::to_string)
+    }
+
+    fn screen_base_render_map(screen: &Map) -> Map {
+        let mut map = screen.clone();
+        map.sectors
+            .retain(|sector| Self::sector_ui_role(sector).is_none());
+        map
+    }
+
+    pub fn process_pending_runtime_commands(
+        &mut self,
+        assets: &mut Assets,
+        scene_handler: &mut SceneHandler,
+    ) -> Vec<Command> {
+        let pending = std::mem::take(&mut self.pending_runtime_commands);
+        let mut commands = Vec::new();
+
+        for command in pending {
+            match command {
+                ClientCommandBinding::Screen(screen_command) => {
+                    self.process_screen_command(&screen_command, assets, scene_handler);
+                }
+                ClientCommandBinding::Game(game_command) => {
+                    self.process_game_command(&game_command, assets, scene_handler, &mut commands);
+                }
+                _ => {}
+            }
+        }
+
+        commands
+    }
+
+    fn process_screen_command(
+        &mut self,
+        command: &str,
+        assets: &mut Assets,
+        scene_handler: &mut SceneHandler,
+    ) {
+        if let Some(screen_name) = command.trim().strip_prefix("goto.") {
+            self.goto_screen(screen_name, assets, scene_handler);
+        }
+    }
+
+    fn set_ui_state(&mut self, binding: &str, value: &str) {
+        let binding = binding.trim();
+        if binding.is_empty() {
+            return;
+        }
+        self.ui_state
+            .insert(binding.to_string(), value.trim().to_string());
+        self.sync_bound_button_activation(binding);
+    }
+
+    fn sync_bound_button_activation(&mut self, binding: &str) {
+        let selected_value = self.ui_state.get(binding).map(|value| value.trim());
+        let mut selected_button_id = None;
+
+        for (id, widget) in self.button_widgets.iter() {
+            if widget.binding.as_deref() != Some(binding) {
+                continue;
+            }
+
+            let single_selection = widget
+                .selection
+                .as_deref()
+                .map(|selection| selection.eq_ignore_ascii_case("single"))
+                .unwrap_or_else(|| widget.group.is_some());
+            if !single_selection {
+                continue;
+            }
+
+            self.activated_widgets.retain(|active_id| active_id != id);
+            self.permanently_activated_widgets
+                .retain(|active_id| active_id != id);
+
+            if let (Some(selected), Some(value)) = (selected_value, widget.value.as_deref())
+                && value.trim().eq_ignore_ascii_case(selected)
+            {
+                selected_button_id = Some(*id);
+            }
+        }
+
+        if let Some(id) = selected_button_id {
+            if !self.activated_widgets.contains(&id) {
+                self.activated_widgets.push(id);
+            }
+            if !self.permanently_activated_widgets.contains(&id) {
+                self.permanently_activated_widgets.push(id);
+            }
+        }
+    }
+
+    fn apply_bound_button_activations(&mut self) {
+        let bindings: Vec<String> = self.ui_state.keys().cloned().collect();
+        for binding in bindings {
+            self.sync_bound_button_activation(&binding);
+        }
+    }
+
+    fn process_game_command(
+        &mut self,
+        command: &str,
+        assets: &mut Assets,
+        scene_handler: &mut SceneHandler,
+        commands: &mut Vec<Command>,
+    ) {
+        let command = command.trim();
+        let class = if command == "start" {
+            self.ui_state
+                .get("start.class")
+                .filter(|value| !value.trim().is_empty())
+                .cloned()
+        } else {
+            command
+                .strip_prefix("start_class.")
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        };
+
+        if let Some(class) = &class {
+            self.set_ui_state("start.class", class);
+        }
+
+        let Some(command) = self.create_start_player_command(class.as_deref(), assets) else {
+            return;
+        };
+        commands.push(command);
+        self.game_started = true;
+
+        let play_screen = self.get_config_string_default("game", "play_screen", "");
+        if !play_screen.trim().is_empty() {
+            self.goto_screen(&play_screen, assets, scene_handler);
+        }
+    }
+
+    fn create_start_player_command(
+        &mut self,
+        class: Option<&str>,
+        assets: &Assets,
+    ) -> Option<Command> {
+        if self.game_started {
+            return None;
+        }
+
+        let map = assets.maps.get(&self.current_map)?;
+        let mut entity = map.entities.iter().find_map(|entity| {
+            entity.get_attr_string("class_name").and_then(|class_name| {
+                self.player_entities
+                    .contains(&class_name)
+                    .then(|| (entity.clone(), class_name))
+            })
+        })?;
+
+        if let Some(class) = class {
+            entity
+                .0
+                .set_attribute("_start_class", Value::Str(class.to_string()));
+        }
+        let player_name = self
+            .ui_state
+            .get("start.name")
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty());
+        if let Some(player_name) = player_name {
+            entity
+                .0
+                .set_attribute("_start_name", Value::Str(player_name.to_string()));
+        }
+        if let Some(entrance) = map.named_area_center("entrance") {
+            entity.0.set_pos_xz(entrance);
+        }
+        entity.0.set_attribute("player", Value::Bool(true));
+        self.pending_game_camera_pos = Some(entity.0.get_pos_xz());
+
+        self.client_action = Arc::new(Mutex::new(ClientAction::default()));
+        self.client_action.lock().unwrap().init(entity.1, assets);
+
+        Some(Command::CreateEntity(map.id, entity.0))
+    }
+
+    fn goto_screen(
+        &mut self,
+        screen_name: &str,
+        assets: &mut Assets,
+        scene_handler: &mut SceneHandler,
+    ) -> bool {
+        let screen_name = screen_name.trim();
+        if screen_name.is_empty() || !assets.screens.contains_key(screen_name) {
+            return false;
+        }
+
+        self.current_screen = screen_name.to_string();
+        self.init_screen(self.current_screen.clone(), assets, scene_handler);
+        self.apply_pending_game_camera_pos();
+        self.first_game_draw = true;
+        true
+    }
+
+    fn apply_pending_game_camera_pos(&mut self) {
+        let Some(pos) = self.pending_game_camera_pos else {
+            return;
+        };
+        if self.game_widgets.is_empty() {
+            return;
+        }
+        for widget in self.game_widgets.values_mut() {
+            widget.player_pos = pos;
+        }
+        self.pending_game_camera_pos = None;
     }
 
     /// Draw the game into the internal buffer
@@ -1739,8 +2070,9 @@ impl Client {
 
                 screen_widget.offset = Vec2::new(start_x, start_y);
 
-                screen_widget.build(screen, assets);
-                screen_widget.draw(screen, &self.server_time, assets);
+                let base_screen = Self::screen_base_render_map(screen);
+                screen_widget.build(&base_screen, assets);
+                screen_widget.draw(&base_screen, &self.server_time, assets);
                 Self::punch_game_widget_holes(
                     &mut screen_widget.buffer,
                     screen_widget.background_color,
@@ -1820,6 +2152,7 @@ impl Client {
                     &self.currencies,
                     assets,
                     &self.server_time,
+                    &self.ui_state,
                 );
                 self.target
                     .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
@@ -1843,6 +2176,26 @@ impl Client {
             }
         }
 
+        for widget in self.text_input_widgets.values() {
+            let hide = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    widget.name.starts_with(prefix)
+                } else {
+                    widget.name == *pattern
+                }
+            });
+
+            if !hide {
+                widget.update_draw(
+                    &mut self.target,
+                    assets,
+                    &self.draw2d,
+                    self.focused_text_input == Some(widget.id),
+                );
+            }
+        }
+
         // Draw the button widgets which support inventory / gear on top
         for widget in self.button_widgets.values_mut() {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
@@ -1856,6 +2209,20 @@ impl Client {
 
             if !hide {
                 let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                let hovered = widget.rect.contains(Vec2::new(
+                    self.cursor_pos.x as f32,
+                    self.cursor_pos.y as f32,
+                ));
+                let command_state = widget
+                    .command
+                    .as_deref()
+                    .map(|command| rules_ui::command_state(assets, entity, command));
+                let visual_state = Self::button_visual_state(
+                    hovered,
+                    self.activated_widgets.contains(&widget.id),
+                    self.pressed_widget == Some(widget.id),
+                    command_state.as_ref(),
+                );
                 widget.update_draw(
                     &mut self.target,
                     map,
@@ -1863,14 +2230,9 @@ impl Client {
                     entity,
                     &self.draw2d,
                     &self.animation_frame,
-                    if self.activated_widgets.contains(&widget.id) {
-                        1
-                    } else {
-                        0
-                    },
+                    visual_state,
                 );
-                if let Some(command) = widget.command.as_deref() {
-                    let state = rules_ui::command_state(assets, entity, command);
+                if let Some(state) = command_state {
                     if !state.enabled || state.cooldown_remaining > 0.0 {
                         Self::draw_command_state_overlay(
                             &mut self.target,
@@ -2168,8 +2530,9 @@ impl Client {
             }
 
             screen_widget.offset = Vec2::new(start_x, start_y);
-            screen_widget.build(screen, assets);
-            screen_widget.draw(screen, &self.server_time, assets);
+            let base_screen = Self::screen_base_render_map(screen);
+            screen_widget.build(&base_screen, assets);
+            screen_widget.draw(&base_screen, &self.server_time, assets);
             Self::punch_game_widget_holes(
                 &mut screen_widget.buffer,
                 screen_widget.background_color,
@@ -2324,6 +2687,7 @@ impl Client {
                     &self.currencies,
                     assets,
                     &self.server_time,
+                    &self.ui_state,
                 );
                 self.overlay
                     .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
@@ -2346,6 +2710,26 @@ impl Client {
             }
         }
 
+        for widget in self.text_input_widgets.values() {
+            let hide = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    widget.name.starts_with(prefix)
+                } else {
+                    widget.name == *pattern
+                }
+            });
+
+            if !hide {
+                widget.update_draw(
+                    &mut self.overlay,
+                    assets,
+                    &self.draw2d,
+                    self.focused_text_input == Some(widget.id),
+                );
+            }
+        }
+
         for widget in self.button_widgets.values_mut() {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
@@ -2358,6 +2742,20 @@ impl Client {
 
             if !hide {
                 let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                let hovered = widget.rect.contains(Vec2::new(
+                    self.cursor_pos.x as f32,
+                    self.cursor_pos.y as f32,
+                ));
+                let command_state = widget
+                    .command
+                    .as_deref()
+                    .map(|command| rules_ui::command_state(assets, entity, command));
+                let visual_state = Self::button_visual_state(
+                    hovered,
+                    self.activated_widgets.contains(&widget.id),
+                    self.pressed_widget == Some(widget.id),
+                    command_state.as_ref(),
+                );
                 widget.update_draw(
                     &mut self.overlay,
                     map,
@@ -2365,11 +2763,7 @@ impl Client {
                     entity,
                     &self.draw2d,
                     &self.animation_frame,
-                    if self.activated_widgets.contains(&widget.id) {
-                        1
-                    } else {
-                        0
-                    },
+                    visual_state,
                 );
             }
         }
@@ -2746,6 +3140,7 @@ impl Client {
         self.dragging_item_from_world = false;
         self.dragging_item_container_source = None;
         self.dragging_started = false;
+        self.pressed_widget = None;
     }
 
     fn build_container_panel_layout(
@@ -3358,6 +3753,7 @@ impl Client {
         let mut camera_action = None;
         let mut render_camera_switches: Vec<(Option<String>, PlayerCamera)> = Vec::new();
         let mut selected_walk_button_id = None;
+        let mut bound_state_update: Option<(String, String)> = None;
         let active_intent = self.get_current_intent_for_action();
         self.dragging_item_id = None;
         self.dragging_item_owner_entity_id = None;
@@ -3407,6 +3803,21 @@ impl Client {
         {
             return None;
         }
+
+        let mut clicked_text_input = None;
+        for (id, widget) in self.text_input_widgets.iter() {
+            if widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
+                clicked_text_input = Some(*id);
+                break;
+            }
+        }
+        if clicked_text_input.is_some() {
+            self.focused_text_input = clicked_text_input;
+            self.tooltip_hover_key = None;
+            self.tooltip_hover_since = None;
+            return None;
+        }
+        self.focused_text_input = None;
 
         // Give paused/scrollback message widgets first chance to consume input before
         // buttons or the game map turn it into player actions.
@@ -3465,7 +3876,14 @@ impl Client {
 
         for (id, widget) in self.button_widgets.iter() {
             if widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
+                self.pressed_widget = Some(*id);
                 self.activated_widgets.push(*id);
+
+                if let (Some(binding), Some(value)) =
+                    (widget.binding.as_deref(), widget.value.as_deref())
+                {
+                    bound_state_update = Some((binding.to_string(), value.to_string()));
+                }
 
                 if widget.drag_drop {
                     if let Some(entity) = Self::resolve_party_entity(map, widget.party.as_deref()) {
@@ -3519,6 +3937,9 @@ impl Client {
                             if self.game_widget_is_2d() {
                                 action = Some(EntityAction::Intent(payload));
                             }
+                        }
+                        ClientCommandBinding::Screen(_) | ClientCommandBinding::Game(_) => {
+                            self.pending_runtime_commands.push(binding);
                         }
                         ClientCommandBinding::Ui(_) => {}
                     }
@@ -3590,6 +4011,9 @@ impl Client {
         }
         if let Some(button_id) = selected_walk_button_id {
             self.activate_walk_button(button_id);
+        }
+        if let Some((binding, value)) = bound_state_update {
+            self.set_ui_state(&binding, &value);
         }
         for (target, camera) in render_camera_switches {
             self.set_game_widget_camera_mode(target.as_deref(), camera);
@@ -3709,6 +4133,7 @@ impl Client {
         let mut action = None;
         if self.dragging_container_panel {
             self.dragging_container_panel = false;
+            self.pressed_widget = None;
             return None;
         }
         let dragged_item_id = self.dragging_item_id;
@@ -3879,6 +4304,7 @@ impl Client {
             }
         }
         self.clear_item_drag();
+        self.pressed_widget = None;
 
         self.activated_widgets = self.permanently_activated_widgets.clone();
 
@@ -3906,6 +4332,13 @@ impl Client {
         }
 
         if is_escape && self.close_floaters() {
+            return EntityAction::Off;
+        }
+
+        if event == "key_down"
+            && let Value::Str(v) = &value
+            && self.focused_text_input_key_down(v)
+        {
             return EntityAction::Off;
         }
 
@@ -3999,6 +4432,41 @@ impl Client {
         }
 
         action
+    }
+
+    pub fn focused_text_input_key_down(&mut self, raw_key: &str) -> bool {
+        let Some(input_id) = self.focused_text_input else {
+            return false;
+        };
+
+        let key = raw_key.trim();
+        let lower = key.to_ascii_lowercase();
+        if matches!(lower.as_str(), "escape" | "esc" | "enter" | "return") {
+            self.focused_text_input = None;
+            return true;
+        }
+
+        let Some(widget) = self.text_input_widgets.get_mut(&input_id) else {
+            self.focused_text_input = None;
+            return false;
+        };
+
+        if matches!(lower.as_str(), "backspace" | "delete") || matches!(raw_key, "\u{8}" | "\u{7f}")
+        {
+            widget.text.pop();
+        } else if lower == "space" {
+            widget.text.push(' ');
+        } else if raw_key.chars().count() == 1
+            && !raw_key.chars().next().is_some_and(char::is_control)
+        {
+            widget.text.push_str(raw_key);
+        }
+
+        if !widget.binding.trim().is_empty() {
+            self.ui_state
+                .insert(widget.binding.clone(), widget.text.clone());
+        }
+        true
     }
 
     pub fn scroll_messages(&mut self, delta_y: isize) -> bool {
@@ -4155,8 +4623,10 @@ impl Client {
         self.button_widgets.clear();
         self.avatar_widgets.clear();
         self.text_widgets.clear();
+        self.text_input_widgets.clear();
         self.deco_widgets.clear();
         self.messages_widgets.clear();
+        self.focused_text_input = None;
 
         self.screen_widget = Some(ScreenWidget {
             buffer: TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y)),
@@ -4239,6 +4709,9 @@ impl Client {
                             let mut intent = None;
                             let mut spell = None;
                             let mut group = None;
+                            let mut binding = None;
+                            let mut value = None;
+                            let mut selection = None;
                             let mut show: Option<Vec<String>> = None;
                             let mut hide: Option<Vec<String>> = None;
                             let mut deactivate: Vec<String> = vec![];
@@ -4257,6 +4730,15 @@ impl Client {
                             let mut item_clicked_cursor_id = None;
                             let mut border_size: i32 = 0;
                             let mut border_color: [u8; 4] = [255, 255, 255, 255];
+                            let mut label = String::new();
+                            let mut label_font = String::new();
+                            let mut label_font_size = 18.0;
+                            let mut label_color: [u8; 4] = [255, 255, 255, 255];
+                            let mut background_color = None;
+                            let mut hover_style = ButtonStateStyle::default();
+                            let mut selected_style = ButtonStateStyle::default();
+                            let mut pressed_style = ButtonStateStyle::default();
+                            let mut disabled_style = ButtonStateStyle::default();
 
                             if let Some(ui) = table.get("ui").and_then(toml::Value::as_table) {
                                 // Check for command. This is the preferred button API.
@@ -4298,6 +4780,86 @@ impl Client {
                                         group = Some(trimmed.to_string());
                                     }
                                 }
+                                if let Some(v) = ui
+                                    .get("bind")
+                                    .or_else(|| ui.get("binding"))
+                                    .and_then(toml::Value::as_str)
+                                    .map(str::trim)
+                                    .filter(|value| !value.is_empty())
+                                {
+                                    binding = Some(v.to_string());
+                                }
+                                if let Some(v) = ui.get("value").and_then(toml::Value::as_str) {
+                                    value = Some(v.to_string());
+                                }
+                                if let Some(v) = ui
+                                    .get("selection")
+                                    .and_then(toml::Value::as_str)
+                                    .map(str::trim)
+                                    .filter(|value| !value.is_empty())
+                                {
+                                    selection = Some(v.to_string());
+                                }
+
+                                if let Some(value) = ui.get("label").or_else(|| ui.get("text"))
+                                    && let Some(v) = value.as_str()
+                                {
+                                    label = v.to_string();
+                                }
+                                if let Some(value) = ui.get("font")
+                                    && let Some(v) = value.as_str()
+                                {
+                                    label_font = v.to_string();
+                                }
+                                if let Some(value) = ui.get("font_size")
+                                    && let Some(v) = value.as_float()
+                                {
+                                    label_font_size = v as f32;
+                                }
+                                if let Some(value) = ui.get("color")
+                                    && let Some(v) = value.as_str()
+                                {
+                                    label_color = Self::hex_to_rgba_u8(v);
+                                }
+                                if let Some(color) = Self::ui_style_color(ui, None, "text", "color")
+                                    .or_else(|| Self::ui_style_color(ui, None, "color", "color"))
+                                {
+                                    label_color = color;
+                                }
+                                background_color = Self::ui_style_color(
+                                    ui,
+                                    None,
+                                    "background",
+                                    "background_color",
+                                );
+                                hover_style = Self::button_state_style_from_ui(
+                                    ui,
+                                    "hover",
+                                    "hover_background_color",
+                                    "hover_border_color",
+                                    "hover_color",
+                                );
+                                selected_style = Self::button_state_style_from_ui(
+                                    ui,
+                                    "selected",
+                                    "selected_background_color",
+                                    "selected_border_color",
+                                    "selected_color",
+                                );
+                                pressed_style = Self::button_state_style_from_ui(
+                                    ui,
+                                    "pressed",
+                                    "pressed_background_color",
+                                    "pressed_border_color",
+                                    "pressed_color",
+                                );
+                                disabled_style = Self::button_state_style_from_ui(
+                                    ui,
+                                    "disabled",
+                                    "disabled_background_color",
+                                    "disabled_border_color",
+                                    "disabled_color",
+                                );
 
                                 // Check for show
                                 if let Some(value) = ui.get("show") {
@@ -4372,12 +4934,21 @@ impl Client {
                                 }
 
                                 // Check for active
-                                if let Some(value) = ui.get("active") {
-                                    if let Some(v) = value.as_bool()
+                                if let Some(active_value) = ui.get("active") {
+                                    if let Some(v) = active_value.as_bool()
                                         && v
                                     {
                                         self.activated_widgets.push(widget.id);
                                         self.permanently_activated_widgets.push(widget.id);
+                                        if let (Some(binding), Some(bound_value)) =
+                                            (binding.as_deref(), value.as_deref())
+                                            && !binding.trim().is_empty()
+                                        {
+                                            self.ui_state.insert(
+                                                binding.to_string(),
+                                                bound_value.to_string(),
+                                            );
+                                        }
                                         if let Some(hide) = &hide {
                                             self.widgets_to_hide = hide.clone();
                                         }
@@ -4435,6 +5006,11 @@ impl Client {
                                         border_color = Self::hex_to_rgba_u8(v);
                                     }
                                 }
+                                if let Some(color) =
+                                    Self::ui_style_color(ui, None, "border", "border_color")
+                                {
+                                    border_color = color;
+                                }
 
                                 command = command_from_legacy_fields(
                                     command.as_deref(),
@@ -4453,6 +5029,9 @@ impl Client {
                                 intent,
                                 spell,
                                 group,
+                                binding,
+                                value,
+                                selection,
                                 show,
                                 hide,
                                 deactivate,
@@ -4471,9 +5050,94 @@ impl Client {
                                 item_clicked_cursor_id,
                                 border_color,
                                 border_size,
+                                label,
+                                label_font,
+                                label_font_size,
+                                label_color,
+                                background_color,
+                                hover_style,
+                                selected_style,
+                                pressed_style,
+                                disabled_style,
                             };
 
                             self.button_widgets.insert(widget.id, button_widget);
+                        } else if role == "input" {
+                            let mut binding = widget.name.clone();
+                            let mut text = String::new();
+                            let mut font = String::new();
+                            let mut font_size = 22.0;
+                            let mut color: [u8; 4] = [242, 242, 242, 255];
+                            let mut background_color: [u8; 4] = [17, 17, 17, 204];
+                            let mut border_color: [u8; 4] = [136, 136, 136, 255];
+                            let mut border_size: i32 = 1;
+
+                            if let Some(ui) = table.get("ui").and_then(toml::Value::as_table) {
+                                if let Some(value) = ui
+                                    .get("bind")
+                                    .or_else(|| ui.get("binding"))
+                                    .and_then(toml::Value::as_str)
+                                {
+                                    let trimmed = value.trim();
+                                    if !trimmed.is_empty() {
+                                        binding = trimmed.to_string();
+                                    }
+                                }
+                                if let Some(value) = ui
+                                    .get("text")
+                                    .or_else(|| ui.get("default"))
+                                    .and_then(toml::Value::as_str)
+                                {
+                                    text = value.to_string();
+                                }
+                                if let Some(value) = ui.get("font").and_then(toml::Value::as_str) {
+                                    font = value.to_string();
+                                }
+                                if let Some(value) =
+                                    ui.get("font_size").and_then(toml::Value::as_float)
+                                {
+                                    font_size = value as f32;
+                                }
+                                if let Some(value) = ui.get("color").and_then(toml::Value::as_str) {
+                                    color = Self::hex_to_rgba_u8(value);
+                                }
+                                if let Some(value) =
+                                    ui.get("background_color").and_then(toml::Value::as_str)
+                                {
+                                    background_color = Self::hex_to_rgba_u8(value);
+                                }
+                                if let Some(value) =
+                                    ui.get("border_color").and_then(toml::Value::as_str)
+                                {
+                                    border_color = Self::hex_to_rgba_u8(value);
+                                }
+                                if let Some(value) =
+                                    ui.get("border_size").and_then(toml::Value::as_integer)
+                                {
+                                    border_size = value as i32;
+                                }
+                            }
+
+                            if !binding.trim().is_empty() {
+                                self.ui_state.insert(binding.clone(), text.clone());
+                            }
+
+                            self.text_input_widgets.insert(
+                                widget.id,
+                                TextInputWidget {
+                                    name: widget.name.clone(),
+                                    id: widget.id,
+                                    rect: Rect::new(x, y, width, height),
+                                    binding,
+                                    text,
+                                    font,
+                                    font_size,
+                                    color,
+                                    background_color,
+                                    border_color,
+                                    border_size,
+                                },
+                            );
                         } else if role == "messages" {
                             let mut widget = MessagesWidget {
                                 name: widget.name.clone(),
@@ -4530,6 +5194,7 @@ impl Client {
                 }
             }
         }
+        self.apply_bound_button_activations();
     }
 
     /// Returns true if the game camera is 2D
@@ -5587,7 +6252,10 @@ impl Client {
                             true,
                         ));
                     }
-                    ClientCommandBinding::Intent(_) | ClientCommandBinding::Ui(_) => {
+                    ClientCommandBinding::Intent(_)
+                    | ClientCommandBinding::Screen(_)
+                    | ClientCommandBinding::Game(_)
+                    | ClientCommandBinding::Ui(_) => {
                         let mut description = rules_ui::describe_command(assets, entity, &command);
                         Self::add_shortcut_line(&mut description, shortcuts);
                         let state = rules_ui::command_state(assets, entity, &command);

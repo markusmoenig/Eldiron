@@ -1,4 +1,4 @@
-use crate::editor::{DOCKMANAGER, SCENEMANAGER, TOOLLIST};
+use crate::editor::{DOCKMANAGER, RUSTERIX, SCENEMANAGER, TOOLLIST};
 use crate::prelude::*;
 use crate::toollist::ToolList;
 use shared::project::PaletteMaterial;
@@ -83,6 +83,16 @@ impl ProjectUndoAtom {
                     SCENEMANAGER.write().unwrap().update_map(map.clone());
                 }
                 update_region(ctx);
+            } else if pc.is_screen() {
+                RUSTERIX.write().unwrap().set_dirty();
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Content List"),
+                    TheValue::Empty,
+                ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
             }
         }
         if !preserved_dock.is_empty() && DOCKMANAGER.read().unwrap().dock != preserved_dock {

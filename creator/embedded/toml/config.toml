@@ -19,6 +19,9 @@ start_region = ""
 # The name of the start screen. If empty, shows the start region.
 start_screen = ""
 
+# Optional screen to show after a game.start command.
+play_screen = ""
+
 # The name of the base currency
 base_currency_name = "Gold"
 

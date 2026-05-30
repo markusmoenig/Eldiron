@@ -37,6 +37,7 @@ collision_mode = "tile"        # Collision/path mode: "tile" or "mesh".
 auto_create_player = true      # Whether to auto-create a player entity.
 start_region = ""              # The name of the region to start the game in.
 start_screen = ""              # The name of the screen to show at startup.
+play_screen = ""               # Optional screen shown after game.start.
 click_intents_2d = false       # Target 2D intents with mouse clicks while keeping WASD movement.
 auto_walk_2d = false           # In walk mode, clicking terrain in 2D makes the player path-walk there.
 
@@ -135,7 +136,8 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
 - **`auto_create_player`**
   If `true`, Eldiron will automatically **create a player instance** in the map if one is defined.
   Useful for quickly testing and building games without needing to implement a full character creation process.
-  If `false`, the player must be created manually—typically using a **screen** and **user input flow**.
+  If `false`, the player must be created manually, typically using a screen and user input flow.
+  When `start_screen` points at a live gameplay screen with a `role = "game"` widget, auto-create still runs so direct play projects keep launching immediately.
 
 - **`start_region`**
   The **name of the region** the game will load when it starts.
@@ -144,6 +146,10 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
 - **`start_screen`**
   The **name of the screen** to load on startup.
   If empty, Eldiron will display a black screen.
+
+- **`play_screen`**
+  Optional screen to load after a `game.start` or `game.start_class.<Class>` button command.
+  Leave it empty when the startup screen already contains the active game layout.
 
 - **`click_intents_2d`**
   - Enables click-targeted intents in `2d` and `2d_grid` input modes.

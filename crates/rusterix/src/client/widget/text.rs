@@ -37,6 +37,7 @@ pub struct TextWidget {
     pub table: toml::Table,
     pub text: String,
     pub color: Pixel,
+    pub horizontal_align: draw2d::TheHorizontalAlign,
     pub parser: MsgParser,
     pub resolver: MsgResolver,
 }
@@ -68,6 +69,7 @@ impl TextWidget {
             table: toml::Table::default(),
             text: String::new(),
             color: WHITE,
+            horizontal_align: draw2d::TheHorizontalAlign::Left,
             parser: MsgParser::new(),
             resolver: MsgResolver::default(),
         }
@@ -117,6 +119,17 @@ impl TextWidget {
                         self.color = self.hex_to_rgba_u8(v);
                     }
                 }
+                if let Some(value) = ui
+                    .get("align")
+                    .or_else(|| ui.get("horizontal_align"))
+                    .and_then(toml::Value::as_str)
+                {
+                    self.horizontal_align = match value.trim().to_ascii_lowercase().as_str() {
+                        "center" | "centre" => draw2d::TheHorizontalAlign::Center,
+                        "right" => draw2d::TheHorizontalAlign::Right,
+                        _ => draw2d::TheHorizontalAlign::Left,
+                    };
+                }
             }
             self.table = table;
         }
@@ -133,6 +146,7 @@ impl TextWidget {
         currencies: &Currencies,
         assets: &Assets,
         time: &TheTime,
+        ui_state: &FxHashMap<String, String>,
     ) {
         if let Some(font) = &self.font {
             let stride = buffer.stride();
@@ -218,6 +232,7 @@ impl TextWidget {
                             }
                             None
                         }
+                        "START" => Self::start_ui_value(assets, ui_state, key),
                         // "WORLD" => map.world.get_value(key),
                         _ => None,
                     }
@@ -273,7 +288,7 @@ impl TextWidget {
                         self.font_size,
                         &resolved,
                         &self.color,
-                        draw2d::TheHorizontalAlign::Left,
+                        self.horizontal_align.clone(),
                         draw2d::TheVerticalAlign::Center,
                         &(0, 0, width as isize, height as isize),
                     );
@@ -282,6 +297,174 @@ impl TextWidget {
                 y += self.font_size + self.spacing;
             }
         }
+    }
+
+    fn start_ui_value(
+        assets: &Assets,
+        ui_state: &FxHashMap<String, String>,
+        key: &str,
+    ) -> Option<String> {
+        let class = ui_state
+            .get("start.class")
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .unwrap_or("Warrior");
+
+        match key {
+            "NAME" => ui_state
+                .get("start.name")
+                .map(|value| value.trim())
+                .filter(|value| !value.is_empty())
+                .map(str::to_string),
+            "CLASS" => Some(class.to_string()),
+            "CLASS_DESCRIPTION" => Self::ruleset_class_string(assets, class, "description"),
+            "CLASS_ROLE" => Self::ruleset_class_string(assets, class, "role")
+                .map(|value| Self::humanize(&value)),
+            "CLASS_ATTRIBUTES" => Self::ruleset_class_array(assets, class, "primary_attributes")
+                .map(|values| {
+                    if values.is_empty() {
+                        "-".to_string()
+                    } else {
+                        values.join(", ")
+                    }
+                }),
+            "CLASS_WEAPONS" => {
+                Self::ruleset_class_array(assets, class, "allowed_weapons").map(|values| {
+                    if values.is_empty() {
+                        "None".to_string()
+                    } else {
+                        Self::human_list(values)
+                    }
+                })
+            }
+            "CLASS_ARMOR" => {
+                Self::ruleset_class_array(assets, class, "allowed_armor").map(|values| {
+                    if values.is_empty() {
+                        "None".to_string()
+                    } else {
+                        Self::human_list(values)
+                    }
+                })
+            }
+            "CLASS_ABILITIES" => {
+                Self::ruleset_class_array(assets, class, "abilities").map(|values| {
+                    if values.is_empty() {
+                        "None".to_string()
+                    } else {
+                        Self::human_list(values)
+                    }
+                })
+            }
+            "CLASS_SPELLS" => Self::ruleset_class_array(assets, class, "spells").map(|values| {
+                if values.is_empty() {
+                    "None".to_string()
+                } else {
+                    Self::human_list(values)
+                }
+            }),
+            "CLASS_EQUIPMENT" => {
+                Self::ruleset_class_loadout(assets, class, &["equipment", "weapons", "armor"]).map(
+                    |values| {
+                        if values.is_empty() {
+                            "None".to_string()
+                        } else {
+                            Self::human_list(values)
+                        }
+                    },
+                )
+            }
+            "CLASS_INVENTORY" => {
+                Self::ruleset_class_loadout(assets, class, &["inventory", "items"]).map(|values| {
+                    if values.is_empty() {
+                        "None".to_string()
+                    } else {
+                        Self::human_list(values)
+                    }
+                })
+            }
+            _ => None,
+        }
+    }
+
+    fn ruleset_class_table(assets: &Assets, class: &str) -> Option<toml::value::Table> {
+        let root = toml::from_str::<toml::Value>(&assets.rules).ok()?;
+        root.get("classes")?
+            .as_table()?
+            .get(class.trim())?
+            .as_table()
+            .cloned()
+    }
+
+    fn ruleset_class_string(assets: &Assets, class: &str, key: &str) -> Option<String> {
+        Self::ruleset_class_table(assets, class)?
+            .get(key)?
+            .as_str()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    }
+
+    fn ruleset_class_array(assets: &Assets, class: &str, key: &str) -> Option<Vec<String>> {
+        let class = Self::ruleset_class_table(assets, class)?;
+        Some(Self::toml_string_array(class.get(key)?))
+    }
+
+    fn ruleset_class_loadout(assets: &Assets, class: &str, keys: &[&str]) -> Option<Vec<String>> {
+        let class = Self::ruleset_class_table(assets, class)?;
+        let loadout = class.get("starting_loadout")?.as_table()?;
+        let mut values = Vec::new();
+        for key in keys {
+            if let Some(value) = loadout.get(*key) {
+                for entry in Self::toml_string_array(value) {
+                    if !values.iter().any(|existing| existing == &entry) {
+                        values.push(entry);
+                    }
+                }
+            }
+        }
+        Some(values)
+    }
+
+    fn human_list(values: Vec<String>) -> String {
+        values
+            .into_iter()
+            .map(|value| Self::humanize(&value))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    fn humanize(value: &str) -> String {
+        value
+            .split(['_', '-', '.', ' '])
+            .filter(|part| !part.trim().is_empty())
+            .map(|part| {
+                let mut chars = part.chars();
+                match chars.next() {
+                    Some(first) => {
+                        let mut word = first.to_uppercase().collect::<String>();
+                        word.push_str(&chars.as_str().to_ascii_lowercase());
+                        word
+                    }
+                    None => String::new(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    fn toml_string_array(value: &toml::Value) -> Vec<String> {
+        value
+            .as_array()
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(toml::Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     fn player_attr_value(entity: &crate::Entity, key: &str) -> Option<String> {
@@ -323,5 +506,46 @@ impl TextWidget {
             },
             _ => [255, 255, 255, 255],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolves_start_class_placeholders_from_rules() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [classes.Warrior]
+            role = "martial"
+            primary_attributes = ["STR", "VIT"]
+            allowed_weapons = ["sword", "axe"]
+            allowed_armor = ["cloth", "leather", "chain"]
+            abilities = ["basic_attack", "guard"]
+            spells = []
+
+            [classes.Warrior.starting_loadout]
+            weapons = ["training_sword"]
+            armor = ["padded_armor"]
+        "#
+        .to_string();
+
+        let mut ui_state = FxHashMap::default();
+        ui_state.insert("start.class".to_string(), "Warrior".to_string());
+        ui_state.insert("start.name".to_string(), "Eldiron".to_string());
+
+        assert_eq!(
+            TextWidget::start_ui_value(&assets, &ui_state, "CLASS_ROLE").as_deref(),
+            Some("Martial")
+        );
+        assert_eq!(
+            TextWidget::start_ui_value(&assets, &ui_state, "CLASS_ATTRIBUTES").as_deref(),
+            Some("STR, VIT")
+        );
+        assert_eq!(
+            TextWidget::start_ui_value(&assets, &ui_state, "CLASS_EQUIPMENT").as_deref(),
+            Some("Training Sword, Padded Armor")
+        );
     }
 }

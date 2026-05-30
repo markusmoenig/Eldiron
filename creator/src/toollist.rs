@@ -2287,6 +2287,23 @@ impl ToolList {
                 }
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
+                if self.game_tools[self.curr_game_tool].id().name == "Game Tool" {
+                    let key = match code {
+                        TheKeyCode::Return => Some("enter"),
+                        TheKeyCode::Delete => Some("backspace"),
+                        TheKeyCode::Escape => Some("escape"),
+                        TheKeyCode::Space => Some("space"),
+                        _ => None,
+                    };
+                    if let Some(key) = key {
+                        let mut rusterix = RUSTERIX.write().unwrap();
+                        if rusterix.client.focused_text_input_key_down(key) {
+                            rusterix.set_overlay_dirty();
+                            return true;
+                        }
+                    }
+                }
+
                 if let Some(id) = &ctx.ui.focus {
                     if id.name == "PolyView" {
                         if server_ctx.editor_view_mode == EditorViewMode::FirstP

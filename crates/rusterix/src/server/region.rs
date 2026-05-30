@@ -4617,7 +4617,13 @@ impl RegionInstance {
                     let mut spawn_entity_id: Option<u32> = None;
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
+                            let start_class =
+                                e.attributes.get_str("_start_class").map(str::to_string);
                             apply_entity_data(e, data);
+                            if let Some(class) = start_class {
+                                e.set_attribute("class", Value::Str(class));
+                                e.attributes.remove("_start_class");
+                            }
                             apply_ruleset_character_defaults(&rules, e);
                             e.position.y = ground_y;
 
@@ -8677,7 +8683,19 @@ impl RegionInstance {
                     let mut spawn_entity_id: Option<u32> = None;
                     for e in ctx.map.entities.iter_mut() {
                         if e.id == entity.id {
+                            let start_class =
+                                e.attributes.get_str("_start_class").map(str::to_string);
+                            let start_name =
+                                e.attributes.get_str("_start_name").map(str::to_string);
                             apply_entity_data(e, data);
+                            if let Some(class) = start_class {
+                                e.set_attribute("class", Value::Str(class));
+                                e.attributes.remove("_start_class");
+                            }
+                            if let Some(name) = start_name {
+                                e.set_attribute("name", Value::Str(name));
+                                e.attributes.remove("_start_name");
+                            }
                             apply_ruleset_character_defaults(&rules, e);
                             e.position.y = ground_y;
 

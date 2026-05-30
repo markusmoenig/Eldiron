@@ -1114,13 +1114,10 @@ impl MapEditor {
     }
 
     /// Adds an undo step for the given map change.
-    fn add_map_undo(
-        &self,
-        _map: &Map,
-        _prev: Map,
-        _ctx: &mut TheContext,
-        _server_ctx: &ServerContext,
-    ) {
+    fn add_map_undo(&self, map: &Map, prev: Map, ctx: &mut TheContext, server_ctx: &ServerContext) {
+        let undo_atom =
+            ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(prev), Box::new(map.clone()));
+        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
         RUSTERIX.write().unwrap().set_dirty();
     }
 }

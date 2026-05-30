@@ -166,13 +166,14 @@ impl TheTrait for Client {
 
         self.rusterix.server.redraw_tick();
 
+        if let Some(new_region_name) = self.rusterix.update_server() {
+            self.rusterix.client.current_map = new_region_name;
+        }
+
         for r in &mut self.project.regions {
             self.rusterix.server.apply_entities_items(&mut r.map);
 
             if r.map.name == self.rusterix.client.current_map {
-                if let Some(new_region_name) = self.rusterix.update_server() {
-                    self.rusterix.client.current_map = new_region_name;
-                }
                 if let Some(time) = self.rusterix.server.get_time(&r.map.id) {
                     self.rusterix.client.set_server_time(time);
                 }
@@ -219,7 +220,7 @@ impl TheTrait for Client {
                             self.rusterix.server.apply_entities_items(&mut r.map);
 
                             if r.map.name == self.rusterix.client.current_map {
-                                if let Some(action) = self.rusterix.client.touch_down(coord, &r.map)
+                                if let Some(action) = self.rusterix.client_touch_down(coord, &r.map)
                                 {
                                     self.rusterix.server.local_player_action(action);
                                 }
@@ -250,6 +251,23 @@ impl TheTrait for Client {
                                 _ => None,
                             })
                         };
+                        if let Some(key) = key {
+                            let action = self
+                                .rusterix
+                                .client
+                                .user_event("key_down".into(), Value::Str(key));
+
+                            self.rusterix.server.local_player_action(action);
+                        }
+                    }
+                    TheEvent::KeyCodeDown(v) => {
+                        let key = v.to_key_code().and_then(|code| match code {
+                            TheKeyCode::Return => Some("enter".to_string()),
+                            TheKeyCode::Delete => Some("backspace".to_string()),
+                            TheKeyCode::Escape => Some("escape".to_string()),
+                            TheKeyCode::Space => Some("space".to_string()),
+                            _ => None,
+                        });
                         if let Some(key) = key {
                             let action = self
                                 .rusterix

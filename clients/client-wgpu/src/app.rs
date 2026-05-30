@@ -226,6 +226,10 @@ impl EldironPlayerApp {
 
         self.rusterix.server.redraw_tick();
 
+        if let Some(new_region_name) = self.rusterix.update_server() {
+            self.rusterix.client.current_map = new_region_name;
+        }
+
         let current_map = self.rusterix.client.current_map.clone();
         for r in &mut self.project.regions {
             self.rusterix.server.apply_entities_items(&mut r.map);
@@ -233,9 +237,6 @@ impl EldironPlayerApp {
                 continue;
             }
 
-            if let Some(new_region_name) = self.rusterix.update_server() {
-                self.rusterix.client.current_map = new_region_name;
-            }
             if let Some(time) = self.rusterix.server.get_time(&r.map.id) {
                 self.rusterix.client.set_server_time(time);
             }
@@ -497,7 +498,7 @@ impl SceneVMApp for EldironPlayerApp {
         if let Some(idx) = self.current_region_index() {
             let map = &mut self.project.regions[idx].map;
             self.rusterix.server.apply_entities_items(map);
-            if let Some(action) = self.rusterix.client.touch_down(coord, map) {
+            if let Some(action) = self.rusterix.client_touch_down(coord, map) {
                 self.rusterix.server.local_player_action(action);
             }
         }

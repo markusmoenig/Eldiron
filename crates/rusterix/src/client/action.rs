@@ -101,6 +101,10 @@ impl ClientAction {
             (ClientCommandBinding::Ui(a), ClientCommandBinding::Ui(b)) => {
                 a.trim().eq_ignore_ascii_case(b.trim())
             }
+            (ClientCommandBinding::Screen(a), ClientCommandBinding::Screen(b))
+            | (ClientCommandBinding::Game(a), ClientCommandBinding::Game(b)) => {
+                a.trim().eq_ignore_ascii_case(b.trim())
+            }
             _ => false,
         }
     }
@@ -203,6 +207,7 @@ impl ClientAction {
                 self.set_movement_key(action, true);
                 self.current_movement_action()
             }
+            ClientCommandBinding::Screen(_) | ClientCommandBinding::Game(_) => EntityAction::Off,
             ClientCommandBinding::Ui(_) => EntityAction::Off,
         }
     }
