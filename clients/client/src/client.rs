@@ -19,6 +19,98 @@ pub struct Client {
     cmd_line_path: Option<PathBuf>,
 }
 
+impl Client {
+    fn process_pending_events(&mut self) {
+        if let Some(receiver) = &mut self.event_receiver {
+            while let Ok(event) = receiver.try_recv() {
+                match event {
+                    TheEvent::Resize => {}
+                    TheEvent::MouseDown(coord) => {
+                        for r in &mut self.project.regions {
+                            self.rusterix.server.apply_entities_items(&mut r.map);
+
+                            if r.map.name == self.rusterix.client.current_map {
+                                if let Some(action) = self.rusterix.client_touch_down(coord, &r.map)
+                                {
+                                    self.rusterix.server.local_player_action(action);
+                                }
+                            }
+                        }
+                    }
+                    TheEvent::MouseUp(coord) => {
+                        for r in &mut self.project.regions {
+                            self.rusterix.server.apply_entities_items(&mut r.map);
+
+                            if r.map.name == self.rusterix.client.current_map {
+                                if let Some(action) = self.rusterix.client.touch_up(coord, &r.map) {
+                                    self.rusterix.server.local_player_action(action);
+                                }
+                                self.rusterix.server.local_player_action(EntityAction::Off);
+                            }
+                        }
+                    }
+                    TheEvent::Hover(coord) => {
+                        for r in &mut self.project.regions {
+                            if r.map.name == self.rusterix.client.current_map {
+                                self.rusterix.client_touch_hover(coord, &r.map);
+                            }
+                        }
+                    }
+                    TheEvent::KeyDown(v) => {
+                        let key = if let Some(char) = v.to_char() {
+                            Some(char.to_string())
+                        } else {
+                            v.to_key_code().and_then(|code| match code {
+                                TheKeyCode::Return => Some("enter".to_string()),
+                                TheKeyCode::Delete => Some("backspace".to_string()),
+                                TheKeyCode::Escape => Some("escape".to_string()),
+                                TheKeyCode::Space => Some("space".to_string()),
+                                _ => None,
+                            })
+                        };
+                        if let Some(key) = key {
+                            let action = self
+                                .rusterix
+                                .client
+                                .user_event("key_down".into(), Value::Str(key));
+
+                            self.rusterix.server.local_player_action(action);
+                        }
+                    }
+                    TheEvent::KeyCodeDown(v) => {
+                        let key = v.to_key_code().and_then(|code| match code {
+                            TheKeyCode::Return => Some("enter".to_string()),
+                            TheKeyCode::Delete => Some("backspace".to_string()),
+                            TheKeyCode::Escape => Some("escape".to_string()),
+                            TheKeyCode::Space => Some("space".to_string()),
+                            _ => None,
+                        });
+                        if let Some(key) = key {
+                            let action = self
+                                .rusterix
+                                .client
+                                .user_event("key_down".into(), Value::Str(key));
+
+                            self.rusterix.server.local_player_action(action);
+                        }
+                    }
+                    TheEvent::KeyUp(v) => {
+                        if let Some(char) = v.to_char() {
+                            let action = self
+                                .rusterix
+                                .client
+                                .user_event("key_up".into(), Value::Str(char.to_string()));
+
+                            self.rusterix.server.local_player_action(action);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 impl TheTrait for Client {
     fn new() -> Self
     where
@@ -166,6 +258,8 @@ impl TheTrait for Client {
 
         self.rusterix.server.redraw_tick();
 
+        self.process_pending_events();
+
         if let Some(new_region_name) = self.rusterix.update_server() {
             self.rusterix.client.current_map = new_region_name;
         }
@@ -210,88 +304,6 @@ impl TheTrait for Client {
             }
         }
 
-        if let Some(receiver) = &mut self.event_receiver {
-            while let Ok(event) = receiver.try_recv() {
-                // println!("Event received {:?}", event);
-                match event {
-                    TheEvent::Resize => {}
-                    TheEvent::MouseDown(coord) => {
-                        for r in &mut self.project.regions {
-                            self.rusterix.server.apply_entities_items(&mut r.map);
-
-                            if r.map.name == self.rusterix.client.current_map {
-                                if let Some(action) = self.rusterix.client_touch_down(coord, &r.map)
-                                {
-                                    self.rusterix.server.local_player_action(action);
-                                }
-                            }
-                        }
-                    }
-                    TheEvent::MouseUp(coord) => {
-                        for r in &mut self.project.regions {
-                            self.rusterix.server.apply_entities_items(&mut r.map);
-
-                            if r.map.name == self.rusterix.client.current_map {
-                                if let Some(action) = self.rusterix.client.touch_up(coord, &r.map) {
-                                    self.rusterix.server.local_player_action(action);
-                                }
-                                self.rusterix.server.local_player_action(EntityAction::Off);
-                            }
-                        }
-                    }
-                    TheEvent::KeyDown(v) => {
-                        let key = if let Some(char) = v.to_char() {
-                            Some(char.to_string())
-                        } else {
-                            v.to_key_code().and_then(|code| match code {
-                                TheKeyCode::Return => Some("enter".to_string()),
-                                TheKeyCode::Delete => Some("backspace".to_string()),
-                                TheKeyCode::Escape => Some("escape".to_string()),
-                                TheKeyCode::Space => Some("space".to_string()),
-                                _ => None,
-                            })
-                        };
-                        if let Some(key) = key {
-                            let action = self
-                                .rusterix
-                                .client
-                                .user_event("key_down".into(), Value::Str(key));
-
-                            self.rusterix.server.local_player_action(action);
-                        }
-                    }
-                    TheEvent::KeyCodeDown(v) => {
-                        let key = v.to_key_code().and_then(|code| match code {
-                            TheKeyCode::Return => Some("enter".to_string()),
-                            TheKeyCode::Delete => Some("backspace".to_string()),
-                            TheKeyCode::Escape => Some("escape".to_string()),
-                            TheKeyCode::Space => Some("space".to_string()),
-                            _ => None,
-                        });
-                        if let Some(key) = key {
-                            let action = self
-                                .rusterix
-                                .client
-                                .user_event("key_down".into(), Value::Str(key));
-
-                            self.rusterix.server.local_player_action(action);
-                        }
-                    }
-                    TheEvent::KeyUp(v) => {
-                        if let Some(char) = v.to_char() {
-                            let action = self
-                                .rusterix
-                                .client
-                                .user_event("key_up".into(), Value::Str(char.to_string()));
-
-                            self.rusterix.server.local_player_action(action);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-
         redraw
     }
 
@@ -321,7 +333,7 @@ impl TheTrait for Client {
 
     // Query if the widget needs a redraw
     fn update(&mut self, _ctx: &mut TheContext) -> bool {
-        false
+        self.rusterix.client.hover_tooltip_pending()
     }
 
     fn target_fps(&self) -> f64 {
@@ -372,6 +384,7 @@ impl ClientTrait for Client {
                 if let Ok(Some(text)) = xhr.response_text() {
                     if let Ok(mut project) = serde_json::from_str::<Project>(&text) {
                         project.migrate_default_ruleset();
+                        let _ = project.sync_ruleset_items();
                         return project;
                     }
                 }
@@ -385,6 +398,7 @@ impl ClientTrait for Client {
             if let Ok(contents) = std::fs::read_to_string(path) {
                 if let Ok(mut project) = serde_json::from_str::<Project>(&contents) {
                     project.migrate_default_ruleset();
+                    let _ = project.sync_ruleset_items();
                     return project;
                 }
             }

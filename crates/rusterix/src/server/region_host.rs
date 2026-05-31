@@ -3076,6 +3076,28 @@ mod tests {
             .map(str::to_string)
     }
 
+    fn copy_official_item_damage_attrs(item: &mut Item, item_table: &toml::value::Table) {
+        let Some(damage) = item_table.get("damage").and_then(toml::Value::as_table) else {
+            return;
+        };
+
+        if let Some(roll) = table_string(damage, "roll") {
+            item.set_attribute("damage_roll", Value::Str(roll));
+        }
+        if let Some(value) = damage.get("bonus").and_then(toml_value_to_attr) {
+            item.set_attribute("damage_bonus", value);
+        }
+        if let Some(attribute) = table_string(damage, "bonus_attribute") {
+            item.set_attribute("damage_bonus_attribute", Value::Str(attribute));
+        }
+        if let Some(value) = damage.get("bonus_every").and_then(toml_value_to_attr) {
+            item.set_attribute("damage_bonus_every", value);
+        }
+        if let Some(kind) = table_string(damage, "damage_kind") {
+            item.set_attribute("damage_kind", Value::Str(kind));
+        }
+    }
+
     fn official_item_from_rules(
         rules: &toml::Table,
         item_id: u32,
@@ -3104,11 +3126,14 @@ mod tests {
         item.set_attribute("ruleset_kind", Value::Str(kind));
         item.set_attribute("ruleset_path", Value::Str(ruleset_path));
         item.set_attribute("slot", Value::Str(slot.clone()));
+        item.set_attribute("quality", Value::Int(100));
+        item.set_attribute("condition", Value::Int(100));
 
         for key in [
             "category",
             "description",
             "rarity",
+            "icon",
             "container_template",
             "visual_template",
             "rig_layer",
@@ -3121,6 +3146,9 @@ mod tests {
             "rig_scale",
             "rig_pivot",
             "color",
+            "icon_color",
+            "quality",
+            "condition",
             "max_stack",
             "ammunition_quantity",
             "blade_color_index",
@@ -3146,6 +3174,7 @@ mod tests {
                 }
             }
         }
+        copy_official_item_damage_attrs(&mut item, item_table);
         item.apply_container_attributes();
 
         let mut data = toml::value::Table::new();
@@ -4356,7 +4385,12 @@ mod tests {
         assert!((5..=10).contains(&base_damage));
 
         let orc_hp = arena.hp(2);
-        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "basic_attack",
+            Some(2)
+        ));
         arena.drain_entity_events();
 
         assert!(arena.hp(2) < orc_hp);
@@ -4471,6 +4505,32 @@ mod tests {
         assert_eq!(arena.inventory_item_quantity(1, "green_wood"), 4);
         assert_eq!(arena.inventory_item_quantity(1, "feather"), 3);
         assert_eq!(arena.inventory_item_quantity(1, "wooden_arrows"), 30);
+    }
+
+    #[test]
+    fn official_ruleset_craft_actions_execute_recipes() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.load_official_locales();
+        arena.add_official_entity(1, "Ranger", "Human", 1, None);
+        arena.add_official_inventory_item(1, 201, "materials", "green_wood");
+        arena.add_official_inventory_item(1, 202, "materials", "feather");
+
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "craft_wooden_arrows",
+            None
+        ));
+
+        assert_eq!(arena.inventory_item_quantity(1, "green_wood"), 4);
+        assert_eq!(arena.inventory_item_quantity(1, "feather"), 3);
+        assert_eq!(arena.inventory_item_quantity(1, "wooden_arrows"), 10);
+        assert!(
+            arena
+                .message_texts()
+                .iter()
+                .any(|(text, role)| text == "Crafted Wooden Arrows" && role == "success")
+        );
     }
 
     #[test]
@@ -4605,6 +4665,15 @@ mod tests {
         arena.add_official_entity(2, "Warrior", "Orc", 1, None);
         arena.clear_inventory(1);
         arena.equip_official_item(1, 101, "weapons", "hunting_bow");
+        arena
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 1)
+            .and_then(|entity| entity.equipped.get_mut("main_hand"))
+            .expect("ranger bow")
+            .set_attribute("quality", Value::Int(20));
         arena.add_official_world_item(301, "resources", "green_wood_node", 1.0, 0.0);
         arena.add_official_world_item(302, "resources", "bird_nest_node", 1.0, 0.0);
 
@@ -4723,7 +4792,6 @@ mod tests {
 
         assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "wooden_arrows"));
         assert_eq!(arena.inventory_item_quantity(1, "wooden_arrows"), 10);
-        arena.set_entity_attr(1, "skill_fletching", Value::Int(25));
         assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "hunting_bow"));
         assert_eq!(arena.inventory_item_quantity(1, "hunting_bow"), 1);
 
@@ -4819,20 +4887,52 @@ mod tests {
     }
 
     #[test]
-    fn official_ruleset_recipe_requires_skill_points() {
+    fn official_ruleset_recipe_skill_sets_output_quality() {
         let mut arena = HeadlessRulesArena::with_official_rules();
         arena.add_official_entity(1, "Ranger", "Human", 1, None);
+        arena.set_entity_attr(1, "skill_fletching", Value::Int(0));
         arena.add_official_inventory_item(1, 201, "materials", "green_wood");
 
-        assert!(!craft_ruleset_recipe(&mut arena.ctx, 1, "hunting_bow"));
-        assert_eq!(arena.inventory_item_quantity(1, "green_wood"), 5);
-        assert_eq!(arena.inventory_item_quantity(1, "hunting_bow"), 0);
+        assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "hunting_bow"));
+        assert_eq!(arena.inventory_item_quantity(1, "green_wood"), 2);
+        assert_eq!(arena.inventory_item_quantity(1, "hunting_bow"), 1);
+        let low_quality = arena
+            .ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == 1)
+            .and_then(|entity| {
+                entity.iter_inventory().find_map(|(_, item)| {
+                    (item.attributes.get_str("ruleset_id") == Some("hunting_bow"))
+                        .then(|| item.attributes.get_int_default("quality", 100))
+                })
+            })
+            .unwrap();
+        assert!(low_quality < 50);
 
+        arena.clear_inventory(1);
+        arena.add_official_inventory_item(1, 202, "materials", "green_wood");
         arena.set_entity_attr(1, "skill_fletching", Value::Int(25));
 
         assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "hunting_bow"));
         assert_eq!(arena.inventory_item_quantity(1, "green_wood"), 2);
         assert_eq!(arena.inventory_item_quantity(1, "hunting_bow"), 1);
+        let better_quality = arena
+            .ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == 1)
+            .and_then(|entity| {
+                entity.iter_inventory().find_map(|(_, item)| {
+                    (item.attributes.get_str("ruleset_id") == Some("hunting_bow"))
+                        .then(|| item.attributes.get_int_default("quality", 100))
+                })
+            })
+            .unwrap();
+        assert!(better_quality > low_quality);
+        assert_eq!(better_quality, 58);
     }
 
     #[test]

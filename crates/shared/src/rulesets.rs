@@ -36,6 +36,7 @@ const OFFICIAL_ELDIRON_V1_MESSAGES: &str =
 const OFFICIAL_ELDIRON_V1_EQUIPMENT: &str =
     include_str!("../../../rulesets/eldiron/v1/equipment.toml");
 const OFFICIAL_ELDIRON_V1_FX: &str = include_str!("../../../rulesets/eldiron/v1/fx.toml");
+const OFFICIAL_ELDIRON_V1_ICONS: &str = include_str!("../../../rulesets/eldiron/v1/icons.toml");
 const OFFICIAL_ELDIRON_V1_ACTIONS: &str = include_str!("../../../rulesets/eldiron/v1/actions.toml");
 const OFFICIAL_ELDIRON_V1_RECIPES: &str = include_str!("../../../rulesets/eldiron/v1/recipes.toml");
 const OFFICIAL_ELDIRON_V1_ABILITIES_SPELLS: &str =
@@ -56,6 +57,7 @@ static OFFICIAL_ELDIRON_V1: LazyLock<String> = LazyLock::new(|| {
         OFFICIAL_ELDIRON_V1_MESSAGES,
         OFFICIAL_ELDIRON_V1_EQUIPMENT,
         OFFICIAL_ELDIRON_V1_FX,
+        OFFICIAL_ELDIRON_V1_ICONS,
         OFFICIAL_ELDIRON_V1_ACTIONS,
         OFFICIAL_ELDIRON_V1_RECIPES,
         OFFICIAL_ELDIRON_V1_ABILITIES_SPELLS,
@@ -78,6 +80,15 @@ pub struct BundledAvatarAsset {
     pub ruleset_version: &'static str,
     pub path: &'static str,
     pub source: &'static str,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BundledTextureAsset {
+    pub id: &'static str,
+    pub ruleset_id: &'static str,
+    pub ruleset_version: &'static str,
+    pub path: &'static str,
+    pub source: &'static [u8],
 }
 
 pub fn bundled_rulesets() -> &'static [BundledRuleset] {
@@ -106,11 +117,82 @@ pub fn bundled_avatar_assets() -> &'static [BundledAvatarAsset] {
     }]
 }
 
+pub fn bundled_texture_assets() -> &'static [BundledTextureAsset] {
+    macro_rules! official_icon {
+        ($id:literal) => {
+            BundledTextureAsset {
+                id: $id,
+                ruleset_id: OFFICIAL_RULESET_ID,
+                ruleset_version: OFFICIAL_RULESET_VERSION,
+                path: concat!("assets/icons/", $id, ".png"),
+                source: include_bytes!(concat!(
+                    "../../../rulesets/eldiron/v1/assets/icons/",
+                    $id,
+                    ".png"
+                )),
+            }
+        };
+    }
+
+    &[
+        official_icon!("walk"),
+        official_icon!("look"),
+        official_icon!("use"),
+        official_icon!("take"),
+        official_icon!("drop"),
+        official_icon!("basic_attack"),
+        official_icon!("power_strike"),
+        official_icon!("minor_heal"),
+        official_icon!("holy_light"),
+        official_icon!("gather_herbs"),
+        official_icon!("gather_wood"),
+        official_icon!("gather_feathers"),
+        official_icon!("training_sword"),
+        official_icon!("hand_axe"),
+        official_icon!("novice_mace"),
+        official_icon!("hunting_bow"),
+        official_icon!("training_spear"),
+        official_icon!("padded_armor"),
+        official_icon!("leather_vest"),
+        official_icon!("chain_shirt"),
+        official_icon!("round_shield"),
+        official_icon!("linen_shirt"),
+        official_icon!("wool_trousers"),
+        official_icon!("leather_shoes"),
+        official_icon!("small_bag"),
+        official_icon!("loot_corpse"),
+        official_icon!("wooden_arrows"),
+        official_icon!("blessed_herb"),
+        official_icon!("green_wood"),
+        official_icon!("feather"),
+        official_icon!("wild_herb"),
+        official_icon!("wild_herb_node"),
+        official_icon!("green_wood_node"),
+        official_icon!("bird_nest_node"),
+    ]
+}
+
 pub fn bundled_avatar_assets_for_ruleset(
     ruleset_id: &str,
     ruleset_version: &str,
 ) -> Vec<&'static BundledAvatarAsset> {
     bundled_avatar_assets()
+        .iter()
+        .filter(|asset| {
+            asset.ruleset_id == ruleset_id
+                && (asset.ruleset_version == ruleset_version
+                    || ruleset_version == "1"
+                    || ruleset_version == "1.0"
+                    || ruleset_version == "v1")
+        })
+        .collect()
+}
+
+pub fn bundled_texture_assets_for_ruleset(
+    ruleset_id: &str,
+    ruleset_version: &str,
+) -> Vec<&'static BundledTextureAsset> {
+    bundled_texture_assets()
         .iter()
         .filter(|asset| {
             asset.ruleset_id == ruleset_id
@@ -139,6 +221,29 @@ pub fn bundled_avatars_for_project(
                     format!(
                         "Bundled ruleset avatar '{}' at '{}' could not be parsed: {}",
                         asset.id, asset.path, err
+                    )
+                })
+        })
+        .collect()
+}
+
+pub fn bundled_textures_for_project(
+    config_src: &str,
+) -> Result<Vec<(&'static str, rusterix::Texture)>, String> {
+    let (id, version, source) = selected_ruleset(config_src);
+    if source == "project" {
+        return Ok(Vec::new());
+    }
+
+    bundled_texture_assets_for_ruleset(&id, &version)
+        .into_iter()
+        .map(|asset| {
+            rusterix::Texture::from_image_safe(asset.source)
+                .map(|texture| (asset.id, texture))
+                .ok_or_else(|| {
+                    format!(
+                        "Bundled ruleset texture '{}' at '{}' could not be decoded",
+                        asset.id, asset.path
                     )
                 })
         })
@@ -1745,6 +1850,8 @@ fn ruleset_item_template_data(
     insert_float(&mut attributes, "radius", 0.5);
     insert_float(&mut attributes, "worth", 0.0);
     insert_bool(&mut attributes, "monetary", false);
+    insert_integer(&mut attributes, "quality", 100);
+    insert_integer(&mut attributes, "condition", 100);
 
     for key in ["category", "slot", "rarity"] {
         if let Some(value) = table_string(item, key) {
@@ -1753,14 +1860,18 @@ fn ruleset_item_template_data(
     }
 
     for key in [
+        "icon",
         "visual_template",
         "container_template",
         "icon_template",
         "rig_template",
+        "icon_color",
         "rig_scale",
         "rig_pivot",
         "rig_layer",
         "rig_flip_back",
+        "quality",
+        "condition",
         "blade_color",
         "blade_color_index",
         "grip_color",
@@ -1831,6 +1942,24 @@ fn ruleset_item_template_data(
     if let Some(item_attributes) = item.get("attributes").and_then(Value::as_table) {
         for (key, value) in item_attributes {
             attributes.insert(key.clone(), value.clone());
+        }
+    }
+
+    if let Some(damage) = item.get("damage").and_then(Value::as_table) {
+        if let Some(roll) = table_string(damage, "roll") {
+            insert_string(&mut attributes, "damage_roll", roll);
+        }
+        if let Some(value) = damage.get("bonus") {
+            attributes.insert("damage_bonus".to_string(), value.clone());
+        }
+        if let Some(attribute) = table_string(damage, "bonus_attribute") {
+            insert_string(&mut attributes, "damage_bonus_attribute", attribute);
+        }
+        if let Some(value) = damage.get("bonus_every") {
+            attributes.insert("damage_bonus_every".to_string(), value.clone());
+        }
+        if let Some(kind) = table_string(damage, "damage_kind") {
+            insert_string(&mut attributes, "damage_kind", kind);
         }
     }
 
@@ -2037,6 +2166,26 @@ mod tests {
             .expect("humanoid avatar should be bundled");
 
         assert!(!avatar.animations.is_empty());
+    }
+
+    #[test]
+    fn loads_bundled_ruleset_icons() {
+        let textures = bundled_textures_for_project("").unwrap();
+
+        for id in [
+            "walk",
+            "look",
+            "basic_attack",
+            "training_sword",
+            "small_bag",
+        ] {
+            let (_, texture) = textures
+                .iter()
+                .find(|(texture_id, _)| *texture_id == id)
+                .unwrap_or_else(|| panic!("{id} icon should be bundled"));
+            assert_eq!(texture.width, 32);
+            assert_eq!(texture.height, 32);
+        }
     }
 
     #[test]
@@ -2347,6 +2496,7 @@ mod tests {
                 && template
                     .data
                     .contains("visual_template = \"sword_diagonal\"")
+                && template.data.contains("icon = \"training_sword\"")
                 && template
                     .data
                     .contains("description = \"A blunt wooden practice sword")
@@ -2372,6 +2522,10 @@ mod tests {
             template.id == "hunting_bow"
                 && template.data.contains("visual_template = \"bow_diagonal\"")
                 && template.data.contains("visual_template_pixels")
+                && template.data.contains("quality = 100")
+                && template.data.contains("condition = 100")
+                && template.data.contains("damage_roll = \"1d6\"")
+                && template.data.contains("damage_bonus_attribute = \"DEX\"")
         }));
         assert!(templates.iter().any(|template| {
             template.id == "training_spear"
@@ -2409,9 +2563,8 @@ mod tests {
             template.id == "green_wood"
                 && template.kind == "material"
                 && template.ruleset_path == "items.materials.green_wood"
-                && template
-                    .data
-                    .contains("visual_template = \"spear_diagonal\"")
+                && template.data.contains("icon = \"gather_wood\"")
+                && template.data.contains("icon_color = \"#9a6a3a\"")
         }));
         assert!(templates.iter().any(|template| {
             template.id == "feather"
@@ -2456,6 +2609,7 @@ mod tests {
             template.id == "small_bag"
                 && template.kind == "container"
                 && template.ruleset_path == "items.containers.small_bag"
+                && template.data.contains("icon = \"small_bag\"")
                 && template.data.contains("container = true")
                 && template.data.contains("container_slots = 6")
                 && template.data.contains("container_template = \"bag_small\"")

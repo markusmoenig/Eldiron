@@ -75,6 +75,7 @@ clients, runtime systems, and tools read.
 | Weapon | `[items.weapons.training_sword]` | damage, cooldown, range, visuals |
 | Spell | `[spells.minor_heal]` | cost, range, cast time, effect |
 | Intent | `[intents.attack]` | allowed actions and distances |
+| Icon | `[icons.basic_attack]` | bundled UI/item masks and attribution |
 | Combat kind | `[combat.kinds.fire]` | damage bonuses and reductions |
 
 The current bundled ruleset is assembled from split TOML files under the
@@ -359,7 +360,7 @@ into a hard profession slot.
 ### Crafting Skills
 
 Official v1 starts with open sandbox crafting: there is no fixed two-profession
-limit. Recipes name a skill, a required skill value, a difficulty, and the
+limit. Recipes name a skill, a recommended skill value, a difficulty, and the
 attribute that naturally supports that work.
 
 | Skill | Attribute | Range | Early use |
@@ -372,19 +373,28 @@ attribute that naturally supports that work.
 | `tailoring` | `DEX` | 0-100 | cloth, leather, dyes, patterns |
 | `woodworking` | `DEX` | 0-100 | wooden handles, shields, furniture |
 
-Simple recipes can require `0` skill so they are available immediately. Better
-recipes can require higher skill values. A character can expose skill points as
+Simple recipes are available immediately. Better skill values create better
+outputs instead of blocking the attempt. A character can expose skill points as
 attributes such as `skill_fletching = 25`.
+
+Crafted items use two numeric percentages:
+
+- `quality`: `1..100`, how well the item was made
+- `condition`: `1..100`, current wear or damage
+
+Crafted items start with `condition = 100`. Their `quality` is calculated from
+recipe difficulty, recommended skill, the crafter's matching skill, and the
+supporting attribute. Weapon damage scales by both quality and condition.
 
 ### Recipes
 
 Recipes transform inventory stacks into item outputs. They use the same item
 templates as loot, shops, class loadouts, spell reagents, and text look paths.
 
-| Recipe | Skill | Required | Difficulty | Consumes | Produces |
+| Recipe | Skill | Recommended | Difficulty | Consumes | Produces |
 | --- | --- | --- | --- | --- | --- |
-| `wooden_arrows` | `fletching` | 0 | 10 | `green_wood x1`, `feather x2` | `wooden_arrows x10` |
-| `blessed_herb` | `restoration` | 0 | 8 | `wild_herb x1` | `blessed_herb x1` |
+| `wooden_arrows` | `fletching` | 10 | 10 | `green_wood x1`, `feather x2` | `wooden_arrows x10` |
+| `blessed_herb` | `restoration` | 8 | 8 | `wild_herb x1` | `blessed_herb x1` |
 | `hunting_bow` | `fletching` | 25 | 35 | `green_wood x3` | `hunting_bow x1` |
 
 `profession_hint` marks who usually teaches, sells, or performs the work, and
@@ -604,6 +614,9 @@ verbs such as harvesting, crafting, lockpicking, stealing, or taming.
 | `gather_herbs` | gather | resource node | - | resource output |
 | `gather_wood` | gather | resource node | - | resource output |
 | `gather_feathers` | gather | resource node | - | resource output |
+| `craft_blessed_herb` | craft | self | `1 wild_herb`, `minor_heal` known | `blessed_herb x1` |
+| `craft_wooden_arrows` | craft | self | `1 green_wood`, `2 feather` | `wooden_arrows x10` |
+| `craft_hunting_bow` | craft | self | `3 green_wood`, recommended `fletching 25` | `hunting_bow x1` |
 
 Action definitions already include a generic `consumes` list, so spells,
 crafting, and other sandbox actions can require reagents or materials without a
@@ -614,6 +627,11 @@ removes an inventory slot.
 Actions can also declare `skill` and `required_skill`. The first gather actions
 are open at `required_skill = 0`, but the same mechanism is now available for
 higher-tier ore, wood, herbs, locks, traps, and profession actions.
+
+Class action bars expose five demo slots in Hideout2D. Warrior gets martial
+combat plus simple field gathering and arrow crafting. Cleric gets attack,
+healing, holy damage, herb gathering, and herb blessing. Ranger gets attack,
+wood and feather gathering, arrow fletching, and bow crafting.
 
 Abilities are class-owned combat options. Spells add school, cast time, and
 damage or healing data. Actions connect those definitions to targets, costs,
@@ -743,7 +761,7 @@ Expected v1 growth areas:
 - conditions such as stunned, burning, poisoned, blessed, and guarded
 - armor proficiency, weapon proficiency, and class restrictions
 - encounter templates and automatic arena balance tests
-- item quality, rarity, value, and repair rules
+- rarity, value, repair rules, and deeper quality/condition effects
 - richer AI intent rules and disposition changes
 - localization-ready rule names, messages, and descriptions
 - illustrated guide pages and deeper examples

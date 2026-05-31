@@ -16,7 +16,7 @@ use crate::{
     BrushPreview, Command, D2ConceptBuilder, D2PreviewBuilder, EntityAction, MapMini, PlayerCamera,
     Rect, SceneHandler, Surface, Value,
     client::action::ClientAction,
-    client::command::{ClientCommandBinding, command_from_legacy_fields},
+    client::command::{ClientCommandBinding, command_from_legacy_fields, parse_client_command},
     client::rules_ui::{CommandState, ContainerUiTemplate, RulesDescription},
     client::widget::{
         ButtonStateStyle, ButtonVisualState, TextInputWidget, Widget, avatar::AvatarWidget,
@@ -457,6 +457,131 @@ impl Client {
             .lock()
             .map(|action| action.shortcut_labels_for_binding(binding))
             .unwrap_or_default()
+    }
+
+    fn resolved_widget_command(
+        widget: &Widget,
+        assets: &Assets,
+        entity: Option<&Entity>,
+        ui_state: &FxHashMap<String, String>,
+    ) -> Option<String> {
+        if let Some(slot) = widget.command_slot.as_deref() {
+            return Self::command_for_slot(slot, assets, entity, ui_state);
+        }
+        widget.command.clone().or_else(|| {
+            widget
+                .command_binding()
+                .map(|binding| binding.command_string())
+        })
+    }
+
+    fn resolved_widget_binding(
+        widget: &Widget,
+        assets: &Assets,
+        entity: Option<&Entity>,
+        ui_state: &FxHashMap<String, String>,
+    ) -> Option<ClientCommandBinding> {
+        Self::resolved_widget_command(widget, assets, entity, ui_state)
+            .as_deref()
+            .and_then(parse_client_command)
+    }
+
+    fn resolved_widget_intent_payload(
+        widget: &Widget,
+        assets: &Assets,
+        entity: Option<&Entity>,
+        ui_state: &FxHashMap<String, String>,
+    ) -> Option<String> {
+        Self::resolved_widget_binding(widget, assets, entity, ui_state)
+            .and_then(|binding| binding.intent_payload())
+    }
+
+    fn command_for_slot(
+        slot: &str,
+        assets: &Assets,
+        entity: Option<&Entity>,
+        ui_state: &FxHashMap<String, String>,
+    ) -> Option<String> {
+        let slot = slot.trim();
+        if slot.is_empty() {
+            return None;
+        }
+
+        let suffix = Self::slot_attr_suffix(slot);
+        if let Some(command) = entity
+            .and_then(|entity| {
+                entity
+                    .attributes
+                    .get_str(&format!("command_slot_{}", suffix))
+                    .or_else(|| {
+                        entity
+                            .attributes
+                            .get_str(&format!("action_slot_{}", suffix))
+                    })
+            })
+            .map(str::trim)
+            .filter(|command| !command.is_empty())
+        {
+            return Self::normalize_slot_command(command);
+        }
+
+        let (group, index) = Self::split_command_slot(slot)?;
+        let class = entity
+            .and_then(|entity| {
+                entity
+                    .get_attr_string("class")
+                    .or_else(|| entity.get_attr_string("class_name"))
+            })
+            .or_else(|| ui_state.get("start.class").cloned())
+            .unwrap_or_else(|| "Warrior".to_string());
+
+        let rules = assets.rules.parse::<Table>().ok()?;
+        let command = rules
+            .get("classes")?
+            .as_table()?
+            .get(class.trim())?
+            .as_table()?
+            .get("action_bar")?
+            .as_table()?
+            .get(group)?
+            .as_array()?
+            .get(index)?
+            .as_str()?;
+        Self::normalize_slot_command(command)
+    }
+
+    fn split_command_slot(slot: &str) -> Option<(&str, usize)> {
+        let (group, index) = slot.rsplit_once('.')?;
+        let group = group.trim();
+        let index = index.trim().parse::<usize>().ok()?;
+        (!group.is_empty()).then_some((group, index))
+    }
+
+    fn slot_attr_suffix(slot: &str) -> String {
+        let mut suffix = String::new();
+        for ch in slot.chars() {
+            if ch.is_ascii_alphanumeric() {
+                suffix.push(ch.to_ascii_lowercase());
+            } else {
+                suffix.push('_');
+            }
+        }
+        while suffix.contains("__") {
+            suffix = suffix.replace("__", "_");
+        }
+        suffix.trim_matches('_').to_string()
+    }
+
+    fn normalize_slot_command(command: &str) -> Option<String> {
+        let command = command.trim();
+        if command.is_empty() {
+            return None;
+        }
+        if parse_client_command(command).is_some() {
+            Some(command.to_string())
+        } else {
+            Some(format!("rules.{}", command))
+        }
     }
 
     fn add_shortcut_line(description: &mut RulesDescription, shortcuts: Vec<String>) {
@@ -1506,6 +1631,13 @@ impl Client {
         ButtonVisualState::Normal
     }
 
+    fn command_is_walk(command: Option<&str>) -> bool {
+        matches!(
+            command.and_then(parse_client_command),
+            Some(ClientCommandBinding::Intent(intent)) if intent.trim().is_empty()
+        )
+    }
+
     /// Setup the client with the given assets.
     pub fn setup(&mut self, assets: &mut Assets, scene_handler: &mut SceneHandler) -> Vec<Command> {
         let mut commands = vec![];
@@ -2062,9 +2194,13 @@ impl Client {
                 screen_widget.grid_size = self.grid_size;
 
                 // Add the current intent to the activated widgets
+                let leader = Self::resolve_party_entity(map, Some("leader"));
                 for w in self.button_widgets.iter() {
-                    if w.1.intent_payload().as_deref() == Some(self.intent.as_str()) {
-                        screen_widget.builder_d2.activated_widgets.push(w.0.clone());
+                    if Self::resolved_widget_intent_payload(w.1, assets, leader, &self.ui_state)
+                        .as_deref()
+                        == Some(self.intent.as_str())
+                    {
+                        screen_widget.builder_d2.activated_widgets.push(*w.0);
                     }
                 }
 
@@ -2213,13 +2349,17 @@ impl Client {
                     self.cursor_pos.x as f32,
                     self.cursor_pos.y as f32,
                 ));
-                let command_state = widget
-                    .command
+                let resolved_command =
+                    Self::resolved_widget_command(widget, assets, entity, &self.ui_state);
+                let command_state = resolved_command
                     .as_deref()
                     .map(|command| rules_ui::command_state(assets, entity, command));
+                let selected = self.activated_widgets.contains(&widget.id)
+                    || (self.intent.trim().is_empty()
+                        && Self::command_is_walk(resolved_command.as_deref()));
                 let visual_state = Self::button_visual_state(
                     hovered,
-                    self.activated_widgets.contains(&widget.id),
+                    selected,
                     self.pressed_widget == Some(widget.id),
                     command_state.as_ref(),
                 );
@@ -2231,6 +2371,7 @@ impl Client {
                     &self.draw2d,
                     &self.animation_frame,
                     visual_state,
+                    resolved_command.as_deref(),
                 );
                 if let Some(state) = command_state {
                     if !state.enabled || state.cooldown_remaining > 0.0 {
@@ -2523,9 +2664,13 @@ impl Client {
             screen_widget.builder_d2.activated_widgets = self.activated_widgets.clone();
             screen_widget.grid_size = self.grid_size;
 
+            let leader = Self::resolve_party_entity(map, Some("leader"));
             for w in self.button_widgets.iter() {
-                if w.1.intent_payload().as_deref() == Some(self.intent.as_str()) {
-                    screen_widget.builder_d2.activated_widgets.push(w.0.clone());
+                if Self::resolved_widget_intent_payload(w.1, assets, leader, &self.ui_state)
+                    .as_deref()
+                    == Some(self.intent.as_str())
+                {
+                    screen_widget.builder_d2.activated_widgets.push(*w.0);
                 }
             }
 
@@ -2746,13 +2891,17 @@ impl Client {
                     self.cursor_pos.x as f32,
                     self.cursor_pos.y as f32,
                 ));
-                let command_state = widget
-                    .command
+                let resolved_command =
+                    Self::resolved_widget_command(widget, assets, entity, &self.ui_state);
+                let command_state = resolved_command
                     .as_deref()
                     .map(|command| rules_ui::command_state(assets, entity, command));
+                let selected = self.activated_widgets.contains(&widget.id)
+                    || (self.intent.trim().is_empty()
+                        && Self::command_is_walk(resolved_command.as_deref()));
                 let visual_state = Self::button_visual_state(
                     hovered,
-                    self.activated_widgets.contains(&widget.id),
+                    selected,
                     self.pressed_widget == Some(widget.id),
                     command_state.as_ref(),
                 );
@@ -2764,7 +2913,18 @@ impl Client {
                     &self.draw2d,
                     &self.animation_frame,
                     visual_state,
+                    resolved_command.as_deref(),
                 );
+                if let Some(state) = command_state {
+                    if !state.enabled || state.cooldown_remaining > 0.0 {
+                        Self::draw_command_state_overlay(
+                            &mut self.overlay,
+                            &self.draw2d,
+                            widget.rect,
+                            &state,
+                        );
+                    }
+                }
             }
         }
 
@@ -2795,6 +2955,10 @@ impl Client {
                 );
             }
         }
+
+        std::mem::swap(&mut self.target, &mut self.overlay);
+        self.draw_hover_tooltip(map, assets);
+        std::mem::swap(&mut self.target, &mut self.overlay);
 
         if let Some(cursor) = self.curr_cursor
             && let Some(tile) = assets.tiles.get(&cursor)
@@ -3360,15 +3524,18 @@ impl Client {
     ) -> Option<(Option<Uuid>, Option<Uuid>, Option<Uuid>, Option<Uuid>)> {
         self.activated_widgets.iter().rev().find_map(|button_id| {
             self.button_widgets.get(button_id).and_then(|widget| {
-                widget.intent_payload().and_then(|intent| {
-                    (!intent.trim().is_empty()).then(|| {
-                        (
-                            widget.entity_cursor_id,
-                            widget.entity_clicked_cursor_id,
-                            widget.item_cursor_id,
-                            widget.item_clicked_cursor_id,
-                        )
-                    })
+                let has_intent = widget
+                    .intent_payload()
+                    .map(|intent| !intent.trim().is_empty())
+                    .unwrap_or(false)
+                    || (widget.command_slot.is_some() && !self.intent.trim().is_empty());
+                has_intent.then(|| {
+                    (
+                        widget.entity_cursor_id,
+                        widget.entity_clicked_cursor_id,
+                        widget.item_cursor_id,
+                        widget.item_clicked_cursor_id,
+                    )
                 })
             })
         })
@@ -3435,15 +3602,25 @@ impl Client {
         self.activated_widgets.retain(|id| {
             self.button_widgets
                 .get(id)
-                .and_then(Widget::intent_payload)
-                .map(|intent| intent.trim().is_empty())
+                .map(|widget| {
+                    widget.command_slot.is_none()
+                        && widget
+                            .intent_payload()
+                            .map(|intent| intent.trim().is_empty())
+                            .unwrap_or(true)
+                })
                 .unwrap_or(true)
         });
         self.permanently_activated_widgets.retain(|id| {
             self.button_widgets
                 .get(id)
-                .and_then(Widget::intent_payload)
-                .map(|intent| intent.trim().is_empty())
+                .map(|widget| {
+                    widget.command_slot.is_none()
+                        && widget
+                            .intent_payload()
+                            .map(|intent| intent.trim().is_empty())
+                            .unwrap_or(true)
+                })
                 .unwrap_or(true)
         });
         self.curr_intent_cursor = None;
@@ -3452,25 +3629,57 @@ impl Client {
     }
 
     fn is_targeting_button(widget: &Widget) -> bool {
-        matches!(
-            widget.command_binding(),
-            Some(ClientCommandBinding::Intent(_) | ClientCommandBinding::RulesAction(_))
-        )
+        widget.command_slot.is_some()
+            || matches!(
+                widget.command_binding(),
+                Some(ClientCommandBinding::Intent(_) | ClientCommandBinding::RulesAction(_))
+            )
     }
 
-    fn activate_walk_button(&mut self, button_id: u32) {
-        self.intent.clear();
+    fn activate_targeting_button(&mut self, button_id: u32) {
         self.activated_widgets.retain(|id| {
-            *id == button_id
-                || self
+            *id != button_id
+                && self
                     .button_widgets
                     .get(id)
                     .map(|widget| !Self::is_targeting_button(widget))
                     .unwrap_or(true)
         });
         self.permanently_activated_widgets.retain(|id| {
-            *id == button_id
-                || self
+            *id != button_id
+                && self
+                    .button_widgets
+                    .get(id)
+                    .map(|widget| !Self::is_targeting_button(widget))
+                    .unwrap_or(true)
+        });
+        if !self.activated_widgets.contains(&button_id) {
+            self.activated_widgets.push(button_id);
+        }
+        if !self.permanently_activated_widgets.contains(&button_id) {
+            self.permanently_activated_widgets.push(button_id);
+        }
+
+        if let Some(widget) = self.button_widgets.get(&button_id) {
+            self.curr_intent_cursor = widget.item_cursor_id;
+            self.curr_clicked_intent_cursor = widget.item_clicked_cursor_id;
+            self.curr_cursor = self.default_cursor;
+        }
+    }
+
+    fn activate_walk_button(&mut self, button_id: u32) {
+        self.intent.clear();
+        self.activated_widgets.retain(|id| {
+            *id != button_id
+                && self
+                    .button_widgets
+                    .get(id)
+                    .map(|widget| !Self::is_targeting_button(widget))
+                    .unwrap_or(true)
+        });
+        self.permanently_activated_widgets.retain(|id| {
+            *id != button_id
+                && self
                     .button_widgets
                     .get(id)
                     .map(|widget| !Self::is_targeting_button(widget))
@@ -3748,11 +3957,17 @@ impl Client {
     }
 
     /// Click / touch down event
-    pub fn touch_down(&mut self, coord: Vec2<i32>, map: &Map) -> Option<EntityAction> {
+    pub fn touch_down(
+        &mut self,
+        coord: Vec2<i32>,
+        map: &Map,
+        assets: &Assets,
+    ) -> Option<EntityAction> {
         let mut action = None;
         let mut camera_action = None;
         let mut render_camera_switches: Vec<(Option<String>, PlayerCamera)> = Vec::new();
         let mut selected_walk_button_id = None;
+        let mut selected_targeting_button_id = None;
         let mut bound_state_update: Option<(String, String)> = None;
         let active_intent = self.get_current_intent_for_action();
         self.dragging_item_id = None;
@@ -3914,7 +4129,10 @@ impl Client {
                 // Command buttons work in both 2D and 3D. Control commands become
                 // immediate movement/camera input; intent and rules commands set the
                 // active targeting state and become one-shot actions in classic 2D.
-                if let Some(binding) = widget.command_binding() {
+                let command_entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                if let Some(binding) =
+                    Self::resolved_widget_binding(widget, assets, command_entity, &self.ui_state)
+                {
                     match binding {
                         ClientCommandBinding::Control(act) => {
                             action = Some(act);
@@ -3924,19 +4142,17 @@ impl Client {
                             if payload.trim().is_empty() {
                                 self.intent.clear();
                                 selected_walk_button_id = Some(*id);
-                            } else if self.game_widget_is_2d() {
-                                self.intent = payload.clone();
-                                action = Some(EntityAction::Intent(payload));
                             } else {
-                                self.intent = payload;
+                                self.intent = payload.clone();
+                                selected_targeting_button_id = Some(*id);
+                                action = Some(EntityAction::Intent(payload));
                             }
                         }
                         ClientCommandBinding::RulesAction(rules_action) => {
                             let payload = format!("action:{}", rules_action);
                             self.intent = payload.clone();
-                            if self.game_widget_is_2d() {
-                                action = Some(EntityAction::Intent(payload));
-                            }
+                            selected_targeting_button_id = Some(*id);
+                            action = Some(EntityAction::Intent(payload));
                         }
                         ClientCommandBinding::Screen(_) | ClientCommandBinding::Game(_) => {
                             self.pending_runtime_commands.push(binding);
@@ -4008,6 +4224,9 @@ impl Client {
                     self.permanently_activated_widgets.push(widget.id);
                 }
             }
+        }
+        if let Some(button_id) = selected_targeting_button_id {
+            self.activate_targeting_button(button_id);
         }
         if let Some(button_id) = selected_walk_button_id {
             self.activate_walk_button(button_id);
@@ -4387,22 +4606,13 @@ impl Client {
         // ---
 
         let is_key_down = event == "key_down";
-        let mut action = self.client_action.lock().unwrap().user_event(event, value);
+        let action = self.client_action.lock().unwrap().user_event(event, value);
 
         if is_key_down {
-            if !immediate_2d_intent && let EntityAction::Intent(intent_name) = &action {
-                // 3D and click-intents-in-2D use intent as a persistent UI state.
+            if let EntityAction::Intent(intent_name) = &action {
                 self.apply_intent_button_activation(intent_name);
-                // Keyboard intent shortcuts only update selection state here.
-                action = EntityAction::Off;
-            }
-        }
-
-        if is_key_down && let EntityAction::Intent(intent_name) = &action {
-            if immediate_2d_intent {
-                // Classic 2D uses one-shot directional intents, so shortcuts should
-                // not toggle persistent button activation.
-                self.intent = intent_name.clone();
+                // The server also needs the selected intent for the next directional
+                // input in classic 2D mode; the next target/move consumes it.
             }
         }
 
@@ -4475,6 +4685,10 @@ impl Client {
             handled |= widget.scroll(delta_y);
         }
         handled
+    }
+
+    pub fn hover_tooltip_pending(&self) -> bool {
+        self.tooltip_hover_since.is_some()
     }
 
     /// Apply the same intent-button toggle behavior as clicking a button:
@@ -4574,12 +4788,9 @@ impl Client {
             return;
         }
 
-        // Deactivate all other intent buttons so shortcut intent is authoritative.
+        // Deactivate all other targeting buttons so shortcut intent is authoritative.
         for (id, widget) in self.button_widgets.iter() {
-            if *id != button_id
-                && let Some(intent) = widget.intent_payload()
-                && !intent.is_empty()
-            {
+            if *id != button_id && Self::is_targeting_button(widget) {
                 self.activated_widgets.retain(|x| x != id);
                 self.permanently_activated_widgets.retain(|x| x != id);
             }
@@ -4670,7 +4881,19 @@ impl Client {
                 let width = bb.size().x * self.grid_size;
                 let height = bb.size().y * self.grid_size;
 
-                let textures = vec![];
+                let mut textures = Vec::new();
+                if let Some(source) = widget.properties.get_default_source()
+                    && let Some(tile) = source.tile_from_tile_list(assets)
+                    && let Some(texture) = tile.textures.first()
+                {
+                    textures.push(texture.clone());
+                }
+                if let Some(source) = widget.properties.get_source("ceiling_source")
+                    && let Some(tile) = source.tile_from_tile_list(assets)
+                    && let Some(texture) = tile.textures.first()
+                {
+                    textures.push(texture.clone());
+                }
 
                 if let Some(crate::Value::Str(data)) = widget.properties.get("data") {
                     if let Ok(table) = data.parse::<Table>() {
@@ -4705,6 +4928,7 @@ impl Client {
                             self.game_widgets.insert(widget.creator_id, game_widget);
                         } else if role == "button" {
                             let mut command = None;
+                            let mut command_slot = None;
                             let mut action = "";
                             let mut intent = None;
                             let mut spell = None;
@@ -4748,6 +4972,14 @@ impl Client {
                                     let trimmed = v.trim();
                                     if !trimmed.is_empty() {
                                         command = Some(trimmed.to_string());
+                                    }
+                                }
+                                if let Some(value) = ui.get("command_slot")
+                                    && let Some(v) = value.as_str()
+                                {
+                                    let trimmed = v.trim();
+                                    if !trimmed.is_empty() {
+                                        command_slot = Some(trimmed.to_string());
                                     }
                                 }
 
@@ -5026,6 +5258,7 @@ impl Client {
                                 rect: Rect::new(x, y, width, height),
                                 action: action.into(),
                                 command,
+                                command_slot,
                                 intent,
                                 spell,
                                 group,
@@ -5533,6 +5766,9 @@ impl Client {
     }
 
     fn draw_open_container_panel(&mut self, map: &Map, assets: &Assets) {
+        if self.open_container_panel.is_none() {
+            return;
+        }
         let Some(item) = self.open_container_item(map).cloned() else {
             self.close_floaters();
             return;
@@ -6231,11 +6467,10 @@ impl Client {
                     ));
                 }
             }
-            if let Some(binding) = widget.command_binding() {
-                let command = widget
-                    .command
-                    .clone()
-                    .unwrap_or_else(|| binding.command_string());
+            if let Some(command) =
+                Self::resolved_widget_command(widget, assets, entity, &self.ui_state)
+                && let Some(binding) = parse_client_command(&command)
+            {
                 let shortcuts = self.shortcut_labels_for_binding(&binding);
                 match binding {
                     ClientCommandBinding::Control(_) => return None,

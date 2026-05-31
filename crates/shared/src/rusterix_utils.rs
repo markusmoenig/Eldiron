@@ -15,6 +15,20 @@ fn insert_bundled_ruleset_avatars(
     }
 }
 
+fn insert_bundled_ruleset_textures(
+    assets: &mut rusterix::server::assets::Assets,
+    project: &Project,
+) {
+    match crate::rulesets::bundled_textures_for_project(&project.config) {
+        Ok(textures) => {
+            for (id, texture) in textures {
+                assets.textures.insert(id.to_string(), texture);
+            }
+        }
+        Err(err) => eprintln!("Ruleset texture load error: {}", err),
+    }
+}
+
 /// Start the server
 pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool) {
     rusterix.server.clear();
@@ -164,6 +178,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
             .avatars
             .insert(avatar.name.clone(), avatar.clone());
     }
+    insert_bundled_ruleset_textures(&mut rusterix.assets, project);
 
     // Wait for the region to be created
     #[cfg(not(target_arch = "wasm32"))]
@@ -249,6 +264,7 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
             .avatars
             .insert(avatar.name.clone(), avatar.clone());
     }
+    insert_bundled_ruleset_textures(&mut rusterix.assets, project);
     rusterix.assets.fonts.clear();
     rusterix.assets.audio.clear();
     for (_, asset) in project.assets.iter() {

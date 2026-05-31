@@ -23,6 +23,7 @@ messages.toml           locale keys for rules-driven runtime feedback
 locales.toml            English defaults for ruleset-owned locale keys
 equipment.toml          equipment slots, categories, weapons, armor, clothing, resource nodes
 fx.toml                 semantic procedural FX presets for spells and actions
+icons.toml              shared action, intent, and item icon catalog
 actions.toml            sandbox-facing action definitions
 recipes.toml            skill-gated crafting and preparation recipes
 abilities_spells.toml   abilities and spells
@@ -41,3 +42,18 @@ assets/humanoid.eldiron_avatar
 Explicit character `tile_id`, `avatar`, or `avatar_id` values override the
 ruleset visual default. Explicit empty visual attributes can be used to disable
 the inherited default.
+
+Bundled UI/item icon masks are generated from `icons.toml` into:
+
+```text
+assets/icons
+```
+
+Regenerate them with:
+
+```bash
+cargo run -p eldiron-icon-builder -- rulesets/eldiron/v1/icons.toml rulesets/eldiron/v1/assets/icons
+```
+
+The generated attribution file in `assets/icons/ATTRIBUTION.md` tracks the
+Game-icons.net sources and licenses.

@@ -14,6 +14,7 @@ use crate::{
 };
 use draw2d::Draw2D;
 use theframework::prelude::*;
+use toml::Table;
 
 #[derive(Clone, Copy, Default)]
 pub struct ButtonStateStyle {
@@ -39,6 +40,7 @@ pub struct Widget {
     pub rect: Rect,
     pub action: String,
     pub command: Option<String>,
+    pub command_slot: Option<String>,
     pub intent: Option<String>,
     pub spell: Option<String>,
     pub group: Option<String>,
@@ -165,6 +167,14 @@ impl TextInputWidget {
     }
 }
 
+fn table_at<'a>(root: &'a Table, path: &[&str]) -> Option<&'a Table> {
+    let mut current = root;
+    for key in path {
+        current = current.get(*key)?.as_table()?;
+    }
+    Some(current)
+}
+
 impl Default for Widget {
     fn default() -> Self {
         Self::new()
@@ -179,6 +189,7 @@ impl Widget {
             rect: Rect::default(),
             action: String::new(),
             command: None,
+            command_slot: None,
             intent: None,
             spell: None,
             group: None,
@@ -259,6 +270,7 @@ impl Widget {
         draw2d: &Draw2D,
         animation_frame: &usize,
         visual_state: ButtonVisualState,
+        resolved_command: Option<&str>,
     ) {
         let stride = buffer.stride();
         let buffer_width = buffer.dim().width as isize;
@@ -270,9 +282,22 @@ impl Widget {
             ButtonVisualState::Selected => self.selected_style,
             ButtonVisualState::Disabled => self.disabled_style,
         };
+        let is_command_slot = self.command_slot.is_some();
+        let is_command_button = is_command_slot
+            || resolved_command
+                .or(self.command.as_deref())
+                .and_then(parse_client_command)
+                .is_some();
 
-        if let Some(background_color) = state_style.background_color.or(self.background_color) {
+        let effective_background_color =
+            if is_command_button && matches!(visual_state, ButtonVisualState::Selected) {
+                self.background_color
+            } else {
+                state_style.background_color.or(self.background_color)
+            };
+        if let Some(background_color) = effective_background_color {
             let color = match visual_state {
+                ButtonVisualState::Selected if is_command_button => background_color,
                 ButtonVisualState::Selected => state_style.background_color.unwrap_or([
                     background_color[0].saturating_add(34),
                     background_color[1].saturating_add(30),
@@ -313,7 +338,13 @@ impl Widget {
             );
         }
 
-        if !self.textures.is_empty() {
+        if let Some((texture, color)) = Self::command_icon_texture(
+            assets,
+            resolved_command.or(self.command.as_deref()),
+            visual_state,
+        ) {
+            Self::draw_tinted_texture(buffer, self.rect, draw2d, texture, color);
+        } else if !self.textures.is_empty() {
             let texture_index = self.texture_index_for_state(visual_state);
             draw2d.blend_scale_chunk(
                 buffer.pixels_mut(),
@@ -374,7 +405,11 @@ impl Widget {
         if self.border_size > 0 {
             let border_color = match visual_state {
                 ButtonVisualState::Selected => {
-                    state_style.border_color.unwrap_or([238, 214, 118, 255])
+                    if is_command_button {
+                        [255, 255, 255, 255]
+                    } else {
+                        state_style.border_color.unwrap_or([238, 214, 118, 255])
+                    }
                 }
                 ButtonVisualState::Hover => state_style.border_color.unwrap_or([
                     self.border_color[0].saturating_add(34),
@@ -440,6 +475,203 @@ impl Widget {
                 );
             }
         }
+    }
+
+    fn command_icon_texture<'a>(
+        assets: &'a Assets,
+        command: Option<&str>,
+        visual_state: ButtonVisualState,
+    ) -> Option<(&'a Texture, Pixel)> {
+        let root = assets.rules.parse::<Table>().ok()?;
+        let command_table = Self::command_icon_table(&root, command?)?;
+        let ui = command_table.get("ui").and_then(toml::Value::as_table);
+
+        let icon_key = match visual_state {
+            ButtonVisualState::Selected => ["selected_icon", "icon"],
+            ButtonVisualState::Pressed => ["pressed_icon", "selected_icon"],
+            ButtonVisualState::Disabled => ["disabled_icon", "icon"],
+            ButtonVisualState::Hover | ButtonVisualState::Normal => ["icon", "normal_icon"],
+        };
+        let icon_name = icon_key
+            .iter()
+            .find_map(|key| {
+                ui.and_then(|ui| ui.get(*key))
+                    .or_else(|| command_table.get(*key))
+                    .and_then(toml::Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+            })
+            .or_else(|| {
+                ui.and_then(|ui| ui.get("icon"))
+                    .or_else(|| command_table.get("icon"))
+                    .and_then(toml::Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+            })?;
+        let icon_name = Self::resolve_icon_texture_id(&root, icon_name);
+
+        let color = match visual_state {
+            ButtonVisualState::Selected => Self::command_icon_color(
+                command_table,
+                ui,
+                &["selected_icon_color", "icon_selected_color"],
+                [255, 255, 255, 255],
+            ),
+            ButtonVisualState::Pressed => Self::command_icon_color(
+                command_table,
+                ui,
+                &["pressed_icon_color", "icon_pressed_color"],
+                [255, 255, 255, 255],
+            ),
+            ButtonVisualState::Disabled => Self::command_icon_color(
+                command_table,
+                ui,
+                &["disabled_icon_color", "icon_disabled_color"],
+                [112, 112, 112, 255],
+            ),
+            ButtonVisualState::Hover => Self::command_icon_color(
+                command_table,
+                ui,
+                &["hover_icon_color", "icon_hover_color"],
+                [190, 190, 190, 255],
+            ),
+            ButtonVisualState::Normal => Self::command_icon_color(
+                command_table,
+                ui,
+                &["icon_color", "normal_icon_color"],
+                [150, 150, 150, 255],
+            ),
+        };
+
+        assets
+            .textures
+            .get(icon_name.as_str())
+            .map(|texture| (texture, color))
+    }
+
+    fn command_icon_table<'a>(root: &'a Table, command: &str) -> Option<&'a Table> {
+        match parse_client_command(command)? {
+            ClientCommandBinding::RulesAction(action_id) => {
+                table_at(root, &["actions", action_id.as_str()])
+            }
+            ClientCommandBinding::Intent(intent) => {
+                let intent_id = if intent.trim().is_empty() {
+                    "walk"
+                } else {
+                    intent
+                        .split_once(':')
+                        .map(|(head, _)| head)
+                        .unwrap_or(intent.as_str())
+                };
+                table_at(root, &["intents", intent_id.trim()])
+            }
+            _ => None,
+        }
+    }
+
+    fn resolve_icon_texture_id(root: &Table, icon_id: &str) -> String {
+        table_at(root, &["icons", icon_id])
+            .and_then(|icon| icon.get("texture"))
+            .and_then(toml::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(icon_id)
+            .to_string()
+    }
+
+    fn command_icon_color(
+        action: &Table,
+        ui: Option<&Table>,
+        keys: &[&str],
+        fallback: Pixel,
+    ) -> Pixel {
+        keys.iter()
+            .find_map(|key| {
+                ui.and_then(|ui| ui.get(*key))
+                    .or_else(|| action.get(*key))
+                    .and_then(toml::Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(Self::hex_to_rgba_u8)
+            })
+            .or_else(|| {
+                ui.and_then(|ui| ui.get("icon_color"))
+                    .or_else(|| action.get("icon_color"))
+                    .and_then(toml::Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(Self::hex_to_rgba_u8)
+            })
+            .unwrap_or(fallback)
+    }
+
+    fn draw_tinted_texture(
+        buffer: &mut TheRGBABuffer,
+        rect: Rect,
+        draw2d: &Draw2D,
+        texture: &Texture,
+        color: Pixel,
+    ) {
+        let stride = buffer.stride();
+        let inset = (rect.width.min(rect.height) * 0.12).round().max(2.0);
+        let dest_x = (rect.x + inset).round().max(0.0) as usize;
+        let dest_y = (rect.y + inset).round().max(0.0) as usize;
+        let dest_w = (rect.width - inset * 2.0).round().max(1.0) as usize;
+        let dest_h = (rect.height - inset * 2.0).round().max(1.0) as usize;
+        let x_ratio = texture.width as f32 / dest_w as f32;
+        let y_ratio = texture.height as f32 / dest_h as f32;
+        let frame = buffer.pixels_mut();
+
+        for sy in 0..dest_h {
+            let y = (sy as f32 * y_ratio) as usize;
+            for sx in 0..dest_w {
+                let x = (sx as f32 * x_ratio) as usize;
+                let d = (dest_x + sx) * 4 + (dest_y + sy) * stride * 4;
+                if d + 3 >= frame.len() {
+                    continue;
+                }
+                let s = x * 4 + y * texture.width * 4;
+                if s + 3 >= texture.data.len() {
+                    continue;
+                }
+                let source_alpha = texture.data[s + 3];
+                if source_alpha == 0 {
+                    continue;
+                }
+                let shade = texture.data[s]
+                    .max(texture.data[s + 1])
+                    .max(texture.data[s + 2]);
+                let shade = shade as u16;
+                let tinted = [
+                    ((color[0] as u16 * shade) / 255) as u8,
+                    ((color[1] as u16 * shade) / 255) as u8,
+                    ((color[2] as u16 * shade) / 255) as u8,
+                    ((source_alpha as u16 * color[3] as u16) / 255) as u8,
+                ];
+                let background = [frame[d], frame[d + 1], frame[d + 2], frame[d + 3]];
+                frame[d..d + 4].copy_from_slice(&draw2d.mix_color(
+                    &background,
+                    &tinted,
+                    tinted[3] as f32 / 255.0,
+                ));
+            }
+        }
+    }
+
+    fn hex_to_rgba_u8(hex: &str) -> [u8; 4] {
+        let hex = hex.trim().trim_start_matches('#');
+        if !(hex.len() == 6 || hex.len() == 8) {
+            return [255, 255, 255, 255];
+        }
+        let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(255);
+        let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(255);
+        let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(255);
+        let a = if hex.len() == 8 {
+            u8::from_str_radix(&hex[6..8], 16).unwrap_or(255)
+        } else {
+            255
+        };
+        [r, g, b, a]
     }
 
     fn texture_index_for_state(&self, visual_state: ButtonVisualState) -> usize {
@@ -539,8 +771,16 @@ impl Widget {
             drawn = true;
         }
 
+        if !drawn && Self::draw_item_template_mask_icon(buffer, rect, assets, item, draw2d) {
+            drawn = true;
+        }
+
         if !drawn && !AvatarRuntimeBuilder::item_has_explicit_tile(item, assets) {
             drawn = Self::draw_generated_equipment_icon(buffer, rect, assets, item, draw2d);
+        }
+
+        if !drawn && Self::draw_item_icon_texture(buffer, rect, assets, item, draw2d) {
+            drawn = true;
         }
         if drawn {
             Self::draw_stack_badge(buffer, rect, item, draw2d);
@@ -615,7 +855,9 @@ impl Widget {
             return None;
         }
         Self::item_avatar_channel_icon_square(assets, item)
+            .or_else(|| Self::item_template_mask_icon_square(assets, item))
             .or_else(|| Self::item_equipment_icon_square(assets, item))
+            .or_else(|| Self::item_icon_texture_square(assets, item))
     }
 
     pub(crate) fn item_avatar_channel_icon_square(
@@ -675,6 +917,115 @@ impl Widget {
         let stride = buffer.stride();
         draw2d.blend_scale_chunk(buffer.pixels_mut(), &dest, stride, &icon, &source_size);
         true
+    }
+
+    fn draw_item_template_mask_icon(
+        buffer: &mut TheRGBABuffer,
+        rect: Rect,
+        assets: &Assets,
+        item: &Item,
+        draw2d: &Draw2D,
+    ) -> bool {
+        let Some((size, icon)) = Self::item_template_mask_icon_square(assets, item) else {
+            return false;
+        };
+        let dest = Self::fit_rect(rect, (size as usize, size as usize));
+        let stride = buffer.stride();
+        draw2d.blend_scale_chunk(
+            buffer.pixels_mut(),
+            &dest,
+            stride,
+            &icon,
+            &(size as usize, size as usize),
+        );
+        true
+    }
+
+    fn item_template_mask_icon_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
+        let mut blade = Self::item_role_color(
+            assets,
+            item,
+            "blade",
+            Self::item_icon_color(assets, item, [187, 195, 208, 255]),
+        );
+        blade[3] = 255;
+        let mut grip = Self::item_role_color(assets, item, "grip", [165, 120, 80, 255]);
+        grip[3] = 255;
+        let mut accent = Self::item_role_color(assets, item, "accent", [48, 56, 67, 255]);
+        accent[3] = 255;
+        let mut highlight = Self::item_role_color(assets, item, "highlight", [241, 246, 240, 255]);
+        highlight[3] = 255;
+
+        Self::item_template_mask_square(item, blade, grip, accent, highlight)
+    }
+
+    fn draw_item_icon_texture(
+        buffer: &mut TheRGBABuffer,
+        rect: Rect,
+        assets: &Assets,
+        item: &Item,
+        draw2d: &Draw2D,
+    ) -> bool {
+        let Some((size, icon)) = Self::item_icon_texture_square(assets, item) else {
+            return false;
+        };
+        let dest = Self::fit_rect(rect, (size as usize, size as usize));
+        let stride = buffer.stride();
+        draw2d.blend_scale_chunk(
+            buffer.pixels_mut(),
+            &dest,
+            stride,
+            &icon,
+            &(size as usize, size as usize),
+        );
+        true
+    }
+
+    fn item_icon_texture_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
+        let icon_id = item
+            .attributes
+            .get_str("icon")
+            .or_else(|| item.attributes.get_str("icon_template"))?
+            .trim();
+        if icon_id.is_empty() {
+            return None;
+        }
+        let texture = assets.textures.get(icon_id).or_else(|| {
+            assets
+                .rules
+                .parse::<Table>()
+                .ok()
+                .map(|root| Self::resolve_icon_texture_id(&root, icon_id))
+                .and_then(|texture_id| assets.textures.get(texture_id.as_str()))
+        })?;
+        let mut color = Self::item_icon_color(assets, item, [216, 216, 216, 255]);
+        color[3] = 255;
+
+        let size = texture.width.max(texture.height).max(1);
+        let offset_x = (size - texture.width) / 2;
+        let offset_y = (size - texture.height) / 2;
+        let mut icon = vec![0_u8; size * size * 4];
+        for y in 0..texture.height {
+            for x in 0..texture.width {
+                let src = (y * texture.width + x) * 4;
+                if src + 3 >= texture.data.len() {
+                    continue;
+                }
+                let alpha = texture.data[src + 3];
+                if alpha == 0 {
+                    continue;
+                }
+                let shade = texture.data[src]
+                    .max(texture.data[src + 1])
+                    .max(texture.data[src + 2]) as u16;
+                let dst = ((y + offset_y) * size + x + offset_x) * 4;
+                icon[dst] = ((color[0] as u16 * shade) / 255) as u8;
+                icon[dst + 1] = ((color[1] as u16 * shade) / 255) as u8;
+                icon[dst + 2] = ((color[2] as u16 * shade) / 255) as u8;
+                icon[dst + 3] = ((alpha as u16 * color[3] as u16) / 255) as u8;
+            }
+        }
+        Some((size as u32, icon))
     }
 
     fn draw_generated_equipment_icon(

@@ -2879,6 +2879,7 @@ impl SceneHandler {
             "category",
             "slot",
             "ruleset_kind",
+            "icon",
             "visual_template",
             "icon_template",
             "rig_template",

@@ -482,7 +482,7 @@ impl Rusterix {
 
     /// Send a touch down event to the client.
     pub fn client_touch_down(&mut self, coord: Vec2<i32>, map: &Map) -> Option<EntityAction> {
-        let action = self.client.touch_down(coord, map);
+        let action = self.client.touch_down(coord, map, &self.assets);
         let commands = self
             .client
             .process_pending_runtime_commands(&mut self.assets, &mut self.scene_handler);

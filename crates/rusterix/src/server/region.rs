@@ -457,6 +457,133 @@ mod ruleset_progression_tests {
         .clone()
     }
 
+    fn resource_action_test_ctx() -> RegionCtx {
+        let mut ctx = RegionCtx::default();
+        let (from_sender, from_receiver) = unbounded();
+        let _ = ctx.from_sender.set(from_sender);
+        std::mem::forget(from_receiver);
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [actions.gather_herbs]
+        name = "Gather Herbs"
+        kind = "gather"
+        target = "resource_node"
+        range = 1.5
+        cooldown = 2.0
+        result = { item = "wild_herb", quantity = 2 }
+
+        [resources.wild_herb_node]
+        name = "Wild Herb Node"
+        action = "gather_herbs"
+        respawn = 300
+        produces = { item = "wild_herb", quantity = 2 }
+
+        [items.materials.wild_herb]
+        name = "Wild Herb"
+        slot = "material"
+        stackable = true
+        max_stack = 50
+
+        [items.materials.wild_herb.attributes]
+        stackable = true
+        max_stack = 50
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+
+        let mut actor = Entity::new();
+        actor.id = 1;
+        actor.position = Vec3::new(0.0, 1.0, 0.0);
+        actor.inventory.resize(4, None);
+        actor.set_attribute("class_name", Value::Str("Player".into()));
+        actor.set_attribute("mode", Value::Str("active".into()));
+        actor.set_attribute("visible", Value::Bool(true));
+        ctx.entity_classes.insert(1, "Player".into());
+        ctx.map.entities.push(actor);
+
+        let mut node = Item::new();
+        node.id = 2;
+        node.position = Vec3::new(1.0, 1.0, 0.0);
+        node.set_attribute("name", Value::Str("Wild Herb Node".into()));
+        node.set_attribute("ruleset_id", Value::Str("wild_herb_node".into()));
+        node.set_attribute("ruleset_kind", Value::Str("resource".into()));
+        node.set_attribute("resource_id", Value::Str("wild_herb_node".into()));
+        node.set_attribute("resource_action", Value::Str("gather_herbs".into()));
+        node.set_attribute("visible", Value::Bool(true));
+        node.set_attribute("static", Value::Bool(true));
+        ctx.map.items.push(node);
+
+        ctx
+    }
+
+    fn inventory_quantity(entity: &Entity, ruleset_id: &str) -> i32 {
+        entity
+            .iter_inventory()
+            .find_map(|(_, item)| {
+                item.attributes
+                    .get_str("ruleset_id")
+                    .filter(|id| id.trim() == ruleset_id)
+                    .map(|_| item.stack_quantity())
+            })
+            .unwrap_or(0)
+    }
+
+    #[test]
+    fn item_quality_and_condition_scale_weapon_damage() {
+        let mut item = Item::new();
+        item.set_attribute("quality", Value::Int(50));
+        item.set_attribute("condition", Value::Int(50));
+
+        assert_eq!(
+            apply_item_quality_condition_to_damage(8.0, &item).round() as i32,
+            6
+        );
+        assert_eq!(
+            apply_item_quality_condition_to_damage(2.0, &item).round() as i32,
+            2
+        );
+
+        item.set_attribute("quality", Value::Int(20));
+        item.set_attribute("condition", Value::Int(100));
+        assert_eq!(
+            apply_item_quality_condition_to_damage(4.0, &item).round() as i32,
+            3
+        );
+    }
+
+    #[test]
+    fn runtime_inventory_side_effects_survive_entity_loop_merge() {
+        let mut local = Entity::new();
+        local.id = 1;
+        local.position = Vec3::new(2.0, 1.0, 2.0);
+        local.orientation = Vec2::new(0.0, -1.0);
+        local.inventory.resize(4, None);
+
+        let mut runtime = local.clone();
+        let mut herb = Item::new();
+        herb.set_attribute("ruleset_id", Value::Str("wild_herb".into()));
+        herb.set_stack_quantity(2);
+        runtime.add_item(herb).unwrap();
+        runtime.set_attribute("__rules_action_cd_gather_herbs_left", Value::Float(1.5));
+
+        let mut entities = vec![local.clone()];
+        RegionInstance::merge_runtime_entity_side_effects(&mut entities, &[runtime]);
+
+        assert_eq!(entities[0].position, local.position);
+        assert_eq!(entities[0].orientation, local.orientation);
+        assert_eq!(inventory_quantity(&entities[0], "wild_herb"), 2);
+        assert_eq!(
+            entities[0]
+                .attributes
+                .get_float_default("__rules_action_cd_gather_herbs_left", 0.0),
+            1.5
+        );
+        assert!(entities[0].dirty_flags & 0b1000 != 0);
+    }
+
     #[test]
     fn ruleset_defaults_apply_level_progression() {
         let rules = test_rules();
@@ -493,6 +620,108 @@ mod ruleset_progression_tests {
         assert_eq!(entity.attributes.get_int_default("MAX_HP", 0), 19);
         assert_eq!(entity.attributes.get_int_default("HP", 0), 1);
         assert_eq!(entity.attributes.get_int_default("WIS", 0), 13);
+    }
+
+    #[test]
+    fn text_command_gather_herbs_executes_resource_action() {
+        let mut ctx = resource_action_test_ctx();
+        let instance = RegionInstance::new(9901);
+
+        instance.handle_text_command(&mut ctx, 1, "gather herbs");
+
+        assert_eq!(inventory_quantity(&ctx.map.entities[0], "wild_herb"), 2);
+        assert!(
+            ctx.map.items[0]
+                .attributes
+                .get_bool_default("resource_depleted", false)
+        );
+    }
+
+    #[test]
+    fn startup_craftable_loadout_uses_recipe_quality_and_damage_attrs() {
+        let mut ctx = RegionCtx::default();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+            [recipes.hunting_bow]
+            skill = "fletching"
+            recommended_skill = 25
+            difficulty = 35
+            attribute = "DEX"
+            produces = [
+                { item = "hunting_bow", quantity = 1 },
+            ]
+            "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+
+        let bow_data = r#"
+            [attributes]
+            name = "Hunting Bow"
+            ruleset_id = "hunting_bow"
+            slot = "main_hand"
+            quality = 100
+            condition = 100
+            damage_roll = "1d6"
+            damage_bonus = 0
+            damage_bonus_attribute = "DEX"
+            damage_bonus_every = 4
+            damage_kind = "physical"
+        "#
+        .to_string();
+        ctx.assets
+            .items
+            .insert("Hunting Bow".into(), ("".into(), bow_data.clone()));
+        ctx.item_class_data.insert("Hunting Bow".into(), bow_data);
+
+        let mut entity = Entity::new();
+        entity.id = 1;
+        entity.inventory.resize(4, None);
+        entity.set_attribute("DEX", Value::Int(12));
+        entity.set_attribute("skill_fletching", Value::Int(0));
+        ctx.map.entities.push(entity);
+
+        apply_spawn_item_entries_for_entity(1, "Ranger", &mut ctx, &["hunting_bow".into()], true);
+
+        let bow = ctx.map.entities[0]
+            .equipped
+            .iter()
+            .find(|(slot, _)| slot.as_str() == "main_hand")
+            .map(|(_, item)| item)
+            .expect("equipped bow");
+        assert_eq!(bow.attributes.get_int_default("quality", 100), 20);
+        assert_eq!(bow.attributes.get_int_default("condition", 0), 100);
+        assert_eq!(bow.attributes.get_str("damage_roll"), Some("1d6"));
+        assert_eq!(
+            bow.attributes.get_str("damage_bonus_attribute"),
+            Some("DEX")
+        );
+    }
+
+    #[test]
+    fn directional_rules_action_can_target_resource_item() {
+        clear_regionctx_store();
+        let mut ctx = resource_action_test_ctx();
+        ctx.map.entities[0].set_attribute("intent", Value::Str("action:gather_herbs".into()));
+        let actor = ctx.map.entities[0].clone();
+        let ctx = Arc::new(Mutex::new(ctx));
+        register_regionctx(9902, ctx.clone());
+        let instance = RegionInstance::new(9902);
+
+        let mut actor_for_event = actor;
+        instance.send_entity_intent_events(&mut actor_for_event, Vec2::new(1.0, 0.0));
+
+        let ctx = ctx.lock().unwrap();
+        assert_eq!(inventory_quantity(&ctx.map.entities[0], "wild_herb"), 2);
+        assert!(
+            ctx.map.items[0]
+                .attributes
+                .get_bool_default("resource_depleted", false)
+        );
+        drop(ctx);
+        clear_regionctx_store();
     }
 
     #[test]
@@ -973,6 +1202,27 @@ mod ruleset_progression_tests {
             .iter()
             .find(|entity| entity.id == target_id)
             .unwrap();
+        assert!(intent_allowed(
+            &ctx,
+            &rules,
+            distance,
+            Some(actor),
+            Some(target),
+            None
+        ));
+
+        let rules = intent_rule_config(&ctx, 1, "action:basic_attack");
+        let range = intent_distance_limit(&ctx, 1, "action:basic_attack", &rules);
+        let (target_id, distance) =
+            directional_entity_target(&ctx, actor, Vec2::new(1.0, 0.0), range).unwrap();
+        let target = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == target_id)
+            .unwrap();
+        assert_eq!(range, 6.0);
+        assert_eq!(target_id, 2);
         assert!(intent_allowed(
             &ctx,
             &rules,
@@ -5518,6 +5768,20 @@ impl RegionInstance {
                                     .find(|e| e.id == entity_id)
                                     .map(|entity| Self::should_keep_player_intent(ctx, entity))
                                     .unwrap_or(false);
+                                if let Some(action_id) = intent.strip_prefix("action:") {
+                                    _ = execute_ruleset_action(
+                                        ctx,
+                                        entity_id,
+                                        action_id.trim(),
+                                        Some(clicked_item_id),
+                                    );
+                                    if let Some(entity) = get_entity_mut(&mut ctx.map, entity_id)
+                                        && !keep_intent
+                                    {
+                                        entity.set_attribute("intent", Value::Str(String::new()));
+                                    }
+                                    return;
+                                }
                                 let subject = ctx.map.entities.iter().find(|e| e.id == entity_id);
                                 let target_item = ctx
                                     .map
@@ -6350,7 +6614,9 @@ impl RegionInstance {
             }
             sim_dt = self.simulation_dt_for_frame(ctx, redraw_dt);
             ctx.delta_time = sim_dt;
-            update_spell_cooldowns(ctx, sim_dt);
+            // Rules cooldowns are real-time UI/gameplay state. They must keep
+            // ticking even when a turn/grid simulation frame has no movement step.
+            update_spell_cooldowns(ctx, redraw_dt);
             if ctx.procedural_spawn_guard > 0 {
                 let player_positions = ctx
                     .map
@@ -8310,6 +8576,7 @@ impl RegionInstance {
         }
 
         with_regionctx(self.id, |ctx| {
+            Self::merge_runtime_entity_side_effects(&mut entities, &ctx.map.entities);
             ctx.map.entities = entities;
             update_entity_respawns(ctx);
             update_spell_items(ctx);
@@ -8889,13 +9156,8 @@ impl RegionInstance {
             }
 
             if let Some(action_id) = intent.trim().strip_prefix("action:") {
-                if let Some(target_entity_id) = target_entity_id {
-                    _ = execute_ruleset_action(
-                        ctx,
-                        entity.id,
-                        action_id.trim(),
-                        Some(target_entity_id),
-                    );
+                if let Some(target_id) = target_entity_id.or(target_item_id) {
+                    _ = execute_ruleset_action(ctx, entity.id, action_id.trim(), Some(target_id));
                 } else {
                     send_message(ctx, entity.id, "{system.cant_do_that}".into(), "warning");
                 }
@@ -9048,6 +9310,45 @@ impl RegionInstance {
         });
     }
 
+    fn merge_runtime_entity_side_effects(entities: &mut [Entity], runtime_entities: &[Entity]) {
+        for runtime in runtime_entities {
+            let Some(local) = entities.iter_mut().find(|entity| entity.id == runtime.id) else {
+                continue;
+            };
+
+            if runtime.dirty_flags & 0b1000 != 0 {
+                local.inventory = runtime.inventory.clone();
+                local
+                    .inventory_additions
+                    .extend(runtime.inventory_additions.clone());
+                local
+                    .inventory_removals
+                    .extend(runtime.inventory_removals.clone());
+                local
+                    .inventory_updates
+                    .extend(runtime.inventory_updates.clone());
+                local.dirty_flags |= 0b1000;
+            }
+
+            if runtime.dirty_flags & 0b10000 != 0 {
+                local.equipped = runtime.equipped.clone();
+                local.dirty_flags |= 0b10000;
+            }
+
+            if runtime.dirty_flags & 0b00100000 != 0 {
+                local.wallet = runtime.wallet.clone();
+                local.dirty_flags |= 0b00100000;
+            }
+
+            for key in &runtime.dirty_attributes {
+                if let Some(value) = runtime.attributes.get(key) {
+                    local.attributes.set(key, value.clone());
+                    local.dirty_attributes.insert(key.clone());
+                }
+            }
+        }
+    }
+
     /// Returns the entities in the radius of the character or item.
     fn entities_in_radius(
         &self,
@@ -9135,6 +9436,42 @@ fn collect_spawn_item_list(attrs: &ValueContainer, keys: &[&str]) -> Vec<String>
     out
 }
 
+fn ruleset_recipe_for_output_item<'a>(
+    ctx: &'a RegionCtx,
+    item_id: &str,
+) -> Option<&'a toml::value::Table> {
+    let item_id = item_id.trim();
+    if item_id.is_empty() {
+        return None;
+    }
+    ctx.rules
+        .get("recipes")
+        .and_then(toml::Value::as_table)?
+        .values()
+        .filter_map(toml::Value::as_table)
+        .find(|recipe| {
+            item_quantity_entries(recipe, "produces")
+                .iter()
+                .any(|(produced, _)| produced.eq_ignore_ascii_case(item_id))
+        })
+}
+
+fn apply_starting_item_recipe_state(ctx: &RegionCtx, entity: &Entity, item: &mut Item) {
+    let Some(item_id) = item
+        .attributes
+        .get_str("ruleset_id")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+    else {
+        return;
+    };
+    let Some(recipe) = ruleset_recipe_for_output_item(ctx, &item_id) else {
+        return;
+    };
+    apply_recipe_output_state(entity, recipe, item);
+}
+
 fn apply_spawn_item_entries_for_entity(
     entity_id: u32,
     entity_name: &str,
@@ -9142,14 +9479,24 @@ fn apply_spawn_item_entries_for_entity(
     class_names: &[String],
     equip: bool,
 ) {
+    let entity_snapshot = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)
+        .cloned();
     for class_name in class_names {
-        let Some(item) = ctx.create_item(class_name.clone()) else {
+        let Some(mut item) = ctx.create_item(class_name.clone()) else {
             ctx.send_log_message(format!(
                 "[warn] {} ({}) => unknown startup item template '{}'",
                 entity_name, entity_id, class_name
             ));
             continue;
         };
+
+        if let Some(entity) = entity_snapshot.as_ref() {
+            apply_starting_item_recipe_state(ctx, entity, &mut item);
+        }
 
         let item_id = item.id;
         let item_slot = item.attributes.get_str("slot").map(str::to_string);
@@ -10558,6 +10905,28 @@ fn ruleset_item_kind_for_group(group: &str) -> String {
     group.strip_suffix('s').unwrap_or(group).to_string()
 }
 
+fn copy_ruleset_item_damage_attrs(item: &mut Item, item_table: &toml::value::Table) {
+    let Some(damage) = item_table.get("damage").and_then(toml::Value::as_table) else {
+        return;
+    };
+
+    if let Some(roll) = rule_string(damage, "roll") {
+        item.set_attribute("damage_roll", Value::Str(roll.to_string()));
+    }
+    if let Some(value) = damage.get("bonus").and_then(toml_value_to_attr) {
+        item.set_attribute("damage_bonus", value);
+    }
+    if let Some(attribute) = rule_string(damage, "bonus_attribute") {
+        item.set_attribute("damage_bonus_attribute", Value::Str(attribute.to_string()));
+    }
+    if let Some(value) = damage.get("bonus_every").and_then(toml_value_to_attr) {
+        item.set_attribute("damage_bonus_every", value);
+    }
+    if let Some(kind) = rule_string(damage, "damage_kind") {
+        item.set_attribute("damage_kind", Value::Str(kind.to_string()));
+    }
+}
+
 fn ruleset_item_from_table(
     rules: &toml::value::Table,
     item_id: &str,
@@ -10578,11 +10947,14 @@ fn ruleset_item_from_table(
     item.set_attribute("ruleset_kind", Value::Str(kind));
     item.set_attribute("ruleset_path", Value::Str(ruleset_path));
     item.set_attribute("slot", Value::Str(slot.to_string()));
+    item.set_attribute("quality", Value::Int(100));
+    item.set_attribute("condition", Value::Int(100));
 
     for key in [
         "category",
         "description",
         "rarity",
+        "icon",
         "container_template",
         "visual_template",
         "rig_layer",
@@ -10608,6 +10980,9 @@ fn ruleset_item_from_table(
         "rig_scale",
         "rig_pivot",
         "color",
+        "icon_color",
+        "quality",
+        "condition",
         "max_stack",
         "blade_color_index",
         "grip_color_index",
@@ -10632,6 +11007,7 @@ fn ruleset_item_from_table(
             }
         }
     }
+    copy_ruleset_item_damage_attrs(&mut item, item_table);
     item.apply_container_attributes();
     if let Some(template_name) = rule_string(item_table, "visual_template")
         && let Some(template) = rules
@@ -10667,6 +11043,13 @@ fn ruleset_recipe_table<'a>(ctx: &'a RegionCtx, recipe_id: &str) -> Option<&'a t
         .and_then(toml::Value::as_table)
         .and_then(|recipes| recipes.get(recipe_id.trim()))
         .and_then(toml::Value::as_table)
+}
+
+fn ruleset_recipe_display_name(ctx: &RegionCtx, recipe_id: &str) -> String {
+    ruleset_recipe_table(ctx, recipe_id)
+        .and_then(|recipe| rule_string(recipe, "name"))
+        .map(str::to_string)
+        .unwrap_or_else(|| recipe_id.replace('_', " "))
 }
 
 fn entity_skill_points(entity: &Entity, skill_id: &str) -> i32 {
@@ -10736,13 +11119,44 @@ fn entity_meets_recipe_requirements(
     true
 }
 
+fn clamp_ruleset_percent(value: f32) -> i32 {
+    value.round().clamp(1.0, 100.0) as i32
+}
+
+fn recipe_output_quality(entity: &Entity, recipe: &toml::value::Table) -> i32 {
+    let Some(skill_id) = rule_string(recipe, "skill") else {
+        return 100;
+    };
+    let skill = entity_skill_points(entity, skill_id) as f32;
+    let recommended = rule_number(recipe, "recommended_skill", 0.0).max(0.0);
+    let difficulty = rule_number(recipe, "difficulty", recommended).max(0.0);
+    let attribute_bonus = rule_string(recipe, "attribute")
+        .map(|attr| entity.attributes.get_float_default(attr, 10.0) - 10.0)
+        .unwrap_or(0.0)
+        * 2.0;
+    let recommendation_bonus = if recommended > 0.0 {
+        (skill / recommended).clamp(0.0, 2.0) * 25.0
+    } else {
+        25.0
+    };
+    clamp_ruleset_percent(
+        25.0 + recommendation_bonus + skill * 0.5 + attribute_bonus - difficulty * 0.25,
+    )
+}
+
+fn apply_recipe_output_state(entity: &Entity, recipe: &toml::value::Table, item: &mut Item) {
+    let quality = recipe_output_quality(entity, recipe);
+    item.set_attribute("quality", Value::Int(quality));
+    item.set_attribute("condition", Value::Int(100));
+}
+
 pub(crate) fn craft_ruleset_recipe(ctx: &mut RegionCtx, crafter_id: u32, recipe_id: &str) -> bool {
     let Some(recipe) = ruleset_recipe_table(ctx, recipe_id) else {
         return false;
     };
     let consumes = item_quantity_entries(recipe, "consumes");
     let produces = item_quantity_entries(recipe, "produces");
-    let output_items = produces
+    let mut output_items = produces
         .iter()
         .filter_map(|(item_id, quantity)| ruleset_item_from_table(&ctx.rules, item_id, *quantity))
         .collect::<Vec<_>>();
@@ -10766,6 +11180,9 @@ pub(crate) fn craft_ruleset_recipe(ctx: &mut RegionCtx, crafter_id: u32, recipe_
     }
 
     let mut entity = ctx.map.entities[entity_index].clone();
+    for item in &mut output_items {
+        apply_recipe_output_state(&entity, recipe, item);
+    }
     consume_entity_items(&mut entity, &consumes);
     for item in output_items {
         if entity.add_item(item).is_err() {
@@ -11487,6 +11904,48 @@ pub(crate) fn execute_ruleset_action(
             "not_ready",
             "actions.not_ready",
             &[("action", action_name.clone())],
+            "warning",
+        );
+        return false;
+    }
+
+    if rule_string(&action, "kind").is_some_and(|kind| kind.eq_ignore_ascii_case("craft"))
+        || rule_string(&action, "recipe").is_some()
+    {
+        let Some(recipe_id) = rule_string(&action, "recipe").map(str::to_string) else {
+            send_ruleset_message(
+                ctx,
+                actor_id,
+                "actions",
+                "no_effect",
+                "actions.no_effect",
+                &[("action", action_name.clone())],
+                "system",
+            );
+            return false;
+        };
+        let recipe_name = ruleset_recipe_display_name(ctx, &recipe_id);
+        let cooldown = rule_number(&action, "cooldown", 0.0).max(0.0);
+        if craft_ruleset_recipe(ctx, actor_id, &recipe_id) {
+            set_action_cooldown(ctx, actor_id, action_id, cooldown);
+            send_ruleset_message(
+                ctx,
+                actor_id,
+                "recipes",
+                "crafted",
+                "recipes.crafted",
+                &[("recipe", recipe_name)],
+                "success",
+            );
+            return true;
+        }
+        send_ruleset_message(
+            ctx,
+            actor_id,
+            "recipes",
+            "could_not_craft",
+            "recipes.could_not_craft",
+            &[("recipe", recipe_name)],
             "warning",
         );
         return false;
@@ -12946,7 +13405,11 @@ fn intent_rule_config_from_data(data: &str, intent: &str) -> Option<IntentRuleCo
 
 fn intent_rule_config(ctx: &RegionCtx, entity_id: u32, intent: &str) -> IntentRuleConfig {
     let mut config = IntentRuleConfig::default();
-    if let Some(action) = ruleset_action_for_intent(ctx, intent) {
+    if let Some(action_id) = intent.trim().strip_prefix("action:") {
+        if let Some(action) = ruleset_action_table(ctx, action_id.trim()) {
+            merge_action_intent_config(&mut config, &action);
+        }
+    } else if let Some(action) = ruleset_action_for_intent(ctx, intent) {
         merge_action_intent_config(&mut config, &action);
     }
 
@@ -14142,6 +14605,24 @@ fn roll_damage_table(entity: Option<&Entity>, table: &toml::value::Table) -> Opt
     Some(value.max(0.0))
 }
 
+fn item_percent_attr(item: &Item, key: &str) -> f32 {
+    item.attributes
+        .get_float_default(key, 100.0)
+        .round()
+        .clamp(1.0, 100.0)
+}
+
+fn item_quality_damage_multiplier(percent: f32) -> f32 {
+    0.75 + percent.clamp(1.0, 100.0) / 400.0
+}
+
+fn apply_item_quality_condition_to_damage(value: f32, item: &Item) -> f32 {
+    let quality = item_quality_damage_multiplier(item_percent_attr(item, "quality"));
+    let condition = item_quality_damage_multiplier(item_percent_attr(item, "condition"));
+    let scaled = value * quality * condition;
+    if value > 0.0 { scaled.max(1.0) } else { 0.0 }
+}
+
 fn apply_structured_combat_table(
     ctx: &RegionCtx,
     amount: f32,
@@ -14636,7 +15117,9 @@ pub(crate) fn current_attack_base_damage_for_entity(ctx: &RegionCtx, entity_id: 
         && let Some(table) = item_ruleset_damage_table(ctx, source_item)
         && let Some(value) = roll_damage_table(Some(entity), &table)
     {
-        return value.round().max(0.0) as i32;
+        return apply_item_quality_condition_to_damage(value, source_item)
+            .round()
+            .max(0.0) as i32;
     }
 
     if let Some(table) = unarmed_damage_table(ctx)

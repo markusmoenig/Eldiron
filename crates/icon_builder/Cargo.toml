@@ -1,0 +1,19 @@
+[package]
+name = "eldiron-icon-builder"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Builds bundled Eldiron ruleset icon masks from icon manifests."
+
+[[bin]]
+name = "eldiron-icon-builder"
+path = "src/main.rs"
+
+[dependencies]
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.9"
+ureq = "2.10.1"

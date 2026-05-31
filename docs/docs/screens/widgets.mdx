@@ -247,6 +247,7 @@ command = "control.forward"
 # command = "intent.talk"
 # command = "intent." # Walk / default targeting mode
 # command = "rules.basic_attack"
+# command_slot = "main.0" # resolved from the active player's class action bar
 # party = "leader"
 # inventory_index = 0
 # equipped_slot = "main_hand"
@@ -262,7 +263,11 @@ command = "control.forward"
 
 Use `command = "intent."` or `intent = ""` for a Walk button. This selects the normal map cursor and clears active targeting commands.
 
+Command buttons resolve ruleset icons through `[actions.<id>.ui]`, `[intents.<id>.ui]`, and the shared `[icons]` catalog. Project textures can still override a button by assigning custom normal/selected/pressed/disabled textures on the widget itself.
+
 If a button command matches a key in the active player's `[input]` table, the hover tooltip shows the shortcut.
+
+Use `command_slot = "main.0"` / `main.1` / `main.2` and so on for class-driven action buttons. The slot first checks the active player for `command_slot_main_0` or `action_slot_main_0`, then falls back to `[classes.<Class>.action_bar]` in the active ruleset.
 
 For 2D action bars that sit on top of the game view, put a `role = "deco"` widget behind the buttons with `layer = -1` and a semi-transparent `color`. Negative-layer deco widgets draw below screen-rendered controls, which lets the background dim the map without dimming the icons.
 

@@ -140,6 +140,9 @@ clothing = ["wool_trousers", "leather_shoes"]
 inventory = ["linen_shirt"]
 abilities = ["basic_attack", "guard"]
 
+[classes.Warrior.action_bar]
+main = ["rules.basic_attack", "rules.power_strike", "rules.gather_wood", "rules.gather_feathers", "rules.craft_wooden_arrows"]
+
 [classes.Cleric]
 description = "Armored divine caster trained to heal allies and hold a line."
 role = "divine"
@@ -191,6 +194,9 @@ inventory = ["blessed_herb", "linen_shirt"]
 abilities = ["basic_attack", "guard"]
 spells = ["minor_heal"]
 
+[classes.Cleric.action_bar]
+main = ["rules.basic_attack", "rules.minor_heal", "rules.holy_light", "rules.gather_herbs", "rules.craft_blessed_herb"]
+
 [classes.Ranger]
 description = "Mobile hunter trained for bows, light armor, and wilderness survival."
 role = "ranged"
@@ -233,3 +239,6 @@ armor = ["leather_vest"]
 clothing = ["wool_trousers", "leather_shoes"]
 inventory = ["wooden_arrows", "linen_shirt"]
 abilities = ["basic_attack"]
+
+[classes.Ranger.action_bar]
+main = ["rules.basic_attack", "rules.gather_wood", "rules.gather_feathers", "rules.craft_wooden_arrows", "rules.craft_hunting_bow"]

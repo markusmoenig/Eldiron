@@ -223,6 +223,7 @@ description = "A blunt wooden practice sword used for early drills and safe spar
 category = "sword"
 slot = "main_hand"
 rarity = "common"
+icon = "training_sword"
 visual_template = "sword_diagonal"
 ```
 
@@ -239,6 +240,11 @@ on_look = "A blunt wooden practice sword used for early drills and safe sparring
 Creator creates missing ruleset-backed items and refreshes existing
 ruleset-backed items whose `ruleset_path` still points to the official item.
 Custom project items remain separate project assets.
+
+Ruleset icons live in `[icons]` and are bundled as neutral PNG masks. Item
+templates can set `icon = "training_sword"` as a generic fallback. Item display
+still prefers explicit tiles, avatar channels, and `visual_template` pixel masks
+when present, so hand-shaped pixel item icons remain the primary look.
 
 Ruleset item ids are stable. Startup loadouts can reference `training_sword` or
 `padded_armor` even when the visible item name is `Training Sword` or
@@ -464,12 +470,12 @@ small:
 
 - `wooden_arrows`: consumes `green_wood x1` and `feather x2`, produces `wooden_arrows x10`
 - `blessed_herb`: requires `minor_heal`, consumes `wild_herb x1`, produces `blessed_herb x1`
-- `hunting_bow`: requires `skill_fletching = 25`, consumes `green_wood x3`, produces `hunting_bow x1`
+- `hunting_bow`: recommends `skill_fletching = 25`, consumes `green_wood x3`, produces `hunting_bow x1`
 
 Recipe execution consumes input stack quantities and merges output stack
 quantities into existing inventory slots when possible. This is the same economy
-path that later shops, gathering nodes, crafting stations, quality rules, and
-profession services can use.
+path that later shops, gathering nodes, crafting stations, and profession
+services can use.
 
 The text command path can craft known recipes by name:
 
@@ -479,11 +485,18 @@ craft hunting bow
 craft blessed herb
 ```
 
-Recipes use `required_skill` for hard gates and `difficulty` for balancing. The
-current runtime enforces required skill and required spells before consuming
-materials. The rules also name a supporting attribute, such as `DEX` for
-Fletching or `WIS` for Herbalism and Restoration, so future quality and success
-systems can use both practice and natural aptitude.
+Recipes can also be exposed through rules actions such as
+`rules.craft_blessed_herb`, `rules.craft_wooden_arrows`, and
+`rules.craft_hunting_bow`. This lets screen command slots trigger the same
+recipe path as text commands and scripts while keeping recipes as the source of
+truth for materials, spell gates, skill targets, and outputs.
+
+Recipes can still use `required_skill` for hard gates, but ordinary crafting is
+better modeled through output quality. `recommended_skill`, `difficulty`, and a
+supporting attribute such as `DEX` or `WIS` set crafted item `quality` from
+`1..100`; crafted items start at `condition = 100`. Weapon damage scales by item
+quality and condition, so a new Ranger can craft immediately but starts with
+rougher gear.
 
 ## Future Versioning
 

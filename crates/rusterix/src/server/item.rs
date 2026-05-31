@@ -143,6 +143,12 @@ impl Item {
             && other.is_stackable()
             && self.stack_key().is_some()
             && self.stack_key() == other.stack_key()
+            && self.stack_percent_attr("quality") == other.stack_percent_attr("quality")
+            && self.stack_percent_attr("condition") == other.stack_percent_attr("condition")
+    }
+
+    fn stack_percent_attr(&self, key: &str) -> i32 {
+        self.attributes.get_int(key).unwrap_or(100).clamp(1, 100)
     }
 
     /// Check if there's space in the container

@@ -1206,6 +1206,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "eldiron-icon-builder"
+version = "0.9.12"
+dependencies = [
+ "image",
+ "serde",
+ "toml 0.9.11+spec-1.1.0",
+ "ureq 2.12.1",
+]
+
+[[package]]
 name = "eldiron-shared"
 version = "0.9.12"
 dependencies = [

@@ -136,7 +136,21 @@ role = "button"
 command = "rules.basic_attack"
 ```
 
-`command = "intent."` selects Walk mode and clears active targeting commands. Rules command buttons get their name, description, cooldown, reagent/cost status, disabled state, and shortcut hint from the active ruleset and the active player's `[input]` table.
+`command = "intent."` selects Walk mode and clears active targeting commands. Intent and rules command buttons can resolve their icons through the active ruleset's `[icons]` catalog. Rules command buttons also get their name, description, cooldown, reagent/cost status, disabled state, and shortcut hint from the active ruleset and the active player's `[input]` table.
+
+Class-driven action bars can bind buttons to command slots instead of hardcoding one command per screen:
+
+```toml
+[ui]
+role = "button"
+command_slot = "main.0"
+
+[ui]
+role = "button"
+command_slot = "main.1"
+```
+
+Command slots resolve through the active player. A player attribute such as `command_slot_main_0 = "rules.minor_heal"` can override a slot; otherwise Eldiron reads the active ruleset class, for example `[classes.Cleric.action_bar] main = ["rules.basic_attack", "rules.minor_heal", "rules.holy_light", "rules.gather_herbs", "rules.craft_blessed_herb"]`. This keeps fixed world intents like Walk, Look, and Use separate from class actions.
 
 Screen flow buttons use the same command field:
 

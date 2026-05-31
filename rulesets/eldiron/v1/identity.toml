@@ -23,8 +23,38 @@ normal = 0
 hostile = -50
 friendly = 50
 
+[intents.walk]
+name = "Walk"
+
+[intents.walk.ui]
+icon = "walk"
+
 [intents.attack]
 deny_message = "{system.cant_do_that}"
 
+[intents.attack.ui]
+icon = "basic_attack"
+
+[intents.look]
+name = "Look"
+
+[intents.look.ui]
+icon = "look"
+
 [intents.use]
 distance = 2
+
+[intents.use.ui]
+icon = "use"
+
+[intents.take]
+name = "Take"
+
+[intents.take.ui]
+icon = "take"
+
+[intents.drop]
+name = "Drop"
+
+[intents.drop.ui]
+icon = "drop"

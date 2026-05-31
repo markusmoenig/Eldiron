@@ -143,7 +143,15 @@ pub fn describe_item(item: &Item) -> RulesDescription {
             item.max_stack()
         ));
     }
-    if let Some(dmg) = item.attributes.get_float("DMG")
+    if let Some(quality) = item_percent_attr(item, "quality") {
+        lines.push(format!("Quality: {}%", quality));
+    }
+    if let Some(condition) = item_percent_attr(item, "condition") {
+        lines.push(format!("Condition: {}%", condition));
+    }
+    if let Some(damage) = item_damage_line(item) {
+        lines.push(damage);
+    } else if let Some(dmg) = item.attributes.get_float("DMG")
         && dmg > 0.0
     {
         lines.push(format_number_line("Damage", dmg));
@@ -182,6 +190,41 @@ pub fn describe_item(item: &Item) -> RulesDescription {
         subtitle: (!tags.is_empty()).then(|| tags.join(", ")),
         lines,
     }
+}
+
+fn item_percent_attr(item: &Item, key: &str) -> Option<i32> {
+    item.attributes
+        .get_float(key)
+        .map(|value| value.round().clamp(1.0, 100.0) as i32)
+}
+
+fn item_damage_line(item: &Item) -> Option<String> {
+    let roll = item
+        .attributes
+        .get_str("damage_roll")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    let mut parts = vec![roll.to_string()];
+    if let Some(bonus) = item.attributes.get_float("damage_bonus")
+        && bonus.abs() > f32::EPSILON
+    {
+        let sign = if bonus < 0.0 { "-" } else { "+" };
+        parts.push(format!("{} {}", sign, format_clean_number(bonus.abs())));
+    }
+    if let Some(attribute) = item
+        .attributes
+        .get_str("damage_bonus_attribute")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let every = item
+            .attributes
+            .get_float("damage_bonus_every")
+            .unwrap_or(1.0)
+            .max(1.0);
+        parts.push(format!("+ {}/{}", attribute, format_clean_number(every)));
+    }
+    Some(format!("Damage: {}", parts.join(" ")))
 }
 
 pub fn container_template_for_item(assets: &Assets, item: &Item) -> ContainerUiTemplate {
@@ -310,7 +353,10 @@ fn rules_action_state(assets: &Assets, actor: &Entity, action_id: &str) -> Comma
             && !entity_has_list_value(actor, "abilities", ability)
         {
             state.enabled = false;
-            state.disabled_reason = Some("Ability not known".to_string());
+            state.disabled_reason = Some(
+                future_class_unlock_reason(&root, actor, "abilities", ability)
+                    .unwrap_or_else(|| "Ability not learned".to_string()),
+            );
         }
         if let Some(spell) = requires
             .get("spell")
@@ -321,7 +367,10 @@ fn rules_action_state(assets: &Assets, actor: &Entity, action_id: &str) -> Comma
             apply_cooldown_from_actor(actor, "spell", spell, &mut state);
             if !entity_has_list_value(actor, "spells", spell) {
                 state.enabled = false;
-                state.disabled_reason = Some("Spell not known".to_string());
+                state.disabled_reason = Some(
+                    future_class_unlock_reason(&root, actor, "spells", spell)
+                        .unwrap_or_else(|| "Spell not learned".to_string()),
+                );
             }
         }
     }
@@ -467,6 +516,52 @@ fn apply_cooldown_from_actor(actor: &Entity, namespace: &str, id: &str, state: &
     state.enabled = false;
     state.cooldown_remaining = state.cooldown_remaining.max(remaining);
     state.cooldown_total = state.cooldown_total.max(total);
+}
+
+fn future_class_unlock_reason(
+    root: &Table,
+    actor: &Entity,
+    unlock_key: &str,
+    id: &str,
+) -> Option<String> {
+    let class_id = actor
+        .attributes
+        .get_str("class")
+        .or_else(|| actor.attributes.get_str("class_name"))?
+        .trim();
+    if class_id.is_empty() {
+        return None;
+    }
+
+    let classes = root.get("classes")?.as_table()?;
+    let class = classes
+        .get(class_id)
+        .or_else(|| {
+            classes
+                .iter()
+                .find(|(key, _)| key.eq_ignore_ascii_case(class_id))
+                .map(|(_, value)| value)
+        })?
+        .as_table()?;
+    let unlocks = class.get("unlocks")?.as_table()?;
+    let actor_level = actor.attributes.get_int_default("LEVEL", 1).max(1) as u32;
+    let mut levels: Vec<u32> = unlocks
+        .iter()
+        .filter_map(|(level_key, value)| {
+            let level = level_key.strip_prefix("level_")?.parse::<u32>().ok()?;
+            let values = value.as_table()?.get(unlock_key)?.as_array()?;
+            values
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .any(|entry| entry.trim().eq_ignore_ascii_case(id))
+                .then_some(level)
+        })
+        .filter(|level| *level > actor_level)
+        .collect();
+    levels.sort_unstable();
+    levels
+        .first()
+        .map(|level| format!("Available at level {}", level))
 }
 
 fn fallback_rules_action_description(action_id: &str) -> RulesDescription {
@@ -723,6 +818,69 @@ mod tests {
     }
 
     #[test]
+    fn rules_action_state_reports_future_ability_unlock_level() {
+        let mut assets = Assets::new();
+        assets.rules = r#"
+            [actions.power_strike]
+            name = "Power Strike"
+            requires = { ability = "power_strike" }
+
+            [classes.Warrior.unlocks.level_1]
+            abilities = ["basic_attack"]
+
+            [classes.Warrior.unlocks.level_2]
+            abilities = ["power_strike"]
+        "#
+        .to_string();
+
+        let mut actor = Entity::new();
+        actor.set_attribute("class", Value::Str("Warrior".to_string()));
+        actor.set_attribute("LEVEL", Value::Int(1));
+        actor.set_attribute(
+            "abilities",
+            Value::StrArray(vec!["basic_attack".to_string()]),
+        );
+
+        let state = command_state(&assets, Some(&actor), "rules.power_strike");
+
+        assert!(!state.enabled);
+        assert_eq!(
+            state.disabled_reason.as_deref(),
+            Some("Available at level 2")
+        );
+    }
+
+    #[test]
+    fn rules_action_state_reports_future_spell_unlock_level() {
+        let mut assets = Assets::new();
+        assets.rules = r#"
+            [actions.holy_light]
+            name = "Holy Light"
+            requires = { spell = "holy_light" }
+
+            [classes.Cleric.unlocks.level_1]
+            spells = ["minor_heal"]
+
+            [classes.Cleric.unlocks.level_2]
+            spells = ["holy_light"]
+        "#
+        .to_string();
+
+        let mut actor = Entity::new();
+        actor.set_attribute("class", Value::Str("Cleric".to_string()));
+        actor.set_attribute("LEVEL", Value::Int(1));
+        actor.set_attribute("spells", Value::StrArray(vec!["minor_heal".to_string()]));
+
+        let state = command_state(&assets, Some(&actor), "rules.holy_light");
+
+        assert!(!state.enabled);
+        assert_eq!(
+            state.disabled_reason.as_deref(),
+            Some("Available at level 2")
+        );
+    }
+
+    #[test]
     fn item_description_uses_ruleset_item_attrs() {
         let mut item = Item::new();
         item.item_type = "Fallback".to_string();
@@ -730,6 +888,13 @@ mod tests {
         item.set_attribute("category", Value::Str("arrow".to_string()));
         item.set_attribute("quantity", Value::Int(12));
         item.set_attribute("max_stack", Value::Int(99));
+        item.set_attribute("quality", Value::Int(73));
+        item.set_attribute("condition", Value::Int(88));
+        item.set_attribute("damage_roll", Value::Str("1d6".to_string()));
+        item.set_attribute("damage_bonus", Value::Int(1));
+        item.set_attribute("damage_bonus_attribute", Value::Str("DEX".to_string()));
+        item.set_attribute("damage_bonus_every", Value::Int(4));
+        item.set_attribute("damage_kind", Value::Str("physical".to_string()));
 
         let description = describe_item(&item);
 
@@ -739,6 +904,25 @@ mod tests {
                 .lines
                 .iter()
                 .any(|line| line == "Quantity: 12 / 99")
+        );
+        assert!(description.lines.iter().any(|line| line == "Quality: 73%"));
+        assert!(
+            description
+                .lines
+                .iter()
+                .any(|line| line == "Condition: 88%")
+        );
+        assert!(
+            description
+                .lines
+                .iter()
+                .any(|line| line == "Damage: 1d6 + 1 + DEX/4")
+        );
+        assert!(
+            description
+                .lines
+                .iter()
+                .any(|line| line == "Damage kind: Physical")
         );
     }
 

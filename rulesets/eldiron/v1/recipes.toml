@@ -1,14 +1,16 @@
 # Recipes transform stackable materials into stackable outputs.
 #
 # The first recipes deliberately mirror the current combat resource loops:
-# arrows for Rangers and herbs for Clerics. Later stations, skills, quality,
-# vendor prices, failure chances, and professions can grow on this same shape.
+# arrows for Rangers and herbs for Clerics. Crafting always creates the item
+# when hard requirements are met; skill and attributes determine output quality.
+# Item quality and condition are stored as 1..100 percentage values.
 
 [recipes.wooden_arrows]
 name = "Wooden Arrows"
 description = "Shape green wood into arrow shafts and fletch them with feathers."
 skill = "fletching"
 required_skill = 0
+recommended_skill = 10
 difficulty = 10
 attribute = "DEX"
 profession_hint = "Fletcher"
@@ -27,6 +29,7 @@ name = "Blessed Herb"
 description = "Bless a gathered wild herb into a simple restoration reagent."
 skill = "restoration"
 required_skill = 0
+recommended_skill = 8
 difficulty = 8
 attribute = "WIS"
 class_hint = "Cleric"
@@ -44,7 +47,8 @@ produces = [
 name = "Hunting Bow"
 description = "Craft a simple hunting bow from seasoned green wood."
 skill = "fletching"
-required_skill = 25
+required_skill = 0
+recommended_skill = 25
 difficulty = 35
 attribute = "DEX"
 profession_hint = "Fletcher"

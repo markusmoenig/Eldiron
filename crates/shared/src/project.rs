@@ -1347,6 +1347,17 @@ mod tests {
     use super::*;
     use rusterix::Sector;
 
+    fn official_ruleset_item_count() -> usize {
+        let rules = crate::rulesets::resolve_project_rules(
+            crate::rulesets::DEFAULT_RULESET_CONFIG,
+            crate::rulesets::DEFAULT_RULES_OVERRIDE,
+        )
+        .unwrap();
+        crate::rulesets::ruleset_item_templates_from_source(&rules)
+            .unwrap()
+            .len()
+    }
+
     #[test]
     fn project_can_load_3d_starter_fixture() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1470,7 +1481,10 @@ mod tests {
         project.config = crate::rulesets::DEFAULT_RULESET_CONFIG.to_string();
         project.rules = crate::rulesets::DEFAULT_RULES_OVERRIDE.to_string();
 
-        assert_eq!(project.sync_ruleset_items().unwrap(), 21);
+        assert_eq!(
+            project.sync_ruleset_items().unwrap(),
+            official_ruleset_item_count()
+        );
         assert_eq!(project.sync_ruleset_items().unwrap(), 0);
         assert_eq!(
             project.palette.colors[2]
@@ -1513,7 +1527,10 @@ mod tests {
         project.config = crate::rulesets::DEFAULT_RULESET_CONFIG.to_string();
         project.rules = crate::rulesets::DEFAULT_RULES_OVERRIDE.to_string();
 
-        assert_eq!(project.sync_ruleset_items().unwrap(), 21);
+        assert_eq!(
+            project.sync_ruleset_items().unwrap(),
+            official_ruleset_item_count()
+        );
         assert_eq!(project.items.first().map(|(id, _)| *id), Some(custom_id));
         let names = project
             .items
