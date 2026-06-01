@@ -195,7 +195,7 @@ pub fn describe_item(item: &Item) -> RulesDescription {
 fn item_percent_attr(item: &Item, key: &str) -> Option<i32> {
     item.attributes
         .get_float(key)
-        .map(|value| value.round().clamp(1.0, 100.0) as i32)
+        .map(|value| value.round().clamp(0.0, 100.0) as i32)
 }
 
 fn item_damage_line(item: &Item) -> Option<String> {

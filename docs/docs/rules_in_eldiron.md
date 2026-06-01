@@ -246,6 +246,16 @@ templates can set `icon = "training_sword"` as a generic fallback. Item display
 still prefers explicit tiles, avatar channels, and `visual_template` pixel masks
 when present, so hand-shaped pixel item icons remain the primary look.
 
+Ruleset-backed item templates can also carry item script source, authoring text,
+tile ids, and lights. The ruleset can bundle the referenced tiles too, including
+animated tile frames. This is used for reusable interactive objects such as
+`items.tools.torch`: the ruleset creates a normal project item template whose
+`use` intent toggles `active`, swaps between the bundled unlit tile and the
+bundled four-frame lit animation, enables or disables the point light, and
+presents different look/use text for the on and off states. The same item also
+uses ruleset durability: while `active`, its `condition` drains in game minutes,
+and the default official torch destroys itself at `0%` condition.
+
 Ruleset item ids are stable. Startup loadouts can reference `training_sword` or
 `padded_armor` even when the visible item name is `Training Sword` or
 `Padded Armor`.

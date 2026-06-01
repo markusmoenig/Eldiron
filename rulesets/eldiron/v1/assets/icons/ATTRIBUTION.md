@@ -33,6 +33,7 @@ Runtime tinting, dithering, and visual treatment are applied by Eldiron, not by 
 - `round_shield`: `round-shield` by Willdabeast (CC BY 3.0) - https://game-icons.net/1x1/willdabeast/round-shield.html
 - `small_bag`: `backpack` by Delapouite (CC BY 3.0) - https://game-icons.net/1x1/delapouite/backpack.html
 - `take`: `grab` by Lorc (CC BY 3.0) - https://game-icons.net/1x1/lorc/grab.html
+- `torch`: `torch` by Delapouite (CC BY 3.0) - https://game-icons.net/1x1/delapouite/torch.html
 - `training_spear`: `spear-feather` by Delapouite (CC BY 3.0) - https://game-icons.net/1x1/delapouite/spear-feather.html
 - `training_sword`: `gladius` by Skoll (CC BY 3.0) - https://game-icons.net/1x1/skoll/gladius.html
 - `use`: `hand` by sbed (CC BY 3.0) - https://game-icons.net/1x1/sbed/hand.html

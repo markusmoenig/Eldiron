@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::LazyLock,
 };
-use theframework::prelude::{TheColor, ThePalette};
+use theframework::prelude::{TheColor, ThePalette, Uuid};
 use toml::{Table, Value};
 
 pub const OFFICIAL_RULESET_ID: &str = "eldiron.official";
@@ -91,6 +91,15 @@ pub struct BundledTextureAsset {
     pub source: &'static [u8],
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BundledTileAsset {
+    pub id: &'static str,
+    pub ruleset_id: &'static str,
+    pub ruleset_version: &'static str,
+    pub path: &'static str,
+    pub source: &'static str,
+}
+
 pub fn bundled_rulesets() -> &'static [BundledRuleset] {
     &[BundledRuleset {
         id: OFFICIAL_RULESET_ID,
@@ -169,7 +178,28 @@ pub fn bundled_texture_assets() -> &'static [BundledTextureAsset] {
         official_icon!("wild_herb_node"),
         official_icon!("green_wood_node"),
         official_icon!("bird_nest_node"),
+        official_icon!("torch"),
     ]
+}
+
+pub fn bundled_tile_assets() -> &'static [BundledTileAsset] {
+    macro_rules! official_tile {
+        ($id:literal) => {
+            BundledTileAsset {
+                id: $id,
+                ruleset_id: OFFICIAL_RULESET_ID,
+                ruleset_version: OFFICIAL_RULESET_VERSION,
+                path: concat!("assets/tiles/", $id, ".eldiron_tile"),
+                source: include_str!(concat!(
+                    "../../../rulesets/eldiron/v1/assets/tiles/",
+                    $id,
+                    ".eldiron_tile"
+                )),
+            }
+        };
+    }
+
+    &[official_tile!("torch_off"), official_tile!("torch_on")]
 }
 
 pub fn bundled_avatar_assets_for_ruleset(
@@ -204,6 +234,22 @@ pub fn bundled_texture_assets_for_ruleset(
         .collect()
 }
 
+pub fn bundled_tile_assets_for_ruleset(
+    ruleset_id: &str,
+    ruleset_version: &str,
+) -> Vec<&'static BundledTileAsset> {
+    bundled_tile_assets()
+        .iter()
+        .filter(|asset| {
+            asset.ruleset_id == ruleset_id
+                && (asset.ruleset_version == ruleset_version
+                    || ruleset_version == "1"
+                    || ruleset_version == "1.0"
+                    || ruleset_version == "v1")
+        })
+        .collect()
+}
+
 pub fn bundled_avatars_for_project(
     config_src: &str,
 ) -> Result<Vec<(&'static str, rusterix::Avatar)>, String> {
@@ -220,6 +266,27 @@ pub fn bundled_avatars_for_project(
                 .map_err(|err| {
                     format!(
                         "Bundled ruleset avatar '{}' at '{}' could not be parsed: {}",
+                        asset.id, asset.path, err
+                    )
+                })
+        })
+        .collect()
+}
+
+pub fn bundled_tiles_for_project(config_src: &str) -> Result<Vec<(Uuid, rusterix::Tile)>, String> {
+    let (id, version, source) = selected_ruleset(config_src);
+    if source == "project" {
+        return Ok(Vec::new());
+    }
+
+    bundled_tile_assets_for_ruleset(&id, &version)
+        .into_iter()
+        .map(|asset| {
+            serde_json::from_str::<rusterix::Tile>(asset.source)
+                .map(|tile| (tile.id, tile))
+                .map_err(|err| {
+                    format!(
+                        "Bundled ruleset tile '{}' at '{}' could not be parsed: {}",
                         asset.id, asset.path, err
                     )
                 })
@@ -1790,7 +1857,9 @@ pub struct RulesetItemTemplate {
     pub name: String,
     pub kind: String,
     pub ruleset_path: String,
+    pub source: String,
     pub data: String,
+    pub authoring: String,
 }
 
 fn insert_string(table: &mut Table, key: &str, value: impl Into<String>) {
@@ -1837,6 +1906,14 @@ fn ruleset_item_template_data(
 ) -> Result<RulesetItemTemplate, String> {
     let name = table_string(item, "name").unwrap_or_else(|| id.to_string());
     let ruleset_path = format!("items.{}.{}", table_name, id);
+    let source = table_string(item, "script")
+        .or_else(|| table_string(item, "source"))
+        .unwrap_or_default();
+    let authoring = item
+        .get("authoring")
+        .and_then(Value::as_table)
+        .map(|authoring| toml::to_string(authoring).unwrap_or_default())
+        .unwrap_or_default();
 
     let mut attributes = Table::new();
     insert_string(&mut attributes, "name", &name);
@@ -1963,16 +2040,46 @@ fn ruleset_item_template_data(
         }
     }
 
+    if let Some(durability) = item.get("durability").and_then(Value::as_table) {
+        for (key, value) in durability {
+            attributes.insert(format!("durability_{}", key), value.clone());
+        }
+    }
+
     insert_string(&mut attributes, "ruleset_path", &ruleset_path);
     insert_string(&mut attributes, "ruleset_kind", kind);
     insert_string(&mut attributes, "ruleset_id", id);
 
     let mut root = Table::new();
+    for key in [
+        "tile_id",
+        "tile_id_front",
+        "tile_id_back",
+        "tile_id_left",
+        "tile_id_right",
+        "rig_tile_id",
+        "rig_tile_id_front",
+        "rig_tile_id_back",
+        "rig_tile_id_left",
+        "rig_tile_id_right",
+    ] {
+        if let Some(value) = item.get(key) {
+            root.insert(key.to_string(), value.clone());
+        }
+    }
+    if let Some(light) = item.get("light").and_then(Value::as_table) {
+        root.insert("light".to_string(), Value::Table(light.clone()));
+    }
     root.insert("attributes".to_string(), Value::Table(attributes));
 
+    let mut ruleset = Table::new();
     if let Some(damage) = item.get("damage").and_then(Value::as_table) {
-        let mut ruleset = Table::new();
         ruleset.insert("damage".to_string(), Value::Table(damage.clone()));
+    }
+    if let Some(durability) = item.get("durability").and_then(Value::as_table) {
+        ruleset.insert("durability".to_string(), Value::Table(durability.clone()));
+    }
+    if !ruleset.is_empty() {
         root.insert("ruleset".to_string(), Value::Table(ruleset));
     }
 
@@ -1984,7 +2091,9 @@ fn ruleset_item_template_data(
         name,
         kind: kind.to_string(),
         ruleset_path,
+        source,
         data,
+        authoring,
     })
 }
 
@@ -2186,6 +2295,24 @@ mod tests {
             assert_eq!(texture.width, 32);
             assert_eq!(texture.height, 32);
         }
+    }
+
+    #[test]
+    fn loads_bundled_ruleset_tiles() {
+        let tiles = bundled_tiles_for_project("").unwrap();
+        let (_, off_tile) = tiles
+            .iter()
+            .find(|(_, tile)| tile.id.to_string() == "05ab6adc-1631-4ed2-9857-f85820a7f1ad")
+            .expect("torch off tile should be bundled");
+        let (_, on_tile) = tiles
+            .iter()
+            .find(|(_, tile)| tile.id.to_string() == "f76473d1-70f6-4649-8b0d-cbac627f93d8")
+            .expect("torch on tile should be bundled");
+
+        assert_eq!(off_tile.textures.len(), 1);
+        assert_eq!(on_tile.textures.len(), 4);
+        assert_eq!(off_tile.textures[0].width, 24);
+        assert_eq!(on_tile.textures[0].height, 24);
     }
 
     #[test]
@@ -2575,6 +2702,17 @@ mod tests {
             template.id == "wild_herb"
                 && template.kind == "material"
                 && template.ruleset_path == "items.materials.wild_herb"
+        }));
+        assert!(templates.iter().any(|template| {
+            template.id == "torch"
+                && template.kind == "tool"
+                && template.ruleset_path == "items.tools.torch"
+                && template.source.contains("set_emit_light(value)")
+                && template.source.contains("set_tile(\"f76473d1")
+                && template.data.contains("tile_id = \"05ab6adc")
+                && template.data.contains("[light]")
+                && template.data.contains("on_look_on = \"A lit torch")
+                && template.authoring.contains("[state.on]")
         }));
         assert!(
             templates

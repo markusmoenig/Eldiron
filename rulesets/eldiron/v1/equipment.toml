@@ -349,6 +349,36 @@ pixels = [
     "........................",
 ]
 
+[visual_templates.torch_standing]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "..........HHHH..........",
+    ".........HHBBH..........",
+    ".........HBBBB..........",
+    "..........BBBB..........",
+    ".........GBBBH..........",
+    "..........AAA...........",
+    ".........AAAAA..........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    ".........GAAAG..........",
+    "........GGAAAGG.........",
+    "........................",
+    "........................",
+    "........................",
+]
+
 [items.weapons.training_sword]
 name = "Training Sword"
 description = "A blunt wooden practice sword used for early drills and safe sparring."
@@ -787,3 +817,84 @@ resource_action = "gather_feathers"
 respawn = 300
 amount = 2
 takeable = false
+
+[items.tools.torch]
+name = "Torch"
+description = "A simple hand torch with an iron bracket and a rag-wrapped head."
+category = "utility"
+slot = "tool"
+rarity = "common"
+icon = "torch"
+visual_template = "torch_standing"
+blade_color_index = 10
+grip_color_index = 10
+accent_color_index = 23
+highlight_color_index = 14
+tile_id = "05ab6adc-1631-4ed2-9857-f85820a7f1ad"
+script = '''
+fn event(event, value) {
+    if event == "active" {
+        set_emit_light(value);
+        if value == true {
+            set_tile("f76473d1-70f6-4649-8b0d-cbac627f93d8");
+        } else {
+            set_tile("05ab6adc-1631-4ed2-9857-f85820a7f1ad");
+        }
+    }
+    if event == "intent" {
+        let intent = value.string;
+        if intent == "use" {
+            if value.distance > 2 {
+                message(value.subject_id, "{system.too_far_away}", "warning");
+            } else {
+                toggle_attr("active");
+                block_events(1, "intent");
+            }
+        }
+    }
+}
+'''
+
+[items.tools.torch.attributes]
+active = false
+blocking = false
+visible = true
+static = false
+radius = 0.5
+worth = 1
+monetary = false
+takeable = false
+on_look_off = "An unlit torch rests here, cold and dark."
+on_look_on = "A lit torch burns with a wavering flame, pushing back the shadows."
+off_tile_id = "05ab6adc-1631-4ed2-9857-f85820a7f1ad"
+on_tile_id = "f76473d1-70f6-4649-8b0d-cbac627f93d8"
+
+[items.tools.torch.durability]
+drain = "condition"
+when = "active"
+amount = 10
+per_game_minutes = 60
+on_empty = "destroy"
+
+[items.tools.torch.light]
+strength = 5.0
+range = 3.0
+flicker = 0.4
+
+[items.tools.torch.authoring]
+title = "Torch"
+description = """
+A simple hand torch with an iron bracket and a rag-wrapped head.
+"""
+
+[items.tools.torch.authoring.state.off]
+description = """
+An unlit torch rests here, cold and dark.
+"""
+on_use = "You light the torch."
+
+[items.tools.torch.authoring.state.on]
+description = """
+A lit torch burns with a wavering flame, pushing back the shadows.
+"""
+on_use = "You extinguish the torch."

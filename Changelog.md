@@ -33,6 +33,7 @@
 - Added terminal ruleset validation and summary commands for the bundled official ruleset and resolved project rules overrides.
 - Added a terminal character rules inspector that resolves race, class, level, attributes, unlocks, loadout, spell details, and combat rolls from the official ruleset.
 - Added a terminal item rules inspector for weapons, armor, and clothing, including damage rolls, attributes, category rules, and visual/avatar metadata.
+- Added a reusable official torch item template with script source, lit/unlit state text, tile switching, light emission, a bundled off tile, a bundled four-frame lit animation tile, and rules-owned burn durability.
 - Added the first Ranger ruleset slice with bow-based DEX damage, a hunting bow, wooden arrows, ranged range validation, and terminal/rules regressions.
 - Added an official training spear and first-class stackable inventory support for ammunition, including stack merge, quantity decrement, text display, and slot badges.
 - Made bow ammunition quantities rules-owned and updated generic action item costs to count and consume stack quantities, preparing the same path for spell reagents and crafting materials.

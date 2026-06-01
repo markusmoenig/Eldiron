@@ -274,3 +274,11 @@ author = "Delapouite"
 author_slug = "delapouite"
 license = "CC BY 3.0"
 tags = ["item", "resource"]
+
+[icons.torch]
+source = "game-icons"
+name = "torch"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "utility", "light"]

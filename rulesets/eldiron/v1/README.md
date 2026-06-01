@@ -57,3 +57,16 @@ cargo run -p eldiron-icon-builder -- rulesets/eldiron/v1/icons.toml rulesets/eld
 
 The generated attribution file in `assets/icons/ATTRIBUTION.md` tracks the
 Game-icons.net sources and licenses.
+
+Bundled reusable tile assets live in:
+
+```text
+assets/tiles
+```
+
+These are serialized Eldiron tiles used by ruleset-backed interactive items,
+such as the torch's unlit tile and four-frame lit animation.
+
+The torch also demonstrates rules-owned durability. Its `[durability]` table
+drains `condition` while `active`, measured in game minutes, and removes the
+item when the condition reaches `0%`.

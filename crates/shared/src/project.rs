@@ -667,9 +667,17 @@ impl Project {
 
     pub fn sync_ruleset_items(&mut self) -> Result<usize, String> {
         self.sync_ruleset_palette()?;
+        let bundled_tiles = crate::rulesets::bundled_tiles_for_project(&self.config)?;
         let rules = crate::rulesets::resolve_project_rules(&self.config, &self.rules)?;
         let templates = crate::rulesets::ruleset_item_templates_from_source(&rules)?;
         let mut changed = 0;
+
+        for (id, tile) in bundled_tiles {
+            if self.tiles.get(&id) != Some(&tile) {
+                self.tiles.insert(id, tile);
+                changed += 1;
+            }
+        }
 
         for template in templates {
             if let Some(item) = self
@@ -686,13 +694,23 @@ impl Project {
                     item.data = template.data.clone();
                     item_changed = true;
                 }
+                if item.source != template.source {
+                    item.source = template.source.clone();
+                    item_changed = true;
+                }
+                if item.authoring != template.authoring {
+                    item.authoring = template.authoring.clone();
+                    item_changed = true;
+                }
                 if item_changed {
                     changed += 1;
                 }
             } else {
                 let mut item = Item::new();
                 item.name = template.name;
+                item.source = template.source;
                 item.data = template.data;
+                item.authoring = template.authoring;
                 self.add_item(item);
                 changed += 1;
             }
@@ -1353,6 +1371,12 @@ mod tests {
             .len()
     }
 
+    fn official_ruleset_tile_count() -> usize {
+        crate::rulesets::bundled_tiles_for_project(crate::rulesets::DEFAULT_RULESET_CONFIG)
+            .unwrap()
+            .len()
+    }
+
     #[test]
     fn project_can_load_3d_starter_fixture() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1478,7 +1502,7 @@ mod tests {
 
         assert_eq!(
             project.sync_ruleset_items().unwrap(),
-            official_ruleset_item_count()
+            official_ruleset_item_count() + official_ruleset_tile_count()
         );
         assert_eq!(project.sync_ruleset_items().unwrap(), 0);
         assert_eq!(
@@ -1495,6 +1519,16 @@ mod tests {
                     .data
                     .contains("ruleset_path = \"items.weapons.training_sword\"")
         }));
+        assert!(
+            project
+                .tiles
+                .contains_key(&Uuid::parse_str("05ab6adc-1631-4ed2-9857-f85820a7f1ad").unwrap())
+        );
+        assert!(
+            project
+                .tiles
+                .contains_key(&Uuid::parse_str("f76473d1-70f6-4649-8b0d-cbac627f93d8").unwrap())
+        );
 
         let linen_shirt = project
             .items
@@ -1524,7 +1558,7 @@ mod tests {
 
         assert_eq!(
             project.sync_ruleset_items().unwrap(),
-            official_ruleset_item_count()
+            official_ruleset_item_count() + official_ruleset_tile_count()
         );
         assert_eq!(project.items.first().map(|(id, _)| *id), Some(custom_id));
         let names = project

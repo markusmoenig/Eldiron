@@ -587,6 +587,10 @@ from inventory items.
 | `green_wood_node` | `gather_wood` | `green_wood x3` | `300` seconds | wood shaft mask |
 | `bird_nest_node` | `gather_feathers` | `feather x2` | `300` seconds | feather/nest mask |
 
+| Tool | Interaction | State | Visual |
+| --- | --- | --- | --- |
+| `torch` | `use` toggles it on/off | swaps light, tile, and look text; while lit it loses `condition` over game minutes and destroys itself at `0%` | one bundled unlit tile, one bundled four-frame lit tile |
+
 Bows consume one matching ammunition item from the attacker's inventory when a
 weapon attack resolves. `hunting_bow` declares `ammunition = "wooden_arrows"`
 and `ammunition_quantity = 1`, so the ruleset owns both which item is needed
@@ -597,6 +601,14 @@ means one inventory stack of arrows, not one single arrow item per slot.
 When an item defines `avatar_channels` and no explicit icon or tile source,
 Eldiron derives its preview from the bundled humanoid avatar. Inventory,
 equipment, and ground item visuals use the same generated shape.
+
+Some official items are interactive templates rather than passive gear. A torch
+contains its own script, authored state text, light definition, and lit/unlit
+visual state. Its unlit tile and animated lit tile are bundled with the official
+rules, so projects can place a complete working torch without rebuilding that
+behavior by hand. Its burn time is rules-owned through `[durability]`: while
+`active`, it drains `condition` by `10%` per `60` game minutes, and `on_empty =
+"destroy"` removes the burned-out torch.
 
 ## Abilities And Spells
 

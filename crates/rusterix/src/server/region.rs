@@ -531,6 +531,89 @@ mod ruleset_progression_tests {
             .unwrap_or(0)
     }
 
+    fn durable_torch_item(id: u32, condition: f32, active: bool) -> Item {
+        let mut item = Item::new();
+        item.id = id;
+        item.set_attribute("name", Value::Str("Torch".into()));
+        item.set_attribute("condition", Value::Float(condition));
+        item.set_attribute("active", Value::Bool(active));
+        item.set_attribute("durability_drain", Value::Str("condition".into()));
+        item.set_attribute("durability_when", Value::Str("active".into()));
+        item.set_attribute("durability_amount", Value::Int(10));
+        item.set_attribute("durability_per_game_minutes", Value::Int(60));
+        item.set_attribute("durability_on_empty", Value::Str("destroy".into()));
+        item
+    }
+
+    #[test]
+    fn ruleset_durability_drains_by_game_minutes_only_while_active() {
+        let mut ctx = RegionCtx::default();
+        ctx.ticks_per_minute = 10;
+        ctx.ticks = 0;
+        ctx.map.items.push(durable_torch_item(77, 100.0, true));
+
+        update_ruleset_item_durability(&mut ctx);
+        assert_eq!(
+            ctx.map.items[0]
+                .attributes
+                .get_float_default("condition", 0.0),
+            100.0
+        );
+
+        ctx.ticks = 300;
+        update_ruleset_item_durability(&mut ctx);
+        assert_eq!(
+            ctx.map.items[0]
+                .attributes
+                .get_float_default("condition", 0.0),
+            95.0
+        );
+
+        ctx.map.items[0].set_attribute("active", Value::Bool(false));
+        ctx.ticks = 600;
+        update_ruleset_item_durability(&mut ctx);
+        assert_eq!(
+            ctx.map.items[0]
+                .attributes
+                .get_float_default("condition", 0.0),
+            95.0
+        );
+
+        ctx.map.items[0].set_attribute("active", Value::Bool(true));
+        ctx.ticks = 900;
+        update_ruleset_item_durability(&mut ctx);
+        assert_eq!(
+            ctx.map.items[0]
+                .attributes
+                .get_float_default("condition", 0.0),
+            90.0
+        );
+    }
+
+    #[test]
+    fn ruleset_durability_destroy_removes_expired_items() {
+        let mut ctx = RegionCtx::default();
+        ctx.ticks_per_minute = 10;
+        ctx.ticks = 0;
+        ctx.map.items.push(durable_torch_item(78, 1.0, true));
+        ctx.item_state_data.insert(78, ValueContainer::default());
+        ctx.item_classes.insert(78, "Torch".into());
+        ctx.to_execute_item
+            .push((78, "active".into(), VMValue::from_bool(true)));
+        ctx.notifications_items
+            .push((78, 100, "expire".to_string()));
+
+        update_ruleset_item_durability(&mut ctx);
+        ctx.ticks = 60;
+        update_ruleset_item_durability(&mut ctx);
+
+        assert!(ctx.map.items.is_empty());
+        assert!(!ctx.item_state_data.contains_key(&78));
+        assert!(!ctx.item_classes.contains_key(&78));
+        assert!(ctx.to_execute_item.is_empty());
+        assert!(ctx.notifications_items.is_empty());
+    }
+
     #[test]
     fn item_quality_and_condition_scale_weapon_damage() {
         let mut item = Item::new();
@@ -1361,6 +1444,28 @@ mod ruleset_progression_tests {
         assert!(is_damage_event_name("damaged"));
         assert!(is_damage_event_name("take_damage"));
         assert!(!is_damage_event_name("damage"));
+    }
+
+    #[test]
+    fn item_inline_look_message_uses_active_state() {
+        let mut item = Item::new();
+        item.set_attribute("on_look_off", Value::Str("The torch is dark.".to_string()));
+        item.set_attribute(
+            "on_look_on",
+            Value::Str("The torch burns brightly.".to_string()),
+        );
+
+        item.set_attribute("active", Value::Bool(false));
+        assert_eq!(
+            item_inline_look_message(&item.attributes).as_deref(),
+            Some("The torch is dark.")
+        );
+
+        item.set_attribute("active", Value::Bool(true));
+        assert_eq!(
+            item_inline_look_message(&item.attributes).as_deref(),
+            Some("The torch burns brightly.")
+        );
     }
 
     #[test]
@@ -5939,17 +6044,9 @@ impl RegionInstance {
                                     }
                                 } else if let Some(attrs) = item_attrs {
                                     if intent_lower == "look" {
-                                        if let Some(msg) = attrs.get_str("on_look") {
-                                            let msg = msg.trim();
-                                            if !msg.is_empty() {
-                                                send_message(
-                                                    ctx,
-                                                    entity_id,
-                                                    msg.to_string(),
-                                                    "system",
-                                                );
-                                                handled_shortcut = true;
-                                            }
+                                        if let Some(msg) = item_inline_look_message(attrs) {
+                                            send_message(ctx, entity_id, msg, "system");
+                                            handled_shortcut = true;
                                         }
                                         if !handled_shortcut
                                             && let Some(item) = ctx
@@ -8580,6 +8677,7 @@ impl RegionInstance {
             Self::merge_runtime_entity_side_effects(&mut entities, &ctx.map.entities);
             ctx.map.entities = entities;
             update_entity_respawns(ctx);
+            update_ruleset_item_durability(ctx);
             update_spell_items(ctx);
         });
 
@@ -9255,15 +9353,12 @@ impl RegionInstance {
                     }
                 }
                 if let Some(target_item) = target_item {
-                    if let Some(msg) = target_item.attributes.get_str("on_look") {
-                        let msg = msg.trim();
-                        if !msg.is_empty() {
-                            send_message(ctx, entity.id, msg.to_string(), "system");
-                            if !keep_intent {
-                                entity.set_attribute("intent", Value::Str(String::new()));
-                            }
-                            return;
+                    if let Some(msg) = item_inline_look_message(&target_item.attributes) {
+                        send_message(ctx, entity.id, msg, "system");
+                        if !keep_intent {
+                            entity.set_attribute("intent", Value::Str(String::new()));
                         }
+                        return;
                     }
                     if let Some(msg) = item_look_description(ctx, target_item) {
                         send_message(ctx, entity.id, msg, "system");
@@ -10928,6 +11023,18 @@ fn copy_ruleset_item_damage_attrs(item: &mut Item, item_table: &toml::value::Tab
     }
 }
 
+fn copy_ruleset_item_durability_attrs(item: &mut Item, item_table: &toml::value::Table) {
+    let Some(durability) = item_table.get("durability").and_then(toml::Value::as_table) else {
+        return;
+    };
+
+    for (key, value) in durability {
+        if let Some(value) = toml_value_to_attr(value) {
+            item.set_attribute(&format!("durability_{}", key), value);
+        }
+    }
+}
+
 fn ruleset_item_from_table(
     rules: &toml::value::Table,
     item_id: &str,
@@ -10962,6 +11069,27 @@ fn ruleset_item_from_table(
     ] {
         if let Some(value) = rule_string(item_table, key) {
             item.set_attribute(key, Value::Str(value.to_string()));
+        }
+    }
+    for key in [
+        "tile_id",
+        "tile_id_front",
+        "tile_id_back",
+        "tile_id_left",
+        "tile_id_right",
+        "rig_tile_id",
+        "rig_tile_id_front",
+        "rig_tile_id_back",
+        "rig_tile_id_left",
+        "rig_tile_id_right",
+    ] {
+        if let Some(value) = rule_string(item_table, key)
+            && let Some(source) = crate::server::data::parse_tile_source_from_str(value)
+        {
+            if key == "tile_id" || key == "rig_tile_id" {
+                item.set_attribute("source", Value::Source(source.clone()));
+            }
+            item.set_attribute(key, Value::Source(source));
         }
     }
     if let Some(channels) = item_table
@@ -11008,7 +11136,13 @@ fn ruleset_item_from_table(
             }
         }
     }
+    if let Some(light_table) = item_table.get("light") {
+        let mut light = crate::Light::new(crate::LightType::Point);
+        crate::server::data::read_light(&mut light, light_table);
+        item.set_attribute("light", Value::Light(light));
+    }
     copy_ruleset_item_damage_attrs(&mut item, item_table);
+    copy_ruleset_item_durability_attrs(&mut item, item_table);
     item.apply_container_attributes();
     if let Some(template_name) = rule_string(item_table, "visual_template")
         && let Some(template) = rules
@@ -13854,6 +13988,10 @@ fn entity_look_description(ctx: &RegionCtx, entity: &Entity) -> Option<String> {
 }
 
 fn item_look_description(ctx: &RegionCtx, item: &Item) -> Option<String> {
+    if let Some(message) = item_inline_look_message(&item.attributes) {
+        return Some(message);
+    }
+
     let class_name = item.get_attr_string("class_name")?;
     let data = ctx.item_authoring_data.get(&class_name)?;
     let state = item
@@ -13867,6 +14005,22 @@ fn item_look_description(ctx: &RegionCtx, item: &Item) -> Option<String> {
             }
         });
     authored_description_from_data(data, None, state.as_deref())
+}
+
+fn item_inline_look_message(attributes: &ValueContainer) -> Option<String> {
+    let state_key = if attributes.get_bool_default("active", false) {
+        ["on_look_on", "on_look_active"]
+    } else {
+        ["on_look_off", "on_look_inactive"]
+    };
+
+    state_key
+        .iter()
+        .find_map(|key| attributes.get_str(key))
+        .or_else(|| attributes.get_str("on_look"))
+        .map(str::trim)
+        .filter(|message| !message.is_empty())
+        .map(str::to_string)
 }
 
 fn item_use_message(ctx: &RegionCtx, item: &Item) -> Option<String> {
@@ -16051,6 +16205,271 @@ fn remove_world_items_by_id(ctx: &mut RegionCtx, removed_ids: &[u32]) {
             let _ = sender.send(RegionMessage::RemoveItem(ctx.region_id, *item_id));
         }
     }
+}
+
+fn remove_from_item_container_recursive(item: &mut Item, item_id: u32) -> bool {
+    let Some(container) = item.container.as_mut() else {
+        return false;
+    };
+    if let Some(index) = container.iter().position(|child| child.id == item_id) {
+        container.remove(index);
+        item.mark_all_dirty();
+        return true;
+    }
+    for child in container.iter_mut() {
+        if remove_from_item_container_recursive(child, item_id) {
+            item.mark_all_dirty();
+            return true;
+        }
+    }
+    false
+}
+
+fn remove_from_item_vec_recursive(items: &mut Vec<Item>, item_id: u32) -> bool {
+    if let Some(index) = items.iter().position(|item| item.id == item_id) {
+        items.remove(index);
+        return true;
+    }
+    for item in items.iter_mut() {
+        if remove_from_item_container_recursive(item, item_id) {
+            return true;
+        }
+    }
+    false
+}
+
+fn remove_items_everywhere_by_id(ctx: &mut RegionCtx, removed_ids: &[u32]) {
+    if removed_ids.is_empty() {
+        return;
+    }
+    let mut removed = Vec::new();
+
+    for item_id in removed_ids {
+        if remove_from_item_vec_recursive(&mut ctx.map.items, *item_id) {
+            removed.push(*item_id);
+            continue;
+        }
+
+        for entity in &mut ctx.map.entities {
+            if entity.remove_item(*item_id).is_some() {
+                removed.push(*item_id);
+                break;
+            }
+
+            if let Some(slot) = entity
+                .equipped
+                .iter()
+                .find(|(_, item)| item.id == *item_id)
+                .map(|(slot, _)| slot.clone())
+            {
+                entity.equipped.shift_remove(&slot);
+                entity.mark_all_dirty();
+                removed.push(*item_id);
+                break;
+            }
+
+            let mut removed_from_inventory_container = false;
+            for item in entity.inventory.iter_mut().flatten() {
+                if remove_from_item_container_recursive(item, *item_id) {
+                    removed_from_inventory_container = true;
+                    break;
+                }
+            }
+            if removed_from_inventory_container {
+                removed.push(*item_id);
+                break;
+            }
+
+            let mut removed_from_equipped_container = false;
+            for item in entity.equipped.values_mut() {
+                if remove_from_item_container_recursive(item, *item_id) {
+                    removed_from_equipped_container = true;
+                    break;
+                }
+            }
+            if removed_from_equipped_container {
+                entity.mark_all_dirty();
+                removed.push(*item_id);
+                break;
+            }
+        }
+    }
+
+    if removed.is_empty() {
+        return;
+    }
+    removed.sort_unstable();
+    removed.dedup();
+
+    for item_id in &removed {
+        ctx.item_classes.remove(item_id);
+        ctx.item_state_data.remove(item_id);
+    }
+    ctx.notifications_items
+        .retain(|(item_id, _, _)| !removed.contains(item_id));
+    ctx.to_execute_item
+        .retain(|(item_id, _, _)| !removed.contains(item_id));
+
+    if let Some(sender) = ctx.from_sender.get() {
+        for item_id in removed {
+            let _ = sender.send(RegionMessage::RemoveItem(ctx.region_id, item_id));
+        }
+    }
+}
+
+fn item_durability_condition_met(item: &Item, when: &str) -> bool {
+    let when = when.trim();
+    if when.is_empty() || when.eq_ignore_ascii_case("always") {
+        return true;
+    }
+    if when.eq_ignore_ascii_case("active") {
+        return item.attributes.get_bool_default("active", false);
+    }
+    if when.eq_ignore_ascii_case("inactive") {
+        return !item.attributes.get_bool_default("active", false);
+    }
+    item.attributes.get_bool_default(when, false)
+}
+
+fn update_item_durability_recursive(
+    item: &mut Item,
+    item_state_data: &mut FxHashMap<u32, ValueContainer>,
+    now_tick: i64,
+    ticks_per_minute: u32,
+    removed_ids: &mut Vec<u32>,
+) -> bool {
+    let mut changed = false;
+    if let Some(container) = item.container.as_mut() {
+        for child in container.iter_mut() {
+            changed |= update_item_durability_recursive(
+                child,
+                item_state_data,
+                now_tick,
+                ticks_per_minute,
+                removed_ids,
+            );
+        }
+    }
+
+    let Some(drain_attr) = item
+        .attributes
+        .get_str("durability_drain")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+    else {
+        return changed;
+    };
+
+    let on_empty = item
+        .attributes
+        .get_str_default("durability_on_empty", String::new())
+        .trim()
+        .to_ascii_lowercase();
+    let current = item
+        .attributes
+        .get_float_default(&drain_attr, 100.0)
+        .clamp(0.0, 100.0);
+    if current <= 0.0 {
+        if on_empty == "destroy" {
+            removed_ids.push(item.id);
+        }
+        return changed;
+    }
+
+    let when = item
+        .attributes
+        .get_str_default("durability_when", "always".into());
+    let state = item_state_data.entry(item.id).or_default();
+    if !item_durability_condition_met(item, &when) {
+        state.set("__durability_last_tick", Value::Int64(now_tick));
+        return changed;
+    }
+
+    let last_tick = state
+        .get("__durability_last_tick")
+        .and_then(value_as_i64)
+        .unwrap_or_else(|| {
+            state.set("__durability_last_tick", Value::Int64(now_tick));
+            now_tick
+        });
+    let elapsed_ticks = now_tick.saturating_sub(last_tick);
+    state.set("__durability_last_tick", Value::Int64(now_tick));
+    if elapsed_ticks <= 0 {
+        return changed;
+    }
+
+    let amount = item
+        .attributes
+        .get_float_default("durability_amount", 0.0)
+        .max(0.0);
+    let per_game_minutes = item
+        .attributes
+        .get_float_default("durability_per_game_minutes", 1.0)
+        .max(0.001);
+    if amount <= 0.0 {
+        return changed;
+    }
+
+    let elapsed_game_minutes = elapsed_ticks as f32 / ticks_per_minute.max(1) as f32;
+    let drained = amount * (elapsed_game_minutes / per_game_minutes);
+    if drained <= 0.0 {
+        return changed;
+    }
+
+    let next = (current - drained).clamp(0.0, 100.0);
+    if (next - current).abs() > f32::EPSILON {
+        item.set_attribute(&drain_attr, Value::Float(next));
+        changed = true;
+    }
+    if next <= 0.0 && on_empty == "destroy" {
+        removed_ids.push(item.id);
+    }
+    changed
+}
+
+pub(crate) fn update_ruleset_item_durability(ctx: &mut RegionCtx) {
+    let mut removed_ids = Vec::new();
+    let now_tick = ctx.ticks;
+    let ticks_per_minute = ctx.ticks_per_minute.max(1);
+
+    for item in &mut ctx.map.items {
+        update_item_durability_recursive(
+            item,
+            &mut ctx.item_state_data,
+            now_tick,
+            ticks_per_minute,
+            &mut removed_ids,
+        );
+    }
+    for entity in &mut ctx.map.entities {
+        for item in entity.inventory.iter_mut().flatten() {
+            update_item_durability_recursive(
+                item,
+                &mut ctx.item_state_data,
+                now_tick,
+                ticks_per_minute,
+                &mut removed_ids,
+            );
+        }
+        let mut equipped_changed = false;
+        for item in entity.equipped.values_mut() {
+            equipped_changed |= update_item_durability_recursive(
+                item,
+                &mut ctx.item_state_data,
+                now_tick,
+                ticks_per_minute,
+                &mut removed_ids,
+            );
+        }
+        if equipped_changed {
+            entity.mark_all_dirty();
+        }
+    }
+
+    removed_ids.sort_unstable();
+    removed_ids.dedup();
+    remove_items_everywhere_by_id(ctx, &removed_ids);
 }
 
 fn remove_respawn_corpse_for_entity(ctx: &mut RegionCtx, entity_id: u32) {

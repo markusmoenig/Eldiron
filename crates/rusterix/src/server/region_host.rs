@@ -3153,6 +3153,18 @@ mod tests {
         }
     }
 
+    fn copy_official_item_durability_attrs(item: &mut Item, item_table: &toml::value::Table) {
+        let Some(durability) = item_table.get("durability").and_then(toml::Value::as_table) else {
+            return;
+        };
+
+        for (key, value) in durability {
+            if let Some(value) = toml_value_to_attr(value) {
+                item.set_attribute(&format!("durability_{}", key), value);
+            }
+        }
+    }
+
     fn official_item_from_rules(
         rules: &toml::Table,
         item_id: u32,
@@ -3198,6 +3210,27 @@ mod tests {
             }
         }
         for key in [
+            "tile_id",
+            "tile_id_front",
+            "tile_id_back",
+            "tile_id_left",
+            "tile_id_right",
+            "rig_tile_id",
+            "rig_tile_id_front",
+            "rig_tile_id_back",
+            "rig_tile_id_left",
+            "rig_tile_id_right",
+        ] {
+            if let Some(value) = table_string(item_table, key)
+                && let Some(source) = crate::server::data::parse_tile_source_from_str(&value)
+            {
+                if key == "tile_id" || key == "rig_tile_id" {
+                    item.set_attribute("source", Value::Source(source.clone()));
+                }
+                item.set_attribute(key, Value::Source(source));
+            }
+        }
+        for key in [
             "rig_scale",
             "rig_pivot",
             "color",
@@ -3229,13 +3262,24 @@ mod tests {
                 }
             }
         }
+        if let Some(light_table) = item_table.get("light") {
+            let mut light = crate::Light::new(crate::LightType::Point);
+            crate::server::data::read_light(&mut light, light_table);
+            item.set_attribute("light", Value::Light(light));
+        }
         copy_official_item_damage_attrs(&mut item, item_table);
+        copy_official_item_durability_attrs(&mut item, item_table);
         item.apply_container_attributes();
 
         let mut data = toml::value::Table::new();
+        let mut ruleset = toml::value::Table::new();
         if let Some(damage) = item_table.get("damage").and_then(toml::Value::as_table) {
-            let mut ruleset = toml::value::Table::new();
             ruleset.insert("damage".into(), toml::Value::Table(damage.clone()));
+        }
+        if let Some(durability) = item_table.get("durability").and_then(toml::Value::as_table) {
+            ruleset.insert("durability".into(), toml::Value::Table(durability.clone()));
+        }
+        if !ruleset.is_empty() {
             data.insert("ruleset".into(), toml::Value::Table(ruleset));
         }
 
