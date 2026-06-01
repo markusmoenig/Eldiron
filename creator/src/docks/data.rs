@@ -82,14 +82,6 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
                 status: "In walk mode, clicking terrain in 2D/2d_grid path-walks the player there.",
             },
             SettingNavEntry {
-                key: "base_currency_name",
-                status: "Display name of the primary in-game currency, for example \"Gold\".",
-            },
-            SettingNavEntry {
-                key: "base_currency_symbol",
-                status: "Short symbol shown with currency amounts, for example \"G\".",
-            },
-            SettingNavEntry {
                 key: "locale",
                 status: "Active locale id, for example \"en\" or \"de\". Use \"auto\" for system locale.",
             },

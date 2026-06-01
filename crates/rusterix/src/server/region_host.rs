@@ -257,8 +257,10 @@ fn rebuild_procedural_region(ctx: &mut RegionCtx, seed_arg: i64) -> bool {
         if let Some(Value::Int(inv_slots)) = entity.attributes.get("inventory_slots") {
             entity.inventory = vec![None; *inv_slots as usize];
         }
-        if let Some(Value::Int(wealth)) = entity.attributes.get("wealth") {
-            let _ = entity.add_base_currency(*wealth as i64, &ctx.currencies);
+        if let Some(wealth) =
+            crate::server::region::ruleset_starting_wealth_for_entity(&ctx.rules, &entity)
+        {
+            let _ = entity.add_base_currency(wealth, &ctx.currencies);
         }
         entity.mark_all_dirty();
         ctx.entity_classes.insert(entity.id, spawn.name);
@@ -2016,11 +2018,31 @@ impl<'a> HostHandler for RegionHost<'a> {
                             );
 
                             if item.attributes.get_bool_default("monetary", false) {
-                                let amount = item.attributes.get_int_default("worth", 0);
+                                let amount = if let Some(currency) =
+                                    item.attributes.get_str("currency")
+                                {
+                                    let units = item
+                                        .attributes
+                                        .get_float_default(
+                                            "amount",
+                                            item.attributes.get_float_default("worth", 0.0),
+                                        )
+                                        .round()
+                                        .max(0.0)
+                                        as i64;
+                                    self.ctx
+                                        .currencies
+                                        .convert_to_base_by_id_or_symbol(units, currency)
+                                        .unwrap_or(0)
+                                } else {
+                                    item.attributes.get_float_default("worth", 0.0).round() as i64
+                                };
                                 if amount > 0 {
-                                    message = format!("You take {} gold.", amount);
-                                    let _ = entity
-                                        .add_base_currency(amount as i64, &self.ctx.currencies);
+                                    message = format!(
+                                        "You take {}.",
+                                        self.ctx.currencies.format_base_amount(amount)
+                                    );
+                                    let _ = entity.add_base_currency(amount, &self.ctx.currencies);
                                 }
                             } else if entity.add_item(item).is_err() {
                                 // TODO: Send message.
@@ -2107,11 +2129,27 @@ impl<'a> HostHandler for RegionHost<'a> {
                             );
 
                             if item.attributes.get_bool_default("monetary", false) {
-                                // This is not a standalone item but money
-                                let amount = item.attributes.get_int_default("worth", 0);
+                                let amount = if let Some(currency) =
+                                    item.attributes.get_str("currency")
+                                {
+                                    let units = item
+                                        .attributes
+                                        .get_float_default(
+                                            "amount",
+                                            item.attributes.get_float_default("worth", 0.0),
+                                        )
+                                        .round()
+                                        .max(0.0) as i64;
+                                    ctx.currencies
+                                        .convert_to_base_by_id_or_symbol(units, currency)
+                                        .unwrap_or(0)
+                                } else {
+                                    item.attributes.get_float_default("worth", 0.0).round() as i64
+                                };
                                 if amount > 0 {
-                                    message = format!("You take {} gold.", amount);
-                                    _ = entity.add_base_currency(amount as i64, &ctx.currencies);
+                                    message =
+                                        format!("You take {}.", ctx.currencies.format_base_amount(amount));
+                                    _ = entity.add_base_currency(amount, &ctx.currencies);
                                 }
                             } else if entity.add_item(item).is_err() {
                                 // TODO: Send message.
@@ -3074,9 +3112,10 @@ impl<'a> HostHandler for RegionHost<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Currencies;
     use crate::server::region::{
         apply_ruleset_character_defaults, drop_items_into_ruleset_loot_container,
-        update_entity_respawns,
+        ruleset_starting_wealth_for_entity, update_entity_respawns,
     };
     use crate::vm::{Execution, Program, VM, VMValue};
     use std::sync::Arc;
@@ -3088,6 +3127,7 @@ mod tests {
             include_str!("../../../../rulesets/eldiron/v1/attributes.toml"),
             include_str!("../../../../rulesets/eldiron/v1/progression.toml"),
             include_str!("../../../../rulesets/eldiron/v1/combat.toml"),
+            include_str!("../../../../rulesets/eldiron/v1/economy.toml"),
             include_str!("../../../../rulesets/eldiron/v1/messages.toml"),
             include_str!("../../../../rulesets/eldiron/v1/equipment.toml"),
             include_str!("../../../../rulesets/eldiron/v1/fx.toml"),
@@ -3204,6 +3244,7 @@ mod tests {
             "container_template",
             "visual_template",
             "rig_layer",
+            "currency",
         ] {
             if let Some(value) = table_string(item_table, key) {
                 item.set_attribute(key, Value::Str(value));
@@ -3235,6 +3276,9 @@ mod tests {
             "rig_pivot",
             "color",
             "icon_color",
+            "worth",
+            "monetary",
+            "amount",
             "quality",
             "condition",
             "max_stack",
@@ -3365,6 +3409,7 @@ mod tests {
             arena.ctx.rules = rules
                 .parse::<toml::Table>()
                 .expect("valid arena rules TOML");
+            arena.ctx.currencies = Currencies::from_rules(&arena.ctx.rules);
             arena
         }
 
@@ -3410,6 +3455,9 @@ mod tests {
             apply_ruleset_character_defaults(&self.ctx.rules, &mut entity);
             if let Some(Value::Int(inv_slots)) = entity.attributes.get("inventory_slots") {
                 entity.inventory = vec![None; (*inv_slots).max(0) as usize];
+            }
+            if let Some(wealth) = ruleset_starting_wealth_for_entity(&self.ctx.rules, &entity) {
+                let _ = entity.add_base_currency(wealth, &self.ctx.currencies);
             }
             self.ctx.entity_classes.insert(id, class.into());
             self.ctx.map.entities.push(entity);
@@ -4426,7 +4474,7 @@ mod tests {
         assert_eq!(arena.entity(1).attributes.get_int_default("ARMOR", 0), 1);
         assert!(arena.has_str_array_attr(1, "start_equipped_items", "training_sword"));
         assert!(arena.has_str_array_attr(1, "start_equipped_items", "padded_armor"));
-        assert!(arena.has_str_array_attr(1, "start_items", "linen_shirt"));
+        assert!(!arena.has_str_array_attr(1, "start_items", "linen_shirt"));
         assert!(arena.has_str_array_attr(1, "abilities", "basic_attack"));
         assert!(arena.has_str_array_attr(1, "abilities", "guard"));
 

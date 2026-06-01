@@ -31,6 +31,7 @@ const OFFICIAL_ELDIRON_V1_ATTRIBUTES: &str =
 const OFFICIAL_ELDIRON_V1_PROGRESSION: &str =
     include_str!("../../../rulesets/eldiron/v1/progression.toml");
 const OFFICIAL_ELDIRON_V1_COMBAT: &str = include_str!("../../../rulesets/eldiron/v1/combat.toml");
+const OFFICIAL_ELDIRON_V1_ECONOMY: &str = include_str!("../../../rulesets/eldiron/v1/economy.toml");
 const OFFICIAL_ELDIRON_V1_MESSAGES: &str =
     include_str!("../../../rulesets/eldiron/v1/messages.toml");
 const OFFICIAL_ELDIRON_V1_EQUIPMENT: &str =
@@ -54,6 +55,7 @@ static OFFICIAL_ELDIRON_V1: LazyLock<String> = LazyLock::new(|| {
         OFFICIAL_ELDIRON_V1_ATTRIBUTES,
         OFFICIAL_ELDIRON_V1_PROGRESSION,
         OFFICIAL_ELDIRON_V1_COMBAT,
+        OFFICIAL_ELDIRON_V1_ECONOMY,
         OFFICIAL_ELDIRON_V1_MESSAGES,
         OFFICIAL_ELDIRON_V1_EQUIPMENT,
         OFFICIAL_ELDIRON_V1_FX,
@@ -1947,6 +1949,10 @@ fn ruleset_item_template_data(
         "rig_pivot",
         "rig_layer",
         "rig_flip_back",
+        "worth",
+        "monetary",
+        "currency",
+        "amount",
         "quality",
         "condition",
         "blade_color",
@@ -2490,6 +2496,36 @@ mod tests {
         assert_eq!(ruleset_xp_for_level(&table, 2), Some(100));
         assert_eq!(ruleset_xp_for_level(&table, 5), Some(700));
         assert_eq!(ruleset_xp_for_level(&table, 99), None);
+    }
+
+    #[test]
+    fn reads_official_economy_table() {
+        let table = latest_official_ruleset().parse::<Table>().unwrap();
+        let economy = table
+            .get("economy")
+            .and_then(Value::as_table)
+            .expect("economy table");
+        assert_eq!(economy.get("base").and_then(Value::as_str), Some("copper"));
+        let currencies = economy
+            .get("currencies")
+            .and_then(Value::as_table)
+            .expect("currency table");
+        assert_eq!(
+            economy
+                .get("starting_wealth")
+                .and_then(Value::as_table)
+                .and_then(|wealth| wealth.get("player"))
+                .and_then(Value::as_integer),
+            Some(50)
+        );
+        assert_eq!(
+            currencies
+                .get("gold")
+                .and_then(Value::as_table)
+                .and_then(|gold| gold.get("value"))
+                .and_then(Value::as_integer),
+            Some(100)
+        );
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use rusterix::{Entity, Item, Linedef, Map, Sector, Value};
+use rusterix::{Currencies, Entity, Item, Linedef, Map, Sector, Value};
 use std::collections::BTreeSet;
 use toml::Table;
 use vek::Vec2;
@@ -682,6 +682,10 @@ fn resolve_player_attr(entity: &Entity, attr: &str, config_src: &str) -> String 
             entity.attributes.get_float_default("FUNDS", 0.0).round() as i32
         );
     }
+    if attr.eq_ignore_ascii_case("MONEY") {
+        let currencies = Currencies::official_default();
+        return currencies.format_base_amount(entity.wallet.get_balance(&currencies));
+    }
 
     entity
         .attributes
@@ -753,7 +757,7 @@ pub fn render_player_stats(map: &Map, authoring_src: &str, config_src: &str) -> 
         [
             "STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}",
             "EXP:\t{PLAYER.EXP}\tLEVEL:\t{PLAYER.LEVEL}",
-            "HP:\t{PLAYER.HP}\tG:\t{PLAYER.FUNDS}",
+            "HP:\t{PLAYER.HP}\tMoney:\t{PLAYER.MONEY}",
             "ATK:\t{PLAYER.ATTACK}\tDEF:\t{PLAYER.ARMOR}",
         ]
         .join("\n")

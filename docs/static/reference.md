@@ -95,11 +95,11 @@ blocking = true
 # Make the item static (doors, campfires etc.). Static items cannot be picked up.
 static = true
 
-# The worth of the item in the base currency. This is its trade value.
+# The worth of the item in the ruleset economy's base currency. This is its trade value.
 worth = 0.0
 
-# This item represents money. A monetary item will not be picked up by itself but its worth is added
-# to the entities wallet.
+# This item represents money. A monetary item will not be picked up by itself but its value
+# is added to the entity wallet.
 monetary = false
 
 # Defines the amount of default inventory slots (how many items the character can carry). If not specified

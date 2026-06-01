@@ -1,5 +1,5 @@
 use crate::{
-    Assets, Choice, Entity, EntityAction, Map, MsgParser, Pixel, Rect, Tile, Value,
+    Assets, Choice, Currencies, Entity, EntityAction, Map, MsgParser, Pixel, Rect, Tile, Value,
     client::{
         draw2d,
         resolver::{MessageContext, MsgResolver},
@@ -421,6 +421,7 @@ impl MessagesWidget {
     ) -> Option<FxHashMap<char, Choice>> {
         self.deactivate_inactive_choices(assets, map, time);
         self.advance_pause_timer();
+        let currencies = Currencies::from_rules_source(&assets.rules);
         let starts_new_reveal_batch = !self.paused && self.pending_messages.is_empty();
         let new_batch_start_index = self.messages.len();
 
@@ -500,8 +501,12 @@ impl MessagesWidget {
                                             item_name = item
                                                 .get_attr_string("name")
                                                 .unwrap_or("".to_string());
-                                            item_price =
-                                                item.attributes.get_int_default("worth", 0) as i64;
+                                            item_price = item
+                                                .attributes
+                                                .get("worth")
+                                                .and_then(|worth| worth.to_i32())
+                                                .unwrap_or(0)
+                                                as i64;
                                             break;
                                         }
                                     }
@@ -559,7 +564,7 @@ impl MessagesWidget {
                 }
                 let text = if matches!(choice, Choice::ItemToSell(_, _, _, _, _)) {
                     let label = format!("{}) {}", index + 1, item_name);
-                    let price = format!("{}G", item_price);
+                    let price = currencies.format_base_amount(item_price);
                     format!("{}{}{}", label, Self::CHOICE_COLUMN_SEPARATOR, price)
                 } else {
                     format!("{}) {}", index + 1, item_name)

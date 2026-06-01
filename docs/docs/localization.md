@@ -159,7 +159,7 @@ Screen `text` widgets use the same locale-key system.
 Example widget text:
 
 ```text
-{ui.status.gold}: {PLAYER.FUNDS}
+Money: {PLAYER.MONEY}
 ATK: {PLAYER.ATTACK}
 DEF: {PLAYER.ARMOR}
 Class: {PLAYER.CLASS}
@@ -170,19 +170,19 @@ Armor Total: {PLAYER.ARMOR.ARMOR}
 {ui.quest.ready}
 ```
 
-Example locale entries:
+Example locale entry:
 
 ```toml
 [en]
-ui.status.gold = "Gold"
 ui.quest.ready = "Quest ready"
 ```
 
 Current behavior:
 
-- locale keys like `{ui.status.gold}` are resolved through `Game / Locales`
+- locale keys such as `{ui.quest.ready}` are resolved through `Game / Locales`
 - existing `PLAYER.*` status placeholders still work in text widgets
-- `PLAYER.FUNDS` shows the current player funds
+- `PLAYER.MONEY` shows the current player wallet formatted through the ruleset economy
+- `PLAYER.FUNDS` shows the raw current player wallet in base units
 - `PLAYER.CLASS` shows the player's rules class, falling back to the character template name
 - `PLAYER.RACE` shows the player's rules race
 - `PLAYER.<ATTR>` shows a player attribute value

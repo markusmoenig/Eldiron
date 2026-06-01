@@ -349,6 +349,28 @@ pixels = [
     "........................",
 ]
 
+[visual_templates.coin_round]
+width = 16
+height = 16
+pixels = [
+    "................",
+    ".....HHHHH......",
+    "...HHAAAAAH.....",
+    "..HAAAAAAAAH....",
+    ".HAAAHHHAAAAG...",
+    ".HAAHAAAAHAAAG..",
+    ".HAAHAAAAHAAAG..",
+    ".HAAAHAHHAAAAG..",
+    ".HAAAAHHAAAAAG..",
+    ".GAAAAAAAAAAAG..",
+    ".GGAAAAAAAAAG...",
+    "..GGAAAAAAAG....",
+    "...GGGGGGG......",
+    "................",
+    "................",
+    "................",
+]
+
 [visual_templates.torch_standing]
 width = 24
 height = 24
@@ -590,6 +612,7 @@ category = "cloth"
 slot = "torso"
 rarity = "common"
 color = 2
+worth = 5
 icon = "linen_shirt"
 avatar_channels = ["torso", "arms"]
 
@@ -600,6 +623,7 @@ category = "cloth"
 slot = "legs"
 rarity = "common"
 color = 28
+worth = 6
 icon = "wool_trousers"
 avatar_channels = ["legs"]
 
@@ -610,6 +634,7 @@ category = "leather"
 slot = "feet"
 rarity = "common"
 color = 7
+worth = 8
 icon = "leather_shoes"
 avatar_channels = ["feet"]
 
@@ -818,6 +843,51 @@ respawn = 300
 amount = 2
 takeable = false
 
+[items.currency.copper_coin]
+name = "Copper Coin"
+description = "A small copper coin, the base unit of Eldiron trade."
+category = "coin"
+slot = "currency"
+rarity = "common"
+monetary = true
+currency = "copper"
+amount = 1
+worth = 1
+visual_template = "coin_round"
+blade_color_index = 10
+accent_color_index = 7
+highlight_color_index = 14
+
+[items.currency.silver_coin]
+name = "Silver Coin"
+description = "A stamped silver coin worth ten copper."
+category = "coin"
+slot = "currency"
+rarity = "common"
+monetary = true
+currency = "silver"
+amount = 1
+worth = 10
+visual_template = "coin_round"
+blade_color_index = 23
+accent_color_index = 16
+highlight_color_index = 14
+
+[items.currency.gold_coin]
+name = "Gold Coin"
+description = "A bright gold coin worth one hundred copper."
+category = "coin"
+slot = "currency"
+rarity = "common"
+monetary = true
+currency = "gold"
+amount = 1
+worth = 100
+visual_template = "coin_round"
+blade_color_index = 14
+accent_color_index = 10
+highlight_color_index = 23
+
 [items.tools.torch]
 name = "Torch"
 description = "A simple hand torch with an iron bracket and a rag-wrapped head."
@@ -861,7 +931,7 @@ blocking = false
 visible = true
 static = false
 radius = 0.5
-worth = 1
+worth = 10
 monetary = false
 takeable = false
 on_look_off = "An unlit torch rests here, cold and dark."

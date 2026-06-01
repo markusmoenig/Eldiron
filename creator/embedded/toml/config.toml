@@ -22,12 +22,6 @@ start_screen = ""
 # Optional screen to show after a game.start command.
 play_screen = ""
 
-# The name of the base currency
-base_currency_name = "Gold"
-
-# The symbol of the base currency
-base_currency_symbol = "G"
-
 # The supported gear slots
 gear_slots = ["head", "torso", "legs", "hands", "feet"]
 

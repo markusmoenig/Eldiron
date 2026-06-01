@@ -13,6 +13,9 @@ missing_item_key = "actions.missing_item"
 no_effect_key = "actions.no_effect"
 gathered_key = "actions.gathered"
 
+[messages.economy]
+pickup_money_key = "economy.pickup_money"
+
 [messages.recipes]
 unknown_key = "recipes.unknown"
 could_not_craft_key = "recipes.could_not_craft"

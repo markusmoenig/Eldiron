@@ -267,10 +267,11 @@ loadout.
 | Weapons | sword, axe, mace, spear, bow |
 | Armor | cloth, leather, chain, shield |
 | Starting health | `HP 16`, `MAX_HP 16` |
+| Starter money | `5s` |
 | Starter weapon | `training_sword` |
 | Starter armor | `padded_armor` |
 | Starter clothing | `wool_trousers`, `leather_shoes` |
-| Starter inventory | `linen_shirt` |
+| Starter inventory | none |
 | Level 1 abilities | `basic_attack`, `guard` |
 | Level 2 unlock | `power_strike` |
 
@@ -284,10 +285,11 @@ loadout.
 | Armor | cloth, leather, chain, shield |
 | Starting health | `HP 14`, `MAX_HP 14` |
 | Starting mana | `MP 8`, `MAX_MP 8` |
+| Starter money | `5s` |
 | Starter weapon | `novice_mace` |
 | Starter armor | `padded_armor`, `round_shield` |
 | Starter clothing | `wool_trousers`, `leather_shoes` |
-| Starter inventory | `blessed_herb`, `linen_shirt` |
+| Starter inventory | `blessed_herb` |
 | Level 1 abilities | `basic_attack`, `guard` |
 | Level 1 spells | `minor_heal` |
 | Level 2 unlock | `holy_light` |
@@ -301,10 +303,11 @@ loadout.
 | Weapons | bow, sword, axe |
 | Armor | cloth, leather |
 | Starting health | `HP 14`, `MAX_HP 14` |
+| Starter money | `5s` |
 | Starter weapon | `hunting_bow` |
 | Starter armor | `leather_vest` |
 | Starter clothing | `wool_trousers`, `leather_shoes` |
-| Starter inventory | `wooden_arrows`, `linen_shirt` |
+| Starter inventory | `wooden_arrows` |
 | Level 1 abilities | `basic_attack` |
 
 ### Citizen
@@ -531,11 +534,11 @@ natural future path.
 | `chain_shirt` | chain | torso | `3` | torso, arms |
 | `round_shield` | shield | shield | `1` | round shield mask |
 
-| Clothing | Family | Slot | Palette color | Avatar channels |
+| Clothing | Family | Slot | Worth | Avatar channels |
 | --- | --- | --- | ---: | --- |
-| `linen_shirt` | cloth | torso | `2` | torso, arms |
-| `wool_trousers` | cloth | legs | `28` | legs |
-| `leather_shoes` | leather | feet | `7` | feet |
+| `linen_shirt` | cloth | torso | `5c` | torso, arms |
+| `wool_trousers` | cloth | legs | `6c` | legs |
+| `leather_shoes` | leather | feet | `8c` | feet |
 
 | Container | Family | Slots | Visual |
 | --- | --- | ---: | --- |
@@ -559,7 +562,7 @@ disappears shortly before the NPC returns, using
 NPCs respawn by default. `[respawn.npc]` defines the delay, restores health to
 full, restores the NPC's startup loadout and behavior state, and removes that
 NPC's corpse when it returns. Player death remains script-controlled so games
-can decide whether the player wakes at a shrine, returns to town, loses gold,
+can decide whether the player wakes at a shrine, returns to town, loses money,
 keeps a tombstone, or follows another custom death loop. Individual NPCs can
 override the timer with `respawn_seconds` or disable automatic respawn with
 `respawn = false`.
@@ -578,6 +581,40 @@ override the timer with `respawn_seconds` or disable automatic respawn with
 | `feather` | feather | `5` | arrow fletching | feather mask |
 | `wild_herb` | herb | `5` | gathered herbalism material | herb sprig mask |
 
+## Economy
+
+Eldiron uses a classic copper, silver, and gold economy. All prices and rewards
+are stored as integer base units, where copper is the base:
+
+| Currency | Symbol | Base value |
+| --- | --- | ---: |
+| Copper | `c` | `1` |
+| Silver | `s` | `10` |
+| Gold | `g` | `100` |
+
+The UI formats base values compactly. `125` copper is shown as `1g 2s 5c`.
+This keeps the rules and tools simple while still presenting familiar RPG
+money to players.
+
+New player characters start with `50` copper, displayed as `5s`, unless the
+character explicitly defines another `wealth` value.
+
+| Money item | Adds |
+| --- | ---: |
+| `copper_coin` | `1c` |
+| `silver_coin` | `1s` |
+| `gold_coin` | `1g` |
+
+Money items are marked `monetary = true`. Taking one adds its value directly to
+the actor's wallet instead of placing the coin item in inventory. Normal item
+`worth`, shop prices, loot rewards, and character `wealth` are all measured in
+base copper units.
+
+Money loot can use the same item template with a different value. For example,
+a dropped purse can set `monetary = true`, `currency = "silver"`, and
+`amount = 5` to add `5s` when taken. `worth = 50` is the equivalent raw base
+value and is useful for tools and display.
+
 Resource nodes are the world objects that produce materials. They are distinct
 from inventory items.
 
@@ -587,9 +624,9 @@ from inventory items.
 | `green_wood_node` | `gather_wood` | `green_wood x3` | `300` seconds | wood shaft mask |
 | `bird_nest_node` | `gather_feathers` | `feather x2` | `300` seconds | feather/nest mask |
 
-| Tool | Interaction | State | Visual |
-| --- | --- | --- | --- |
-| `torch` | `use` toggles it on/off | swaps light, tile, and look text; while lit it loses `condition` over game minutes and destroys itself at `0%` | one bundled unlit tile, one bundled four-frame lit tile |
+| Tool | Worth | Interaction | State | Visual |
+| --- | ---: | --- | --- | --- |
+| `torch` | `1s` | `use` toggles it on/off | swaps light, tile, and look text; while lit it loses `condition` over game minutes and destroys itself at `0%` | one bundled unlit tile, one bundled four-frame lit tile |
 
 Bows consume one matching ammunition item from the attacker's inventory when a
 weapon attack resolves. `hunting_bow` declares `ammunition = "wooden_arrows"`

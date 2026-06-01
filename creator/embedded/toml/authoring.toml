@@ -68,6 +68,6 @@ show_on_startup = true
 # text = """
 # STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}
 # EXP:\t{PLAYER.EXP}\tLEVEL:\t{PLAYER.LEVEL}
-# HP:\t{PLAYER.HP}\tG:\t{PLAYER.FUNDS}
+# HP:\t{PLAYER.HP}\tMoney:\t{PLAYER.MONEY}
 # ATK:\t{PLAYER.ATTACK}\tDEF:\t{PLAYER.ARMOR}
 # """

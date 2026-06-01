@@ -405,7 +405,7 @@ By default it uses a small built-in stat block. You can customize the output in 
 text = """
 STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}
 EXP:\t{PLAYER.EXP}\tLEVEL:\t{PLAYER.LEVEL}
-HP:\t{PLAYER.HP}\tG:\t{PLAYER.FUNDS}
+HP:\t{PLAYER.HP}\tMoney:\t{PLAYER.MONEY}
 ATK:\t{PLAYER.ATTACK}\tDEF:\t{PLAYER.ARMOR}
 """
 ```
@@ -417,7 +417,7 @@ You can also define the block as lines:
 lines = [
   "STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}",
   "EXP:\t{PLAYER.EXP}\tLEVEL:\t{PLAYER.LEVEL}",
-  "HP:\t{PLAYER.HP}\tG:\t{PLAYER.FUNDS}",
+  "HP:\t{PLAYER.HP}\tMoney:\t{PLAYER.MONEY}",
   "ATK:\t{PLAYER.ATTACK}\tDEF:\t{PLAYER.ARMOR}",
 ]
 ```

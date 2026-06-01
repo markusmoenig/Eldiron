@@ -39,10 +39,6 @@ start_screen = ""              # The name of the screen to show at startup.
 play_screen = ""               # Optional screen shown after game.start.
 click_intents_2d = false       # Target 2D intents with mouse clicks while keeping WASD movement.
 auto_walk_2d = false           # In walk mode, clicking terrain in 2D makes the player path-walk there.
-
-# Base currency configuration
-base_currency_name = "Gold"      # Display name of the primary in-game currency.
-base_currency_symbol = "G"       # Symbol used to represent the currency (e.g. "G" for Gold).
 locale = "en"                    # Active locale used for localized strings and rules-based messages.
 
 # The supported gear slots
@@ -206,16 +202,6 @@ individual character or item attributes.
 - Enables generated runtime marker-ramp shading for skin markers.
 - Default: `false`.
 - Useful when skin already contains artist-authored light/dark tones and should stay flat.
-
-#### `base_currency_name`
-
-- The **display name** of your game's primary currency (e.g. `"Gold"`, `"Credits"`).
-- Used in the UI, item pricing, and trade.
-
-#### `base_currency_symbol`
-
-- The **short symbol** shown with currency values (e.g. `"G"`).
-- Appears alongside numbers (e.g. `50 G`, `100 💎`).
 
 #### `locale`
 

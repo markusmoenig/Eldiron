@@ -347,9 +347,14 @@ materialized spell item.
 *Item-only attribute.*
 
 If `true`, the item is considered money. It is not picked up normally, but its worth is added to the wallet.
+The official ruleset defines the currency table. In v1, all monetary `worth`
+values are base copper units and are displayed as copper, silver, and gold by
+the UI.
 
 ```toml
 monetary = true
+currency = "gold"
+amount = 1
 ```
 
 ---
@@ -622,10 +627,13 @@ visible = false
 
 *Character-only attribute.*
 
-Inital wealth of the character in base currency.
+Initial wallet balance for the character, measured in the ruleset economy's
+base unit. In the official v1 ruleset, this is copper. For example, `125`
+displays as `1g 2s 5c`. Player characters use the ruleset player starting
+wealth when this attribute is not present.
 
 ```toml
-wealth = 2
+wealth = 50
 ```
 
 ---
@@ -634,7 +642,8 @@ wealth = 2
 
 *Item-only attribute.*
 
-Trade value of the item in base currency.
+Trade value of the item in the ruleset economy's base unit. In the official v1
+ruleset, this is copper.
 
 ```toml
 worth = 2

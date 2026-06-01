@@ -1665,15 +1665,7 @@ impl Client {
             }
         }
 
-        let mut currencies = Currencies::default();
-        _ = currencies.add_currency(Currency {
-            name: "Gold".into(),
-            symbol: "G".into(),
-            exchange_rate: 1.0,
-            max_limit: None,
-        });
-        currencies.base_currency = "G".to_string();
-        self.currencies = currencies;
+        self.currencies = Currencies::from_rules_source(&assets.rules);
 
         // Get all player entities
         self.player_entities.clear();

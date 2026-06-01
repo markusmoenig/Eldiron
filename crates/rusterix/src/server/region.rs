@@ -3,7 +3,7 @@ use crate::server::py_fn::*;
 use crate::server::region_host::{run_client_fn, run_server_fn, run_server_named_fn};
 use crate::vm::*;
 use crate::{
-    Assets, Choice, Currency, Entity, EntityAction, Item, Map, MultipleChoice, ParticleEmitter,
+    Assets, Choice, Currencies, Entity, EntityAction, Item, Map, MultipleChoice, ParticleEmitter,
     PixelSource, PlayerCamera, RegionCtx, Value, ValueContainer,
 };
 use crossbeam_channel::{Receiver, Sender, unbounded};
@@ -407,6 +407,22 @@ pub fn apply_ruleset_character_defaults(rules: &toml::Table, entity: &mut Entity
     apply_ruleset_class_progression(rules, entity, &explicit_keys);
 }
 
+pub fn ruleset_starting_wealth_for_entity(rules: &toml::Table, entity: &Entity) -> Option<i64> {
+    if let Some(Value::Int(wealth)) = entity.attributes.get("wealth") {
+        return Some(*wealth as i64);
+    }
+    if !entity.attributes.get_bool_default("player", false) {
+        return None;
+    }
+    rules
+        .get("economy")
+        .and_then(toml::Value::as_table)
+        .and_then(|economy| economy.get("starting_wealth"))
+        .and_then(toml::Value::as_table)
+        .and_then(|wealth| wealth.get("player"))
+        .and_then(toml::Value::as_integer)
+}
+
 #[cfg(test)]
 mod ruleset_progression_tests {
     use super::*;
@@ -414,6 +430,9 @@ mod ruleset_progression_tests {
     fn test_rules() -> toml::Table {
         toml::from_str::<toml::Value>(
             r#"
+        [economy.starting_wealth]
+        player = 50
+
         [attributes.defaults]
         HP = 10
         MAX_HP = 10
@@ -455,6 +474,29 @@ mod ruleset_progression_tests {
         .as_table()
         .unwrap()
         .clone()
+    }
+
+    #[test]
+    fn ruleset_starting_wealth_applies_only_to_players() {
+        let rules = test_rules();
+
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        assert_eq!(
+            ruleset_starting_wealth_for_entity(&rules, &player),
+            Some(50)
+        );
+
+        let npc = Entity::new();
+        assert_eq!(ruleset_starting_wealth_for_entity(&rules, &npc), None);
+
+        let mut override_entity = Entity::new();
+        override_entity.set_attribute("player", Value::Bool(true));
+        override_entity.set_attribute("wealth", Value::Int(7));
+        assert_eq!(
+            ruleset_starting_wealth_for_entity(&rules, &override_entity),
+            Some(7)
+        );
     }
 
     fn resource_action_test_ctx() -> RegionCtx {
@@ -1071,6 +1113,92 @@ mod ruleset_progression_tests {
                 .map(|item| item.id),
             Some(21)
         );
+    }
+
+    #[test]
+    fn dragging_world_money_credits_wallet_without_inventory_item() {
+        let mut ctx = RegionCtx::default();
+        ctx.currencies = Currencies::official_default();
+        let (from_sender, _from_receiver) = unbounded();
+        let _ = ctx.from_sender.set(from_sender);
+
+        let mut entity = Entity::new();
+        entity.id = 1;
+        entity.position = Vec3::new(0.0, 1.0, 0.0);
+        entity.inventory.resize(1, None);
+        let mut filler = Item::new();
+        filler.id = 10;
+        filler.set_attribute("name", Value::Str("Filler".into()));
+        entity.inventory[0] = Some(filler);
+        ctx.map.entities.push(entity);
+
+        let mut money = Item::new();
+        money.id = 20;
+        money.position = Vec3::new(0.5, 1.0, 0.5);
+        money.set_attribute("name", Value::Str("Bag of Money".into()));
+        money.set_attribute("monetary", Value::Bool(true));
+        money.set_attribute("currency", Value::Str("silver".into()));
+        money.set_attribute("amount", Value::Int(5));
+        ctx.map.items.push(money);
+
+        assert!(move_item_for_entity(&mut ctx, 1, 1, 20, Some(0), None));
+
+        assert_eq!(ctx.map.entities[0].wallet.get_balance(&ctx.currencies), 50);
+        assert_eq!(
+            ctx.map.entities[0].inventory[0]
+                .as_ref()
+                .map(|item| item.id),
+            Some(10)
+        );
+        assert!(ctx.map.items.iter().all(|item| item.id != 20));
+    }
+
+    #[test]
+    fn dragging_container_money_credits_wallet_without_inventory_item() {
+        let mut ctx = RegionCtx::default();
+        ctx.currencies = Currencies::official_default();
+        let (from_sender, _from_receiver) = unbounded();
+        let _ = ctx.from_sender.set(from_sender);
+
+        let mut entity = Entity::new();
+        entity.id = 1;
+        entity.position = Vec3::new(0.0, 1.0, 0.0);
+        entity.inventory.resize(1, None);
+        ctx.map.entities.push(entity);
+
+        let mut money = Item::new();
+        money.id = 21;
+        money.set_attribute("name", Value::Str("Coins".into()));
+        money.set_attribute("monetary", Value::Bool(true));
+        money.set_attribute("currency", Value::Str("silver".into()));
+        money.set_attribute("amount", Value::Int(5));
+
+        let mut corpse = Item::new();
+        corpse.id = 20;
+        corpse.position = Vec3::new(0.5, 1.0, 0.5);
+        corpse.set_attribute("name", Value::Str("Orc's Remains".into()));
+        corpse.set_attribute("category", Value::Str("corpse".into()));
+        corpse.set_attribute("container", Value::Bool(true));
+        corpse.set_attribute("container_slots", Value::Int(1));
+        corpse.set_attribute("static", Value::Bool(true));
+        corpse.apply_container_attributes();
+        corpse.add_item_to_container(money).unwrap();
+        ctx.map.items.push(corpse);
+
+        assert!(RegionInstance::move_container_item_for_entity(
+            &mut ctx,
+            1,
+            21,
+            20,
+            None,
+            Some(1),
+            Some(0),
+            None,
+        ));
+
+        assert_eq!(ctx.map.entities[0].wallet.get_balance(&ctx.currencies), 50);
+        assert!(ctx.map.entities[0].inventory[0].is_none());
+        assert!(ctx.map.items.iter().all(|item| item.id != 20));
     }
 
     #[test]
@@ -2355,6 +2483,15 @@ impl RegionInstance {
         };
 
         let item_label = Self::item_display_name(&removed_item);
+        if let Some((amount, _message)) = monetary_pickup_for_item(ctx, &removed_item)
+            && credit_monetary_pickup(ctx, actor_id, amount)
+        {
+            if let Some(container_id) = world_container_id {
+                Self::cleanup_empty_world_loot_container(ctx, container_id);
+            }
+            return Ok((item_label, container_label));
+        }
+
         if ctx.map.entities[actor_index]
             .add_item(removed_item.clone())
             .is_err()
@@ -2769,6 +2906,7 @@ impl RegionInstance {
             let _ = Self::add_item_to_drag_container(ctx, &source_location, item);
             return false;
         }
+        let money_pickup = monetary_pickup_for_item(ctx, &item);
 
         let target_id = target_entity_id.unwrap_or(actor_id);
         let Some(target_entity_index) = ctx
@@ -2785,6 +2923,15 @@ impl RegionInstance {
             if target_index >= ctx.map.entities[target_entity_index].inventory.len() {
                 let _ = Self::add_item_to_drag_container(ctx, &source_location, item);
                 return false;
+            }
+            if let Some((amount, message)) = money_pickup.as_ref() {
+                if !credit_monetary_pickup(ctx, target_id, *amount) {
+                    let _ = Self::add_item_to_drag_container(ctx, &source_location, item);
+                    return false;
+                }
+                Self::cleanup_empty_drag_world_loot_container(ctx, &source_location);
+                send_system_message_to_entity(ctx, target_id, message.clone());
+                return true;
             }
             let displaced =
                 ctx.map.entities[target_entity_index].remove_item_from_slot(target_index);
@@ -2827,6 +2974,16 @@ impl RegionInstance {
                 return false;
             }
             Self::cleanup_empty_drag_world_loot_container(ctx, &source_location);
+            return true;
+        }
+
+        if let Some((amount, message)) = money_pickup.as_ref() {
+            if !credit_monetary_pickup(ctx, target_id, *amount) {
+                let _ = Self::add_item_to_drag_container(ctx, &source_location, item);
+                return false;
+            }
+            Self::cleanup_empty_drag_world_loot_container(ctx, &source_location);
+            send_system_message_to_entity(ctx, target_id, message.clone());
             return true;
         }
 
@@ -4571,15 +4728,7 @@ impl RegionInstance {
             }
         }
 
-        // Installing currencies
-
-        _ = ctx.currencies.add_currency(Currency {
-            name: "Gold".into(),
-            symbol: "G".into(),
-            exchange_rate: 1.0,
-            max_limit: None,
-        });
-        ctx.currencies.base_currency = "G".to_string();
+        ctx.currencies = Currencies::from_rules(&ctx.rules);
 
         // Compile Entity Template Scripts
         for (name, (entity_source, entity_data)) in &assets.entities {
@@ -4992,8 +5141,8 @@ impl RegionInstance {
                             }
 
                             // Set the wallet
-                            if let Some(Value::Int(wealth)) = e.attributes.get("wealth") {
-                                _ = e.add_base_currency(*wealth as i64, &ctx.currencies)
+                            if let Some(wealth) = ruleset_starting_wealth_for_entity(&rules, e) {
+                                _ = e.add_base_currency(wealth, &ctx.currencies)
                             }
                             spawn_entity_id = Some(e.id);
                         }
@@ -9075,8 +9224,8 @@ impl RegionInstance {
                             }
 
                             // Set the wallet
-                            if let Some(Value::Int(wealth)) = e.attributes.get("wealth") {
-                                _ = e.add_base_currency(*wealth as i64, &ctx.currencies)
+                            if let Some(wealth) = ruleset_starting_wealth_for_entity(&rules, e) {
+                                _ = e.add_base_currency(wealth, &ctx.currencies)
                             }
                             spawn_entity_id = Some(e.id);
                         }
@@ -10085,6 +10234,20 @@ fn take_item_for_entity(ctx: &mut RegionCtx, entity_id: u32, item_id: u32) -> bo
         if item.attributes.get_bool_default("is_spell", false) {
             return false;
         }
+        let money_pickup = item
+            .attributes
+            .get_bool_default("monetary", false)
+            .then(|| {
+                let amount = monetary_item_base_amount(&ctx.currencies, &item);
+                let key =
+                    ruleset_message_key(ctx, "economy", "pickup_money", "economy.pickup_money");
+                let message = localized_message(
+                    ctx,
+                    &key,
+                    &[("money", ctx.currencies.format_base_amount(amount))],
+                );
+                (amount, message)
+            });
 
         if let Some(entity) = ctx
             .map
@@ -10123,12 +10286,10 @@ fn take_item_for_entity(ctx: &mut RegionCtx, entity_id: u32, item_id: u32) -> bo
                 item_name.to_lowercase()
             );
 
-            if item.attributes.get_bool_default("monetary", false) {
-                // This is not a standalone item but money
-                let amount = item.attributes.get_int_default("worth", 0);
+            if let Some((amount, money_message)) = money_pickup {
                 if amount > 0 {
-                    message = format!("You take {} gold.", amount);
-                    _ = entity.add_base_currency(amount as i64, &ctx.currencies);
+                    message = money_message;
+                    _ = entity.add_base_currency(amount, &ctx.currencies);
                 }
             } else if entity.add_item(item).is_err() {
                 println!("Take: Too many items");
@@ -11066,6 +11227,7 @@ fn ruleset_item_from_table(
         "container_template",
         "visual_template",
         "rig_layer",
+        "currency",
     ] {
         if let Some(value) = rule_string(item_table, key) {
             item.set_attribute(key, Value::Str(value.to_string()));
@@ -11110,6 +11272,9 @@ fn ruleset_item_from_table(
         "rig_pivot",
         "color",
         "icon_color",
+        "worth",
+        "monetary",
+        "amount",
         "quality",
         "condition",
         "max_stack",
@@ -16189,6 +16354,75 @@ fn value_as_i64(value: &Value) -> Option<i64> {
     }
 }
 
+fn monetary_item_base_amount(currencies: &Currencies, item: &Item) -> i64 {
+    if let Some(currency) = item
+        .attributes
+        .get_str("currency")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let amount = item
+            .attributes
+            .get_float_default("amount", item.attributes.get_float_default("worth", 0.0))
+            .round()
+            .max(0.0) as i64;
+        return currencies
+            .convert_to_base_by_id_or_symbol(amount, currency)
+            .unwrap_or(0);
+    }
+
+    item.attributes
+        .get_float_default("worth", 0.0)
+        .round()
+        .max(0.0) as i64
+}
+
+fn monetary_pickup_for_item(ctx: &RegionCtx, item: &Item) -> Option<(i64, String)> {
+    if !item.attributes.get_bool_default("monetary", false) {
+        return None;
+    }
+
+    let amount = monetary_item_base_amount(&ctx.currencies, item);
+    if amount <= 0 {
+        return None;
+    }
+
+    let key = ruleset_message_key(ctx, "economy", "pickup_money", "economy.pickup_money");
+    let message = localized_message(
+        ctx,
+        &key,
+        &[("money", ctx.currencies.format_base_amount(amount))],
+    );
+    Some((amount, message))
+}
+
+fn credit_monetary_pickup(ctx: &mut RegionCtx, entity_id: u32, amount: i64) -> bool {
+    let Some(entity) = ctx
+        .map
+        .entities
+        .iter_mut()
+        .find(|entity| entity.id == entity_id)
+    else {
+        return false;
+    };
+
+    let _ = entity.add_base_currency(amount, &ctx.currencies);
+    true
+}
+
+fn send_system_message_to_entity(ctx: &RegionCtx, entity_id: u32, message: String) {
+    if let Some(sender) = ctx.from_sender.get() {
+        let _ = sender.send(RegionMessage::Message(
+            ctx.region_id,
+            Some(entity_id),
+            None,
+            entity_id,
+            message,
+            "system".into(),
+        ));
+    }
+}
+
 fn remove_world_items_by_id(ctx: &mut RegionCtx, removed_ids: &[u32]) {
     if removed_ids.is_empty() {
         return;
@@ -17365,6 +17599,26 @@ fn move_item_for_entity(
         return false;
     }
 
+    let moving_money_pickup = match (&source, source_entity_index) {
+        (Source::Inventory(source_index), Some(source_entity_index)) => ctx.map.entities
+            [source_entity_index]
+            .inventory
+            .get(*source_index)
+            .and_then(|item| item.as_ref())
+            .and_then(|item| monetary_pickup_for_item(ctx, item)),
+        (Source::Equipped(source_slot), Some(source_entity_index)) => ctx.map.entities
+            [source_entity_index]
+            .equipped
+            .get(source_slot)
+            .and_then(|item| monetary_pickup_for_item(ctx, item)),
+        (Source::World(source_index), _) => ctx
+            .map
+            .items
+            .get(*source_index)
+            .and_then(|item| monetary_pickup_for_item(ctx, item)),
+        _ => return false,
+    };
+
     if let Some(target_index) = to_inventory_index {
         let target_entity = &ctx.map.entities[target_entity_index];
         if target_index >= target_entity.inventory.len() {
@@ -17383,6 +17637,7 @@ fn move_item_for_entity(
                 .get(target_index)
                 .and_then(|item| item.as_ref())
                 .is_some()
+            && moving_money_pickup.is_none()
             && !target_entity
                 .inventory
                 .iter()
@@ -17402,6 +17657,21 @@ fn move_item_for_entity(
         let Some(moving) = moving else {
             return false;
         };
+
+        if let Some((amount, message)) = moving_money_pickup {
+            if !credit_monetary_pickup(ctx, target_entity_id, amount) {
+                return false;
+            }
+            if from_world {
+                ctx.from_sender
+                    .get()
+                    .unwrap()
+                    .send(RegionMessage::RemoveItem(ctx.region_id, item_id))
+                    .unwrap();
+            }
+            send_system_message_to_entity(ctx, target_entity_id, message);
+            return true;
+        }
 
         let (source_entity, maybe_target_entity) = entity_pair_mut(
             &mut ctx.map.entities,
@@ -17541,6 +17811,20 @@ fn take_item_for_entity(ctx: &mut RegionCtx, entity_id: u32, item_id: u32) -> bo
         if item.attributes.get_bool_default("is_spell", false) {
             return false;
         }
+        let money_pickup = item
+            .attributes
+            .get_bool_default("monetary", false)
+            .then(|| {
+                let amount = monetary_item_base_amount(&ctx.currencies, &item);
+                let key =
+                    ruleset_message_key(ctx, "economy", "pickup_money", "economy.pickup_money");
+                let message = localized_message(
+                    ctx,
+                    &key,
+                    &[("money", ctx.currencies.format_base_amount(amount))],
+                );
+                (amount, message)
+            });
 
         if let Some(entity) = ctx
             .map
@@ -17580,11 +17864,10 @@ fn take_item_for_entity(ctx: &mut RegionCtx, entity_id: u32, item_id: u32) -> bo
                 item_name.to_lowercase()
             );
 
-            if item.attributes.get_bool_default("monetary", false) {
-                let amount = item.attributes.get_int_default("worth", 0);
+            if let Some((amount, money_message)) = money_pickup {
                 if amount > 0 {
-                    message = format!("You take {} gold.", amount);
-                    _ = entity.add_base_currency(amount as i64, &ctx.currencies);
+                    message = money_message;
+                    _ = entity.add_base_currency(amount, &ctx.currencies);
                 }
             } else if entity.add_item(item).is_err() {
                 println!("Take: Too many items");

@@ -19,6 +19,7 @@ identity.toml           default identity, dispositions, race relations, intents
 attributes.toml         attributes and derived stats
 progression.toml        XP, leveling, progression messages
 combat.toml             damage kinds, combat timing, combat audio/messages
+economy.toml            copper/silver/gold currency table and base unit
 messages.toml           locale keys for rules-driven runtime feedback
 locales.toml            English defaults for ruleset-owned locale keys
 equipment.toml          equipment slots, categories, weapons, armor, clothing, resource nodes

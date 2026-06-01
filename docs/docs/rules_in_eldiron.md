@@ -23,6 +23,7 @@ rulesets/
       attributes.toml
       progression.toml
       combat.toml
+      economy.toml
       messages.toml
       locales.toml
       equipment.toml
@@ -304,6 +305,7 @@ Ruleset items can also define `avatar_channels`:
 ```toml
 [items.clothing.linen_shirt]
 color = 2
+worth = 5
 avatar_channels = ["torso", "arms"]
 ```
 
@@ -471,6 +473,53 @@ the NPC corpse on respawn. Player characters are excluded from this automatic
 path; their death and resurrection flow stays in the player script. For one
 NPC, use `respawn_seconds = 120` to change the delay or `respawn = false` to
 keep it dead.
+
+## Economy
+
+The official economy lives in `economy.toml`. Runtime wallets store one integer
+base amount. In v1 the base is copper:
+
+```toml
+[economy]
+base = "copper"
+
+[economy.starting_wealth]
+player = 50
+
+[economy.currencies.copper]
+symbol = "c"
+value = 1
+
+[economy.currencies.silver]
+symbol = "s"
+value = 10
+
+[economy.currencies.gold]
+symbol = "g"
+value = 100
+```
+
+Item `worth`, shop prices, rewards, and `wealth` overrides are measured in base
+units. The UI can format the same balance compactly, so `125` displays as
+`1g 2s 5c`. New player characters start with `50` base units, displayed as
+`5s`, unless their character attributes define an explicit `wealth`. Use
+`{PLAYER.MONEY}` for formatted display and `{PLAYER.FUNDS}` when raw base units
+are needed for tests or logic.
+
+Currency items are ordinary ruleset-backed item templates marked
+`monetary = true`. Taking them adds their base value to the wallet instead of
+placing the item in inventory.
+
+To make a money loot item with a specific value, set the currency and amount on
+the item instance or template:
+
+```toml
+[attributes]
+monetary = true
+currency = "silver"
+amount = 5
+worth = 50
+```
 
 ## Recipes
 

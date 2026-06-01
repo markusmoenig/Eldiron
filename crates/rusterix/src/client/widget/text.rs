@@ -162,7 +162,11 @@ impl TextWidget {
                     match cat {
                         "PLAYER" => {
                             if let Some(entity) = player {
-                                if key == "FUNDS" {
+                                if key == "MONEY" {
+                                    return Some(currencies.format_base_amount(
+                                        entity.wallet.get_balance(currencies),
+                                    ));
+                                } else if key == "FUNDS" {
                                     return Some(entity.wallet.get_balance(currencies).to_string());
                                 } else if key == "CLASS" || key == "CLASS_NAME" {
                                     return Self::player_attr_value(entity, "class")
