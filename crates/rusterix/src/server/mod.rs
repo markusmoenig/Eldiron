@@ -47,9 +47,9 @@ pub enum ServerState {
 pub struct Server {
     pub id_gen: u32,
 
-    /// In debug mode the serve sends grid based status updates for all entities / items
+    /// In debug mode the server sends Eldrin source-line status updates.
     pub debug_mode: bool,
-    pub debug: DebugModule,
+    pub eldrin_debug: EldrinDebugModule,
 
     /// Maps region uuids to the region id
     pub region_id_map: FxHashMap<Uuid, u32>,
@@ -95,7 +95,7 @@ impl Server {
             id_gen: 1,
 
             debug_mode: false,
-            debug: DebugModule::default(),
+            eldrin_debug: EldrinDebugModule::default(),
 
             region_id_map: FxHashMap::default(),
             region_name_id_map: FxHashMap::default(),
@@ -340,7 +340,7 @@ impl Server {
     /// players region change.
     pub fn update(&mut self, assets: &mut Assets) -> Option<String> {
         let mut rc: Option<String> = None;
-        self.debug.clear_execution();
+        self.eldrin_debug.clear();
         let now = Instant::now();
         let visual_dt = now
             .saturating_duration_since(self.last_visual_update_at)
@@ -650,8 +650,8 @@ impl Server {
                         assets.maps.insert(map.name.clone(), map.clone());
                         rc = Some(map.name.clone());
                     }
-                    RegionMessage::DebugData(data) => {
-                        self.debug.merge(&data);
+                    RegionMessage::EldrinDebugData(data) => {
+                        self.eldrin_debug.merge(&data);
                     }
                     _ => {}
                 }

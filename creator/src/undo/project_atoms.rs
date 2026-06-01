@@ -1004,10 +1004,6 @@ impl ProjectUndoAtom {
                             }
                         }
 
-                        character
-                            .module
-                            .set_module_type(codegridfx::ModuleType::CharacterTemplate);
-
                         let mut character_node = gen_character_tree_node(&character);
                         character_node.set_open(true);
                         node.add_child(character_node);
@@ -1081,9 +1077,6 @@ impl ProjectUndoAtom {
                                 item.data = source.to_string();
                             }
                         }
-
-                        item.module
-                            .set_module_type(codegridfx::ModuleType::ItemTemplate);
 
                         let mut item_node = gen_item_tree_node(&item);
                         item_node.set_open(true);

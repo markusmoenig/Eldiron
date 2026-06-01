@@ -7,7 +7,7 @@ use crate::server::region::{
     entity_item_by_id, execute_ruleset_action, grant_experience, has_attack_ammunition_or_message,
     is_spell_on_cooldown, open_dialog_node, set_entity_cooldown_attrs, set_spell_cooldown,
 };
-use crate::server::regionctx::ChoiceSession;
+use crate::server::regionctx::{ChoiceSession, ScriptScope};
 use crate::vm::*;
 use crate::{
     Choice, Entity, EntityAction, Item, Map, MultipleChoice, PixelSource, PlayerCamera, RegionCtx,
@@ -355,6 +355,18 @@ fn restore_entity_health_if_revived(entity: &mut Entity, health_attr: &str) {
 }
 
 impl<'a> RegionHost<'a> {
+    fn eldrin_debug_target(&self) -> EldrinDebugTarget {
+        eldrin_debug_target_for_ctx(self.ctx)
+    }
+
+    fn eldrin_debug_function(&self) -> &str {
+        if self.ctx.current_debug_function.is_empty() {
+            "event"
+        } else {
+            &self.ctx.current_debug_function
+        }
+    }
+
     fn push_debug_vm_value(&mut self, event: &str, x: u32, y: u32, value: &VMValue, error: bool) {
         let display = TheValue::Text(value.to_string());
         self.push_debug_text(event, x, y, display, error);
@@ -1060,7 +1072,50 @@ impl<'a> RegionHost<'a> {
     }
 }
 
+fn eldrin_debug_target_for_ctx(ctx: &RegionCtx) -> EldrinDebugTarget {
+    match ctx.current_script_scope {
+        ScriptScope::World => EldrinDebugTarget::World,
+        ScriptScope::Region => EldrinDebugTarget::Region(ctx.region_id),
+        ScriptScope::Item => ctx
+            .curr_item_id
+            .map(EldrinDebugTarget::Item)
+            .unwrap_or(EldrinDebugTarget::Region(ctx.region_id)),
+        ScriptScope::Entity => EldrinDebugTarget::Entity(ctx.curr_entity_id),
+    }
+}
+
 impl<'a> HostHandler for RegionHost<'a> {
+    fn on_debug_line(&mut self, line: usize) {
+        if !self.ctx.debug_mode {
+            return;
+        }
+        let target = self.eldrin_debug_target();
+        let function = self.eldrin_debug_function().to_string();
+        self.ctx.eldrin_debug.mark_executed(target, &function, line);
+    }
+
+    fn on_debug_value(&mut self, line: usize, name: &str, value: &VMValue) {
+        if !self.ctx.debug_mode {
+            return;
+        }
+        let target = self.eldrin_debug_target();
+        let function = self.eldrin_debug_function().to_string();
+        self.ctx
+            .eldrin_debug
+            .add_value(target, &function, line, name, value.clone());
+    }
+
+    fn on_debug_branch(&mut self, line: usize, taken: bool) {
+        if !self.ctx.debug_mode {
+            return;
+        }
+        let target = self.eldrin_debug_target();
+        let function = self.eldrin_debug_function().to_string();
+        self.ctx
+            .eldrin_debug
+            .mark_branch(target, &function, line, taken);
+    }
+
     fn on_host_call(&mut self, name: &str, args: &[VMValue]) -> Option<VMValue> {
         match name {
             "action" => {
@@ -5077,8 +5132,15 @@ pub fn run_server_named_fn(
 ) -> bool {
     if let Some(index) = program.user_functions_name_map.get(name).copied() {
         exec.reset(program.globals);
+        let previous_debug_function = region_ctx.current_debug_function.clone();
+        region_ctx.current_debug_function = name.to_string();
+        if region_ctx.debug_mode {
+            let target = eldrin_debug_target_for_ctx(region_ctx);
+            region_ctx.eldrin_debug.begin_invocation(target, name);
+        }
         let mut host = RegionHost { ctx: region_ctx };
         let _ret = exec.execute_function_host(args, index, program, &mut host);
+        region_ctx.current_debug_function = previous_debug_function;
         true
     } else {
         false
@@ -5104,7 +5166,16 @@ pub fn run_client_fn(
 ) {
     if let Some(index) = program.user_functions_name_map.get("user_event").copied() {
         exec.reset(program.globals);
+        let previous_debug_function = region_ctx.current_debug_function.clone();
+        region_ctx.current_debug_function = "user_event".to_string();
+        if region_ctx.debug_mode {
+            let target = eldrin_debug_target_for_ctx(region_ctx);
+            region_ctx
+                .eldrin_debug
+                .begin_invocation(target, "user_event");
+        }
         let mut host = RegionHost { ctx: region_ctx };
         let _ret = exec.execute_function_host(args, index, program, &mut host);
+        region_ctx.current_debug_function = previous_debug_function;
     }
 }

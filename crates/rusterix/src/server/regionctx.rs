@@ -7,6 +7,28 @@ use theframework::prelude::*;
 use toml::Table;
 use uuid::Uuid;
 
+#[derive(Default, Clone)]
+pub struct LegacyDebugModule;
+
+impl LegacyDebugModule {
+    pub fn clear_execution(&mut self) {}
+    pub fn add_value(&mut self, _id: u32, _event: &str, _x: u32, _y: u32, _value: TheValue) {}
+    pub fn add_error(&mut self, _id: u32, _event: &str, _x: u32, _y: u32) {}
+    pub fn remove_error(&mut self, _id: u32, _event: &str, _x: u32, _y: u32) {}
+    pub fn mark_executed(&mut self, _id: u32, _event: &str, _x: u32, _y: u32) {}
+    pub fn mark_header_executed(&mut self, _id: u32, _event: &str) {}
+    pub fn mark_condition(
+        &mut self,
+        _id: u32,
+        _event: &str,
+        _x: u32,
+        _y: u32,
+        _taken: bool,
+        _display: TheValue,
+    ) {
+    }
+}
+
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScriptScope {
     #[default]
@@ -48,8 +70,10 @@ pub struct RegionCtx {
     pub blocking_tiles: FxHashSet<Uuid>,
 
     pub debug_mode: bool,
-    pub debug: DebugModule,
+    pub debug: LegacyDebugModule,
+    pub eldrin_debug: EldrinDebugModule,
     pub curr_debug_loc: Option<(String, u32, u32)>,
+    pub current_debug_function: String,
 
     pub time: TheTime,
     pub region_id: u32,

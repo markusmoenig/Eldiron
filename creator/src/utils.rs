@@ -1,7 +1,5 @@
 use crate::editor::{CONFIGEDITOR, DOCKMANAGER, PALETTE, RUSTERIX, SCENEMANAGER};
 use crate::prelude::*;
-use codegridfx::{Module, ModuleType};
-use rusteria::{RenderBuffer, Rusteria};
 use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use std::str::FromStr;
 use toml::*;
@@ -129,9 +127,6 @@ pub fn set_code(
             if let Some(character) = project.characters.get_mut(&uuid) {
                 ui.set_widget_value("CodeEdit", ctx, TheValue::Text(character.source.clone()));
                 ui.set_widget_value("DataEdit", ctx, TheValue::Text(character.data.clone()));
-                character
-                    .module
-                    .set_module_type(ModuleType::CharacterTemplate);
                 success = true;
             }
         }
@@ -139,7 +134,6 @@ pub fn set_code(
             if let Some(item) = project.items.get_mut(&uuid) {
                 ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
                 ui.set_widget_value("DataEdit", ctx, TheValue::Text(item.data.clone()));
-                item.module.set_module_type(ModuleType::ItemTemplate);
                 success = true;
             }
         }
@@ -156,7 +150,6 @@ pub fn set_code(
                 if let Some(item) = project.items.get_mut(&temp_id) {
                     ui.set_widget_value("CodeEdit", ctx, TheValue::Text(item.source.clone()));
                     ui.set_widget_value("DataEdit", ctx, TheValue::Text(item.data.clone()));
-                    item.module.set_module_type(ModuleType::ItemTemplate);
                     success = true;
                 }
             }
@@ -846,44 +839,6 @@ pub fn is_valid_python_variable(name: &str) -> bool {
         !PYTHON_KEYWORDS.contains(&name)
     } else {
         false
-    }
-}
-
-/// Draws the shader into the given buffer
-pub fn draw_shader_into(module: &Module, buffer: &mut TheRGBABuffer) {
-    use std::sync::{Arc, Mutex};
-
-    let mut rs = Rusteria::default();
-    let code = module.build_shader();
-
-    let _module = match rs.parse_str(&code) {
-        Ok(module) => match rs.compile(&module) {
-            Ok(()) => {
-                println!("Module '{}' compiled successfully.", module.name);
-            }
-            Err(e) => {
-                eprintln!("Error compiling module: {e}");
-                return;
-            }
-        },
-        Err(e) => {
-            eprintln!("Error parsing module: {e}");
-            return;
-        }
-    };
-
-    let width = buffer.dim().width as usize;
-    let height = buffer.dim().height as usize;
-
-    if let Some(shade_index) = rs.context.program.shade_index {
-        let mut rbuffer = Arc::new(Mutex::new(RenderBuffer::new(width, height)));
-        let t0 = rs.get_time();
-        rs.shade(&mut rbuffer, shade_index, &PALETTE.read().unwrap());
-        let t1 = rs.get_time();
-        println!("Rendered in {}ms", t1 - t0);
-
-        let b = rbuffer.lock().unwrap().as_rgba_bytes();
-        *buffer = TheRGBABuffer::from(b, width as u32, height as u32)
     }
 }
 

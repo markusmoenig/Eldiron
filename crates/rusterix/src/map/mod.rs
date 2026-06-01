@@ -21,7 +21,6 @@ use crate::{
     BBox, GeometryObject, Keyform, MapMini, OrganicVolumeLayer, PixelSource, SoftRig,
     SoftRigAnimator, Surface, Value, ValueContainer,
 };
-use codegridfx::Module;
 use indexmap::IndexMap;
 use std::collections::VecDeque;
 use theframework::prelude::{FxHashMap, FxHashSet};
@@ -167,7 +166,7 @@ pub struct Map {
 
     /// The shaders used in the map.
     #[serde(default)]
-    pub shaders: IndexMap<Uuid, Module>,
+    pub shaders: IndexMap<Uuid, serde_json::Value>,
 
     // Change counter, right now only used for materials
     // to indicate when to refresh live updates

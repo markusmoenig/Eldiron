@@ -83,6 +83,7 @@ impl Execution {
             NodeOp::StoreLocal(index) => {
                 self.locals[*index] = self.stack.pop().unwrap();
             }
+            NodeOp::DebugLine(_) | NodeOp::DebugValue { .. } => {}
             NodeOp::Swap => {
                 let b = self.stack.pop().unwrap();
                 let a = self.stack.pop().unwrap();
@@ -256,7 +257,11 @@ impl Execution {
                     }
                 }
             }
-            NodeOp::If(then_code, else_code) => {
+            NodeOp::If {
+                then_code,
+                else_code,
+                ..
+            } => {
                 let value = self.stack.pop().unwrap().is_truthy();
                 if value {
                     self.execute(then_code, program);
@@ -798,8 +803,13 @@ impl Execution {
                     }
                 }
             }
-            NodeOp::If(then_code, else_code) => {
+            NodeOp::If {
+                line,
+                then_code,
+                else_code,
+            } => {
                 let value = self.stack.pop().unwrap().is_truthy();
+                host.on_debug_branch(*line, value);
                 if value {
                     self.execute_host(then_code, program, host);
                 } else if let Some(else_code) = else_code {

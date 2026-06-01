@@ -91,14 +91,6 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
     item.set_text(fl!("settings"));
     node.add_widget(Box::new(item));
 
-    let mut item = TheTreeItem::new(TheId::named_with_reference(
-        "Region Visual Code Item",
-        region.id,
-    ));
-    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
-    item.set_text(fl!("visual_script"));
-    node.add_widget(Box::new(item));
-
     let mut item = TheTreeItem::new(TheId::named_with_reference("Region Code Item", region.id));
     item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
     item.set_text(fl!("eldrin_scripting"));
@@ -140,14 +132,6 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
     edit.set_text(character.name.clone());
     item.add_widget_column(200, Box::new(edit));
 
-    node.add_widget(Box::new(item));
-
-    let mut item = TheTreeItem::new(TheId::named_with_reference(
-        "Character Item Visual Code Edit",
-        character.id,
-    ));
-    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
-    item.set_text(fl!("visual_script"));
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference(
@@ -194,14 +178,6 @@ pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
     edit.set_text(item_.name.clone());
     item.add_widget_column(200, Box::new(edit));
 
-    node.add_widget(Box::new(item));
-
-    let mut item = TheTreeItem::new(TheId::named_with_reference(
-        "Item Item Visual Code Edit",
-        item_.id,
-    ));
-    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
-    item.set_text(fl!("visual_script"));
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Code Edit", item_.id));
@@ -753,19 +729,15 @@ pub fn set_project_context(
         pc,
         ProjectContext::Region(_)
             | ProjectContext::RegionSettings(_)
-            | ProjectContext::RegionVisualCode(_)
             | ProjectContext::RegionCode(_)
             | ProjectContext::RegionCharacterInstance(_, _)
             | ProjectContext::RegionItemInstance(_, _)
-            | ProjectContext::WorldVisualCode
             | ProjectContext::WorldCode
             | ProjectContext::Character(_)
-            | ProjectContext::CharacterVisualCode(_)
             | ProjectContext::CharacterCode(_)
             | ProjectContext::CharacterData(_)
             | ProjectContext::CharacterPreviewRigging(_)
             | ProjectContext::Item(_)
-            | ProjectContext::ItemVisualCode(_)
             | ProjectContext::ItemCode(_)
             | ProjectContext::ItemData(_)
             | ProjectContext::Screen(_)
@@ -807,23 +779,6 @@ pub fn set_project_context(
                 .unwrap()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
-        ProjectContext::RegionVisualCode(id) => {
-            if let Some(region) = project.get_region(&id) {
-                server_ctx.curr_region = id;
-                ui.set_widget_value(
-                    "Project Context",
-                    ctx,
-                    TheValue::Text(format!("Region Visual Scripting: {}", region.name)),
-                );
-            }
-            DOCKMANAGER.write().unwrap().set_dock(
-                "Visual Code".into(),
-                ui,
-                ctx,
-                project,
-                server_ctx,
-            );
-        }
         ProjectContext::RegionCode(id) => {
             if let Some(region) = project.get_region(&id) {
                 server_ctx.curr_region = id;
@@ -847,13 +802,10 @@ pub fn set_project_context(
                     TheValue::Text(format!("Region ({}) Character", region.name)),
                 );
             }
-            DOCKMANAGER.write().unwrap().set_dock(
-                "Visual Code".into(),
-                ui,
-                ctx,
-                project,
-                server_ctx,
-            );
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Code".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::RegionItemInstance(id, _) => {
             if let Some(region) = project.get_region(&id) {
@@ -882,22 +834,6 @@ pub fn set_project_context(
             }
             DOCKMANAGER.write().unwrap().set_dock(
                 tiles_or_authoring_dock(),
-                ui,
-                ctx,
-                project,
-                server_ctx,
-            );
-        }
-        ProjectContext::CharacterVisualCode(id) => {
-            if let Some(region) = project.characters.get(&id) {
-                ui.set_widget_value(
-                    "Project Context",
-                    ctx,
-                    TheValue::Text(format!("Character: {}", region.name)),
-                );
-            }
-            DOCKMANAGER.write().unwrap().set_dock(
-                "Visual Code".into(),
                 ui,
                 ctx,
                 project,
@@ -953,22 +889,6 @@ pub fn set_project_context(
             }
             DOCKMANAGER.write().unwrap().set_dock(
                 tiles_or_authoring_dock(),
-                ui,
-                ctx,
-                project,
-                server_ctx,
-            );
-        }
-        ProjectContext::ItemVisualCode(id) => {
-            if let Some(item) = project.items.get(&id) {
-                ui.set_widget_value(
-                    "Project Context",
-                    ctx,
-                    TheValue::Text(format!("Item: {}", item.name)),
-                );
-            }
-            DOCKMANAGER.write().unwrap().set_dock(
-                "Visual Code".into(),
                 ui,
                 ctx,
                 project,
@@ -1113,20 +1033,6 @@ pub fn set_project_context(
                 .unwrap()
                 .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
-        ProjectContext::WorldVisualCode => {
-            ui.set_widget_value(
-                "Project Context",
-                ctx,
-                TheValue::Text("World Visual Scripting".into()),
-            );
-            DOCKMANAGER.write().unwrap().set_dock(
-                "Visual Code".into(),
-                ui,
-                ctx,
-                project,
-                server_ctx,
-            );
-        }
         ProjectContext::WorldCode => {
             ui.set_widget_value(
                 "Project Context",
@@ -1240,27 +1146,6 @@ pub fn set_project_context(
                                 node.set_open(true);
                                 for widget in &node.widgets {
                                     if widget.id().name == "Project Settings" {
-                                        found = Some(widget.id().clone());
-                                        break;
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                        found
-                    };
-                    if let Some(id) = target_id {
-                        tree_layout.new_item_selected(id);
-                    }
-                }
-                ProjectContext::WorldVisualCode => {
-                    let target_id = {
-                        let mut found: Option<TheId> = None;
-                        for node in &mut tree_layout.get_root().childs {
-                            if node.id.name == fl!("game") {
-                                node.set_open(true);
-                                for widget in &node.widgets {
-                                    if widget.id().name == "World Visual Code" {
                                         found = Some(widget.id().clone());
                                         break;
                                     }

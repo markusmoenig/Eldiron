@@ -3,7 +3,7 @@ export const homepageContent = {
     eyebrow: "Retro RPG Creator",
     title: "Build retro RPG worlds for 2D, 3D, and interactive fiction",
     description:
-      "Eldiron is a game creator for classic RPGs. One editor brings together map building, tile workflows, visual scripting, narrative authoring, and cross-platform play.",
+      "Eldiron is a game creator for classic RPGs. One editor brings together map building, tile workflows, Eldrin scripting, narrative authoring, and cross-platform play.",
     actions: [
       {
         label: "Getting Started",

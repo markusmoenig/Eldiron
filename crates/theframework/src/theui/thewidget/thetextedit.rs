@@ -50,6 +50,13 @@ struct TheRowInfo {
     highlights: Option<Vec<(TheColor, TheColor, usize)>>,
 }
 
+#[derive(Clone, Debug)]
+struct TheTextDebugLine {
+    row: usize,
+    branch_taken: Option<bool>,
+    values: Vec<String>,
+}
+
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct TheSelection {
     pub start: usize,
@@ -1067,6 +1074,7 @@ pub struct TheTextRenderer {
 
     // Debugging
     debug_line: Option<usize>,
+    debug_lines: Vec<TheTextDebugLine>,
 }
 
 impl Default for TheTextRenderer {
@@ -1096,6 +1104,7 @@ impl Default for TheTextRenderer {
             errors: vec![],
 
             debug_line: None,
+            debug_lines: vec![],
         }
     }
 }
@@ -1565,6 +1574,25 @@ impl TheTextRenderer {
         self.debug_line = debug_line;
     }
 
+    pub fn set_debug_lines(&mut self, lines: &[(usize, Option<bool>, Vec<String>)]) {
+        self.debug_lines = lines
+            .iter()
+            .map(|(row, branch_taken, values)| TheTextDebugLine {
+                row: *row,
+                branch_taken: *branch_taken,
+                values: values.clone(),
+            })
+            .collect();
+    }
+
+    pub fn has_debug_line(&self, row_number: usize) -> bool {
+        self.debug_line == Some(row_number)
+            || self
+                .debug_lines
+                .iter()
+                .any(|debug_line| debug_line.row == row_number)
+    }
+
     pub fn set_font_size(&mut self, font_size: f32) {
         self.font_size = font_size;
     }
@@ -1672,6 +1700,41 @@ impl TheTextRenderer {
             .ceil()
             .to_usize()
             .unwrap()
+    }
+
+    fn fit_debug_label(
+        &self,
+        label: &str,
+        max_width: usize,
+        draw: &TheDraw2D,
+        font_preference: &TheFontPreference,
+        font_size: f32,
+    ) -> (String, usize) {
+        let text_max_width = max_width.saturating_sub(14).max(12);
+        let font_settings = TheFontSettings {
+            size: font_size,
+            preference: font_preference.clone(),
+        };
+
+        let text_size = draw.get_text_size(label, &font_settings);
+        if text_size.0 <= text_max_width {
+            return (label.to_string(), text_size.0 + 14);
+        }
+
+        let ellipsis = "...";
+        let mut chars: Vec<char> = label.chars().collect();
+        while !chars.is_empty() {
+            chars.pop();
+            let trimmed = chars.iter().collect::<String>();
+            let candidate = format!("{}{}", trimmed.trim_end(), ellipsis);
+            let text_size = draw.get_text_size(&candidate, &font_settings);
+            if text_size.0 <= text_max_width {
+                return (candidate, text_size.0 + 14);
+            }
+        }
+
+        let text_size = draw.get_text_size(ellipsis, &font_settings);
+        (ellipsis.to_string(), text_size.0 + 14)
     }
 
     fn is_rect_out_of_visible_area(
@@ -1856,16 +1919,61 @@ impl TheTextRenderer {
             return;
         }
 
-        if self.debug_line == Some(row_number) {
-            let color = style.theme().color(TextEditDebugLineBackground);
-            self.render_text_background(
-                row_number,
-                row.glyph_start,
-                row.glyph_end + 1,
-                buffer,
-                color,
-                draw,
-            );
+        let logical_row_number = state.find_row_number_of_index(row.glyph_start);
+        let debug_entry = self
+            .debug_lines
+            .iter()
+            .rev()
+            .find(|debug_line| debug_line.row == logical_row_number);
+        let is_latest_debug_row = self
+            .debug_lines
+            .last()
+            .is_some_and(|debug_line| debug_line.row == logical_row_number);
+
+        if self.debug_line == Some(logical_row_number) || debug_entry.is_some() {
+            let (mut color, rail_color) = if debug_entry
+                .is_some_and(|debug_line| debug_line.branch_taken == Some(true))
+            {
+                ([255, 243, 163, 48], [92, 220, 148, 230])
+            } else if debug_entry.is_some_and(|debug_line| debug_line.branch_taken == Some(false)) {
+                ([255, 243, 163, 38], [92, 176, 236, 210])
+            } else if is_latest_debug_row {
+                ([255, 243, 163, 84], [255, 212, 92, 210])
+            } else if self.debug_line == Some(logical_row_number) {
+                (
+                    *style.theme().color(TextEditDebugLineBackground),
+                    [255, 212, 92, 180],
+                )
+            } else {
+                ([255, 243, 163, 42], [255, 212, 92, 160])
+            };
+            if color[3] > 110 {
+                color[3] = 110;
+            }
+            let row_height = self.row_height(row_number);
+            let top =
+                (self.top + row.bottom) as i32 - row_height as i32 - self.scroll_offset.y as i32;
+            let bottom = (top + row_height as i32)
+                .max(0)
+                .to_usize()
+                .unwrap()
+                .min(self.top + self.height);
+            let top = top.max(0).to_usize().unwrap().max(self.top);
+            if bottom > top {
+                let stride = buffer.stride();
+                draw.blend_rect(
+                    buffer.pixels_mut(),
+                    &(self.left, top, self.width, bottom - top),
+                    stride,
+                    &color,
+                );
+                draw.blend_rect(
+                    buffer.pixels_mut(),
+                    &(self.left, top, 3.min(self.width), bottom - top),
+                    stride,
+                    &rail_color,
+                );
+            }
         }
 
         // Find the visible text
@@ -2210,6 +2318,72 @@ impl TheTextRenderer {
                     TheHorizontalAlign::Center,
                     TheVerticalAlign::Center,
                 );
+            }
+        }
+
+        if let Some(debug_entry) = debug_entry
+            && !debug_entry.values.is_empty()
+        {
+            let row_height = self.row_height(row_number);
+            let label = debug_entry
+                .values
+                .iter()
+                .rev()
+                .take(4)
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join("   ");
+            let font_size = (self.font_size - 1.5).max(10.0);
+            let max_width = (self.width / 2).clamp(120, 420);
+            let (label, badge_width) =
+                self.fit_debug_label(&label, max_width, draw, &font_preference, font_size);
+            let badge_width = badge_width.min(max_width).max(34);
+            let badge_height = (font_size.ceil() as usize + 8).min(row_height.saturating_sub(2));
+            if badge_width + 16 < self.width && badge_height > 8 {
+                let code_right = self.left as i32
+                    - self.scroll_offset.x as i32
+                    - self.get_text_left(row.glyph_start) as i32
+                    + row.right as i32;
+                let min_x = self.left + 8;
+                let max_x = self.left + self.width - badge_width - 8;
+                let preferred_x = (code_right + 14)
+                    .max(min_x as i32)
+                    .to_usize()
+                    .unwrap_or(min_x);
+                let badge_x = preferred_x.min(max_x).max(min_x);
+                let row_top = self.top as i32 + row.top as i32 - self.scroll_offset.y as i32;
+                let badge_y = row_top
+                    + ((row_height.saturating_sub(badge_height)) / 2)
+                        .to_i32()
+                        .unwrap_or_default();
+                let badge_y = badge_y.max(self.top as i32).to_usize().unwrap();
+                let badge_bottom = (badge_y + badge_height).min(self.top + self.height);
+                if badge_bottom > badge_y {
+                    draw.rounded_rect(
+                        buffer.pixels_mut(),
+                        &(badge_x, badge_y, badge_width, badge_bottom - badge_y),
+                        stride,
+                        &[34, 38, 43, 224],
+                        &(5.0, 5.0, 5.0, 5.0),
+                    );
+                    draw.text_rect_blend_clip(
+                        buffer.pixels_mut(),
+                        &Vec2::new(badge_x as i32 + 7, badge_y as i32),
+                        &(self.left, self.top, self.width, self.height),
+                        stride,
+                        &label,
+                        TheFontSettings {
+                            size: font_size,
+                            preference: font_preference,
+                        },
+                        &[255, 243, 163, 255],
+                        TheHorizontalAlign::Left,
+                        TheVerticalAlign::Center,
+                    );
+                }
             }
         }
     }

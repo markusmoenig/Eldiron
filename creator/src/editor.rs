@@ -7,7 +7,6 @@ use crate::scepter::{ScepterEvent, ScepterRegionRequest, ScepterService};
     any(target_os = "windows", target_os = "linux", target_os = "macos")
 ))]
 use crate::self_update::{SelfUpdateEvent, SelfUpdater};
-use codegridfx::Module;
 #[cfg(not(target_arch = "wasm32"))]
 use eldiron_scepter::{
     AttributesGet, AttributesPatch, GridPoint, RegionPaintCells, RegionPaintRect, RegionRef,
@@ -73,9 +72,6 @@ pub static DOCKMANAGER: LazyLock<RwLock<DockManager>> =
     LazyLock::new(|| RwLock::new(DockManager::default()));
 pub static TEXTGAME: LazyLock<RwLock<TextGameState>> =
     LazyLock::new(|| RwLock::new(TextGameState::default()));
-
-pub static CODEGRIDFX: LazyLock<RwLock<Module>> =
-    LazyLock::new(|| RwLock::new(Module::as_type(codegridfx::ModuleType::CharacterTemplate)));
 
 #[derive(Clone)]
 struct ProjectSession {
@@ -986,18 +982,6 @@ impl Editor {
                 if texture.data_ext.is_none() {
                     texture.generate_normals(true);
                 }
-            }
-        }
-
-        if !project.world_module.routines.is_empty() && project.world_source.is_empty() {
-            project.world_source = project.world_module.build(false);
-            project.world_source_debug = project.world_module.build(true);
-        }
-
-        for region in &mut project.regions {
-            if !region.module.routines.is_empty() && region.source.is_empty() {
-                region.source = region.module.build(false);
-                region.source_debug = region.module.build(true);
             }
         }
     }
@@ -3397,16 +3381,12 @@ impl Editor {
                 Some(self.help_url_for_data_context())
             }
             "DockCodeEditor" | "Code" => Some("docs/creator/docks/eldrin_script_editor".into()),
-            "Visual Code" => Some("docs/creator/docks/visual_script_editor".into()),
             "PolyView" => {
                 if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
                     Some("docs/building_maps/creating_2d".into())
                 } else {
                     Some("docs/building_maps/creating_3d_maps".into())
                 }
-            }
-            name if name.starts_with("DockVisualScripting") => {
-                Some("docs/creator/docks/visual_script_editor".into())
             }
             name if name.starts_with("Tile Editor ") => {
                 Some("docs/creator/docks/tile_picker_editor".into())
@@ -3457,7 +3437,6 @@ impl Editor {
                     "Dungeon" => Some("docs/creator/tools/dungeon".into()),
                     "Data" => Some(self.help_url_for_data_context()),
                     "Code" => Some("docs/creator/docks/eldrin_script_editor".into()),
-                    "Visual Code" => Some("docs/creator/docks/visual_script_editor".into()),
                     _ => TOOLLIST
                         .read()
                         .unwrap()
@@ -4657,12 +4636,12 @@ impl TheTrait for Editor {
                         }
                     }
                     if refresh_visual_debug {
-                        DOCKMANAGER.write().unwrap().apply_debug_data(
+                        DOCKMANAGER.write().unwrap().apply_eldrin_debug_data(
                             ui,
                             ctx,
                             &self.project,
                             &self.server_ctx,
-                            &rusterix.server.debug,
+                            &rusterix.server.eldrin_debug,
                         );
                     }
                 }
@@ -5722,205 +5701,6 @@ impl TheTrait for Editor {
                         UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                     }
                 }
-                /*
-                TheEvent::TileEditorDrop(_id, location, drop) => {
-                    if drop.id.name.starts_with("Character") {
-                        let mut instance = TheCodeBundle::new();
-
-                        let mut init = TheCodeGrid {
-                            name: "init".into(),
-                            ..Default::default()
-                        };
-                        init.insert_atom(
-                            (0, 0),
-                            TheCodeAtom::Set(
-                                "@self.position".to_string(),
-                                TheValueAssignment::Assign,
-                            ),
-                        );
-                        init.insert_atom(
-                            (1, 0),
-                            TheCodeAtom::Assignment(TheValueAssignment::Assign),
-                        );
-                        init.insert_atom(
-                            (2, 0),
-                            TheCodeAtom::Value(TheValue::Position(Vec3::new(
-                                location.x as f32,
-                                0.0,
-                                location.y as f32,
-                            ))),
-                        );
-                        instance.insert_grid(init);
-
-                        // Set the character instance bundle, disabled for now
-
-                        // self.sidebar.code_editor.set_bundle(
-                        //     instance.clone(),
-                        //     ctx,
-                        //     self.sidebar.width,
-                        // );
-
-                        let character = Character {
-                            id: instance.id,
-                            character_id: drop.id.uuid,
-                            instance,
-                        };
-
-                        // Add the character instance to the region content list
-
-                        let mut name = "Character".to_string();
-                        if let Some(character) = self.project.characters.get(&drop.id.uuid) {
-                            name.clone_from(&character.name);
-                        }
-
-                        if let Some(list) = ui.get_list_layout("Region Content List") {
-                            let mut item = TheListItem::new(TheId::named_with_id(
-                                "Region Content List Item",
-                                character.id,
-                            ));
-                            item.set_text(name);
-                            item.set_state(TheWidgetState::Selected);
-                            item.add_value_column(100, TheValue::Text("Character".to_string()));
-
-                            list.deselect_all();
-                            item.set_context_menu(Some(TheContextMenu {
-                                items: vec![TheContextMenuItem::new(
-                                    "Delete Character...".to_string(),
-                                    TheId::named("Sidebar Delete Character Instance"),
-                                )],
-                                ..Default::default()
-                            }));
-                            list.add_item(item, ctx);
-                            list.select_item(character.id, ctx, true);
-                        }
-
-                        // Add the character instance to the project
-
-                        if let Some(region) =
-                            self.project.get_region_mut(&self.server_ctx.curr_region)
-                        {
-                            region.characters.insert(character.id, character.clone());
-                        }
-
-                        // Add the character instance to the server
-
-                        self.server_ctx.curr_character = Some(character.character_id);
-                        self.server_ctx.curr_character_instance = Some(character.id);
-                        self.server_ctx.curr_area = None;
-                        //self.sidebar.deselect_all("Character List", ui);
-
-                        self.server_ctx.curr_grid_id =
-                            self.server.add_character_instance_to_region(
-                                self.server_ctx.curr_region,
-                                character,
-                                None,
-                            );
-
-                        // Set the character instance debug info, disabled for now
-
-                        // if let Some(curr_grid_id) = self.server_ctx.curr_grid_id {
-                        //     let debug_module = self.server.get_region_debug_module(
-                        //         self.server_ctx.curr_region,
-                        //         curr_grid_id,
-                        //     );
-
-                        //     self.sidebar.code_editor.set_debug_module(debug_module, ui);
-                        // }
-                    } else if drop.id.name.starts_with("Item") {
-                        let mut instance = TheCodeBundle::new();
-
-                        let mut init = TheCodeGrid {
-                            name: "init".into(),
-                            ..Default::default()
-                        };
-                        init.insert_atom(
-                            (0, 0),
-                            TheCodeAtom::Set(
-                                "@self.position".to_string(),
-                                TheValueAssignment::Assign,
-                            ),
-                        );
-                        init.insert_atom(
-                            (1, 0),
-                            TheCodeAtom::Assignment(TheValueAssignment::Assign),
-                        );
-                        init.insert_atom(
-                            (2, 0),
-                            TheCodeAtom::Value(TheValue::Position(Vec3::new(
-                                location.x as f32,
-                                0.0,
-                                location.y as f32,
-                            ))),
-                        );
-                        instance.insert_grid(init);
-
-                        // Set the character instance bundle, disabled for now
-
-                        // self.sidebar.code_editor.set_bundle(
-                        //     instance.clone(),
-                        //     ctx,
-                        //     self.sidebar.width,
-                        // );
-
-                        let item = Item {
-                            id: instance.id,
-                            item_id: drop.id.uuid,
-                            instance,
-                        };
-
-                        // Add the item instance to the region content list
-
-                        let mut name = "Item".to_string();
-                        if let Some(item) = self.project.items.get(&drop.id.uuid) {
-                            name.clone_from(&item.name);
-                        }
-
-                        if let Some(list) = ui.get_list_layout("Region Content List") {
-                            let mut list_item = TheListItem::new(TheId::named_with_id(
-                                "Region Content List Item",
-                                item.id,
-                            ));
-                            list_item.set_text(name);
-                            list_item.set_state(TheWidgetState::Selected);
-                            list_item.add_value_column(100, TheValue::Text("Item".to_string()));
-
-                            list.deselect_all();
-                            list.add_item(list_item, ctx);
-                            list.select_item(item.id, ctx, true);
-                        }
-
-                        // Add the item instance to the project
-
-                        if let Some(region) =
-                            self.project.get_region_mut(&self.server_ctx.curr_region)
-                        {
-                            region.items.insert(item.id, item.clone());
-                        }
-
-                        // Add the character instance to the server
-
-                        self.server_ctx.curr_character = None;
-                        self.server_ctx.curr_character_instance = None;
-                        self.server_ctx.curr_item = Some(item.item_id);
-                        self.server_ctx.curr_item_instance = Some(item.id);
-                        self.server_ctx.curr_area = None;
-
-                        self.server_ctx.curr_grid_id = self
-                            .server
-                            .add_item_instance_to_region(self.server_ctx.curr_region, item);
-
-                        // Set the character instance debug info, disabled for now
-
-                        // if let Some(curr_grid_id) = self.server_ctx.curr_grid_id {
-                        //     let debug_module = self.server.get_region_debug_module(
-                        //         self.server_ctx.curr_region,
-                        //         curr_grid_id,
-                        //     );
-
-                        //     self.sidebar.code_editor.set_debug_module(debug_module, ui);
-                        // }
-                    }
-                }*/
                 TheEvent::FileRequesterResult(id, paths) => {
                     // Load a palette from a file
                     if id.name == "Palette Import" {
@@ -6446,13 +6226,6 @@ impl TheTrait for Editor {
                         if refresh_action_ui {
                             // Drop focus to avoid stale focused text-edit state surviving toolbar rebuilds.
                             ctx.ui.clear_focus();
-                            // Refresh both toolbars unconditionally.
-                            // Dock undo/redo may not keep CODEEDITOR.active_panel in sync.
-                            {
-                                let mut module = CODEGRIDFX.write().unwrap();
-                                module.clear_toolbar_settings(ui, ctx);
-                                module.show_settings(ui, ctx);
-                            }
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Update Action List"),
                                 TheValue::Empty,

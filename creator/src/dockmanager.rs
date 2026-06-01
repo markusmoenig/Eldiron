@@ -1,6 +1,6 @@
 use crate::editor::TOOLLIST;
 use crate::prelude::*;
-use codegridfx::DebugModule;
+use rusterix::prelude::EldrinDebugModule;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum DockManagerState {
@@ -50,9 +50,6 @@ impl DockManager {
 
         let dock: Box<dyn Dock> = Box::new(crate::docks::authoring::AuthoringDock::new());
         docks.insert("Authoring".into(), dock);
-
-        let dock: Box<dyn Dock> = Box::new(crate::docks::visual_code::VisualCodeDock::new());
-        docks.insert("Visual Code".into(), dock);
 
         let dock: Box<dyn Dock> = Box::new(crate::docks::code::CodeDock::new());
         docks.insert("Code".into(), dock);
@@ -468,20 +465,20 @@ impl DockManager {
         }
     }
 
-    pub fn apply_debug_data(
+    pub fn apply_eldrin_debug_data(
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
         server_ctx: &ServerContext,
-        debug: &DebugModule,
+        debug: &EldrinDebugModule,
     ) {
         if self.state == DockManagerState::Editor {
             if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
-                editor_dock.apply_debug_data(ui, ctx, project, server_ctx, debug);
+                editor_dock.apply_eldrin_debug_data(ui, ctx, project, server_ctx, debug);
             }
         } else if let Some((_, dock)) = self.docks.get_index_mut(self.index) {
-            dock.apply_debug_data(ui, ctx, project, server_ctx, debug);
+            dock.apply_eldrin_debug_data(ui, ctx, project, server_ctx, debug);
         }
     }
 

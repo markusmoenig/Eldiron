@@ -17,7 +17,6 @@ You use the [geometry tools](tools/overview#map-tool-specifics) to create geomet
 
 Each region also has its own script entries in the tree:
 
-- **Visual Scripting** for graph-based region logic.
 - **Eldrin Scripting** for text-based region logic.
 
 These region scripts are the right place for map-local behavior and runtime overrides, for example:
@@ -30,7 +29,7 @@ These region scripts are the right place for map-local behavior and runtime over
 
 A **character template** is a reusable blueprint that defines the **behavior, attributes, and appearance** of a character in the game.
 
-You can edit character behavior using either **Visual Scripting** or **Eldrin Scripting** or edit the initial **Attributes** of the character.
+You can edit character behavior with **Eldrin Scripting** and edit the initial **Attributes** of the character.
 
 You can instantiate a character template into the map of the region by simply dragging and dropping the character template into the map (Click left of the *Name* item and drag).
 
@@ -42,7 +41,7 @@ You can use the [Entity Tool](tools/entity) to move or delete character instance
 
 Item templates have similar functionality as *characters templates* but define a static or dynamic item in the game world.
 
-Like with *characters* you can edit item behavior using either **Visual Scripting** or **Eldrin Scripting** or edit the **Attributes** of the item.
+Like with *characters* you can edit item behavior with **Eldrin Scripting** and edit the **Attributes** of the item.
 
 You can instantiate an item template into the map of the region by simply dragging and dropping the item template into the map (Click left of the *Name* item and drag).
 
@@ -110,7 +109,6 @@ Shows the colors of your palette. Use the palette based **Actions** to clear or 
 In the game section you can select:
 
 - **Settings**. Edit your game settings, see all supported settings in the [reference](../reference/configuration).
-- **World / Visual Scripting**. Edit graph-based world/global logic.
 - **World / Eldrin Scripting**. Edit text-based world/global logic.
 - **Authoring**. Edit global text-adventure and authoring behavior like startup text and sector description policies, see [Authoring Configuration](../configuration/authoring).
 - **Rules**. Edit project-wide gameplay rules and formulas in a TOML-based data editor, see [Rules](../rules).

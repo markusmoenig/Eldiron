@@ -589,21 +589,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codegridfx"
-version = "0.1.0"
-dependencies = [
- "indexmap",
- "rusteria",
- "serde",
- "serde_json",
- "strum",
- "theframework",
- "uuid",
- "vectorize",
- "vek",
-]
-
-[[package]]
 name = "codespan-reporting"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3062,7 +3047,6 @@ version = "0.2.8"
 dependencies = [
  "bincode",
  "bvh",
- "codegridfx",
  "console_error_panic_hook",
  "criterion",
  "crossbeam",

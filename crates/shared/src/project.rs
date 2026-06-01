@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use buildergraph::BuilderGraph;
-use codegridfx::Module;
 use indexmap::IndexMap;
 pub use rusterix::map::*;
 use theframework::prelude::*;
@@ -77,10 +76,6 @@ fn command_from_legacy_ui(ui: &toml::value::Table) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(|action| format!("control.{}", action))
-}
-
-fn default_world_module() -> Module {
-    Module::as_type(codegridfx::ModuleType::World)
 }
 
 fn default_tile_board_cols() -> i32 {
@@ -496,8 +491,8 @@ pub struct Project {
     #[serde(default)]
     pub config: String,
 
-    #[serde(default = "default_world_module")]
-    pub world_module: Module,
+    #[serde(default)]
+    pub world_module: serde_json::Value,
 
     #[serde(default)]
     pub world_source: String,
@@ -571,7 +566,7 @@ impl Project {
             palette_materials: default_palette_material_slots(),
 
             config: String::new(),
-            world_module: default_world_module(),
+            world_module: serde_json::Value::Null,
             world_source: String::new(),
             world_source_debug: String::new(),
             rules: default_rules(),

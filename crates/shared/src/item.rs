@@ -1,4 +1,3 @@
-use codegridfx::Module;
 use num_traits::zero;
 use rusterix::Map;
 use theframework::prelude::*;
@@ -14,7 +13,7 @@ pub struct Item {
 
     /// The module source
     #[serde(default)]
-    pub module: Module,
+    pub module: serde_json::Value,
 
     /// The instance initialization or template code.
     pub source: String,
@@ -50,7 +49,7 @@ impl Item {
             id: Uuid::new_v4(),
             name: "NewItem".to_string(),
 
-            module: Module::as_type(codegridfx::ModuleType::ItemTemplate),
+            module: serde_json::Value::Null,
             map: Map::default(),
             source: String::new(),
             source_debug: String::new(),

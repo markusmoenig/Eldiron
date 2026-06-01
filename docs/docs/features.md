@@ -53,19 +53,11 @@ This allows the same interaction model to work across:
 
 So `attack`, `use`, `take`, movement, and other interactions do not need separate gameplay systems for each client type.
 
-## Scripts and Visual Scripting
+## Eldrin Scripting
 
-Behavior can be authored in two ways:
+Behavior is authored with **Eldrin Script**, the text-based runtime language used by world, region, character, and item scripts.
 
-- **Visual Scripting**
-- **Eldrin Script**
-
-Visual scripts are translated into Eldrin Script, so both paths are part of the same runtime model.
-
-This makes Eldiron useful both for:
-
-- people who prefer node-based authoring
-- people who want direct script control
+The script editor includes live runtime debugging: recently executed lines are highlighted and variable values can be shown inline while the game runs in Creator.
 
 ## Shared Gameplay Systems
 

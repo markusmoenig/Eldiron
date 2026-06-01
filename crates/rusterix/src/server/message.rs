@@ -1,5 +1,5 @@
+use crate::vm::EldrinDebugModule;
 use crate::{Entity, Map, Value, ValueContainer};
-use codegridfx::DebugModule;
 use scenevm::PaletteRemap2DMode;
 use theframework::prelude::*;
 
@@ -133,8 +133,8 @@ pub enum RegionMessage {
     SetPostValue(u32, String, Value),
     /// Override a runtime post setting globally/world-wide.
     SetWorldPostValue(String, Value),
-    /// Send the debug id of a character or item
-    DebugData(DebugModule),
+    /// Send Eldrin source-line debug data.
+    EldrinDebugData(EldrinDebugModule),
     /// Pause the server.
     Pause,
     /// Continue after pause

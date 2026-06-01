@@ -1620,6 +1620,8 @@ impl TheWidget for TheTextAreaEdit {
                         + (self.renderer.row_baseline(i) as f32 - line.max_ascent).ceil() as i32;
                     let color = if self.debug_line == Some(i) {
                         style.theme().color(TextEditLineNumberDebugColor)
+                    } else if self.renderer.has_debug_line(i) {
+                        style.theme().color(TextEditLineNumberDebugColor)
                     } else if self.state.cursor.row == i {
                         style.theme().color(TextEditLineNumberHighlightColor)
                     } else {
@@ -1711,6 +1713,7 @@ pub trait TheTextAreaEditTrait: TheWidget {
     fn set_errors(&mut self, errors: &[(usize, usize)]);
     fn clear_errors(&mut self);
     fn set_debug_line(&mut self, line_number: Option<usize>);
+    fn set_debug_lines(&mut self, lines: &[(usize, Option<bool>, Vec<String>)]);
     fn goto_char_by_index(&mut self, char_index: usize);
     fn goto_line(&mut self, line_number: usize);
     fn set_supports_undo(&mut self, supports_undo: bool);
@@ -1819,7 +1822,10 @@ impl TheTextAreaEditTrait for TheTextAreaEdit {
     fn set_debug_line(&mut self, line_number: Option<usize>) {
         self.debug_line = line_number;
         self.renderer.set_debug_line(line_number);
-        self.modified_since_last_tick = true;
+        self.is_dirty = true;
+    }
+    fn set_debug_lines(&mut self, lines: &[(usize, Option<bool>, Vec<String>)]) {
+        self.renderer.set_debug_lines(lines);
         self.is_dirty = true;
     }
     fn goto_char_by_index(&mut self, char_index: usize) {

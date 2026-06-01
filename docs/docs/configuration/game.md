@@ -8,7 +8,6 @@ You can configure **Eldiron** by selecting the **Game -> Settings** item in the 
 Other game-level TOML documents are edited separately:
 
 - **Game -> Authoring**: [Authoring Configuration](./authoring)
-- **World / Visual Scripting**: global graph-based runtime logic
 - **Game -> World / Eldrin Scripting**: global text-based runtime logic
 - **Game -> Rules**: [Rules](../rules)
 - **Game -> Locales**: [Localization](../localization)

@@ -5121,6 +5121,7 @@ impl RegionInstance {
             }
             if ctx.debug_mode {
                 ctx.debug.clear_execution();
+                ctx.eldrin_debug.clear();
                 ctx.curr_debug_loc = None;
             }
             ctx.ticks += 1;
@@ -8851,7 +8852,7 @@ impl RegionInstance {
         with_regionctx(self.id, |ctx| {
             if ctx.debug_mode {
                 self.from_sender
-                    .send(RegionMessage::DebugData(ctx.debug.clone()))
+                    .send(RegionMessage::EldrinDebugData(ctx.eldrin_debug.clone()))
                     .unwrap();
             }
         });

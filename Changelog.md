@@ -212,9 +212,9 @@
 
 ### Scripting
 
-- Added `world_event(event, value)` and the matching visual scripting **World Event** block, allowing characters, items, and region scripts to delegate orchestration to the World script's `event(event, value)` handler.
-- Added `teleport_entity(entity_id, sector, region)` and the matching visual scripting **Teleport Entity** block so World scripts can move a player or NPC passed in through a world event.
-- Added `build_procedural(seed)` and the matching visual scripting **Build Procedural** block so World scripts can regenerate 2D `connected_rooms` procedural regions during play.
+- Added `world_event(event, value)`, allowing characters, items, and region scripts to delegate orchestration to the World script's `event(event, value)` handler.
+- Added `teleport_entity(entity_id, sector, region)` so World scripts can move a player or NPC passed in through a world event.
+- Added `build_procedural(seed)` so World scripts can regenerate 2D `connected_rooms` procedural regions during play.
 - Added script access to live region procedural settings through context variables such as `region.procedural.room_count` and `region.procedural.characters.skeleton.percentage`, enabling roguelike difficulty scaling before regeneration.
 
 ## Optimizations
@@ -296,7 +296,7 @@
 - Added `hold_speed` for grid-based held movement, so characters can use a fast first-tile `speed` while keeping sustained held movement smooth and continuous.
 - Added configurable `[game]` simulation pacing with `simulation_mode = "realtime" | "turn_based" | "hybrid"` and `turn_timeout_ms`, so projects can choose between continuous simulation, fully player-driven turns, or Ultima-style idle turn stepping.
 - Added `multiple_choice(entity, prompt, choice_attribute)` for script-defined choice menus using labels authored as character attributes. Selecting an option sends both `{choice_attribute}` and `{choice_attribute}:{index}` back to the offering character.
-- Added the new `dialog(entity, node)` system for TOML-authored nested dialogs, including node transitions, continue-style choices, choice events, simple `if` / `unless` conditions, localization/substitution support, and visual scripting support.
+- Added the new `dialog(entity, node)` system for TOML-authored nested dialogs, including node transitions, continue-style choices, choice events, simple `if` / `unless` conditions, localization/substitution support, and script integration.
 
 ### Documentation
 
@@ -463,7 +463,7 @@
 - Added stable 3D wall and floor point placement for vertex-hosted Builder props, including inside/outside wall placement for wall-mounted assets like torches and lanterns.
 - Reworked the Tile Node Graph FX workflow with explicit **Particle Spawn**, **Particle Motion**, **Particle Render**, and **Light Emitter** nodes, plus a one-click **Particle Template** starter setup.
 - Added live particle minimap previews, particle/light tile thumbnails, ramp-based particle coloring, optional **Flame Base**, and runtime propagation of Tile Graph particle updates into the 3D editor preview.
-- Exposed `attack` and `gain_xp` in CodeGridFX.
+- Exposed `attack` and `gain_xp` to scripting.
 - Added config-aware `PLAYER.LEVEL`, `PLAYER.EXP`, and `PLAYER.EXPERIENCE` support for text widgets and localized text.
 - Added config-aware `PLAYER.FUNDS` support and a configurable `stats` text command driven from **Game / Authoring**.
 - Added tab-stop support for text widgets via `\\t` and `tab_width`, making aligned HUD/status layouts easier to build.
@@ -514,13 +514,10 @@
 - Added a new **Game / Audio FX** TOML document for generated sound effects, including in-editor preview via the `Play` button.
 - Extended the `Game` tree so **Settings**, **Rules**, **Locales**, and **Audio FX** are distinct TOML entries, while **Debug Log** and **Console** remain separate runtime/output items.
 - Added a new **Game / Console** dock for inspecting and navigating live runtime state, including root, character, and item focus plus interactive console commands.
-- Improved CodeGridFX debugging with live execution highlighting for event headers, cells, and rows.
-- Added persistent last result / error feedback in CodeGridFX so one-shot calls remain visible after execution.
-- Added `if` condition feedback in CodeGridFX, including `True` / `False` values and a muted not-taken highlight.
-- Added inline variable value mirroring in CodeGridFX so assignment targets show their current value after execution.
-- Added hover help for function calls directly inside the visual scripting graph.
-- Added drag-copy for existing CodeGridFX cells, including dependency subtree copying, validation, and visual drop feedback.
-- Improved the CodeGridFX editing field styling by restoring framed text entry widgets.
+- Improved script debugging with live execution feedback.
+- Added persistent last result / error feedback so one-shot calls remain visible after execution.
+- Added `if` condition feedback, including `True` / `False` values and a muted not-taken highlight.
+- Added inline variable value mirroring so assignment targets show their current value after execution.
 - Added 3D editor billboard previews for region entities and items, so placed instances are visible in 3D even without full runtime geometry.
 - Improved 3D Sector tool selection so sectors without direct geometry can still be selected from the world hit position.
 
@@ -536,7 +533,7 @@
 - Added `locale = "auto"` support to resolve the active language from the system locale.
 - Added support for localized custom `message(...)` strings with named parameters and shortcut resolvers like `self.*`, `attacker.*`, and `target.*`.
 - Added world time resolver keys for text and messages: `WORLD.HOUR`, `WORLD.MINUTE`, `WORLD.TIME`, `WORLD.TIME_12`, and `WORLD.TIME_24`.
-- Hid legacy `took_damage` from the normal visual scripting surface while keeping runtime compatibility for older content.
+- Deprecated legacy `took_damage` while keeping runtime compatibility for older content.
 
 ### Audio
 
@@ -547,7 +544,7 @@
 ### Documentation
 
 - Added dedicated documentation for **Rules** and **Localization**.
-- Updated the visual scripting docs to cover realtime debugging, persistent values, condition feedback, hover help, and drag-copy.
+- Updated scripting docs to cover realtime debugging, persistent values, and condition feedback.
 - Updated audio docs to cover `Game / Audio FX`, combat audio integration, and Audio FX parameters.
 - Updated scripting and event docs to reflect the new `damaged` event, damage kinds, and `source_item_id`.
 

@@ -36,14 +36,6 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.server.log_changed = true;
 
     insert_content_into_maps_mode(project, debug);
-    if !project.world_module.routines.is_empty() {
-        if project.world_source.is_empty() {
-            project.world_source = project.world_module.build(false);
-        }
-        if debug && project.world_source_debug.is_empty() {
-            project.world_source_debug = project.world_module.build(true);
-        }
-    }
     rusterix.assets.rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)
         .unwrap_or_else(|err| {
             eprintln!("Ruleset resolution error: {}", err);
@@ -73,14 +65,6 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.assets.character_maps.clear();
     rusterix.assets.entity_tiles.clear();
     for character in project.characters.values_mut() {
-        if !character.module.routines.is_empty() {
-            if character.source.is_empty() {
-                character.source = character.module.build(false);
-            }
-            if debug && character.source_debug.is_empty() {
-                character.source_debug = character.module.build(true);
-            }
-        }
         if debug && !character.source_debug.is_empty() {
             rusterix.assets.entities.insert(
                 character.name.clone(),
@@ -110,14 +94,6 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.assets.item_maps.clear();
     rusterix.assets.item_tiles.clear();
     for item in project.items.values_mut() {
-        if !item.module.routines.is_empty() {
-            if item.source.is_empty() {
-                item.source = item.module.build(false);
-            }
-            if debug && item.source_debug.is_empty() {
-                item.source_debug = item.module.build(true);
-            }
-        }
         if debug && !item.source_debug.is_empty() {
             rusterix.assets.items.insert(
                 item.name.clone(),
@@ -143,14 +119,6 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
 
     // Create the regions
     for region in &mut project.regions {
-        if !region.module.routines.is_empty() {
-            if region.source.is_empty() {
-                region.source = region.module.build(false);
-            }
-            if debug && region.source_debug.is_empty() {
-                region.source_debug = region.module.build(true);
-            }
-        }
         let region_source = if debug && !region.source_debug.is_empty() {
             region.source_debug.clone()
         } else {
@@ -304,14 +272,6 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
                 instance.source.clear();
                 instance.source_debug.clear();
             }
-            if !instance.module.routines.is_empty() {
-                if instance.source.is_empty() {
-                    instance.source = instance.module.build(false);
-                }
-                if debug && instance.source_debug.is_empty() {
-                    instance.source_debug = instance.module.build(true);
-                }
-            }
             let mut entity = Entity {
                 creator_id: instance.id,
                 position: instance.position,
@@ -341,14 +301,6 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
             if is_legacy_python_instance_setup(&instance.source) {
                 instance.source.clear();
                 instance.source_debug.clear();
-            }
-            if !instance.module.routines.is_empty() {
-                if instance.source.is_empty() {
-                    instance.source = instance.module.build(false);
-                }
-                if debug && instance.source_debug.is_empty() {
-                    instance.source_debug = instance.module.build(true);
-                }
             }
             let mut item = rusterix::Item {
                 creator_id: instance.id,

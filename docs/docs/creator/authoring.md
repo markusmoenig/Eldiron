@@ -27,7 +27,7 @@ This makes Authoring a persistent mode:
 
 - geometry and selection tools still work normally
 - tile-backed contexts switch from **Tiles** to **Authoring**
-- other docks like **Data**, **Code**, **Visual Code**, or **Console** are unaffected
+- other docks like **Data**, **Code**, or **Console** are unaffected
 
 ## What You Can Edit
 

@@ -497,21 +497,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codegridfx"
-version = "0.9.12"
-dependencies = [
- "indexmap 2.13.0",
- "rusteria",
- "serde",
- "serde_json",
- "strum",
- "theframework",
- "uuid",
- "vectorize",
- "vek",
-]
-
-[[package]]
 name = "codespan-reporting"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1177,7 +1162,6 @@ name = "eldiron-creator"
 version = "0.9.12"
 dependencies = [
  "arboard",
- "codegridfx",
  "earcutr",
  "eldiron-shared",
  "eldiron_scepter",
@@ -1192,7 +1176,6 @@ dependencies = [
  "rayon",
  "regex",
  "rust-embed",
- "rusteria",
  "rusterix",
  "scenevm",
  "self_update",
@@ -1220,7 +1203,6 @@ name = "eldiron-shared"
 version = "0.9.12"
 dependencies = [
  "buildergraph",
- "codegridfx",
  "earcutr",
  "fontdue",
  "indexmap 2.13.0",
@@ -4131,7 +4113,6 @@ dependencies = [
  "bincode",
  "buildergraph",
  "bvh",
- "codegridfx",
  "console_error_panic_hook",
  "cpal",
  "crossbeam",

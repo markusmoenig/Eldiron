@@ -1,5 +1,6 @@
 use crate::docks::code_undo::*;
 use crate::prelude::*;
+use rusterix::prelude::{EldrinDebugEntry, EldrinDebugModule, EldrinDebugTarget};
 use theframework::prelude::*;
 use theframework::theui::thewidget::thetextedit::TheTextEditState;
 
@@ -227,6 +228,30 @@ impl Dock for CodeDock {
         redraw
     }
 
+    fn apply_eldrin_debug_data(
+        &mut self,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &ServerContext,
+        debug: &EldrinDebugModule,
+    ) {
+        let Some(target) = self.runtime_debug_target(project, server_ctx) else {
+            if let Some(edit) = ui.get_text_area_edit("DockCodeEditor") {
+                edit.set_debug_line(None);
+                edit.set_debug_lines(&[]);
+            }
+            return;
+        };
+
+        if let Some(edit) = ui.get_text_area_edit("DockCodeEditor") {
+            let source = edit.text();
+            let lines = Self::debug_lines_for(debug, &target, &source);
+            edit.set_debug_line(None);
+            edit.set_debug_lines(&lines);
+        }
+    }
+
     fn supports_undo(&self) -> bool {
         true
     }
@@ -375,5 +400,176 @@ impl CodeDock {
                 }
             }
         }
+    }
+
+    fn runtime_debug_target(
+        &self,
+        project: &Project,
+        server_ctx: &ServerContext,
+    ) -> Option<EldrinDebugTarget> {
+        match self.current_entity {
+            Some(EntityKey::World) => Some(EldrinDebugTarget::World),
+            Some(EntityKey::Region(region_id)) => project
+                .regions
+                .iter()
+                .position(|region| region.id == region_id)
+                .map(|index| EldrinDebugTarget::Region(index as u32)),
+            Some(EntityKey::CharacterInstance(region_id, instance_id)) => project
+                .get_region(&region_id)?
+                .map
+                .entities
+                .iter()
+                .find(|entity| entity.creator_id == instance_id)
+                .map(|entity| EldrinDebugTarget::Entity(entity.id)),
+            Some(EntityKey::ItemInstance(region_id, instance_id)) => project
+                .get_region(&region_id)?
+                .map
+                .items
+                .iter()
+                .find(|item| item.creator_id == instance_id)
+                .map(|item| EldrinDebugTarget::Item(item.id)),
+            Some(EntityKey::Character(template_id)) => {
+                let region = project.get_region(&server_ctx.curr_region)?;
+                region
+                    .characters
+                    .values()
+                    .find(|instance| instance.character_id == template_id)
+                    .and_then(|instance| {
+                        region
+                            .map
+                            .entities
+                            .iter()
+                            .find(|entity| entity.creator_id == instance.id)
+                            .map(|entity| EldrinDebugTarget::Entity(entity.id))
+                    })
+            }
+            Some(EntityKey::Item(template_id)) => {
+                let region = project.get_region(&server_ctx.curr_region)?;
+                region
+                    .items
+                    .values()
+                    .find(|instance| instance.item_id == template_id)
+                    .and_then(|instance| {
+                        region
+                            .map
+                            .items
+                            .iter()
+                            .find(|item| item.creator_id == instance.id)
+                            .map(|item| EldrinDebugTarget::Item(item.id))
+                    })
+            }
+            None => None,
+        }
+    }
+
+    fn debug_lines_for(
+        debug: &EldrinDebugModule,
+        target: &EldrinDebugTarget,
+        source: &str,
+    ) -> Vec<(usize, Option<bool>, Vec<String>)> {
+        let mut rows: Vec<(usize, Option<bool>, Vec<String>)> = vec![];
+
+        if let Some(frame) = debug.latest_frame_for(target) {
+            let suppressed_lines = Self::false_branch_body_lines(source, &frame.entries);
+            for entry in &frame.entries {
+                match entry {
+                    EldrinDebugEntry::ExecutedLine { line } => {
+                        if suppressed_lines.contains(line) {
+                            continue;
+                        }
+                        if let Some(row) = line.checked_sub(1) {
+                            Self::ensure_debug_row(&mut rows, row);
+                        }
+                    }
+                    EldrinDebugEntry::Branch { line, taken } => {
+                        if !taken {
+                            continue;
+                        }
+                        if let Some(row) = line.checked_sub(1) {
+                            let index = Self::ensure_debug_row(&mut rows, row);
+                            rows[index].1 = Some(*taken);
+                        }
+                    }
+                    EldrinDebugEntry::Value { line, name, value } => {
+                        if suppressed_lines.contains(line) {
+                            continue;
+                        }
+                        if let Some(row) = line.checked_sub(1) {
+                            if Self::is_internal_debug_name(name) {
+                                continue;
+                            }
+                            let index = Self::ensure_debug_row(&mut rows, row);
+                            let prefix = format!("{name} = ");
+                            rows[index].2.retain(|value| !value.starts_with(&prefix));
+                            rows[index].2.push(format!("{name} = {value}"));
+                            if rows[index].2.len() > 6 {
+                                rows[index].2.remove(0);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        rows
+    }
+
+    fn false_branch_body_lines(source: &str, entries: &[EldrinDebugEntry]) -> FxHashSet<usize> {
+        let lines = source.lines().collect::<Vec<_>>();
+        let mut suppressed = FxHashSet::default();
+        for entry in entries {
+            let EldrinDebugEntry::Branch { line, taken: false } = entry else {
+                continue;
+            };
+            if let Some(end_line) = Self::branch_body_end_line(&lines, *line) {
+                for suppressed_line in line.saturating_add(1)..end_line {
+                    suppressed.insert(suppressed_line);
+                }
+            }
+        }
+        suppressed
+    }
+
+    fn branch_body_end_line(lines: &[&str], branch_line: usize) -> Option<usize> {
+        let mut depth = 0usize;
+        let mut found_body = false;
+        for (index, line) in lines.iter().enumerate().skip(branch_line.saturating_sub(1)) {
+            for ch in line.chars() {
+                match ch {
+                    '{' => {
+                        found_body = true;
+                        depth += 1;
+                    }
+                    '}' if found_body => {
+                        depth = depth.saturating_sub(1);
+                        if depth == 0 {
+                            return Some(index + 1);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        None
+    }
+
+    fn ensure_debug_row(rows: &mut Vec<(usize, Option<bool>, Vec<String>)>, row: usize) -> usize {
+        if let Some(index) = rows.iter().position(|(existing, _, _)| *existing == row) {
+            let entry = rows.remove(index);
+            rows.push(entry);
+        } else {
+            rows.push((row, None, vec![]));
+        }
+        if rows.len() > 24 {
+            rows.remove(0);
+        }
+        rows.len() - 1
+    }
+
+    fn is_internal_debug_name(name: &str) -> bool {
+        name.starts_with("__")
+            || name
+                .split('.')
+                .any(|segment| segment.starts_with("__") || segment.starts_with("_cgfx"))
     }
 }

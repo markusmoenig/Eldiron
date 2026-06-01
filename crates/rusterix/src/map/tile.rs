@@ -1,5 +1,4 @@
 use crate::{ParticleEmitter, Texture};
-use codegridfx::Module;
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug, Default)]
@@ -118,7 +117,7 @@ pub struct Tile {
     /// The textures of the tiles. Primary source.
     pub textures: Vec<Texture>,
     /// The module if the textures are shader generated
-    pub module: Option<Module>,
+    pub module: Option<serde_json::Value>,
     /// For top down 2D scenarios
     pub blocking: bool,
     /// The scale of the tile (mostly used for billboard rendering)

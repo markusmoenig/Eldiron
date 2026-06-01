@@ -341,7 +341,6 @@ impl AuthoringDock {
             ProjectContext::Character(id)
             | ProjectContext::CharacterData(id)
             | ProjectContext::CharacterCode(id)
-            | ProjectContext::CharacterVisualCode(id)
             | ProjectContext::CharacterPreviewRigging(id)
                 if project.characters.contains_key(&id) =>
             {
@@ -350,7 +349,6 @@ impl AuthoringDock {
             ProjectContext::Item(id)
             | ProjectContext::ItemData(id)
             | ProjectContext::ItemCode(id)
-            | ProjectContext::ItemVisualCode(id)
                 if project.items.contains_key(&id) =>
             {
                 return Some(AuthoringTarget::ItemTemplate(id));

@@ -16,7 +16,7 @@ My first attempt looked something like this, around mid-2022:
 
 I quickly realized two things: first, **working on Eldiron was incredibly fun**, and second, **things got complicated fast**. My initial approach was too simplistic—it didn’t allow for all the cool features I wanted to include.
 
-I knew I needed to **rework the user interface**, add **scripting and node-based systems**, and create a **universal map editor** that could handle **2D, isometric, and first-person** games.
+I knew I needed to **rework the user interface**, add **scripting and data-driven gameplay systems**, and create a **universal map editor** that could handle **2D, isometric, and first-person** games.
 
 At this stage, I thought, *why not go all in?* So, I started working on a new version of Eldiron **from scratch**.
 
@@ -30,9 +30,9 @@ By mid-2023 and early 2024, the **new UI** was taking shape, but I was still fig
 
 ## On the Way to v1 – The Current State
 
-One of the final pieces of the puzzle was choosing a **Doom-style world editor**—a decision that made creating worlds and levels **both easy and highly flexible**. Another major decision was to use **Python for scripting** while also developing a **visual, node-based scripting system** for those who prefer to work without code.
+One of the final pieces of the puzzle was choosing a **Doom-style world editor**—a decision that made creating worlds and levels **both easy and highly flexible**. Another major decision was to build **Eldrin Script**, a small runtime language tailored to game logic in Eldiron.
 
-The node system is built around **Python classes (modules)**, making it possible to use the same logic in both **direct scripting and visual scripting**.
+Eldrin Script now drives world, region, character, and item behavior directly, with shared rules, attributes, and authoring data carrying more of the reusable gameplay structure.
 
 In keeping with the **retro aesthetic**, I also implemented a **software rasterizer**—if they could do it in 1990, we can certainly do it now!
 

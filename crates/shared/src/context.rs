@@ -184,19 +184,15 @@ pub enum ProjectContext {
     Unknown,
     Region(Uuid),
     RegionSettings(Uuid),
-    RegionVisualCode(Uuid),
     RegionCode(Uuid),
     RegionCharacterInstance(Uuid, Uuid),
     RegionItemInstance(Uuid, Uuid),
-    WorldVisualCode,
     WorldCode,
     Character(Uuid),
-    CharacterVisualCode(Uuid),
     CharacterCode(Uuid),
     CharacterData(Uuid),
     CharacterPreviewRigging(Uuid),
     Item(Uuid),
-    ItemVisualCode(Uuid),
     ItemCode(Uuid),
     ItemData(Uuid),
     Tilemap(Uuid),
@@ -220,7 +216,6 @@ impl ProjectContext {
         match self {
             ProjectContext::Unknown
             | ProjectContext::ProjectSettings
-            | ProjectContext::WorldVisualCode
             | ProjectContext::WorldCode
             | ProjectContext::GameRules
             | ProjectContext::GameLocales
@@ -231,17 +226,14 @@ impl ProjectContext {
             | ProjectContext::Console => None,
             ProjectContext::Region(id)
             | ProjectContext::RegionSettings(id)
-            | ProjectContext::RegionVisualCode(id)
             | ProjectContext::RegionCode(id)
             | ProjectContext::RegionCharacterInstance(id, _)
             | ProjectContext::RegionItemInstance(id, _)
             | ProjectContext::Character(id)
-            | ProjectContext::CharacterVisualCode(id)
             | ProjectContext::CharacterCode(id)
             | ProjectContext::CharacterData(id)
             | ProjectContext::CharacterPreviewRigging(id)
             | ProjectContext::Item(id)
-            | ProjectContext::ItemVisualCode(id)
             | ProjectContext::ItemCode(id)
             | ProjectContext::ItemData(id)
             | ProjectContext::Tilemap(id)
@@ -257,7 +249,6 @@ impl ProjectContext {
         match self {
             ProjectContext::Region(_)
             | ProjectContext::RegionSettings(_)
-            | ProjectContext::RegionVisualCode(_)
             | ProjectContext::RegionCode(_)
             | ProjectContext::RegionCharacterInstance(_, _)
             | ProjectContext::RegionItemInstance(_, _) => true,
@@ -265,16 +256,8 @@ impl ProjectContext {
         }
     }
 
-    pub fn is_region_visual_code(&self) -> bool {
-        matches!(self, ProjectContext::RegionVisualCode(_))
-    }
-
     pub fn is_region_code(&self) -> bool {
         matches!(self, ProjectContext::RegionCode(_))
-    }
-
-    pub fn is_world_visual_code(&self) -> bool {
-        matches!(self, ProjectContext::WorldVisualCode)
     }
 
     pub fn is_world_code(&self) -> bool {
@@ -298,7 +281,6 @@ impl ProjectContext {
     pub fn is_character(&self) -> bool {
         match self {
             ProjectContext::Character(_)
-            | ProjectContext::CharacterVisualCode(_)
             | ProjectContext::CharacterCode(_)
             | ProjectContext::CharacterData(_)
             | ProjectContext::CharacterPreviewRigging(_) => true,
@@ -308,10 +290,9 @@ impl ProjectContext {
 
     pub fn is_item(&self) -> bool {
         match self {
-            ProjectContext::Item(_)
-            | ProjectContext::ItemVisualCode(_)
-            | ProjectContext::ItemCode(_)
-            | ProjectContext::ItemData(_) => true,
+            ProjectContext::Item(_) | ProjectContext::ItemCode(_) | ProjectContext::ItemData(_) => {
+                true
+            }
             _ => false,
         }
     }

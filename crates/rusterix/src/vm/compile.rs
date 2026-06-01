@@ -29,6 +29,21 @@ pub struct CompileVisitor {
 }
 
 impl CompileVisitor {
+    fn emit_debug_line(ctx: &mut Context, loc: &Location) {
+        if loc.line > 0 {
+            ctx.emit(NodeOp::DebugLine(loc.line));
+        }
+    }
+
+    fn emit_debug_value(ctx: &mut Context, loc: &Location, name: impl Into<String>) {
+        if loc.line > 0 {
+            ctx.emit(NodeOp::DebugValue {
+                line: loc.line,
+                name: name.into(),
+            });
+        }
+    }
+
     /// Map friendly field aliases to component indices.
     fn component_alias(field: &str) -> Option<u8> {
         match field {
@@ -122,9 +137,10 @@ impl Visitor for CompileVisitor {
     fn expression(
         &mut self,
         expression: &Expr,
-        _loc: &Location,
+        loc: &Location,
         ctx: &mut Context,
     ) -> Result<ASTValue, RuntimeError> {
+        Self::emit_debug_line(ctx, loc);
         expression.accept(self, ctx)
     }
 
@@ -151,15 +167,17 @@ impl Visitor for CompileVisitor {
         name: &str,
         _static_type: &ASTValue,
         expression: &Expr,
-        _loc: &Location,
+        loc: &Location,
         ctx: &mut Context,
     ) -> Result<ASTValue, RuntimeError> {
+        Self::emit_debug_line(ctx, loc);
         _ = expression.accept(self, ctx)?;
 
         if !self.in_function {
             // Global scope
-            if let Some(index) = ctx.globals.get(name) {
-                ctx.emit(NodeOp::StoreGlobal(*index as usize));
+            if let Some(index) = ctx.globals.get(name).copied() {
+                Self::emit_debug_value(ctx, loc, name);
+                ctx.emit(NodeOp::StoreGlobal(index as usize));
             }
         } else {
             // Function scope: ensure the local exists, then store.
@@ -169,6 +187,7 @@ impl Visitor for CompileVisitor {
                 self.locals.insert(name.to_string());
                 self.locals.get_index_of(name).unwrap()
             };
+            Self::emit_debug_value(ctx, loc, name);
             ctx.emit(NodeOp::StoreLocal(index));
         }
 
@@ -184,9 +203,10 @@ impl Visitor for CompileVisitor {
         swizzle: &[u8],
         field_path: &[String],
         expression: &Expr,
-        _loc: &Location,
+        loc: &Location,
         ctx: &mut Context,
     ) -> Result<ASTValue, RuntimeError> {
+        Self::emit_debug_line(ctx, loc);
         if Self::is_context_path(&name, field_path) {
             let emit_comp = |ctx: &mut Context| match op {
                 AssignmentOperator::AddAssign => ctx.emit(NodeOp::Add),
@@ -199,8 +219,9 @@ impl Visitor for CompileVisitor {
             let path = Self::context_path(&name, field_path);
             match op {
                 AssignmentOperator::Assign => {
-                    ctx.emit(NodeOp::Push(VMValue::from_string(path)));
+                    ctx.emit(NodeOp::Push(VMValue::from_string(path.clone())));
                     _ = expression.accept(self, ctx)?;
+                    Self::emit_debug_value(ctx, loc, path);
                     ctx.emit(NodeOp::HostCall {
                         name: "set_context_var".into(),
                         argc: 2,
@@ -214,8 +235,9 @@ impl Visitor for CompileVisitor {
                     });
                     _ = expression.accept(self, ctx)?;
                     emit_comp(ctx);
-                    ctx.emit(NodeOp::Push(VMValue::from_string(path)));
+                    ctx.emit(NodeOp::Push(VMValue::from_string(path.clone())));
                     ctx.emit(NodeOp::Swap);
+                    Self::emit_debug_value(ctx, loc, path);
                     ctx.emit(NodeOp::HostCall {
                         name: "set_context_var".into(),
                         argc: 2,
@@ -306,6 +328,7 @@ impl Visitor for CompileVisitor {
                 match op {
                     AssignmentOperator::Assign => {
                         _ = expression.accept(self, ctx)?; // RHS
+                        Self::emit_debug_value(ctx, loc, name.clone());
                         store_target(ctx);
                     }
                     _ => {
@@ -313,6 +336,7 @@ impl Visitor for CompileVisitor {
                         load_target(ctx); // t
                         _ = expression.accept(self, ctx)?; // t, rhs
                         emit_comp(ctx); // t (op) rhs
+                        Self::emit_debug_value(ctx, loc, name.clone());
                         store_target(ctx); // store back
                     }
                 }
@@ -324,6 +348,7 @@ impl Visitor for CompileVisitor {
                         load_target(ctx); // rhs, t
                         ctx.emit(NodeOp::Swap); // t, rhs
                         ctx.emit(NodeOp::SetComponents(swizzle.to_vec())); // t'
+                        Self::emit_debug_value(ctx, loc, name.clone());
                         store_target(ctx);
                     }
                     _ => {
@@ -334,6 +359,7 @@ impl Visitor for CompileVisitor {
                         _ = expression.accept(self, ctx)?; // t, a, rhs
                         emit_comp(ctx); // t, (a op rhs)
                         ctx.emit(NodeOp::SetComponents(swizzle.to_vec())); // t'
+                        Self::emit_debug_value(ctx, loc, name.clone());
                         store_target(ctx);
                     }
                 }
@@ -1035,9 +1061,10 @@ impl Visitor for CompileVisitor {
     fn return_stmt(
         &mut self,
         expr: &Expr,
-        _loc: &Location,
+        loc: &Location,
         ctx: &mut Context,
     ) -> Result<ASTValue, RuntimeError> {
+        Self::emit_debug_line(ctx, loc);
         _ = expr.accept(self, ctx)?;
         ctx.emit(NodeOp::Return);
 
@@ -1049,7 +1076,7 @@ impl Visitor for CompileVisitor {
         cond: &Expr,
         then_stmt: &Stmt,
         else_stmt: &Option<Box<Stmt>>,
-        _loc: &Location,
+        loc: &Location,
         ctx: &mut Context,
     ) -> Result<ASTValue, RuntimeError> {
         ctx.add_custom_target();
@@ -1070,7 +1097,11 @@ impl Visitor for CompileVisitor {
         }
 
         _ = cond.accept(self, ctx)?;
-        ctx.emit(NodeOp::If(then_code, else_code));
+        ctx.emit(NodeOp::If {
+            line: loc.line,
+            then_code,
+            else_code,
+        });
 
         Ok(ASTValue::None)
     }
@@ -1080,7 +1111,7 @@ impl Visitor for CompileVisitor {
         cond: &Expr,
         then_expr: &Expr,
         else_expr: &Expr,
-        _loc: &Location,
+        loc: &Location,
         ctx: &mut Context,
     ) -> Result<ASTValue, RuntimeError> {
         // Build "then" branch code
@@ -1101,7 +1132,11 @@ impl Visitor for CompileVisitor {
 
         // Emit condition and branch
         _ = cond.accept(self, ctx)?;
-        ctx.emit(NodeOp::If(then_code, Some(else_code)));
+        ctx.emit(NodeOp::If {
+            line: loc.line,
+            then_code,
+            else_code: Some(else_code),
+        });
 
         // Return a best-effort type hint; prefer then branch, else fallback.
         if let ASTValue::None = then_returns {
@@ -1117,9 +1152,10 @@ impl Visitor for CompileVisitor {
         conditions: &[Box<Expr>],
         incr: &[Box<Expr>],
         body_stmt: &Stmt,
-        _loc: &Location,
+        loc: &Location,
         ctx: &mut Context,
     ) -> Result<ASTValue, RuntimeError> {
+        Self::emit_debug_line(ctx, loc);
         let mut init_code = vec![];
         ctx.add_custom_target();
         for stmt in init {

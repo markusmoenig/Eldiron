@@ -240,6 +240,7 @@ pub mod prelude {
     pub use crate::scenebuilder::{
         d2concept::D2ConceptBuilder, d2preview::D2PreviewBuilder, d3builder::D3Builder,
     };
+    pub use crate::vm::{EldrinDebugEntry, EldrinDebugFrame, EldrinDebugModule, EldrinDebugTarget};
     pub use crate::{
         Assets, Choice, Currencies, Currency, Entity, EntityUpdate, Item, ItemUpdate,
         MultipleChoice, PaletteRemap2DState, RegionInstance, RegionMessage, Server, Wallet,
@@ -266,5 +267,4 @@ pub mod prelude {
     pub use crate::{RenderSettings, Rusterix, SceneHandler};
     pub use crate::{RepeatMode, SampleMode, Texture};
     pub use crate::{pixel_to_vec4, vec4_to_pixel};
-    pub use codegridfx::{DebugGrid, DebugModule};
 }

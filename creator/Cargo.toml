@@ -16,8 +16,6 @@ path = "src/main.rs"
 
 [dependencies]
 rusterix.workspace = true
-codegridfx.workspace = true
-rusteria.workspace = true
 scenevm = { path = "../crates/scenevm", version = "0.9.12", default-features = false, features = ["gpu"] }
 
 shared = { path = "../crates/shared", version = "0.9.12", package = "eldiron-shared", default-features = false, features = ["graphics"] }

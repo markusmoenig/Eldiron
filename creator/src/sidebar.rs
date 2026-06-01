@@ -84,10 +84,6 @@ impl Sidebar {
         if compact.contains("edit maximize") {
             return "edit--maximize".to_string();
         }
-        if compact.contains("import vcode") || compact.contains("export vcode") {
-            return "import-vcode--export-vcode".to_string();
-        }
-
         // Generic slug fallback.
         let normalized = lower
             .replace('_', "-")
@@ -208,11 +204,6 @@ impl Sidebar {
         config_item.set_text(fl!("settings"));
         config_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
         config_node.add_widget(Box::new(config_item));
-
-        let mut world_visual_item = TheTreeItem::new(TheId::named("World Visual Code"));
-        world_visual_item.set_text("World / Visual Scripting".to_string());
-        world_visual_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
-        config_node.add_widget(Box::new(world_visual_item));
 
         let mut world_code_item = TheTreeItem::new(TheId::named("World Code"));
         world_code_item.set_text("World / Eldrin Scripting".to_string());
@@ -2871,17 +2862,6 @@ impl Sidebar {
                     let _ = crate::utils::update_region_settings(project, server_ctx);
                     self.apply_region(ui, ctx, Some(id.references), project);
                     redraw = true;
-                } else if id.name == "Region Visual Code Item" {
-                    server_ctx.editing_pos_buffer = None;
-                    server_ctx.curr_region = id.references;
-                    set_project_context(
-                        ctx,
-                        ui,
-                        project,
-                        server_ctx,
-                        ProjectContext::RegionVisualCode(id.references),
-                    );
-                    redraw = true;
                 } else if id.name == "Region Code Item" {
                     server_ctx.editing_pos_buffer = None;
                     server_ctx.curr_region = id.references;
@@ -2918,20 +2898,6 @@ impl Sidebar {
                             project,
                             server_ctx,
                             ProjectContext::Character(id.references),
-                        );
-                        redraw = true;
-                    }
-                } else if id.name == "Character Item Visual Code Edit" {
-                    if let Some(_) = project.characters.get(&id.references) {
-                        server_ctx.curr_character =
-                            ContentContext::CharacterTemplate(id.references);
-                        server_ctx.cc = ContentContext::CharacterTemplate(id.references);
-                        set_project_context(
-                            ctx,
-                            ui,
-                            project,
-                            server_ctx,
-                            ProjectContext::CharacterVisualCode(id.references),
                         );
                         redraw = true;
                     }
@@ -3135,19 +3101,6 @@ impl Sidebar {
                         UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                         redraw = true;
                     }
-                } else if id.name == "Item Item Visual Code Edit" {
-                    if let Some(_) = project.items.get(&id.references) {
-                        server_ctx.curr_character = ContentContext::ItemTemplate(id.references);
-                        server_ctx.cc = ContentContext::ItemTemplate(id.references);
-                        set_project_context(
-                            ctx,
-                            ui,
-                            project,
-                            server_ctx,
-                            ProjectContext::ItemVisualCode(id.references),
-                        );
-                        redraw = true;
-                    }
                 } else if id.name == "Item Item Code Edit" {
                     if let Some(_) = project.items.get(&id.references) {
                         server_ctx.curr_character = ContentContext::ItemTemplate(id.references);
@@ -3181,15 +3134,6 @@ impl Sidebar {
                         project,
                         server_ctx,
                         ProjectContext::ProjectSettings,
-                    );
-                    redraw = true;
-                } else if id.name == "World Visual Code" {
-                    set_project_context(
-                        ctx,
-                        ui,
-                        project,
-                        server_ctx,
-                        ProjectContext::WorldVisualCode,
                     );
                     redraw = true;
                 } else if id.name == "World Code" {

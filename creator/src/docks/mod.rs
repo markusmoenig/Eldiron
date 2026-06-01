@@ -16,11 +16,9 @@ pub mod tilemap;
 pub mod tiles;
 pub mod tiles_editor;
 pub mod tiles_editor_undo;
-pub mod visual_code;
-pub mod visual_code_undo;
 
 pub use crate::prelude::*;
-use codegridfx::DebugModule;
+use rusterix::prelude::EldrinDebugModule;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum DockDefaultState {
@@ -152,14 +150,14 @@ pub trait Dock: Send + Sync {
         false
     }
 
-    /// Apply a live debug overlay to the visible dock, if supported.
-    fn apply_debug_data(
+    /// Apply a live Eldrin source debug overlay to the visible dock, if supported.
+    fn apply_eldrin_debug_data(
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
         project: &Project,
         server_ctx: &ServerContext,
-        debug: &DebugModule,
+        debug: &EldrinDebugModule,
     ) {
     }
 }

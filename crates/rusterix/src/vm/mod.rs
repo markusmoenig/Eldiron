@@ -3,6 +3,7 @@ pub mod astvalue;
 pub mod builtin;
 pub mod compile;
 pub mod context;
+pub mod debug;
 pub mod environment;
 pub mod errors;
 pub mod idverifier;
@@ -23,6 +24,7 @@ pub use self::{
     astvalue::ASTValue,
     compile::CompileVisitor,
     context::Context,
+    debug::{EldrinDebugEntry, EldrinDebugFrame, EldrinDebugModule, EldrinDebugTarget},
     environment::Environment,
     errors::{ParseError, RuntimeError, VMError},
     idverifier::IdVerifier,
@@ -535,5 +537,181 @@ mod tests {
         let result =
             script.execute_string(r#"print("hello", 1, 2); "done";"#, &ThePalette::default());
         assert_eq!(result.unwrap().as_string(), Some("done"));
+    }
+
+    #[test]
+    fn source_debug_records_lines_values_and_branches() {
+        struct DebugHost {
+            lines: Vec<usize>,
+            values: Vec<(usize, String, VMValue)>,
+            branches: Vec<(usize, bool)>,
+        }
+
+        impl HostHandler for DebugHost {
+            fn on_debug_line(&mut self, line: usize) {
+                self.lines.push(line);
+            }
+
+            fn on_debug_value(&mut self, line: usize, name: &str, value: &VMValue) {
+                self.values.push((line, name.to_string(), value.clone()));
+            }
+
+            fn on_debug_branch(&mut self, line: usize, taken: bool) {
+                self.branches.push((line, taken));
+            }
+        }
+
+        let mut script = VM::default();
+        let program = script
+            .prepare_str(
+                r#"
+fn event(event, value) {
+    let x = 2;
+    if event == "other" {
+        x = 9;
+    }
+    if event == "tick" {
+        x = 3;
+    }
+}
+"#,
+            )
+            .unwrap();
+        let index = program.user_functions_name_map["event"];
+        let mut exec = Execution::new(program.globals);
+        let mut host = DebugHost {
+            lines: vec![],
+            values: vec![],
+            branches: vec![],
+        };
+
+        exec.execute_function_host(
+            &[VMValue::from_string("tick"), VMValue::zero()],
+            index,
+            &program,
+            &mut host,
+        );
+
+        assert!(host.lines.contains(&3));
+        assert!(host.lines.contains(&8));
+        assert!(!host.lines.contains(&4));
+        assert!(!host.lines.contains(&7));
+        assert!(
+            host.values
+                .iter()
+                .any(|(_, name, value)| name == "x" && value.x == 2.0)
+        );
+        assert!(
+            host.values
+                .iter()
+                .any(|(_, name, value)| name == "x" && value.x == 3.0)
+        );
+        assert!(
+            !host
+                .values
+                .iter()
+                .any(|(_, name, value)| name == "x" && value.x == 9.0)
+        );
+        assert!(host.branches.contains(&(4, false)));
+        assert!(host.branches.contains(&(7, true)));
+    }
+
+    #[test]
+    fn source_debug_keeps_event_invocations_separate() {
+        struct DebugHost {
+            module: EldrinDebugModule,
+            target: EldrinDebugTarget,
+        }
+
+        impl DebugHost {
+            fn begin(&mut self) {
+                self.module.begin_invocation(self.target.clone(), "event");
+            }
+        }
+
+        impl HostHandler for DebugHost {
+            fn on_host_call(&mut self, name: &str, _args: &[VMValue]) -> Option<VMValue> {
+                match name {
+                    "target" => Some(VMValue::from_string("")),
+                    _ => Some(VMValue::zero()),
+                }
+            }
+
+            fn on_debug_line(&mut self, line: usize) {
+                self.module
+                    .mark_executed(self.target.clone(), "event", line);
+            }
+
+            fn on_debug_value(&mut self, line: usize, name: &str, value: &VMValue) {
+                self.module
+                    .add_value(self.target.clone(), "event", line, name, value.clone());
+            }
+
+            fn on_debug_branch(&mut self, line: usize, taken: bool) {
+                self.module
+                    .mark_branch(self.target.clone(), "event", line, taken);
+            }
+        }
+
+        let mut script = VM::default();
+        let program = script
+            .prepare_str(
+                r#"
+fn event(event, value) {
+    if event == "proximity_warning" {
+        let hostile = 1;
+        if hostile == 1 {
+            if target() == "" {
+                set_target(value);
+            }
+            follow_attack(value, 0.6);
+        }
+    }
+    if event == "engagement_over" {
+        clear_target();
+        goto("Garden", 1.0);
+        set_proximity_tracking(false, 5.0);
+    }
+}
+"#,
+            )
+            .unwrap();
+        let index = program.user_functions_name_map["event"];
+        let target = EldrinDebugTarget::Entity(7);
+        let mut exec = Execution::new(program.globals);
+        let mut host = DebugHost {
+            module: EldrinDebugModule::default(),
+            target: target.clone(),
+        };
+
+        host.begin();
+        exec.execute_function_host(
+            &[VMValue::from_string("engagement_over"), VMValue::zero()],
+            index,
+            &program,
+            &mut host,
+        );
+
+        host.begin();
+        exec.execute_function_host(
+            &[VMValue::from_string("proximity_warning"), VMValue::zero()],
+            index,
+            &program,
+            &mut host,
+        );
+
+        let latest = host.module.latest_frame_for(&target).unwrap();
+        assert!(
+            latest
+                .entries
+                .iter()
+                .any(|entry| matches!(entry, EldrinDebugEntry::ExecutedLine { line: 9 }))
+        );
+        assert!(
+            !latest
+                .entries
+                .iter()
+                .any(|entry| matches!(entry, EldrinDebugEntry::ExecutedLine { line: 14 }))
+        );
     }
 }
