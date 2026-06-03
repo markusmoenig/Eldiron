@@ -124,6 +124,31 @@ impl GeometryObjectBuilder {
         normal * TILED_FACE_RENDER_NUDGE
     }
 
+    fn face_is_wall_like(world_points: &[Vec3<f32>]) -> bool {
+        if world_points.len() < 3 {
+            return false;
+        }
+
+        let mut normal = Vec3::<f32>::zero();
+        for index in 1..world_points.len() - 1 {
+            normal += (world_points[index] - world_points[0])
+                .cross(world_points[index + 1] - world_points[0]);
+        }
+        let Some(normal) = normal.try_normalized() else {
+            return false;
+        };
+
+        normal.y.abs() < 0.25
+    }
+
+    fn tiled_face_base_uvs(world_points: &[Vec3<f32>]) -> [[f32; 2]; 4] {
+        if Self::face_is_wall_like(world_points) {
+            [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]]
+        } else {
+            [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]
+        }
+    }
+
     fn transformed_face_uvs(
         face: &crate::GeometryFace,
         uvs: &[[f32; 2]],
@@ -688,11 +713,8 @@ impl GeometryObjectBuilder {
                     .as_ref()
                     .and_then(|noise| noise.source.as_ref())
                     .map(|source| Self::face_tile_id(Some(source), assets));
-                let uvs = Self::transformed_face_uvs(
-                    face,
-                    &[[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]],
-                    Some(&vertices_world),
-                );
+                let tile_uvs = Self::tiled_face_base_uvs(&vertices_world);
+                let uvs = Self::transformed_face_uvs(face, &tile_uvs, Some(&vertices_world));
                 if let (Some(noise), Some(noise_tile_id)) =
                     (face.surface_noise.as_ref(), noise_tile_id)
                 {
@@ -942,6 +964,33 @@ impl ChunkBuilder for GeometryObjectBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tiled_wall_face_uvs_keep_tiles_upright() {
+        let wall_cell = [
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 0.0),
+        ];
+        let floor_cell = [
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 1.0),
+        ];
+
+        assert!(GeometryObjectBuilder::face_is_wall_like(&wall_cell));
+        assert_eq!(
+            GeometryObjectBuilder::tiled_face_base_uvs(&wall_cell),
+            [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]]
+        );
+        assert!(!GeometryObjectBuilder::face_is_wall_like(&floor_cell));
+        assert_eq!(
+            GeometryObjectBuilder::tiled_face_base_uvs(&floor_cell),
+            [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]
+        );
+    }
 
     #[test]
     fn surface_noise_uses_shader_layer_without_topology_change() {

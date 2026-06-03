@@ -338,13 +338,19 @@ impl Widget {
             );
         }
 
-        if let Some((texture, color)) = Self::command_icon_texture(
-            assets,
-            resolved_command.or(self.command.as_deref()),
-            visual_state,
-        ) {
+        let is_item_slot = self.inventory_index.is_some() || self.equipped_slot.is_some();
+        let mut drew_primary_texture = false;
+        if !is_item_slot
+            && let Some((texture, color)) = Self::command_icon_texture(
+                assets,
+                resolved_command.or(self.command.as_deref()),
+                visual_state,
+            )
+        {
             Self::draw_tinted_texture(buffer, self.rect, draw2d, texture, color);
-        } else if !self.textures.is_empty() {
+            drew_primary_texture = true;
+        }
+        if !drew_primary_texture && !self.textures.is_empty() {
             let texture_index = self.texture_index_for_state(visual_state);
             draw2d.blend_scale_chunk(
                 buffer.pixels_mut(),

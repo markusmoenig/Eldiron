@@ -1776,7 +1776,7 @@ impl Client {
             .and_then(|ui| ui.get("role"))
             .and_then(toml::Value::as_str)
             .map(str::trim)
-            .filter(|role| !role.is_empty())
+            .filter(|role| !role.is_empty() && !role.eq_ignore_ascii_case("none"))
             .map(str::to_string)
     }
 

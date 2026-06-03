@@ -3319,6 +3319,15 @@ impl SceneHandler {
             }
         }
 
+        let checker = Texture::checkerboard(100, 50);
+        self.vm.execute(Atom::AddTile {
+            id: Uuid::from_str(DEFAULT_TILE_ID).ok().unwrap(),
+            width: 100,
+            height: 100,
+            frames: vec![checker.data],
+            material_frames: None,
+        });
+
         if editor {
             fn decode_png(file: EmbeddedFile) -> Option<(Vec<u8>, u32, u32)> {
                 // Use the `image` crate to decode, auto-detecting the format from bytes.
@@ -3376,16 +3385,6 @@ impl SceneHandler {
                     });
                 }
             }
-            let checker = Texture::checkerboard(100, 50);
-            self.vm.execute(Atom::AddTile {
-                id: Uuid::from_str("27826750-a9e7-4346-994b-fb318b238452")
-                    .ok()
-                    .unwrap(),
-                width: 100,
-                height: 100,
-                frames: vec![checker.data],
-                material_frames: None,
-            });
             // self.vm.execute(Atom::AddSolid {
             //     id: Uuid::from_str("27826750-a9e7-4346-994b-fb318b238452")
             //         .ok()
