@@ -185,6 +185,14 @@ pub enum EntityAction {
     TextCommand(String),
     /// Goto: Move to a specific position with a given speed
     Goto(Vec2<f32>, f32),
+    /// Follow a precomputed mesh route to a goto target.
+    GotoRoute {
+        target: Vec2<f32>,
+        target_y: Option<f32>,
+        speed: f32,
+        points: Vec<Vec3<f32>>,
+        point_index: usize,
+    },
     /// Grid-aware click-to-walk target for 2D grid movement.
     GotoGrid(Vec2<f32>, f32),
     /// Smoothly move to a specific position while keeping an explicit facing.

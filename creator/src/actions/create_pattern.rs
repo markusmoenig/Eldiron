@@ -163,15 +163,15 @@ fn geometry_face_plane(
     }
 
     let origin = *world_vertices.first()?;
-    let mut axis_u = None;
+    let mut edge_axis_u = None;
     for point in world_vertices.iter().skip(1) {
         let edge = *point - origin;
         if edge.magnitude_squared() > 1e-6 {
-            axis_u = edge.try_normalized();
+            edge_axis_u = edge.try_normalized();
             break;
         }
     }
-    let axis_u = axis_u?;
+    let edge_axis_u = edge_axis_u?;
 
     let mut normal = Vec3::<f32>::zero();
     for index in 1..world_vertices.len().saturating_sub(1) {
@@ -182,6 +182,7 @@ fn geometry_face_plane(
     // Match the existing ridge/groove convention: surface relief grows out of
     // the editable face, which is opposite the raw geometry winding normal.
     let normal = -normal.try_normalized()?;
+    let axis_u = stable_face_axis_u(normal).unwrap_or(edge_axis_u);
     let axis_v = normal.cross(axis_u).try_normalized()?;
 
     let mut polygon = Vec::with_capacity(face.indices.len());
@@ -248,6 +249,21 @@ fn geometry_face_plane_in_reference(
         max,
         normal: reference.normal,
     })
+}
+
+fn stable_face_axis_u(normal: Vec3<f32>) -> Option<Vec3<f32>> {
+    let world_up = Vec3::new(0.0, 1.0, 0.0);
+    if normal.y.abs() < 0.85 {
+        let axis_v = (world_up - normal * world_up.dot(normal)).try_normalized()?;
+        return axis_v.cross(normal).try_normalized();
+    }
+
+    for candidate in [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)] {
+        if let Some(axis_u) = (candidate - normal * candidate.dot(normal)).try_normalized() {
+            return Some(axis_u);
+        }
+    }
+    None
 }
 
 fn geometry_object_local_point(object: &rusterix::GeometryObject, world: Vec3<f32>) -> Vec3<f32> {
@@ -349,6 +365,91 @@ fn line_polygon_segments(
         }
     }
     segments
+}
+
+fn polygon_signed_area(polygon: &[Vec2<f32>]) -> f32 {
+    if polygon.len() < 3 {
+        return 0.0;
+    }
+    let mut area = 0.0;
+    for index in 0..polygon.len() {
+        let a = polygon[index];
+        let b = polygon[(index + 1) % polygon.len()];
+        area += a.x * b.y - b.x * a.y;
+    }
+    area * 0.5
+}
+
+fn line_intersection(
+    start: Vec2<f32>,
+    end: Vec2<f32>,
+    edge_start: Vec2<f32>,
+    edge_end: Vec2<f32>,
+) -> Vec2<f32> {
+    let direction = end - start;
+    let edge = edge_end - edge_start;
+    let denom = cross2(direction, edge);
+    if denom.abs() <= 1e-6 {
+        return end;
+    }
+    start + direction * (cross2(edge_start - start, edge) / denom).clamp(0.0, 1.0)
+}
+
+fn cleanup_polygon_points(points: &mut Vec<Vec2<f32>>) {
+    points.dedup_by(|a, b| (*a - *b).magnitude_squared() <= 1e-8);
+    if points.len() > 1 && (points[0] - points[points.len() - 1]).magnitude_squared() <= 1e-8 {
+        points.pop();
+    }
+}
+
+fn clip_polygon_to_polygon(subject: &[Vec2<f32>], clip: &[Vec2<f32>]) -> Vec<Vec2<f32>> {
+    if subject.len() < 3 || clip.len() < 3 {
+        return Vec::new();
+    }
+
+    let winding = polygon_signed_area(clip);
+    if winding.abs() <= 1e-6 {
+        return Vec::new();
+    }
+
+    let mut output = subject.to_vec();
+    for index in 0..clip.len() {
+        let edge_start = clip[index];
+        let edge_end = clip[(index + 1) % clip.len()];
+        let input = output;
+        output = Vec::new();
+        if input.is_empty() {
+            break;
+        }
+
+        let is_inside = |point: Vec2<f32>| {
+            let side = cross2(edge_end - edge_start, point - edge_start);
+            if winding > 0.0 {
+                side >= -1e-5
+            } else {
+                side <= 1e-5
+            }
+        };
+
+        let mut previous = *input.last().unwrap();
+        let mut previous_inside = is_inside(previous);
+        for current in input {
+            let current_inside = is_inside(current);
+            if current_inside {
+                if !previous_inside {
+                    output.push(line_intersection(previous, current, edge_start, edge_end));
+                }
+                output.push(current);
+            } else if previous_inside {
+                output.push(line_intersection(previous, current, edge_start, edge_end));
+            }
+            previous = current;
+            previous_inside = current_inside;
+        }
+        cleanup_polygon_points(&mut output);
+    }
+
+    if output.len() < 3 { Vec::new() } else { output }
 }
 
 fn pattern_settings(nodeui: &TheNodeUI) -> PatternSettings {
@@ -552,18 +653,20 @@ fn append_stamp(
         }
         return added;
     }
-    if points
-        .iter()
-        .any(|point| !point_in_polygon(center + *point, &plane.polygon))
-    {
+    let clipped_points = clip_polygon_to_polygon(
+        &points
+            .iter()
+            .map(|point| center + *point)
+            .collect::<Vec<_>>(),
+        &plane.polygon,
+    );
+    if clipped_points.len() < 3 {
         return false;
     }
 
     let start = face.surface_points.len();
-    for point in points {
-        let world = plane.origin
-            + plane.axis_u * (center.x + point.x)
-            + plane.axis_v * (center.y + point.y);
+    for point in &clipped_points {
+        let world = plane.origin + plane.axis_u * point.x + plane.axis_v * point.y;
         let local = geometry_object_local_point(object, world);
         face.surface_points.push(rusterix::GeometrySurfacePoint {
             position: local,
@@ -573,15 +676,15 @@ fn append_stamp(
     }
 
     let segment_count = if closed {
-        points.len()
+        clipped_points.len()
     } else {
-        points.len().saturating_sub(1)
+        clipped_points.len().saturating_sub(1)
     };
     for offset in 0..segment_count {
         face.surface_segments
             .push(rusterix::GeometrySurfaceSegment {
                 start: start + offset,
-                end: start + ((offset + 1) % points.len()),
+                end: start + ((offset + 1) % clipped_points.len()),
                 mode: rusterix::GeometrySurfaceSegmentMode::Line,
                 curve_amount: 0.35,
             });
@@ -823,8 +926,8 @@ fn append_tile_grid_pattern(
         return 0;
     }
 
-    let cell_width = settings.spacing_x.max(settings.scale).max(0.01);
-    let cell_height = settings.spacing_y.max(0.01);
+    let cell_width = (settings.spacing_x * settings.scale).max(0.01);
+    let cell_height = (settings.spacing_y * settings.scale).max(0.01);
     let columns = if settings.columns > 0 {
         settings
             .columns
@@ -1124,13 +1227,20 @@ fn pattern_minimap_segments(
     object: &rusterix::GeometryObject,
     face_index: usize,
     settings: &PatternSettings,
+    fit_plane: Option<&FacePlane>,
 ) -> Vec<ActionMinimapSegment> {
     let Some(face) = object.faces.get(face_index) else {
         return Vec::new();
     };
-    let Some(plane) = geometry_face_plane(object, face) else {
+    let target_plane = if let Some(fit_plane) = fit_plane {
+        geometry_face_plane_in_reference(object, face, fit_plane)
+    } else {
+        geometry_face_plane(object, face)
+    };
+    let Some(target_plane) = target_plane else {
         return Vec::new();
     };
+    let pattern_plane = fit_plane.unwrap_or(&target_plane);
 
     let mut segments = Vec::new();
     if matches!(settings.shapes.first(), Some(PatternShape::Tile)) && settings.shapes.len() == 1 {
@@ -1143,8 +1253,8 @@ fn pattern_minimap_segments(
             &mut face_clone,
             object.id,
             face_index,
-            &plane,
-            &plane,
+            pattern_plane,
+            &target_plane,
             settings,
             &mut selected_points,
             &mut selected_segments,
@@ -1160,27 +1270,92 @@ fn pattern_minimap_segments(
             let Some(end) = face_clone.surface_points.get(segment.end) else {
                 continue;
             };
-            let start = face_plane_coord(&plane, object.transform_point(start.position));
-            let end = face_plane_coord(&plane, object.transform_point(end.position));
+            let start = face_plane_coord(pattern_plane, object.transform_point(start.position));
+            let end = face_plane_coord(pattern_plane, object.transform_point(end.position));
             segments.push(ActionMinimapSegment { start, end });
         }
         return segments;
     }
 
-    for stamp in pattern_stamps(&plane, settings) {
-        let segment_count = if stamp.closed {
-            stamp.points.len()
-        } else {
-            stamp.points.len().saturating_sub(1)
+    let mut face_clone = face.clone();
+    let object_snapshot = object.clone();
+    let mut selected_points = Vec::new();
+    let mut selected_segments = Vec::new();
+    for stamp in pattern_stamps(pattern_plane, settings) {
+        append_stamp(
+            &object_snapshot,
+            &mut face_clone,
+            object.id,
+            face_index,
+            &target_plane,
+            stamp.center,
+            &stamp.points,
+            stamp.closed,
+            &mut selected_points,
+            &mut selected_segments,
+        );
+    }
+    for (_, _, segment_index) in selected_segments {
+        let Some(segment) = face_clone.surface_segments.get(segment_index) else {
+            continue;
         };
-        for index in 0..segment_count {
-            let a = stamp.points[index];
-            let b = stamp.points[(index + 1) % stamp.points.len()];
-            segments.push(ActionMinimapSegment {
-                start: stamp.center + a,
-                end: stamp.center + b,
-            });
+        let Some(start) = face_clone.surface_points.get(segment.start) else {
+            continue;
+        };
+        let Some(end) = face_clone.surface_points.get(segment.end) else {
+            continue;
+        };
+        let start = face_plane_coord(pattern_plane, object.transform_point(start.position));
+        let end = face_plane_coord(pattern_plane, object.transform_point(end.position));
+        segments.push(ActionMinimapSegment { start, end });
+    }
+    segments
+}
+
+fn pattern_minimap_segments_for_selection(
+    map: &Map,
+    selected_faces: &[(Uuid, usize)],
+    settings: &PatternSettings,
+) -> Vec<ActionMinimapSegment> {
+    if selected_faces.len() > 1 {
+        if let Some((fit_plane, coplanar_faces)) = combined_fit_plane(map, selected_faces) {
+            let mut segments = Vec::new();
+            for (object_id, face_index) in coplanar_faces {
+                let Some(object) = map
+                    .geometry_objects
+                    .iter()
+                    .find(|object| object.id == object_id)
+                else {
+                    continue;
+                };
+                segments.extend(pattern_minimap_segments(
+                    object,
+                    face_index,
+                    settings,
+                    Some(&fit_plane),
+                ));
+            }
+            if !segments.is_empty() {
+                return segments;
+            }
         }
+    }
+
+    let mut segments = Vec::new();
+    for (object_id, face_index) in selected_faces {
+        let Some(object) = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == *object_id)
+        else {
+            continue;
+        };
+        segments.extend(pattern_minimap_segments(
+            object,
+            *face_index,
+            settings,
+            None,
+        ));
     }
     segments
 }
@@ -1634,22 +1809,12 @@ impl Action for CreatePattern {
         map: &Map,
         server_ctx: &ServerContext,
     ) -> Vec<ActionMinimapSegment> {
-        if selected_face_ids(map, server_ctx).is_empty() {
+        let selected_faces = selected_face_ids(map, server_ctx);
+        if selected_faces.is_empty() {
             return Vec::new();
         }
         let settings = pattern_settings(&self.nodeui);
-        let mut segments = Vec::new();
-        for (object_id, face_index) in selected_face_ids(map, server_ctx) {
-            let Some(object) = map
-                .geometry_objects
-                .iter()
-                .find(|object| object.id == object_id)
-            else {
-                continue;
-            };
-            segments.extend(pattern_minimap_segments(object, face_index, &settings));
-        }
-        segments
+        pattern_minimap_segments_for_selection(map, &selected_faces, &settings)
     }
 
     fn uses_minimap_preview(&self) -> bool {
@@ -1791,6 +1956,41 @@ mod tests {
         (map, object_id, 0, 1)
     }
 
+    fn selected_split_vertical_faces_with_vertical_first_edges() -> (Map, Uuid, usize, usize) {
+        let mut map = Map::default();
+        let mut object = rusterix::GeometryObject::new("Split Wall Vertical First Edge");
+        object.vertices = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(4.0, 4.0, 0.0),
+            Vec3::new(0.0, 4.0, 0.0),
+            Vec3::new(4.0, 0.2, 0.0),
+            Vec3::new(5.0, 0.2, 0.0),
+            Vec3::new(5.0, 0.7, 0.0),
+            Vec3::new(4.0, 0.7, 0.0),
+        ];
+        let make_face = |indices| rusterix::GeometryFace {
+            indices,
+            uvs: Vec::new(),
+            auto_uv: true,
+            texture_offset: Vec2::zero(),
+            texture_scale: Vec2::broadcast(1.0),
+            texture_rotation: 0.0,
+            tile: None,
+            tiles: FxHashMap::default(),
+            surface_points: Vec::new(),
+            surface_segments: Vec::new(),
+            surface_noise: None,
+        };
+        object.faces.push(make_face(vec![0, 3, 2, 1]));
+        object.faces.push(make_face(vec![4, 7, 6, 5]));
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+        map.selected_geometry_faces.push((object_id, 0));
+        map.selected_geometry_faces.push((object_id, 1));
+        (map, object_id, 0, 1)
+    }
+
     #[test]
     fn create_pattern_adds_centered_disc_surface_detail() {
         let (mut map, _object_id, face_index) = selected_box_top_face();
@@ -1869,6 +2069,51 @@ mod tests {
         let face = &map.geometry_objects[0].faces[face_index];
         assert_eq!(face.surface_segments.len(), 8);
         assert_eq!(map.selected_geometry_surface_segments.len(), 8);
+    }
+
+    #[test]
+    fn create_pattern_tile_scale_resizes_interleaved_grid() {
+        let (mut map, _object_id, face_index) = selected_box_top_face();
+        let mut action = CreatePattern::new();
+        action.nodeui.set_i32_value(PATTERN_ID, 4);
+        action.nodeui.set_bool_value(REPEAT_ID, true);
+        action.nodeui.set_bool_value(INTERLEAVE_ID, true);
+        action.nodeui.set_f32_value(SCALE_ID, 0.25);
+        action.nodeui.set_f32_value(SPACING_X_ID, 1.0);
+        action.nodeui.set_f32_value(SPACING_Y_ID, 1.0);
+        action.nodeui.set_i32_value(FIT_ROWS_ID, 2);
+        action.nodeui.set_i32_value(FIT_COLUMNS_ID, 2);
+
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        server_ctx.editor_view_mode = EditorViewMode::Iso;
+
+        assert!(
+            action
+                .apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
+                .is_some()
+        );
+
+        let object = &map.geometry_objects[0];
+        let face = &object.faces[face_index];
+        let plane = geometry_face_plane(object, face).unwrap();
+        let mut min = Vec2::broadcast(f32::INFINITY);
+        let mut max = Vec2::broadcast(f32::NEG_INFINITY);
+        for point in &face.surface_points {
+            let coord = face_plane_coord(&plane, object.transform_point(point.position));
+            min.x = min.x.min(coord.x);
+            min.y = min.y.min(coord.y);
+            max.x = max.x.max(coord.x);
+            max.y = max.y.max(coord.y);
+        }
+
+        assert!(
+            max.x - min.x <= 0.51 && max.y - min.y <= 0.51,
+            "tile scale should resize the generated grid, got {:?}",
+            max - min
+        );
     }
 
     #[test]
@@ -2028,7 +2273,7 @@ mod tests {
             );
         }
         let preview =
-            pattern_minimap_segments(object, face_index, &pattern_settings(&action.nodeui));
+            pattern_minimap_segments(object, face_index, &pattern_settings(&action.nodeui), None);
         let min_x = preview
             .iter()
             .flat_map(|segment| [segment.start.x, segment.end.x])
@@ -2144,6 +2389,89 @@ mod tests {
         assert!(
             has_shared_horizontal,
             "small coplanar faces should use the shared wall pattern, not a separately centered local pattern"
+        );
+    }
+
+    #[test]
+    fn create_pattern_wall_basis_keeps_interleave_horizontal_with_vertical_first_edges() {
+        let (mut map, _object_id, main_face, small_face) =
+            selected_split_vertical_faces_with_vertical_first_edges();
+        let mut action = CreatePattern::new();
+        action.nodeui.set_i32_value(PATTERN_ID, 4);
+        action.nodeui.set_bool_value(REPEAT_ID, true);
+        action.nodeui.set_bool_value(INTERLEAVE_ID, true);
+        action.nodeui.set_f32_value(SCALE_ID, 0.5);
+        action.nodeui.set_f32_value(SPACING_X_ID, 0.5);
+        action.nodeui.set_f32_value(SPACING_Y_ID, 0.5);
+
+        let object = &map.geometry_objects[0];
+        let reference = geometry_face_plane(object, &object.faces[main_face]).unwrap();
+        assert!(
+            reference.axis_u.y.abs() < 0.001 && reference.axis_v.y.abs() > 0.999,
+            "vertical wall pattern axes should stay horizontal/up even when the first face edge is vertical"
+        );
+
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        server_ctx.editor_view_mode = EditorViewMode::Iso;
+
+        assert!(
+            action
+                .apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
+                .is_some()
+        );
+
+        let object = &map.geometry_objects[0];
+        let reference = geometry_face_plane(object, &object.faces[main_face]).unwrap();
+        let face = &object.faces[small_face];
+        let expected_y = face_plane_coord(&reference, Vec3::new(4.0, 0.5, 0.0)).y;
+        let has_shared_horizontal = face.surface_segments.iter().any(|segment| {
+            let start = face_plane_coord(
+                &reference,
+                object.transform_point(face.surface_points[segment.start].position),
+            );
+            let end = face_plane_coord(
+                &reference,
+                object.transform_point(face.surface_points[segment.end].position),
+            );
+            (start.y - expected_y).abs() < 0.001
+                && (end.y - expected_y).abs() < 0.001
+                && (start.x - end.x).abs() > 0.1
+        });
+        assert!(
+            has_shared_horizontal,
+            "interleaved tile guides on fragmented wall faces should offset sideways, not vertically"
+        );
+    }
+
+    #[test]
+    fn create_pattern_minimap_preview_uses_shared_fit_for_coplanar_faces() {
+        let (map, _object_id, main_face, _small_face) = selected_split_vertical_faces();
+        let mut action = CreatePattern::new();
+        action.nodeui.set_i32_value(PATTERN_ID, 4);
+        action.nodeui.set_bool_value(REPEAT_ID, true);
+        action.nodeui.set_f32_value(SCALE_ID, 0.5);
+        action.nodeui.set_f32_value(SPACING_X_ID, 0.5);
+        action.nodeui.set_f32_value(SPACING_Y_ID, 0.5);
+
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        server_ctx.editor_view_mode = EditorViewMode::Iso;
+
+        let object = &map.geometry_objects[0];
+        let reference = geometry_face_plane(object, &object.faces[main_face]).unwrap();
+        let expected_y = face_plane_coord(&reference, Vec3::new(4.0, 0.5, 0.0)).y;
+        let preview = action.minimap_preview_segments(&map, &server_ctx);
+
+        assert!(
+            preview.iter().any(|segment| {
+                (segment.start.y - expected_y).abs() < 0.001
+                    && (segment.end.y - expected_y).abs() < 0.001
+                    && (segment.start.x - segment.end.x).abs() > 0.1
+            }),
+            "pattern preview should use the same shared coplanar fit as apply"
         );
     }
 

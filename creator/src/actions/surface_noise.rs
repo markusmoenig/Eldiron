@@ -18,7 +18,22 @@ fn selected_face_ids(map: &Map, server_ctx: &ServerContext) -> Vec<(Uuid, usize)
     {
         return Vec::new();
     }
-    map.selected_geometry_faces.clone()
+    if !map.selected_geometry_faces.is_empty() {
+        return map.selected_geometry_faces.clone();
+    }
+
+    let mut faces = Vec::new();
+    for object_id in &map.selected_geometry_objects {
+        let Some(object) = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == *object_id)
+        else {
+            continue;
+        };
+        faces.extend((0..object.faces.len()).map(|face_index| (*object_id, face_index)));
+    }
+    faces
 }
 
 fn build_surface_noise_nodeui() -> TheNodeUI {
@@ -83,7 +98,7 @@ impl Action for SurfaceNoise {
     }
 
     fn load_params(&mut self, map: &Map) {
-        let Some((object_id, face_index)) = map.selected_geometry_faces.first().copied() else {
+        let Some((object_id, face_index)) = first_selected_noise_face(map) else {
             return;
         };
         let Some(object) = map
@@ -217,17 +232,14 @@ impl Action for SurfaceNoise {
         if selected_face_ids(map, server_ctx).is_empty() {
             return None;
         }
-        let selected_source =
-            map.selected_geometry_faces
-                .first()
-                .and_then(|(object_id, face_index)| {
-                    map.geometry_objects
-                        .iter()
-                        .find(|object| object.id == *object_id)
-                        .and_then(|object| object.faces.get(*face_index))
-                        .and_then(|face| face.surface_noise.as_ref())
-                        .and_then(|noise| noise.source.clone())
-                });
+        let selected_source = first_selected_noise_face(map).and_then(|(object_id, face_index)| {
+            map.geometry_objects
+                .iter()
+                .find(|object| object.id == object_id)
+                .and_then(|object| object.faces.get(face_index))
+                .and_then(|face| face.surface_noise.as_ref())
+                .and_then(|noise| noise.source.clone())
+        });
         let source = self.source_override.clone().unwrap_or(selected_source);
         Some(vec![ActionMaterialSlot {
             label: "NOISE".to_string(),
@@ -278,6 +290,18 @@ impl Action for SurfaceNoise {
         self.source_override = Some(None);
         true
     }
+}
+
+fn first_selected_noise_face(map: &Map) -> Option<(Uuid, usize)> {
+    if let Some(selection) = map.selected_geometry_faces.first().copied() {
+        return Some(selection);
+    }
+    map.selected_geometry_objects.iter().find_map(|object_id| {
+        map.geometry_objects
+            .iter()
+            .find(|object| object.id == *object_id)
+            .and_then(|object| (!object.faces.is_empty()).then_some((*object_id, 0)))
+    })
 }
 
 fn clear_surface_noise_on_faces(
@@ -360,6 +384,40 @@ mod tests {
     }
 
     #[test]
+    fn surface_noise_applies_to_all_faces_of_selected_objects() {
+        let mut map = Map::default();
+        let object = rusterix::GeometryObject::box_from_bounds(
+            "Box",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 1.0),
+        );
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+        map.selected_geometry_objects.push(object_id);
+
+        let mut action = SurfaceNoise::new();
+        action.source_override = Some(Some(PixelSource::TileId(Uuid::new_v4())));
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        server_ctx.editor_view_mode = EditorViewMode::Iso;
+
+        assert!(action.is_applicable(&map, &mut ctx, &server_ctx));
+        assert!(
+            action
+                .apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
+                .is_some()
+        );
+        assert!(
+            map.geometry_objects[0]
+                .faces
+                .iter()
+                .all(|face| face.surface_noise.is_some())
+        );
+    }
+
+    #[test]
     fn surface_noise_clear_slot_removes_selected_face_noise() {
         let mut map = Map::default();
         let mut object = rusterix::GeometryObject::box_from_bounds(
@@ -398,6 +456,47 @@ mod tests {
         );
         assert!(map.geometry_objects[0].faces[1].surface_noise.is_some());
         assert!(map.geometry_objects[0].faces[2].surface_noise.is_none());
+    }
+
+    #[test]
+    fn surface_noise_clear_slot_removes_all_selected_object_face_noise() {
+        let mut map = Map::default();
+        let mut object = rusterix::GeometryObject::box_from_bounds(
+            "Box",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 1.0),
+        );
+        let object_id = object.id;
+        for face in &mut object.faces {
+            face.surface_noise = Some(rusterix::GeometrySurfaceNoise {
+                scale: 2.0,
+                amount: 0.5,
+                seed: 7,
+                source: Some(PixelSource::TileId(Uuid::new_v4())),
+            });
+        }
+        map.geometry_objects.push(object);
+        map.selected_geometry_objects.push(object_id);
+
+        let mut action = SurfaceNoise::new();
+        action.source_override = Some(None);
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Region(Uuid::new_v4());
+        server_ctx.editor_view_mode = EditorViewMode::Iso;
+
+        assert!(
+            action
+                .apply(&mut map, &mut ui, &mut ctx, &mut server_ctx)
+                .is_some()
+        );
+        assert!(
+            map.geometry_objects[0]
+                .faces
+                .iter()
+                .all(|face| face.surface_noise.is_none())
+        );
     }
 
     #[test]

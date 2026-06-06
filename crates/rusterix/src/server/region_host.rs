@@ -5,7 +5,8 @@ use crate::server::region::{
     current_attack_base_damage_for_entity, current_attack_cooldown_for_entity,
     drop_items_into_ruleset_loot_container, entity_disposition_by_id, entity_is_hostile_by_id,
     entity_item_by_id, execute_ruleset_action, grant_experience, has_attack_ammunition_or_message,
-    is_spell_on_cooldown, open_dialog_node, set_entity_cooldown_attrs, set_spell_cooldown,
+    is_spell_on_cooldown, open_dialog_node, queue_applied_damage_event, set_entity_cooldown_attrs,
+    set_spell_cooldown,
 };
 use crate::server::regionctx::{ChoiceSession, ScriptScope};
 use crate::vm::*;
@@ -950,7 +951,7 @@ impl<'a> RegionHost<'a> {
                 .unwrap_or(false);
 
             if autodamage {
-                _ = apply_damage_direct(
+                if apply_damage_direct(
                     self.ctx,
                     id,
                     attacker_id,
@@ -961,7 +962,20 @@ impl<'a> RegionHost<'a> {
                     } else {
                         None
                     },
-                );
+                ) {
+                    queue_applied_damage_event(
+                        self.ctx,
+                        id,
+                        attacker_id,
+                        dmg,
+                        kind,
+                        if source_item_id > 0 {
+                            Some(source_item_id)
+                        } else {
+                            None
+                        },
+                    );
+                }
             } else {
                 let source_item_id = source_item_id as f32;
                 self.ctx.to_execute_entity.push((
@@ -2947,24 +2961,33 @@ impl<'a> HostHandler for RegionHost<'a> {
             "goto" => {
                 if let Some(dest) = args.get(0).and_then(|v| v.as_string()) {
                     let speed = args.get(1).map(|v| v.x).unwrap_or(1.0);
-                    let coord = self.ctx.map.named_area_center(&dest);
+                    let coord = self.ctx.map.named_area_center_3d(&dest);
 
                     if let Some(coord) = coord {
                         if let Some(entity) = self.ctx.get_current_entity_mut() {
+                            let coord_2d = vek::Vec2::new(coord.x, coord.z);
                             let position = entity.get_pos_xz();
                             let start_center =
                                 crate::server::region::RegionInstance::snapped_grid_center(
                                     position,
                                 );
                             let target_center =
-                                crate::server::region::RegionInstance::snapped_grid_center(coord);
+                                crate::server::region::RegionInstance::snapped_grid_center(
+                                    coord_2d,
+                                );
                             let grid_aligned = (position - start_center).magnitude_squared()
                                 <= 0.001
-                                && (coord - target_center).magnitude_squared() <= 0.001;
-                            if grid_aligned {
-                                entity.action = EntityAction::GotoGrid(coord, speed);
+                                && (coord_2d - target_center).magnitude_squared() <= 0.001;
+                            entity
+                                .attributes
+                                .set("__goto_target_height", Value::Float(coord.y));
+                            let raised_target = coord.y.abs() > 0.05;
+                            if grid_aligned && !raised_target {
+                                entity.attributes.remove("__goto_target_height");
+                                entity.attributes.remove("__goto_target_height_prev");
+                                entity.action = EntityAction::GotoGrid(coord_2d, speed);
                             } else {
-                                entity.action = EntityAction::Goto(coord, speed);
+                                entity.action = EntityAction::Goto(coord_2d, speed);
                             }
                         }
                     } else if self.ctx.debug_mode {
@@ -3685,7 +3708,10 @@ mod tests {
                 run_server_fn(&mut self.exec, &args, &program, &mut self.ctx);
             }
 
-            if is_damage_event && !self.ctx.damage_committed {
+            if is_damage_event
+                && !self.ctx.damage_committed
+                && !crate::server::region::entity_uses_autodamage(&self.ctx, entity_id)
+            {
                 let attacker_id = payload.x.max(0.0) as u32;
                 let amount = payload.y.max(0.0) as i32;
                 if amount > 0 {
@@ -3765,6 +3791,52 @@ mod tests {
         assert_eq!(arena.attr_f32(2, "last_damage") as i32, 3);
         assert_eq!(arena.attr_str(2, "last_kind"), "physical");
         assert_eq!(arena.attr_f32(2, "last_source_item") as u32, 0);
+        assert_eq!(arena.target(2), Some(1));
+        assert_eq!(arena.hp(1), 18);
+        assert_eq!(arena.attr_f32(1, "damaged_by") as u32, 2);
+        assert_eq!(arena.attr_f32(1, "damage_taken") as i32, 2);
+    }
+
+    #[test]
+    fn autodamage_target_still_receives_damage_event_for_retaliation() {
+        let mut arena = HeadlessRulesArena::new();
+        arena.add_script_class(
+            "Warrior",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "attack" {
+                    attack();
+                }
+                if event == "damaged" {
+                    set_attr("damaged_by", value.attacker_id);
+                    set_attr("damage_taken", value.amount);
+                }
+            }
+            "#,
+        );
+        arena.add_script_class(
+            "Orc",
+            r#"
+            fn event(event, value) {
+                if event == "damaged" {
+                    set_attr("last_attacker", value.attacker_id);
+                    set_attr("last_damage", value.amount);
+                    set_target(value.attacker_id);
+                    attack();
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Warrior", 20, 3, Some(2));
+        arena.add_entity(2, "Orc", 20, 2, None);
+        arena.set_entity_attr(2, "autodamage", Value::Bool(true));
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.hp(2), 17);
+        assert_eq!(arena.attr_f32(2, "last_attacker") as u32, 1);
+        assert_eq!(arena.attr_f32(2, "last_damage") as i32, 3);
         assert_eq!(arena.target(2), Some(1));
         assert_eq!(arena.hp(1), 18);
         assert_eq!(arena.attr_f32(1, "damaged_by") as u32, 2);

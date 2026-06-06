@@ -35,10 +35,10 @@ fn lookup_tile_alias(value: &str) -> Option<PixelSource> {
 
 fn facing_to_orientation(facing: &str) -> Option<vek::Vec2<f32>> {
     match facing.trim().to_ascii_lowercase().as_str() {
-        "right" | "east" | "e" => Some(vek::Vec2::new(1.0, 0.0)),
-        "left" | "west" | "w" => Some(vek::Vec2::new(-1.0, 0.0)),
-        "front" | "north" | "n" => Some(vek::Vec2::new(0.0, 1.0)),
-        "back" | "south" | "s" => Some(vek::Vec2::new(0.0, -1.0)),
+        "front" | "north" | "n" => Some(vek::Vec2::new(1.0, 0.0)),
+        "back" | "south" | "s" => Some(vek::Vec2::new(-1.0, 0.0)),
+        "right" | "east" | "e" => Some(vek::Vec2::new(0.0, 1.0)),
+        "left" | "west" | "w" => Some(vek::Vec2::new(0.0, -1.0)),
         _ => None,
     }
 }
@@ -443,5 +443,34 @@ fn hex_to_rgb_f32(hex: &str) -> [f32; 3] {
     ) {
         (Ok(r), Ok(g), Ok(b)) => [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0],
         _ => [1.0, 1.0, 1.0], // Return white for invalid input
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn facing_labels_map_to_authoring_orientation() {
+        assert_eq!(
+            facing_to_orientation("north"),
+            Some(vek::Vec2::new(1.0, 0.0))
+        );
+        assert_eq!(
+            facing_to_orientation("front"),
+            Some(vek::Vec2::new(1.0, 0.0))
+        );
+        assert_eq!(
+            facing_to_orientation("south"),
+            Some(vek::Vec2::new(-1.0, 0.0))
+        );
+        assert_eq!(
+            facing_to_orientation("east"),
+            Some(vek::Vec2::new(0.0, 1.0))
+        );
+        assert_eq!(
+            facing_to_orientation("west"),
+            Some(vek::Vec2::new(0.0, -1.0))
+        );
     }
 }

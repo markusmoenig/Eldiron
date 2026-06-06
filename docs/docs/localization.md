@@ -122,7 +122,7 @@ Rules-driven combat messages should usually use locale keys, not hardcoded Engli
 ```toml
 [combat.messages]
 incoming_key = "combat.damage.incoming"
-incoming_category = "warning"
+incoming_category = "system"
 outgoing_key = "combat.damage.outgoing"
 outgoing_category = "system"
 ```

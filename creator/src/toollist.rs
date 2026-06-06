@@ -1264,7 +1264,7 @@ impl ToolList {
             Box::new(RectTool::new()),
             Box::new(crate::tools::entity::EntityTool::new()),
             Box::new(crate::tools::builder::BuilderTool::new()),
-            // Hidden for now: the collision probe tool needs a clearer 3D route visualization
+            // Hidden for now: the collision probe route overlay still needs clearer UX
             // before it deserves a visible tool slot again.
             // Box::new(crate::tools::collision_probe::CollisionProbeTool::new()),
             // Box::new(RenderTool::new()),
@@ -4799,6 +4799,7 @@ impl ToolList {
             let yellow = [250.0 / 255.0, 204.0 / 255.0, 21.0 / 255.0, 1.0];
             let orange = [251.0 / 255.0, 146.0 / 255.0, 60.0 / 255.0, 1.0];
             let red = [248.0 / 255.0, 113.0 / 255.0, 113.0 / 255.0, 1.0];
+            let magenta = [244.0 / 255.0, 114.0 / 255.0, 255.0 / 255.0, 1.0];
             let mut index = 0u32;
             macro_rules! push_hardware {
                 ($rusterix:expr, $a:expr, $b:expr, $color:expr, $priority:expr $(,)?) => {{
@@ -4849,6 +4850,28 @@ impl ToolList {
                 let yellow = fade(yellow);
                 let orange = fade(orange);
                 let red = fade(red);
+                let magenta = fade(magenta);
+
+                let goto_path = if result.goto_path.len() >= 2 {
+                    result.goto_path.clone()
+                } else if result.goto_path_found || result.arrived {
+                    let fallback_end =
+                        result.steps.last().map(|step| step.to).unwrap_or_else(|| {
+                            Vec3::new(result.target.x, result.start.y, result.target.y)
+                        });
+                    vec![result.start, fallback_end]
+                } else {
+                    Vec::new()
+                };
+                for segment in goto_path.windows(2) {
+                    push_contrast!(
+                        rusterix,
+                        segment[0] + Vec3::new(0.0, 0.18, 0.0),
+                        segment[1] + Vec3::new(0.0, 0.18, 0.0),
+                        magenta,
+                        104,
+                    );
+                }
 
                 for step in &result.steps {
                     let color = match step.kind {

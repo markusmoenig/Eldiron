@@ -141,6 +141,40 @@ impl GeometryObjectBuilder {
         normal.y.abs() < 0.25
     }
 
+    fn polygon_area_2d(points: &[Vec2<f32>]) -> f32 {
+        if points.len() < 3 {
+            return 0.0;
+        }
+
+        let mut area = 0.0;
+        for index in 0..points.len() {
+            let a = points[index];
+            let b = points[(index + 1) % points.len()];
+            area += a.x * b.y - b.x * a.y;
+        }
+        area.abs() * 0.5
+    }
+
+    fn walkable_floor_footprint_is_large_enough(points: &[Vec2<f32>]) -> bool {
+        const MIN_WALKABLE_AREA: f32 = 0.05;
+        const MIN_WALKABLE_NARROW_EXTENT: f32 = 0.12;
+
+        if Self::polygon_area_2d(points) < MIN_WALKABLE_AREA {
+            return false;
+        }
+
+        let mut min = Vec2::broadcast(f32::INFINITY);
+        let mut max = Vec2::broadcast(f32::NEG_INFINITY);
+        for point in points {
+            min.x = min.x.min(point.x);
+            min.y = min.y.min(point.y);
+            max.x = max.x.max(point.x);
+            max.y = max.y.max(point.y);
+        }
+
+        (max.x - min.x).min(max.y - min.y) >= MIN_WALKABLE_NARROW_EXTENT
+    }
+
     fn tiled_face_base_uvs(world_points: &[Vec3<f32>]) -> [[f32; 2]; 4] {
         if Self::face_is_wall_like(world_points) {
             [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]]
@@ -920,6 +954,9 @@ impl ChunkBuilder for GeometryObjectBuilder {
                         .iter()
                         .map(|point| Vec2::new(point.x, point.z))
                         .collect::<Vec<_>>();
+                    if !Self::walkable_floor_footprint_is_large_enough(&polygon_2d) {
+                        continue;
+                    }
                     let floor_normal = if normal.y >= 0.55 {
                         normal
                     } else if raw_normal.y >= 0.0 {
@@ -1122,6 +1159,47 @@ mod tests {
                 .iter()
                 .any(|floor| floor.geo_id == GeoId::GeometryObject(object_id)
                     && (floor.height - 0.5).abs() < 1e-4)
+        );
+    }
+
+    #[test]
+    fn collision_ignores_tiny_decorative_ledge_faces_as_walkable() {
+        let mut object = crate::GeometryObject::new("GrooveLike");
+        let object_id = object.id;
+        object.vertices = vec![
+            Vec3::new(0.0, 0.25, 0.0),
+            Vec3::new(1.0, 0.25, 0.0),
+            Vec3::new(1.0, 0.25, 0.02),
+            Vec3::new(0.0, 0.25, 0.02),
+            Vec3::new(0.0, 0.0, 0.0),
+        ];
+        object.faces = vec![crate::GeometryFace {
+            indices: vec![0, 1, 2, 3],
+            uvs: Vec::new(),
+            auto_uv: true,
+            texture_offset: Vec2::zero(),
+            texture_scale: Vec2::broadcast(1.0),
+            texture_rotation: 0.0,
+            tile: None,
+            tiles: Default::default(),
+            surface_points: Vec::new(),
+            surface_segments: Vec::new(),
+            surface_noise: None,
+        }];
+
+        let mut map = Map::default();
+        map.geometry_objects.push(object);
+
+        let assets = Assets::default();
+        let mut builder = GeometryObjectBuilder;
+        let collision = builder.build_collision(&map, &assets, Vec2::zero(), 16);
+
+        assert!(
+            !collision
+                .walkable_floors
+                .iter()
+                .any(|floor| floor.geo_id == GeoId::GeometryObject(object_id)),
+            "thin decorative ledges should not become floor collision"
         );
     }
 

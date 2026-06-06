@@ -1612,7 +1612,7 @@ impl Client {
         pressed: bool,
         command_state: Option<&CommandState>,
     ) -> ButtonVisualState {
-        if command_state.is_some_and(|state| !state.enabled || state.cooldown_remaining > 0.0) {
+        if command_state.is_some_and(|state| !state.enabled) {
             return ButtonVisualState::Disabled;
         }
 
@@ -3564,10 +3564,11 @@ impl Client {
             .active_player_camera
             .clone()
             .or_else(|| self.active_game_widget_camera_mode());
-        matches!(
-            camera,
-            Some(crate::PlayerCamera::D2 | crate::PlayerCamera::D2Grid)
-        ) && !self.click_intents_2d
+        Self::is_immediate_2d_intent_camera(camera, self.click_intents_2d)
+    }
+
+    fn is_immediate_2d_intent_camera(camera: Option<PlayerCamera>, click_intents_2d: bool) -> bool {
+        matches!(camera, Some(PlayerCamera::D2 | PlayerCamera::D2Grid)) && !click_intents_2d
     }
 
     fn is_movement_action(action: &EntityAction) -> bool {
@@ -3587,7 +3588,7 @@ impl Client {
     }
 
     fn consume_one_shot_2d_intent(&mut self) {
-        if self.click_intents_2d || !self.game_widget_is_2d() {
+        if !self.immediate_2d_intent_mode() {
             return;
         }
         self.intent.clear();
@@ -5422,16 +5423,6 @@ impl Client {
         self.apply_bound_button_activations();
     }
 
-    /// Returns true if the game camera is 2D
-    fn game_widget_is_2d(&self) -> bool {
-        for (_, w) in &self.game_widgets {
-            if Self::is_2d_camera(&w.camera) {
-                return true;
-            }
-        }
-        false
-    }
-
     /// Returns the intent of the currently activated button
     fn get_current_intent(&self) -> Option<String> {
         // Newer activations should win, and non-intent buttons (e.g. camera toggles)
@@ -6529,5 +6520,34 @@ impl Client {
 
     fn rects_intersect(a: Rect, b: Rect) -> bool {
         a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn one_shot_intents_are_only_immediate_in_2d_without_click_targeting() {
+        assert!(Client::is_immediate_2d_intent_camera(
+            Some(PlayerCamera::D2),
+            false
+        ));
+        assert!(Client::is_immediate_2d_intent_camera(
+            Some(PlayerCamera::D2Grid),
+            false
+        ));
+        assert!(!Client::is_immediate_2d_intent_camera(
+            Some(PlayerCamera::D3FirstP),
+            false
+        ));
+        assert!(!Client::is_immediate_2d_intent_camera(
+            Some(PlayerCamera::D3FirstPGrid),
+            false
+        ));
+        assert!(!Client::is_immediate_2d_intent_camera(
+            Some(PlayerCamera::D2),
+            true
+        ));
     }
 }

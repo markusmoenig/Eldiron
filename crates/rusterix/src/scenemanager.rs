@@ -192,24 +192,9 @@ impl SceneManager {
                 if self.map.id != new_map.id {
                     self.results.push(SceneManagerResult::Clear);
                 }
-                let builder_sector_count = new_map
-                    .sectors
-                    .iter()
-                    .filter(|sector| {
-                        !sector
-                            .properties
-                            .get_str_default("builder_graph_data", String::new())
-                            .trim()
-                            .is_empty()
-                    })
-                    .count();
                 self.map = new_map;
                 self.ensure_palette_tiles_for_map();
                 let bbox = self.map.bbox();
-                println!(
-                    "SceneManagerCmd::SetMap(Min: {}, Max: {}, BuilderSectors: {})",
-                    bbox.min, bbox.max, builder_sector_count
-                );
                 self.dirty = Self::generate_chunk_coords(&bbox, self.chunk_size);
                 self.all = self.dirty.clone();
                 self.total_chunks = self.dirty.len() as i32;

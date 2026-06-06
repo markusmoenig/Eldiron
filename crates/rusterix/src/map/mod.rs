@@ -321,6 +321,26 @@ mod tests {
     }
 
     #[test]
+    fn named_area_center_3d_uses_walkable_geometry_top() {
+        let mut map = Map::new();
+        map.geometry_objects.push(GeometryObject::box_from_bounds(
+            "Street",
+            Vec3::new(10.0, -0.1, 20.0),
+            Vec3::new(14.0, 0.0, 26.0),
+        ));
+        map.geometry_objects.push(GeometryObject::box_from_bounds(
+            "Tavern",
+            Vec3::new(10.0, 0.0, 20.0),
+            Vec3::new(14.0, 2.0, 26.0),
+        ));
+
+        let center = map.named_area_center_3d("Tavern").unwrap();
+        assert_close(center.x, 12.0);
+        assert_close(center.y, 2.0);
+        assert_close(center.z, 23.0);
+    }
+
+    #[test]
     fn named_area_name_at_falls_back_to_geometry_object() {
         let mut map = Map::new();
         map.geometry_objects.push(GeometryObject::box_from_bounds(
@@ -1046,12 +1066,49 @@ impl Map {
             .and_then(|object| object.bbox().map(|bbox| bbox.center()))
     }
 
+    pub fn geometry_area_center_3d(&self, name: &str) -> Option<Vec3<f32>> {
+        self.geometry_objects
+            .iter()
+            .find(|object| object.name == name && object.properties.get_bool_default("area", true))
+            .and_then(|object| {
+                let bbox = object.bbox()?;
+                let center = bbox.center();
+                let mut max_y = f32::NEG_INFINITY;
+                for vertex in &object.vertices {
+                    let world = object.transform_point(*vertex);
+                    if world.y.is_finite() {
+                        max_y = max_y.max(world.y);
+                    }
+                }
+                let y = self
+                    .geometry_floor_height_at(center)
+                    .or_else(|| max_y.is_finite().then_some(max_y))?;
+                Some(Vec3::new(center.x, y, center.y))
+            })
+    }
+
     pub fn named_area_center(&self, name: &str) -> Option<Vec2<f32>> {
         self.sectors
             .iter()
             .find(|sector| sector.name == name)
             .and_then(|sector| sector.center(self))
             .or_else(|| self.geometry_area_center(name))
+    }
+
+    pub fn named_area_center_3d(&self, name: &str) -> Option<Vec3<f32>> {
+        self.sectors
+            .iter()
+            .find(|sector| sector.name == name)
+            .and_then(|sector| {
+                let center = sector.center(self)?;
+                let y = sector
+                    .properties
+                    .get_float("floor_height")
+                    .or_else(|| self.geometry_floor_height_at(center))
+                    .unwrap_or(0.0);
+                Some(Vec3::new(center.x, y, center.y))
+            })
+            .or_else(|| self.geometry_area_center_3d(name))
     }
 
     pub fn geometry_area_name_at(&self, pos: Vec2<f32>) -> Option<String> {

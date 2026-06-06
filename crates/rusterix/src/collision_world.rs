@@ -1,6 +1,7 @@
 use pathfinding::prelude::astar;
 use rustc_hash::FxHashMap;
 use scenevm::GeoId;
+use std::cell::RefCell;
 use vek::{Vec2, Vec3};
 
 const PASSABLE_OPENING_EXTRA_TOLERANCE: f32 = 0.12;
@@ -291,18 +292,8 @@ impl CollisionWorld {
         const MAX_ITERATIONS: usize = 3;
         const EPSILON: f32 = 0.001;
 
-        // Shortcut: if the destination lies in a passable opening we can skip further checks
-        let target_pos = Vec3::new(
-            start_pos.x + move_vector.x,
-            start_pos.y + move_vector.y,
-            start_pos.z + move_vector.z,
-        );
-        if self.is_in_passable_opening(target_pos, radius) {
-            return (target_pos, false, None);
-        }
-
         let mut current_pos = start_pos;
-        current_pos.y = target_pos.y; // Allow vertical movement directly; collisions are horizontal.
+        current_pos.y = start_pos.y + move_vector.y; // Allow vertical movement directly; collisions are horizontal.
 
         let mut current_2d = Vec2::new(start_pos.x, start_pos.z);
         let mut remaining = Vec2::new(move_vector.x, move_vector.z);
@@ -626,12 +617,85 @@ impl CollisionWorld {
         best_up.or(best_same).or(best_down)
     }
 
+    fn get_center_floor_height_down(
+        &self,
+        position: Vec2<f32>,
+        reference_y: f32,
+        max_step_height: f32,
+    ) -> Option<f32> {
+        const SAME_LEVEL_EPS: f32 = 0.05;
+        let mut best_down: Option<f32> = None;
+        let mut best_down_delta = f32::INFINITY;
+
+        let chunk_coords = self.world_to_chunk(position);
+        for chunk_collision in self.neighbor_chunks(chunk_coords) {
+            for floor in &chunk_collision.walkable_floors {
+                if !self.point_in_polygon_2d(position, &floor.polygon_2d, 0.0) {
+                    continue;
+                }
+                let height = floor.height_at(position);
+                let delta = reference_y - height;
+                if delta > SAME_LEVEL_EPS
+                    && delta <= max_step_height + 1e-3
+                    && delta < best_down_delta
+                {
+                    best_down_delta = delta;
+                    best_down = Some(height);
+                }
+            }
+        }
+
+        best_down
+    }
+
     /// 3D-aware movement on walkable floors.
     /// Returns `None` if no valid floor/path context exists so caller can fall back.
     pub fn move_towards_on_floors(
         &self,
         from: Vec2<f32>,
         to: Vec2<f32>,
+        speed: f32,
+        radius: f32,
+        max_step_height: f32,
+        reference_y: f32,
+    ) -> Option<(Vec3<f32>, bool)> {
+        self.move_towards_on_floors_inner(
+            from,
+            to,
+            None,
+            speed,
+            radius,
+            max_step_height,
+            reference_y,
+        )
+    }
+
+    pub fn move_towards_on_floors_to_height(
+        &self,
+        from: Vec2<f32>,
+        to: Vec2<f32>,
+        target_y: f32,
+        speed: f32,
+        radius: f32,
+        max_step_height: f32,
+        reference_y: f32,
+    ) -> Option<(Vec3<f32>, bool)> {
+        self.move_towards_on_floors_inner(
+            from,
+            to,
+            Some(target_y),
+            speed,
+            radius,
+            max_step_height,
+            reference_y,
+        )
+    }
+
+    fn move_towards_on_floors_inner(
+        &self,
+        from: Vec2<f32>,
+        to: Vec2<f32>,
+        target_y: Option<f32>,
         speed: f32,
         radius: f32,
         max_step_height: f32,
@@ -645,32 +709,84 @@ impl CollisionWorld {
             })
             .or_else(|| self.get_floor_height_reachable(to, reference_y, max_step_height))?;
 
+        let target_height = target_y.or_else(|| {
+            self.get_floor_height_nearest(to, base_height)
+                .or_else(|| self.sample_floor_height(to, radius * 0.5))
+        });
+
         let distance_before = (to - from).magnitude();
         if distance_before <= 0.05 {
-            return Some((Vec3::new(from.x, base_height, from.y), true));
+            let arrived = target_height
+                .map(|height| (base_height - height).abs() <= max_step_height + 0.05)
+                .unwrap_or(true);
+            if arrived {
+                return Some((Vec3::new(from.x, base_height, from.y), true));
+            }
         }
 
-        let (direct_position, direct_arrived) =
-            self.step_towards_point(from, to, speed, radius, base_height, max_step_height, 0.05);
-        let direct_2d = Vec2::new(direct_position.x, direct_position.z);
-        let moved = (direct_2d - from).magnitude();
-        let distance_after = (to - direct_2d).magnitude();
-        let requested_step = speed.min(distance_before);
-        let useful_direct =
-            moved >= requested_step * 0.5 && distance_after < distance_before - 0.001;
-        if useful_direct || direct_arrived || distance_after <= 0.05 {
-            return Some((direct_position, distance_after <= 0.05));
+        let target_on_different_level = target_height
+            .map(|height| (height - base_height).abs() > max_step_height + 0.05)
+            .unwrap_or(false);
+
+        if !target_on_different_level {
+            let (direct_position, direct_arrived) = self.step_towards_point(
+                from,
+                to,
+                speed,
+                radius,
+                base_height,
+                max_step_height,
+                0.05,
+                false,
+            );
+            let direct_2d = Vec2::new(direct_position.x, direct_position.z);
+            let moved = (direct_2d - from).magnitude();
+            let distance_after = (to - direct_2d).magnitude();
+            let requested_step = speed.min(distance_before);
+            let useful_direct =
+                moved >= requested_step * 0.5 && distance_after < distance_before - 0.001;
+            let height_arrived = target_height
+                .map(|height| (direct_position.y - height).abs() <= max_step_height + 0.05)
+                .unwrap_or(true);
+            if useful_direct || direct_arrived || distance_after <= 0.05 {
+                return Some((direct_position, distance_after <= 0.05 && height_arrived));
+            }
         }
 
-        let waypoint = if self.segment_is_clear(
+        let waypoint = if target_on_different_level {
+            self.navgrid_next_waypoint_with_target_height(
+                from,
+                to,
+                radius,
+                base_height,
+                max_step_height,
+                0.05,
+                target_height,
+            )?
+        } else if self.segment_is_clear(
             Vec3::new(from.x, base_height, from.y),
             Vec3::new(to.x, base_height, to.y),
             radius,
         ) {
             to
         } else {
-            self.navgrid_next_waypoint(from, to, radius, base_height, max_step_height, 0.05)?
+            self.navgrid_next_waypoint_with_target_height(
+                from,
+                to,
+                radius,
+                base_height,
+                max_step_height,
+                0.05,
+                target_height,
+            )?
         };
+
+        let waypoint_height = self
+            .get_floor_height_nearest(waypoint, base_height)
+            .or_else(|| self.sample_floor_height(waypoint, radius * 0.5));
+        let prefer_center_down = waypoint_height
+            .map(|height| height < base_height - 0.05)
+            .unwrap_or(false);
 
         let (new_position, _) = self.step_towards_point(
             from,
@@ -680,8 +796,12 @@ impl CollisionWorld {
             base_height,
             max_step_height,
             0.05,
+            prefer_center_down,
         );
-        let arrived = (to - Vec2::new(new_position.x, new_position.z)).magnitude() <= 0.05;
+        let arrived = (to - Vec2::new(new_position.x, new_position.z)).magnitude() <= 0.05
+            && target_height
+                .map(|height| (new_position.y - height).abs() <= max_step_height + 0.05)
+                .unwrap_or(true);
         Some((new_position, arrived))
     }
 
@@ -715,6 +835,7 @@ impl CollisionWorld {
             base_height,
             max_step_height,
             0.0001,
+            false,
         );
         let arrived = (to - Vec2::new(new_position.x, new_position.z)).magnitude() <= 0.05;
         Some((new_position, arrived))
@@ -914,29 +1035,7 @@ impl CollisionWorld {
             }
             path
         } else {
-            self.navgrid_path(from, to, radius, base_height, max_step_height, 0.05)
-                .map(|path| {
-                    path.into_iter()
-                        .map(|point| {
-                            let height = self
-                                .sample_reachable_floor_height(
-                                    point,
-                                    radius * 0.5,
-                                    base_height,
-                                    max_step_height,
-                                )
-                                .or_else(|| {
-                                    self.get_floor_height_reachable(
-                                        point,
-                                        base_height,
-                                        max_step_height,
-                                    )
-                                })
-                                .unwrap_or(base_height);
-                            Vec3::new(point.x, height, point.y)
-                        })
-                        .collect()
-                })
+            self.navgrid_path_3d(from, to, radius, base_height, max_step_height, 0.05)
                 .unwrap_or_default()
         };
         if !result.goto_path.is_empty() {
@@ -974,6 +1073,7 @@ impl CollisionWorld {
             base_height,
             max_step_height,
             arrival_radius,
+            false,
         );
         let direct_2d = Vec2::new(direct_position.x, direct_position.z);
         let moved = (direct_2d - from).magnitude();
@@ -1002,6 +1102,13 @@ impl CollisionWorld {
             )?
         };
 
+        let waypoint_height = self
+            .get_floor_height_nearest(waypoint, base_height)
+            .or_else(|| self.sample_floor_height(waypoint, agent_radius * 0.5));
+        let prefer_center_down = waypoint_height
+            .map(|height| height < base_height - 0.05)
+            .unwrap_or(false);
+
         let (new_position, _) = self.step_towards_point(
             from,
             waypoint,
@@ -1010,41 +1117,11 @@ impl CollisionWorld {
             base_height,
             max_step_height,
             arrival_radius,
+            prefer_center_down,
         );
         let arrived =
             (target - Vec2::new(new_position.x, new_position.z)).magnitude() <= arrival_radius;
         Some((new_position, arrived))
-    }
-
-    fn is_in_passable_opening(&self, position: Vec3<f32>, radius: f32) -> bool {
-        let chunk_coords = self.world_to_chunk(Vec2::new(position.x, position.z));
-
-        for dx in -1..=1 {
-            for dy in -1..=1 {
-                let check_chunk = Vec2::new(chunk_coords.x + dx, chunk_coords.y + dy);
-                if let Some(chunk_collision) = self.chunks.get(&check_chunk) {
-                    for opening in &chunk_collision.dynamic_openings {
-                        if !self.opening_is_passable(opening) {
-                            continue;
-                        }
-                        let y_matches = position.y + radius >= opening.floor_height
-                            && position.y - radius <= opening.ceiling_height;
-                        let footprint_matches = y_matches
-                            && self.footprint_intersects_polygon_2d(
-                                Vec2::new(position.x, position.z),
-                                &opening.boundary_2d,
-                                radius + PASSABLE_OPENING_EXTRA_TOLERANCE,
-                                radius,
-                            );
-                        if footprint_matches {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-
-        false
     }
 
     fn step_towards_point(
@@ -1056,6 +1133,7 @@ impl CollisionWorld {
         base_height: f32,
         max_step_height: f32,
         arrival_radius: f32,
+        prefer_center_down: bool,
     ) -> (Vec3<f32>, bool) {
         let to_vector = target - from;
         let dist = to_vector.magnitude();
@@ -1091,6 +1169,13 @@ impl CollisionWorld {
             else {
                 break;
             };
+            if prefer_center_down {
+                if let Some(center_down) =
+                    self.get_center_floor_height_down(probe_2d, current_floor, max_step_height)
+                {
+                    move_height = center_down;
+                }
+            }
             if (move_height - current_floor).abs() > max_step_height + 1e-3 {
                 move_height = current_floor;
             }
@@ -1261,14 +1346,6 @@ impl CollisionWorld {
             let start = polygon[i];
             let end = polygon[(i + 1) % polygon.len()];
             segments.push(CollisionSegment { geo_id, start, end });
-        }
-    }
-
-    fn opening_is_passable(&self, opening: &DynamicOpening) -> bool {
-        match opening.opening_type {
-            OpeningType::Passage => true,
-            OpeningType::Window => false,
-            OpeningType::Door => opening.item_blocking.map(|b| !b).unwrap_or(true),
         }
     }
 
@@ -1746,6 +1823,31 @@ impl CollisionWorld {
         Some(path[1])
     }
 
+    fn navgrid_next_waypoint_with_target_height(
+        &self,
+        from: Vec2<f32>,
+        target: Vec2<f32>,
+        radius: f32,
+        base_height: f32,
+        max_step_height: f32,
+        goal_radius: f32,
+        target_height: Option<f32>,
+    ) -> Option<Vec2<f32>> {
+        let path = self.navgrid_path_3d_with_target_height(
+            from,
+            target,
+            radius,
+            base_height,
+            max_step_height,
+            goal_radius,
+            target_height,
+        )?;
+        if path.len() < 2 {
+            return Some(target);
+        }
+        Some(Vec2::new(path[1].x, path[1].z))
+    }
+
     fn navgrid_path(
         &self,
         from: Vec2<f32>,
@@ -1755,7 +1857,106 @@ impl CollisionWorld {
         max_step_height: f32,
         goal_radius: f32,
     ) -> Option<Vec<Vec2<f32>>> {
-        let cell = (radius * 1.25).clamp(0.2, 0.8);
+        self.navgrid_path_3d(
+            from,
+            target,
+            radius,
+            base_height,
+            max_step_height,
+            goal_radius,
+        )
+        .map(|path| {
+            path.into_iter()
+                .map(|point| Vec2::new(point.x, point.z))
+                .collect()
+        })
+    }
+
+    fn navgrid_path_3d(
+        &self,
+        from: Vec2<f32>,
+        target: Vec2<f32>,
+        radius: f32,
+        base_height: f32,
+        max_step_height: f32,
+        goal_radius: f32,
+    ) -> Option<Vec<Vec3<f32>>> {
+        self.navgrid_path_3d_with_target_height(
+            from,
+            target,
+            radius,
+            base_height,
+            max_step_height,
+            goal_radius,
+            None,
+        )
+    }
+
+    pub fn navgrid_path_3d_to_height(
+        &self,
+        from: Vec2<f32>,
+        target: Vec2<f32>,
+        target_height: Option<f32>,
+        radius: f32,
+        reference_y: f32,
+        max_step_height: f32,
+        goal_radius: f32,
+    ) -> Option<Vec<Vec3<f32>>> {
+        let base_height = self
+            .sample_reachable_floor_height(from, radius * 0.5, reference_y, max_step_height)
+            .or_else(|| self.get_floor_height_reachable(from, reference_y, max_step_height))
+            .or_else(|| {
+                self.sample_reachable_floor_height(
+                    target,
+                    radius * 0.5,
+                    reference_y,
+                    max_step_height,
+                )
+            })
+            .or_else(|| self.get_floor_height_reachable(target, reference_y, max_step_height))?;
+
+        self.navgrid_path_3d_with_target_height(
+            from,
+            target,
+            radius,
+            base_height,
+            max_step_height,
+            goal_radius,
+            target_height,
+        )
+    }
+
+    fn navgrid_path_3d_with_target_height(
+        &self,
+        from: Vec2<f32>,
+        target: Vec2<f32>,
+        radius: f32,
+        base_height: f32,
+        max_step_height: f32,
+        goal_radius: f32,
+        target_height_override: Option<f32>,
+    ) -> Option<Vec<Vec3<f32>>> {
+        #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+        struct NavNode {
+            cell: Vec2<i32>,
+            height_key: i32,
+        }
+
+        impl NavNode {
+            fn new(cell: Vec2<i32>, height: f32) -> Self {
+                Self {
+                    cell,
+                    height_key: (height * 100.0).round() as i32,
+                }
+            }
+
+            fn height(self) -> f32 {
+                self.height_key as f32 / 100.0
+            }
+        }
+
+        let cell = (radius * 0.6).clamp(0.15, 0.5);
+        let nav_step_height = max_step_height;
         let direct_distance = (target - from).magnitude();
         let search_radius_world = (direct_distance + 8.0).clamp(8.0, 120.0);
         let search_radius_cells = (search_radius_world / cell).ceil() as i32;
@@ -1776,25 +1977,146 @@ impl CollisionWorld {
         let in_bounds = |c: Vec2<i32>| {
             c.x >= min_cell.x && c.x <= max_cell.x && c.y >= min_cell.y && c.y <= max_cell.y
         };
-        let sample_height = |c: Vec2<i32>| {
-            self.get_floor_height_reachable(cell_center(c), base_height, max_step_height)
-                .or_else(|| self.get_floor_height_nearest(cell_center(c), base_height))
-                .or_else(|| self.sample_floor_height(cell_center(c), radius * 0.5))
-                .unwrap_or(base_height)
+        let sample_point_nav_height = |pos: Vec2<f32>, reference_y: f32| {
+            const SAME_LEVEL_EPS: f32 = 0.05;
+            let mut best_up: Option<f32> = None;
+            let mut best_up_delta = f32::INFINITY;
+            let mut best_down: Option<f32> = None;
+            let mut best_down_delta = f32::INFINITY;
+            let mut best_same: Option<f32> = None;
+            let mut best_same_delta = f32::INFINITY;
+
+            let chunk_coords = self.world_to_chunk(pos);
+            for chunk_collision in self.neighbor_chunks(chunk_coords) {
+                for floor in &chunk_collision.walkable_floors {
+                    if !self.point_in_polygon_2d(pos, &floor.polygon_2d, 0.0) {
+                        continue;
+                    }
+                    let height = floor.height_at(pos);
+                    let delta = height - reference_y;
+                    if delta > SAME_LEVEL_EPS && delta <= max_step_height + 1e-3 {
+                        if delta < best_up_delta {
+                            best_up_delta = delta;
+                            best_up = Some(height);
+                        }
+                    } else if delta < -SAME_LEVEL_EPS && delta.abs() <= max_step_height + 1e-3 {
+                        let down_delta = delta.abs();
+                        if down_delta < best_down_delta {
+                            best_down_delta = down_delta;
+                            best_down = Some(height);
+                        }
+                    } else if delta.abs() <= SAME_LEVEL_EPS {
+                        let same_delta = delta.abs();
+                        if same_delta < best_same_delta {
+                            best_same_delta = same_delta;
+                            best_same = Some(height);
+                        }
+                    }
+                }
+            }
+
+            best_same.or(best_up).or(best_down)
         };
-        let cell_passable = |c: Vec2<i32>| {
+        let height_cache: RefCell<FxHashMap<(i32, i32, i32), Option<f32>>> =
+            RefCell::new(FxHashMap::default());
+        let passable_cache: RefCell<FxHashMap<(i32, i32, i32), bool>> =
+            RefCell::new(FxHashMap::default());
+
+        let sample_nav_height = |c: Vec2<i32>, reference_y: f32| {
+            let key = (c.x, c.y, (reference_y * 100.0).round() as i32);
+            if let Some(height) = height_cache.borrow().get(&key).copied() {
+                return height;
+            }
+            let height = sample_point_nav_height(cell_center(c), reference_y);
+            height_cache.borrow_mut().insert(key, height);
+            height
+        };
+        let cell_passable = |c: Vec2<i32>, h: f32| {
+            let key = (c.x, c.y, (h * 100.0).round() as i32);
+            if let Some(passable) = passable_cache.borrow().get(&key).copied() {
+                return passable;
+            }
             let pos = cell_center(c);
-            let h = sample_height(c);
-            !self.is_blocked(Vec3::new(pos.x, h, pos.y), radius)
+            let pos3 = Vec3::new(pos.x, h, pos.y);
+            let segments =
+                self.collect_blocking_segments(pos3, radius, Some(h + max_step_height + 1e-3));
+            if segments.iter().any(|seg| {
+                self.check_point_against_segment(
+                    Vec2::new(pos3.x, pos3.z),
+                    seg.start,
+                    seg.end,
+                    radius,
+                )
+                .is_some()
+            }) {
+                passable_cache.borrow_mut().insert(key, false);
+                return false;
+            }
+
+            let chunk_coords = self.world_to_chunk(pos);
+            for chunk_collision in self.neighbor_chunks(chunk_coords) {
+                for opening in &chunk_collision.dynamic_openings {
+                    if !self.opening_is_blocking(opening) {
+                        continue;
+                    }
+                    if pos3.y + radius < opening.floor_height
+                        || pos3.y - radius > opening.ceiling_height
+                    {
+                        continue;
+                    }
+                    if self.point_in_polygon_2d(pos, &opening.boundary_2d, radius) {
+                        passable_cache.borrow_mut().insert(key, false);
+                        return false;
+                    }
+                }
+            }
+
+            passable_cache.borrow_mut().insert(key, true);
+            true
         };
 
-        if !cell_passable(start_cell)
-            || self.is_blocked(Vec3::new(from.x, base_height, from.y), radius)
-        {
+        let start_height = sample_nav_height(start_cell, base_height).unwrap_or(base_height);
+        let (start_cell, start_height) = if cell_passable(start_cell, start_height) {
+            (start_cell, start_height)
+        } else {
+            // Runtime movement can land near a cell edge on small stairs. Recover to the
+            // nearest passable neighbor instead of declaring the actor stuck.
+            let mut best_start: Option<(Vec2<i32>, f32, f32)> = None;
+            for dy in -2..=2 {
+                for dx in -2..=2 {
+                    let candidate = start_cell + Vec2::new(dx, dy);
+                    if !in_bounds(candidate) {
+                        continue;
+                    }
+                    let Some(height) = sample_nav_height(candidate, base_height) else {
+                        continue;
+                    };
+                    if (height - base_height).abs() > max_step_height + 1e-3 {
+                        continue;
+                    }
+                    if !cell_passable(candidate, height) {
+                        continue;
+                    }
+                    let dist = (cell_center(candidate) - from).magnitude();
+                    if best_start.map_or(true, |(_, _, best_dist)| dist < best_dist) {
+                        best_start = Some((candidate, height, dist));
+                    }
+                }
+            }
+            let (candidate, height, _) = best_start?;
+            (candidate, height)
+        };
+        let start = NavNode::new(start_cell, start_height);
+        let target_height = target_height_override.or_else(|| {
+            self.get_floor_height_nearest(target, base_height)
+                .or_else(|| self.sample_floor_height(target, radius * 0.5))
+        });
+
+        if !cell_passable(start_cell, start_height) {
             return None;
         }
 
-        let successors = |cell_pos: &Vec2<i32>| {
+        let successors = |node: &NavNode| {
             let dirs = [
                 Vec2::new(-1, 0),
                 Vec2::new(1, 0),
@@ -1806,50 +2128,69 @@ impl CollisionWorld {
                 Vec2::new(1, 1),
             ];
 
-            let h0 = sample_height(*cell_pos);
-            let p0 = cell_center(*cell_pos);
+            let h0 = node.height();
+            let p0 = cell_center(node.cell);
             dirs.iter()
-                .map(|d| *cell_pos + *d)
-                .filter(|n| in_bounds(*n) && cell_passable(*n))
+                .map(|d| node.cell + *d)
+                .filter(|n| in_bounds(*n))
                 .filter_map(|n| {
-                    let h1 = sample_height(n);
-                    if (h0 - h1).abs() > max_step_height {
+                    let h1 = sample_nav_height(n, h0)?;
+                    if (h0 - h1).abs() > nav_step_height + 1e-3 {
+                        return None;
+                    }
+                    if !cell_passable(n, h1) {
                         return None;
                     }
                     let p1 = cell_center(n);
-                    let clear = self.segment_is_clear(
-                        Vec3::new(p0.x, h0, p0.y),
-                        Vec3::new(p1.x, h1, p1.y),
+                    let step_start = Vec3::new(p0.x, h0, p0.y);
+                    let step_delta = Vec3::new(p1.x - p0.x, 0.0, p1.y - p0.y);
+                    let (stepped, blocked) = self.move_distance_with_step_clearance(
+                        step_start,
+                        step_delta,
                         radius,
+                        Some(h0 + nav_step_height + 1e-3),
                     );
-                    if !clear {
+                    let stepped_2d = Vec2::new(stepped.x, stepped.z);
+                    if blocked || (stepped_2d - p1).magnitude() > cell * 0.25 {
                         return None;
                     }
-                    let is_diag = (n.x - cell_pos.x).abs() == 1 && (n.y - cell_pos.y).abs() == 1;
-                    let cost = if is_diag { 14 } else { 10 };
-                    Some((n, cost))
+                    let is_diag = (n.x - node.cell.x).abs() == 1 && (n.y - node.cell.y).abs() == 1;
+                    let height_cost = ((h1 - h0).abs() * 2.0).round() as i32;
+                    let cost = if is_diag { 14 } else { 10 } + height_cost;
+                    Some((NavNode::new(n, h1), cost))
                 })
                 .collect::<Vec<_>>()
         };
 
-        let heuristic = |c: &Vec2<i32>| {
-            let p = cell_center(*c);
+        let heuristic = |node: &NavNode| {
+            let p = cell_center(node.cell);
             let d = (p - target).magnitude() - goal_radius;
             (d.max(0.0) * 10.0) as i32
         };
 
-        let is_goal = |c: &Vec2<i32>| {
-            let p = cell_center(*c);
-            (p - target).magnitude() <= goal_radius.max(cell)
+        let is_goal = |node: &NavNode| {
+            let p = cell_center(node.cell);
+            if (p - target).magnitude() > goal_radius.max(cell) {
+                return false;
+            }
+            target_height
+                .map(|height| (node.height() - height).abs() <= nav_step_height + 0.05)
+                .unwrap_or(true)
         };
 
-        let (path, _) = astar(&start_cell, successors, heuristic, is_goal)?;
+        let (path, _) = astar(&start, &successors, heuristic, is_goal)?;
         let mut points = Vec::with_capacity(path.len() + 2);
-        points.push(from);
-        for cell in path.iter().skip(1) {
-            points.push(cell_center(*cell));
+        points.push(Vec3::new(from.x, start_height, from.y));
+        for node in path.iter().skip(1) {
+            let center = cell_center(node.cell);
+            points.push(Vec3::new(center.x, node.height(), center.y));
         }
-        points.push(target);
+        let target_y = target_height.unwrap_or_else(|| {
+            path.last()
+                .map(|node| node.height())
+                .unwrap_or(start_height)
+        });
+        points.push(Vec3::new(target.x, target_y, target.y));
         Some(points)
     }
 }
@@ -1857,6 +2198,51 @@ impl CollisionWorld {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn gate_fixture() -> (crate::Map, CollisionWorld) {
+        use crate::chunkbuilder::{ChunkBuilder, d3chunkbuilder::D3ChunkBuilder};
+
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../test_projects/Gate.eldiron");
+        let contents = std::fs::read_to_string(path).expect("Gate fixture is readable");
+        let project: serde_json::Value =
+            serde_json::from_str(&contents).expect("Gate fixture is valid json");
+        let map_value = project["regions"][0]["map"].clone();
+        let map: crate::Map = serde_json::from_value(map_value).expect("Gate map deserializes");
+
+        let assets = crate::Assets::default();
+        let mut world = CollisionWorld::default();
+        let mut chunk_builder = D3ChunkBuilder::new();
+        let chunk_size = 10;
+        let bbox = map.bbox();
+        let min_chunk = Vec2::new(
+            (bbox.min.x / chunk_size as f32).floor() as i32,
+            (bbox.min.y / chunk_size as f32).floor() as i32,
+        );
+        let max_chunk = Vec2::new(
+            (bbox.max.x / chunk_size as f32).floor() as i32,
+            (bbox.max.y / chunk_size as f32).floor() as i32,
+        );
+        for cy in min_chunk.y..=max_chunk.y {
+            for cx in min_chunk.x..=max_chunk.x {
+                let chunk_origin = Vec2::new(cx, cy);
+                let collision =
+                    chunk_builder.build_collision(&map, &assets, chunk_origin, chunk_size);
+                world.update_chunk(chunk_origin, collision);
+            }
+        }
+
+        (map, world)
+    }
+
+    fn rect(min_x: f32, min_z: f32, max_x: f32, max_z: f32) -> Vec<Vec2<f32>> {
+        vec![
+            Vec2::new(min_x, min_z),
+            Vec2::new(max_x, min_z),
+            Vec2::new(max_x, max_z),
+            Vec2::new(min_x, max_z),
+        ]
+    }
 
     #[test]
     fn test_aabb_collision() {
@@ -1969,31 +2355,261 @@ mod tests {
     }
 
     #[test]
+    fn mesh_goto_finds_gate_guardhouse_roof_route() {
+        use crate::chunkbuilder::{ChunkBuilder, d3chunkbuilder::D3ChunkBuilder};
+
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../test_projects/Gate.eldiron");
+        let contents = std::fs::read_to_string(path).expect("Gate fixture is readable");
+        let project: serde_json::Value =
+            serde_json::from_str(&contents).expect("Gate fixture is valid json");
+        let map_value = project["regions"][0]["map"].clone();
+        let map: crate::Map = serde_json::from_value(map_value).expect("Gate map deserializes");
+
+        let guard = map
+            .entities
+            .iter()
+            .find(|entity| {
+                entity
+                    .attributes
+                    .get_str("class_name")
+                    .map(|value| value.eq_ignore_ascii_case("Guard"))
+                    .unwrap_or(false)
+            })
+            .expect("Gate fixture has a guard entity");
+        let target = map
+            .named_area_center("GuardHouseRoof")
+            .expect("Gate fixture has GuardHouseRoof area");
+
+        let assets = crate::Assets::default();
+        let mut world = CollisionWorld::default();
+        let mut chunk_builder = D3ChunkBuilder::new();
+        let chunk_size = 10;
+        let bbox = map.bbox();
+        let min_chunk = Vec2::new(
+            (bbox.min.x / chunk_size as f32).floor() as i32,
+            (bbox.min.y / chunk_size as f32).floor() as i32,
+        );
+        let max_chunk = Vec2::new(
+            (bbox.max.x / chunk_size as f32).floor() as i32,
+            (bbox.max.y / chunk_size as f32).floor() as i32,
+        );
+        for cy in min_chunk.y..=max_chunk.y {
+            for cx in min_chunk.x..=max_chunk.x {
+                let chunk_origin = Vec2::new(cx, cy);
+                let collision =
+                    chunk_builder.build_collision(&map, &assets, chunk_origin, chunk_size);
+                world.update_chunk(chunk_origin, collision);
+            }
+        }
+
+        let route = world.navgrid_path(
+            guard.get_pos_xz(),
+            target,
+            guard.attributes.get_float_default("radius", 0.5) - 0.01,
+            guard.position.y,
+            1.0,
+            0.05,
+        );
+
+        assert!(
+            route.as_ref().map(|path| path.len()).unwrap_or(0) > 2,
+            "guard should find a multi-waypoint mesh route to GuardHouseRoof"
+        );
+
+        let route = route.unwrap();
+        let start = guard.get_pos_xz();
+        let first_waypoint = route[1];
+        let radius = guard.attributes.get_float_default("radius", 0.5) - 0.01;
+        let (next_position, arrived) = world
+            .move_towards_on_floors(start, target, 0.25, radius, 1.0, guard.position.y)
+            .expect("guard should take a mesh goto step");
+        let next_2d = Vec2::new(next_position.x, next_position.z);
+        let direct_2d = start + (target - start).normalized() * 0.25;
+        let waypoint_2d = start + (first_waypoint - start).normalized() * 0.25;
+
+        assert!(!arrived);
+        assert!(
+            next_2d.distance_squared(waypoint_2d) < next_2d.distance_squared(direct_2d),
+            "first movement step should follow the stair route waypoint, not the roof center"
+        );
+
+        let probe = world.probe_path_direct(start, target, radius, 1.0, guard.position.y);
+        assert!(probe.goto_path_found, "probe should expose the goto route");
+        assert!(
+            probe
+                .goto_path
+                .iter()
+                .any(|point| point.y < guard.position.y - 0.5),
+            "probe goto route should preserve stair height changes"
+        );
+        assert!(
+            probe
+                .goto_path
+                .last()
+                .map(|point| (point.y - 4.0).abs() < 1e-3)
+                .unwrap_or(false),
+            "probe goto route should end on the roof floor"
+        );
+
+        let mut pos = guard.position;
+        let mut reached_roof = false;
+        for _ in 0..120 {
+            let Some((next, arrived)) = world.move_towards_on_floors(
+                Vec2::new(pos.x, pos.z),
+                target,
+                0.25,
+                radius,
+                1.0,
+                pos.y,
+            ) else {
+                break;
+            };
+            pos = next;
+            if arrived {
+                reached_roof = true;
+                break;
+            }
+        }
+        assert!(reached_roof, "guard should keep following the stair route");
+        assert!(
+            (pos.y - 4.0).abs() < 1e-3,
+            "guard should end on the roof floor"
+        );
+    }
+
+    #[test]
+    fn mesh_goto_follows_gate_roof_route_from_road() {
+        let (map, world) = gate_fixture();
+        let start = map
+            .named_area_center_3d("Road")
+            .expect("Gate fixture has Road area");
+        let target = map
+            .named_area_center_3d("GateRoof")
+            .expect("Gate fixture has GateRoof area");
+        let radius = 0.49;
+        let route = world
+            .navgrid_path_3d_to_height(
+                Vec2::new(start.x, start.z),
+                Vec2::new(target.x, target.z),
+                Some(target.y),
+                radius,
+                start.y,
+                1.0,
+                0.05,
+            )
+            .expect("Road should have a mesh route to GateRoof");
+
+        assert!(
+            route.len() > 2,
+            "Road to GateRoof should use stairs, not a direct flat hop"
+        );
+        assert!(
+            route
+                .last()
+                .map(|point| (point.y - target.y).abs() <= 1.05)
+                .unwrap_or(false),
+            "route should end at GateRoof height"
+        );
+
+        let mut pos = start;
+        for waypoint in route.iter().skip(1) {
+            let waypoint_2d = Vec2::new(waypoint.x, waypoint.z);
+            let mut reached_waypoint = false;
+            for _ in 0..80 {
+                let (next, arrived) = world
+                    .move_towards_on_floors_to_height(
+                        Vec2::new(pos.x, pos.z),
+                        waypoint_2d,
+                        waypoint.y,
+                        0.25,
+                        radius,
+                        1.0,
+                        pos.y,
+                    )
+                    .expect("cached route waypoint should remain walkable");
+                pos = next;
+                if arrived {
+                    reached_waypoint = true;
+                    break;
+                }
+            }
+            assert!(
+                reached_waypoint,
+                "actor should physically reach cached waypoint {waypoint:?} from {pos:?}"
+            );
+        }
+
+        assert!(
+            (Vec2::new(pos.x, pos.z) - Vec2::new(target.x, target.z)).magnitude() <= 0.1
+                && (pos.y - target.y).abs() <= 1.05,
+            "actor should end on GateRoof, got {pos:?}, target {target:?}"
+        );
+    }
+
+    #[test]
+    fn gate_player_direct_movement_blocks_guardhouse_front_wall() {
+        let (_map, world) = gate_fixture();
+        let start = Vec2::new(8.5, -0.6);
+        let target = Vec2::new(8.5, -2.0);
+        let radius = 0.49;
+
+        let (end, arrived) = world
+            .move_towards_on_floors_direct(start, target, 1.4, radius, 0.45, 0.375)
+            .expect("guardhouse front floor should have collision context");
+
+        assert!(
+            !arrived,
+            "solid guardhouse front wall should block direct player movement"
+        );
+        assert!(
+            end.z > -1.45,
+            "player should stay in front of the wall, got {end:?}"
+        );
+    }
+
+    #[test]
+    fn gate_player_direct_movement_can_climb_guardhouse_stairs() {
+        let (_map, world) = gate_fixture();
+        let radius = 0.49;
+        let mut pos = Vec3::new(8.6, 0.375, -2.6);
+        let target = Vec2::new(8.6, -4.2);
+
+        for _ in 0..20 {
+            let (next, _) = world
+                .move_towards_on_floors_direct(
+                    Vec2::new(pos.x, pos.z),
+                    target,
+                    0.12,
+                    radius,
+                    0.55,
+                    pos.y,
+                )
+                .expect("guardhouse stairs should remain walkable");
+            pos = next;
+            if (target - Vec2::new(pos.x, pos.z)).magnitude() <= 0.1 {
+                break;
+            }
+        }
+
+        assert!(
+            pos.z < -3.8 && pos.y > 0.5,
+            "player should make upward progress on the stairs, got {pos:?}"
+        );
+    }
+
+    #[test]
     fn test_floor_movement_bridges_tiny_floor_gap_both_directions() {
         let mut world = CollisionWorld::new(10);
         let mut chunk = ChunkCollision::new();
         let geo_id = GeoId::GeometryObject(uuid::Uuid::nil());
 
-        chunk.walkable_floors.push(WalkableFloor::flat(
-            geo_id,
-            0.5,
-            vec![
-                Vec2::new(0.0, 0.0),
-                Vec2::new(3.0, 0.0),
-                Vec2::new(3.0, 5.0),
-                Vec2::new(0.0, 5.0),
-            ],
-        ));
-        chunk.walkable_floors.push(WalkableFloor::flat(
-            geo_id,
-            0.5,
-            vec![
-                Vec2::new(3.02, 0.0),
-                Vec2::new(6.0, 0.0),
-                Vec2::new(6.0, 5.0),
-                Vec2::new(3.02, 5.0),
-            ],
-        ));
+        chunk
+            .walkable_floors
+            .push(WalkableFloor::flat(geo_id, 0.5, rect(0.0, 0.0, 3.0, 5.0)));
+        chunk
+            .walkable_floors
+            .push(WalkableFloor::flat(geo_id, 0.5, rect(3.02, 0.0, 6.0, 5.0)));
         world.update_chunk(Vec2::new(0, 0), chunk);
 
         let (forward, forward_arrived) = world

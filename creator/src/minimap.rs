@@ -286,8 +286,8 @@ fn draw_action_minimap_preview(
     let render_dim = Vec2::new(dim.width as f32, dim.height as f32);
     let preview_color = [88, 210, 255, 235];
     for segment in segments {
-        let start = world_to_minimap_pixel(segment.start, render_dim, bbox);
-        let end = world_to_minimap_pixel(segment.end, render_dim, bbox);
+        let start = preview_to_minimap_pixel(segment.start, render_dim, bbox);
+        let end = preview_to_minimap_pixel(segment.end, render_dim, bbox);
         buffer.draw_line(
             start.x as i32,
             start.y as i32,
@@ -296,6 +296,29 @@ fn draw_action_minimap_preview(
             preview_color,
         );
     }
+}
+
+fn preview_to_minimap_pixel(
+    preview_pos: Vec2<f32>,
+    render_dim: Vec2<f32>,
+    bbox: Vec4<f32>,
+) -> Vec2<f32> {
+    let width = render_dim.x;
+    let height = render_dim.y;
+
+    let scale_x = width / bbox.z;
+    let scale_y = height / bbox.w;
+
+    let bbox_center_x = bbox.x + bbox.z / 2.0;
+    let bbox_center_y = bbox.y + bbox.w / 2.0;
+
+    let offset_x = -bbox_center_x * scale_x;
+    let offset_y = bbox_center_y * scale_y;
+
+    let pixel_x = (preview_pos.x * scale_x) + offset_x + (width / 2.0);
+    let pixel_y = (-preview_pos.y * scale_y) + offset_y + (height / 2.0);
+
+    Vec2::new(pixel_x, pixel_y)
 }
 
 fn draw_minimap_overlays(
@@ -712,6 +735,16 @@ mod tests {
 
         assert!((pos.x - 50.0).abs() < 0.001);
         assert!((pos.y - 100.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn action_preview_projection_treats_positive_y_as_up() {
+        let bbox = Vec4::new(0.0, 0.0, 10.0, 10.0);
+        let lower = preview_to_minimap_pixel(Vec2::new(5.0, 2.0), Vec2::new(100.0, 100.0), bbox);
+        let upper = preview_to_minimap_pixel(Vec2::new(5.0, 8.0), Vec2::new(100.0, 100.0), bbox);
+
+        assert!(upper.y < lower.y);
+        assert!((upper.x - lower.x).abs() < 0.001);
     }
 
     #[test]

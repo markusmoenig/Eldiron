@@ -427,6 +427,38 @@ pub fn ruleset_starting_wealth_for_entity(rules: &toml::Table, entity: &Entity) 
 mod ruleset_progression_tests {
     use super::*;
 
+    fn player_with_intent(camera: PlayerCamera) -> Entity {
+        let mut entity = Entity::new();
+        entity.set_attribute("player", Value::Bool(true));
+        entity.set_attribute("intent", Value::Str("action:minor_heal".into()));
+        entity.set_attribute("player_camera", Value::PlayerCamera(camera));
+        entity
+    }
+
+    #[test]
+    fn directional_intents_are_classic_2d_only() {
+        assert!(RegionInstance::should_use_directional_player_intent(
+            &player_with_intent(PlayerCamera::D2),
+            false
+        ));
+        assert!(RegionInstance::should_use_directional_player_intent(
+            &player_with_intent(PlayerCamera::D2Grid),
+            false
+        ));
+        assert!(!RegionInstance::should_use_directional_player_intent(
+            &player_with_intent(PlayerCamera::D3FirstP),
+            false
+        ));
+        assert!(!RegionInstance::should_use_directional_player_intent(
+            &player_with_intent(PlayerCamera::D3FirstPGrid),
+            false
+        ));
+        assert!(!RegionInstance::should_use_directional_player_intent(
+            &player_with_intent(PlayerCamera::D2),
+            true
+        ));
+    }
+
     fn test_rules() -> toml::Table {
         toml::from_str::<toml::Value>(
             r#"
@@ -1280,6 +1312,40 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn entity_intent_rules_can_override_action_dispositions() {
+        let mut ctx = RegionCtx::default();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [actions.basic_attack]
+        intent = "attack"
+        target = "hostile_entity"
+        range = "weapon"
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+        ctx.entity_classes.insert(1, "Player".into());
+        ctx.entity_class_data.insert(
+            "Player".into(),
+            r#"
+        [intents.attack]
+        allowed_dispositions = ["hostile", "neutral"]
+        "#
+            .into(),
+        );
+
+        let attack = intent_rule_config(&ctx, 1, "attack");
+        assert_eq!(attack.allowed_target_kinds, vec!["entity".to_string()]);
+        assert_eq!(
+            attack.allowed_dispositions,
+            vec!["hostile".to_string(), "neutral".to_string()]
+        );
+        assert_eq!(attack.distance.source.as_deref(), Some("weapon_range"));
+    }
+
+    #[test]
     fn weapon_range_intent_uses_equipped_bow_category_range() {
         let mut ctx = RegionCtx::default();
         ctx.rules = toml::from_str::<toml::Value>(
@@ -1623,11 +1689,18 @@ mod ruleset_progression_tests {
         ctx.config = toml::from_str::<toml::Table>(
             r#"
             [game]
+            target_fps = 30
             game_tick_ms = 250
             "#,
         )
         .unwrap();
 
+        ctx.simulation_mode = crate::server::regionctx::SimulationMode::Realtime;
+        ctx.delta_time = 1.0 / 30.0;
+        assert_eq!(RegionInstance::realtime_seconds_to_ticks(&ctx, 2.0), 60);
+        assert_eq!(RegionInstance::ticks_to_realtime_seconds(&ctx, 60), 2.0);
+
+        ctx.simulation_mode = crate::server::regionctx::SimulationMode::TurnBased;
         assert_eq!(RegionInstance::realtime_seconds_to_ticks(&ctx, 2.0), 8);
         assert_eq!(RegionInstance::ticks_to_realtime_seconds(&ctx, 8), 2.0);
         assert_eq!(RegionInstance::game_minutes_to_ticks(&ctx, 2.0), 20);
@@ -2052,17 +2125,13 @@ impl RegionInstance {
 
     fn should_use_directional_player_intent(entity: &Entity, click_intents_2d: bool) -> bool {
         let intent = entity.attributes.get_str_default("intent", "".into());
-        if intent.is_empty() {
+        if intent.is_empty() || click_intents_2d || !entity.is_player() {
             return false;
         }
 
-        if !click_intents_2d || !entity.is_player() {
-            return true;
-        }
-
-        !matches!(
+        matches!(
             entity.attributes.get("player_camera"),
-            Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid))
+            Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid)) | None
         )
     }
 
@@ -3802,15 +3871,29 @@ impl RegionInstance {
         if seconds <= 0.0 {
             return 0;
         }
-        let tick_seconds =
-            get_config_i32_default(ctx, "game", "game_tick_ms", 250).max(1) as f32 / 1000.0;
+        let tick_seconds = if matches!(
+            ctx.simulation_mode,
+            crate::server::regionctx::SimulationMode::Realtime
+        ) && ctx.delta_time > 0.0
+        {
+            ctx.delta_time
+        } else {
+            get_config_i32_default(ctx, "game", "game_tick_ms", 250).max(1) as f32 / 1000.0
+        };
         (seconds / tick_seconds).round().max(1.0) as i64
     }
 
     pub(crate) fn ticks_to_realtime_seconds(ctx: &RegionCtx, ticks: i64) -> f32 {
         let ticks = ticks.max(0);
-        let tick_seconds =
-            get_config_i32_default(ctx, "game", "game_tick_ms", 250).max(1) as f32 / 1000.0;
+        let tick_seconds = if matches!(
+            ctx.simulation_mode,
+            crate::server::regionctx::SimulationMode::Realtime
+        ) && ctx.delta_time > 0.0
+        {
+            ctx.delta_time
+        } else {
+            get_config_i32_default(ctx, "game", "game_tick_ms", 250).max(1) as f32 / 1000.0
+        };
         ticks as f32 * tick_seconds
     }
 
@@ -4457,6 +4540,10 @@ impl RegionInstance {
             }
             CollisionMode::Mesh => {
                 if ctx.collision_world.has_collision_data() {
+                    let max_step_height = entity
+                        .attributes
+                        .get_float_default("max_step_height", 1.0)
+                        .max(0.01);
                     let move_vec = new_position - position;
                     let desired_dist = move_vec.magnitude();
                     if desired_dist > 1e-6 {
@@ -4466,7 +4553,7 @@ impl RegionInstance {
                                 new_position,
                                 desired_dist,
                                 radius,
-                                1.0,
+                                max_step_height,
                                 entity.position.y,
                             )
                         {
@@ -4494,13 +4581,22 @@ impl RegionInstance {
         let base_y = if self.collision_mode == CollisionMode::Mesh
             && ctx.collision_world.has_collision_data()
         {
+            let max_step_height = entity
+                .attributes
+                .get_float_default("max_step_height", 1.0)
+                .max(0.01);
             ctx.collision_world
-                .sample_reachable_floor_height(final_pos, radius * 0.5, entity.position.y, 1.0)
+                .sample_reachable_floor_height(
+                    final_pos,
+                    radius * 0.5,
+                    entity.position.y,
+                    max_step_height,
+                )
                 .or_else(|| {
                     ctx.collision_world.get_floor_height_reachable(
                         final_pos,
                         entity.position.y,
-                        1.0,
+                        max_step_height,
                     )
                 })
         } else {
@@ -7524,6 +7620,8 @@ impl RegionInstance {
                 EntityAction::Goto(coord, speed) => {
                     let position = entity.get_pos_xz();
                     let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
+                    let explicit_target_y = entity.attributes.get_float("__goto_target_height");
+                    let action_speed = *speed;
                     with_regionctx(self.id, |ctx| {
                         let speed = self.movement_units_per_sec
                             * speed
@@ -7532,9 +7630,43 @@ impl RegionInstance {
                         let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                             && ctx.collision_world.has_collision_data();
                         let (new_position, new_y, mut arrived) = if use_3d_nav {
-                            let (p, arrived) = ctx
-                                .collision_world
-                                .move_towards_on_floors(
+                            if let Some(target_y) = explicit_target_y {
+                                if let Some(points) = ctx.collision_world.navgrid_path_3d_to_height(
+                                    position,
+                                    *coord,
+                                    Some(target_y),
+                                    radius,
+                                    entity.position.y,
+                                    1.0,
+                                    0.05,
+                                ) {
+                                    if points.len() > 2 {
+                                        entity
+                                            .attributes
+                                            .set("__goto_route_blocked_ticks", Value::Int(0));
+                                        entity.action = EntityAction::GotoRoute {
+                                            target: *coord,
+                                            target_y: Some(target_y),
+                                            speed: action_speed,
+                                            points,
+                                            point_index: 1,
+                                        };
+                                        return;
+                                    }
+                                }
+                            }
+                            let movement = if let Some(target_y) = explicit_target_y {
+                                ctx.collision_world.move_towards_on_floors_to_height(
+                                    position,
+                                    *coord,
+                                    target_y,
+                                    speed,
+                                    radius,
+                                    1.0,
+                                    entity.position.y,
+                                )
+                            } else {
+                                ctx.collision_world.move_towards_on_floors(
                                     position,
                                     *coord,
                                     speed,
@@ -7542,32 +7674,30 @@ impl RegionInstance {
                                     1.0,
                                     entity.position.y,
                                 )
-                                .unwrap_or_else(|| {
-                                    let to_target = *coord - position;
-                                    let dist = to_target.magnitude();
-                                    if dist <= 0.05 {
-                                        (Vec3::new(position.x, entity.position.y, position.y), true)
-                                    } else if dist <= f32::EPSILON {
-                                        (
-                                            Vec3::new(position.x, entity.position.y, position.y),
-                                            false,
-                                        )
-                                    } else {
-                                        let step = to_target.normalized() * speed.min(dist);
-                                        let start_3d = vek::Vec3::new(
-                                            position.x,
-                                            entity.position.y,
-                                            position.y,
-                                        );
-                                        let step_3d = vek::Vec3::new(step.x, 0.0, step.y);
-                                        let (end_3d, _) = ctx
-                                            .collision_world
-                                            .move_distance(start_3d, step_3d, radius);
-                                        let end_2d = vek::Vec2::new(end_3d.x, end_3d.z);
-                                        let arrived = (*coord - end_2d).magnitude() <= 0.05;
-                                        (end_3d, arrived)
-                                    }
-                                });
+                            };
+                            let (p, arrived) = movement.unwrap_or_else(|| {
+                                let to_target = *coord - position;
+                                let dist = to_target.magnitude();
+                                let fallback_arrived = explicit_target_y
+                                    .map(|target_y| (entity.position.y - target_y).abs() <= 1.05)
+                                    .unwrap_or(true);
+                                if dist <= 0.05 && fallback_arrived {
+                                    (Vec3::new(position.x, entity.position.y, position.y), true)
+                                } else if dist <= f32::EPSILON {
+                                    (Vec3::new(position.x, entity.position.y, position.y), false)
+                                } else {
+                                    let step = to_target.normalized() * speed.min(dist);
+                                    let start_3d =
+                                        vek::Vec3::new(position.x, entity.position.y, position.y);
+                                    let step_3d = vek::Vec3::new(step.x, 0.0, step.y);
+                                    let (end_3d, _) = ctx
+                                        .collision_world
+                                        .move_distance(start_3d, step_3d, radius);
+                                    let end_2d = vek::Vec2::new(end_3d.x, end_3d.z);
+                                    let arrived = (*coord - end_2d).magnitude() <= 0.05;
+                                    (end_3d, arrived)
+                                }
+                            });
                             (Vec2::new(p.x, p.z), p.y, arrived)
                         } else {
                             let (p, arrived) = ctx
@@ -7609,14 +7739,26 @@ impl RegionInstance {
                         let prev_ty = entity
                             .attributes
                             .get_float_default("__goto_target_y", coord.y);
-                        let target_changed =
-                            (prev_tx - coord.x).abs() > 0.01 || (prev_ty - coord.y).abs() > 0.01;
+                        let prev_th = entity.attributes.get_float_default(
+                            "__goto_target_height_prev",
+                            explicit_target_y.unwrap_or(entity.position.y),
+                        );
+                        let target_changed = (prev_tx - coord.x).abs() > 0.01
+                            || (prev_ty - coord.y).abs() > 0.01
+                            || explicit_target_y
+                                .map(|target_y| (prev_th - target_y).abs() > 0.01)
+                                .unwrap_or(false);
                         entity
                             .attributes
                             .set("__goto_target_x", Value::Float(coord.x));
                         entity
                             .attributes
                             .set("__goto_target_y", Value::Float(coord.y));
+                        if let Some(target_y) = explicit_target_y {
+                            entity
+                                .attributes
+                                .set("__goto_target_height_prev", Value::Float(target_y));
+                        }
 
                         let mut best_dist = if target_changed {
                             old_dist
@@ -7670,6 +7812,9 @@ impl RegionInstance {
                             entity
                                 .attributes
                                 .set("__goto_no_improve_ticks", Value::Int(0));
+                            entity.attributes.remove("__goto_route_blocked_ticks");
+                            entity.attributes.remove("__goto_target_height");
+                            entity.attributes.remove("__goto_target_height_prev");
                             entity.action = EntityAction::Off;
 
                             let sector_name = ctx
@@ -7693,8 +7838,147 @@ impl RegionInstance {
                             entity
                                 .attributes
                                 .set("__goto_no_improve_ticks", Value::Int(0));
+                            entity.attributes.remove("__goto_target_height");
+                            entity.attributes.remove("__goto_target_height_prev");
                             entity.action = EntityAction::Off;
                         };
+                        ctx.check_player_for_section_change(entity);
+                    });
+                }
+                EntityAction::GotoRoute {
+                    target,
+                    target_y,
+                    speed,
+                    points,
+                    point_index,
+                } => {
+                    let position = entity.get_pos_xz();
+                    let radius = entity.attributes.get_float_default("radius", 0.5) - 0.01;
+                    with_regionctx(self.id, |ctx| {
+                        let step_speed = self.movement_units_per_sec
+                            * speed
+                            * Self::autonomous_action_dt(ctx, entity);
+
+                        let final_y = target_y.unwrap_or(entity.position.y);
+                        let waypoint = points
+                            .get(*point_index)
+                            .copied()
+                            .unwrap_or_else(|| Vec3::new(target.x, final_y, target.y));
+                        let waypoint_2d = Vec2::new(waypoint.x, waypoint.z);
+                        let (p, waypoint_arrived) = ctx
+                            .collision_world
+                            .move_towards_on_floors_to_height(
+                                position,
+                                waypoint_2d,
+                                waypoint.y,
+                                step_speed,
+                                radius,
+                                1.0,
+                                entity.position.y,
+                            )
+                            .unwrap_or_else(|| {
+                                let to_waypoint = waypoint_2d - position;
+                                let dist = to_waypoint.magnitude();
+                                if dist <= 0.05 && (entity.position.y - waypoint.y).abs() <= 1.05 {
+                                    (Vec3::new(position.x, entity.position.y, position.y), true)
+                                } else if dist <= f32::EPSILON {
+                                    (Vec3::new(position.x, entity.position.y, position.y), false)
+                                } else {
+                                    let step = to_waypoint.normalized() * step_speed.min(dist);
+                                    let start_3d =
+                                        Vec3::new(position.x, entity.position.y, position.y);
+                                    let step_3d = Vec3::new(step.x, 0.0, step.y);
+                                    let (end_3d, _) = ctx
+                                        .collision_world
+                                        .move_distance(start_3d, step_3d, radius);
+                                    let end_2d = Vec2::new(end_3d.x, end_3d.z);
+                                    let arrived = (waypoint_2d - end_2d).magnitude() <= 0.05
+                                        && (end_3d.y - waypoint.y).abs() <= 1.05;
+                                    (end_3d, arrived)
+                                }
+                            });
+
+                        let new_position = Vec2::new(p.x, p.z);
+                        let mut resolved_position = new_position;
+                        let probe =
+                            self.probe_dynamic_collisions_in_ctx(ctx, entity, resolved_position);
+                        let blocked = probe.blocking_collision;
+                        if blocked {
+                            resolved_position = position;
+                        }
+
+                        let move_delta = resolved_position - position;
+                        if move_delta.magnitude_squared() > 1e-6 {
+                            entity.set_orientation(move_delta.normalized());
+                        }
+                        entity.set_pos_xz(resolved_position);
+                        entity.position.y = if blocked { entity.position.y } else { p.y };
+
+                        let final_arrived = (*target - resolved_position).magnitude() <= 0.05
+                            && target_y
+                                .map(|height| (entity.position.y - height).abs() <= 1.05)
+                                .unwrap_or(true);
+
+                        if final_arrived {
+                            entity.attributes.set("__goto_stall_ticks", Value::Int(0));
+                            entity
+                                .attributes
+                                .set("__goto_no_improve_ticks", Value::Int(0));
+                            entity.attributes.remove("__goto_target_height");
+                            entity.attributes.remove("__goto_target_height_prev");
+                            entity.action = EntityAction::Off;
+
+                            let sector_name = ctx
+                                .map
+                                .named_area_name_at(resolved_position)
+                                .unwrap_or_default();
+                            if ctx.entity_classes.get(&entity.id).is_some() {
+                                ctx.to_execute_entity.push((
+                                    entity.id,
+                                    "arrived".into(),
+                                    VMValue::from(sector_name),
+                                ));
+                            }
+                        } else if !blocked && waypoint_arrived && *point_index + 1 < points.len() {
+                            entity
+                                .attributes
+                                .set("__goto_route_blocked_ticks", Value::Int(0));
+                            entity.action = EntityAction::GotoRoute {
+                                target: *target,
+                                target_y: *target_y,
+                                speed: *speed,
+                                points: points.clone(),
+                                point_index: *point_index + 1,
+                            };
+                        } else if blocked {
+                            let blocked_ticks = entity
+                                .attributes
+                                .get_int_default("__goto_route_blocked_ticks", 0)
+                                + 1;
+                            entity
+                                .attributes
+                                .set("__goto_route_blocked_ticks", Value::Int(blocked_ticks));
+
+                            if blocked_ticks >= 24 {
+                                entity
+                                    .attributes
+                                    .set("__goto_route_blocked_ticks", Value::Int(0));
+                                if let Some(height) = target_y {
+                                    entity
+                                        .attributes
+                                        .set("__goto_target_height", Value::Float(*height));
+                                } else {
+                                    entity.attributes.remove("__goto_target_height");
+                                    entity.attributes.remove("__goto_target_height_prev");
+                                }
+                                entity.action = EntityAction::Goto(*target, *speed);
+                            }
+                        } else {
+                            entity
+                                .attributes
+                                .set("__goto_route_blocked_ticks", Value::Int(0));
+                        }
+
                         ctx.check_player_for_section_change(entity);
                     });
                 }
@@ -8935,7 +9219,10 @@ impl RegionInstance {
                         let payload = todo.2.clone();
                         let args = [VMValue::from_string(event_name.clone()), payload.clone()];
                         run_server_fn(&mut self.exec, &args, &program, ctx);
-                        if is_damage_event_name(&event_name) && !ctx.damage_committed {
+                        if is_damage_event_name(&event_name)
+                            && !ctx.damage_committed
+                            && !entity_uses_autodamage(ctx, todo.0)
+                        {
                             let from_id = payload.x.max(0.0) as u32;
                             let amount = payload.y.max(0.0) as i32;
                             if amount > 0 {
@@ -12541,15 +12828,10 @@ fn cast_ruleset_spell_for_entity(
         );
         return RulesetSpellCastResult::Cast(0);
     }
-    let autodamage = ctx
-        .map
-        .entities
-        .iter()
-        .find(|e| e.id == target_id)
-        .map(|e| e.attributes.get_bool_default("autodamage", false))
-        .unwrap_or(false);
-    if autodamage {
-        _ = apply_damage_direct(ctx, target_id, caster_id, final_amount, &damage_kind, None);
+    if entity_uses_autodamage(ctx, target_id) {
+        if apply_damage_direct(ctx, target_id, caster_id, final_amount, &damage_kind, None) {
+            queue_applied_damage_event(ctx, target_id, caster_id, final_amount, &damage_kind, None);
+        }
     } else {
         ctx.to_execute_entity.push((
             target_id,
@@ -12913,6 +13195,38 @@ fn is_damage_event_name(event: &str) -> bool {
     matches!(event, "damaged" | "take_damage")
 }
 
+pub(crate) fn entity_uses_autodamage(ctx: &RegionCtx, entity_id: u32) -> bool {
+    ctx.map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)
+        .map(|entity| entity.attributes.get_bool_default("autodamage", false))
+        .unwrap_or(false)
+}
+
+pub(crate) fn queue_applied_damage_event(
+    ctx: &mut RegionCtx,
+    target_id: u32,
+    attacker_id: u32,
+    amount: i32,
+    kind: &str,
+    source_item_id: Option<u32>,
+) {
+    if amount <= 0 || is_entity_dead_ctx(ctx, target_id) {
+        return;
+    }
+    ctx.to_execute_entity.push((
+        target_id,
+        "damaged".into(),
+        VMValue::new_with_string(
+            attacker_id as f32,
+            amount as f32,
+            source_item_id.unwrap_or(0) as f32,
+            kind,
+        ),
+    ));
+}
+
 pub(crate) fn apply_damage_direct(
     ctx: &mut RegionCtx,
     target_id: u32,
@@ -12926,6 +13240,7 @@ pub(crate) fn apply_damage_direct(
     }
 
     let health_attr = ctx.health_attr.clone();
+    let mut applied = false;
     let mut kill = false;
     let mut enqueue_death = false;
     let mut should_autodrop = false;
@@ -12992,6 +13307,7 @@ pub(crate) fn apply_damage_direct(
         health -= amount;
         health = health.max(0);
         entity.set_attribute(&health_attr, Value::Int(health));
+        applied = true;
 
         let mode = entity.attributes.get_str_default("mode", "".into());
         if health <= 0 && mode != "dead" {
@@ -13120,7 +13436,7 @@ pub(crate) fn apply_damage_direct(
         }
     }
 
-    kill
+    applied
 }
 
 fn combat_rule_expr_from_root<'a>(
@@ -13730,11 +14046,26 @@ fn intent_rule_config(ctx: &RegionCtx, entity_id: u32, intent: &str) -> IntentRu
         if local.allowed.is_some() {
             config.allowed = local.allowed;
         }
+        if !local.allowed_dispositions.is_empty() {
+            config.allowed_dispositions = local.allowed_dispositions;
+        }
+        if !local.allowed_target_kinds.is_empty() {
+            config.allowed_target_kinds = local.allowed_target_kinds;
+        }
         if local.deny_message.is_some() {
             config.deny_message = local.deny_message;
         }
         if local.cooldown_minutes.is_some() {
             config.cooldown_minutes = local.cooldown_minutes;
+        }
+        if local.distance.fixed.is_some() {
+            config.distance.fixed = local.distance.fixed;
+        }
+        if local.distance.source.is_some() {
+            config.distance.source = local.distance.source;
+        }
+        if local.distance.fallback.is_some() {
+            config.distance.fallback = local.distance.fallback;
         }
     }
 
@@ -15533,16 +15864,10 @@ fn queue_entity_damage(
         attacker.set_attribute("avatar_attack_left", Value::Float(attack_time));
     }
 
-    let autodamage = ctx
-        .map
-        .entities
-        .iter()
-        .find(|e| e.id == target_id)
-        .map(|e| e.attributes.get_bool_default("autodamage", false))
-        .unwrap_or(false);
-
-    if autodamage {
-        _ = apply_damage_direct(ctx, target_id, attacker_id, dmg, kind, source_item_id);
+    if entity_uses_autodamage(ctx, target_id) {
+        if apply_damage_direct(ctx, target_id, attacker_id, dmg, kind, source_item_id) {
+            queue_applied_damage_event(ctx, target_id, attacker_id, dmg, kind, source_item_id);
+        }
     } else {
         let source_item_id = source_item_id.unwrap_or(0) as f32;
         ctx.to_execute_entity.push((
@@ -17266,23 +17591,24 @@ pub(crate) fn update_spell_items(ctx: &mut RegionCtx) {
         if final_amount <= 0 {
             continue;
         }
-        let autodamage = ctx
-            .map
-            .entities
-            .iter()
-            .find(|e| e.id == target_id)
-            .map(|e| e.attributes.get_bool_default("autodamage", false))
-            .unwrap_or(false);
-
-        if autodamage {
-            _ = apply_damage_direct(
+        if entity_uses_autodamage(ctx, target_id) {
+            if apply_damage_direct(
                 ctx,
                 target_id,
                 caster_id,
                 final_amount,
                 &kind,
                 Some(source_item_id),
-            );
+            ) {
+                queue_applied_damage_event(
+                    ctx,
+                    target_id,
+                    caster_id,
+                    final_amount,
+                    &kind,
+                    Some(source_item_id),
+                );
+            }
         } else {
             ctx.to_execute_entity.push((
                 target_id,
@@ -18650,10 +18976,10 @@ fn face_random() {
 
 /// Goto a destination sector with the given speed.
 fn goto(destination: String, speed: f32, vm: &VirtualMachine) {
-    let mut coord: Option<vek::Vec2<f32>> = None;
+    let mut coord: Option<vek::Vec3<f32>> = None;
 
     with_regionctx(get_region_id(vm).unwrap(), |ctx: &mut RegionCtx| {
-        coord = ctx.map.named_area_center(&destination);
+        coord = ctx.map.named_area_center_3d(&destination);
 
         if let Some(coord) = coord {
             let entity_id = ctx.curr_entity_id;
@@ -18663,16 +18989,23 @@ fn goto(destination: String, speed: f32, vm: &VirtualMachine) {
                 .iter_mut()
                 .find(|entity| entity.id == entity_id)
             {
+                let coord_2d = vek::Vec2::new(coord.x, coord.z);
                 let position = entity.get_pos_xz();
                 let start_center = RegionInstance::snapped_grid_center(position);
-                let target_center = RegionInstance::snapped_grid_center(coord);
+                let target_center = RegionInstance::snapped_grid_center(coord_2d);
                 let grid_aligned =
                     (position - start_center).magnitude_squared() <= 0.001
-                        && (coord - target_center).magnitude_squared() <= 0.001;
-                if grid_aligned {
-                    entity.action = GotoGrid(coord, speed);
+                        && (coord_2d - target_center).magnitude_squared() <= 0.001;
+                entity
+                    .attributes
+                    .set("__goto_target_height", Value::Float(coord.y));
+                let raised_target = coord.y.abs() > 0.05;
+                if grid_aligned && !raised_target {
+                    entity.attributes.remove("__goto_target_height");
+                    entity.attributes.remove("__goto_target_height_prev");
+                    entity.action = GotoGrid(coord_2d, speed);
                 } else {
-                    entity.action = Goto(coord, speed);
+                    entity.action = Goto(coord_2d, speed);
                 }
             }
         } else {
