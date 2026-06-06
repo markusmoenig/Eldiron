@@ -35,10 +35,10 @@ fn lookup_tile_alias(value: &str) -> Option<PixelSource> {
 
 fn facing_to_orientation(facing: &str) -> Option<vek::Vec2<f32>> {
     match facing.trim().to_ascii_lowercase().as_str() {
-        "front" | "north" | "n" => Some(vek::Vec2::new(1.0, 0.0)),
-        "back" | "south" | "s" => Some(vek::Vec2::new(-1.0, 0.0)),
-        "right" | "east" | "e" => Some(vek::Vec2::new(0.0, 1.0)),
-        "left" | "west" | "w" => Some(vek::Vec2::new(0.0, -1.0)),
+        "front" | "north" | "n" => Some(vek::Vec2::new(0.0, -1.0)),
+        "back" | "south" | "s" => Some(vek::Vec2::new(0.0, 1.0)),
+        "right" | "east" | "e" => Some(vek::Vec2::new(1.0, 0.0)),
+        "left" | "west" | "w" => Some(vek::Vec2::new(-1.0, 0.0)),
         _ => None,
     }
 }
@@ -454,23 +454,23 @@ mod tests {
     fn facing_labels_map_to_authoring_orientation() {
         assert_eq!(
             facing_to_orientation("north"),
-            Some(vek::Vec2::new(1.0, 0.0))
+            Some(vek::Vec2::new(0.0, -1.0))
         );
         assert_eq!(
             facing_to_orientation("front"),
-            Some(vek::Vec2::new(1.0, 0.0))
+            Some(vek::Vec2::new(0.0, -1.0))
         );
         assert_eq!(
             facing_to_orientation("south"),
-            Some(vek::Vec2::new(-1.0, 0.0))
-        );
-        assert_eq!(
-            facing_to_orientation("east"),
             Some(vek::Vec2::new(0.0, 1.0))
         );
         assert_eq!(
+            facing_to_orientation("east"),
+            Some(vek::Vec2::new(1.0, 0.0))
+        );
+        assert_eq!(
             facing_to_orientation("west"),
-            Some(vek::Vec2::new(0.0, -1.0))
+            Some(vek::Vec2::new(-1.0, 0.0))
         );
     }
 }

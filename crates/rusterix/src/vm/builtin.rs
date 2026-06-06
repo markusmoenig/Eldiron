@@ -525,6 +525,14 @@ impl Default for Builtins {
             },
         );
         b.insert(
+            "face",
+            1,
+            NodeOp::HostCall {
+                name: "face".into(),
+                argc: 1,
+            },
+        );
+        b.insert(
             "goto",
             2,
             NodeOp::HostCall {

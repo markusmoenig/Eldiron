@@ -483,7 +483,7 @@ impl Widget {
         }
     }
 
-    fn command_icon_texture<'a>(
+    pub(crate) fn command_icon_texture<'a>(
         assets: &'a Assets,
         command: Option<&str>,
         visual_state: ButtonVisualState,

@@ -2372,6 +2372,9 @@ impl Client {
                             &self.draw2d,
                             widget.rect,
                             &state,
+                            assets,
+                            resolved_command.as_deref(),
+                            visual_state,
                         );
                     }
                 }
@@ -2914,6 +2917,9 @@ impl Client {
                             &self.draw2d,
                             widget.rect,
                             &state,
+                            assets,
+                            resolved_command.as_deref(),
+                            visual_state,
                         );
                     }
                 }
@@ -5546,6 +5552,9 @@ impl Client {
         draw2d: &Draw2D,
         rect: Rect,
         state: &CommandState,
+        assets: &Assets,
+        command: Option<&str>,
+        visual_state: ButtonVisualState,
     ) {
         let stride = target.stride();
         let safe = (
@@ -5565,7 +5574,63 @@ impl Client {
         } else {
             175
         };
+
+        if let Some((texture, _)) = Widget::command_icon_texture(assets, command, visual_state)
+            && Self::draw_alpha_masked_command_overlay(target, rect, texture, alpha)
+        {
+            return;
+        }
+
         draw2d.blend_rect_safe(target.pixels_mut(), &r, stride, &[0, 0, 0, alpha], &safe);
+    }
+
+    fn draw_alpha_masked_command_overlay(
+        target: &mut TheRGBABuffer,
+        rect: Rect,
+        texture: &crate::Texture,
+        overlay_alpha: u8,
+    ) -> bool {
+        let stride = target.stride();
+        let inset = (rect.width.min(rect.height) * 0.12).round().max(2.0);
+        let dest_x = (rect.x + inset).round().max(0.0) as usize;
+        let dest_y = (rect.y + inset).round().max(0.0) as usize;
+        let dest_w = (rect.width - inset * 2.0).round().max(1.0) as usize;
+        let dest_h = (rect.height - inset * 2.0).round().max(1.0) as usize;
+        let x_ratio = texture.width as f32 / dest_w as f32;
+        let y_ratio = texture.height as f32 / dest_h as f32;
+        let frame = target.pixels_mut();
+        let mut drew = false;
+
+        for sy in 0..dest_h {
+            let y = (sy as f32 * y_ratio) as usize;
+            for sx in 0..dest_w {
+                let x = (sx as f32 * x_ratio) as usize;
+                let d = (dest_x + sx) * 4 + (dest_y + sy) * stride * 4;
+                if d + 3 >= frame.len() {
+                    continue;
+                }
+                let s = x * 4 + y * texture.width * 4;
+                if s + 3 >= texture.data.len() {
+                    continue;
+                }
+
+                let source_alpha = texture.data[s + 3] as u16;
+                if source_alpha == 0 {
+                    continue;
+                }
+                let alpha = ((overlay_alpha as u16 * source_alpha) / 255).min(255) as u8;
+                if alpha == 0 {
+                    continue;
+                }
+                let keep = 255_u16.saturating_sub(alpha as u16);
+                frame[d] = ((frame[d] as u16 * keep) / 255) as u8;
+                frame[d + 1] = ((frame[d + 1] as u16 * keep) / 255) as u8;
+                frame[d + 2] = ((frame[d + 2] as u16 * keep) / 255) as u8;
+                drew = true;
+            }
+        }
+
+        drew
     }
 
     fn draw_hovered_world_item_pile(&mut self, map: &Map) {
@@ -6549,5 +6614,37 @@ mod tests {
             Some(PlayerCamera::D2),
             true
         ));
+    }
+
+    #[test]
+    fn command_cooldown_overlay_preserves_icon_transparency() {
+        let mut target = TheRGBABuffer::new(TheDim::sized(8, 6));
+        for pixel in target.pixels_mut().chunks_exact_mut(4) {
+            pixel.copy_from_slice(&[100, 120, 140, 255]);
+        }
+        let texture = crate::Texture::new(vec![0, 0, 0, 0, 255, 255, 255, 255], 2, 1);
+
+        assert!(Client::draw_alpha_masked_command_overlay(
+            &mut target,
+            Rect::new(0.0, 0.0, 6.0, 5.0),
+            &texture,
+            128,
+        ));
+
+        let pixels = target.pixels();
+        let transparent_dest = (2 + 2 * target.stride()) * 4;
+        let opaque_dest = (3 + 2 * target.stride()) * 4;
+        assert_eq!(
+            &pixels[transparent_dest..transparent_dest + 4],
+            &[100, 120, 140, 255]
+        );
+        assert!(
+            pixels[opaque_dest] < 100
+                && pixels[opaque_dest + 1] < 120
+                && pixels[opaque_dest + 2] < 140,
+            "opaque icon pixel should be darkened, got {:?}",
+            &pixels[opaque_dest..opaque_dest + 4]
+        );
+        assert_eq!(pixels[opaque_dest + 3], 255);
     }
 }

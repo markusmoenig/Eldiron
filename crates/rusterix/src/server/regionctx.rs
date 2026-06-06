@@ -237,6 +237,27 @@ impl RegionCtx {
         None
     }
 
+    pub fn resolve_named_spawn_position_3d(
+        &self,
+        name: &str,
+        radius: f32,
+        preferred_y: Option<f32>,
+    ) -> Option<Vec3<f32>> {
+        if let Some(center) = self.map.named_area_center_3d(name) {
+            return Some(center);
+        }
+
+        self.resolve_sector_spawn_position(name, radius)
+            .map(|center| {
+                let y = self
+                    .map
+                    .geometry_floor_height_at(center)
+                    .or(preferred_y)
+                    .unwrap_or(0.0);
+                Vec3::new(center.x, y, center.y)
+            })
+    }
+
     fn nearest_sector_id_for_pos(&self, pos: Vec2<f32>, max_distance: f32) -> Option<u32> {
         let mut best: Option<(u32, f32)> = None;
 

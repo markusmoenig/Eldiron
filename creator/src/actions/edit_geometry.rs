@@ -56,7 +56,7 @@ impl Action for EditGeometry {
         let mut nodeui = TheNodeUI::default();
         nodeui.add_item(TheNodeUIItem::OpenTree("metadata".into()));
         nodeui.add_item(TheNodeUIItem::Text(
-            "actionGeometryName".into(),
+            "name".into(),
             "Name".into(),
             "".into(),
             "".into(),
@@ -64,7 +64,7 @@ impl Action for EditGeometry {
             false,
         ));
         nodeui.add_item(TheNodeUIItem::Text(
-            "actionGeometryGroup".into(),
+            "group".into(),
             "Group".into(),
             "".into(),
             "".into(),
@@ -72,7 +72,7 @@ impl Action for EditGeometry {
             false,
         ));
         nodeui.add_item(TheNodeUIItem::Text(
-            "actionGeometryItem".into(),
+            "item".into(),
             "Item".into(),
             "Optional item/handler metadata for this 3D area.".into(),
             "".into(),
@@ -80,25 +80,25 @@ impl Action for EditGeometry {
             false,
         ));
         nodeui.add_item(TheNodeUIItem::Checkbox(
-            "actionGeometryArea".into(),
+            "area".into(),
             "Area".into(),
             "Use this named geometry object as a 3D gameplay area.".into(),
             true,
         ));
         nodeui.add_item(TheNodeUIItem::Checkbox(
-            "actionGeometryHideIso".into(),
+            "hide_iso".into(),
             "Hide in Iso".into(),
             "Hide this object in isometric gameplay when the player is inside its area.".into(),
             false,
         ));
         nodeui.add_item(TheNodeUIItem::Checkbox(
-            "actionGeometryVisible".into(),
+            "visible".into(),
             "Visible".into(),
             "Render this geometry object in the scene.".into(),
             true,
         ));
         nodeui.add_item(TheNodeUIItem::Checkbox(
-            "actionGeometrySolid".into(),
+            "solid".into(),
             "Solid".into(),
             "Include this geometry object in mesh collision.".into(),
             true,
@@ -107,7 +107,7 @@ impl Action for EditGeometry {
 
         nodeui.add_item(TheNodeUIItem::OpenTree("geometry".into()));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            "actionGeometryX".into(),
+            "x".into(),
             "X".into(),
             "".into(),
             0.0,
@@ -115,7 +115,7 @@ impl Action for EditGeometry {
             false,
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            "actionGeometryY".into(),
+            "y".into(),
             "Y".into(),
             "".into(),
             0.0,
@@ -123,7 +123,7 @@ impl Action for EditGeometry {
             false,
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            "actionGeometryZ".into(),
+            "z".into(),
             "Z".into(),
             "".into(),
             0.0,
@@ -131,7 +131,7 @@ impl Action for EditGeometry {
             false,
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            "actionGeometryWidth".into(),
+            "width".into(),
             "Width".into(),
             "".into(),
             1.0,
@@ -139,7 +139,7 @@ impl Action for EditGeometry {
             false,
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            "actionGeometryHeight".into(),
+            "height".into(),
             "Height".into(),
             "".into(),
             1.0,
@@ -147,7 +147,7 @@ impl Action for EditGeometry {
             false,
         ));
         nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            "actionGeometryDepth".into(),
+            "depth".into(),
             "Depth".into(),
             "".into(),
             1.0,
@@ -191,38 +191,28 @@ impl Action for EditGeometry {
             return;
         };
 
-        self.nodeui
-            .set_text_value("actionGeometryName", object.name.clone());
-        self.nodeui
-            .set_text_value("actionGeometryGroup", object.group.clone());
+        self.nodeui.set_text_value("name", object.name.clone());
+        self.nodeui.set_text_value("group", object.group.clone());
         self.nodeui.set_text_value(
-            "actionGeometryItem",
+            "item",
             object.properties.get_str_default("item", "".into()),
         );
         self.nodeui.set_bool_value(
-            "actionGeometryArea",
+            "area",
             object.properties.get_bool_default("area", true),
         );
         self.nodeui.set_bool_value(
-            "actionGeometryHideIso",
+            "hide_iso",
             object.properties.get_bool_default("hide_iso", false),
         );
-        self.nodeui
-            .set_bool_value("actionGeometryVisible", object.visible);
-        self.nodeui
-            .set_bool_value("actionGeometrySolid", object.solid);
-        self.nodeui
-            .set_f32_value("actionGeometryX", bounds.center.x);
-        self.nodeui
-            .set_f32_value("actionGeometryY", bounds.center.y);
-        self.nodeui
-            .set_f32_value("actionGeometryZ", bounds.center.z);
-        self.nodeui
-            .set_f32_value("actionGeometryWidth", bounds.size.x.max(0.05));
-        self.nodeui
-            .set_f32_value("actionGeometryHeight", bounds.size.y.max(0.05));
-        self.nodeui
-            .set_f32_value("actionGeometryDepth", bounds.size.z.max(0.05));
+        self.nodeui.set_bool_value("visible", object.visible);
+        self.nodeui.set_bool_value("solid", object.solid);
+        self.nodeui.set_f32_value("x", bounds.center.x);
+        self.nodeui.set_f32_value("y", bounds.center.y);
+        self.nodeui.set_f32_value("z", bounds.center.z);
+        self.nodeui.set_f32_value("width", bounds.size.x.max(0.05));
+        self.nodeui.set_f32_value("height", bounds.size.y.max(0.05));
+        self.nodeui.set_f32_value("depth", bounds.size.z.max(0.05));
     }
 
     fn apply(
@@ -241,62 +231,56 @@ impl Action for EditGeometry {
 
         let to = GeometryBounds {
             center: Vec3::new(
-                self.nodeui
-                    .get_f32_value("actionGeometryX")
-                    .unwrap_or(from.center.x),
-                self.nodeui
-                    .get_f32_value("actionGeometryY")
-                    .unwrap_or(from.center.y),
-                self.nodeui
-                    .get_f32_value("actionGeometryZ")
-                    .unwrap_or(from.center.z),
+                self.nodeui.get_f32_value("x").unwrap_or(from.center.x),
+                self.nodeui.get_f32_value("y").unwrap_or(from.center.y),
+                self.nodeui.get_f32_value("z").unwrap_or(from.center.z),
             ),
             size: Vec3::new(
                 self.nodeui
-                    .get_f32_value("actionGeometryWidth")
+                    .get_f32_value("width")
                     .unwrap_or(from.size.x)
                     .max(0.05),
                 self.nodeui
-                    .get_f32_value("actionGeometryHeight")
+                    .get_f32_value("height")
                     .unwrap_or(from.size.y)
                     .max(0.05),
                 self.nodeui
-                    .get_f32_value("actionGeometryDepth")
+                    .get_f32_value("depth")
                     .unwrap_or(from.size.z)
                     .max(0.05),
             ),
         };
         let name = self
             .nodeui
-            .get_text_value("actionGeometryName")
+            .get_text_value("name")
             .unwrap_or_else(|| object.name.clone());
         let group = self
             .nodeui
-            .get_text_value("actionGeometryGroup")
+            .get_text_value("group")
             .unwrap_or_else(|| object.group.clone())
             .trim()
             .to_string();
         let visible = self
             .nodeui
-            .get_bool_value("actionGeometryVisible")
+            .get_bool_value("visible")
             .unwrap_or(object.visible);
         let solid = self
             .nodeui
-            .get_bool_value("actionGeometrySolid")
+            .get_bool_value("solid")
             .unwrap_or(object.solid);
         let item = self
             .nodeui
-            .get_text_value("actionGeometryItem")
+            .get_text_value("item")
             .unwrap_or_else(|| object.properties.get_str_default("item", "".into()))
             .trim()
             .to_string();
         let area = self
             .nodeui
-            .get_bool_value("actionGeometryArea")
+            .get_bool_value("area")
             .unwrap_or_else(|| object.properties.get_bool_default("area", true));
         let hide_iso = self
             .nodeui
-            .get_bool_value("actionGeometryHideIso")
+            .get_bool_value("hide_iso")
             .unwrap_or_else(|| object.properties.get_bool_default("hide_iso", false));
         let existing_item = object.properties.get_str_default("item", "".into());
         let existing_area = object.properties.get_bool_default("area", true);
@@ -376,6 +360,8 @@ mod tests {
         assert!(toml.contains("[geometry]\n"));
         assert!(toml.contains("x = 0.0"));
         assert!(toml.contains("width = 1.0"));
+        assert!(!toml.contains("action_geometry"));
+        assert!(!toml.contains("geometry_name"));
         assert!(!toml.contains("geometry_x"));
         assert!(!toml.contains("geometry_width"));
     }

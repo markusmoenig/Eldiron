@@ -1195,12 +1195,21 @@ impl<'a> HostHandler for RegionHost<'a> {
                                 entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01
                             })
                             .unwrap_or(0.49);
-                        if let Some(center) = self.ctx.resolve_sector_spawn_position(&dest, radius)
+                        let preferred_y = self
+                            .ctx
+                            .map
+                            .entities
+                            .iter()
+                            .find(|e| e.id == entity_id)
+                            .map(|entity| entity.position.y);
+                        if let Some(center) =
+                            self.ctx
+                                .resolve_named_spawn_position_3d(&dest, radius, preferred_y)
                         {
                             if let Some(entity) =
                                 self.ctx.map.entities.iter_mut().find(|e| e.id == entity_id)
                             {
-                                entity.set_pos_xz(center);
+                                entity.set_position(center);
                                 entity.mark_all_dirty();
                                 self.ctx.check_player_for_section_change_id(entity_id);
                                 if let Some(sender) = self.ctx.from_sender.get() {
@@ -2863,12 +2872,21 @@ impl<'a> HostHandler for RegionHost<'a> {
                                 entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01
                             })
                             .unwrap_or(0.49);
-                        let center = self.ctx.resolve_sector_spawn_position(&dest, radius);
+                        let preferred_y = self
+                            .ctx
+                            .map
+                            .entities
+                            .iter()
+                            .find(|entity| entity.id == self.ctx.curr_entity_id)
+                            .map(|entity| entity.position.y);
+                        let center =
+                            self.ctx
+                                .resolve_named_spawn_position_3d(&dest, radius, preferred_y);
                         if let Some(center) = center {
                             // First move the entity
                             if let Some(entity) = self.ctx.get_current_entity_mut() {
                                 let id = entity.id;
-                                entity.set_pos_xz(center);
+                                entity.set_position(center);
                                 entity.mark_all_dirty();
                                 // Then run section change checks using a fresh borrow
                                 self.ctx.check_player_for_section_change_id(id);
@@ -2896,6 +2914,19 @@ impl<'a> HostHandler for RegionHost<'a> {
                             region_name.to_string(),
                             dest.to_string(),
                         ));
+                    }
+                }
+            }
+            "face" => {
+                if let Some(direction) = args.get(0).and_then(|v| v.as_string())
+                    && let Some(entity) = self.ctx.get_current_entity_mut()
+                {
+                    match direction.trim().to_ascii_lowercase().as_str() {
+                        "north" | "n" | "front" => entity.face_north(),
+                        "south" | "s" | "back" => entity.face_south(),
+                        "east" | "e" | "right" => entity.face_east(),
+                        "west" | "w" | "left" => entity.face_west(),
+                        _ => {}
                     }
                 }
             }
@@ -3135,6 +3166,7 @@ impl<'a> HostHandler for RegionHost<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::GeometryObject;
     use crate::Currencies;
     use crate::server::region::{
         apply_ruleset_character_defaults, drop_items_into_ruleset_loot_container,
@@ -4148,6 +4180,57 @@ mod tests {
         assert_eq!(arena.mode(1), "dead");
         assert_eq!(arena.hp(1), 0);
         assert!(!arena.entity(1).attributes.get_bool_default("visible", true));
+    }
+
+    #[test]
+    fn player_death_script_can_respawn_at_geometry_area() {
+        let mut arena = HeadlessRulesArena::new();
+        arena.ctx.map.name = "StartScene".into();
+        let mut start = GeometryObject::box_from_bounds(
+            "Start",
+            Vec3::new(1.5, 0.0, 2.5),
+            Vec3::new(2.0, 0.25, 3.5),
+        );
+        start.visible = false;
+        start.solid = false;
+        start.properties.set("area", Value::Bool(true));
+        arena.ctx.map.geometry_objects.push(start);
+        arena.add_script_class(
+            "Player",
+            r#"
+            fn event(event, value) {
+                if event == "death" {
+                    teleport("Start", "");
+                    face("east");
+                    set_attr("HP", 1);
+                    set_attr("mode", "active");
+                    set_attr("visible", true);
+                    clear_target();
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Player", 10, 0, None);
+        arena.ctx.map.entities[0].set_position(Vec3::new(9.0, 4.0, 9.0));
+
+        assert!(apply_damage_direct(
+            &mut arena.ctx,
+            1,
+            99,
+            20,
+            "physical",
+            None
+        ));
+        arena.drain_entity_events();
+
+        let player = arena.entity(1);
+        assert_eq!(arena.hp(1), 1);
+        assert_eq!(arena.mode(1), "active");
+        assert!(player.attributes.get_bool_default("visible", false));
+        assert!((player.position.x - 1.75).abs() <= 0.001);
+        assert!((player.position.y - 0.25).abs() <= 0.001);
+        assert!((player.position.z - 3.0).abs() <= 0.001);
+        assert_eq!(player.orientation, Vec2::new(1.0, 0.0));
     }
 
     #[test]
