@@ -1172,6 +1172,7 @@ impl CollisionWorld {
             if prefer_center_down {
                 if let Some(center_down) =
                     self.get_center_floor_height_down(probe_2d, current_floor, max_step_height)
+                    && current_floor - center_down <= max_step_height.min(0.55) + 1e-3
                 {
                     move_height = center_down;
                 }
@@ -1179,7 +1180,11 @@ impl CollisionWorld {
             if (move_height - current_floor).abs() > max_step_height + 1e-3 {
                 move_height = current_floor;
             }
-            current.y = move_height;
+            current.y = if move_height > current_floor {
+                move_height
+            } else {
+                current_floor
+            };
 
             let (mut next, blocked) = self.move_distance_with_step_clearance(
                 current,
@@ -2596,6 +2601,235 @@ mod tests {
             pos.z < -3.8 && pos.y > 0.5,
             "player should make upward progress on the stairs, got {pos:?}"
         );
+    }
+
+    #[test]
+    fn gate_guard_route_descends_guardhouse_stairs_without_dropping_through() {
+        let (map, world) = gate_fixture();
+        let start = map
+            .named_area_center_3d("GuardHouseRoof")
+            .expect("Gate fixture has GuardHouseRoof area");
+        let target = map
+            .named_area_center_3d("Road")
+            .expect("Gate fixture has Road area");
+        let radius = 0.49;
+        let max_step_height = 0.55;
+        let guard_tick_step = 0.8;
+        let route = world
+            .navgrid_path_3d_to_height(
+                Vec2::new(start.x, start.z),
+                Vec2::new(target.x, target.z),
+                Some(target.y),
+                radius,
+                start.y,
+                max_step_height,
+                0.05,
+            )
+            .expect("GuardHouseRoof should have a mesh route down to Road");
+
+        assert!(
+            route.len() > 2,
+            "route should use the guardhouse stairs, not a direct drop"
+        );
+
+        let mut pos = start;
+        for waypoint in route.iter().skip(1) {
+            let waypoint_2d = Vec2::new(waypoint.x, waypoint.z);
+            let mut reached_waypoint = false;
+            for _ in 0..120 {
+                let previous_y = pos.y;
+                let (next, arrived) = world
+                    .move_towards_on_floors_to_height(
+                        Vec2::new(pos.x, pos.z),
+                        waypoint_2d,
+                        waypoint.y,
+                        guard_tick_step,
+                        radius,
+                        max_step_height,
+                        pos.y,
+                    )
+                    .expect("guardhouse stair route waypoint should remain walkable");
+
+                assert!(
+                    previous_y - next.y <= max_step_height + 0.05,
+                    "guard dropped through the stairs from y={previous_y} to {next:?}"
+                );
+                pos = next;
+                if arrived {
+                    reached_waypoint = true;
+                    break;
+                }
+            }
+            assert!(
+                reached_waypoint,
+                "actor should physically reach cached waypoint {waypoint:?} from {pos:?}"
+            );
+        }
+
+        assert!(
+            (Vec2::new(pos.x, pos.z) - Vec2::new(target.x, target.z)).magnitude() <= 0.1
+                && (pos.y - target.y).abs() <= max_step_height + 0.05,
+            "guard should end on the road floor, got {pos:?}, expected {target:?}"
+        );
+    }
+
+    #[test]
+    fn gate_guard_loop_routes_preserve_height_between_named_destinations() {
+        let (map, world) = gate_fixture();
+        let radius = 0.49;
+        let max_step_height = 1.0;
+        let guard_tick_step = 0.8;
+        for (from_name, to_name) in [
+            ("GateRoof", "Road"),
+            ("GateRoof", "GuardHouseRoof"),
+            ("GuardHouseRoof", "Road"),
+            ("Road", "GuardHouseRoof"),
+            ("GuardHouseRoof", "GateRoof"),
+        ] {
+            let start = map
+                .named_area_center_3d(from_name)
+                .unwrap_or_else(|| panic!("Gate fixture has {from_name} area"));
+            let target = map
+                .named_area_center_3d(to_name)
+                .unwrap_or_else(|| panic!("Gate fixture has {to_name} area"));
+            let route = world
+                .navgrid_path_3d_to_height(
+                    Vec2::new(start.x, start.z),
+                    Vec2::new(target.x, target.z),
+                    Some(target.y),
+                    radius,
+                    start.y,
+                    max_step_height,
+                    0.05,
+                )
+                .unwrap_or_else(|| panic!("{from_name} should route to {to_name}"));
+
+            let mut pos = start;
+            for waypoint in route.iter().skip(1) {
+                let waypoint_2d = Vec2::new(waypoint.x, waypoint.z);
+                let mut reached_waypoint = false;
+                for _ in 0..160 {
+                    let previous_y = pos.y;
+                    let (next, arrived) = world
+                        .move_towards_on_floors_to_height(
+                            Vec2::new(pos.x, pos.z),
+                            waypoint_2d,
+                            waypoint.y,
+                            guard_tick_step,
+                            radius,
+                            max_step_height,
+                            pos.y,
+                        )
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "{from_name}->{to_name} waypoint {waypoint:?} lost floor support from {pos:?}"
+                            )
+                        });
+
+                    assert!(
+                        (previous_y - next.y).abs() <= max_step_height + 0.05,
+                        "{from_name}->{to_name} made an unsupported height jump from y={previous_y} to {next:?}"
+                    );
+                    pos = next;
+                    if arrived {
+                        reached_waypoint = true;
+                        break;
+                    }
+                }
+                assert!(
+                    reached_waypoint,
+                    "{from_name}->{to_name} should physically reach waypoint {waypoint:?} from {pos:?}"
+                );
+            }
+
+            assert!(
+                (Vec2::new(pos.x, pos.z) - Vec2::new(target.x, target.z)).magnitude() <= 0.1
+                    && (pos.y - target.y).abs() <= max_step_height + 0.05,
+                "{from_name}->{to_name} should end at destination height, got {pos:?}, expected {target:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn gate_guard_script_patrol_sequence_keeps_stair_height() {
+        let (map, world) = gate_fixture();
+        let guard = map
+            .entities
+            .iter()
+            .find(|entity| {
+                entity
+                    .attributes
+                    .get_str("class_name")
+                    .map(|value| value.eq_ignore_ascii_case("Guard"))
+                    .unwrap_or(false)
+            })
+            .expect("Gate fixture has a guard entity");
+        let radius = guard.attributes.get_float_default("radius", 0.5) - 0.01;
+        let max_step_height = 1.0;
+        let guard_tick_step = 0.8;
+        let mut pos = guard.position;
+
+        for to_name in ["GuardHouseRoof", "Road", "GateRoof", "GuardHouseRoof"] {
+            let target = map
+                .named_area_center_3d(to_name)
+                .unwrap_or_else(|| panic!("Gate fixture has {to_name} area"));
+            let route = world
+                .navgrid_path_3d_to_height(
+                    Vec2::new(pos.x, pos.z),
+                    Vec2::new(target.x, target.z),
+                    Some(target.y),
+                    radius,
+                    pos.y,
+                    max_step_height,
+                    0.05,
+                )
+                .unwrap_or_else(|| panic!("script patrol should route from {pos:?} to {to_name}"));
+
+            for waypoint in route.iter().skip(1) {
+                let waypoint_2d = Vec2::new(waypoint.x, waypoint.z);
+                let mut reached_waypoint = false;
+                for _ in 0..160 {
+                    let previous_y = pos.y;
+                    let (next, arrived) = world
+                        .move_towards_on_floors_to_height(
+                            Vec2::new(pos.x, pos.z),
+                            waypoint_2d,
+                            waypoint.y,
+                            guard_tick_step,
+                            radius,
+                            max_step_height,
+                            pos.y,
+                        )
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "script patrol waypoint {waypoint:?} lost floor support from {pos:?} on way to {to_name}"
+                            )
+                        });
+
+                    let height_delta = (previous_y - next.y).abs();
+                    let allowed_height_delta = max_step_height + 0.05;
+                    assert!(
+                        height_delta <= allowed_height_delta,
+                        "script patrol made an unsupported height jump from y={previous_y} to {next:?} on way to {to_name}"
+                    );
+                    pos = next;
+                    if arrived {
+                        reached_waypoint = true;
+                        break;
+                    }
+                }
+                assert!(
+                    reached_waypoint,
+                    "script patrol should reach waypoint {waypoint:?} from {pos:?} on way to {to_name}"
+                );
+            }
+
+            assert!(
+                (Vec2::new(pos.x, pos.z) - Vec2::new(target.x, target.z)).magnitude() <= 0.1
+                    && (pos.y - target.y).abs() <= max_step_height + 0.05,
+                "script patrol should end at {to_name}, got {pos:?}, expected {target:?}"
+            );
+        }
     }
 
     #[test]

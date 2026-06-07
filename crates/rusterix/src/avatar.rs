@@ -484,9 +484,14 @@ impl AvatarBuilder {
                 (y.saturating_sub(y0)) as f32 / (y1 - y0) as f32
             };
             let is_skin = channel <= 1;
-            let use_ramp = shading.enabled && (shading.skin_enabled || !is_skin);
+            let is_eyes = channel == 6;
+            let use_ramp = shading.enabled && (shading.skin_enabled || !is_skin) && !is_eyes;
             let shade_idx = if use_ramp {
-                Self::shade_index_for_pixel(x, y, yf_local, channel_seed)
+                if channel == 5 {
+                    Self::shade_index_for_smooth_detail(yf_local, channel_seed)
+                } else {
+                    Self::shade_index_for_pixel(x, y, yf_local, channel_seed)
+                }
             } else {
                 1 // Flat base color (mid)
             };
@@ -523,6 +528,14 @@ impl AvatarBuilder {
         let yf = yf_local.clamp(0.0, 1.0); // top(0) -> bottom(1) in local marker bounds
         let channel_bias = (channel_seed % 3) as f32 * 0.03;
         let t = (yf * 2.7 + d * 0.6 + channel_bias).clamp(0.0, 3.0);
+        t as usize
+    }
+
+    #[inline]
+    fn shade_index_for_smooth_detail(yf_local: f32, channel_seed: u32) -> usize {
+        let yf = yf_local.clamp(0.0, 1.0);
+        let channel_bias = (channel_seed % 3) as f32 * 0.03;
+        let t = (yf * 2.7 + channel_bias).clamp(0.0, 3.0);
         t as usize
     }
 }

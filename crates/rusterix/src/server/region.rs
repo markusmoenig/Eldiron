@@ -4048,6 +4048,13 @@ impl RegionInstance {
             .max(0.01)
     }
 
+    fn autonomous_max_step_height(entity: &Entity) -> f32 {
+        entity
+            .attributes
+            .get_float_default("max_step_height", 1.0)
+            .max(0.01)
+    }
+
     fn queue_step_to_with_speed(
         &self,
         entity: &mut Entity,
@@ -7358,6 +7365,7 @@ impl RegionInstance {
                         }
 
                         if let Some(coord) = coord {
+                            let max_step_height = Self::autonomous_max_step_height(entity);
                             let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                                 && ctx.collision_world.has_collision_data();
                             let (new_position, new_y, arrived) = if use_3d_nav {
@@ -7369,7 +7377,7 @@ impl RegionInstance {
                                         *target_radius,
                                         speed,
                                         radius,
-                                        1.0,
+                                        max_step_height,
                                         entity.position.y,
                                     )
                                     .unwrap_or_else(|| {
@@ -7384,7 +7392,7 @@ impl RegionInstance {
                                                 ),
                                                 true,
                                             )
-                                        } else if dist <= f32::EPSILON {
+                                        } else {
                                             (
                                                 Vec3::new(
                                                     position.x,
@@ -7393,25 +7401,6 @@ impl RegionInstance {
                                                 ),
                                                 false,
                                             )
-                                        } else {
-                                            let step = to_target.normalized() * speed.min(dist);
-                                            let start_3d = vek::Vec3::new(
-                                                position.x,
-                                                entity.position.y,
-                                                position.y,
-                                            );
-                                            let step_3d = vek::Vec3::new(step.x, 0.0, step.y);
-                                            let (end_3d, _) = ctx
-                                                .collision_world
-                                                .move_distance(start_3d, step_3d, radius);
-                                            let end_2d = vek::Vec2::new(end_3d.x, end_3d.z);
-                                            let arrived = self.close_in_arrived(
-                                                ctx,
-                                                end_2d,
-                                                coord,
-                                                *target_radius,
-                                            );
-                                            (end_3d, arrived)
                                         }
                                     });
                                 (Vec2::new(p.x, p.z), p.y, arrived)
@@ -7566,6 +7555,7 @@ impl RegionInstance {
 
                         let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                             && ctx.collision_world.has_collision_data();
+                        let max_step_height = Self::autonomous_max_step_height(entity);
                         let (new_position, new_y) = if use_3d_nav {
                             let (p, _) = ctx
                                 .collision_world
@@ -7575,26 +7565,19 @@ impl RegionInstance {
                                     1.0,
                                     step_speed,
                                     radius,
-                                    1.0,
+                                    max_step_height,
                                     entity.position.y,
                                 )
                                 .unwrap_or_else(|| {
                                     let to_target = target_pos - position;
                                     let dist = to_target.magnitude();
-                                    if dist <= f32::EPSILON {
+                                    if dist <= 1.0 {
+                                        (Vec3::new(position.x, entity.position.y, position.y), true)
+                                    } else {
                                         (
                                             Vec3::new(position.x, entity.position.y, position.y),
                                             false,
                                         )
-                                    } else {
-                                        let step = to_target.normalized() * step_speed.min(dist);
-                                        let start_3d = vek::Vec3::new(
-                                            position.x,
-                                            entity.position.y,
-                                            position.y,
-                                        );
-                                        let step_3d = vek::Vec3::new(step.x, 0.0, step.y);
-                                        ctx.collision_world.move_distance(start_3d, step_3d, radius)
                                     }
                                 });
                             (Vec2::new(p.x, p.z), p.y)
@@ -7629,6 +7612,7 @@ impl RegionInstance {
 
                         let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                             && ctx.collision_world.has_collision_data();
+                        let max_step_height = Self::autonomous_max_step_height(entity);
                         let (new_position, new_y, mut arrived) = if use_3d_nav {
                             if let Some(target_y) = explicit_target_y {
                                 if let Some(points) = ctx.collision_world.navgrid_path_3d_to_height(
@@ -7637,7 +7621,7 @@ impl RegionInstance {
                                     Some(target_y),
                                     radius,
                                     entity.position.y,
-                                    1.0,
+                                    max_step_height,
                                     0.05,
                                 ) {
                                     if points.len() > 2 {
@@ -7662,7 +7646,7 @@ impl RegionInstance {
                                     target_y,
                                     speed,
                                     radius,
-                                    1.0,
+                                    max_step_height,
                                     entity.position.y,
                                 )
                             } else {
@@ -7671,7 +7655,7 @@ impl RegionInstance {
                                     *coord,
                                     speed,
                                     radius,
-                                    1.0,
+                                    max_step_height,
                                     entity.position.y,
                                 )
                             };
@@ -7683,19 +7667,8 @@ impl RegionInstance {
                                     .unwrap_or(true);
                                 if dist <= 0.05 && fallback_arrived {
                                     (Vec3::new(position.x, entity.position.y, position.y), true)
-                                } else if dist <= f32::EPSILON {
-                                    (Vec3::new(position.x, entity.position.y, position.y), false)
                                 } else {
-                                    let step = to_target.normalized() * speed.min(dist);
-                                    let start_3d =
-                                        vek::Vec3::new(position.x, entity.position.y, position.y);
-                                    let step_3d = vek::Vec3::new(step.x, 0.0, step.y);
-                                    let (end_3d, _) = ctx
-                                        .collision_world
-                                        .move_distance(start_3d, step_3d, radius);
-                                    let end_2d = vek::Vec2::new(end_3d.x, end_3d.z);
-                                    let arrived = (*coord - end_2d).magnitude() <= 0.05;
-                                    (end_3d, arrived)
+                                    (Vec3::new(position.x, entity.position.y, position.y), false)
                                 }
                             });
                             (Vec2::new(p.x, p.z), p.y, arrived)
@@ -7860,49 +7833,37 @@ impl RegionInstance {
                             * Self::autonomous_action_dt(ctx, entity);
 
                         let final_y = target_y.unwrap_or(entity.position.y);
+                        let max_step_height = Self::autonomous_max_step_height(entity);
                         let waypoint = points
                             .get(*point_index)
                             .copied()
                             .unwrap_or_else(|| Vec3::new(target.x, final_y, target.y));
                         let waypoint_2d = Vec2::new(waypoint.x, waypoint.z);
-                        let (p, waypoint_arrived) = ctx
-                            .collision_world
-                            .move_towards_on_floors_to_height(
-                                position,
-                                waypoint_2d,
-                                waypoint.y,
-                                step_speed,
-                                radius,
-                                1.0,
-                                entity.position.y,
-                            )
-                            .unwrap_or_else(|| {
-                                let to_waypoint = waypoint_2d - position;
-                                let dist = to_waypoint.magnitude();
-                                if dist <= 0.05 && (entity.position.y - waypoint.y).abs() <= 1.05 {
-                                    (Vec3::new(position.x, entity.position.y, position.y), true)
-                                } else if dist <= f32::EPSILON {
-                                    (Vec3::new(position.x, entity.position.y, position.y), false)
-                                } else {
-                                    let step = to_waypoint.normalized() * step_speed.min(dist);
-                                    let start_3d =
-                                        Vec3::new(position.x, entity.position.y, position.y);
-                                    let step_3d = Vec3::new(step.x, 0.0, step.y);
-                                    let (end_3d, _) = ctx
-                                        .collision_world
-                                        .move_distance(start_3d, step_3d, radius);
-                                    let end_2d = Vec2::new(end_3d.x, end_3d.z);
-                                    let arrived = (waypoint_2d - end_2d).magnitude() <= 0.05
-                                        && (end_3d.y - waypoint.y).abs() <= 1.05;
-                                    (end_3d, arrived)
-                                }
-                            });
+                        let movement = ctx.collision_world.move_towards_on_floors_to_height(
+                            position,
+                            waypoint_2d,
+                            waypoint.y,
+                            step_speed,
+                            radius,
+                            max_step_height,
+                            entity.position.y,
+                        );
+                        let floor_blocked = movement.is_none();
+                        let (p, waypoint_arrived) = movement.unwrap_or_else(|| {
+                            let to_waypoint = waypoint_2d - position;
+                            let dist = to_waypoint.magnitude();
+                            if dist <= 0.05 && (entity.position.y - waypoint.y).abs() <= 1.05 {
+                                (Vec3::new(position.x, entity.position.y, position.y), true)
+                            } else {
+                                (Vec3::new(position.x, entity.position.y, position.y), false)
+                            }
+                        });
 
                         let new_position = Vec2::new(p.x, p.z);
                         let mut resolved_position = new_position;
                         let probe =
                             self.probe_dynamic_collisions_in_ctx(ctx, entity, resolved_position);
-                        let blocked = probe.blocking_collision;
+                        let blocked = floor_blocked || probe.blocking_collision;
                         if blocked {
                             resolved_position = position;
                         }
@@ -8396,6 +8357,7 @@ impl RegionInstance {
                                 let use_3d_nav = ctx.collision_world.has_collision_data()
                                     && (self.collision_mode == CollisionMode::Mesh
                                         || is_elevated_floor);
+                                let max_step_height = Self::autonomous_max_step_height(entity);
 
                                 let mut mesh_blocked = false;
                                 let (new_position, new_y, mut arrived) = if use_3d_nav {
@@ -8406,7 +8368,7 @@ impl RegionInstance {
                                             *target,
                                             step_speed,
                                             radius,
-                                            1.0,
+                                            max_step_height,
                                             entity.position.y,
                                         )
                                         .unwrap_or_else(|| {
@@ -8421,23 +8383,12 @@ impl RegionInstance {
                                                     ),
                                                     true,
                                                 )
-                                            } else if dist <= f32::EPSILON {
+                                            } else {
                                                 (
                                                     Vec3::new(
                                                         position.x,
                                                         entity.position.y,
                                                         position.y,
-                                                    ),
-                                                    false,
-                                                )
-                                            } else {
-                                                let step =
-                                                    to_target.normalized() * step_speed.min(dist);
-                                                (
-                                                    Vec3::new(
-                                                        position.x + step.x,
-                                                        entity.position.y,
-                                                        position.y + step.y,
                                                     ),
                                                     false,
                                                 )
@@ -8692,6 +8643,7 @@ impl RegionInstance {
                                 let use_3d_nav = ctx.collision_world.has_collision_data()
                                     && (self.collision_mode == CollisionMode::Mesh
                                         || is_elevated_floor);
+                                let max_step_height = Self::autonomous_max_step_height(entity);
 
                                 let mut mesh_blocked = false;
                                 let (new_position, new_y, mut arrived) = if use_3d_nav {
@@ -8702,7 +8654,7 @@ impl RegionInstance {
                                             *target,
                                             step_speed,
                                             radius,
-                                            1.0,
+                                            max_step_height,
                                             entity.position.y,
                                         )
                                         .unwrap_or_else(|| {
@@ -8717,23 +8669,12 @@ impl RegionInstance {
                                                     ),
                                                     true,
                                                 )
-                                            } else if dist <= f32::EPSILON {
+                                            } else {
                                                 (
                                                     Vec3::new(
                                                         position.x,
                                                         entity.position.y,
                                                         position.y,
-                                                    ),
-                                                    false,
-                                                )
-                                            } else {
-                                                let step =
-                                                    to_target.normalized() * step_speed.min(dist);
-                                                (
-                                                    Vec3::new(
-                                                        position.x + step.x,
-                                                        entity.position.y,
-                                                        position.y + step.y,
                                                     ),
                                                     false,
                                                 )
@@ -8964,6 +8905,7 @@ impl RegionInstance {
 
                             let use_3d_nav = self.collision_mode == CollisionMode::Mesh
                                 && ctx.collision_world.has_collision_data();
+                            let max_step_height = Self::autonomous_max_step_height(entity);
                             let (new_position, new_y, arrived) = if use_3d_nav {
                                 let (p, arrived) = ctx
                                     .collision_world
@@ -8972,7 +8914,7 @@ impl RegionInstance {
                                         target,
                                         speed,
                                         radius,
-                                        1.0,
+                                        max_step_height,
                                         entity.position.y,
                                     )
                                     .unwrap_or_else(|| {
@@ -8987,7 +8929,7 @@ impl RegionInstance {
                                                 ),
                                                 true,
                                             )
-                                        } else if dist <= f32::EPSILON {
+                                        } else {
                                             (
                                                 Vec3::new(
                                                     position.x,
@@ -8996,20 +8938,6 @@ impl RegionInstance {
                                                 ),
                                                 false,
                                             )
-                                        } else {
-                                            let step = to_target.normalized() * speed.min(dist);
-                                            let start_3d = vek::Vec3::new(
-                                                position.x,
-                                                entity.position.y,
-                                                position.y,
-                                            );
-                                            let step_3d = vek::Vec3::new(step.x, 0.0, step.y);
-                                            let (end_3d, _) = ctx
-                                                .collision_world
-                                                .move_distance(start_3d, step_3d, radius);
-                                            let end_2d = vek::Vec2::new(end_3d.x, end_3d.z);
-                                            let arrived = (target - end_2d).magnitude() <= 0.05;
-                                            (end_3d, arrived)
                                         }
                                     });
                                 (Vec2::new(p.x, p.z), p.y, arrived)

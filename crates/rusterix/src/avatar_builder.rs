@@ -8,6 +8,7 @@ use theframework::prelude::*;
 
 struct CachedAvatarFrames {
     frames: FxHashMap<(String, AvatarDirection, usize), (u32, Vec<u8>)>,
+    scale_reference_heights: FxHashMap<AvatarDirection, f32>,
     last_uploaded: Option<(String, AvatarDirection, usize)>,
 }
 
@@ -1243,11 +1244,34 @@ impl AvatarRuntimeBuilder {
     ) -> bool {
         let mut frames: FxHashMap<(String, AvatarDirection, usize), (u32, Vec<u8>)> =
             FxHashMap::default();
+        let mut scale_reference_heights: FxHashMap<AvatarDirection, f32> = FxHashMap::default();
 
         for anim in &avatar.animations {
             for perspective in &anim.perspectives {
                 let frame_count = perspective.frames.len().max(1);
                 for frame_index in 0..frame_count {
+                    if anim.name.eq_ignore_ascii_case("idle") {
+                        if let Some(out) = Self::build_preview_for_entity_with_weapons(
+                            entity,
+                            avatar,
+                            assets,
+                            Some(anim.name.as_str()),
+                            perspective.direction,
+                            frame_index,
+                            self.shading_options,
+                            false,
+                        ) {
+                            if let Some((_, top, _, bottom)) =
+                                Self::alpha_bounds(out.size, &out.rgba)
+                            {
+                                scale_reference_heights
+                                    .entry(perspective.direction)
+                                    .and_modify(|height| *height = height.max(bottom - top))
+                                    .or_insert(bottom - top);
+                            }
+                        }
+                    }
+
                     if let Some(out) = Self::build_preview_for_entity(
                         entity,
                         avatar,
@@ -1276,6 +1300,7 @@ impl AvatarRuntimeBuilder {
             geo_id,
             CachedAvatarFrames {
                 frames,
+                scale_reference_heights,
                 last_uploaded: None,
             },
         );
@@ -1430,6 +1455,69 @@ impl AvatarRuntimeBuilder {
         });
         cache.last_uploaded = Some(resolved_key);
         true
+    }
+
+    pub fn current_avatar_alpha_bounds(&self, geo_id: GeoId) -> Option<(f32, f32, f32, f32, f32)> {
+        let cache = self.avatar_frame_cache.get(&geo_id)?;
+        let key = cache.last_uploaded.as_ref()?;
+        let (size, rgba) = cache.frames.get(key)?;
+        let bounds = Self::alpha_bounds(*size, rgba)?;
+        let reference_h = cache
+            .scale_reference_heights
+            .get(&key.1)
+            .copied()
+            .unwrap_or_else(|| {
+                cache
+                    .frames
+                    .iter()
+                    .filter(|(candidate, _)| {
+                        candidate.0.eq_ignore_ascii_case(&key.0) && candidate.1 == key.1
+                    })
+                    .filter_map(|(_, (frame_size, frame_rgba))| {
+                        Self::alpha_bounds(*frame_size, frame_rgba)
+                    })
+                    .map(|(_, top, _, bottom)| bottom - top)
+                    .fold(bounds.3 - bounds.1, f32::max)
+            });
+        Some((bounds.0, bounds.1, bounds.2, bounds.3, reference_h))
+    }
+
+    fn alpha_bounds(size: u32, rgba: &[u8]) -> Option<(f32, f32, f32, f32)> {
+        let size = size as usize;
+        if size == 0 || rgba.len() < size * size * 4 {
+            return None;
+        }
+
+        let mut min_x = size;
+        let mut min_y = size;
+        let mut max_x = 0;
+        let mut max_y = 0;
+        let mut found = false;
+
+        for y in 0..size {
+            for x in 0..size {
+                let alpha = rgba[(y * size + x) * 4 + 3];
+                if alpha != 0 {
+                    found = true;
+                    min_x = min_x.min(x);
+                    min_y = min_y.min(y);
+                    max_x = max_x.max(x);
+                    max_y = max_y.max(y);
+                }
+            }
+        }
+
+        if !found {
+            return None;
+        }
+
+        let inv_size = 1.0 / size as f32;
+        Some((
+            min_x as f32 * inv_size,
+            min_y as f32 * inv_size,
+            (max_x + 1) as f32 * inv_size,
+            (max_y + 1) as f32 * inv_size,
+        ))
     }
 
     pub fn set_shading_options(&mut self, shading_options: AvatarShadingOptions) {

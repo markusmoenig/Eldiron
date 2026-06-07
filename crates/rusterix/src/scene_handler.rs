@@ -3884,8 +3884,23 @@ impl SceneHandler {
                         )
                     {
                         active_avatar_geo.insert(geo_id);
+                        let (avatar_center3, avatar_quad_size) = self
+                            .avatar_builder
+                            .current_avatar_alpha_bounds(geo_id)
+                            .map(|(_, _, _, bottom, reference_h)| {
+                                let quad_size = size / reference_h.max(0.01);
+                                let feet3 = entity.position;
+                                let center = feet3 + basis.2 * (quad_size * (bottom - 0.5));
+                                (center, quad_size)
+                            })
+                            .unwrap_or((center3, size));
                         let dynamic = DynamicObject::billboard_avatar(
-                            geo_id, center3, basis.1, basis.2, size, size,
+                            geo_id,
+                            avatar_center3,
+                            basis.1,
+                            basis.2,
+                            avatar_quad_size,
+                            avatar_quad_size,
                         );
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                         rendered_avatar = true;
