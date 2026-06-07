@@ -3166,8 +3166,8 @@ impl<'a> HostHandler for RegionHost<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::GeometryObject;
     use crate::Currencies;
+    use crate::GeometryObject;
     use crate::server::region::{
         apply_ruleset_character_defaults, drop_items_into_ruleset_loot_container,
         ruleset_starting_wealth_for_entity, update_entity_respawns,
@@ -3308,14 +3308,22 @@ mod tests {
         for key in [
             "tile_id",
             "tile_id_front",
-            "tile_id_back",
-            "tile_id_left",
+            "tile_id_front_right",
             "tile_id_right",
+            "tile_id_back_right",
+            "tile_id_back",
+            "tile_id_back_left",
+            "tile_id_left",
+            "tile_id_front_left",
             "rig_tile_id",
             "rig_tile_id_front",
-            "rig_tile_id_back",
-            "rig_tile_id_left",
+            "rig_tile_id_front_right",
             "rig_tile_id_right",
+            "rig_tile_id_back_right",
+            "rig_tile_id_back",
+            "rig_tile_id_back_left",
+            "rig_tile_id_left",
+            "rig_tile_id_front_left",
         ] {
             if let Some(value) = table_string(item_table, key)
                 && let Some(source) = crate::server::data::parse_tile_source_from_str(&value)

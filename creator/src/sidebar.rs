@@ -303,7 +303,11 @@ impl Sidebar {
                     TheId::named("Import Tileset"),
                 ),
                 TheContextMenuItem::new("Import Screen".to_string(), TheId::named("Import Screen")),
-                TheContextMenuItem::new("Import Avatar".to_string(), TheId::named("Import Avatar")),
+                TheContextMenuItem::new(fl!("import_avatar"), TheId::named("Import Avatar")),
+                TheContextMenuItem::new(
+                    fl!("import_avatar_atlas"),
+                    TheId::named("Import Avatar Atlas"),
+                ),
                 TheContextMenuItem::new(
                     "Import Font Asset".to_string(),
                     TheId::named("Import Font Asset"),
@@ -317,7 +321,7 @@ impl Sidebar {
         }));
 
         let mut export_button: TheTraybarButton =
-            TheTraybarButton::new(TheId::named("Project Export"));
+            TheTraybarButton::new(TheId::named("Project Export Menu"));
         export_button.set_icon_name("export".to_string());
         export_button.set_status_text(&fl!("status_project_export_button"));
 
@@ -543,7 +547,8 @@ impl Sidebar {
                 } else if id.name == "Avatar Perspective Count" {
                     let new_count = match index {
                         0 => AvatarPerspectiveCount::One,
-                        _ => AvatarPerspectiveCount::Four,
+                        1 => AvatarPerspectiveCount::Four,
+                        _ => AvatarPerspectiveCount::Eight,
                     };
                     if let Some(avatar) = project.avatars.get(&id.references) {
                         let old_count = avatar.perspective_count;
@@ -1070,6 +1075,96 @@ impl Sidebar {
                         TheFileExtension::new(
                             "Font".into(),
                             vec!["ttf".to_string(), "TTF".to_string()],
+                        ),
+                    );
+                } else if item_id.name == "Export Region" {
+                    let export_id = item_id.references;
+                    ctx.ui.save_file_requester(
+                        TheId::named_with_id("Region Export", export_id),
+                        fl!("export_region"),
+                        TheFileExtension::new(
+                            fl!("eldiron_region"),
+                            vec!["eldiron_region".to_string()],
+                        ),
+                    );
+                } else if item_id.name == "Export Character" {
+                    let export_id = item_id.references;
+                    ctx.ui.save_file_requester(
+                        TheId::named_with_id("Character Export", export_id),
+                        fl!("export_character"),
+                        TheFileExtension::new(
+                            fl!("eldiron_character"),
+                            vec!["eldiron_character".to_string()],
+                        ),
+                    );
+                } else if item_id.name == "Export Item" {
+                    let export_id = item_id.references;
+                    ctx.ui.save_file_requester(
+                        TheId::named_with_id("Item Export", export_id),
+                        fl!("export_item"),
+                        TheFileExtension::new(
+                            fl!("eldiron_item"),
+                            vec!["eldiron_item".to_string()],
+                        ),
+                    );
+                } else if item_id.name == "Export Tileset" {
+                    let export_id = item_id.references;
+                    ctx.ui.save_file_requester(
+                        TheId::named_with_id("Tileset Export", export_id),
+                        fl!("export_tileset"),
+                        TheFileExtension::new(
+                            fl!("eldiron_tileset"),
+                            vec!["eldiron_tileset".to_string()],
+                        ),
+                    );
+                } else if item_id.name == "Export Screen" {
+                    let export_id = item_id.references;
+                    ctx.ui.save_file_requester(
+                        TheId::named_with_id("Screen Export", export_id),
+                        fl!("export_screen"),
+                        TheFileExtension::new(
+                            fl!("eldiron_screen"),
+                            vec!["eldiron_screen".to_string()],
+                        ),
+                    );
+                } else if item_id.name == "Export Font Asset" {
+                    let export_id = item_id.references;
+                    ctx.ui.save_file_requester(
+                        TheId::named_with_id("Font Asset Export", export_id),
+                        fl!("export_font_asset"),
+                        TheFileExtension::new(
+                            fl!("eldiron_font_asset"),
+                            vec!["eldiron_font_asset".to_string()],
+                        ),
+                    );
+                } else if item_id.name == "Export Audio Asset" {
+                    let export_id = item_id.references;
+                    ctx.ui.save_file_requester(
+                        TheId::named_with_id("Audio Asset Export", export_id),
+                        fl!("export_audio_asset"),
+                        TheFileExtension::new(
+                            fl!("eldiron_audio_asset"),
+                            vec!["eldiron_audio_asset".to_string()],
+                        ),
+                    );
+                } else if item_id.name == "Export Avatar Atlas" {
+                    let export_id = item_id.references;
+                    ctx.ui.save_file_requester(
+                        TheId::named_with_id("Avatar Atlas Export", export_id),
+                        fl!("export_avatar_atlas"),
+                        TheFileExtension::new(
+                            fl!("png_image"),
+                            vec!["png".to_string(), "PNG".to_string()],
+                        ),
+                    );
+                } else if item_id.name == "Export Avatar JSON" {
+                    let export_id = item_id.references;
+                    ctx.ui.save_file_requester(
+                        TheId::named_with_id("Avatar Export", export_id),
+                        fl!("export_avatar_json"),
+                        TheFileExtension::new(
+                            fl!("eldiron_avatar"),
+                            vec!["eldiron_avatar".to_string()],
                         ),
                     );
                 } else if item_id.name == "Rename Region" {
@@ -1607,6 +1702,7 @@ impl Sidebar {
                 } else if id.name == "Tilemap Add"
                     || id.name == "Add Tileset"
                     || id.name == "Add Image"
+                    || id.name == "Avatar Atlas Import"
                 {
                     for p in paths {
                         ctx.ui.decode_image(id.clone(), p.clone());
@@ -1794,6 +1890,35 @@ impl Sidebar {
                                         "Unable to save Character!".to_string(),
                                     ))
                                 }
+                            }
+                        }
+                    }
+                } else if id.name == "Avatar Atlas Export" {
+                    if let Some(avatar) = project.avatars.get(&id.uuid) {
+                        for p in paths {
+                            let p = if p.extension().is_none() {
+                                p.with_extension("png")
+                            } else {
+                                p.to_path_buf()
+                            };
+                            match crate::avatar_atlas::export_avatar_atlas(avatar).and_then(
+                                |buffer| {
+                                    buffer.to_png().map_err(|err| err.to_string()).and_then(
+                                        |bytes| {
+                                            std::fs::write(&p, bytes)
+                                                .map_err(|err| format!("{}: {}", p.display(), err))
+                                        },
+                                    )
+                                },
+                            ) {
+                                Ok(()) => ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    fl!("status_avatar_atlas_saved"),
+                                )),
+                                Err(err) => ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    fl!("status_avatar_atlas_save_failed", error = err),
+                                )),
                             }
                         }
                     }
@@ -2029,6 +2154,31 @@ impl Sidebar {
                     UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
 
                     redraw = true;
+                } else if id.name == "Avatar Atlas Import" {
+                    if let Some(before) = project.avatars.get(&id.uuid).cloned() {
+                        let mut after = before.clone();
+                        match crate::avatar_atlas::import_avatar_atlas(&mut after, buffer) {
+                            Ok(frame_count) => {
+                                let atom = ProjectUndoAtom::EditAvatar(id.uuid, before, after);
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    fl!(
+                                        "status_avatar_atlas_imported",
+                                        count = frame_count.to_string()
+                                    ),
+                                ));
+                                redraw = true;
+                            }
+                            Err(err) => {
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    fl!("status_avatar_atlas_import_failed", error = err),
+                                ));
+                            }
+                        }
+                    }
                 }
             }
             TheEvent::KeyDown(TheValue::Char(c)) => {
@@ -2314,10 +2464,26 @@ impl Sidebar {
                     if let Some(id) = server_ctx.pc.id() {
                         ctx.ui.open_file_requester(
                             TheId::named_with_id("Avatar Import", id),
-                            "Import Avatar".into(),
+                            fl!("import_avatar"),
                             TheFileExtension::new(
-                                "Eldiron Avatar".into(),
+                                fl!("eldiron_avatar"),
                                 vec!["eldiron_avatar".to_string()],
+                            ),
+                        );
+                    }
+                } else if id.name == "Import Avatar Atlas" {
+                    if let Some(id) = server_ctx.pc.id()
+                        && matches!(
+                            server_ctx.pc,
+                            ProjectContext::Avatar(_) | ProjectContext::AvatarAnimation(_, _, _)
+                        )
+                    {
+                        ctx.ui.open_file_requester(
+                            TheId::named_with_id("Avatar Atlas Import", id),
+                            fl!("import_avatar_atlas"),
+                            TheFileExtension::new(
+                                fl!("png_image"),
+                                vec!["png".to_string(), "PNG".to_string()],
                             ),
                         );
                     }
@@ -2778,11 +2944,11 @@ impl Sidebar {
                             ProjectContext::Avatar(_) | ProjectContext::AvatarAnimation(_, _, _)
                         ) {
                             ctx.ui.save_file_requester(
-                                TheId::named_with_id("Avatar Export", id),
-                                "Export Avatar".into(),
+                                TheId::named_with_id("Avatar Atlas Export", id),
+                                fl!("export_avatar_atlas"),
                                 TheFileExtension::new(
-                                    "Eldiron Avatar".into(),
-                                    vec!["eldiron_avatar".to_string()],
+                                    fl!("png_image"),
+                                    vec!["png".to_string(), "PNG".to_string()],
                                 ),
                             );
                         } else if server_ctx.pc.is_item() {
@@ -3073,20 +3239,13 @@ impl Sidebar {
                 } else if id.name == "Avatar Add Animation" {
                     if let Some(avatar) = project.avatars.get(&id.references) {
                         let resolution = avatar.resolution as usize;
-                        let directions: Vec<AvatarDirection> = match avatar.perspective_count {
-                            AvatarPerspectiveCount::One => vec![AvatarDirection::Front],
-                            AvatarPerspectiveCount::Four => vec![
-                                AvatarDirection::Front,
-                                AvatarDirection::Back,
-                                AvatarDirection::Left,
-                                AvatarDirection::Right,
-                            ],
-                        };
                         let mut anim = AvatarAnimation::default();
-                        anim.perspectives = directions
-                            .into_iter()
+                        anim.perspectives = avatar
+                            .perspective_count
+                            .directions()
+                            .iter()
                             .map(|dir| AvatarPerspective {
-                                direction: dir,
+                                direction: *dir,
                                 frames: vec![AvatarAnimationFrame::new(Texture::new(
                                     vec![0; resolution * resolution * 4],
                                     resolution,

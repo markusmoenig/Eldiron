@@ -37,6 +37,7 @@ pub enum ProjectUndoAtom {
     RenameAsset(Uuid, String, String),
     AddAvatar(Avatar),
     RemoveAvatar(usize, Avatar),
+    EditAvatar(Uuid, Avatar, Avatar),
     RenameAvatar(Uuid, String, String),
     EditAvatarResolution(Uuid, u16, u16),
     EditAvatarPerspectiveCount(Uuid, AvatarPerspectiveCount, AvatarPerspectiveCount),
@@ -158,6 +159,7 @@ impl ProjectUndoAtom {
             RenameAsset(_, old, new) => format!("Rename Asset: {} -> {}", old, new),
             AddAvatar(avatar) => format!("Add Avatar: {}", avatar.name),
             RemoveAvatar(_, avatar) => format!("Remove Avatar: {}", avatar.name),
+            EditAvatar(_, old, _new) => format!("Edit Avatar: {}", old.name),
             RenameAvatar(_, old, new) => format!("Rename Avatar: {} -> {}", old, new),
             EditAvatarResolution(_, old, new) => {
                 format!("Edit Avatar Resolution: {} -> {}", old, new)
@@ -679,6 +681,12 @@ impl ProjectUndoAtom {
                     );
                     update_region(ctx);
                 }
+            }
+            EditAvatar(id, old, _new) => {
+                project.avatars.insert(*id, old.clone());
+                rebuild_avatar_tree_node(id, project, ui, server_ctx);
+                set_project_context(ctx, ui, project, server_ctx, ProjectContext::Avatar(*id));
+                update_region(ctx);
             }
             RenameAvatar(id, old, _new) => {
                 if let Some(avatar) = project.avatars.get_mut(id) {
@@ -1401,6 +1409,12 @@ impl ProjectUndoAtom {
                         );
                     }
                 }
+            }
+            EditAvatar(id, _old, new) => {
+                project.avatars.insert(*id, new.clone());
+                rebuild_avatar_tree_node(id, project, ui, server_ctx);
+                set_project_context(ctx, ui, project, server_ctx, ProjectContext::Avatar(*id));
+                update_region(ctx);
             }
             RenameAvatar(id, _old, new) => {
                 if let Some(avatar) = project.avatars.get_mut(id) {

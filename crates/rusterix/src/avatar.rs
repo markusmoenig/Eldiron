@@ -5,9 +5,155 @@ use theframework::prelude::*;
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum AvatarDirection {
     Front,
-    Back,
-    Left,
+    FrontRight,
     Right,
+    BackRight,
+    Back,
+    BackLeft,
+    Left,
+    FrontLeft,
+}
+
+impl AvatarDirection {
+    const ONE_DIRECTIONS: [AvatarDirection; 1] = [AvatarDirection::Front];
+    const FOUR_DIRECTIONS: [AvatarDirection; 4] = [
+        AvatarDirection::Front,
+        AvatarDirection::Back,
+        AvatarDirection::Left,
+        AvatarDirection::Right,
+    ];
+    const EIGHT_DIRECTIONS: [AvatarDirection; 8] = [
+        AvatarDirection::Front,
+        AvatarDirection::FrontRight,
+        AvatarDirection::Right,
+        AvatarDirection::BackRight,
+        AvatarDirection::Back,
+        AvatarDirection::BackLeft,
+        AvatarDirection::Left,
+        AvatarDirection::FrontLeft,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            AvatarDirection::Front => "Front",
+            AvatarDirection::FrontRight => "Front Right",
+            AvatarDirection::Right => "Right",
+            AvatarDirection::BackRight => "Back Right",
+            AvatarDirection::Back => "Back",
+            AvatarDirection::BackLeft => "Back Left",
+            AvatarDirection::Left => "Left",
+            AvatarDirection::FrontLeft => "Front Left",
+        }
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            AvatarDirection::Front => "front",
+            AvatarDirection::FrontRight => "front_right",
+            AvatarDirection::Right => "right",
+            AvatarDirection::BackRight => "back_right",
+            AvatarDirection::Back => "back",
+            AvatarDirection::BackLeft => "back_left",
+            AvatarDirection::Left => "left",
+            AvatarDirection::FrontLeft => "front_left",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<Self> {
+        match key
+            .trim()
+            .to_ascii_lowercase()
+            .replace('-', "_")
+            .replace(' ', "_")
+            .as_str()
+        {
+            "front" => Some(AvatarDirection::Front),
+            "front_right" | "frontright" => Some(AvatarDirection::FrontRight),
+            "right" => Some(AvatarDirection::Right),
+            "back_right" | "backright" => Some(AvatarDirection::BackRight),
+            "back" => Some(AvatarDirection::Back),
+            "back_left" | "backleft" => Some(AvatarDirection::BackLeft),
+            "left" => Some(AvatarDirection::Left),
+            "front_left" | "frontleft" => Some(AvatarDirection::FrontLeft),
+            _ => None,
+        }
+    }
+
+    pub fn from_front_right(front: f32, right: f32) -> Self {
+        if front.abs() <= 1e-6 && right.abs() <= 1e-6 {
+            return AvatarDirection::Front;
+        }
+
+        let angle = right.atan2(front).to_degrees();
+        if (-22.5..22.5).contains(&angle) {
+            AvatarDirection::Front
+        } else if (22.5..67.5).contains(&angle) {
+            AvatarDirection::FrontRight
+        } else if (67.5..112.5).contains(&angle) {
+            AvatarDirection::Right
+        } else if (112.5..157.5).contains(&angle) {
+            AvatarDirection::BackRight
+        } else if angle >= 157.5 || angle < -157.5 {
+            AvatarDirection::Back
+        } else if (-157.5..-112.5).contains(&angle) {
+            AvatarDirection::BackLeft
+        } else if (-112.5..-67.5).contains(&angle) {
+            AvatarDirection::Left
+        } else if (-67.5..-22.5).contains(&angle) {
+            AvatarDirection::FrontLeft
+        } else {
+            AvatarDirection::Front
+        }
+    }
+
+    pub fn from_xy(x: f32, y: f32) -> Self {
+        Self::from_front_right(y, x)
+    }
+
+    pub fn fallback_directions(self) -> &'static [AvatarDirection] {
+        match self {
+            AvatarDirection::Front => &[AvatarDirection::Front],
+            AvatarDirection::FrontRight => &[
+                AvatarDirection::FrontRight,
+                AvatarDirection::Right,
+                AvatarDirection::Front,
+            ],
+            AvatarDirection::Right => &[AvatarDirection::Right, AvatarDirection::Front],
+            AvatarDirection::BackRight => &[
+                AvatarDirection::BackRight,
+                AvatarDirection::Right,
+                AvatarDirection::Back,
+                AvatarDirection::Front,
+            ],
+            AvatarDirection::Back => &[AvatarDirection::Back, AvatarDirection::Front],
+            AvatarDirection::BackLeft => &[
+                AvatarDirection::BackLeft,
+                AvatarDirection::Left,
+                AvatarDirection::Back,
+                AvatarDirection::Front,
+            ],
+            AvatarDirection::Left => &[AvatarDirection::Left, AvatarDirection::Front],
+            AvatarDirection::FrontLeft => &[
+                AvatarDirection::FrontLeft,
+                AvatarDirection::Left,
+                AvatarDirection::Front,
+            ],
+        }
+    }
+
+    pub fn is_left_facing(self) -> bool {
+        matches!(
+            self,
+            AvatarDirection::Left | AvatarDirection::FrontLeft | AvatarDirection::BackLeft
+        )
+    }
+
+    pub fn is_back_facing(self) -> bool {
+        matches!(
+            self,
+            AvatarDirection::Back | AvatarDirection::BackLeft | AvatarDirection::BackRight
+        )
+    }
 }
 
 /// Frames for a single perspective direction.
@@ -108,11 +254,23 @@ pub enum AvatarPerspectiveCount {
     One,
     /// Four directions (Front, Back, Left, Right)
     Four,
+    /// Eight directions (Front, diagonals, Back, Left, Right)
+    Eight,
 }
 
 impl Default for AvatarPerspectiveCount {
     fn default() -> Self {
         Self::One
+    }
+}
+
+impl AvatarPerspectiveCount {
+    pub fn directions(self) -> &'static [AvatarDirection] {
+        match self {
+            AvatarPerspectiveCount::One => &AvatarDirection::ONE_DIRECTIONS,
+            AvatarPerspectiveCount::Four => &AvatarDirection::FOUR_DIRECTIONS,
+            AvatarPerspectiveCount::Eight => &AvatarDirection::EIGHT_DIRECTIONS,
+        }
     }
 }
 
@@ -139,6 +297,22 @@ impl Default for Avatar {
 }
 
 impl Avatar {
+    fn blank_perspective(
+        direction: AvatarDirection,
+        frame_count: usize,
+        size: usize,
+    ) -> AvatarPerspective {
+        let frames = (0..frame_count)
+            .map(|_| AvatarAnimationFrame::new(Texture::new(vec![0; size * size * 4], size, size)))
+            .collect();
+        AvatarPerspective {
+            direction,
+            frames,
+            weapon_main_anchor: None,
+            weapon_off_anchor: None,
+        }
+    }
+
     /// Sets the resolution and resizes all existing frame textures to the new size.
     pub fn set_resolution(&mut self, new_resolution: u16) {
         if new_resolution == self.resolution || new_resolution == 0 {
@@ -163,15 +337,7 @@ impl Avatar {
 
         let size = self.resolution as usize;
 
-        let needed: &[AvatarDirection] = match count {
-            AvatarPerspectiveCount::One => &[AvatarDirection::Front],
-            AvatarPerspectiveCount::Four => &[
-                AvatarDirection::Front,
-                AvatarDirection::Back,
-                AvatarDirection::Left,
-                AvatarDirection::Right,
-            ],
-        };
+        let needed = count.directions();
 
         for anim in &mut self.animations {
             // Determine frame count from existing perspectives (use first, fallback 1)
@@ -182,29 +348,17 @@ impl Avatar {
                 .unwrap_or(1)
                 .max(1);
 
-            // Add missing perspectives with matching frame count
-            for dir in needed {
-                if !anim.perspectives.iter().any(|p| p.direction == *dir) {
-                    let frames = (0..frame_count)
-                        .map(|_| {
-                            AvatarAnimationFrame::new(Texture::new(
-                                vec![0; size * size * 4],
-                                size,
-                                size,
-                            ))
-                        })
-                        .collect();
-                    anim.perspectives.push(AvatarPerspective {
-                        direction: *dir,
-                        frames,
-                        weapon_main_anchor: None,
-                        weapon_off_anchor: None,
-                    });
-                }
-            }
-
-            // Remove perspectives not in the needed set
-            anim.perspectives.retain(|p| needed.contains(&p.direction));
+            let mut existing = std::mem::take(&mut anim.perspectives);
+            anim.perspectives = needed
+                .iter()
+                .map(|dir| {
+                    if let Some(index) = existing.iter().position(|p| p.direction == *dir) {
+                        existing.remove(index)
+                    } else {
+                        Self::blank_perspective(*dir, frame_count, size)
+                    }
+                })
+                .collect();
         }
 
         self.perspective_count = count;
@@ -218,27 +372,19 @@ impl Avatar {
 
         if let Some(anim) = self.animations.iter_mut().find(|a| a.id == *animation_id) {
             // Ensure perspectives exist based on perspective_count
-            let needed: &[AvatarDirection] = match self.perspective_count {
-                AvatarPerspectiveCount::One => &[AvatarDirection::Front],
-                AvatarPerspectiveCount::Four => &[
-                    AvatarDirection::Front,
-                    AvatarDirection::Back,
-                    AvatarDirection::Left,
-                    AvatarDirection::Right,
-                ],
-            };
+            let needed = self.perspective_count.directions();
 
             // Add missing perspectives
             for dir in needed {
                 if !anim.perspectives.iter().any(|p| p.direction == *dir) {
-                    anim.perspectives.push(AvatarPerspective {
-                        direction: *dir,
-                        frames: vec![],
-                        weapon_main_anchor: None,
-                        weapon_off_anchor: None,
-                    });
+                    anim.perspectives
+                        .push(Self::blank_perspective(*dir, 0, size));
                 }
             }
+            anim.perspectives
+                .retain(|p| needed.iter().any(|dir| *dir == p.direction));
+            anim.perspectives
+                .sort_by_key(|p| needed.iter().position(|dir| *dir == p.direction).unwrap());
 
             // Resize frames in each perspective
             for perspective in &mut anim.perspectives {
@@ -357,9 +503,11 @@ impl AvatarBuilder {
             .iter()
             .find(|p| p.direction == req.direction)
             .or_else(|| {
-                anim.perspectives
+                req.direction
+                    .fallback_directions()
                     .iter()
-                    .find(|p| p.direction == AvatarDirection::Front)
+                    .filter(|dir| **dir != req.direction)
+                    .find_map(|dir| anim.perspectives.iter().find(|p| p.direction == *dir))
             })
             .or_else(|| anim.perspectives.first())?;
 
@@ -537,5 +685,85 @@ impl AvatarBuilder {
         let channel_bias = (channel_seed % 3) as f32 * 0.03;
         let t = (yf * 2.7 + channel_bias).clamp(0.0, 3.0);
         t as usize
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn one_pixel_frame(rgba: [u8; 4]) -> AvatarAnimationFrame {
+        AvatarAnimationFrame::new(Texture::new(rgba.to_vec(), 1, 1))
+    }
+
+    #[test]
+    fn switching_from_four_to_eight_preserves_cardinal_perspectives() {
+        let front = one_pixel_frame([1, 0, 0, 255]);
+        let back = one_pixel_frame([2, 0, 0, 255]);
+        let left = one_pixel_frame([3, 0, 0, 255]);
+        let right = one_pixel_frame([4, 0, 0, 255]);
+
+        let mut avatar = Avatar {
+            id: Uuid::new_v4(),
+            name: "Human".to_string(),
+            resolution: 1,
+            perspective_count: AvatarPerspectiveCount::Four,
+            animations: vec![AvatarAnimation {
+                id: Uuid::new_v4(),
+                name: "Idle".to_string(),
+                speed: 1.0,
+                perspectives: vec![
+                    AvatarPerspective {
+                        direction: AvatarDirection::Front,
+                        frames: vec![front.clone()],
+                        ..Default::default()
+                    },
+                    AvatarPerspective {
+                        direction: AvatarDirection::Back,
+                        frames: vec![back.clone()],
+                        ..Default::default()
+                    },
+                    AvatarPerspective {
+                        direction: AvatarDirection::Left,
+                        frames: vec![left.clone()],
+                        ..Default::default()
+                    },
+                    AvatarPerspective {
+                        direction: AvatarDirection::Right,
+                        frames: vec![right.clone()],
+                        ..Default::default()
+                    },
+                ],
+            }],
+        };
+
+        avatar.set_perspective_count(AvatarPerspectiveCount::Eight);
+
+        let perspectives = &avatar.animations[0].perspectives;
+        let directions: Vec<_> = perspectives.iter().map(|p| p.direction).collect();
+        assert_eq!(directions, AvatarPerspectiveCount::Eight.directions());
+        assert_eq!(perspectives[0].frames[0].texture.data, front.texture.data);
+        assert_eq!(perspectives[2].frames[0].texture.data, right.texture.data);
+        assert_eq!(perspectives[4].frames[0].texture.data, back.texture.data);
+        assert_eq!(perspectives[6].frames[0].texture.data, left.texture.data);
+        assert!(
+            perspectives[1].frames[0]
+                .texture
+                .data
+                .iter()
+                .all(|byte| *byte == 0)
+        );
+    }
+
+    #[test]
+    fn parses_diagonal_direction_keys() {
+        assert_eq!(
+            AvatarDirection::from_key("FRONT RIGHT"),
+            Some(AvatarDirection::FrontRight)
+        );
+        assert_eq!(
+            AvatarDirection::from_key("back-left"),
+            Some(AvatarDirection::BackLeft)
+        );
     }
 }

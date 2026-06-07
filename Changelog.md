@@ -1,10 +1,11 @@
-# Eldiron v0.9.13
+# Eldiron v0.91.0
 
 ## Improvements
 
 ### Creator
 
 - Added the first official Eldiron Ruleset documentation and ruleset direction, covering the move toward unified race, class, item, combat, progression, and visual defaults for v0.91.
+- Added 8-direction Avatar perspective support and PNG Avatar Atlas import/export so artists can edit character frames outside the embedded JSON data.
 - Improved **Edit Geometry** action parameters by grouping metadata and transform values into separate TOML sections for easier editing.
 - Improved scripted 3D Geometry Object areas so `set_attr("visible", ...)` updates the backing object visibility, while `set_attr("blocking", ...)` updates object solidity and rebuilds runtime collision/navigation.
 - Improved hidden 3D Geometry Object handling so hidden objects are still available to the scene and can be revealed later through script.

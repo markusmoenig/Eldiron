@@ -193,14 +193,10 @@ impl Action for EditGeometry {
 
         self.nodeui.set_text_value("name", object.name.clone());
         self.nodeui.set_text_value("group", object.group.clone());
-        self.nodeui.set_text_value(
-            "item",
-            object.properties.get_str_default("item", "".into()),
-        );
-        self.nodeui.set_bool_value(
-            "area",
-            object.properties.get_bool_default("area", true),
-        );
+        self.nodeui
+            .set_text_value("item", object.properties.get_str_default("item", "".into()));
+        self.nodeui
+            .set_bool_value("area", object.properties.get_bool_default("area", true));
         self.nodeui.set_bool_value(
             "hide_iso",
             object.properties.get_bool_default("hide_iso", false),
@@ -264,10 +260,7 @@ impl Action for EditGeometry {
             .nodeui
             .get_bool_value("visible")
             .unwrap_or(object.visible);
-        let solid = self
-            .nodeui
-            .get_bool_value("solid")
-            .unwrap_or(object.solid);
+        let solid = self.nodeui.get_bool_value("solid").unwrap_or(object.solid);
         let item = self
             .nodeui
             .get_text_value("item")

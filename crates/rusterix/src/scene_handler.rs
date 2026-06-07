@@ -69,6 +69,10 @@ impl BillboardAnimState {
 mod tests {
     use super::*;
     use crate::server::message::RuntimeRenderState;
+    use crate::{
+        Avatar, AvatarAnimation, AvatarAnimationFrame, AvatarPerspective, AvatarPerspectiveCount,
+        Texture,
+    };
 
     #[test]
     fn runtime_render_state_resets_sparse_overrides_to_base_settings() {
@@ -107,6 +111,91 @@ mod tests {
         assert!(handler.settings.raster_shadow_enabled);
         assert_eq!(handler.settings.ambient_strength, 0.3);
         assert!(handler.settings.post_enabled);
+    }
+
+    fn solid_avatar_frame(rgba: [u8; 4]) -> AvatarAnimationFrame {
+        AvatarAnimationFrame::new(Texture::new(rgba.to_vec(), 1, 1))
+    }
+
+    fn eight_dir_test_avatar() -> Avatar {
+        let mut avatar = Avatar {
+            id: Uuid::new_v4(),
+            name: "Human".to_string(),
+            resolution: 1,
+            perspective_count: AvatarPerspectiveCount::Four,
+            animations: vec![AvatarAnimation {
+                id: Uuid::new_v4(),
+                name: "Idle".to_string(),
+                speed: 1.0,
+                perspectives: vec![
+                    AvatarPerspective {
+                        direction: AvatarDirection::Front,
+                        frames: vec![solid_avatar_frame([255, 0, 0, 255])],
+                        weapon_main_anchor: None,
+                        weapon_off_anchor: None,
+                    },
+                    AvatarPerspective {
+                        direction: AvatarDirection::Back,
+                        frames: vec![solid_avatar_frame([0, 255, 0, 255])],
+                        weapon_main_anchor: None,
+                        weapon_off_anchor: None,
+                    },
+                    AvatarPerspective {
+                        direction: AvatarDirection::Left,
+                        frames: vec![solid_avatar_frame([0, 0, 255, 255])],
+                        weapon_main_anchor: None,
+                        weapon_off_anchor: None,
+                    },
+                    AvatarPerspective {
+                        direction: AvatarDirection::Right,
+                        frames: vec![solid_avatar_frame([255, 255, 0, 255])],
+                        weapon_main_anchor: None,
+                        weapon_off_anchor: None,
+                    },
+                ],
+            }],
+        };
+        avatar.set_perspective_count(AvatarPerspectiveCount::Eight);
+        avatar
+    }
+
+    #[test]
+    fn dynamics_3d_iso_player_uses_camera_relative_avatar_direction() {
+        let mut handler = SceneHandler::default();
+        let avatar = eight_dir_test_avatar();
+        let mut assets = Assets::default();
+        assets.avatars.insert(avatar.name.clone(), avatar);
+        let mut map = Map::default();
+        let mut entity = crate::Entity::new();
+        entity.id = 42;
+        entity.orientation = Vec2::new(-1.0, 1.0).normalized();
+        entity.attributes.set("visible", Value::Bool(true));
+        entity.attributes.set("player", Value::Bool(true));
+        entity
+            .attributes
+            .set("avatar", Value::Str("Human".to_string()));
+        map.entities.push(entity);
+
+        let camera = crate::D3IsoCamera::new();
+        handler.build_dynamics_3d(&map, &camera, 0, &assets);
+        assert!(
+            handler
+                .avatar_builder
+                .current_avatar_alpha_bounds(GeoId::Character(42))
+                .is_some(),
+            "initial cardinal perspective should upload a visible frame"
+        );
+
+        map.entities[0].orientation = Vec2::new(1.0, 0.0);
+        handler.build_dynamics_3d(&map, &camera, 0, &assets);
+
+        assert!(
+            handler
+                .avatar_builder
+                .current_avatar_alpha_bounds(GeoId::Character(42))
+                .is_none(),
+            "missing diagonal placeholder should stay transparent instead of falling back to a visible cardinal frame"
+        );
     }
 }
 
@@ -2753,33 +2842,7 @@ impl SceneHandler {
         let front_dot = forward.dot(to_camera);
         let right_dot = right.dot(to_camera);
 
-        if front_dot.abs() >= right_dot.abs() {
-            if front_dot >= 0.0 {
-                AvatarDirection::Front
-            } else {
-                AvatarDirection::Back
-            }
-        } else if right_dot >= 0.0 {
-            AvatarDirection::Right
-        } else {
-            AvatarDirection::Left
-        }
-    }
-
-    #[inline]
-    fn avatar_direction_from_orientation(entity: &crate::Entity) -> AvatarDirection {
-        let dir = entity.orientation;
-        if dir.x.abs() >= dir.y.abs() {
-            if dir.x >= 0.0 {
-                AvatarDirection::Right
-            } else {
-                AvatarDirection::Left
-            }
-        } else if dir.y >= 0.0 {
-            AvatarDirection::Front
-        } else {
-            AvatarDirection::Back
-        }
+        AvatarDirection::from_front_right(front_dot, right_dot)
     }
 
     fn hash_pixel_source(hasher: &mut rustc_hash::FxHasher, source: &PixelSource) {
@@ -3084,7 +3147,13 @@ impl SceneHandler {
         hasher.finish()
     }
 
-    fn dynamics_hash_3d(&self, map: &Map, camera: &dyn D3Camera, animation_frame: usize) -> u64 {
+    fn dynamics_hash_3d(
+        &self,
+        map: &Map,
+        camera: &dyn D3Camera,
+        animation_frame: usize,
+        assets: &Assets,
+    ) -> u64 {
         let mut hasher = rustc_hash::FxHasher::default();
         hasher.write(map.id.as_bytes());
         hasher.write_u64(animation_frame as u64);
@@ -3245,6 +3314,8 @@ impl SceneHandler {
             hasher.write_u32(entity.position.x.to_bits());
             hasher.write_u32(entity.position.y.to_bits());
             hasher.write_u32(entity.position.z.to_bits());
+            hasher.write_u32(entity.orientation.x.to_bits());
+            hasher.write_u32(entity.orientation.y.to_bits());
             hasher.write_u8(u8::from(
                 entity.attributes.get_bool_default("visible", false),
             ));
@@ -3271,6 +3342,12 @@ impl SceneHandler {
                     .unwrap_or_default()
                     .as_bytes(),
             );
+            if let Some(avatar) = AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets) {
+                hasher.write_u8(1);
+                hasher.write_u64(AvatarRuntimeBuilder::avatar_definition_signature(avatar));
+            } else {
+                hasher.write_u8(0);
+            }
         }
 
         hasher.finish()
@@ -3769,7 +3846,7 @@ impl SceneHandler {
             .billboard_anim_states
             .values()
             .any(|state| (state.start_open - state.target_open).abs() > f32::EPSILON);
-        let current_hash = self.dynamics_hash_3d(map, camera, animation_frame);
+        let current_hash = self.dynamics_hash_3d(map, camera, animation_frame, assets);
         if self.dynamics_ready_3d
             && self.last_dynamics_hash_3d == Some(current_hash)
             && !has_active_render_billboard_anim
@@ -3866,11 +3943,7 @@ impl SceneHandler {
                     && let Some(avatar) =
                         AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets)
                 {
-                    let direction = if camera.id() == "iso" && entity.is_player() {
-                        Self::avatar_direction_from_orientation(entity)
-                    } else {
-                        Self::avatar_direction_3d(entity, camera)
-                    };
+                    let direction = Self::avatar_direction_3d(entity, camera);
                     if self
                         .avatar_builder
                         .ensure_entity_avatar_uploaded_with_direction(

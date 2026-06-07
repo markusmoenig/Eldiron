@@ -73,12 +73,7 @@ impl AvatarWidget {
             }
 
             if let Some(v) = ui.get("perspective").and_then(toml::Value::as_str) {
-                self.perspective = match v.to_ascii_lowercase().as_str() {
-                    "back" => AvatarDirection::Back,
-                    "left" => AvatarDirection::Left,
-                    "right" => AvatarDirection::Right,
-                    _ => AvatarDirection::Front,
-                };
+                self.perspective = AvatarDirection::from_key(v).unwrap_or(AvatarDirection::Front);
             }
 
             if let Some(v) = ui.get("show_weapons").and_then(toml::Value::as_bool) {

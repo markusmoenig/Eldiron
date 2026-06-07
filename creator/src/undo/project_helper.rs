@@ -21,6 +21,72 @@ fn tiles_or_authoring_dock() -> String {
     }
 }
 
+fn update_project_export_context_menu(ui: &mut TheUI, pc: ProjectContext, project: &Project) {
+    let Some(id) = pc.id() else {
+        ui.set_widget_context_menu("Project Export Menu", None);
+        return;
+    };
+
+    let mut menu = TheContextMenu::default();
+    if pc.is_region() {
+        menu.add(TheContextMenuItem::new(
+            fl!("export_region"),
+            TheId::named_with_reference("Export Region", id),
+        ));
+    } else if pc.is_character() {
+        menu.add(TheContextMenuItem::new(
+            fl!("export_character"),
+            TheId::named_with_reference("Export Character", id),
+        ));
+    } else if matches!(
+        pc,
+        ProjectContext::Avatar(_) | ProjectContext::AvatarAnimation(_, _, _)
+    ) {
+        menu.add(TheContextMenuItem::new(
+            fl!("export_avatar_atlas"),
+            TheId::named_with_reference("Export Avatar Atlas", id),
+        ));
+        menu.add(TheContextMenuItem::new(
+            fl!("export_avatar_json"),
+            TheId::named_with_reference("Export Avatar JSON", id),
+        ));
+    } else if pc.is_item() {
+        menu.add(TheContextMenuItem::new(
+            fl!("export_item"),
+            TheId::named_with_reference("Export Item", id),
+        ));
+    } else if pc.is_tilemap() {
+        menu.add(TheContextMenuItem::new(
+            fl!("export_tileset"),
+            TheId::named_with_reference("Export Tileset", id),
+        ));
+    } else if pc.is_screen() {
+        menu.add(TheContextMenuItem::new(
+            fl!("export_screen"),
+            TheId::named_with_reference("Export Screen", id),
+        ));
+    } else if pc.is_asset()
+        && let Some(asset) = project.assets.get(&id)
+    {
+        match &asset.buffer {
+            AssetBuffer::Audio(_) => menu.add(TheContextMenuItem::new(
+                fl!("export_audio_asset"),
+                TheId::named_with_reference("Export Audio Asset", id),
+            )),
+            _ => menu.add(TheContextMenuItem::new(
+                fl!("export_font_asset"),
+                TheId::named_with_reference("Export Font Asset", id),
+            )),
+        }
+    }
+
+    if menu.items.is_empty() {
+        ui.set_widget_context_menu("Project Export Menu", None);
+    } else {
+        ui.set_widget_context_menu("Project Export Menu", Some(menu));
+    }
+}
+
 fn data_attr_bool(data: &str, key: &str) -> bool {
     let Ok(value) = data.parse::<toml::Value>() else {
         return false;
@@ -262,6 +328,19 @@ pub fn rebuild_animation_tree_node(
 pub fn gen_avatar_tree_node(avatar: &Avatar) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&avatar.name, avatar.id));
     node.set_root_mode(false);
+    node.widget.set_context_menu(Some(TheContextMenu {
+        items: vec![
+            TheContextMenuItem::new(
+                fl!("export_avatar_atlas"),
+                TheId::named_with_reference("Export Avatar Atlas", avatar.id),
+            ),
+            TheContextMenuItem::new(
+                fl!("export_avatar_json"),
+                TheId::named_with_reference("Export Avatar JSON", avatar.id),
+            ),
+        ],
+        ..Default::default()
+    }));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Avatar Item", avatar.id));
     item.set_text(fl!("name"));
@@ -299,9 +378,11 @@ pub fn gen_avatar_tree_node(avatar: &Avatar) -> TheTreeNode {
     ));
     drop_down.add_option("1".to_string());
     drop_down.add_option("4".to_string());
+    drop_down.add_option("8".to_string());
     drop_down.set_selected_index(match avatar.perspective_count {
         AvatarPerspectiveCount::One => 0,
         AvatarPerspectiveCount::Four => 1,
+        AvatarPerspectiveCount::Eight => 2,
     });
     item.add_widget_column(200, Box::new(drop_down));
 
@@ -386,12 +467,7 @@ pub fn gen_avatar_animation_node(animation: &AvatarAnimation) -> TheTreeNode {
 
     // Perspective child nodes
     for (persp_index, perspective) in animation.perspectives.iter().enumerate() {
-        let dir_name = match perspective.direction {
-            AvatarDirection::Front => "Front",
-            AvatarDirection::Back => "Back",
-            AvatarDirection::Left => "Left",
-            AvatarDirection::Right => "Right",
-        };
+        let dir_name = perspective.direction.label();
 
         let mut persp_node = TheTreeNode::new(TheId::named(dir_name));
         persp_node.set_root_mode(false);
@@ -724,6 +800,7 @@ pub fn set_project_context(
     }
 
     server_ctx.pc = pc;
+    update_project_export_context_menu(ui, pc, project);
 
     let duplicate_allowed = matches!(
         pc,

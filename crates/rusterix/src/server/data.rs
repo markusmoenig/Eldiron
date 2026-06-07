@@ -324,14 +324,22 @@ fn apply_item_top_level(item: &mut Item, key: &str, value: &toml::Value) -> bool
     let tile_keys = [
         "tile_id",
         "tile_id_front",
-        "tile_id_back",
-        "tile_id_left",
+        "tile_id_front_right",
         "tile_id_right",
+        "tile_id_back_right",
+        "tile_id_back",
+        "tile_id_back_left",
+        "tile_id_left",
+        "tile_id_front_left",
         "rig_tile_id",
         "rig_tile_id_front",
-        "rig_tile_id_back",
-        "rig_tile_id_left",
+        "rig_tile_id_front_right",
         "rig_tile_id_right",
+        "rig_tile_id_back_right",
+        "rig_tile_id_back",
+        "rig_tile_id_back_left",
+        "rig_tile_id_left",
+        "rig_tile_id_front_left",
     ];
     if tile_keys.contains(&key)
         && let Some(source) = parse_tile_source_from_toml(value)

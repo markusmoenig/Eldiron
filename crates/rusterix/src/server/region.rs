@@ -11451,14 +11451,22 @@ fn ruleset_item_from_table(
     for key in [
         "tile_id",
         "tile_id_front",
-        "tile_id_back",
-        "tile_id_left",
+        "tile_id_front_right",
         "tile_id_right",
+        "tile_id_back_right",
+        "tile_id_back",
+        "tile_id_back_left",
+        "tile_id_left",
+        "tile_id_front_left",
         "rig_tile_id",
         "rig_tile_id_front",
-        "rig_tile_id_back",
-        "rig_tile_id_left",
+        "rig_tile_id_front_right",
         "rig_tile_id_right",
+        "rig_tile_id_back_right",
+        "rig_tile_id_back",
+        "rig_tile_id_back_left",
+        "rig_tile_id_left",
+        "rig_tile_id_front_left",
     ] {
         if let Some(value) = rule_string(item_table, key)
             && let Some(source) = crate::server::data::parse_tile_source_from_str(value)

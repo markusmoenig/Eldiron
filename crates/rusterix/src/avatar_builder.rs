@@ -4,9 +4,11 @@ use crate::{
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, GeoId, SceneVM};
+use std::hash::{Hash, Hasher};
 use theframework::prelude::*;
 
 struct CachedAvatarFrames {
+    avatar_signature: u64,
     frames: FxHashMap<(String, AvatarDirection, usize), (u32, Vec<u8>)>,
     scale_reference_heights: FxHashMap<AvatarDirection, f32>,
     last_uploaded: Option<(String, AvatarDirection, usize)>,
@@ -42,6 +44,35 @@ impl AvatarRuntimeBuilder {
 
     pub fn has_cached_avatar(&self, id: GeoId) -> bool {
         self.avatar_frame_cache.contains_key(&id)
+    }
+
+    pub(crate) fn avatar_definition_signature(avatar: &Avatar) -> u64 {
+        let mut hasher = rustc_hash::FxHasher::default();
+        avatar.id.hash(&mut hasher);
+        avatar.name.hash(&mut hasher);
+        avatar.resolution.hash(&mut hasher);
+        avatar.perspective_count.hash(&mut hasher);
+        avatar.animations.len().hash(&mut hasher);
+        for anim in &avatar.animations {
+            anim.id.hash(&mut hasher);
+            anim.name.hash(&mut hasher);
+            hasher.write_u32(anim.speed.to_bits());
+            anim.perspectives.len().hash(&mut hasher);
+            for perspective in &anim.perspectives {
+                perspective.direction.hash(&mut hasher);
+                perspective.weapon_main_anchor.hash(&mut hasher);
+                perspective.weapon_off_anchor.hash(&mut hasher);
+                perspective.frames.len().hash(&mut hasher);
+                for frame in &perspective.frames {
+                    frame.weapon_main_anchor.hash(&mut hasher);
+                    frame.weapon_off_anchor.hash(&mut hasher);
+                    frame.texture.width.hash(&mut hasher);
+                    frame.texture.height.hash(&mut hasher);
+                    frame.texture.data.hash(&mut hasher);
+                }
+            }
+        }
+        hasher.finish()
     }
 
     pub fn build_preview_for_entity(
@@ -118,7 +149,7 @@ impl AvatarRuntimeBuilder {
             main_anchor,
             off_anchor,
         );
-        let composed = if resolved_dir == AvatarDirection::Back {
+        let composed = if resolved_dir.is_back_facing() {
             // Back view: weapons belong behind the character body.
             let mut c = vec![0_u8; size * size * 4];
             Self::alpha_blit_rgba(&mut c, size, size, &pre_body_overlay, size, size, 0, 0);
@@ -301,17 +332,7 @@ impl AvatarRuntimeBuilder {
 
     fn avatar_direction_from_entity(entity: &Entity) -> AvatarDirection {
         let dir = entity.orientation;
-        if dir.x.abs() >= dir.y.abs() {
-            if dir.x >= 0.0 {
-                AvatarDirection::Right
-            } else {
-                AvatarDirection::Left
-            }
-        } else if dir.y >= 0.0 {
-            AvatarDirection::Front
-        } else {
-            AvatarDirection::Back
-        }
+        AvatarDirection::from_xy(dir.x, dir.y)
     }
 
     fn marker_color_from_index(assets: &Assets, idx: i32, default: [u8; 4]) -> [u8; 4] {
@@ -427,17 +448,18 @@ impl AvatarRuntimeBuilder {
     }
 
     fn item_tile_id_for_direction(item: &Item, direction: AvatarDirection) -> Option<Uuid> {
-        let suffix = match direction {
-            AvatarDirection::Front => "front",
-            AvatarDirection::Back => "back",
-            AvatarDirection::Left => "left",
-            AvatarDirection::Right => "right",
-        };
-        let directional_keys = [
-            format!("tile_id_{suffix}"),
-            format!("rig_tile_id_{suffix}"),
-            format!("tile_{suffix}"),
-        ];
+        let directional_keys: Vec<String> = direction
+            .fallback_directions()
+            .iter()
+            .flat_map(|dir| {
+                let suffix = dir.key();
+                [
+                    format!("tile_id_{suffix}"),
+                    format!("rig_tile_id_{suffix}"),
+                    format!("tile_{suffix}"),
+                ]
+            })
+            .collect();
         let generic_keys = ["tile_id", "rig_tile_id", "tile", "source"];
 
         for key in directional_keys
@@ -461,17 +483,18 @@ impl AvatarRuntimeBuilder {
     }
 
     fn has_directional_tile_for_direction(item: &Item, direction: AvatarDirection) -> bool {
-        let suffix = match direction {
-            AvatarDirection::Front => "front",
-            AvatarDirection::Back => "back",
-            AvatarDirection::Left => "left",
-            AvatarDirection::Right => "right",
-        };
-        let directional_keys = [
-            format!("tile_id_{suffix}"),
-            format!("rig_tile_id_{suffix}"),
-            format!("tile_{suffix}"),
-        ];
+        let directional_keys: Vec<String> = direction
+            .fallback_directions()
+            .iter()
+            .flat_map(|dir| {
+                let suffix = dir.key();
+                [
+                    format!("tile_id_{suffix}"),
+                    format!("rig_tile_id_{suffix}"),
+                    format!("tile_{suffix}"),
+                ]
+            })
+            .collect();
         for key in directional_keys.iter().map(|s| s.as_str()) {
             if item.attributes.get_id(key).is_some() {
                 return true;
@@ -489,11 +512,10 @@ impl AvatarRuntimeBuilder {
     }
 
     fn weapon_order_for_direction(direction: AvatarDirection) -> [(&'static str, bool); 2] {
-        match direction {
-            AvatarDirection::Front => [("off_hand", false), ("main_hand", true)],
-            AvatarDirection::Back => [("main_hand", true), ("off_hand", false)],
-            AvatarDirection::Left => [("off_hand", false), ("main_hand", true)],
-            AvatarDirection::Right => [("off_hand", false), ("main_hand", true)],
+        if direction.is_back_facing() {
+            [("main_hand", true), ("off_hand", false)]
+        } else {
+            [("off_hand", false), ("main_hand", true)]
         }
     }
 
@@ -899,13 +921,17 @@ impl AvatarRuntimeBuilder {
     }
 
     fn item_rig_layer(item: &Item, direction: AvatarDirection, slot: &str) -> WeaponLayer {
-        let default_layer = match direction {
-            AvatarDirection::Back => WeaponLayer::PreBody,
-            // Side depth hint:
-            // Right view => off-hand behind body, main-hand in front.
-            AvatarDirection::Right if slot == "off_hand" => WeaponLayer::PreBody,
-            AvatarDirection::Right => WeaponLayer::Front,
-            AvatarDirection::Front | AvatarDirection::Left => WeaponLayer::Front,
+        let default_layer = if direction.is_back_facing() {
+            WeaponLayer::PreBody
+        } else {
+            match direction {
+                // Side depth hint:
+                // Right view => off-hand behind body, main-hand in front.
+                AvatarDirection::Right | AvatarDirection::FrontRight if slot == "off_hand" => {
+                    WeaponLayer::PreBody
+                }
+                _ => WeaponLayer::Front,
+            }
         };
         let Some(raw) = item.attributes.get_str("rig_layer") else {
             return default_layer;
@@ -936,9 +962,11 @@ impl AvatarRuntimeBuilder {
             .iter()
             .find(|p| p.direction == direction)
             .or_else(|| {
-                anim.perspectives
+                direction
+                    .fallback_directions()
                     .iter()
-                    .find(|p| p.direction == AvatarDirection::Front)
+                    .filter(|dir| **dir != direction)
+                    .find_map(|dir| anim.perspectives.iter().find(|p| p.direction == *dir))
             })
             .or_else(|| anim.perspectives.first())?;
         if perspective.frames.is_empty() {
@@ -1073,8 +1101,8 @@ impl AvatarRuntimeBuilder {
                 continue;
             };
             let flip_back = item.attributes.get_bool_default("rig_flip_back", true);
-            let should_flip = direction == AvatarDirection::Left
-                || (direction == AvatarDirection::Back && !has_directional_tile && flip_back);
+            let should_flip = direction.is_left_facing()
+                || (direction.is_back_facing() && !has_directional_tile && flip_back);
             if should_flip {
                 pivot[0] = 1.0 - pivot[0];
                 scaled = Self::flip_rgba_horizontal(&scaled, sw, sh);
@@ -1183,9 +1211,11 @@ impl AvatarRuntimeBuilder {
             .iter()
             .find(|p| p.direction == direction)
             .or_else(|| {
-                anim.perspectives
+                direction
+                    .fallback_directions()
                     .iter()
-                    .find(|p| p.direction == AvatarDirection::Front)
+                    .filter(|dir| **dir != direction)
+                    .find_map(|dir| anim.perspectives.iter().find(|p| p.direction == *dir))
             })
             .or_else(|| anim.perspectives.first())
         else {
@@ -1225,9 +1255,11 @@ impl AvatarRuntimeBuilder {
             .iter()
             .find(|p| p.direction == direction)
             .or_else(|| {
-                anim.perspectives
+                direction
+                    .fallback_directions()
                     .iter()
-                    .find(|p| p.direction == AvatarDirection::Front)
+                    .filter(|dir| **dir != direction)
+                    .find_map(|dir| anim.perspectives.iter().find(|p| p.direction == *dir))
             })
             .or_else(|| anim.perspectives.first())?;
 
@@ -1241,6 +1273,7 @@ impl AvatarRuntimeBuilder {
         avatar: &Avatar,
         assets: &Assets,
         geo_id: GeoId,
+        avatar_signature: u64,
     ) -> bool {
         let mut frames: FxHashMap<(String, AvatarDirection, usize), (u32, Vec<u8>)> =
             FxHashMap::default();
@@ -1299,6 +1332,7 @@ impl AvatarRuntimeBuilder {
         self.avatar_frame_cache.insert(
             geo_id,
             CachedAvatarFrames {
+                avatar_signature,
                 frames,
                 scale_reference_heights,
                 last_uploaded: None,
@@ -1345,10 +1379,22 @@ impl AvatarRuntimeBuilder {
             self.avatar_rebuild_latch.remove(&geo_id);
             false
         };
+        let avatar_signature = Self::avatar_definition_signature(avatar);
         let cache_missing = !self.avatar_frame_cache.contains_key(&geo_id);
+        let cache_stale = self
+            .avatar_frame_cache
+            .get(&geo_id)
+            .is_some_and(|cache| cache.avatar_signature != avatar_signature);
 
-        if (needs_rebuild_edge || cache_missing)
-            && !self.rebuild_entity_avatar_cache(vm, entity, avatar, assets, geo_id)
+        if (needs_rebuild_edge || cache_missing || cache_stale)
+            && !self.rebuild_entity_avatar_cache(
+                vm,
+                entity,
+                avatar,
+                assets,
+                geo_id,
+                avatar_signature,
+            )
         {
             return false;
         }
@@ -1543,5 +1589,105 @@ impl AvatarRuntimeBuilder {
             self.avatar_playback_state.remove(&id);
             vm.execute(Atom::RemoveAvatarBillboardData { id });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        AvatarAnimation, AvatarAnimationFrame, AvatarPerspective, AvatarPerspectiveCount, Texture,
+    };
+
+    fn solid_frame(rgba: [u8; 4]) -> AvatarAnimationFrame {
+        AvatarAnimationFrame::new(Texture::new(rgba.to_vec(), 1, 1))
+    }
+
+    fn test_avatar_4dir() -> Avatar {
+        Avatar {
+            id: Uuid::new_v4(),
+            name: "Human".to_string(),
+            resolution: 1,
+            perspective_count: AvatarPerspectiveCount::Four,
+            animations: vec![AvatarAnimation {
+                id: Uuid::new_v4(),
+                name: "Idle".to_string(),
+                speed: 1.0,
+                perspectives: vec![
+                    AvatarPerspective {
+                        direction: AvatarDirection::Front,
+                        frames: vec![solid_frame([255, 0, 0, 255])],
+                        weapon_main_anchor: None,
+                        weapon_off_anchor: None,
+                    },
+                    AvatarPerspective {
+                        direction: AvatarDirection::Back,
+                        frames: vec![solid_frame([0, 255, 0, 255])],
+                        weapon_main_anchor: None,
+                        weapon_off_anchor: None,
+                    },
+                    AvatarPerspective {
+                        direction: AvatarDirection::Left,
+                        frames: vec![solid_frame([0, 0, 255, 255])],
+                        weapon_main_anchor: None,
+                        weapon_off_anchor: None,
+                    },
+                    AvatarPerspective {
+                        direction: AvatarDirection::Right,
+                        frames: vec![solid_frame([255, 255, 0, 255])],
+                        weapon_main_anchor: None,
+                        weapon_off_anchor: None,
+                    },
+                ],
+            }],
+        }
+    }
+
+    #[test]
+    fn avatar_cache_rebuilds_when_perspectives_change_to_eight() {
+        let mut builder = AvatarRuntimeBuilder::default();
+        let mut vm = SceneVM::default();
+        let entity = Entity::new();
+        let assets = Assets::default();
+        let geo_id = GeoId::Character(7);
+        let mut avatar = test_avatar_4dir();
+
+        assert!(builder.ensure_entity_avatar_uploaded_with_direction(
+            &mut vm,
+            &entity,
+            &avatar,
+            &assets,
+            0,
+            geo_id,
+            Some(AvatarDirection::Right),
+        ));
+        let old_signature = builder
+            .avatar_frame_cache
+            .get(&geo_id)
+            .map(|cache| cache.avatar_signature)
+            .unwrap();
+
+        avatar.set_perspective_count(AvatarPerspectiveCount::Eight);
+        assert!(builder.ensure_entity_avatar_uploaded_with_direction(
+            &mut vm,
+            &entity,
+            &avatar,
+            &assets,
+            0,
+            geo_id,
+            Some(AvatarDirection::FrontRight),
+        ));
+
+        let cache = builder.avatar_frame_cache.get(&geo_id).unwrap();
+        assert_ne!(cache.avatar_signature, old_signature);
+        assert_eq!(
+            cache.last_uploaded,
+            Some(("Idle".to_string(), AvatarDirection::FrontRight, 0))
+        );
+        let (_, rgba) = cache
+            .frames
+            .get(&("Idle".to_string(), AvatarDirection::FrontRight, 0))
+            .unwrap();
+        assert_eq!(rgba, &[0, 0, 0, 0]);
     }
 }

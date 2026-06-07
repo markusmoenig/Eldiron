@@ -1161,12 +1161,7 @@ impl DataDock {
             .and_then(toml::Value::as_str)
             .map(ToString::to_string);
         if let Some(dir) = table.get("perspective").and_then(toml::Value::as_str) {
-            out.perspective = match dir.to_ascii_lowercase().as_str() {
-                "back" => AvatarDirection::Back,
-                "left" => AvatarDirection::Left,
-                "right" => AvatarDirection::Right,
-                _ => AvatarDirection::Front,
-            };
+            out.perspective = AvatarDirection::from_key(dir).unwrap_or(AvatarDirection::Front);
         }
         out.fixed_frame = table
             .get("frame")
@@ -1309,8 +1304,12 @@ impl DataDock {
         for key in [
             "tile_id",
             "tile_id_front",
+            "tile_id_front_right",
             "tile_id_back",
+            "tile_id_back_right",
+            "tile_id_back_left",
             "tile_id_left",
+            "tile_id_front_left",
             "tile_id_right",
         ] {
             if let Some(id) = table.get(key).and_then(toml::Value::as_str)
@@ -1388,8 +1387,12 @@ impl DataDock {
                     .get_source("source")
                     .or_else(|| runtime_item.attributes.get_source("tile_id"))
                     .or_else(|| runtime_item.attributes.get_source("tile_id_front"))
+                    .or_else(|| runtime_item.attributes.get_source("tile_id_front_right"))
                     .or_else(|| runtime_item.attributes.get_source("tile_id_back"))
+                    .or_else(|| runtime_item.attributes.get_source("tile_id_back_right"))
+                    .or_else(|| runtime_item.attributes.get_source("tile_id_back_left"))
                     .or_else(|| runtime_item.attributes.get_source("tile_id_left"))
+                    .or_else(|| runtime_item.attributes.get_source("tile_id_front_left"))
                     .or_else(|| runtime_item.attributes.get_source("tile_id_right"))
                     .is_some();
                 eprintln!(
@@ -1449,9 +1452,12 @@ impl DataDock {
             .iter()
             .find(|p| p.direction == preview.perspective)
             .or_else(|| {
-                anim.perspectives
+                preview
+                    .perspective
+                    .fallback_directions()
                     .iter()
-                    .find(|p| p.direction == AvatarDirection::Front)
+                    .filter(|dir| **dir != preview.perspective)
+                    .find_map(|dir| anim.perspectives.iter().find(|p| p.direction == *dir))
             })
             .or_else(|| anim.perspectives.first())
             .map(|p| p.frames.len().max(1))
