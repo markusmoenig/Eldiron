@@ -101,6 +101,17 @@ Behavior:
 - checks target rules, range, cooldowns, and consumed reagents/items
 - applies the action result through the normal combat or spell path
 
+Common action target kinds:
+
+- `hostile_entity`: hostile targets only
+- `hostile_or_neutral_entity`: hostile and neutral targets, but not friendly targets
+- `friendly_entity`: friendly targets only
+- `friendly_or_self`: friendly targets or the acting character
+- `any_entity`: any character target
+- `ground_item`: a nearby item on the ground
+- `resource_node`: a ruleset resource item
+- `self`: the acting character
+
 Text play can also trigger action names directly, for example:
 
 ```text

@@ -555,4 +555,8 @@ impl Rusterix {
         self.scene_handler.vm.execute(Atom::SetPalette(palette));
         self.scene_handler.clear_runtime_scene();
     }
+
+    pub fn set_tile_groups(&mut self, tile_groups: IndexMap<Uuid, TileGroup>) {
+        self.assets.set_tile_groups(tile_groups);
+    }
 }

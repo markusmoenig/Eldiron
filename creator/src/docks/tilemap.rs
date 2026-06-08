@@ -458,6 +458,7 @@ impl Dock for TilemapDock {
 
                                     let mut rusterix = RUSTERIX.write().unwrap();
                                     rusterix.set_tiles(project.tiles.clone(), true);
+                                    rusterix.set_tile_groups(project.tile_groups.clone());
                                     SCENEMANAGER.write().unwrap().set_tile_list(
                                         rusterix.assets.tile_list.clone(),
                                         rusterix.assets.tile_indices.clone(),

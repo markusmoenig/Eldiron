@@ -480,10 +480,11 @@ impl MapEditor {
     }
 
     pub fn load_from_project(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
-        RUSTERIX
-            .write()
-            .unwrap()
-            .set_tiles(project.tiles.clone(), true);
+        {
+            let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.set_tiles(project.tiles.clone(), true);
+            rusterix.set_tile_groups(project.tile_groups.clone());
+        }
     }
 
     #[allow(clippy::suspicious_else_formatting)]

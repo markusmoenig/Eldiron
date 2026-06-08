@@ -159,7 +159,7 @@ attributes into a playable role.
 | `WIS` | divine spell scaling, resolve, and perception hooks |
 | `VIT` | toughness and health scaling |
 | `HP` / `MAX_HP` | current and maximum health |
-| `MP` / `MAX_MP` | current and maximum mana |
+| `MP` / `MAX_MP` | current and maximum mana; MP regenerates over time |
 | `ARMOR` | physical protection |
 | `RESIST` | general magical protection |
 | `FIRE_RESIST` | fire-specific protection |
@@ -168,6 +168,10 @@ attributes into a playable role.
 Derived stats are table-driven. For example `MAX_HP`, `DMG`, `POWER`, `INIT`,
 and `SPEED` can be calculated from level and primary attributes without asking
 authors to write formulas on each character.
+
+Mana regeneration is configured by `[resource_regen.MP]` in the official
+ruleset. The default restores `1 MP` every `3` real-time seconds while the
+character is active, capped by `MAX_MP`.
 
 ## Races
 
@@ -655,10 +659,10 @@ verbs such as harvesting, crafting, lockpicking, stealing, or taming.
 
 | Action | Kind | Target | Cost | Result |
 | --- | --- | --- | --- | --- |
-| `basic_attack` | attack | hostile entity | - | weapon damage |
-| `power_strike` | attack | hostile entity | - | `power_strike` damage |
+| `basic_attack` | attack | hostile or neutral entity | - | weapon damage |
+| `power_strike` | attack | hostile or neutral entity | - | `power_strike` damage |
 | `minor_heal` | spell | friendly or self | `3 MP`, `1 blessed_herb` | `minor_heal` healing |
-| `holy_light` | spell | hostile entity | `4 MP` | `holy_light` damage |
+| `holy_light` | spell | hostile or neutral entity | `4 MP` | `holy_light` damage |
 | `take` | interaction | ground item | - | move item to inventory |
 | `gather_herbs` | gather | resource node | - | resource output |
 | `gather_wood` | gather | resource node | - | resource output |

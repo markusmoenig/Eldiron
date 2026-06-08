@@ -60,8 +60,23 @@ impl ScreenWidget {
         self.draw_d2(map, time, assets);
     }
 
+    pub fn draw_transparent(&mut self, map: &Map, time: &TheTime, assets: &Assets) {
+        self.buffer.fill([0, 0, 0, 0]);
+        self.draw_d2_with_background(map, time, assets, [0, 0, 0, 0]);
+    }
+
     /// Draw the 2D scene.
-    pub fn draw_d2(&mut self, _map: &Map, _time: &TheTime, assets: &Assets) {
+    pub fn draw_d2(&mut self, map: &Map, time: &TheTime, assets: &Assets) {
+        self.draw_d2_with_background(map, time, assets, self.background_color);
+    }
+
+    fn draw_d2_with_background(
+        &mut self,
+        _map: &Map,
+        _time: &TheTime,
+        assets: &Assets,
+        background_color: [u8; 4],
+    ) {
         let width = self.buffer.dim().width as usize;
         let height = self.buffer.dim().height as usize;
 
@@ -86,7 +101,7 @@ impl ScreenWidget {
         rast.preserve_transparency = true;
         rast.mapmini = self.scene.mapmini.clone();
         rast.render_mode = RenderMode::render_2d();
-        rast.background_color = Some(self.background_color);
+        rast.background_color = Some(background_color);
 
         rast.rasterize(
             &mut self.scene,

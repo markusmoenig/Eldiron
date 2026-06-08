@@ -7,11 +7,11 @@
 
 [actions.basic_attack]
 name = "Basic Attack"
-description = "Strike a hostile target with the equipped weapon or an unarmed fallback."
+description = "Strike an attackable target with the equipped weapon or an unarmed fallback."
 kind = "attack"
 intent = "attack"
 requires = { ability = "basic_attack" }
-target = "hostile_entity"
+target = "hostile_or_neutral_entity"
 range = "weapon"
 cooldown = 1.0
 result = { damage = "weapon" }
@@ -24,7 +24,7 @@ name = "Power Strike"
 description = "Make a heavier martial attack with a longer recovery."
 kind = "attack"
 requires = { ability = "power_strike" }
-target = "hostile_entity"
+target = "hostile_or_neutral_entity"
 range = "weapon"
 cooldown = 4.0
 result = { damage = "abilities.power_strike.damage" }
@@ -61,10 +61,10 @@ size = "small"
 
 [actions.holy_light]
 name = "Holy Light"
-description = "Call down holy light to damage a hostile creature."
+description = "Call down holy light to damage an attackable creature."
 kind = "spell"
 requires = { spell = "holy_light" }
-target = "hostile_entity"
+target = "hostile_or_neutral_entity"
 range = 5
 cooldown = 5.0
 cost = { MP = 4 }

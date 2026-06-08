@@ -15,6 +15,7 @@ pub struct Assets {
     pub item_authoring: FxHashMap<String, String>,
 
     pub tiles: IndexMap<Uuid, Tile>,
+    pub tile_groups: IndexMap<Uuid, TileGroup>,
     pub materials: FxHashMap<Uuid, Tile>,
     pub textures: FxHashMap<String, Texture>,
 
@@ -92,6 +93,7 @@ impl Assets {
             entity_authoring: FxHashMap::default(),
             item_authoring: FxHashMap::default(),
             tiles: IndexMap::default(),
+            tile_groups: IndexMap::default(),
             textures: FxHashMap::default(),
             tile_list: vec![],
             tile_indices: FxHashMap::default(),
@@ -202,6 +204,10 @@ impl Assets {
                 self.tile_list.push(tile.clone());
             }
         }
+    }
+
+    pub fn set_tile_groups(&mut self, tile_groups: IndexMap<Uuid, TileGroup>) {
+        self.tile_groups = tile_groups;
     }
 
     /// Compile the materials.

@@ -3491,6 +3491,7 @@ impl Sidebar {
             let mut rusterix = RUSTERIX.write().unwrap();
             rusterix.assets.palette = project.palette.clone();
             rusterix.set_tiles(project.tiles.clone(), true);
+            rusterix.set_tile_groups(project.tile_groups.clone());
         }
 
         // ctx.ui.send(TheEvent::Custom(
@@ -4665,6 +4666,7 @@ impl Sidebar {
     pub fn update_tiles(&mut self, _ui: &mut TheUI, ctx: &mut TheContext, project: &mut Project) {
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix.set_tiles(project.tiles.clone(), true);
+        rusterix.set_tile_groups(project.tile_groups.clone());
         SCENEMANAGER.write().unwrap().set_tile_list(
             rusterix.assets.tile_list.clone(),
             rusterix.assets.tile_indices.clone(),

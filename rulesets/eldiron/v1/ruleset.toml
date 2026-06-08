@@ -67,6 +67,12 @@ delay_seconds = 60
 health = "full"
 clear_corpse_on_respawn = true
 
+[resource_regen.MP]
+amount = 1
+per_seconds = 3
+max = "MAX_MP"
+when = "active"
+
 [resources.wild_herb_node]
 name = "Wild Herb Node"
 description = "A small wild herb growth that can be gathered for fresh herbs."

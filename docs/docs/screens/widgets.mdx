@@ -358,6 +358,8 @@ border_color = "#ffff88"
 Use a widget with **role = "avatar"** to render an avatar preview in the UI.
 
 This uses the same avatar colorization pipeline as runtime avatars and can optionally include equipped weapons.
+When a targeting command is active, clicking the avatar widget targets the bound character.
+This gives first-person layouts a self-target substitute for actions such as Minor Heal or Look.
 
 ### UI Section
 
@@ -393,6 +395,50 @@ Supported values today:
 - a character `name`
 
 This system is intentionally expandable. Current projects continue to work because omitted `party` still resolves to the leader/current player path.
+
+---
+
+## Stat Widgets
+
+Use a widget with **role = "stat"** to show a live character resource such as health or mana.
+
+Stat widgets bind to the same party targets as avatar and text widgets. They can render a simple bar or draw state tiles. `tile_ids` entries may be single tile ids or tile group ids. If a single source id is supplied in `tile_ids`, that tile or group is clipped by the current stat ratio, which is useful for bottle-fill art with transparency.
+
+### UI Section
+
+- **stat**: current attribute to read, such as `HP` or `MP`.
+- **max_stat**: maximum attribute used for the ratio, such as `MAX_HP` or `MAX_MP`. Defaults to `MAX_<stat>`.
+- **party**: Optional binding target. If omitted, Eldiron uses the current leader.
+- **mode**: `bar` or `tiles`.
+- **tile_ids**: Tile or tile group ids ordered from empty to full. With one source id, it is clipped by the stat ratio.
+- **orientation**: `horizontal` or `vertical`.
+- **clip**: Whether a single tile should be clipped (`true` by default for one-tile stat widgets).
+- **background_color**, **fill_color**, **border_color**, **border_size**: Optional bar styling.
+
+### Examples
+
+```toml
+[ui]
+role = "stat"
+party = "leader"
+stat = "HP"
+max_stat = "MAX_HP"
+mode = "tiles"
+orientation = "vertical"
+tile_ids = ["59bd9503-7b25-462e-b04e-63c1f292c360"]
+```
+
+```toml
+[ui]
+role = "stat"
+stat = "MP"
+max_stat = "MAX_MP"
+mode = "bar"
+fill_color = "#4d7cff"
+background_color = "#10131aaa"
+border_size = 1
+border_color = "#6d7890"
+```
 
 ---
 

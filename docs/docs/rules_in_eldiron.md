@@ -194,14 +194,22 @@ Common intent policy belongs in the effective ruleset.
 For example, the official attack rule is declarative:
 
 ```toml
-[intents.attack]
-allowed_dispositions = ["hostile"]
-deny_message = "{system.cant_do_that}"
-
-[intents.attack.distance]
-source = "weapon_range"
-fallback = 1.5
+[actions.basic_attack]
+target = "hostile_or_neutral_entity"
+range = "weapon"
+cooldown = 1.0
 ```
+
+Action target kinds describe who or what the action can affect:
+
+- `hostile_entity`: hostile targets only
+- `hostile_or_neutral_entity`: hostile and neutral targets, but not friendly targets
+- `friendly_entity`: friendly targets only
+- `friendly_or_self`: friendly targets or the acting character
+- `any_entity`: any character target
+- `ground_item`: a nearby item on the ground
+- `resource_node`: a ruleset resource item such as a herb or wood node
+- `self`: the acting character
 
 The runtime resolves the target disposition from race relations and reputation.
 Reputation defaults to `0`, which means normal: keep the base race relation.
@@ -392,6 +400,11 @@ for slot capacity. The same stack-counting path is used by action `consumes`
 entries for reagents, materials, and future crafting inputs. For example,
 `minor_heal` consumes `1 blessed_herb` only after target, range, MP, and effect
 checks pass.
+
+Regenerating resources use top-level `resource_regen` rules. For example,
+`[resource_regen.MP]` restores mana over real-time seconds, carries fractional
+progress between ticks, and clamps the result to `MAX_MP`. This keeps MP
+restoration in the ruleset instead of in individual scripts or screen widgets.
 
 Resource nodes are separate from inventory materials. For example,
 `wild_herb_node` is a placed world item with `static = true`, `resource_id =

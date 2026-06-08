@@ -903,6 +903,7 @@ impl Editor {
                 .map(|m| [m.roughness, m.metallic, m.opacity, m.emissive])
                 .collect();
             rusterix.set_tiles(self.project.tiles.clone(), true);
+            rusterix.set_tile_groups(self.project.tile_groups.clone());
         }
         SCENEMANAGER.write().unwrap().set_palette(
             self.project.palette.clone(),
@@ -5718,6 +5719,7 @@ impl TheTrait for Editor {
                                 let mut rusterix = RUSTERIX.write().unwrap();
                                 rusterix.assets.palette = self.project.palette.clone();
                                 rusterix.set_tiles(self.project.tiles.clone(), true);
+                                rusterix.set_tile_groups(self.project.tile_groups.clone());
                             }
 
                             if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {

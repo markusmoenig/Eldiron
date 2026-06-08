@@ -21,7 +21,7 @@ use crate::{
     client::widget::{
         ButtonStateStyle, ButtonVisualState, TextInputWidget, Widget, avatar::AvatarWidget,
         deco::DecoWidget, game::GameWidget, messages::MessagesWidget, screen::ScreenWidget,
-        text::TextWidget,
+        stat::StatWidget, text::TextWidget,
     },
 };
 use draw2d::Draw2D;
@@ -181,6 +181,7 @@ pub struct Client {
     game_widgets: FxHashMap<Uuid, GameWidget>,
     button_widgets: FxHashMap<u32, Widget>,
     avatar_widgets: FxHashMap<Uuid, AvatarWidget>,
+    stat_widgets: FxHashMap<Uuid, StatWidget>,
     text_widgets: FxHashMap<Uuid, TextWidget>,
     text_input_widgets: FxHashMap<u32, TextInputWidget>,
     deco_widgets: FxHashMap<Uuid, DecoWidget>,
@@ -727,6 +728,7 @@ impl Client {
             game_widgets: FxHashMap::default(),
             button_widgets: FxHashMap::default(),
             avatar_widgets: FxHashMap::default(),
+            stat_widgets: FxHashMap::default(),
             text_widgets: FxHashMap::default(),
             text_input_widgets: FxHashMap::default(),
             deco_widgets: FxHashMap::default(),
@@ -1781,9 +1783,23 @@ impl Client {
     }
 
     fn screen_base_render_map(screen: &Map) -> Map {
+        Self::screen_static_layer_render_map(screen, false)
+    }
+
+    fn screen_foreground_render_map(screen: &Map) -> Map {
+        Self::screen_static_layer_render_map(screen, true)
+    }
+
+    fn screen_static_layer_render_map(screen: &Map, foreground: bool) -> Map {
         let mut map = screen.clone();
-        map.sectors
-            .retain(|sector| Self::sector_ui_role(sector).is_none());
+        map.sectors.retain(|sector| {
+            if Self::sector_ui_role(sector).is_some() {
+                return false;
+            }
+
+            let layer = sector.properties.get_int_default("layer", 0);
+            if foreground { layer > 0 } else { layer <= 0 }
+        });
         map
     }
 
@@ -2301,6 +2317,39 @@ impl Client {
             if !hide {
                 let entity = Self::resolve_party_entity(map, widget.party.as_deref());
                 widget.update_draw(&mut self.target, assets, entity, &self.draw2d);
+            }
+        }
+
+        for widget in self.stat_widgets.values_mut() {
+            let hide = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    widget.name.starts_with(prefix)
+                } else {
+                    widget.name == *pattern
+                }
+            });
+
+            if !hide {
+                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                widget.update_draw(
+                    &mut self.target,
+                    assets,
+                    entity,
+                    &self.draw2d,
+                    self.animation_frame,
+                );
+            }
+        }
+
+        if let Some(screen) = assets.screens.get(&self.current_screen)
+            && let Some(screen_widget) = &mut self.screen_widget
+        {
+            let foreground_screen = Self::screen_foreground_render_map(screen);
+            if !foreground_screen.sectors.is_empty() {
+                screen_widget.build(&foreground_screen, assets);
+                screen_widget.draw_transparent(&foreground_screen, &self.server_time, assets);
+                self.target.blend_into(0, 0, &screen_widget.buffer);
             }
         }
 
@@ -2847,6 +2896,39 @@ impl Client {
             if !hide {
                 let entity = Self::resolve_party_entity(map, widget.party.as_deref());
                 widget.update_draw(&mut self.overlay, assets, entity, &self.draw2d);
+            }
+        }
+
+        for widget in self.stat_widgets.values_mut() {
+            let hide = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    widget.name.starts_with(prefix)
+                } else {
+                    widget.name == *pattern
+                }
+            });
+
+            if !hide {
+                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                widget.update_draw(
+                    &mut self.overlay,
+                    assets,
+                    entity,
+                    &self.draw2d,
+                    self.animation_frame,
+                );
+            }
+        }
+
+        if let Some(screen) = assets.screens.get(&self.current_screen)
+            && let Some(screen_widget) = &mut self.screen_widget
+        {
+            let foreground_screen = Self::screen_foreground_render_map(screen);
+            if !foreground_screen.sectors.is_empty() {
+                screen_widget.build(&foreground_screen, assets);
+                screen_widget.draw_transparent(&foreground_screen, &self.server_time, assets);
+                self.overlay.blend_into(0, 0, &screen_widget.buffer);
             }
         }
 
@@ -4043,6 +4125,31 @@ impl Client {
                 return Some(action);
             }
         }
+
+        if active_intent.is_some() {
+            for widget in self.avatar_widgets.values() {
+                let hidden = self.widgets_to_hide.iter().any(|pattern| {
+                    if pattern.ends_with('*') {
+                        let prefix = &pattern[..pattern.len() - 1];
+                        widget.name.starts_with(prefix)
+                    } else {
+                        widget.name == *pattern
+                    }
+                });
+                if hidden || !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
+                    continue;
+                }
+                if let Some(entity) = Self::resolve_party_entity(map, widget.party.as_deref()) {
+                    self.consume_one_shot_2d_intent();
+                    return Some(EntityAction::EntityClicked(
+                        entity.id,
+                        0.0,
+                        active_intent.clone(),
+                    ));
+                }
+            }
+        }
+
         // If we hovered over an item in 3D, send an explicit ItemClicked intent
         if let Some(entity_id) = self.hovered_entity_id {
             let intent = self.get_current_intent_for_action();
@@ -4832,6 +4939,7 @@ impl Client {
         self.game_widgets.clear();
         self.button_widgets.clear();
         self.avatar_widgets.clear();
+        self.stat_widgets.clear();
         self.text_widgets.clear();
         self.text_input_widgets.clear();
         self.deco_widgets.clear();
@@ -5396,6 +5504,15 @@ impl Client {
                             };
                             avatar_widget.init();
                             self.avatar_widgets.insert(widget.creator_id, avatar_widget);
+                        } else if role == "stat" {
+                            let mut stat_widget = StatWidget::new();
+                            stat_widget.name = widget.name.clone();
+                            stat_widget.rect = Rect::new(x, y, width, height);
+                            stat_widget.toml_str = data.clone();
+                            stat_widget.buffer =
+                                TheRGBABuffer::new(TheDim::sized(width as i32, height as i32));
+                            stat_widget.init();
+                            self.stat_widgets.insert(widget.creator_id, stat_widget);
                         } else if role == "text" {
                             let mut text_widget = TextWidget {
                                 name: widget.name.clone(),

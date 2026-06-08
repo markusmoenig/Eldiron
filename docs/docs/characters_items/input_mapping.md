@@ -94,18 +94,15 @@ to intent names; ranges, target restrictions, cooldowns, and disposition checks
 belong to the ruleset.
 
 ```toml
-[intents.attack]
-allowed_dispositions = ["hostile"]
-deny_message = "{system.cant_do_that}"
-
-[intents.attack.distance]
-source = "weapon_range"
-fallback = 1.5
+[actions.basic_attack]
+target = "hostile_or_neutral_entity"
+range = "weapon"
+cooldown = 1.0
 ```
 
 Behavior:
 
-- `allowed_dispositions` checks the target's disposition from the ruleset
+- `target` checks the target kind and disposition from the ruleset
 - `allowed_target_kinds` limits an intent to entities or items
 - `distance` sets a fixed range or a structured range source
 - `deny_message` is sent if the rule blocks the intent

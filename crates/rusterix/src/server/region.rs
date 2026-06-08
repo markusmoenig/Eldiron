@@ -620,6 +620,54 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn ruleset_resource_regen_restores_mp_over_realtime_seconds() {
+        let mut ctx = RegionCtx::default();
+        ctx.config = toml::from_str::<toml::Table>(
+            r#"
+            [game]
+            game_tick_ms = 1000
+            "#,
+        )
+        .unwrap();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+            [resource_regen.MP]
+            amount = 1
+            per_seconds = 2
+            max = "MAX_MP"
+            when = "active"
+            "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+
+        let mut player = Entity::new();
+        player.id = 1;
+        player.set_attribute("mode", Value::Str("active".into()));
+        player.set_attribute("MP", Value::Int(2));
+        player.set_attribute("MAX_MP", Value::Int(4));
+        ctx.map.entities.push(player);
+
+        update_ruleset_resource_regen(&mut ctx);
+        assert_eq!(ctx.map.entities[0].attributes.get_int_default("MP", 0), 2);
+        update_ruleset_resource_regen(&mut ctx);
+        assert_eq!(ctx.map.entities[0].attributes.get_int_default("MP", 0), 3);
+        update_ruleset_resource_regen(&mut ctx);
+        update_ruleset_resource_regen(&mut ctx);
+        update_ruleset_resource_regen(&mut ctx);
+        assert_eq!(ctx.map.entities[0].attributes.get_int_default("MP", 0), 4);
+
+        ctx.map.entities[0].set_attribute("MP", Value::Int(1));
+        ctx.map.entities[0].set_attribute("mode", Value::Str("dead".into()));
+        for _ in 0..4 {
+            update_ruleset_resource_regen(&mut ctx);
+        }
+        assert_eq!(ctx.map.entities[0].attributes.get_int_default("MP", 0), 1);
+    }
+
+    #[test]
     fn ruleset_durability_drains_by_game_minutes_only_while_active() {
         let mut ctx = RegionCtx::default();
         ctx.ticks_per_minute = 10;
@@ -878,6 +926,236 @@ mod ruleset_progression_tests {
                 .get_bool_default("resource_depleted", false)
         );
         drop(ctx);
+        clear_regionctx_store();
+    }
+
+    #[test]
+    fn selected_rules_action_click_failure_sends_one_message() {
+        clear_regionctx_store();
+        let (from_sender, from_receiver) = unbounded();
+        let mut ctx = RegionCtx::default();
+        ctx.region_id = 9903;
+        let _ = ctx.from_sender.set(from_sender);
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [actions.holy_light]
+        name = "Holy Light"
+        kind = "spell"
+        target = "hostile_or_neutral_entity"
+        range = 5
+        cost = { MP = 4 }
+        requires = { spell = "holy_light" }
+        result = { damage = "spells.holy_light.damage" }
+
+        [spells.holy_light]
+        name = "Holy Light"
+        kind = "damage"
+        damage_kind = "arcane"
+        range = 5
+        cost_mp = 4
+
+        [spells.holy_light.damage]
+        roll = "1d1"
+        bonus = 3
+        damage_kind = "arcane"
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+
+        let mut player = Entity::new();
+        player.id = 1;
+        player.position = Vec3::new(0.0, 1.0, 0.0);
+        player.set_attribute("class_name", Value::Str("Player".into()));
+        player.set_attribute("mode", Value::Str("active".into()));
+        player.set_attribute("intent", Value::Str("action:holy_light".into()));
+        player.set_attribute("spells", Value::StrArray(vec!["holy_light".into()]));
+        player.set_attribute("MP", Value::Int(10));
+        ctx.entity_classes.insert(1, "Player".into());
+        ctx.map.entities.push(player);
+
+        let mut friendly_guard = Entity::new();
+        friendly_guard.id = 2;
+        friendly_guard.position = Vec3::new(1.0, 1.0, 0.0);
+        friendly_guard.set_attribute("class_name", Value::Str("Guard".into()));
+        friendly_guard.set_attribute("mode", Value::Str("active".into()));
+        ctx.map.entities.push(friendly_guard);
+
+        let ctx = Arc::new(Mutex::new(ctx));
+        register_regionctx(9903, ctx);
+        let mut instance = RegionInstance::new(9903);
+        instance
+            .to_sender
+            .send(RegionMessage::UserAction(
+                1,
+                EntityAction::EntityClicked(2, 1.0, None),
+            ))
+            .unwrap();
+        instance.redraw_tick();
+
+        let cant_do_that_count = from_receiver
+            .try_iter()
+            .filter(|msg| {
+                matches!(
+                    msg,
+                    RegionMessage::Message(
+                        9903,
+                        Some(1),
+                        None,
+                        1,
+                        message,
+                        _
+                    ) if message == "{system.cant_do_that}"
+                )
+            })
+            .count();
+        assert_eq!(cant_do_that_count, 1);
+        clear_regionctx_store();
+    }
+
+    #[test]
+    fn holy_light_selected_action_can_target_neutral_entity() {
+        clear_regionctx_store();
+        let (from_sender, from_receiver) = unbounded();
+        let mut ctx = RegionCtx::default();
+        ctx.region_id = 9904;
+        let _ = ctx.from_sender.set(from_sender);
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [actions.holy_light]
+        name = "Holy Light"
+        kind = "spell"
+        target = "hostile_or_neutral_entity"
+        range = 5
+        cost = { MP = 4 }
+        requires = { spell = "holy_light" }
+        result = { damage = "spells.holy_light.damage" }
+
+        [spells.holy_light]
+        name = "Holy Light"
+        kind = "damage"
+        damage_kind = "arcane"
+        range = 5
+        cost_mp = 4
+
+        [spells.holy_light.damage]
+        roll = "1d1"
+        bonus = 3
+        damage_kind = "arcane"
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+
+        let mut player = Entity::new();
+        player.id = 1;
+        player.position = Vec3::new(0.0, 1.0, 0.0);
+        player.set_attribute("race", Value::Str("Human".into()));
+        player.set_attribute("class_name", Value::Str("Player".into()));
+        player.set_attribute("mode", Value::Str("active".into()));
+        player.set_attribute("intent", Value::Str("action:holy_light".into()));
+        player.set_attribute("spells", Value::StrArray(vec!["holy_light".into()]));
+        player.set_attribute("MP", Value::Int(10));
+        ctx.entity_classes.insert(1, "Player".into());
+        ctx.map.entities.push(player);
+
+        let mut neutral_guard = Entity::new();
+        neutral_guard.id = 2;
+        neutral_guard.position = Vec3::new(1.0, 1.0, 0.0);
+        neutral_guard.set_attribute("race", Value::Str("Orc".into()));
+        neutral_guard.set_attribute("class_name", Value::Str("Guard".into()));
+        neutral_guard.set_attribute("mode", Value::Str("active".into()));
+        ctx.map.entities.push(neutral_guard);
+
+        let ctx = Arc::new(Mutex::new(ctx));
+        register_regionctx(9904, ctx.clone());
+        let mut instance = RegionInstance::new(9904);
+        instance
+            .to_sender
+            .send(RegionMessage::UserAction(
+                1,
+                EntityAction::EntityClicked(2, 1.0, None),
+            ))
+            .unwrap();
+        instance.redraw_tick();
+
+        let cant_do_that_count = from_receiver
+            .try_iter()
+            .filter(|msg| {
+                matches!(
+                    msg,
+                    RegionMessage::Message(
+                        9904,
+                        Some(1),
+                        None,
+                        1,
+                        message,
+                        _
+                    ) if message == "{system.cant_do_that}"
+                )
+            })
+            .count();
+        assert_eq!(cant_do_that_count, 0);
+        let ctx = ctx.lock().unwrap();
+        let player = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == 1)
+            .unwrap();
+        assert_eq!(player.attributes.get_int_default("MP", 0), 6);
+        drop(ctx);
+        clear_regionctx_store();
+    }
+
+    #[test]
+    fn self_entity_click_queues_intent_once() {
+        clear_regionctx_store();
+        let (from_sender, from_receiver) = unbounded();
+        let mut ctx = RegionCtx::default();
+        ctx.region_id = 9905;
+        let _ = ctx.from_sender.set(from_sender);
+
+        let mut player = Entity::new();
+        player.id = 1;
+        player.position = Vec3::new(0.0, 1.0, 0.0);
+        player.set_attribute("class_name", Value::Str("Player".into()));
+        player.set_attribute("mode", Value::Str("active".into()));
+        ctx.entity_classes.insert(1, "Player".into());
+        ctx.map.entities.push(player);
+
+        register_regionctx(9905, Arc::new(Mutex::new(ctx)));
+        let mut instance = RegionInstance::new(9905);
+        instance
+            .to_sender
+            .send(RegionMessage::UserAction(
+                1,
+                EntityAction::EntityClicked(1, 0.0, Some("look".into())),
+            ))
+            .unwrap();
+        instance.redraw_tick();
+
+        let cant_do_that_yet_count = from_receiver
+            .try_iter()
+            .filter(|msg| {
+                matches!(
+                    msg,
+                    RegionMessage::Message(
+                        9905,
+                        Some(1),
+                        None,
+                        1,
+                        message,
+                        _
+                    ) if message == "{system.cant_do_that_yet}"
+                )
+            })
+            .count();
+        assert_eq!(cant_do_that_yet_count, 0);
         clear_regionctx_store();
     }
 
@@ -5483,6 +5761,7 @@ impl RegionInstance {
             }
             ctx.ticks += 1;
             ticks = ctx.ticks;
+            update_ruleset_resource_regen(ctx);
 
             let mins = ctx.time.total_minutes();
             ctx.time = TheTime::from_ticks(ticks, ctx.ticks_per_minute);
@@ -5939,7 +6218,7 @@ impl RegionInstance {
                                     .unwrap_or(false);
 
                                 if let Some(action_id) = intent.strip_prefix("action:") {
-                                    let handled = execute_ruleset_action(
+                                    execute_ruleset_action(
                                         ctx,
                                         entity_id,
                                         action_id.trim(),
@@ -5950,9 +6229,7 @@ impl RegionInstance {
                                     {
                                         entity.set_attribute("intent", Value::Str(String::new()));
                                     }
-                                    if handled {
-                                        return;
-                                    }
+                                    return;
                                 }
 
                                 let subject = ctx.map.entities.iter().find(|e| e.id == entity_id);
@@ -6058,7 +6335,9 @@ impl RegionInstance {
                                         ),
                                     ));
 
-                                    if ctx.entity_classes.get(&clicked_entity_id).is_some() {
+                                    if clicked_entity_id != entity_id
+                                        && ctx.entity_classes.get(&clicked_entity_id).is_some()
+                                    {
                                         ctx.to_execute_entity.push((
                                             clicked_entity_id,
                                             "intent".to_string(),
@@ -9755,6 +10034,14 @@ impl RegionInstance {
             value.x = entity.id as f32;
 
             if let Some(target_entity_id) = target_entity_id {
+                if target_entity_id == entity.id {
+                    queue_intent_cooldown(ctx, entity.id, &intent_lower, rules.cooldown_minutes);
+
+                    if !keep_intent {
+                        entity.set_attribute("intent", Value::Str(String::new()));
+                    }
+                    return;
+                }
                 ctx.to_execute_entity
                     .push((target_entity_id, "intent".to_string(), value));
             } else if let Some(item_id) = target_item_id {
@@ -12099,6 +12386,10 @@ fn action_target_allowed(
         .as_str()
     {
         "hostile_entity" => entity_is_hostile_by_id(ctx, actor_id, target_id),
+        "hostile_or_neutral_entity" => !matches!(
+            entity_disposition_by_id(ctx, actor_id, target_id).as_deref(),
+            Some("friendly")
+        ),
         "friendly_entity" => {
             entity_disposition_by_id(ctx, actor_id, target_id).as_deref() == Some("friendly")
         }
@@ -13904,6 +14195,10 @@ fn merge_action_intent_config(config: &mut IntentRuleConfig, action: &toml::valu
             "hostile_entity" => {
                 config.allowed_target_kinds = vec!["entity".into()];
                 config.allowed_dispositions = vec!["hostile".into()];
+            }
+            "hostile_or_neutral_entity" => {
+                config.allowed_target_kinds = vec!["entity".into()];
+                config.allowed_dispositions = vec!["hostile".into(), "neutral".into()];
             }
             "friendly_entity" | "friendly_or_self" => {
                 config.allowed_target_kinds = vec!["entity".into()];
@@ -16965,6 +17260,82 @@ pub(crate) fn update_ruleset_item_durability(ctx: &mut RegionCtx) {
     removed_ids.sort_unstable();
     removed_ids.dedup();
     remove_items_everywhere_by_id(ctx, &removed_ids);
+}
+
+pub(crate) fn update_ruleset_resource_regen(ctx: &mut RegionCtx) {
+    let Some(regen) = ctx
+        .rules
+        .get("resource_regen")
+        .and_then(toml::Value::as_table)
+        .cloned()
+    else {
+        return;
+    };
+
+    let tick_seconds = RegionInstance::ticks_to_realtime_seconds(ctx, 1).max(0.001);
+    let entities = &mut ctx.map.entities;
+    let state_data = &mut ctx.entity_state_data;
+
+    for entity in entities {
+        for (resource_id, value) in &regen {
+            let Some(config) = value.as_table() else {
+                continue;
+            };
+
+            let when = config
+                .get("when")
+                .and_then(toml::Value::as_str)
+                .map(str::trim)
+                .unwrap_or("active")
+                .to_ascii_lowercase();
+            if when == "active"
+                && entity.attributes.get_str_default("mode", "active".into()) != "active"
+            {
+                continue;
+            }
+
+            let amount = rule_number(config, "amount", 0.0).max(0.0);
+            let per_seconds = rule_number(config, "per_seconds", 1.0).max(0.001);
+            if amount <= 0.0 {
+                continue;
+            }
+
+            let max_attr = config
+                .get("max")
+                .or_else(|| config.get("max_stat"))
+                .and_then(toml::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("MAX_{}", resource_id));
+            let max_value = entity.attributes.get_float_default(&max_attr, 0.0);
+            let current = entity.attributes.get_float_default(resource_id, 0.0);
+            if max_value <= 0.0 || current >= max_value {
+                continue;
+            }
+
+            let state = state_data.entry(entity.id).or_default();
+            let key = format!(
+                "__resource_regen_accum_{}",
+                resource_id.to_ascii_lowercase()
+            );
+            let total =
+                state.get_float(&key).unwrap_or(0.0) + amount * (tick_seconds / per_seconds);
+            let whole = total.floor();
+            if whole < 1.0 {
+                state.set(&key, Value::Float(total));
+                continue;
+            }
+
+            let next = (current + whole).min(max_value);
+            let used = (next - current).max(0.0);
+            if used <= 0.0 {
+                continue;
+            }
+            entity.set_attribute(resource_id, Value::Int(next.round() as i32));
+            state.set(&key, Value::Float((total - used).max(0.0)));
+        }
+    }
 }
 
 fn remove_respawn_corpse_for_entity(ctx: &mut RegionCtx, entity_id: u32) {
