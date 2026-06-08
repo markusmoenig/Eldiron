@@ -317,14 +317,23 @@ impl Rusterix {
     /// Build runtime 3D dynamic overlays (characters/items/lights) into SceneVM.
     pub fn build_dynamics_3d(&mut self, map: &Map, animation_frame: usize) {
         let camera = self.client.camera_d3.as_ref();
-        self.scene_handler
-            .build_dynamics_3d(map, camera, animation_frame, &self.assets);
+        self.scene_handler.build_dynamics_3d(
+            map,
+            camera,
+            animation_frame,
+            &self.assets,
+            &Default::default(),
+        );
     }
 
     /// Build runtime 2D dynamic overlays (characters/items/lights) into SceneVM.
     pub fn build_dynamics_2d(&mut self, map: &Map, animation_frame: usize) {
-        self.scene_handler
-            .build_dynamics_2d(map, animation_frame, &self.assets);
+        self.scene_handler.build_dynamics_2d(
+            map,
+            animation_frame,
+            &self.assets,
+            &Default::default(),
+        );
     }
 
     /// Build the client scene in D3.

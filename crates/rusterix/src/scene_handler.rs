@@ -8,8 +8,10 @@ use crate::server::message::RuntimeRenderState;
 use crate::{
     Assets, AvatarDirection, AvatarShadingOptions, BillboardAnimation, BillboardMetadata, D3Camera,
     Item, Map, ParticleEmitter, PixelSource, RenderSettings, Texture, Tile, Value, ValueTomlLoader,
-    avatar_builder::AvatarRuntimeBuilder, chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
-    client::widget::Widget, scene_build_index::SceneBuildIndex,
+    avatar_builder::{AvatarFrameStyle, AvatarRuntimeBuilder},
+    chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
+    client::widget::Widget,
+    scene_build_index::SceneBuildIndex,
 };
 use buildergraph::{BuilderDocument, BuilderOutputTarget, BuilderPrimitive};
 use indexmap::IndexMap;
@@ -177,7 +179,7 @@ mod tests {
         map.entities.push(entity);
 
         let camera = crate::D3IsoCamera::new();
-        handler.build_dynamics_3d(&map, &camera, 0, &assets);
+        handler.build_dynamics_3d(&map, &camera, 0, &assets, &Default::default());
         assert!(
             handler
                 .avatar_builder
@@ -187,7 +189,7 @@ mod tests {
         );
 
         map.entities[0].orientation = Vec2::new(1.0, 0.0);
-        handler.build_dynamics_3d(&map, &camera, 0, &assets);
+        handler.build_dynamics_3d(&map, &camera, 0, &assets, &Default::default());
 
         assert!(
             handler
@@ -2968,10 +2970,16 @@ impl SceneHandler {
         }
     }
 
-    fn dynamics_hash_2d(&self, map: &Map, animation_frame: usize) -> u64 {
+    fn dynamics_hash_2d(
+        &self,
+        map: &Map,
+        animation_frame: usize,
+        avatar_frame_styles: &FxHashMap<u32, AvatarFrameStyle>,
+    ) -> u64 {
         let mut hasher = rustc_hash::FxHasher::default();
         hasher.write(map.id.as_bytes());
         hasher.write_u64(animation_frame as u64);
+        Self::hash_avatar_frame_styles(&mut hasher, avatar_frame_styles);
         hasher.write_u64(map.sectors.len() as u64);
         hasher.write_u64(map.linedefs.len() as u64);
         hasher.write_u64(map.vertices.len() as u64);
@@ -3153,10 +3161,12 @@ impl SceneHandler {
         camera: &dyn D3Camera,
         animation_frame: usize,
         assets: &Assets,
+        avatar_frame_styles: &FxHashMap<u32, AvatarFrameStyle>,
     ) -> u64 {
         let mut hasher = rustc_hash::FxHasher::default();
         hasher.write(map.id.as_bytes());
         hasher.write_u64(animation_frame as u64);
+        Self::hash_avatar_frame_styles(&mut hasher, avatar_frame_styles);
         hasher.write(camera.id().as_bytes());
         Self::hash_vec3(&mut hasher, camera.position());
         let (fwd, right, up) = camera.basis_vectors();
@@ -3351,6 +3361,20 @@ impl SceneHandler {
         }
 
         hasher.finish()
+    }
+
+    fn hash_avatar_frame_styles(
+        hasher: &mut rustc_hash::FxHasher,
+        avatar_frame_styles: &FxHashMap<u32, AvatarFrameStyle>,
+    ) {
+        hasher.write_u64(avatar_frame_styles.len() as u64);
+        let mut styles: Vec<_> = avatar_frame_styles.iter().collect();
+        styles.sort_by_key(|(entity_id, _)| **entity_id);
+        for (entity_id, style) in styles {
+            hasher.write_u32(*entity_id);
+            hasher.write(&style.outline_color);
+            hasher.write_u64(style.outline_thickness as u64);
+        }
     }
 
     pub fn set_timings(&mut self, render_fps: f32, game_tick_ms: i32) {
@@ -3623,7 +3647,13 @@ impl SceneHandler {
     }
 
     /// Build dynamic elements of the 2D Map: Entities, Items, Lights ...
-    pub fn build_dynamics_2d(&mut self, map: &Map, animation_frame: usize, assets: &Assets) {
+    pub fn build_dynamics_2d(
+        &mut self,
+        map: &Map,
+        animation_frame: usize,
+        assets: &Assets,
+        avatar_frame_styles: &FxHashMap<u32, AvatarFrameStyle>,
+    ) {
         // SceneVM's current 2D dynamic ordering consumes higher layer numbers first.
         // Give ground items a numerically higher layer so characters are composited over them.
         const D2_GROUND_ITEM_LAYER: i32 = 20;
@@ -3638,7 +3668,7 @@ impl SceneHandler {
                 enabled: self.settings.avatar_shading_enabled,
                 skin_enabled: self.settings.avatar_skin_shading_enabled,
             });
-        let current_hash = self.dynamics_hash_2d(map, animation_frame);
+        let current_hash = self.dynamics_hash_2d(map, animation_frame, avatar_frame_styles);
         let has_active_tile_particles = !self.tile_emitters_2d.is_empty();
         let has_active_builder_particles = !self.builder_emitters_2d.is_empty();
         if self.dynamics_ready_2d
@@ -3766,7 +3796,7 @@ impl SceneHandler {
                 if let Some(avatar) = AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets) {
                     let uploaded = self
                         .avatar_builder
-                        .ensure_entity_avatar_uploaded_with_direction(
+                        .ensure_entity_avatar_uploaded_with_direction_and_style(
                             &mut self.vm,
                             entity,
                             avatar,
@@ -3774,6 +3804,7 @@ impl SceneHandler {
                             animation_frame,
                             geo_id,
                             Some(crate::AvatarDirection::Front),
+                            avatar_frame_styles.get(&entity.id).copied(),
                         )
                         || self.avatar_builder.ensure_entity_avatar_uploaded(
                             &mut self.vm,
@@ -3829,6 +3860,7 @@ impl SceneHandler {
         camera: &dyn D3Camera,
         animation_frame: usize,
         assets: &Assets,
+        avatar_frame_styles: &FxHashMap<u32, AvatarFrameStyle>,
     ) {
         // Dynamics must always be built into base layer 0.
         self.vm.set_active_vm(0);
@@ -3846,7 +3878,8 @@ impl SceneHandler {
             .billboard_anim_states
             .values()
             .any(|state| (state.start_open - state.target_open).abs() > f32::EPSILON);
-        let current_hash = self.dynamics_hash_3d(map, camera, animation_frame, assets);
+        let current_hash =
+            self.dynamics_hash_3d(map, camera, animation_frame, assets, avatar_frame_styles);
         if self.dynamics_ready_3d
             && self.last_dynamics_hash_3d == Some(current_hash)
             && !has_active_render_billboard_anim
@@ -3946,7 +3979,7 @@ impl SceneHandler {
                     let direction = Self::avatar_direction_3d(entity, camera);
                     if self
                         .avatar_builder
-                        .ensure_entity_avatar_uploaded_with_direction(
+                        .ensure_entity_avatar_uploaded_with_direction_and_style(
                             &mut self.vm,
                             entity,
                             avatar,
@@ -3954,6 +3987,7 @@ impl SceneHandler {
                             animation_frame,
                             geo_id,
                             Some(direction),
+                            avatar_frame_styles.get(&entity.id).copied(),
                         )
                     {
                         active_avatar_geo.insert(geo_id);

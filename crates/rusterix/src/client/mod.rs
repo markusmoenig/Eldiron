@@ -13,8 +13,8 @@ use scenevm::GeoId;
 
 use crate::prelude::*;
 use crate::{
-    BrushPreview, Command, D2ConceptBuilder, D2PreviewBuilder, EntityAction, MapMini, PlayerCamera,
-    Rect, SceneHandler, Surface, Value,
+    BrushPreview, Command, D2ConceptBuilder, D2PreviewBuilder, Entity, EntityAction, MapMini,
+    PlayerCamera, Rect, SceneHandler, Surface, Value,
     client::action::ClientAction,
     client::command::{ClientCommandBinding, command_from_legacy_fields, parse_client_command},
     client::rules_ui::{CommandState, ContainerUiTemplate, RulesDescription},
@@ -905,7 +905,7 @@ impl Client {
             );
         }
         if self.map_tool_type_d2 != MapToolType::Dungeon {
-            scene_handler.build_dynamics_2d(map, self.animation_frame, assets);
+            scene_handler.build_dynamics_2d(map, self.animation_frame, assets, &Default::default());
         }
     }
 
@@ -929,7 +929,7 @@ impl Client {
             scene_handler,
             draw_sectors,
         );
-        scene_handler.build_dynamics_2d(map, self.animation_frame, assets);
+        scene_handler.build_dynamics_2d(map, self.animation_frame, assets, &Default::default());
     }
 
     /// Build the 3D scene from the map.
@@ -2457,7 +2457,6 @@ impl Client {
             }
         }
 
-        self.draw_current_target_rect(map);
         self.draw_hover_tooltip(map, assets);
 
         // Draw the cursor (centered on cursor_pos)
@@ -5583,84 +5582,6 @@ impl Client {
             None
         } else {
             Some(self.intent.clone())
-        }
-    }
-
-    fn current_target_entity_id(map: &Map) -> Option<u32> {
-        let leader = Self::resolve_party_entity(map, Some("leader"))?;
-
-        let parse_target_attr = |value: Option<&Value>| -> Option<u32> {
-            match value {
-                Some(Value::UInt(id)) => Some(*id),
-                Some(Value::Int(id)) if *id > 0 => Some(*id as u32),
-                Some(Value::Int64(id)) if *id > 0 => Some(*id as u32),
-                Some(Value::Str(value)) => value.trim().parse::<u32>().ok().filter(|id| *id > 0),
-                _ => None,
-            }
-        };
-
-        parse_target_attr(leader.attributes.get("attack_target"))
-            .or_else(|| parse_target_attr(leader.attributes.get("target")))
-    }
-
-    fn draw_current_target_rect(&mut self, map: &Map) {
-        let color_hex = self.get_config_string_default("viewport", "target_rect_color", "");
-        if color_hex.trim().is_empty() {
-            return;
-        }
-
-        let Some(target_id) = Self::current_target_entity_id(map) else {
-            return;
-        };
-        let Some(target) = map.entities.iter().find(|entity| entity.id == target_id) else {
-            return;
-        };
-
-        let color = Self::hex_to_rgba_u8(&color_hex);
-        let stride = self.target.stride();
-
-        for widget in self.game_widgets.values() {
-            if !Self::is_2d_camera(&widget.camera) {
-                continue;
-            }
-
-            let x = widget.rect.x + (target.get_pos_xz().x - widget.top_left.x) * widget.grid_size;
-            let y = widget.rect.y + (target.get_pos_xz().y - widget.top_left.y) * widget.grid_size;
-            let size = widget.grid_size.max(1.0).round() as usize;
-
-            let rx = x.floor() as isize;
-            let ry = y.floor() as isize;
-            let rw = size as isize;
-            let rh = size as isize;
-
-            let safe = (
-                0isize,
-                0isize,
-                self.target.dim().width as isize,
-                self.target.dim().height as isize,
-            );
-            if rx + rw <= safe.0
-                || ry + rh <= safe.1
-                || rx >= safe.2
-                || ry >= safe.3
-                || rw <= 0
-                || rh <= 0
-            {
-                continue;
-            }
-
-            let rect = (
-                rx.max(0) as usize,
-                ry.max(0) as usize,
-                size.min((safe.2 - rx.max(0)) as usize),
-                size.min((safe.3 - ry.max(0)) as usize),
-            );
-            if rect.2 == 0 || rect.3 == 0 {
-                continue;
-            }
-
-            self.draw2d
-                .rect_outline_thickness(self.target.pixels_mut(), &rect, stride, &color, 2);
         }
     }
 

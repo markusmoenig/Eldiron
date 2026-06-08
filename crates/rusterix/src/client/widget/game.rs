@@ -1,7 +1,10 @@
 use crate::client::draw2d::Draw2D;
 use crate::client::{apply_2d_visibility_mask, draw2d};
 use crate::prelude::*;
-use crate::{Assets, Map, MapMini, Pixel, PlayerCamera, Rect, SceneHandler, WHITE};
+use crate::{
+    Assets, Map, MapMini, Pixel, PlayerCamera, Rect, SceneHandler, Value, WHITE,
+    avatar_builder::AvatarFrameStyle,
+};
 use crate::{ValueGroups, ValueTomlLoader};
 use theframework::prelude::*;
 use vek::Vec2;
@@ -103,6 +106,11 @@ pub struct GameWidget {
     pub text_font_size: f32,
     pub text_color: Pixel,
     pub mapmini: MapMini,
+    pub target_frame_color: Pixel,
+    pub target_frame_color_index: Option<i32>,
+    pub attacker_frame_color: Pixel,
+    pub attacker_frame_color_index: Option<i32>,
+    pub target_frame_size: usize,
 }
 
 impl Default for GameWidget {
@@ -172,6 +180,11 @@ impl GameWidget {
             text_font_size: 18.0,
             text_color: WHITE,
             mapmini: MapMini::default(),
+            target_frame_color: [172, 182, 194, 210],
+            target_frame_color_index: None,
+            attacker_frame_color: [224, 67, 64, 235],
+            attacker_frame_color_index: None,
+            target_frame_size: 1,
         }
     }
 
@@ -262,6 +275,22 @@ impl GameWidget {
                 if let Some(color) = ui.get_str("color".into()) {
                     self.text_color = Self::hex_to_rgba_u8(&color);
                 }
+                if let Some(color) = ui.get_str("target_frame_color".into()) {
+                    self.target_frame_color = Self::hex_to_rgba_u8(color);
+                }
+                self.target_frame_color_index = ui
+                    .get_float("target_frame_color_index")
+                    .map(|value| value as i32);
+                if let Some(color) = ui.get_str("attacker_frame_color".into()) {
+                    self.attacker_frame_color = Self::hex_to_rgba_u8(color);
+                }
+                self.attacker_frame_color_index = ui
+                    .get_float("attacker_frame_color_index")
+                    .map(|value| value as i32);
+                self.target_frame_size = ui
+                    .get_float("target_frame_size")
+                    .map(|value| value.round().max(0.0) as usize)
+                    .unwrap_or(self.target_frame_size);
                 let presentation =
                     ui.get_str_default("presentation".into(), self.backend_name.clone());
                 self.set_backend_by_name(&presentation);
@@ -320,6 +349,107 @@ impl GameWidget {
             }
             _ => WHITE,
         }
+    }
+
+    fn palette_color(assets: &Assets, index: Option<i32>, fallback: Pixel) -> Pixel {
+        let Some(index) = index else {
+            return fallback;
+        };
+        if index < 0 {
+            return fallback;
+        }
+        let index = index as usize;
+        if index < assets.palette.colors.len()
+            && let Some(color) = &assets.palette[index]
+        {
+            return color.to_u8_array();
+        }
+        fallback
+    }
+
+    pub fn target_frame_color(&self, assets: &Assets) -> Pixel {
+        Self::palette_color(
+            assets,
+            self.target_frame_color_index,
+            self.target_frame_color,
+        )
+    }
+
+    pub fn attacker_frame_color(&self, assets: &Assets) -> Pixel {
+        Self::palette_color(
+            assets,
+            self.attacker_frame_color_index,
+            self.attacker_frame_color,
+        )
+    }
+
+    fn parse_target_attr(value: Option<&Value>) -> Option<u32> {
+        match value {
+            Some(Value::UInt(id)) => Some(*id),
+            Some(Value::Int(id)) if *id > 0 => Some(*id as u32),
+            Some(Value::Int64(id)) if *id > 0 => Some(*id as u32),
+            Some(Value::Str(value)) => value.trim().parse::<u32>().ok().filter(|id| *id > 0),
+            _ => None,
+        }
+    }
+
+    fn entity_target_attr(entity: &crate::Entity, key: &str) -> Option<u32> {
+        Self::parse_target_attr(entity.attributes.get(key))
+    }
+
+    fn leader_entity<'a>(map: &'a Map) -> Option<&'a crate::Entity> {
+        map.entities.iter().find(|entity| entity.is_player())
+    }
+
+    fn current_target_entity_id(map: &Map) -> Option<u32> {
+        let leader = Self::leader_entity(map)?;
+        Self::entity_target_attr(leader, "attack_target")
+            .or_else(|| Self::entity_target_attr(leader, "target"))
+    }
+
+    fn avatar_frame_styles(&self, map: &Map, assets: &Assets) -> FxHashMap<u32, AvatarFrameStyle> {
+        let mut styles = FxHashMap::default();
+        if self.target_frame_size == 0 {
+            return styles;
+        }
+
+        let neutral = self.target_frame_color(assets);
+        if let Some(target_id) = Self::current_target_entity_id(map)
+            && neutral[3] > 0
+        {
+            styles.insert(
+                target_id,
+                AvatarFrameStyle {
+                    outline_color: neutral,
+                    outline_thickness: self.target_frame_size,
+                },
+            );
+        }
+
+        let Some(leader) = Self::leader_entity(map) else {
+            return styles;
+        };
+        let attacker = self.attacker_frame_color(assets);
+        if attacker[3] == 0 {
+            return styles;
+        }
+
+        for entity in &map.entities {
+            if entity.id == leader.id || entity.get_mode() == "dead" {
+                continue;
+            }
+            if Self::entity_target_attr(entity, "attack_target") == Some(leader.id) {
+                styles.insert(
+                    entity.id,
+                    AvatarFrameStyle {
+                        outline_color: attacker,
+                        outline_thickness: self.target_frame_size,
+                    },
+                );
+            }
+        }
+
+        styles
     }
 
     fn update_player_context(&mut self, map: &Map) {
@@ -611,10 +741,17 @@ impl GameWidget {
         }
 
         self.update_player_context(map);
+        let avatar_frame_styles = self.avatar_frame_styles(map, assets);
         if Self::is_2d_camera(&self.camera) {
-            scene_handler.build_dynamics_2d(map, animation_frame, assets);
+            scene_handler.build_dynamics_2d(map, animation_frame, assets, &avatar_frame_styles);
         } else {
-            scene_handler.build_dynamics_3d(map, self.camera_d3.as_ref(), animation_frame, assets);
+            scene_handler.build_dynamics_3d(
+                map,
+                self.camera_d3.as_ref(),
+                animation_frame,
+                assets,
+                &avatar_frame_styles,
+            );
         }
     }
 

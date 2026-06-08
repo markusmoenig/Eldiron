@@ -7,6 +7,12 @@ use scenevm::{Atom, GeoId, SceneVM};
 use std::hash::{Hash, Hasher};
 use theframework::prelude::*;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AvatarFrameStyle {
+    pub outline_color: [u8; 4],
+    pub outline_thickness: usize,
+}
+
 struct CachedAvatarFrames {
     avatar_signature: u64,
     frames: FxHashMap<(String, AvatarDirection, usize), (u32, Vec<u8>)>,
@@ -1372,6 +1378,29 @@ impl AvatarRuntimeBuilder {
         geo_id: GeoId,
         direction_override: Option<AvatarDirection>,
     ) -> bool {
+        self.ensure_entity_avatar_uploaded_with_direction_and_style(
+            vm,
+            entity,
+            avatar,
+            assets,
+            frame_index,
+            geo_id,
+            direction_override,
+            None,
+        )
+    }
+
+    pub fn ensure_entity_avatar_uploaded_with_direction_and_style(
+        &mut self,
+        vm: &mut SceneVM,
+        entity: &Entity,
+        avatar: &Avatar,
+        assets: &Assets,
+        frame_index: usize,
+        geo_id: GeoId,
+        direction_override: Option<AvatarDirection>,
+        frame_style: Option<AvatarFrameStyle>,
+    ) -> bool {
         let update_avatar = entity.attributes.get_bool_default("update_avatar", false);
         let needs_rebuild_edge = if update_avatar {
             self.avatar_rebuild_latch.insert(geo_id)
@@ -1460,7 +1489,7 @@ impl AvatarRuntimeBuilder {
                 None
             }
         });
-        let Some((resolved_key, size, rgba)) = cache
+        let Some((resolved_key, size, mut rgba)) = cache
             .frames
             .get(&key)
             .map(|entry| (key.clone(), entry.0, entry.1.clone()))
@@ -1492,6 +1521,18 @@ impl AvatarRuntimeBuilder {
             return false;
         };
 
+        if let Some(style) = frame_style
+            && style.outline_color[3] > 0
+            && style.outline_thickness > 0
+        {
+            Self::draw_alpha_outline(
+                size as usize,
+                &mut rgba,
+                style.outline_color,
+                style.outline_thickness,
+            );
+        }
+
         // Avatars are highly dynamic (animation + gear swaps), so always push the current frame,
         // including fully transparent frames.
         vm.execute(Atom::SetAvatarBillboardData {
@@ -1501,6 +1542,63 @@ impl AvatarRuntimeBuilder {
         });
         cache.last_uploaded = Some(resolved_key);
         true
+    }
+
+    fn draw_alpha_outline(size: usize, rgba: &mut [u8], color: [u8; 4], thickness: usize) {
+        if size == 0 || rgba.len() < size * size * 4 || color[3] == 0 || thickness == 0 {
+            return;
+        }
+
+        let source_alpha: Vec<u8> = rgba.chunks_exact(4).map(|px| px[3]).collect();
+        let mut outline_alpha = vec![0_u8; size * size];
+        let radius = thickness as isize;
+
+        for y in 0..size {
+            for x in 0..size {
+                let idx = y * size + x;
+                if source_alpha[idx] != 0 {
+                    continue;
+                }
+
+                let x = x as isize;
+                let y = y as isize;
+                let mut near_body = false;
+                'search: for oy in -radius..=radius {
+                    for ox in -radius..=radius {
+                        if ox == 0 && oy == 0 {
+                            continue;
+                        }
+                        if ox.abs().max(oy.abs()) > radius {
+                            continue;
+                        }
+                        let nx = x + ox;
+                        let ny = y + oy;
+                        if nx < 0 || ny < 0 || nx >= size as isize || ny >= size as isize {
+                            continue;
+                        }
+                        if source_alpha[ny as usize * size + nx as usize] != 0 {
+                            near_body = true;
+                            break 'search;
+                        }
+                    }
+                }
+
+                if near_body {
+                    outline_alpha[idx] = color[3];
+                }
+            }
+        }
+
+        for (idx, alpha) in outline_alpha.into_iter().enumerate() {
+            if alpha == 0 {
+                continue;
+            }
+            let offset = idx * 4;
+            rgba[offset] = color[0];
+            rgba[offset + 1] = color[1];
+            rgba[offset + 2] = color[2];
+            rgba[offset + 3] = alpha;
+        }
     }
 
     pub fn current_avatar_alpha_bounds(&self, geo_id: GeoId) -> Option<(f32, f32, f32, f32, f32)> {

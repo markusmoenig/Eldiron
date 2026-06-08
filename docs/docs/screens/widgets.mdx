@@ -27,6 +27,9 @@ Use a widget with **role = "game"** to render the game inside a screen. The game
 - **chunk_prefetch_radius**: wider background streaming radius around the player. Chunks outside this radius are unloaded. Default: **5**.
 - **chunk_build_budget_near**: max chunk builds per frame while near chunks are still missing. Higher values reduce startup wait but can cost frame time. Default: **10**.
 - **chunk_build_budget_far**: max chunk builds per frame after near chunks are loaded (background streaming). Default: **2**.
+- **target_frame_size**: silhouette frame thickness in avatar source pixels for the current in-game target and active attackers. Defaults to `1`; use `0` to hide these frames for this game widget.
+- **target_frame_color** / **target_frame_color_index**: current target silhouette frame color as a hex color or project palette index.
+- **attacker_frame_color** / **attacker_frame_color_index**: silhouette frame color for entities whose `attack_target` points at the leader.
 
 On startup, chunks around the player are built first. Farther chunks inside `chunk_prefetch_radius` are streamed in later.
 
@@ -94,6 +97,9 @@ chunk_load_radius = 2
 chunk_prefetch_radius = 5
 chunk_build_budget_near = 10
 chunk_build_budget_far = 2
+target_frame_color = "#ACB6C2D2"
+attacker_frame_color = "#E04340EB"
+target_frame_size = 1
 
 [camera]
 type = "firstp"
@@ -368,6 +374,14 @@ This gives first-person layouts a self-target substitute for actions such as Min
 - **animation** - Optional animation name (for example `"Idle"`). If omitted, the current avatar animation is used.
 - **frame_index** - Frame index to render (defaults to `0`).
 - **perspective** - Optional direction: `front`, `back`, `left`, `right` (defaults to `front`).
+- **border_size** - Silhouette interaction frame thickness in pixels. Defaults to `2`; use `0` to hide it.
+- **border_color** / **border_color_index** - Neutral silhouette frame color as a hex color or project palette index.
+- **damage_border_color** / **damage_border_color_index** - Silhouette frame color shown briefly after the bound entity loses health.
+- **damage_flash_seconds** - How long the damage frame remains visible. Defaults to `0.8`.
+- **damage_stat** - Attribute watched for damage. Defaults to `"HP"`.
+
+Avatar widgets also accept `[ui.style] border = "#..."` and
+`[ui.style.damage] border = "#..."` for the neutral and damage frame colors.
 - **show_weapons** - Include equipped weapon overlays (`true` by default).
 
 ### Example
