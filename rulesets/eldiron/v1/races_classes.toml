@@ -14,6 +14,7 @@ INT = 10
 WIS = 10
 VIT = 10
 SPEED = 1
+hair_index = 7
 
 [races.Orc]
 description = "Strong, hardy people often used as hostile test enemies in the default rules."
@@ -115,6 +116,7 @@ DMG = 1
 ARMOR = 1
 INIT = 1
 inventory_slots = 6
+hair_index = 7
 
 [classes.Warrior.progression.damage]
 base = 1
@@ -166,6 +168,7 @@ ARMOR = 1
 RESIST = 1
 INIT = 0
 inventory_slots = 6
+hair_index = 7
 
 [classes.Cleric.progression.damage]
 base = 1
@@ -181,14 +184,14 @@ primary_attribute_gain = 1
 [classes.Cleric.unlocks.level_1]
 abilities = ["basic_attack", "guard"]
 spells = ["minor_heal"]
-equipment = ["novice_mace", "padded_armor", "round_shield"]
+equipment = ["novice_mace", "cleric_vestments", "round_shield"]
 
 [classes.Cleric.unlocks.level_2]
 spells = ["holy_light"]
 
 [classes.Cleric.starting_loadout]
 weapons = ["novice_mace"]
-armor = ["padded_armor", "round_shield"]
+armor = ["cleric_vestments", "round_shield"]
 clothing = ["wool_trousers", "leather_shoes"]
 inventory = ["blessed_herb"]
 abilities = ["basic_attack", "guard"]

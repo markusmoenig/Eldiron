@@ -15,6 +15,7 @@ pub struct AvatarFrameStyle {
 
 struct CachedAvatarFrames {
     avatar_signature: u64,
+    marker_signature: u64,
     frames: FxHashMap<(String, AvatarDirection, usize), (u32, Vec<u8>)>,
     scale_reference_heights: FxHashMap<AvatarDirection, f32>,
     last_uploaded: Option<(String, AvatarDirection, usize)>,
@@ -78,6 +79,20 @@ impl AvatarRuntimeBuilder {
                 }
             }
         }
+        hasher.finish()
+    }
+
+    fn marker_colors_signature(colors: &AvatarMarkerColors) -> u64 {
+        let mut hasher = rustc_hash::FxHasher::default();
+        colors.skin_light.hash(&mut hasher);
+        colors.skin_dark.hash(&mut hasher);
+        colors.torso.hash(&mut hasher);
+        colors.arms.hash(&mut hasher);
+        colors.legs.hash(&mut hasher);
+        colors.hair.hash(&mut hasher);
+        colors.eyes.hash(&mut hasher);
+        colors.hands.hash(&mut hasher);
+        colors.feet.hash(&mut hasher);
         hasher.finish()
     }
 
@@ -1280,6 +1295,7 @@ impl AvatarRuntimeBuilder {
         assets: &Assets,
         geo_id: GeoId,
         avatar_signature: u64,
+        marker_signature: u64,
     ) -> bool {
         let mut frames: FxHashMap<(String, AvatarDirection, usize), (u32, Vec<u8>)> =
             FxHashMap::default();
@@ -1339,6 +1355,7 @@ impl AvatarRuntimeBuilder {
             geo_id,
             CachedAvatarFrames {
                 avatar_signature,
+                marker_signature,
                 frames,
                 scale_reference_heights,
                 last_uploaded: None,
@@ -1409,11 +1426,17 @@ impl AvatarRuntimeBuilder {
             false
         };
         let avatar_signature = Self::avatar_definition_signature(avatar);
+        let marker_signature = Self::marker_colors_signature(&Self::marker_colors_for_entity(
+            entity, assets,
+        ));
         let cache_missing = !self.avatar_frame_cache.contains_key(&geo_id);
         let cache_stale = self
             .avatar_frame_cache
             .get(&geo_id)
-            .is_some_and(|cache| cache.avatar_signature != avatar_signature);
+            .is_some_and(|cache| {
+                cache.avatar_signature != avatar_signature
+                    || cache.marker_signature != marker_signature
+            });
 
         if (needs_rebuild_edge || cache_missing || cache_stale)
             && !self.rebuild_entity_avatar_cache(
@@ -1423,6 +1446,7 @@ impl AvatarRuntimeBuilder {
                 assets,
                 geo_id,
                 avatar_signature,
+                marker_signature,
             )
         {
             return false;

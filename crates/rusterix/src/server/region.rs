@@ -1016,6 +1016,54 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn faction_makes_same_race_guard_neutral_for_attack_targeting() {
+        let mut ctx = RegionCtx::default();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [actions.basic_attack]
+        target = "hostile_or_neutral_entity"
+
+        [identity.defaults]
+        race = "Human"
+
+        [race_relations.Human]
+        Human = "friendly"
+
+        [reputation]
+        default = 0
+
+        [reputation.thresholds]
+        hostile = -50
+        friendly = 50
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+
+        let mut player = Entity::new();
+        player.id = 1;
+        player.set_attribute("race", Value::Str("Human".into()));
+        player.set_attribute("class", Value::Str("Warrior".into()));
+        ctx.map.entities.push(player);
+
+        let mut guard = Entity::new();
+        guard.id = 2;
+        guard.set_attribute("race", Value::Str("Human".into()));
+        guard.set_attribute("class", Value::Str("Warrior".into()));
+        guard.set_attribute("faction", Value::Str("guard".into()));
+        ctx.map.entities.push(guard);
+
+        let action = ruleset_action_table(&ctx, "basic_attack").unwrap();
+        assert_eq!(
+            entity_disposition_by_id(&ctx, 1, 2).as_deref(),
+            Some("neutral")
+        );
+        assert!(action_target_allowed(&ctx, &action, 1, 2));
+    }
+
+    #[test]
     fn holy_light_selected_action_can_target_neutral_entity() {
         clear_regionctx_store();
         let (from_sender, from_receiver) = unbounded();
@@ -14381,6 +14429,37 @@ fn base_race_disposition(ctx: &RegionCtx, actor_race: &str, target_race: &str) -
         })
 }
 
+fn entity_faction_for_rules(entity: &Entity) -> Option<String> {
+    entity
+        .get_attr_string("faction")
+        .map(|faction| faction.trim().to_string())
+        .filter(|faction| !faction.is_empty())
+}
+
+fn base_entity_disposition(
+    ctx: &RegionCtx,
+    actor: &Entity,
+    actor_race: &str,
+    target: &Entity,
+    target_race: &str,
+) -> String {
+    let actor_faction = entity_faction_for_rules(actor);
+    let target_faction = entity_faction_for_rules(target);
+    if actor_faction.is_some() || target_faction.is_some() {
+        return if actor_faction
+            .as_deref()
+            .zip(target_faction.as_deref())
+            .is_some_and(|(actor, target)| actor.eq_ignore_ascii_case(target))
+        {
+            "friendly".to_string()
+        } else {
+            "neutral".to_string()
+        };
+    }
+
+    base_race_disposition(ctx, actor_race, target_race)
+}
+
 fn reputation_for_target_race(ctx: &RegionCtx, actor: &Entity, target_race: &str) -> f32 {
     let key = format!("reputation_{}", target_race.trim());
     if actor.attributes.get(&key).is_some() {
@@ -14421,7 +14500,7 @@ fn reputation_threshold(ctx: &RegionCtx, key: &str, default: f32) -> f32 {
 fn entity_disposition(ctx: &RegionCtx, actor: &Entity, target: &Entity) -> String {
     let actor_race = entity_race_for_rules(ctx, actor);
     let target_race = entity_race_for_rules(ctx, target);
-    let base = base_race_disposition(ctx, &actor_race, &target_race);
+    let base = base_entity_disposition(ctx, actor, &actor_race, target, &target_race);
     let reputation = reputation_for_target_race(ctx, actor, &target_race);
 
     if reputation <= reputation_threshold(ctx, "hostile", -50.0) {

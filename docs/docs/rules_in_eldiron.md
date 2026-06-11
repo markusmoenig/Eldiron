@@ -123,6 +123,36 @@ Ruleset localizations are resolved the same way:
 3. Use project locale entries as overrides, not as a required copy of every
    ruleset message.
 
+## Configuration And Overrides
+
+Official ruleset projects are configured in layers.
+
+Use **Game / Settings** to select which bundled ruleset the project follows.
+Use **Game / Rules** to override ruleset TOML for this project. The override
+should contain only the tables and keys that are intentionally different from
+the bundled official ruleset.
+
+Use **Game / Locales** the same way for text. Project locale entries replace
+matching bundled ruleset locale keys, while missing keys continue to come from
+the official locale defaults.
+
+Project assets can also override bundled ruleset assets when they use the same
+lookup name. Ruleset avatars are loaded first, then project avatars are inserted
+afterwards by avatar name. This means a project avatar named `humanoid`
+overrides the bundled official `humanoid` avatar automatically.
+
+This is important for artist-edited avatar atlases. If you export the official
+humanoid avatar as a PNG atlas, edit it externally, and import it back into a
+project avatar named `humanoid`, all characters that use the default ruleset
+avatar will use the project version. A project avatar named `Human` does not
+replace the default `humanoid` avatar by name; it is used only by characters
+that explicitly set `avatar = "Human"` or the matching `avatar_id`.
+
+Explicit character and item presentation still wins over default ruleset
+presentation. A character with `avatar`, `avatar_id`, `tile_id`, or `source`
+does not use the fallback ruleset avatar. Setting an empty `avatar = ""` or
+`tile_id = ""` is a deliberate way to prevent inherited default visuals.
+
 ## No Backwards Compatibility Requirement
 
 The official ruleset replaces the old ad hoc rules model.
@@ -306,7 +336,8 @@ rulesets/eldiron/v1/assets/humanoid.eldiron_avatar
 
 Runtime asset loading makes this available to clients. Character visuals can
 still provide concrete presentation with values such as `tile_id` or `avatar`.
-An explicit project visual wins over the ruleset default.
+An explicit project visual wins over the ruleset default, and a project avatar
+named `humanoid` replaces the bundled default avatar for the project.
 
 Ruleset items can also define `avatar_channels`:
 

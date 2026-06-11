@@ -4637,10 +4637,13 @@ mod tests {
         assert_eq!(arena.entity(1).attributes.get_int_default("ARMOR", 0), 1);
         assert!(arena.has_str_array_attr(1, "start_equipped_items", "training_sword"));
         assert!(arena.has_str_array_attr(1, "start_equipped_items", "padded_armor"));
+        assert_eq!(arena.entity(1).attributes.get_int_default("hair_index", 0), 7);
         assert!(!arena.has_str_array_attr(1, "start_items", "linen_shirt"));
         assert!(arena.has_str_array_attr(1, "abilities", "basic_attack"));
         assert!(arena.has_str_array_attr(1, "abilities", "guard"));
 
+        assert!(arena.has_str_array_attr(2, "start_equipped_items", "cleric_vestments"));
+        assert!(!arena.has_str_array_attr(2, "start_equipped_items", "padded_armor"));
         assert!(arena.has_str_array_attr(2, "spells", "minor_heal"));
         assert!(arena.has_str_array_attr(2, "start_items", "blessed_herb"));
         assert!(!arena.has_str_array_attr(2, "spells", "holy_light"));

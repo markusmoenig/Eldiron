@@ -560,6 +560,19 @@ avatar_channels = ["torso", "arms"]
 [items.armor.padded_armor.attributes]
 ARMOR = 1
 
+[items.armor.cleric_vestments]
+name = "Cleric Vestments"
+description = "Pale layered vestments reinforced for novice temple guardians and field healers."
+category = "cloth"
+slot = "torso"
+rarity = "common"
+color = 25
+icon = "linen_shirt"
+avatar_channels = ["torso", "arms"]
+
+[items.armor.cleric_vestments.attributes]
+ARMOR = 1
+
 [items.armor.leather_vest]
 name = "Leather Vest"
 description = "A flexible leather vest for scouts, hunters, and light guards."

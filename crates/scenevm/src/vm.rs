@@ -2115,7 +2115,20 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let rim = pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 2.0);
         let key = UBO.sun_color_intensity.xyz * UBO.sun_color_intensity.w;
         let fill = ambient * albedo;
-        lit_color = lit_color * avatar_lift + fill * avatar_fill + key * (avatar_rim * rim);
+        let boosted = lit_color * avatar_lift + fill * avatar_fill + key * (avatar_rim * rim);
+
+        // Keep pale atlas colors from clipping to white after post exposure.
+        let post_enabled = UBO.post_params.x > 0.5;
+        let tone_mapper = u32(max(UBO.post_params.y, 0.0));
+        let exposure = select(1.0, max(UBO.post_params.z, 0.001), post_enabled && tone_mapper == 0u);
+        let avatar_cap = clamp(0.88 / exposure, 0.45, 0.90);
+        let avatar_knee = avatar_cap * 0.72;
+        let avatar_headroom = max(avatar_cap - avatar_knee, 0.001);
+        let avatar_luma = max(dot(boosted, vec3<f32>(0.2126, 0.7152, 0.0722)), 0.0001);
+        let avatar_over = max(avatar_luma - avatar_knee, 0.0);
+        let compressed_luma = avatar_knee + avatar_headroom * (1.0 - exp(-avatar_over / avatar_headroom));
+        let avatar_scale = select(1.0, min(1.0, compressed_luma / avatar_luma), avatar_luma > avatar_knee);
+        lit_color = boosted * avatar_scale;
     }
 
     let fog_density = max(UBO.fog_color_density.w, 0.0);

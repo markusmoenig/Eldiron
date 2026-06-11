@@ -291,7 +291,7 @@ loadout.
 | Starting mana | `MP 8`, `MAX_MP 8` |
 | Starter money | `5s` |
 | Starter weapon | `novice_mace` |
-| Starter armor | `padded_armor`, `round_shield` |
+| Starter armor | `cleric_vestments`, `round_shield` |
 | Starter clothing | `wool_trousers`, `leather_shoes` |
 | Starter inventory | `blessed_herb` |
 | Level 1 abilities | `basic_attack`, `guard` |
@@ -534,6 +534,7 @@ natural future path.
 | Armor | Family | Slot | Armor | Avatar channels |
 | --- | --- | --- | ---: | --- |
 | `padded_armor` | cloth | torso | `1` | torso, arms |
+| `cleric_vestments` | cloth | torso | `1` | torso, arms |
 | `leather_vest` | leather | torso | `2` | torso |
 | `chain_shirt` | chain | torso | `3` | torso, arms |
 | `round_shield` | shield | shield | `1` | round shield mask |

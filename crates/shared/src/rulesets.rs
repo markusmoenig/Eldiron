@@ -2621,6 +2621,12 @@ mod tests {
                 .get("weapons")
                 .is_some_and(|weapons| weapons.iter().any(|weapon| weapon == "novice_mace"))
         );
+        assert!(
+            cleric
+                .starting_loadout
+                .get("armor")
+                .is_some_and(|armor| armor.iter().any(|item| item == "cleric_vestments"))
+        );
     }
 
     #[test]
@@ -2755,6 +2761,14 @@ mod tests {
                 .iter()
                 .any(|template| template.id == "padded_armor")
         );
+        assert!(templates.iter().any(|template| {
+            template.id == "cleric_vestments"
+                && template.kind == "armor"
+                && template.ruleset_path == "items.armor.cleric_vestments"
+                && template.data.contains("color_index = 25")
+                && template.data.contains("torso_index = 25")
+                && template.data.contains("arms_index = 25")
+        }));
         assert!(
             templates
                 .iter()
