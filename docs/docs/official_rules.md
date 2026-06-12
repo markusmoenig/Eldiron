@@ -93,7 +93,7 @@ because they schedule world-clock events.
 | Name | `Eldiron Official Ruleset` |
 | Version | `1.0.0` |
 | Schema version | `1` |
-| Engine minimum | `0.9.12` |
+| Engine minimum | `0.91.0` |
 | Status | `draft` |
 
 ## Dice

@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use web_time::Instant;
 use zeno::{Mask, Stroke};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

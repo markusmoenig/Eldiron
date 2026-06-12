@@ -2308,7 +2308,7 @@ pub struct RegionInstance {
     collision_mode: CollisionMode,
     last_redraw_at: Instant,
     last_simulation_advance_at: Instant,
-    last_external_step_request_at: Instant,
+    last_external_step_request_at: Option<Instant>,
     current_frame_has_turn_step: bool,
     simulation_step_pending: bool,
     pending_system_steps: u32,
@@ -4108,7 +4108,9 @@ impl RegionInstance {
             return true;
         }
         if Self::is_click_like_step_action(action)
-            && self.last_external_step_request_at.elapsed() < Duration::from_millis(150)
+            && self
+                .last_external_step_request_at
+                .is_some_and(|last| last.elapsed() < Duration::from_millis(150))
         {
             return false;
         }
@@ -5096,7 +5098,7 @@ impl RegionInstance {
             collision_mode: CollisionMode::Tile,
             last_redraw_at: Instant::now(),
             last_simulation_advance_at: Instant::now(),
-            last_external_step_request_at: Instant::now() - Duration::from_secs(1),
+            last_external_step_request_at: None,
             current_frame_has_turn_step: false,
             simulation_step_pending: false,
             pending_system_steps: 0,
@@ -6172,7 +6174,7 @@ impl RegionInstance {
                                     && Self::entity_has_active_continuous_motion(entity))
                             {
                                 if Self::is_click_like_step_action(&action) {
-                                    self.last_external_step_request_at = Instant::now();
+                                    self.last_external_step_request_at = Some(Instant::now());
                                 }
                                 self.note_simulation_step_request();
                             }

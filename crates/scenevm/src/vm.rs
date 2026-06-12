@@ -108,7 +108,7 @@ struct Raster3DDebugTiming {
     shadow_frames: u32,
     msaa_frames: u32,
     shadow_res_sum: u64,
-    last_log: Option<std::time::Instant>,
+    last_log: Option<instant::Instant>,
 }
 
 #[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
@@ -183,7 +183,7 @@ fn record_raster3d_debug_timing(
     }
     timing.shadow_res_sum = timing.shadow_res_sum.saturating_add(shadow_res as u64);
 
-    let now = std::time::Instant::now();
+    let now = instant::Instant::now();
     let should_log = timing
         .last_log
         .map(|last| now.duration_since(last) >= std::time::Duration::from_secs(2))
@@ -7865,18 +7865,18 @@ impl VM {
         fb_w: u32,
         fb_h: u32,
     ) -> crate::SceneVMResult<()> {
-        let debug_total_start = std::time::Instant::now();
+        let debug_total_start = instant::Instant::now();
         let mut debug_geometry_ms = 0.0;
         let mut debug_visibility_ms = 0.0;
 
-        let debug_init_start = std::time::Instant::now();
+        let debug_init_start = instant::Instant::now();
         if self.gpu.is_none() {
             self.init_gpu(device)?;
         }
         self.init_raster3d(device)?;
         let debug_init_ms = debug_init_start.elapsed().as_secs_f64() * 1000.0;
 
-        let debug_prepare_start = std::time::Instant::now();
+        let debug_prepare_start = instant::Instant::now();
         self.upload_tile_metadata_to_gpu(device);
         self.upload_scene_data_ssbo(device, queue);
         self.ensure_organic_detail_texture(device, queue);
@@ -7902,7 +7902,7 @@ impl VM {
             || self.cached_v3.is_empty()
             || need_dynamic_refresh
         {
-            let debug_geometry_start = std::time::Instant::now();
+            let debug_geometry_start = instant::Instant::now();
             let rebuild_static_geometry = self.accel_dirty
                 || self.geometry3d_dirty
                 || self.cached_static_v3.is_empty()
@@ -8267,7 +8267,7 @@ impl VM {
         }
 
         if self.visibility_dirty && !geometry_changed {
-            let debug_visibility_start = std::time::Instant::now();
+            let debug_visibility_start = instant::Instant::now();
             let mut tri_visibility: Vec<bool> = Vec::new();
             for ch in self.chunks_map.values() {
                 for poly_list in ch.polys3d_map.values() {
@@ -8352,7 +8352,7 @@ impl VM {
             .shared_atlas
             .texture_views()
             .expect("atlas GPU resources missing");
-        let debug_visibility_start = std::time::Instant::now();
+        let debug_visibility_start = instant::Instant::now();
         let (visible_indices, opaque_indices, transparent_indices, particle_indices) =
             self.rebuild_raster_visible_indices(&c);
         debug_visibility_ms += debug_visibility_start.elapsed().as_secs_f64() * 1000.0;
@@ -8519,7 +8519,7 @@ impl VM {
         let use_msaa = raster_samples > 1;
         let shadow_enabled = !self.cached_i3.is_empty() && self.gp2.w > 0.5 && self.gp7.x > 0.5;
 
-        let debug_upload_start = std::time::Instant::now();
+        let debug_upload_start = instant::Instant::now();
         {
             self.upload_organic_billboard_ssbo(device, queue);
             let g = self.gpu.as_mut().unwrap();
@@ -8775,7 +8775,7 @@ impl VM {
         }
         let debug_upload_ms = debug_upload_start.elapsed().as_secs_f64() * 1000.0;
 
-        let debug_encode_start = std::time::Instant::now();
+        let debug_encode_start = instant::Instant::now();
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("vm-3d-raster-enc"),
         });
@@ -8967,7 +8967,7 @@ impl VM {
             }
         }
         let debug_encode_ms = debug_encode_start.elapsed().as_secs_f64() * 1000.0;
-        let debug_submit_start = std::time::Instant::now();
+        let debug_submit_start = instant::Instant::now();
         queue.submit(Some(encoder.finish()));
         let debug_submit_ms = debug_submit_start.elapsed().as_secs_f64() * 1000.0;
         if self.ping_pong_enabled {

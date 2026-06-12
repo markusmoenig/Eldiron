@@ -6,6 +6,7 @@ use crate::{
     avatar_builder::AvatarFrameStyle,
 };
 use crate::{ValueGroups, ValueTomlLoader};
+use instant::Instant;
 use theframework::prelude::*;
 use vek::Vec2;
 
@@ -861,7 +862,7 @@ impl GameWidget {
         scene_handler: &mut SceneHandler,
     ) {
         let debug_enabled = render_debug_enabled();
-        let debug_total_start = debug_enabled.then(std::time::Instant::now);
+        let debug_total_start = debug_enabled.then(Instant::now);
         let mut debug_build_ms = 0.0;
         let mut debug_stream_ms = 0.0;
         let mut debug_tick_ms = 0.0;
@@ -877,13 +878,13 @@ impl GameWidget {
         self.update_player_context(map);
 
         if map.name != self.build_region_name || map.changed != self.build_map_changed {
-            let start = debug_enabled.then(std::time::Instant::now);
+            let start = debug_enabled.then(Instant::now);
             self.graphical_build(map, assets, scene_handler);
             if let Some(start) = start {
                 debug_build_ms = start.elapsed().as_secs_f64() * 1000.0;
             }
         }
-        let start = debug_enabled.then(std::time::Instant::now);
+        let start = debug_enabled.then(Instant::now);
         self.update_streaming_chunks(map, scene_handler);
         if let Some(start) = start {
             debug_stream_ms = start.elapsed().as_secs_f64() * 1000.0;
@@ -900,7 +901,7 @@ impl GameWidget {
             self.chunk_build_budget_far.max(1) as usize
         };
         if self.scenemanager.is_busy() {
-            let start = debug_enabled.then(std::time::Instant::now);
+            let start = debug_enabled.then(Instant::now);
             debug_processed_chunks = self.scenemanager.tick_batch(budget);
             if let Some(start) = start {
                 debug_tick_ms = start.elapsed().as_secs_f64() * 1000.0;
@@ -909,7 +910,7 @@ impl GameWidget {
 
         // Apply scene manager chunks
         let mut geometry_changed = false;
-        let start = debug_enabled.then(std::time::Instant::now);
+        let start = debug_enabled.then(Instant::now);
         while let Some(result) = self.scenemanager.receive() {
             match result {
                 SceneManagerResult::Chunk(chunk, _togo, _total, billboards) => {
@@ -956,7 +957,7 @@ impl GameWidget {
             scene_handler.mark_dynamics_dirty();
             self.force_dynamics_rebuild = true;
         }
-        let start = debug_enabled.then(std::time::Instant::now);
+        let start = debug_enabled.then(Instant::now);
         self.apply_iso_sector_visibility(map, scene_handler, geometry_changed);
         if let Some(start) = start {
             debug_visibility_ms = start.elapsed().as_secs_f64() * 1000.0;
@@ -970,13 +971,13 @@ impl GameWidget {
         }
 
         if Self::is_2d_camera(&self.camera) {
-            let start = debug_enabled.then(std::time::Instant::now);
+            let start = debug_enabled.then(Instant::now);
             self.prepare_d2(time, animation_frame, scene_handler);
             if let Some(start) = start {
                 debug_prepare_mode_ms = start.elapsed().as_secs_f64() * 1000.0;
             }
         } else {
-            let start = debug_enabled.then(std::time::Instant::now);
+            let start = debug_enabled.then(Instant::now);
             self.prepare_d3(map, time, animation_frame, scene_handler);
             if let Some(start) = start {
                 debug_prepare_mode_ms = start.elapsed().as_secs_f64() * 1000.0;

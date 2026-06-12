@@ -616,7 +616,7 @@ struct RenderDebugTiming {
     pipeline_ms: f64,
     submit_ms: f64,
     total_ms: f64,
-    last_log: Option<std::time::Instant>,
+    last_log: Option<instant::Instant>,
 }
 
 #[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
@@ -634,7 +634,7 @@ struct SceneVmDrawDebugTiming {
     total_ms: f64,
     overlays: u32,
     composited_layers: u32,
-    last_log: Option<std::time::Instant>,
+    last_log: Option<instant::Instant>,
 }
 
 #[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
@@ -672,7 +672,7 @@ fn record_scenevm_draw_timing(
     timing.overlays = timing.overlays.saturating_add(overlays);
     timing.composited_layers = timing.composited_layers.saturating_add(composited_layers);
 
-    let now = std::time::Instant::now();
+    let now = instant::Instant::now();
     let should_log = timing
         .last_log
         .map(|last| now.duration_since(last) >= std::time::Duration::from_secs(2))
@@ -742,7 +742,7 @@ fn record_render_to_window_timing(
     timing.submit_ms += submit_ms;
     timing.total_ms += total_ms;
 
-    let now = std::time::Instant::now();
+    let now = instant::Instant::now();
     let should_log = timing
         .last_log
         .map(|last| now.duration_since(last) >= std::time::Duration::from_secs(2))
@@ -1139,12 +1139,12 @@ impl SceneVM {
         rgba_overlay_pipeline: &mut Option<RgbaOverlayCompositingPipeline>,
         composite_rgba_overlay_in_scene: bool,
     ) {
-        let debug_total_start = std::time::Instant::now();
+        let debug_total_start = instant::Instant::now();
         let mut debug_composited_layers = 0u32;
 
         // The surface texture is always created with Rgba8Unorm in `Texture::ensure_gpu_with`
         let target_format = wgpu::TextureFormat::Rgba8Unorm;
-        let debug_base_start = std::time::Instant::now();
+        let debug_base_start = instant::Instant::now();
         if let Err(e) = base_vm.draw_into(device, queue, surface, w, h) {
             if log_errors {
                 println!("[SceneVM] Error drawing base VM: {:?}", e);
@@ -1152,7 +1152,7 @@ impl SceneVM {
         }
         let debug_base_ms = debug_base_start.elapsed().as_secs_f64() * 1000.0;
 
-        let debug_overlays_start = std::time::Instant::now();
+        let debug_overlays_start = instant::Instant::now();
         for vm in overlays.iter_mut() {
             if let Err(e) = vm.draw_into(device, queue, surface, w, h) {
                 if log_errors {
@@ -1162,7 +1162,7 @@ impl SceneVM {
         }
         let debug_overlays_ms = debug_overlays_start.elapsed().as_secs_f64() * 1000.0;
 
-        let debug_composite_start = std::time::Instant::now();
+        let debug_composite_start = instant::Instant::now();
         // Ensure surface has GPU resources
         surface.ensure_gpu_with(device);
 
@@ -1263,7 +1263,7 @@ impl SceneVM {
         }
         let debug_composite_ms = debug_composite_start.elapsed().as_secs_f64() * 1000.0;
 
-        let debug_rgba_start = std::time::Instant::now();
+        let debug_rgba_start = instant::Instant::now();
         if composite_rgba_overlay_in_scene && let Some(overlay) = rgba_overlay.as_mut() {
             overlay.texture.ensure_gpu_with(device);
             overlay.texture.upload_to_gpu_with(device, queue);
@@ -1323,7 +1323,7 @@ impl SceneVM {
         }
         let debug_rgba_overlay_ms = debug_rgba_start.elapsed().as_secs_f64() * 1000.0;
 
-        let debug_submit_start = std::time::Instant::now();
+        let debug_submit_start = instant::Instant::now();
         queue.submit(Some(encoder.finish()));
         let debug_submit_ms = debug_submit_start.elapsed().as_secs_f64() * 1000.0;
         record_scenevm_draw_timing(
@@ -1996,7 +1996,7 @@ impl SceneVM {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn render_to_window(&mut self) -> SceneVMResult<RenderResult> {
         let debug_enabled = render_debug_enabled();
-        let debug_total_start = debug_enabled.then(std::time::Instant::now);
+        let debug_total_start = debug_enabled.then(instant::Instant::now);
         let mut debug_draw_ms = 0.0;
         let mut debug_acquire_ms = 0.0;
         let mut debug_overlay_ms = 0.0;
@@ -2027,7 +2027,7 @@ impl SceneVM {
         }
 
         let (w, h) = self.size;
-        let debug_draw_start = debug_enabled.then(std::time::Instant::now);
+        let debug_draw_start = debug_enabled.then(instant::Instant::now);
         SceneVM::draw_all_vms(
             base_vm,
             overlays,
@@ -2046,7 +2046,7 @@ impl SceneVM {
             debug_draw_ms = start.elapsed().as_secs_f64() * 1000.0;
         }
 
-        let debug_acquire_start = debug_enabled.then(std::time::Instant::now);
+        let debug_acquire_start = debug_enabled.then(instant::Instant::now);
         let frame = match ws.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(wgpu::SurfaceError::Lost) | Err(wgpu::SurfaceError::Outdated) => {
@@ -2081,7 +2081,7 @@ impl SceneVM {
             .expect("Surface GPU not allocated")
             .view
             .clone();
-        let debug_overlay_start = debug_enabled.then(std::time::Instant::now);
+        let debug_overlay_start = debug_enabled.then(instant::Instant::now);
         let (overlay_view, overlay_rect_px): (wgpu::TextureView, [f32; 4]) =
             if let Some(overlay) = self.rgba_overlay.as_mut() {
                 overlay.texture.ensure_gpu_with(&gpu.device);
@@ -2106,7 +2106,7 @@ impl SceneVM {
             overlay_rect_px[3] / fh,
         ];
 
-        let debug_pipeline_start = debug_enabled.then(std::time::Instant::now);
+        let debug_pipeline_start = debug_enabled.then(instant::Instant::now);
         if ws
             .present_pipeline
             .as_ref()
@@ -2164,7 +2164,7 @@ impl SceneVM {
             pass.set_bind_group(0, &present.bind_group, &[]);
             pass.draw(0..3, 0..1);
         }
-        let debug_submit_start = debug_enabled.then(std::time::Instant::now);
+        let debug_submit_start = debug_enabled.then(instant::Instant::now);
         gpu.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
         if let Some(start) = debug_submit_start {
@@ -2293,7 +2293,7 @@ impl SceneVM {
     /// and kicks off a new GPU frame if none is in flight. Call this every frame.
     /// On WASM, you must call `init_async().await` once before rendering.
     pub fn render_frame(&mut self, out_pixels: &mut [u8], out_w: u32, out_h: u32) -> RenderResult {
-        // let start = std::time::Instant::now();
+        // let start = instant::Instant::now();
 
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -2694,7 +2694,7 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
     let mut vm: Option<SceneVM> = None;
     let mut ctx: Option<NativeRenderCtx> = None;
     let mut cursor_pos: PhysicalPosition<f64> = PhysicalPosition { x: 0.0, y: 0.0 };
-    let mut last_frame_at = std::time::Instant::now();
+    let mut last_frame_at = instant::Instant::now();
     #[cfg(feature = "ui")]
     let mut modifiers = winit::event::Modifiers::default();
     let apply_logical_scale = |vm_ref: &mut SceneVM, scale: f64| {
@@ -2807,7 +2807,7 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
                         }
                         WindowEvent::RedrawRequested => {
                             if let Some(dt) = frame_interval {
-                                let now = std::time::Instant::now();
+                                let now = instant::Instant::now();
                                 if now.duration_since(last_frame_at) < dt {
                                     return;
                                 }
@@ -2952,7 +2952,7 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
             if let (Some(win), Some(vm_ref)) = (window.as_ref(), vm.as_mut()) {
                 let wants_frame = app.needs_update(vm_ref);
                 if let Some(dt) = frame_interval {
-                    let next = std::time::Instant::now() + dt;
+                    let next = instant::Instant::now() + dt;
                     target.set_control_flow(ControlFlow::WaitUntil(next));
                     if wants_frame {
                         win.request_redraw();

@@ -332,7 +332,7 @@ dependencies = [
 
 [[package]]
 name = "buildergraph"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1112,7 +1112,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "eldiron-client"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "console_error_panic_hook",
  "eldiron-shared",
@@ -1131,7 +1131,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-client-terminal"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "eldiron-shared",
  "rusterix",
@@ -1144,7 +1144,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-client-wgpu"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "eldiron-shared",
  "instant",
@@ -1159,7 +1159,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-creator"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "arboard",
  "earcutr",
@@ -1190,7 +1190,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-icon-builder"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "image",
  "serde",
@@ -1200,7 +1200,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-shared"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "buildergraph",
  "earcutr",
@@ -1229,7 +1229,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron_scepter"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3360,7 +3360,7 @@ dependencies = [
 
 [[package]]
 name = "organicgraph"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "image",
  "serde",
@@ -4092,7 +4092,7 @@ dependencies = [
 
 [[package]]
 name = "rusteria"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "image",
  "indexmap 2.13.0",
@@ -4108,7 +4108,7 @@ dependencies = [
 
 [[package]]
 name = "rusterix"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "bincode",
  "buildergraph",
@@ -4299,7 +4299,7 @@ dependencies = [
 
 [[package]]
 name = "scenevm"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "bytemuck",
  "fontdue",
@@ -4810,7 +4810,7 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "arboard",
  "console_error_panic_hook",
@@ -4919,7 +4919,7 @@ dependencies = [
 
 [[package]]
 name = "tilegraph"
-version = "0.9.12"
+version = "0.91.0"
 dependencies = [
  "image",
  "rayon",

@@ -3,7 +3,7 @@ use crate::{
     avatar_builder::AvatarRuntimeBuilder, client::draw2d,
 };
 use draw2d::Draw2D;
-use std::time::Instant;
+use instant::Instant;
 use theframework::prelude::*;
 
 pub struct AvatarWidget {

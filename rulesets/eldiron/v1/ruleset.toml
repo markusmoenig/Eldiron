@@ -3,7 +3,7 @@ id = "eldiron.official"
 name = "Eldiron Official Ruleset"
 version = "1.0.0"
 schema_version = "1"
-min_engine_version = "0.9.12"
+min_engine_version = "0.91.0"
 status = "draft"
 
 [schema]
