@@ -13,3 +13,11 @@ dimension = "3D"
 description = "A compact 3D starter scene with editable geometry, a floor, wall, and player."
 project_path = "starters/projects/3DStarter.eldiron"
 image = "starters/images/logo.png"
+
+[[starter]]
+id = "gate"
+title = "Gate"
+dimension = "3D"
+description = "A compact 3D starter featuring block editing, stairs, mesh navigation, and an 8-direction avatar."
+project_path = "starters/projects/Gate.eldiron"
+image = "starters/images/logo.png"
