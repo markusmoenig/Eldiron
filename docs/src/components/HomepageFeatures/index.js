@@ -160,7 +160,15 @@ export default function HomepageFeatures() {
         </div>
         <div className={styles.heroShot}>
           <div className={styles.heroShotHeader}>
-            <span>{hero.screenshot.label}</span>
+            <span>
+              {hero.screenshot.label}
+              {hero.screenshot.href && hero.screenshot.linkLabel && (
+                <>
+                  {" "}
+                  <Link to={hero.screenshot.href}>{hero.screenshot.linkLabel}</Link>
+                </>
+              )}
+            </span>
             <strong>{hero.screenshot.version}</strong>
           </div>
           <Screenshot

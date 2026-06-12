@@ -17,21 +17,23 @@ export const homepageContent = {
       },
     ],
     screenshot: {
-      label: "A fresh start in 3D with a block-editing style workflow.",
-      version: "Eldiron v0.9.9",
-      image: "/img/screenshots/Eldiron_v0.9.9.png",
-      alt: "Eldiron turn-based simulation screenshot",
+      label: "First ruleset-based version.",
+      linkLabel: "See blog",
+      href: "/blog/2026/06/12/eldiron-v0.91.0",
+      version: "Eldiron v0.91.0",
+      image: "/img/screenshots/Hideout_v0.91.0.png",
+      alt: "Eldiron v0.91.0 Hideout2D ruleset gameplay screenshot",
     },
   },
   sections: [
     {
       key: "rules-announcement",
-      eyebrow: "BIG UPCOMING CHANGES",
+      eyebrow: "NOW AVAILABLE",
       title: "Official Eldiron Ruleset",
       description:
-        "Characters and items are moving toward one unified official ruleset. The website docs already reflect this transition, and Eldiron v0.91 with official rules is planned for release around mid June. Races, classes, weapons, armor, spells, cooldowns, progression, item visuals, and starter loadouts will share a single source of truth, reducing project configuration while still allowing each game to override and customize the rules it needs.",
+        "Eldiron v0.91.0 introduces the first official ruleset direction for shared fantasy RPG behavior. Races, classes, weapons, armor, spells, cooldowns, progression, item visuals, economy, resources, and starter loadouts now have a common source of truth, while projects can still override and customize the rules they need.",
       href: "/docs/official_rules",
-      linkLabel: "Read the draft rules",
+      linkLabel: "Read the official rules",
       thumbnail: {
         image: "/img/rules/combat-dice-ink.png",
         alt: "Black-and-white RPG dice, sword, shield, armor, and orc marker illustration",
@@ -47,6 +49,14 @@ export const homepageContent = {
       type: "news",
       items: [
         {
+          date: "Jun 12, 2026",
+          title: "Eldiron v0.91.0",
+          description:
+            "First ruleset-based version, with rules-driven combat/items/spells, resource gathering and crafting, rules-aware UI state, and stronger 3D mesh movement.",
+          href: "/blog/2026/06/12/eldiron-v0.91.0",
+          linkLabel: "Read more",
+        },
+        {
           date: "Apr 26, 2026",
           title: "Eldiron v0.9.7",
           description:
@@ -60,14 +70,6 @@ export const homepageContent = {
           description:
             "A mostly bugfix release with stronger 2D support, including LOS, point-and-click style intents, auto-walk, and runtime world/region render control.",
           href: "/blog/2026/04/19/eldiron-v0.9.3",
-          linkLabel: "Read more",
-        },
-        {
-          date: "Apr 6, 2026",
-          title: "Eldiron v0.9.2",
-          description:
-            "Dungeon Tool, Tile Picker rewrite, expanded Tile Graph workflows, Builder Graph, and broader authoring improvements.",
-          href: "/blog/2026/04/06/eldiron-v0.9.2",
           linkLabel: "Read more",
         },
       ],
