@@ -3,6 +3,9 @@ use pathfinding::prelude::astar;
 use theframework::prelude::FxHashSet;
 use vek::Vec2;
 
+const TILE_COLLISION_RADIUS_PADDING: f32 = 0.075;
+const BLOCKED_TILE_SAMPLE_STEP: f32 = 0.025;
+
 /// A miniature version of the Map used for client side lighting calculations during the rasterization process and server side collision detection etc.
 #[derive(Clone)]
 pub struct MapMini {
@@ -27,31 +30,69 @@ impl Default for MapMini {
 }
 
 impl MapMini {
+    fn collision_radius(radius: f32) -> f32 {
+        (radius + TILE_COLLISION_RADIUS_PADDING).max(0.0)
+    }
+
     fn tile_center(cell: Vec2<i32>, tile_size: f32) -> Vec2<f32> {
         (cell.map(|i| i as f32) + Vec2::broadcast(0.5)) * tile_size
+    }
+
+    fn circle_overlaps_tile(position: Vec2<f32>, radius: f32, tile: Vec2<i32>) -> bool {
+        let min = tile.map(|v| v as f32);
+        let max = min + Vec2::broadcast(1.0);
+        let closest = Vec2::new(
+            position.x.clamp(min.x, max.x),
+            position.y.clamp(min.y, max.y),
+        );
+        (position - closest).magnitude_squared() <= radius * radius
+    }
+
+    fn overlaps_blocked_tile(
+        &self,
+        position: Vec2<f32>,
+        radius: f32,
+        ignored_tile: Option<Vec2<i32>>,
+    ) -> bool {
+        let min_tile = (position - Vec2::broadcast(radius)).map(|c| c.floor() as i32);
+        let max_tile = (position + Vec2::broadcast(radius)).map(|c| c.floor() as i32);
+
+        for y in min_tile.y..=max_tile.y {
+            for x in min_tile.x..=max_tile.x {
+                let tile = Vec2::new(x, y);
+                if ignored_tile == Some(tile) {
+                    continue;
+                }
+                if self.blocked_tiles.contains(&tile)
+                    && Self::circle_overlaps_tile(position, radius, tile)
+                {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 
     fn clamp_move_against_blocked_tiles(
         &self,
         start: Vec2<f32>,
         delta: Vec2<f32>,
+        radius: f32,
     ) -> (Vec2<f32>, bool) {
-        const SAMPLE_STEP: f32 = 0.1;
-
         let distance = delta.magnitude();
         if distance <= f32::EPSILON {
             return (start, false);
         }
 
-        let steps = (distance / SAMPLE_STEP).ceil().max(1.0) as i32;
+        let steps = (distance / BLOCKED_TILE_SAMPLE_STEP).ceil().max(1.0) as i32;
         let mut last_free = start;
         let start_tile = start.map(|c| c.floor() as i32);
 
         for i in 1..=steps {
             let t = i as f32 / steps as f32;
             let sample = start + delta * t;
-            let tile = sample.map(|c| c.floor() as i32);
-            if self.blocked_tiles.contains(&tile) && tile != start_tile {
+            if self.overlaps_blocked_tile(sample, radius, Some(start_tile)) {
                 return (last_free, true);
             }
             last_free = sample;
@@ -220,6 +261,7 @@ impl MapMini {
     ) -> (Vec2<f32>, bool) {
         const MAX_ITERATIONS: usize = 3;
         const EPSILON: f32 = 0.001;
+        let radius = Self::collision_radius(radius);
 
         let mut current_pos = start_pos;
         let mut remaining = move_vector;
@@ -258,7 +300,7 @@ impl MapMini {
                     let move_dir = remaining.normalized();
                     let allowed_move = move_dir * (distance - EPSILON);
                     let (next_pos, tile_blocked) =
-                        self.clamp_move_against_blocked_tiles(current_pos, allowed_move);
+                        self.clamp_move_against_blocked_tiles(current_pos, allowed_move, radius);
                     current_pos = next_pos;
                     if tile_blocked {
                         break;
@@ -289,7 +331,7 @@ impl MapMini {
                 None => {
                     // No collision => just move the full vector
                     let (next_pos, tile_blocked) =
-                        self.clamp_move_against_blocked_tiles(current_pos, remaining);
+                        self.clamp_move_against_blocked_tiles(current_pos, remaining, radius);
                     current_pos = next_pos;
                     if tile_blocked {
                         blocked = true;
@@ -323,8 +365,8 @@ impl MapMini {
 
     /// Returns true if the given position is free for a circle with `radius`.
     pub fn is_walkable_position(&self, position: Vec2<f32>, radius: f32) -> bool {
-        let tile = position.map(|c| c.floor() as i32);
-        if self.blocked_tiles.contains(&tile) {
+        let radius = Self::collision_radius(radius);
+        if self.overlaps_blocked_tile(position, radius, None) {
             return false;
         }
 
@@ -672,5 +714,34 @@ impl MapMini {
             }
             None => (from, false), // no path
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blocked_tile_collision_uses_actor_footprint() {
+        let mut mini = MapMini::empty();
+        mini.blocked_tiles.insert(Vec2::new(1, 0));
+
+        let start = Vec2::new(0.2, 0.5);
+        let (end, blocked) = mini.move_distance(start, Vec2::new(1.0, 0.0), 0.49);
+
+        assert!(blocked);
+        assert!(
+            end.x < 0.5,
+            "actor center should stop before footprint overlaps blocked tile, got {end:?}"
+        );
+    }
+
+    #[test]
+    fn walkable_position_rejects_footprint_overlap_with_blocked_tile() {
+        let mut mini = MapMini::empty();
+        mini.blocked_tiles.insert(Vec2::new(1, 0));
+
+        assert!(mini.is_walkable_position(Vec2::new(0.3, 0.5), 0.49));
+        assert!(!mini.is_walkable_position(Vec2::new(0.5, 0.5), 0.49));
     }
 }

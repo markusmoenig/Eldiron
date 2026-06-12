@@ -303,6 +303,24 @@ impl Default for SceneHandler {
 }
 
 impl SceneHandler {
+    fn character_billboard_axes(camera: &dyn D3Camera) -> (Vec3<f32>, Vec3<f32>) {
+        let (_forward, right, camera_up) = camera.basis_vectors();
+        let mut world_right = Vec3::new(right.x, 0.0, right.z);
+        if world_right.magnitude_squared() <= 1e-6 {
+            world_right = right;
+        }
+        if world_right.magnitude_squared() <= 1e-6 {
+            world_right = Vec3::unit_x();
+        }
+
+        let mut world_up = Vec3::unit_y();
+        if camera.id() == "firstp" {
+            world_up = camera_up;
+        }
+
+        (world_right.normalized(), world_up.normalized())
+    }
+
     const PARTICLE_SIM_FPS: f32 = 15.0;
     const PARTICLE_SIM_STEP: f32 = 1.0 / Self::PARTICLE_SIM_FPS;
     const MAX_PARTICLE_STEPS_PER_BUILD: usize = 8;
@@ -3905,6 +3923,7 @@ impl SceneHandler {
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
 
         let basis = camera.basis_vectors();
+        let character_axes = Self::character_billboard_axes(camera);
 
         // Entities
         for entity in &map.entities {
@@ -3997,15 +4016,16 @@ impl SceneHandler {
                             .map(|(_, _, _, bottom, reference_h)| {
                                 let quad_size = size / reference_h.max(0.01);
                                 let feet3 = entity.position;
-                                let center = feet3 + basis.2 * (quad_size * (bottom - 0.5));
+                                let center =
+                                    feet3 + character_axes.1 * (quad_size * (bottom - 0.5));
                                 (center, quad_size)
                             })
                             .unwrap_or((center3, size));
                         let dynamic = DynamicObject::billboard_avatar(
                             geo_id,
                             avatar_center3,
-                            basis.1,
-                            basis.2,
+                            character_axes.0,
+                            character_axes.1,
                             avatar_quad_size,
                             avatar_quad_size,
                         );
@@ -4023,8 +4043,8 @@ impl SceneHandler {
                             GeoId::Character(entity.id),
                             tile.id,
                             center3,
-                            basis.1,
-                            basis.2,
+                            character_axes.0,
+                            character_axes.1,
                             size,
                             size,
                         );

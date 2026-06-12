@@ -5,6 +5,10 @@ use std::cell::RefCell;
 use vek::{Vec2, Vec3};
 
 const PASSABLE_OPENING_EXTRA_TOLERANCE: f32 = 0.12;
+const WORLD_GEOMETRY_RADIUS_PADDING: f32 = 0.025;
+const FLOOR_EDGE_SUPPORT_PROBE_SCALE: f32 = 0.5;
+const DIRECT_MOVEMENT_GEOMETRY_PADDING: f32 = 0.05;
+const DIRECT_FLOOR_FORWARD_SUPPORT_SCALE: f32 = 0.55;
 
 /// Manages collision data across all chunks in the world
 pub struct CollisionWorld {
@@ -222,6 +226,18 @@ impl CollisionWorld {
         }
     }
 
+    fn geometry_collision_radius(radius: f32) -> f32 {
+        (radius + WORLD_GEOMETRY_RADIUS_PADDING).max(0.0)
+    }
+
+    fn floor_edge_probe(probe: f32, min_probe: f32) -> f32 {
+        (probe * FLOOR_EDGE_SUPPORT_PROBE_SCALE).max(min_probe)
+    }
+
+    fn direct_movement_radius(radius: f32) -> f32 {
+        (radius + DIRECT_MOVEMENT_GEOMETRY_PADDING).max(0.0)
+    }
+
     /// Add/update collision data for a chunk
     pub fn update_chunk(&mut self, chunk_origin: Vec2<i32>, collision: ChunkCollision) {
         self.chunks.insert(chunk_origin, collision);
@@ -238,6 +254,8 @@ impl CollisionWorld {
 
     /// Check if a position is blocked (for player movement)
     pub fn is_blocked(&self, position: Vec3<f32>, radius: f32) -> bool {
+        let radius = Self::geometry_collision_radius(radius);
+
         // Find which chunk(s) the position overlaps
         let chunk_coords = self.world_to_chunk(Vec2::new(position.x, position.z));
 
@@ -291,6 +309,7 @@ impl CollisionWorld {
     ) -> (Vec3<f32>, bool, Option<CollisionProbeBlocker>) {
         const MAX_ITERATIONS: usize = 3;
         const EPSILON: f32 = 0.001;
+        let radius = Self::geometry_collision_radius(radius);
 
         let mut current_pos = start_pos;
         current_pos.y = start_pos.y + move_vector.y; // Allow vertical movement directly; collisions are horizontal.
@@ -827,15 +846,17 @@ impl CollisionWorld {
 
         // Direct player input can be much smaller than the pathing arrival radius.
         // Do not swallow tiny per-frame movement as "already arrived".
-        let (new_position, _) = self.step_towards_point(
+        let (new_position, _) = self.step_towards_point_inner(
             from,
             to,
             speed,
             radius,
+            Self::direct_movement_radius(radius),
             base_height,
             max_step_height,
             0.0001,
             false,
+            true,
         );
         let arrived = (to - Vec2::new(new_position.x, new_position.z)).magnitude() <= 0.05;
         Some((new_position, arrived))
@@ -1135,6 +1156,33 @@ impl CollisionWorld {
         arrival_radius: f32,
         prefer_center_down: bool,
     ) -> (Vec3<f32>, bool) {
+        self.step_towards_point_inner(
+            from,
+            target,
+            speed,
+            radius,
+            radius,
+            base_height,
+            max_step_height,
+            arrival_radius,
+            prefer_center_down,
+            false,
+        )
+    }
+
+    fn step_towards_point_inner(
+        &self,
+        from: Vec2<f32>,
+        target: Vec2<f32>,
+        speed: f32,
+        radius: f32,
+        movement_radius: f32,
+        base_height: f32,
+        max_step_height: f32,
+        arrival_radius: f32,
+        prefer_center_down: bool,
+        require_forward_floor_support: bool,
+    ) -> (Vec3<f32>, bool) {
         let to_vector = target - from;
         let dist = to_vector.magnitude();
         if dist <= arrival_radius {
@@ -1186,10 +1234,18 @@ impl CollisionWorld {
                 current_floor
             };
 
+            let stepping_between_floors = (move_height - current_floor).abs() > 0.05
+                || self.has_nearby_step_floor(probe_2d, radius, current_floor, max_step_height);
+            let step_movement_radius = if require_forward_floor_support && stepping_between_floors {
+                radius
+            } else {
+                movement_radius
+            };
+
             let (mut next, blocked) = self.move_distance_with_step_clearance(
                 current,
                 delta,
-                radius,
+                step_movement_radius,
                 Some(current_floor + max_step_height + 1e-3),
             );
             let next_2d = Vec2::new(next.x, next.z);
@@ -1201,6 +1257,17 @@ impl CollisionWorld {
             };
             if (next_floor - current_floor).abs() <= max_step_height + 1e-3 {
                 next.y = next_floor;
+            }
+            if require_forward_floor_support
+                && !self.has_forward_floor_support(
+                    next_2d,
+                    dir,
+                    radius,
+                    next_floor,
+                    max_step_height,
+                )
+            {
+                break;
             }
             let moved = Vec2::new(next.x - current.x, next.z - current.z).magnitude();
             current = next;
@@ -1216,6 +1283,56 @@ impl CollisionWorld {
         let end_2d = Vec2::new(current.x, current.z);
         let arrived = (target - end_2d).magnitude() <= arrival_radius.max(0.05);
         (current, arrived)
+    }
+
+    fn has_forward_floor_support(
+        &self,
+        position: Vec2<f32>,
+        direction: Vec2<f32>,
+        radius: f32,
+        reference_y: f32,
+        max_step_height: f32,
+    ) -> bool {
+        if direction.magnitude_squared() <= 1e-6 {
+            return true;
+        }
+        if self
+            .get_floor_height_reachable(position, reference_y, max_step_height)
+            .is_none()
+        {
+            return true;
+        }
+
+        let forward = direction.normalized();
+        let side = Vec2::new(-forward.y, forward.x);
+        let probe = (radius * DIRECT_FLOOR_FORWARD_SUPPORT_SCALE).clamp(0.08, 0.35);
+        let side_probe = probe * 0.55;
+        let samples = [
+            position + forward * probe,
+            position + forward * probe + side * side_probe,
+            position + forward * probe - side * side_probe,
+        ];
+
+        samples.iter().all(|sample| {
+            self.get_floor_height_reachable(*sample, reference_y, max_step_height)
+                .is_some()
+        })
+    }
+
+    fn has_nearby_step_floor(
+        &self,
+        position: Vec2<f32>,
+        radius: f32,
+        reference_y: f32,
+        max_step_height: f32,
+    ) -> bool {
+        self.floor_support_samples(position, radius * 0.5, reference_y, max_step_height)
+            .iter()
+            .any(|sample| {
+                sample.reachable
+                    && (sample.height - reference_y).abs() > 0.05
+                    && (sample.height - reference_y).abs() <= max_step_height + 1e-3
+            })
     }
 
     fn collect_blocking_segments(
@@ -1651,7 +1768,7 @@ impl CollisionWorld {
             return Some(h);
         }
 
-        let d = probe.max(0.15);
+        let d = Self::floor_edge_probe(probe, 0.12);
         let offsets = [
             Vec2::new(-d, 0.0),
             Vec2::new(d, 0.0),
@@ -1677,7 +1794,7 @@ impl CollisionWorld {
         reference_y: f32,
         max_step_height: f32,
     ) -> Option<f32> {
-        let d = probe.max(0.05);
+        let d = Self::floor_edge_probe(probe, 0.05);
         let offsets = [
             Vec2::zero(),
             Vec2::new(-d, 0.0),
@@ -1778,7 +1895,7 @@ impl CollisionWorld {
         reference_y: f32,
         max_step_height: f32,
     ) -> Vec<CollisionProbeFloorSample> {
-        let d = probe.max(0.05);
+        let d = Self::floor_edge_probe(probe, 0.05);
         let offsets = [
             Vec2::zero(),
             Vec2::new(-d, 0.0),
@@ -2043,14 +2160,15 @@ impl CollisionWorld {
             }
             let pos = cell_center(c);
             let pos3 = Vec3::new(pos.x, h, pos.y);
+            let pass_radius = Self::geometry_collision_radius(radius);
             let segments =
-                self.collect_blocking_segments(pos3, radius, Some(h + max_step_height + 1e-3));
+                self.collect_blocking_segments(pos3, pass_radius, Some(h + max_step_height + 1e-3));
             if segments.iter().any(|seg| {
                 self.check_point_against_segment(
                     Vec2::new(pos3.x, pos3.z),
                     seg.start,
                     seg.end,
-                    radius,
+                    pass_radius,
                 )
                 .is_some()
             }) {
@@ -2064,12 +2182,12 @@ impl CollisionWorld {
                     if !self.opening_is_blocking(opening) {
                         continue;
                     }
-                    if pos3.y + radius < opening.floor_height
-                        || pos3.y - radius > opening.ceiling_height
+                    if pos3.y + pass_radius < opening.floor_height
+                        || pos3.y - pass_radius > opening.ceiling_height
                     {
                         continue;
                     }
-                    if self.point_in_polygon_2d(pos, &opening.boundary_2d, radius) {
+                    if self.point_in_polygon_2d(pos, &opening.boundary_2d, pass_radius) {
                         passable_cache.borrow_mut().insert(key, false);
                         return false;
                     }
@@ -2205,15 +2323,24 @@ mod tests {
     use super::*;
 
     fn gate_fixture() -> (crate::Map, CollisionWorld) {
+        fixture_world("Gate.eldiron")
+    }
+
+    fn starter_3d_fixture() -> (crate::Map, CollisionWorld) {
+        fixture_world("3DStarter.eldiron")
+    }
+
+    fn fixture_world(project_name: &str) -> (crate::Map, CollisionWorld) {
         use crate::chunkbuilder::{ChunkBuilder, d3chunkbuilder::D3ChunkBuilder};
 
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../test_projects/Gate.eldiron");
-        let contents = std::fs::read_to_string(path).expect("Gate fixture is readable");
+            .join("../../test_projects")
+            .join(project_name);
+        let contents = std::fs::read_to_string(path).expect("fixture project is readable");
         let project: serde_json::Value =
-            serde_json::from_str(&contents).expect("Gate fixture is valid json");
+            serde_json::from_str(&contents).expect("fixture project is valid json");
         let map_value = project["regions"][0]["map"].clone();
-        let map: crate::Map = serde_json::from_value(map_value).expect("Gate map deserializes");
+        let map: crate::Map = serde_json::from_value(map_value).expect("fixture map deserializes");
 
         let assets = crate::Assets::default();
         let mut world = CollisionWorld::default();
@@ -2574,6 +2701,57 @@ mod tests {
     }
 
     #[test]
+    fn starter_3d_player_direct_movement_keeps_visual_clearance_from_wall() {
+        let (map, world) = starter_3d_fixture();
+        let player = map
+            .entities
+            .iter()
+            .find(|entity| entity.id == 0)
+            .expect("3DStarter fixture has player entity");
+        let radius = player.attributes.get_float_default("radius", 0.5) - 0.01;
+
+        let (end, arrived) = world
+            .move_towards_on_floors_direct(
+                player.get_pos_xz(),
+                Vec2::new(player.position.x, -0.5),
+                4.0,
+                radius,
+                1.0,
+                player.position.y,
+            )
+            .expect("3DStarter player should have mesh floor context");
+
+        assert!(!arrived);
+        assert!(
+            end.z >= 0.54,
+            "player should stop before the wall reads as embedded, got {end:?}"
+        );
+    }
+
+    #[test]
+    fn starter_3d_player_direct_movement_keeps_forward_support_on_platform_edge() {
+        let (_map, world) = starter_3d_fixture();
+        let radius = 0.49;
+
+        let (end, arrived) = world
+            .move_towards_on_floors_direct(
+                Vec2::new(6.3, 3.5),
+                Vec2::new(8.0, 3.5),
+                2.0,
+                radius,
+                1.0,
+                0.5,
+            )
+            .expect("3DStarter platform should have mesh floor context");
+
+        assert!(!arrived);
+        assert!(
+            end.x <= 6.74,
+            "player should keep forward floor support near the platform edge, got {end:?}"
+        );
+    }
+
+    #[test]
     fn gate_player_direct_movement_can_climb_guardhouse_stairs() {
         let (_map, world) = gate_fixture();
         let radius = 0.49;
@@ -2601,6 +2779,100 @@ mod tests {
             pos.z < -3.8 && pos.y > 0.5,
             "player should make upward progress on the stairs, got {pos:?}"
         );
+    }
+
+    #[test]
+    fn gate_player_direct_movement_can_climb_big_staircase() {
+        let (_map, world) = gate_fixture();
+        let radius = 0.49;
+        let max_step_height = 1.0;
+        for x in [16.0, 16.55] {
+            let start = Vec2::new(x, -1.1);
+            let start_y = world
+                .sample_reachable_floor_height(start, radius * 0.5, 0.375, max_step_height)
+                .or_else(|| world.get_floor_height_reachable(start, 0.375, max_step_height))
+                .expect("big staircase start should have floor support");
+            let mut pos = Vec3::new(start.x, start_y, start.y);
+            let target = Vec2::new(x, -9.4);
+
+            for _ in 0..120 {
+                let (next, _) = world
+                    .move_towards_on_floors_direct(
+                        Vec2::new(pos.x, pos.z),
+                        target,
+                        0.12,
+                        radius,
+                        max_step_height,
+                        pos.y,
+                    )
+                    .expect("big staircase should remain walkable for direct player input");
+                pos = next;
+                if pos.z < -9.0 && pos.y > 7.5 {
+                    break;
+                }
+            }
+
+            assert!(
+                pos.z < -9.0 && pos.y > 7.5,
+                "player should climb the big staircase from x={x}, got {pos:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn gate_player_direct_movement_can_enter_big_staircase_from_road() {
+        let (_map, world) = gate_fixture();
+        let radius = 0.49;
+        let max_step_height = 1.0;
+        for (start, first_target, stair_target, speed) in [
+            (
+                Vec3::new(14.35, 0.375, -1.15),
+                Vec2::new(16.0, -1.15),
+                Vec2::new(16.0, -9.4),
+                0.08,
+            ),
+            (
+                Vec3::new(14.35, 0.375, -1.15),
+                Vec2::new(16.0, -1.15),
+                Vec2::new(16.0, -9.4),
+                0.22,
+            ),
+            (
+                Vec3::new(14.45, 0.375, -1.05),
+                Vec2::new(16.55, -1.35),
+                Vec2::new(16.55, -9.4),
+                0.22,
+            ),
+        ] {
+            let mut pos = start;
+            for target in [first_target, stair_target] {
+                for _ in 0..160 {
+                    let current = Vec2::new(pos.x, pos.z);
+                    if (target - current).magnitude() <= speed {
+                        break;
+                    }
+                    let (next, _) = world
+                        .move_towards_on_floors_direct(
+                            current,
+                            target,
+                            speed,
+                            radius,
+                            max_step_height,
+                            pos.y,
+                        )
+                        .expect("road-to-big-stair transition should remain walkable");
+                    if (Vec2::new(next.x, next.z) - current).magnitude() <= 0.001 {
+                        break;
+                    }
+                    pos = next;
+                }
+            }
+
+            assert!(
+                pos.z < -9.0 && pos.y > 7.5,
+                "player should enter from the road and climb the big staircase from {start:?} at speed {speed}, got {pos:?}"
+            );
+        }
     }
 
     #[test]
