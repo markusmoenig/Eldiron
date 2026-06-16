@@ -411,7 +411,11 @@ impl Editor {
     }
 
     fn fetch_url_bytes(url: &str) -> Option<Vec<u8>> {
-        if let Ok(response) = ureq::get(url).call() {
+        if let Ok(response) = ureq::get(url)
+            .set("Cache-Control", "no-cache")
+            .set("Pragma", "no-cache")
+            .call()
+        {
             let mut reader = response.into_reader();
             let mut bytes = Vec::new();
             if reader.read_to_end(&mut bytes).is_ok() {
@@ -747,13 +751,13 @@ impl Editor {
         } else {
             self.starter_projects.clear();
             ui.set_disabled(Self::STARTER_CREATE_ID, ctx);
-
-            let (tx, rx) = std::sync::mpsc::channel();
-            self.starter_loader_rx = Some(rx);
-            std::thread::spawn(move || {
-                let _ = tx.send(Self::load_starter_manifest());
-            });
         }
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.starter_loader_rx = Some(rx);
+        std::thread::spawn(move || {
+            let _ = tx.send(Self::load_starter_manifest());
+        });
     }
 
     fn rebuild_starter_project_list(&self, ui: &mut TheUI, ctx: &mut TheContext) {
