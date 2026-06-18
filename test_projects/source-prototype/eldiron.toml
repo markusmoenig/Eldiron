@@ -1,0 +1,26 @@
+[project]
+name = "Source Prototype"
+version = "0.1.0"
+
+[source]
+main = "main.els"
+
+[game]
+start_region = "cellar"
+start_screen = "play"
+terminal_mode = "roguelike"
+simulation_mode = "hybrid"
+turn_timeout_ms = 600
+collision_mode = "tile"
+auto_create_player = true
+player = "player"
+
+[viewport]
+width = 80
+height = 24
+grid_size = 40
+unit = "cell"
+resize = "fit"
+
+[build]
+output = "dist/source-prototype.eldiron"

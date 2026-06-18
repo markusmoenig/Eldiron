@@ -19,6 +19,11 @@ UI buttons on screens can also trigger the same actions and intents. Button fiel
 
 Rules commands are also rules-aware on the UI side. A button assigned to `rules.minor_heal` can show the action name, description, costs, reagent requirements, and cooldown state from the active ruleset. If that command is cooling down, the button is dimmed and receives a cooldown overlay.
 
+The terminal roguelike client uses the same active player `[input]` table. In an
+interactive terminal it reads raw keypresses, so movement keys act immediately
+without pressing Return. When stdin/stdout are not terminals, it falls back to
+line input so scripted tests can still pipe commands.
+
 ## Control Commands
 
 Control commands are immediate movement-style commands.

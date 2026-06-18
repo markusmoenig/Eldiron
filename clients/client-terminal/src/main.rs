@@ -1,13 +1,25 @@
+use crossterm::cursor;
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::execute;
+use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use ratatui::backend::CrosstermBackend;
+use ratatui::layout::{Alignment, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::{Frame, Terminal as RatatuiTerminal};
 use rusterix::prelude::*;
-use rusterix::{Command, EntityAction, ServerState};
+use rusterix::{Command, EntityAction, PlayerCamera, ServerState};
 use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, ExternalPrinter};
 use shared::prelude::{TextSession, TextSessionOutput};
 use shared::project::Project;
+use shared::terminal_screen::TerminalScreenFrame;
 use shared::text_game as sg;
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fs;
-use std::io::IsTerminal;
+use std::io::{self, IsTerminal};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::thread;
@@ -21,13 +33,39 @@ enum StartupDisplay {
     None,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TerminalPlayMode {
+    Text,
+    Roguelike,
+}
+
+impl TerminalPlayMode {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "" | "text" => Ok(Self::Text),
+            "roguelike" | "rogue" => Ok(Self::Roguelike),
+            other => Err(format!(
+                "Unknown terminal mode '{}'. Expected 'text' or 'roguelike'.",
+                other
+            )),
+        }
+    }
+}
+
+struct TerminalCliOptions {
+    path: Option<PathBuf>,
+    mode: Option<TerminalPlayMode>,
+}
+
 struct TerminalApp {
     project: Project,
     assets: Assets,
     server: Server,
     current_map: String,
     session: TextSession,
+    screen_messages: Vec<String>,
     auto_attack_target: Option<u32>,
+    server_log_cursor: usize,
 }
 
 enum InputEvent {
@@ -61,7 +99,9 @@ impl TerminalApp {
             server: Server::default(),
             current_map,
             session: TextSession::new(),
+            screen_messages: Vec::new(),
             auto_attack_target: None,
+            server_log_cursor: 0,
         };
 
         app.start_server(false)?;
@@ -83,15 +123,20 @@ impl TerminalApp {
         self.server.debug_mode = debug;
         self.server.log_changed = true;
         self.server.print_log_messages = false;
+        self.server_log_cursor = 0;
 
         insert_content_into_maps_mode(&mut self.project, debug);
 
-        if !self.project.world_module.routines.is_empty() {
+        if json_module_has_routines(&self.project.world_module) {
             if self.project.world_source.is_empty() {
-                self.project.world_source = self.project.world_module.build(false);
+                if let Some(source) = json_module_build(&self.project.world_module, false) {
+                    self.project.world_source = source;
+                }
             }
             if debug {
-                self.project.world_source_debug = self.project.world_module.build(true);
+                if let Some(source) = json_module_build(&self.project.world_module, true) {
+                    self.project.world_source_debug = source;
+                }
             }
         }
 
@@ -118,12 +163,16 @@ impl TerminalApp {
         self.assets.entity_tiles.clear();
         self.assets.entity_authoring.clear();
         for character in self.project.characters.values_mut() {
-            if !character.module.routines.is_empty() {
+            if json_module_has_routines(&character.module) {
                 if character.source.is_empty() {
-                    character.source = character.module.build(false);
+                    if let Some(source) = json_module_build(&character.module, false) {
+                        character.source = source;
+                    }
                 }
                 if debug {
-                    character.source_debug = character.module.build(true);
+                    if let Some(source) = json_module_build(&character.module, true) {
+                        character.source_debug = source;
+                    }
                 }
             }
             if debug && !character.source_debug.is_empty() {
@@ -152,12 +201,16 @@ impl TerminalApp {
         self.assets.item_tiles.clear();
         self.assets.item_authoring.clear();
         for item in self.project.items.values_mut() {
-            if !item.module.routines.is_empty() {
+            if json_module_has_routines(&item.module) {
                 if item.source.is_empty() {
-                    item.source = item.module.build(false);
+                    if let Some(source) = json_module_build(&item.module, false) {
+                        item.source = source;
+                    }
                 }
                 if debug {
-                    item.source_debug = item.module.build(true);
+                    if let Some(source) = json_module_build(&item.module, true) {
+                        item.source_debug = source;
+                    }
                 }
             }
             if debug && !item.source_debug.is_empty() {
@@ -196,12 +249,16 @@ impl TerminalApp {
         }
 
         for region in &mut self.project.regions {
-            if !region.module.routines.is_empty() {
+            if json_module_has_routines(&region.module) {
                 if region.source.is_empty() {
-                    region.source = region.module.build(false);
+                    if let Some(source) = json_module_build(&region.module, false) {
+                        region.source = source;
+                    }
                 }
                 if debug {
-                    region.source_debug = region.module.build(true);
+                    if let Some(source) = json_module_build(&region.module, true) {
+                        region.source_debug = source;
+                    }
                 }
             }
             self.assets.region_sources.insert(
@@ -313,6 +370,22 @@ impl TerminalApp {
                 self.project.time = time;
             }
         }
+    }
+
+    fn drain_server_diagnostics(&mut self) -> Vec<String> {
+        if !self.server.log_changed {
+            return Vec::new();
+        }
+
+        let log = self.server.get_log();
+        let start = self.server_log_cursor.min(log.len());
+        self.server_log_cursor = log.len();
+        log[start..]
+            .lines()
+            .map(str::trim)
+            .filter(|line| is_terminal_diagnostic_line(line))
+            .map(str::to_string)
+            .collect()
     }
 
     fn current_time_hour_and_label(&self) -> Option<(u8, String)> {
@@ -539,6 +612,17 @@ fn config_table(src: &str) -> Option<Table> {
     src.parse::<Table>().ok()
 }
 
+fn json_module_has_routines(module: &serde_json::Value) -> bool {
+    module
+        .get("routines")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|routines| !routines.is_empty())
+}
+
+fn json_module_build(_module: &serde_json::Value, _debug: bool) -> Option<String> {
+    None
+}
+
 fn config_string(src: &str, section: &str, key: &str, default: &str) -> String {
     config_table(src)
         .and_then(|table| {
@@ -562,6 +646,11 @@ fn config_bool(src: &str, section: &str, key: &str, default: bool) -> bool {
                 .and_then(toml::Value::as_bool)
         })
         .unwrap_or(default)
+}
+
+fn config_terminal_mode(src: &str) -> Result<TerminalPlayMode, String> {
+    let mode = config_string(src, "game", "terminal_mode", "text");
+    TerminalPlayMode::parse(&mode)
 }
 
 fn authoring_startup_display(src: &str) -> StartupDisplay {
@@ -777,12 +866,16 @@ fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
     for region in &mut project.regions {
         region.map.entities.clear();
         for instance in region.characters.values_mut() {
-            if !instance.module.routines.is_empty() {
+            if json_module_has_routines(&instance.module) {
                 if instance.source.is_empty() {
-                    instance.source = instance.module.build(false);
+                    if let Some(source) = json_module_build(&instance.module, false) {
+                        instance.source = source;
+                    }
                 }
                 if debug {
-                    instance.source_debug = instance.module.build(true);
+                    if let Some(source) = json_module_build(&instance.module, true) {
+                        instance.source_debug = source;
+                    }
                 }
             }
             let mut entity = Entity {
@@ -805,18 +898,24 @@ fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
             );
             if let Some(character) = project.characters.get(&instance.character_id) {
                 entity.set_attribute("class_name", Value::Str(character.name.clone()));
+                apply_entity_data_attributes(&mut entity, &character.data);
             }
+            apply_entity_data_attributes(&mut entity, &instance.data);
             region.map.entities.push(entity);
         }
 
         region.map.items.clear();
         for instance in region.items.values_mut() {
-            if !instance.module.routines.is_empty() {
+            if json_module_has_routines(&instance.module) {
                 if instance.source.is_empty() {
-                    instance.source = instance.module.build(false);
+                    if let Some(source) = json_module_build(&instance.module, false) {
+                        instance.source = source;
+                    }
                 }
                 if debug {
-                    instance.source_debug = instance.module.build(true);
+                    if let Some(source) = json_module_build(&instance.module, true) {
+                        instance.source_debug = source;
+                    }
                 }
             }
             let mut item = Item {
@@ -838,15 +937,107 @@ fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
             );
             if let Some(item_template) = project.items.get(&instance.item_id) {
                 item.set_attribute("class_name", Value::Str(item_template.name.clone()));
+                apply_item_data_attributes(&mut item, &item_template.data);
             }
+            apply_item_data_attributes(&mut item, &instance.data);
             region.map.items.push(item);
         }
     }
 }
 
-fn resolve_data_path(args: &[String]) -> Result<PathBuf, String> {
-    if let Some(arg) = args.get(1) {
-        return Ok(PathBuf::from(arg));
+fn apply_entity_data_attributes(entity: &mut Entity, data: &str) {
+    let Ok(table) = toml::from_str::<Table>(data) else {
+        return;
+    };
+    let Some(attributes) = table.get("attributes").and_then(toml::Value::as_table) else {
+        return;
+    };
+    for (key, value) in attributes {
+        if let Some(value) = source_data_value_to_runtime(value) {
+            entity.set_attribute(key, value);
+        }
+    }
+}
+
+fn apply_item_data_attributes(item: &mut Item, data: &str) {
+    let Ok(table) = toml::from_str::<Table>(data) else {
+        return;
+    };
+    let Some(attributes) = table.get("attributes").and_then(toml::Value::as_table) else {
+        return;
+    };
+    for (key, value) in attributes {
+        if let Some(value) = source_data_value_to_runtime(value) {
+            item.set_attribute(key, value);
+        }
+    }
+}
+
+fn source_data_value_to_runtime(value: &toml::Value) -> Option<Value> {
+    match value {
+        toml::Value::String(value) => Some(Value::Str(value.clone())),
+        toml::Value::Integer(value) if *value >= 0 => Some(Value::UInt(*value as u32)),
+        toml::Value::Integer(value) => Some(Value::Int(*value as i32)),
+        toml::Value::Float(value) => Some(Value::Float(*value as f32)),
+        toml::Value::Boolean(value) => Some(Value::Bool(*value)),
+        toml::Value::Array(values) => {
+            let strings = values
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(str::to_string)
+                .collect::<Vec<_>>();
+            (!strings.is_empty()).then_some(Value::StrArray(strings))
+        }
+        _ => None,
+    }
+}
+
+fn parse_terminal_args(args: &[String]) -> Result<TerminalCliOptions, String> {
+    let mut options = TerminalCliOptions {
+        path: None,
+        mode: None,
+    };
+    let mut index = 1;
+    while index < args.len() {
+        let arg = &args[index];
+        if arg == "--mode" {
+            index += 1;
+            let Some(value) = args.get(index) else {
+                return Err("Missing value after --mode.".to_string());
+            };
+            options.mode = Some(TerminalPlayMode::parse(value)?);
+        } else if let Some(value) = arg.strip_prefix("--mode=") {
+            options.mode = Some(TerminalPlayMode::parse(value)?);
+        } else if arg == "--help" || arg == "-h" || arg == "help" {
+            return Err(terminal_usage().to_string());
+        } else if arg.starts_with('-') {
+            return Err(format!("Unknown option '{}'.\n{}", arg, terminal_usage()));
+        } else if options.path.is_none() {
+            options.path = Some(PathBuf::from(arg));
+        } else {
+            return Err(format!(
+                "Unexpected argument '{}'.\n{}",
+                arg,
+                terminal_usage()
+            ));
+        }
+        index += 1;
+    }
+    Ok(options)
+}
+
+fn terminal_usage() -> &'static str {
+    "Usage:\n\
+       eldiron-client-terminal [game.eldiron] [--mode text|roguelike]\n\
+       eldiron-client-terminal rules <command> ...\n\
+     Modes:\n\
+       text       Current room/description terminal play.\n\
+       roguelike  Terminal glyph-map play mode for source-authored maps."
+}
+
+fn resolve_data_path(path_arg: Option<&PathBuf>) -> Result<PathBuf, String> {
+    if let Some(path) = path_arg {
+        return Ok(path.clone());
     }
 
     let cwd = std::env::current_dir().map_err(|err| err.to_string())?;
@@ -2060,6 +2251,47 @@ fn collect_region_output(app: &mut TerminalApp, include_room: bool) -> Vec<Strin
     rendered
 }
 
+fn collect_roguelike_screen_output(app: &mut TerminalApp) -> Vec<String> {
+    let Some(index) = app.current_region_index() else {
+        return Vec::new();
+    };
+    let region_id = app.project.regions[index].map.id;
+    let mut output = Vec::new();
+
+    for (_sender_entity, _sender_item, _receiver, message, category) in
+        app.server.get_messages(&region_id)
+    {
+        if should_print_terminal_message(&message, &category) {
+            output.push(message);
+        }
+    }
+
+    for (_sender_entity, _sender_item, message, _category) in app.server.get_says(&region_id) {
+        if !message.trim().is_empty() {
+            output.push(message);
+        }
+    }
+
+    if !output.is_empty() {
+        app.screen_messages.extend(output.iter().cloned());
+        let keep_from = app.screen_messages.len().saturating_sub(8);
+        if keep_from > 0 {
+            app.screen_messages.drain(0..keep_from);
+        }
+    }
+
+    output
+}
+
+fn roguelike_screen_message(app: &TerminalApp, immediate: Option<&str>) -> Option<String> {
+    if let Some(message) = immediate
+        && !message.trim().is_empty()
+    {
+        return Some(message.trim().to_string());
+    }
+    (!app.screen_messages.is_empty()).then(|| app.screen_messages.join("\n"))
+}
+
 fn trigger_text_intent(app: &mut TerminalApp, intent: &str, query: &str) -> Vec<String> {
     let Some(region) = app.current_region() else {
         return vec![format!("Current region '{}' not found.", app.current_map)];
@@ -2463,6 +2695,692 @@ fn clear_terminal_prompt_line() {
     println!();
 }
 
+fn run_terminal_app(app: TerminalApp, mode: TerminalPlayMode) {
+    match mode {
+        TerminalPlayMode::Text => run_text_terminal_app(app),
+        TerminalPlayMode::Roguelike => run_roguelike_terminal_app(app),
+    }
+}
+
+fn run_roguelike_terminal_app(mut app: TerminalApp) {
+    app.server
+        .local_player_action(EntityAction::SetPlayerCamera(PlayerCamera::D2Grid));
+    app.tick();
+    if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+        run_roguelike_raw_terminal_app(app);
+    } else {
+        run_roguelike_line_terminal_app(app);
+    }
+}
+
+fn run_roguelike_line_terminal_app(mut app: TerminalApp) {
+    let mut editor = match DefaultEditor::new() {
+        Ok(editor) => editor,
+        Err(err) => {
+            eprintln!("Failed to initialize terminal editor: {}", err);
+            std::process::exit(1);
+        }
+    };
+
+    let startup_message = diagnostic_message(app.drain_server_diagnostics());
+    println!(
+        "{}",
+        render_roguelike_view_with_message(&app, startup_message.as_deref())
+    );
+    loop {
+        let input = match editor.readline("rogue> ") {
+            Ok(input) => {
+                let trimmed = input.trim().to_string();
+                if !trimmed.is_empty() {
+                    let _ = editor.add_history_entry(trimmed.as_str());
+                }
+                trimmed
+            }
+            Err(ReadlineError::Interrupted) => continue,
+            Err(ReadlineError::Eof) => break,
+            Err(err) => {
+                eprintln!("Input error: {}", err);
+                break;
+            }
+        };
+
+        let (keep_running, message) = handle_roguelike_input(&mut app, &input);
+        let mut message = message.unwrap_or_default();
+        append_roguelike_diagnostics(&mut app, &mut message);
+        if !keep_running {
+            clear_terminal_prompt_line();
+            break;
+        }
+        println!();
+        println!(
+            "{}",
+            render_roguelike_view_with_message(
+                &app,
+                (!message.trim().is_empty()).then_some(message.as_str())
+            )
+        );
+    }
+
+    app.server.stop();
+}
+
+fn run_roguelike_raw_terminal_app(mut app: TerminalApp) {
+    if let Err(err) = terminal::enable_raw_mode() {
+        eprintln!("Failed to enable raw terminal mode: {}", err);
+        run_roguelike_line_terminal_app(app);
+        return;
+    }
+
+    let mut stdout = io::stdout();
+    if let Err(err) = execute!(stdout, EnterAlternateScreen, cursor::Hide) {
+        let _ = terminal::disable_raw_mode();
+        eprintln!("Failed to enter terminal screen: {}", err);
+        run_roguelike_line_terminal_app(app);
+        return;
+    }
+
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = match RatatuiTerminal::new(backend) {
+        Ok(terminal) => terminal,
+        Err(err) => {
+            let _ = terminal::disable_raw_mode();
+            eprintln!("Failed to initialize terminal UI: {}", err);
+            app.server.stop();
+            return;
+        }
+    };
+
+    let tick_duration = tick_duration(&app.project);
+    let mut last_view = render_roguelike_view(&app);
+    let startup_message = diagnostic_message(app.drain_server_diagnostics());
+    if let Err(err) = draw_roguelike_tui(&mut terminal, &app, startup_message.as_deref()) {
+        restore_roguelike_terminal(&mut terminal);
+        eprintln!("Failed to draw terminal view: {}", err);
+        app.server.stop();
+        return;
+    }
+
+    loop {
+        match event::poll(tick_duration) {
+            Ok(true) => match event::read() {
+                Ok(Event::Key(key)) if key.kind == KeyEventKind::Press => {
+                    let Some(input) = key_event_to_input(key.code) else {
+                        continue;
+                    };
+                    let (keep_running, message) = handle_roguelike_input(&mut app, &input);
+                    if !keep_running {
+                        break;
+                    }
+                    let mut message = message.unwrap_or_default();
+                    append_roguelike_diagnostics(&mut app, &mut message);
+                    let message = (!message.trim().is_empty()).then_some(message);
+                    if let Err(err) = draw_roguelike_tui(&mut terminal, &app, message.as_deref()) {
+                        restore_roguelike_terminal(&mut terminal);
+                        eprintln!("Failed to draw terminal view: {}", err);
+                        app.server.stop();
+                        return;
+                    }
+                    last_view = render_roguelike_view(&app);
+                }
+                Ok(_) => {}
+                Err(err) => {
+                    restore_roguelike_terminal(&mut terminal);
+                    eprintln!("Input error: {}", err);
+                    app.server.stop();
+                    return;
+                }
+            },
+            Ok(false) => {
+                app.tick();
+                let mut output = collect_roguelike_screen_output(&mut app);
+                output.extend(app.drain_server_diagnostics());
+                let view = render_roguelike_view(&app);
+                if !output.is_empty() || view != last_view {
+                    let message = (!output.is_empty()).then(|| output.join("\n"));
+                    if let Err(err) = draw_roguelike_tui(&mut terminal, &app, message.as_deref()) {
+                        restore_roguelike_terminal(&mut terminal);
+                        eprintln!("Failed to draw terminal view: {}", err);
+                        app.server.stop();
+                        return;
+                    }
+                    last_view = view;
+                }
+            }
+            Err(err) => {
+                restore_roguelike_terminal(&mut terminal);
+                eprintln!("Input poll error: {}", err);
+                app.server.stop();
+                return;
+            }
+        }
+    }
+
+    restore_roguelike_terminal(&mut terminal);
+    app.server.stop();
+}
+
+fn restore_roguelike_terminal(terminal: &mut RatatuiTerminal<CrosstermBackend<io::Stdout>>) {
+    let _ = terminal::disable_raw_mode();
+    let _ = execute!(terminal.backend_mut(), LeaveAlternateScreen, cursor::Show);
+    let _ = terminal.show_cursor();
+}
+
+fn draw_roguelike_tui(
+    terminal: &mut RatatuiTerminal<CrosstermBackend<io::Stdout>>,
+    app: &TerminalApp,
+    message: Option<&str>,
+) -> io::Result<()> {
+    terminal
+        .draw(|frame| render_roguelike_tui_frame(frame, app, message))
+        .map(|_| ())
+}
+
+fn render_roguelike_tui_frame(frame: &mut Frame, app: &TerminalApp, message: Option<&str>) {
+    let area = frame.area();
+    let Some(region) = app.current_region() else {
+        frame.render_widget(
+            Paragraph::new(format!("Current region '{}' not found.", app.current_map))
+                .block(Block::default().borders(Borders::ALL).title("Eldiron")),
+            area,
+        );
+        return;
+    };
+
+    let screen_frame = TerminalScreenFrame {
+        header: String::new(),
+        hint: String::new(),
+        message: roguelike_screen_message(app, message),
+    };
+
+    let Some(layout) = shared::terminal_screen::project_terminal_screen_layout(&app.project) else {
+        frame.render_widget(
+            Paragraph::new(shared::terminal_screen::render_roguelike_view(
+                region,
+                &screen_frame,
+            ))
+            .block(Block::default().borders(Borders::ALL).title("Eldiron"))
+            .wrap(Wrap { trim: false }),
+            area,
+        );
+        return;
+    };
+
+    for widget in &layout.widgets {
+        let rect = terminal_rect_to_tui(&widget.rect, &layout, area);
+        if rect.width == 0 || rect.height == 0 {
+            continue;
+        }
+        render_roguelike_tui_widget(frame, rect, widget, region, &screen_frame);
+    }
+}
+
+fn terminal_rect_to_tui(
+    rect: &shared::terminal_screen::TerminalRect,
+    layout: &shared::terminal_screen::TerminalScreenLayout,
+    area: Rect,
+) -> Rect {
+    let layout_width = layout.width.max(1) as u32;
+    let layout_height = layout.height.max(1) as u32;
+    let area_width = area.width as u32;
+    let area_height = area.height as u32;
+
+    let x0 = area.x as u32 + rect.x as u32 * area_width / layout_width;
+    let y0 = area.y as u32 + rect.y as u32 * area_height / layout_height;
+    let x1 = area.x as u32 + (rect.x + rect.width) as u32 * area_width / layout_width;
+    let y1 = area.y as u32 + (rect.y + rect.height) as u32 * area_height / layout_height;
+
+    Rect {
+        x: x0.min(u16::MAX as u32) as u16,
+        y: y0.min(u16::MAX as u32) as u16,
+        width: x1.saturating_sub(x0).min(u16::MAX as u32) as u16,
+        height: y1.saturating_sub(y0).min(u16::MAX as u32) as u16,
+    }
+}
+
+fn render_roguelike_tui_widget(
+    frame: &mut Frame,
+    rect: Rect,
+    widget: &shared::terminal_screen::TerminalWidget,
+    region: &shared::region::Region,
+    screen_frame: &TerminalScreenFrame,
+) {
+    let lines = shared::terminal_screen::terminal_widget_lines(widget, region, screen_frame);
+    let text = lines.join("\n");
+    match widget.role.as_str() {
+        "game" => {
+            frame.render_widget(
+                Paragraph::new(text).style(Style::default().fg(Color::LightGreen)),
+                rect,
+            );
+        }
+        "messages" => {
+            frame.render_widget(
+                Paragraph::new(text)
+                    .block(terminal_block(&widget.name).style(Style::default().fg(Color::Cyan)))
+                    .style(Style::default().fg(Color::White))
+                    .wrap(Wrap { trim: false }),
+                rect,
+            );
+        }
+        "text" => {
+            frame.render_widget(
+                Paragraph::new(text)
+                    .style(Style::default().fg(Color::Gray))
+                    .wrap(Wrap { trim: false }),
+                rect,
+            );
+        }
+        "stat" => {
+            frame.render_widget(
+                Paragraph::new(text)
+                    .style(Style::default().fg(Color::LightBlue))
+                    .wrap(Wrap { trim: false }),
+                rect,
+            );
+        }
+        "avatar" => {
+            frame.render_widget(
+                Paragraph::new(text)
+                    .block(terminal_block(&widget.name))
+                    .style(Style::default().fg(Color::LightMagenta))
+                    .alignment(Alignment::Center)
+                    .wrap(Wrap { trim: false }),
+                rect,
+            );
+        }
+        "button" => {
+            frame.render_widget(
+                Paragraph::new(text)
+                    .block(terminal_block(""))
+                    .style(Style::default().fg(Color::Yellow))
+                    .alignment(Alignment::Center)
+                    .wrap(Wrap { trim: true }),
+                rect,
+            );
+        }
+        "deco" => {
+            frame.render_widget(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::DarkGray))
+                    .style(Style::default().bg(Color::Black)),
+                rect,
+            );
+        }
+        _ => {}
+    }
+}
+
+fn terminal_block(title: &str) -> Block<'_> {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::DarkGray));
+    if title.trim().is_empty() {
+        block
+    } else {
+        block.title(Line::from(Span::styled(
+            title.to_string(),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )))
+    }
+}
+
+fn append_roguelike_diagnostics(app: &mut TerminalApp, output: &mut String) {
+    let diagnostics = app.drain_server_diagnostics();
+    if diagnostics.is_empty() {
+        return;
+    }
+    if !output.trim().is_empty() {
+        output.push_str("\n\n");
+    }
+    output.push_str(&diagnostics.join("\n"));
+}
+
+fn diagnostic_message(diagnostics: Vec<String>) -> Option<String> {
+    (!diagnostics.is_empty()).then(|| diagnostics.join("\n"))
+}
+
+fn is_terminal_diagnostic_line(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    lower.contains("[error]")
+        || lower.contains("[warning]")
+        || lower.contains("[warn]")
+        || lower.contains("compile error")
+        || lower.contains("runtime error")
+        || lower.contains("compiling character")
+        || lower.contains("compiling item")
+        || lower.contains("compiling region")
+        || lower.contains("event error")
+}
+
+fn key_event_to_input(code: KeyCode) -> Option<String> {
+    match code {
+        KeyCode::Char(ch) => Some(ch.to_ascii_lowercase().to_string()),
+        KeyCode::Up => Some("up".to_string()),
+        KeyCode::Down => Some("down".to_string()),
+        KeyCode::Left => Some("left".to_string()),
+        KeyCode::Right => Some("right".to_string()),
+        KeyCode::Esc => Some("quit".to_string()),
+        KeyCode::Enter => Some("look".to_string()),
+        _ => None,
+    }
+}
+
+fn handle_roguelike_input(app: &mut TerminalApp, input: &str) -> (bool, Option<String>) {
+    let command = input.trim().to_ascii_lowercase();
+    match command.as_str() {
+        "" | "look" | "l" => (true, None),
+        "quit" | "exit" | "q" => (false, None),
+        "help" | "?" => (
+            true,
+            Some(
+                [
+                    "Roguelike mode commands:",
+                    "  movement keys come from the active player's [input] table",
+                    "  look - redraw",
+                    "  wait or . - advance one tick",
+                    "  quit - leave the client",
+                ]
+                .join("\n"),
+            ),
+        ),
+        "wait" | "." => {
+            app.tick();
+            let output = collect_roguelike_screen_output(app);
+            (true, (!output.is_empty()).then(|| output.join("\n")))
+        }
+        _ => {
+            if let Some(action) = roguelike_input_action(app, &command) {
+                let message = apply_roguelike_player_action(app, action);
+                (true, (!message.trim().is_empty()).then_some(message))
+            } else if let Some(intent) = roguelike_input_intent(app, &command) {
+                let message = set_roguelike_player_intent(app, &intent);
+                (true, (!message.trim().is_empty()).then_some(message))
+            } else {
+                (
+                    true,
+                    Some(format!(
+                        "Unknown roguelike command '{}'. Type 'help' for commands.",
+                        input
+                    )),
+                )
+            }
+        }
+    }
+}
+
+fn roguelike_input_action(app: &TerminalApp, key: &str) -> Option<EntityAction> {
+    let input = active_player_input_map(app);
+    let command = input.get(key)?;
+    roguelike_control_action(command)
+}
+
+fn roguelike_input_intent(app: &TerminalApp, key: &str) -> Option<String> {
+    let input = active_player_input_map(app);
+    let command = input.get(key)?;
+    roguelike_intent_command(command)
+}
+
+fn roguelike_control_action(command: &str) -> Option<EntityAction> {
+    let command = unwrap_roguelike_command(command);
+    match command {
+        "control.forward" | "action(forward)" | "control(forward)" | "forward" => {
+            Some(EntityAction::Forward)
+        }
+        "control.backward" | "action(backward)" | "control(backward)" | "backward" => {
+            Some(EntityAction::Backward)
+        }
+        "control.left" | "action(left)" | "control(left)" | "left" => Some(EntityAction::Left),
+        "control.right" | "action(right)" | "control(right)" | "right" => Some(EntityAction::Right),
+        _ => None,
+    }
+}
+
+fn roguelike_intent_command(command: &str) -> Option<String> {
+    let command = unwrap_roguelike_command(command);
+    if let Some(intent) = command
+        .strip_prefix("intent(")
+        .and_then(|value| value.strip_suffix(')'))
+    {
+        return Some(intent.trim().to_ascii_lowercase());
+    }
+    command
+        .strip_prefix("intent.")
+        .map(|intent| intent.trim().to_ascii_lowercase())
+}
+
+fn unwrap_roguelike_command(command: &str) -> &str {
+    command
+        .trim()
+        .strip_prefix("command(")
+        .and_then(|value| value.strip_suffix(')'))
+        .unwrap_or(command)
+        .trim()
+}
+
+fn set_roguelike_player_intent(app: &mut TerminalApp, intent: &str) -> String {
+    let intent = intent.trim();
+    app.server
+        .local_player_action(EntityAction::Intent(intent.to_string()));
+    app.tick();
+    let output = collect_roguelike_screen_output(app);
+    if !output.is_empty() {
+        return output.join("\n");
+    }
+    if intent.is_empty() {
+        "Intent cleared.".to_string()
+    } else {
+        format!("Intent set: {}. Press a direction to target it.", intent)
+    }
+}
+
+fn active_player_input_map(app: &TerminalApp) -> BTreeMap<String, String> {
+    let mut bindings = BTreeMap::new();
+    let Some(region) = app.current_region() else {
+        return bindings;
+    };
+    let Some(player) = region.map.entities.iter().find(|entity| entity.is_player()) else {
+        return bindings;
+    };
+    let Some(class_name) = player.get_attr_string("class_name") else {
+        return bindings;
+    };
+    let Some((_, data)) = app.assets.entities.get(&class_name) else {
+        return bindings;
+    };
+    let Ok(table) = data.parse::<Table>() else {
+        return bindings;
+    };
+    let Some(input) = table.get("input").and_then(toml::Value::as_table) else {
+        return bindings;
+    };
+    for (key, value) in input {
+        if let Some(command) = value.as_str() {
+            bindings.insert(key.trim().to_ascii_lowercase(), command.trim().to_string());
+        }
+    }
+    bindings
+}
+
+fn active_player_intent(app: &TerminalApp) -> Option<String> {
+    let region = app.current_region()?;
+    let player = region
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.is_player())?;
+    let intent = player.get_attr_string("intent")?;
+    let intent = intent.trim();
+    (!intent.is_empty()).then(|| intent.to_string())
+}
+
+fn apply_roguelike_player_action(app: &mut TerminalApp, action: EntityAction) -> String {
+    let Some((x, y)) = roguelike_player_cell(app) else {
+        return "No local player found.".to_string();
+    };
+    let had_intent = active_player_intent(app).is_some();
+    if !had_intent && let Some((dx, dy)) = roguelike_action_direction(&action) {
+        let target_x = x + dx;
+        let target_y = y + dy;
+        let Some(terrain) = roguelike_terrain(app) else {
+            return "No source terrain metadata found for this region.".to_string();
+        };
+        if is_roguelike_blocked(&terrain, target_x, target_y) {
+            return "Blocked.".to_string();
+        }
+    }
+
+    app.auto_attack_target = None;
+    app.server.local_player_action(action);
+    app.tick();
+    if !had_intent {
+        app.server.local_player_action(EntityAction::Off);
+    }
+    for _ in 0..20 {
+        thread::sleep(Duration::from_millis(16));
+        app.tick();
+        if had_intent {
+            if active_player_intent(app).is_none() {
+                break;
+            }
+        } else if active_player_cell_has_settled(app, x, y) {
+            break;
+        }
+    }
+    let mut output = collect_roguelike_screen_output(app);
+    if output.is_empty() && had_intent {
+        for _ in 0..3 {
+            thread::sleep(Duration::from_millis(16));
+            app.tick();
+            output = collect_roguelike_screen_output(app);
+            if !output.is_empty() {
+                break;
+            }
+        }
+    }
+    output.join("\n")
+}
+
+fn active_player_cell_has_settled(app: &TerminalApp, previous_x: i32, previous_y: i32) -> bool {
+    roguelike_player_cell(app)
+        .map(|(x, y)| x != previous_x || y != previous_y)
+        .unwrap_or(true)
+}
+
+fn roguelike_action_direction(action: &EntityAction) -> Option<(i32, i32)> {
+    match action {
+        EntityAction::Forward => Some((0, -1)),
+        EntityAction::Backward => Some((0, 1)),
+        EntityAction::Left => Some((-1, 0)),
+        EntityAction::Right => Some((1, 0)),
+        _ => None,
+    }
+}
+
+fn render_roguelike_view(app: &TerminalApp) -> String {
+    render_roguelike_view_with_message(app, None)
+}
+
+fn render_roguelike_view_with_message(app: &TerminalApp, message: Option<&str>) -> String {
+    let Some(region) = app.current_region() else {
+        return format!("Current region '{}' not found.", app.current_map);
+    };
+    shared::terminal_screen::render_roguelike_screen(
+        &app.project,
+        region,
+        &TerminalScreenFrame {
+            header: String::new(),
+            hint: String::new(),
+            message: roguelike_screen_message(app, message),
+        },
+    )
+}
+
+fn roguelike_terrain(app: &TerminalApp) -> Option<Vec<Vec<char>>> {
+    let region = app.current_region()?;
+    shared::terminal_screen::source_terrain(&region.map)
+}
+
+fn roguelike_player_cell(app: &TerminalApp) -> Option<(i32, i32)> {
+    let region = app.current_region()?;
+    let player = region
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.is_player())?;
+    Some(world_to_cell(player.position.x, player.position.z))
+}
+
+fn world_to_cell(x: f32, z: f32) -> (i32, i32) {
+    shared::terminal_screen::world_to_cell(x, z)
+}
+
+fn is_roguelike_blocked(terrain: &[Vec<char>], x: i32, y: i32) -> bool {
+    shared::terminal_screen::is_roguelike_blocked(terrain, x, y)
+}
+
+fn run_text_terminal_app(mut app: TerminalApp) {
+    let welcome = authoring_startup_welcome(&app.project.authoring);
+    let printed_startup = welcome.is_some();
+
+    if let Some(welcome) = welcome {
+        println!("{}", welcome);
+    }
+
+    match authoring_startup_display(&app.project.authoring) {
+        StartupDisplay::None => {}
+        StartupDisplay::Description => {
+            let startup_messages = app.print_pending_messages();
+            if startup_messages == 0
+                && let Some(description) = app.render_current_sector_description()
+            {
+                if printed_startup {
+                    println!();
+                }
+                println!("{}", description);
+            }
+        }
+        StartupDisplay::Room => {
+            if printed_startup {
+                println!();
+            }
+            let _ = app.discard_pending_messages();
+            if let Some(map) = app.current_region().map(|region| region.map.clone()) {
+                for entry in app.session.startup(
+                    &map,
+                    &app.project.authoring,
+                    app.current_time_hour_and_label().map(|(hour, _)| hour),
+                ) {
+                    match entry {
+                        TextSessionOutput::RenderRoom => println!("{}", app.render_room_text()),
+                        TextSessionOutput::Plain(text) => println!("{}", text),
+                        TextSessionOutput::Message { text, category } => {
+                            println!(
+                                "{}",
+                                colorize_terminal_category(
+                                    &text,
+                                    &category,
+                                    &app.project.authoring
+                                )
+                            )
+                        }
+                    }
+                }
+            } else {
+                println!("{}", app.render_room_text());
+            }
+        }
+    }
+
+    if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+        run_realtime_cli(app);
+    } else {
+        run_blocking_cli(app);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2662,7 +3580,15 @@ fn main() {
         return;
     }
 
-    let path = match resolve_data_path(&args) {
+    let cli_options = match parse_terminal_args(&args) {
+        Ok(options) => options,
+        Err(err) => {
+            eprintln!("{}", err);
+            std::process::exit(1);
+        }
+    };
+
+    let path = match resolve_data_path(cli_options.path.as_ref()) {
         Ok(path) => path,
         Err(err) => {
             eprintln!("{}", err);
@@ -2670,7 +3596,7 @@ fn main() {
         }
     };
 
-    let mut app = match TerminalApp::load(&path) {
+    let app = match TerminalApp::load(&path) {
         Ok(app) => app,
         Err(err) => {
             eprintln!("{}", err);
@@ -2678,61 +3604,17 @@ fn main() {
         }
     };
 
-    let welcome = authoring_startup_welcome(&app.project.authoring);
-    let printed_startup = welcome.is_some();
-
-    if let Some(welcome) = welcome {
-        println!("{}", welcome);
-    }
-
-    match authoring_startup_display(&app.project.authoring) {
-        StartupDisplay::None => {}
-        StartupDisplay::Description => {
-            let startup_messages = app.print_pending_messages();
-            if startup_messages == 0
-                && let Some(description) = app.render_current_sector_description()
-            {
-                if printed_startup {
-                    println!();
-                }
-                println!("{}", description);
-            }
+    let mode = match cli_options
+        .mode
+        .map(Ok)
+        .unwrap_or_else(|| config_terminal_mode(&app.project.config))
+    {
+        Ok(mode) => mode,
+        Err(err) => {
+            eprintln!("{}", err);
+            std::process::exit(1);
         }
-        StartupDisplay::Room => {
-            if printed_startup {
-                println!();
-            }
-            let _ = app.discard_pending_messages();
-            if let Some(map) = app.current_region().map(|region| region.map.clone()) {
-                for entry in app.session.startup(
-                    &map,
-                    &app.project.authoring,
-                    app.current_time_hour_and_label().map(|(hour, _)| hour),
-                ) {
-                    match entry {
-                        TextSessionOutput::RenderRoom => println!("{}", app.render_room_text()),
-                        TextSessionOutput::Plain(text) => println!("{}", text),
-                        TextSessionOutput::Message { text, category } => {
-                            println!(
-                                "{}",
-                                colorize_terminal_category(
-                                    &text,
-                                    &category,
-                                    &app.project.authoring
-                                )
-                            )
-                        }
-                    }
-                }
-            } else {
-                println!("{}", app.render_room_text());
-            }
-        }
-    }
+    };
 
-    if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
-        run_realtime_cli(app);
-    } else {
-        run_blocking_cli(app);
-    }
+    run_terminal_app(app, mode);
 }

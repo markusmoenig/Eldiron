@@ -36,6 +36,7 @@ collision_mode = "tile"        # Collision/path mode: "tile" or "mesh".
 auto_create_player = true      # Whether to auto-create a player entity.
 start_region = ""              # The name of the region to start the game in.
 start_screen = ""              # The name of the screen to show at startup.
+terminal_mode = "text"         # Terminal client mode: "text" or "roguelike".
 play_screen = ""               # Optional screen shown after game.start.
 click_intents_2d = false       # Target 2D intents with mouse clicks while keeping WASD movement.
 auto_walk_2d = false           # In walk mode, clicking terrain in 2D makes the player path-walk there.
@@ -142,6 +143,13 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
   The **name of the screen** to load on startup.
   If empty, Eldiron will display a black screen.
 
+- **`terminal_mode`**
+  Selects how `eldiron-client-terminal` plays the project by default.
+  `"text"` uses the current room-description and command parser mode.
+  `"roguelike"` uses the terminal glyph-map mode for source-authored maps that carry source terrain metadata.
+  The terminal client's `--mode text|roguelike` option overrides this setting.
+  Default: `"text"`.
+
 - **`play_screen`**
   Optional screen to load after a `game.start` or `game.start_class.<Class>` button command.
   Leave it empty when the startup screen already contains the active game layout.
@@ -240,6 +248,8 @@ width = 1280        # Width of the game viewport in pixels.
 height = 720        # Height of the game viewport in pixels.
 window_scale = 1.0  # Multiplies startup window size (e.g. 2.0 = 2x bigger window).
 grid_size = 32      # Size of one grid tile in pixels.
+unit = "pixel"      # "pixel" means width/height are pixels; "cell" means width/height are logical cells.
+resize = "fixed"    # Terminal/source resize policy: "fixed", "fit", "fill", or "crop".
 upscale = "aspect"  # 'aspect' upscales the game output to the screen dimensions. 'none' otherwise.
 background_color_2d = "#000000" # 2D viewport background color.
 visibility_range_2d = 0 # 2D visible range around the player in tiles. 0 disables the limit.
@@ -254,6 +264,7 @@ target_rect_color = "" # Optional target rectangle color for the current leader 
 - **`width` / `height`**
     Defines the **starting resolution** of the game window or screen.
     You can adjust these values to target common resolutions like 1280×720 or 1920×1080.
+    With `unit = "cell"`, these values are logical cell counts and the pixel viewport is derived as `width * grid_size` by `height * grid_size`.
 
 - **`window_scale`**
     Multiplies the startup window size while keeping the game viewport resolution unchanged.
@@ -263,6 +274,15 @@ target_rect_color = "" # Optional target rectangle color for the current leader 
 - **`grid_size`**
     Sets the **pixel size of a single tile** in the world/grid.
     This affects rendering and snapping behavior in tools and the viewport layout.
+
+- **`unit`**
+    Defines how `width` and `height` are interpreted.
+    `"pixel"` keeps the classic behavior.
+    `"cell"` treats `width` and `height` as logical cells for terminal/source layouts; graphical clients derive pixel size by multiplying by `grid_size`.
+
+- **`resize`**
+    Defines how a cell-based viewport should adapt to a terminal or display surface when sizes differ.
+    `"fixed"` keeps the authored size, `"fit"` fits inside the target, `"fill"` fills the target, and `"crop"` allows clipping.
 
 - **`upscale`**
     If set to **"aspect"** upscales the game output to the screen / window resolution keeping the viewport aspect-ratio intact.

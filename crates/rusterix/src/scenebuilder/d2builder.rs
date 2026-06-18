@@ -1,6 +1,6 @@
-use crate::{
-    Assets, Batch2D, Map, PixelSource, Scene, Value, avatar_builder::AvatarRuntimeBuilder,
-};
+#[cfg(feature = "graphics")]
+use crate::avatar_builder::AvatarRuntimeBuilder;
+use crate::{Assets, Batch2D, Map, PixelSource, Scene, Value};
 use theframework::prelude::*;
 use uuid::Uuid;
 use vek::Vec2;
@@ -286,30 +286,36 @@ impl D2Builder {
                             repeated_batches.push(batch);
                         }
                     }
-                } else if let Some(tile) = AvatarRuntimeBuilder::explicit_item_tile(item, assets) {
-                    let Some(texture_index) = u16::try_from(textures.len()).ok() else {
-                        continue;
-                    };
-                    let mut batch = Batch2D::empty()
-                        .source(PixelSource::DynamicTileIndex(texture_index))
-                        .receives_light(true);
+                } else {
+                    #[cfg(feature = "graphics")]
+                    {
+                        if let Some(tile) = AvatarRuntimeBuilder::explicit_item_tile(item, assets) {
+                            let Some(texture_index) = u16::try_from(textures.len()).ok() else {
+                                continue;
+                            };
+                            let mut batch = Batch2D::empty()
+                                .source(PixelSource::DynamicTileIndex(texture_index))
+                                .receives_light(true);
 
-                    batch.add_rectangle(pos.x - hsize, pos.y - hsize, size, size);
-                    textures.push(tile);
-                    repeated_batches.push(batch);
-                } else if AvatarRuntimeBuilder::item_allows_generated_icon(item, assets)
-                    && let Some(tile) = AvatarRuntimeBuilder::generated_item_tile(item, assets)
-                {
-                    let Some(texture_index) = u16::try_from(textures.len()).ok() else {
-                        continue;
-                    };
-                    let mut batch = Batch2D::empty()
-                        .source(PixelSource::DynamicTileIndex(texture_index))
-                        .receives_light(true);
+                            batch.add_rectangle(pos.x - hsize, pos.y - hsize, size, size);
+                            textures.push(tile);
+                            repeated_batches.push(batch);
+                        } else if AvatarRuntimeBuilder::item_allows_generated_icon(item, assets)
+                            && let Some(tile) =
+                                AvatarRuntimeBuilder::generated_item_tile(item, assets)
+                        {
+                            let Some(texture_index) = u16::try_from(textures.len()).ok() else {
+                                continue;
+                            };
+                            let mut batch = Batch2D::empty()
+                                .source(PixelSource::DynamicTileIndex(texture_index))
+                                .receives_light(true);
 
-                    batch.add_rectangle(pos.x - hsize, pos.y - hsize, size, size);
-                    textures.push(tile);
-                    repeated_batches.push(batch);
+                            batch.add_rectangle(pos.x - hsize, pos.y - hsize, size, size);
+                            textures.push(tile);
+                            repeated_batches.push(batch);
+                        }
+                    }
                 }
             }
         }

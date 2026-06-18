@@ -1,0 +1,223 @@
+Region "cellar" {
+  name = "Source Cellar"
+  default = wall.stone
+
+  terrain """
+  #########
+  #.......#
+  #..h.O..#
+  #...@...#
+  #....b..#
+  #########
+  """
+}
+
+Screen "play" {
+  name = "Play"
+
+  widget "Game" {
+    role = "game"
+    x = 0
+    y = 0
+    width = 80
+    height = 24
+
+    data {
+      [ui]
+      role = "game"
+      grid_size = 40
+
+      [camera]
+      type = "2d"
+
+      [camera_safe_area]
+      right = 24
+    }
+  }
+
+  widget "Sidebar" {
+    role = "deco"
+    x = 56
+    y = 0
+    width = 24
+    height = 24
+
+    data {
+      [ui]
+      role = "deco"
+      color = "#0000006f"
+      border_color = "#444444"
+      border_size = 1
+    }
+  }
+
+  widget "Stats" {
+    role = "text"
+    x = 57
+    y = 1
+    width = 22
+    height = 7
+
+    data {
+      [ui]
+      role = "text"
+      text = """
+{PLAYER.CLASS}
+LVL {PLAYER.LEVEL}  EXP {PLAYER.EXP}
+HP {PLAYER.HP}/{PLAYER.MAX_HP}
+MP {PLAYER.MP}/{PLAYER.MAX_MP}
+STR {PLAYER.STR}  DEX {PLAYER.DEX}
+INT {PLAYER.INT}  WIS {PLAYER.WIS}
+"""
+    }
+  }
+
+  widget "Messages" {
+    role = "messages"
+    x = 57
+    y = 8
+    width = 22
+    height = 6
+
+    data {
+      [ui]
+      role = "messages"
+      font_size = 18.0
+      background_color = "#00000099"
+      default = "#ffffff"
+      warning = "#ff8888"
+      severe = "#ff6666"
+      success = "#88ff88"
+      handles = ["messages", "dialogs", "multiple_choice", "offer_inventory"]
+    }
+  }
+
+  widget "Avatar" {
+    role = "avatar"
+    x = 57
+    y = 15
+    width = 10
+    height = 4
+
+    data {
+      [ui]
+      role = "avatar"
+      party = "leader"
+    }
+  }
+
+  widget "Main Hand" {
+    role = "button"
+    x = 68
+    y = 15
+    width = 11
+    height = 2
+
+    data {
+      [ui]
+      role = "button"
+      equipped_slot = "main_hand"
+    }
+  }
+
+  widget "Off Hand" {
+    role = "button"
+    x = 68
+    y = 17
+    width = 11
+    height = 2
+
+    data {
+      [ui]
+      role = "button"
+      equipped_slot = "off_hand"
+    }
+  }
+
+  widget "Inventory 0" {
+    role = "button"
+    x = 57
+    y = 20
+    width = 7
+    height = 2
+
+    data {
+      [ui]
+      role = "button"
+      inventory_index = 0
+    }
+  }
+
+  widget "Inventory 1" {
+    role = "button"
+    x = 64
+    y = 20
+    width = 7
+    height = 2
+
+    data {
+      [ui]
+      role = "button"
+      inventory_index = 1
+    }
+  }
+
+  widget "Inventory 2" {
+    role = "button"
+    x = 71
+    y = 20
+    width = 8
+    height = 2
+
+    data {
+      [ui]
+      role = "button"
+      inventory_index = 2
+    }
+  }
+
+  widget "Intent Look" {
+    role = "button"
+    x = 57
+    y = 22
+    width = 7
+    height = 2
+
+    data {
+      [ui]
+      role = "button"
+      command = "intent.look"
+      intent = "look"
+    }
+  }
+
+  widget "Intent Take" {
+    role = "button"
+    x = 64
+    y = 22
+    width = 7
+    height = 2
+
+    data {
+      [ui]
+      role = "button"
+      command = "intent.take"
+      intent = "take"
+    }
+  }
+
+  widget "Intent Attack" {
+    role = "button"
+    x = 71
+    y = 22
+    width = 8
+    height = 2
+
+    data {
+      [ui]
+      role = "button"
+      command = "intent.attack"
+      intent = "attack"
+    }
+  }
+}

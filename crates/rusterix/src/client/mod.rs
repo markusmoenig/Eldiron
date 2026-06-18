@@ -1690,17 +1690,26 @@ impl Client {
             }
         }
 
-        self.viewport = Vec2::new(
-            self.get_config_i32_default("viewport", "width", 1280),
-            self.get_config_i32_default("viewport", "height", 720),
-        );
-
+        let viewport_width = self.get_config_i32_default("viewport", "width", 1280);
+        let viewport_height = self.get_config_i32_default("viewport", "height", 720);
+        let viewport_grid_size = self.get_config_i32_default("viewport", "grid_size", 32);
+        self.viewport = if self
+            .get_config_string_default("viewport", "unit", "pixel")
+            .eq_ignore_ascii_case("cell")
+        {
+            Vec2::new(
+                viewport_width.max(1) * viewport_grid_size.max(1),
+                viewport_height.max(1) * viewport_grid_size.max(1),
+            )
+        } else {
+            Vec2::new(viewport_width, viewport_height)
+        };
         self.target_fps = self.get_config_i32_default("game", "target_fps", 30);
         self.game_tick_ms = self.get_config_i32_default("game", "game_tick_ms", 250);
         self.firstp_eye_level = self.get_config_f32_default("game", "firstp_eye_level", 1.7);
         self.click_intents_2d = self.get_config_bool_default("game", "click_intents_2d", false)
             || self.get_config_bool_default("game", "persistent_2d_intents", false);
-        self.grid_size = self.get_config_i32_default("viewport", "grid_size", 32) as f32;
+        self.grid_size = viewport_grid_size as f32;
         self.upscale_mode = self.get_config_string_default("viewport", "upscale", "none");
 
         self.default_cursor = None;

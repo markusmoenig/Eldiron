@@ -158,8 +158,21 @@ impl EldironPlayerApp {
         let cfg = project.config.parse::<Table>().ok()?;
         let viewport = cfg.get("viewport")?.as_table()?;
 
-        let w = viewport.get("width")?.as_integer()? as f32;
-        let h = viewport.get("height")?.as_integer()? as f32;
+        let mut w = viewport.get("width")?.as_integer()? as f32;
+        let mut h = viewport.get("height")?.as_integer()? as f32;
+        if viewport
+            .get("unit")
+            .and_then(toml::Value::as_str)
+            .is_some_and(|unit| unit.eq_ignore_ascii_case("cell"))
+        {
+            let grid_size = viewport
+                .get("grid_size")
+                .and_then(toml::Value::as_integer)
+                .unwrap_or(32)
+                .max(1) as f32;
+            w *= grid_size;
+            h *= grid_size;
+        }
         let scale = viewport
             .get("window_scale")
             .and_then(toml::Value::as_float)

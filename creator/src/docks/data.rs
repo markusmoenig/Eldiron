@@ -70,6 +70,10 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
                 status: "Screen name shown at startup. Empty means no startup screen.",
             },
             SettingNavEntry {
+                key: "terminal_mode",
+                status: "Terminal client mode. Values: \"text\", \"roguelike\".",
+            },
+            SettingNavEntry {
                 key: "play_screen",
                 status: "Optional screen shown after a game.start command.",
             },

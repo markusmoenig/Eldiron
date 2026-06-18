@@ -6205,6 +6205,14 @@ impl RegionInstance {
                                 && action != EntityAction::Off =>
                         {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                let click_intents_2d =
+                                    get_config_bool_default(ctx, "game", "click_intents_2d", false)
+                                        || get_config_bool_default(
+                                            ctx,
+                                            "game",
+                                            "persistent_2d_intents",
+                                            false,
+                                        );
                                 if let Some(entity) = ctx
                                     .map
                                     .entities
@@ -6220,7 +6228,12 @@ impl RegionInstance {
                                         Some(Value::PlayerCamera(camera))
                                             if Self::is_grid_camera(camera)
                                     );
-                                    if is_grid_player {
+                                    let use_directional_intent =
+                                        Self::should_use_directional_player_intent(
+                                            entity,
+                                            click_intents_2d,
+                                        );
+                                    if is_grid_player && !use_directional_intent {
                                         Self::update_grid_input_state(entity, &action);
                                         if matches!(
                                             entity.action,
@@ -7154,7 +7167,15 @@ impl RegionInstance {
                                         Some(Value::PlayerCamera(camera))
                                             if Self::is_grid_camera(camera)
                                     );
-                                    if is_grid_player && Self::is_movement_input_action(&action) {
+                                    let use_directional_intent =
+                                        Self::should_use_directional_player_intent(
+                                            entity,
+                                            click_intents_2d,
+                                        );
+                                    if is_grid_player
+                                        && Self::is_movement_input_action(&action)
+                                        && !use_directional_intent
+                                    {
                                         Self::update_grid_input_state(entity, &action);
                                     }
                                     if is_grid_player
@@ -10072,6 +10093,34 @@ impl RegionInstance {
                         }
                     } else if let Some(msg) = item_use_message(ctx, target_item) {
                         send_message(ctx, entity.id, msg, "system");
+                    }
+                }
+            }
+
+            if intent_lower == "pickup" || intent_lower == "take" {
+                if let Some(item_id) = target_item_id {
+                    let take_action = target_item
+                        .and_then(|item| {
+                            item.attributes
+                                .get_str("on_pickup")
+                                .or_else(|| item.attributes.get_str("on_take"))
+                        })
+                        .map(str::trim)
+                        .filter(|action| !action.is_empty())
+                        .map(str::to_string);
+
+                    if let Some(action) = take_action {
+                        if action.eq_ignore_ascii_case("pickup")
+                            || action.eq_ignore_ascii_case("take")
+                        {
+                            take_item_for_entity(ctx, entity.id, item_id);
+                        } else {
+                            send_message(ctx, entity.id, action, "system");
+                        }
+                        if !keep_intent {
+                            entity.set_attribute("intent", Value::Str(String::new()));
+                        }
+                        return;
                     }
                 }
             }

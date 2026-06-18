@@ -1,0 +1,54 @@
+Character "player" {
+  name = "Player"
+  glyph = "@"
+
+  data {
+    [attributes]
+    race = "Human"
+    class = "Ranger"
+    LEVEL = 1
+    size_2d = 1.25
+    visible = true
+    player = true
+    wealth = 1
+    inventory_slots = 6
+    source_id = "player"
+
+    [input]
+    w = "action(forward)"
+    a = "action(left)"
+    s = "action(backward)"
+    d = "action(right)"
+    up = "action(forward)"
+    left = "action(left)"
+    down = "action(backward)"
+    right = "action(right)"
+    t = "intent(attack)"
+    g = "intent(take)"
+    l = "intent(look)"
+  }
+
+  script {
+    fn event(event, value) {
+        if event == "startup" {
+            set_player_camera( "2d_grid");
+        }
+        if event == "death" {
+            set_attr( "mode",  "active");
+            set_attr( "visible",  true);
+            message( id(),  "You died. Try again!",  "severe");
+        }
+        if event == "intent" && value == "attack" {
+            set_target( value.subject_id);
+            attack();
+        }
+        if event == "intent" && value == "take" {
+            take( value.subject_id);
+        }
+        if event == "kill" {
+            let name = get_attr_of( value,  "name");
+            message( id(),   "You kill the " + name,  "success");
+        }
+    }
+  }
+}

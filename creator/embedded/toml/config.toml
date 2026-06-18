@@ -19,6 +19,9 @@ start_region = ""
 # The name of the start screen. If empty, shows the start region.
 start_screen = ""
 
+# Terminal client mode, "text" or "roguelike".
+terminal_mode = "text"
+
 # Optional screen to show after a game.start command.
 play_screen = ""
 
