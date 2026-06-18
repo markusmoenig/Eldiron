@@ -11,10 +11,10 @@ resolution, project-level rule overrides, and rule testing.
 
 ## Source Of Truth
 
-The official ruleset lives at the top level of the repository:
+The official ruleset lives in the `eldiron-ruleset` crate:
 
 ```text
-rulesets/
+crates/ruleset/rulesets/
   manifest.toml
   eldiron/
     v1/
@@ -34,15 +34,17 @@ rulesets/
       README.md
       assets/
         humanoid.eldiron_avatar
+        orc.eldiron_avatar
 ```
 
-This location is intentional. The ruleset is not owned by Creator only. It must
-be available to:
+This location is intentional. The ruleset is not owned by Creator only, and it
+must be publishable with the crate that exposes the official ruleset API. It is
+available to:
 
 - Creator
 - graphical clients
 - terminal clients
-- shared runtime code
+- shared runtime code through `eldiron-ruleset` and `eldiron-shared`
 - calculators
 - automatic arena tools
 - tests
@@ -52,14 +54,15 @@ The current built-in ruleset is `eldiron.official` version `1.0.0`.
 
 ## Compile-Time Embedding
 
-Official rulesets are embedded at compile time by shared code.
+Official rulesets are embedded at compile time by the `eldiron-ruleset` crate.
 
-The shared ruleset module includes all official v1 TOML parts with
+The ruleset crate includes all official v1 TOML parts with
 `include_str!`, joins them into one effective official TOML source, and also
-embeds the bundled `humanoid` avatar asset.
+embeds the bundled `humanoid` and `orc` avatar assets.
 
 This lets every binary built from the repository access the same official
-ruleset without each app carrying its own private copy.
+ruleset through a package-safe crate API without each app carrying its own
+private copy.
 
 ## Project Selection
 
@@ -321,7 +324,7 @@ Palette changes should be made by overriding `[palette]` in **Game / Rules**.
 
 The official ruleset can bundle default visual assets.
 
-The current default avatar reference is:
+The global fallback avatar reference is:
 
 ```toml
 [visuals.defaults]
@@ -331,13 +334,15 @@ avatar = "humanoid"
 The bundled asset lives in the ruleset directory:
 
 ```text
-rulesets/eldiron/v1/assets/humanoid.eldiron_avatar
+crates/ruleset/rulesets/eldiron/v1/assets/humanoid.eldiron_avatar
+crates/ruleset/rulesets/eldiron/v1/assets/orc.eldiron_avatar
 ```
 
 Runtime asset loading makes this available to clients. Character visuals can
 still provide concrete presentation with values such as `tile_id` or `avatar`.
 An explicit project visual wins over the ruleset default, and a project avatar
-named `humanoid` replaces the bundled default avatar for the project.
+named `humanoid` or `orc` replaces the matching bundled default avatar for the
+project.
 
 Ruleset items can also define `avatar_channels`:
 

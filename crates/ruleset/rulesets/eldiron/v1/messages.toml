@@ -1,0 +1,44 @@
+# Locale keys used by rules-driven runtime feedback.
+#
+# The text itself lives in Game / Locales. The ruleset stores the stable keys so
+# projects can retarget wording without changing runtime code.
+
+[messages.actions]
+unknown_key = "actions.unknown"
+missing_target_key = "actions.missing_target"
+cannot_use_key = "actions.cannot_use"
+skill_too_low_key = "actions.skill_too_low"
+not_ready_key = "actions.not_ready"
+missing_item_key = "actions.missing_item"
+no_effect_key = "actions.no_effect"
+gathered_key = "actions.gathered"
+
+[messages.economy]
+pickup_money_key = "economy.pickup_money"
+
+[messages.recipes]
+unknown_key = "recipes.unknown"
+could_not_craft_key = "recipes.could_not_craft"
+crafted_key = "recipes.crafted"
+
+[messages.spells]
+unknown_key = "spells.unknown"
+missing_target_key = "spells.missing_target"
+could_not_cast_key = "spells.could_not_cast"
+cannot_cast_key = "spells.cannot_cast"
+not_ready_key = "spells.not_ready"
+not_enough_mp_key = "spells.not_enough_mp"
+missing_item_key = "spells.missing_item"
+no_rules_key = "spells.no_rules"
+no_effect_key = "spells.no_effect"
+heal_key = "spells.heal"
+
+[messages.system]
+look_at_what_key = "system.look_at_what"
+not_seen_here_key = "system.not_seen_here"
+not_seen_target_key = "system.not_seen_target"
+inventory_empty_key = "system.inventory_empty"
+inventory_list_key = "system.inventory_list"
+stats_key = "system.stats"
+text_movement_only_key = "system.text_movement_only"
+unknown_command_hint_key = "system.unknown_command_hint"

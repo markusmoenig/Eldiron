@@ -7,8 +7,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const DEFAULT_MANIFEST: &str = "rulesets/eldiron/v1/icons.toml";
-const DEFAULT_OUT_DIR: &str = "rulesets/eldiron/v1/assets/icons";
+const DEFAULT_MANIFEST: &str = "crates/ruleset/rulesets/eldiron/v1/icons.toml";
+const DEFAULT_OUT_DIR: &str = "crates/ruleset/rulesets/eldiron/v1/assets/icons";
 const GAME_ICONS_BASE: &str = "https://game-icons.net/icons/ffffff/transparent/1x1";
 
 #[derive(Debug, Deserialize)]
@@ -110,7 +110,7 @@ fn normalize_icon_mask(image: DynamicImage) -> DynamicImage {
 fn write_attribution(manifest: &IconManifest, out_dir: &Path) -> Result<(), String> {
     let mut text = String::from(
         "# Eldiron Ruleset Icons\n\n\
-         These bundled icon masks are generated from `rulesets/eldiron/v1/icons.toml`.\n\
+         These bundled icon masks are generated from `crates/ruleset/rulesets/eldiron/v1/icons.toml`.\n\
          Source icons are adapted from [Game-icons.net](https://game-icons.net/) \
          under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).\n\n\
          Runtime tinting, dithering, and visual treatment are applied by Eldiron, not by this builder.\n\n\

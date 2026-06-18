@@ -110,6 +110,17 @@ fn ruleset_class_table<'a>(
         .and_then(toml::Value::as_table)
 }
 
+fn ruleset_section_table<'a>(
+    root: &'a toml::value::Table,
+    section: &str,
+    name: &str,
+) -> Option<&'a toml::value::Table> {
+    root.get(section)
+        .and_then(toml::Value::as_table)
+        .and_then(|entries| entries.get(name.trim()))
+        .and_then(toml::Value::as_table)
+}
+
 fn ruleset_loadout_values(table: &toml::value::Table, keys: &[&str]) -> Vec<String> {
     let mut out = Vec::new();
     for key in keys {
@@ -360,6 +371,42 @@ fn apply_ruleset_class_progression(
     apply_ruleset_class_progression_list(class, entity, explicit_keys, level, "spells");
 }
 
+fn apply_ruleset_race_visual_defaults(
+    rules: &toml::Table,
+    entity: &mut Entity,
+    explicit_keys: &FxHashSet<String>,
+) {
+    if explicit_key_exists(
+        explicit_keys,
+        &[
+            "avatar",
+            "avatar_id",
+            "tile_id",
+            "tile_id_front",
+            "tile_id_back",
+            "tile_id_left",
+            "tile_id_right",
+            "source",
+        ],
+    ) {
+        return;
+    }
+
+    let Some(race) = entity.get_attr_string("race") else {
+        return;
+    };
+    let Some(avatar) = ruleset_section_table(rules, "races", race.trim())
+        .and_then(|race| race.get("default_avatar"))
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|avatar| !avatar.is_empty())
+    else {
+        return;
+    };
+
+    entity.set_attribute("avatar", Value::Str(avatar.to_string()));
+}
+
 pub fn apply_ruleset_character_defaults(rules: &toml::Table, entity: &mut Entity) {
     let explicit_keys = entity.attributes.keys().cloned().collect::<FxHashSet<_>>();
 
@@ -393,6 +440,7 @@ pub fn apply_ruleset_character_defaults(rules: &toml::Table, entity: &mut Entity
             &explicit_keys,
             ruleset_attributes_table(rules, "races", race.trim()),
         );
+        apply_ruleset_race_visual_defaults(rules, entity, &explicit_keys);
     }
 
     if let Some(class) = entity.get_attr_string("class") {
@@ -475,6 +523,12 @@ mod ruleset_progression_tests {
         VIT = 10
         LEVEL = 1
 
+        [races.Human]
+        default_avatar = "humanoid"
+
+        [races.Orc]
+        default_avatar = "orc"
+
         [progression.level]
         max_level = 20
 
@@ -529,6 +583,30 @@ mod ruleset_progression_tests {
             ruleset_starting_wealth_for_entity(&rules, &override_entity),
             Some(7)
         );
+    }
+
+    #[test]
+    fn ruleset_race_default_avatar_is_applied() {
+        let rules = test_rules();
+        let mut entity = Entity::new();
+        entity.set_attribute("race", Value::Str("Orc".into()));
+        entity.set_attribute("class", Value::Str("Cleric".into()));
+
+        apply_ruleset_character_defaults(&rules, &mut entity);
+
+        assert_eq!(entity.attributes.get_str("avatar"), Some("orc"));
+    }
+
+    #[test]
+    fn explicit_visual_overrides_ruleset_race_default_avatar() {
+        let rules = test_rules();
+        let mut entity = Entity::new();
+        entity.set_attribute("race", Value::Str("Orc".into()));
+        entity.set_attribute("avatar", Value::Str("custom_orc".into()));
+
+        apply_ruleset_character_defaults(&rules, &mut entity);
+
+        assert_eq!(entity.attributes.get_str("avatar"), Some("custom_orc"));
     }
 
     fn resource_action_test_ctx() -> RegionCtx {
@@ -6205,14 +6283,6 @@ impl RegionInstance {
                                 && action != EntityAction::Off =>
                         {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                                let click_intents_2d =
-                                    get_config_bool_default(ctx, "game", "click_intents_2d", false)
-                                        || get_config_bool_default(
-                                            ctx,
-                                            "game",
-                                            "persistent_2d_intents",
-                                            false,
-                                        );
                                 if let Some(entity) = ctx
                                     .map
                                     .entities
@@ -6228,12 +6298,7 @@ impl RegionInstance {
                                         Some(Value::PlayerCamera(camera))
                                             if Self::is_grid_camera(camera)
                                     );
-                                    let use_directional_intent =
-                                        Self::should_use_directional_player_intent(
-                                            entity,
-                                            click_intents_2d,
-                                        );
-                                    if is_grid_player && !use_directional_intent {
+                                    if is_grid_player {
                                         Self::update_grid_input_state(entity, &action);
                                         if matches!(
                                             entity.action,
@@ -7167,15 +7232,7 @@ impl RegionInstance {
                                         Some(Value::PlayerCamera(camera))
                                             if Self::is_grid_camera(camera)
                                     );
-                                    let use_directional_intent =
-                                        Self::should_use_directional_player_intent(
-                                            entity,
-                                            click_intents_2d,
-                                        );
-                                    if is_grid_player
-                                        && Self::is_movement_input_action(&action)
-                                        && !use_directional_intent
-                                    {
+                                    if is_grid_player && Self::is_movement_input_action(&action) {
                                         Self::update_grid_input_state(entity, &action);
                                     }
                                     if is_grid_player

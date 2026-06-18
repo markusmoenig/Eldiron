@@ -1426,17 +1426,12 @@ impl AvatarRuntimeBuilder {
             false
         };
         let avatar_signature = Self::avatar_definition_signature(avatar);
-        let marker_signature = Self::marker_colors_signature(&Self::marker_colors_for_entity(
-            entity, assets,
-        ));
+        let marker_signature =
+            Self::marker_colors_signature(&Self::marker_colors_for_entity(entity, assets));
         let cache_missing = !self.avatar_frame_cache.contains_key(&geo_id);
-        let cache_stale = self
-            .avatar_frame_cache
-            .get(&geo_id)
-            .is_some_and(|cache| {
-                cache.avatar_signature != avatar_signature
-                    || cache.marker_signature != marker_signature
-            });
+        let cache_stale = self.avatar_frame_cache.get(&geo_id).is_some_and(|cache| {
+            cache.avatar_signature != avatar_signature || cache.marker_signature != marker_signature
+        });
 
         if (needs_rebuild_edge || cache_missing || cache_stale)
             && !self.rebuild_entity_avatar_cache(

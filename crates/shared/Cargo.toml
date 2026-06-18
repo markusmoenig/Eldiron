@@ -12,6 +12,7 @@ readme = "README.md"
 
 [dependencies]
 theframework.workspace = true
+eldiron-ruleset = { path = "../ruleset", version = "0.91.0" }
 rusterix = { path = "../rusterix", version = "0.91.0", default-features = false }
 scenevm = { path = "../scenevm", version = "0.91.0", default-features = false }
 

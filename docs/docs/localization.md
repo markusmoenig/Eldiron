@@ -130,9 +130,9 @@ outgoing_category = "system"
 This lets you translate combat text without changing gameplay rules.
 
 Official rulesets also bundle their own locale defaults. The current v1 ruleset
-ships English strings in `rulesets/eldiron/v1/locales.toml`, and Eldiron loads
-those first. **Game / Locales** is then merged on top, so projects only need to
-store changed or additional text.
+ships English strings in `crates/ruleset/rulesets/eldiron/v1/locales.toml`, and
+Eldiron loads those first. **Game / Locales** is then merged on top, so projects
+only need to store changed or additional text.
 
 The official ruleset also stores runtime feedback keys under `[messages]`:
 

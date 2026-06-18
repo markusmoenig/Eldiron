@@ -1317,11 +1317,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "eldiron-ruleset"
+version = "0.91.0"
+dependencies = [
+ "theframework",
+ "toml 0.9.11+spec-1.1.0",
+]
+
+[[package]]
 name = "eldiron-shared"
 version = "0.91.0"
 dependencies = [
  "buildergraph",
  "earcutr",
+ "eldiron-ruleset",
  "fontdue",
  "indexmap 2.13.0",
  "line_drawing",
@@ -4317,6 +4326,7 @@ dependencies = [
  "crossbeam",
  "crossbeam-channel",
  "earcutr",
+ "eldiron-ruleset",
  "fast-srgb8",
  "fontdue",
  "hound",

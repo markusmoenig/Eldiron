@@ -2,10 +2,10 @@
   "name": "Source Prototype",
   "regions": [
     {
-      "id": "f5d85bf4-9beb-4d2f-b1ea-a995dde84a3b",
+      "id": "a565dd6d-7902-4abb-a2a3-c19b34fb70b2",
       "name": "Source Cellar",
       "map": {
-        "id": "691f5ab6-b6e7-473e-a667-7f32e8f5dba9",
+        "id": "e2319633-81d6-40a6-b31a-539b6df6d746",
         "name": "cellar",
         "offset": {
           "x": 0.0,
@@ -62,7 +62,7 @@
         "linedefs": [
           {
             "id": 0,
-            "creator_id": "7dbce8b9-c6db-4c73-9a18-50a1c6fbb9ea",
+            "creator_id": "993ed3a1-8d67-49ac-bc11-f4d4f28a0e16",
             "name": "",
             "start_vertex": 0,
             "end_vertex": 1,
@@ -75,7 +75,7 @@
           },
           {
             "id": 1,
-            "creator_id": "77da26b9-be65-4db0-a215-68848960b2eb",
+            "creator_id": "8ee198bb-bd38-46ed-b776-7a6a48731e67",
             "name": "",
             "start_vertex": 1,
             "end_vertex": 2,
@@ -88,7 +88,7 @@
           },
           {
             "id": 2,
-            "creator_id": "24346625-94e2-47eb-acc1-6963d38da5af",
+            "creator_id": "28a665b2-50d7-4089-af4b-9a0dc57c17de",
             "name": "",
             "start_vertex": 2,
             "end_vertex": 3,
@@ -101,7 +101,7 @@
           },
           {
             "id": 3,
-            "creator_id": "8213c32c-690e-4ca5-97ff-4f1eed5cfa79",
+            "creator_id": "364a23fa-14de-44c4-9fbb-e13b829ad695",
             "name": "",
             "start_vertex": 3,
             "end_vertex": 0,
@@ -116,7 +116,7 @@
         "sectors": [
           {
             "id": 0,
-            "creator_id": "e7bf911a-78e0-4e0a-aebc-6b9ca86e47b1",
+            "creator_id": "c4c42d6f-a0ec-4aea-a105-5461aa1b4f17",
             "name": "Source Cellar",
             "linedefs": [
               0,
@@ -161,7 +161,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "7b7722fa-5ca6-47ea-aadc-84a6a5e3a85e",
+          "id": "db31b22d-74e3-47fc-936c-18c48e406206",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -214,11 +214,11 @@
       "source": "",
       "source_debug": "",
       "characters": {
-        "4d00316f-794f-4b04-835b-cb227498515b": {
-          "id": "4d00316f-794f-4b04-835b-cb227498515b",
+        "c087293d-1c8a-4cd0-83ec-683522814116": {
+          "id": "c087293d-1c8a-4cd0-83ec-683522814116",
           "name": "O",
           "map": {
-            "id": "5ee1c3e3-e8a2-4c50-81b8-42494882d7e7",
+            "id": "0c5c08ee-9a91-4835-b421-3bde272888f7",
             "name": "New Map",
             "offset": {
               "x": 0.0,
@@ -250,7 +250,7 @@
             "softrigs": {},
             "surfaces": {},
             "terrain_organic_layer": {
-              "id": "67db48ef-5a5e-4899-9c20-50a2d859e278",
+              "id": "32063f1f-aa8a-4719-8eca-73109701cb23",
               "name": "Main Organic Layer",
               "cell_size": 0.05,
               "page_size": 16,
@@ -313,13 +313,13 @@
             "x": 1.0,
             "y": 0.0
           },
-          "character_id": "b639dd61-a81a-4249-b2d1-cff5044c3833"
+          "character_id": "d16c0c33-1891-4528-be9a-c628c87581e5"
         },
-        "2fd500a7-59a9-4f76-8de0-d359afbbb935": {
-          "id": "2fd500a7-59a9-4f76-8de0-d359afbbb935",
+        "e98ec681-a418-4e80-8c5d-4abcf58c5871": {
+          "id": "e98ec681-a418-4e80-8c5d-4abcf58c5871",
           "name": "Player",
           "map": {
-            "id": "9da8f359-4ee6-4b5e-ab67-8cea4dc292c6",
+            "id": "ec60ede8-d826-4a88-af88-d22c8f5ef46b",
             "name": "New Map",
             "offset": {
               "x": 0.0,
@@ -351,7 +351,7 @@
             "softrigs": {},
             "surfaces": {},
             "terrain_organic_layer": {
-              "id": "986b8a15-fe16-4ca0-971a-6e777b6fb1d7",
+              "id": "792f64e7-6db4-400f-9da5-f4837e9318e3",
               "name": "Main Organic Layer",
               "cell_size": 0.05,
               "page_size": 16,
@@ -414,15 +414,15 @@
             "x": 1.0,
             "y": 0.0
           },
-          "character_id": "9df54728-2edb-447a-a69f-6a638f19965b"
+          "character_id": "2a21ecd8-a9c6-4018-9f28-1b17337c2991"
         }
       },
       "items": {
-        "fb64aa86-9426-4216-937c-4ced0fd90a12": {
-          "id": "fb64aa86-9426-4216-937c-4ced0fd90a12",
+        "fd31ad8c-402c-44b4-b46a-6980b2b78478": {
+          "id": "fd31ad8c-402c-44b4-b46a-6980b2b78478",
           "name": "Wild Herb",
           "map": {
-            "id": "8ec9605a-e0a6-4194-a017-a79349351bcc",
+            "id": "5bcbfb21-42f6-4527-a007-3237c7226b35",
             "name": "New Map",
             "offset": {
               "x": 0.0,
@@ -454,7 +454,7 @@
             "softrigs": {},
             "surfaces": {},
             "terrain_organic_layer": {
-              "id": "022756f4-db00-454b-bae3-fd718e8caab0",
+              "id": "09c0c601-4eab-41c5-843f-13546da575f1",
               "name": "Main Organic Layer",
               "cell_size": 0.05,
               "page_size": 16,
@@ -512,13 +512,13 @@
             "y": 1.0,
             "z": 2.5
           },
-          "item_id": "b21a3923-2fd9-49a0-9944-3d93d8ee179e"
+          "item_id": "80737462-ece0-489a-8572-b257b9565c1b"
         },
-        "d310aafd-a0e3-4c79-aa7d-e1c3705d7b2e": {
-          "id": "d310aafd-a0e3-4c79-aa7d-e1c3705d7b2e",
+        "030f2f0d-934b-444f-971b-034f61341ae7": {
+          "id": "030f2f0d-934b-444f-971b-034f61341ae7",
           "name": "Blessed Herb",
           "map": {
-            "id": "1e5a1a43-ff6d-4baa-aff1-bc54f8212954",
+            "id": "d425a11a-27f1-494f-ace6-3dbe68eefc81",
             "name": "New Map",
             "offset": {
               "x": 0.0,
@@ -550,7 +550,7 @@
             "softrigs": {},
             "surfaces": {},
             "terrain_organic_layer": {
-              "id": "b55e985e-1057-42df-b767-37e567843a3d",
+              "id": "3ce4a00a-cfa9-455f-b620-ee83933abe1d",
               "name": "Main Organic Layer",
               "cell_size": 0.05,
               "page_size": 16,
@@ -608,7 +608,7 @@
             "y": 1.0,
             "z": 4.5
           },
-          "item_id": "016ecad3-c6cd-4c92-a743-a389e150bc79"
+          "item_id": "d918e588-29b7-4de9-af6b-81817bbddce3"
         }
       },
       "editing_position_3d": {
@@ -23763,11 +23763,11 @@
     "seconds": 0
   },
   "characters": {
-    "b639dd61-a81a-4249-b2d1-cff5044c3833": {
-      "id": "b639dd61-a81a-4249-b2d1-cff5044c3833",
+    "d16c0c33-1891-4528-be9a-c628c87581e5": {
+      "id": "d16c0c33-1891-4528-be9a-c628c87581e5",
       "name": "Orc",
       "map": {
-        "id": "ebc09596-361b-4ec6-9286-70257f4e043f",
+        "id": "ba309192-e341-4384-8aa1-7543ed5b6f88",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -23799,7 +23799,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "dcc8e3e9-2e8b-48dd-b60e-6580a320e26a",
+          "id": "c1227390-772d-42df-8a4c-7af7cd48c659",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -23862,13 +23862,13 @@
         "x": 1.0,
         "y": 0.0
       },
-      "character_id": "bd11cfba-5111-4f28-bf43-a30b9e8a967e"
+      "character_id": "0424b70b-3e0f-4dde-a161-9b7d6015a858"
     },
-    "9df54728-2edb-447a-a69f-6a638f19965b": {
-      "id": "9df54728-2edb-447a-a69f-6a638f19965b",
+    "2a21ecd8-a9c6-4018-9f28-1b17337c2991": {
+      "id": "2a21ecd8-a9c6-4018-9f28-1b17337c2991",
       "name": "Player",
       "map": {
-        "id": "30b0e8c8-7c0a-4ac0-9504-54537362d06d",
+        "id": "2c4206f4-dcce-47b3-a218-0754131f93b7",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -23900,7 +23900,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "2f4d9de9-bcf2-470b-9fdd-773ad51c6d43",
+          "id": "0d260fb7-b41a-49b4-bbc0-8c1f54838860",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -23963,15 +23963,15 @@
         "x": 1.0,
         "y": 0.0
       },
-      "character_id": "dd11a3ce-73a1-4dca-a0dd-b5f0b46d1d80"
+      "character_id": "064c3d7c-7a2b-4459-8064-6273d409851f"
     }
   },
   "items": {
-    "d8220b46-0ba1-497f-aa82-e340a18f9af3": {
-      "id": "d8220b46-0ba1-497f-aa82-e340a18f9af3",
+    "f04f21fa-e8df-4455-8315-70e8c3d46b7d": {
+      "id": "f04f21fa-e8df-4455-8315-70e8c3d46b7d",
       "name": "Bird Nest Node",
       "map": {
-        "id": "51c230ca-58d1-41e5-a4b5-1214055550fc",
+        "id": "02e6b7f4-615e-48eb-a6cb-42b5184594b2",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -24003,7 +24003,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "a5233388-3e00-4b92-a592-5a5ead9adab7",
+          "id": "cec0ce10-124f-489c-9664-cbaea530c1e0",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -24061,13 +24061,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "3397c16e-0ddb-4d0c-827a-3cc6b5f93035"
+      "item_id": "70de0aa6-6ee4-4463-94ae-87e832e52042"
     },
-    "016ecad3-c6cd-4c92-a743-a389e150bc79": {
-      "id": "016ecad3-c6cd-4c92-a743-a389e150bc79",
+    "d918e588-29b7-4de9-af6b-81817bbddce3": {
+      "id": "d918e588-29b7-4de9-af6b-81817bbddce3",
       "name": "Blessed Herb",
       "map": {
-        "id": "c843e483-9af6-4327-891c-a475ed2fe490",
+        "id": "3a40bea7-56b4-4924-b861-24e8abaca84b",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -24099,7 +24099,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "26ef5bc2-0ca8-4d37-93f5-b3a20bbd15b2",
+          "id": "117b0744-d12d-42bc-ab92-e097de7f8cd0",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -24157,13 +24157,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "83809acf-6a68-4931-b509-eaa3f1d341f3"
+      "item_id": "58233324-7806-497f-b8c5-324939fea2a1"
     },
-    "a3138b78-0456-42e1-ab6b-6c2958f62576": {
-      "id": "a3138b78-0456-42e1-ab6b-6c2958f62576",
+    "39b4997f-c60c-4e43-9be7-c8c6e9e3f8df": {
+      "id": "39b4997f-c60c-4e43-9be7-c8c6e9e3f8df",
       "name": "Chain Shirt",
       "map": {
-        "id": "7785dc2c-3b2f-4b1e-b687-3a5f8dbe39de",
+        "id": "62e51443-fcd1-4948-ad36-ad3abaced7e4",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -24195,7 +24195,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "1502078e-a6ef-449f-b431-8a0efcba707d",
+          "id": "1daaa9a4-31ff-42e9-a813-9657125398e9",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -24253,13 +24253,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "a8b2379c-0037-4fcd-ae64-a0da6f6ce544"
+      "item_id": "6861f43a-8715-4693-bf38-9811f89fd5a9"
     },
-    "0fc6f878-1ea0-49b1-a006-01144a1c24e1": {
-      "id": "0fc6f878-1ea0-49b1-a006-01144a1c24e1",
+    "9c8903c7-adc9-438c-a839-fb4af945d750": {
+      "id": "9c8903c7-adc9-438c-a839-fb4af945d750",
       "name": "Cleric Vestments",
       "map": {
-        "id": "48174838-fa5a-4b8c-ac65-fbc2f75debd3",
+        "id": "e7bdc6ef-f81b-4785-b57e-9c174c69893a",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -24291,7 +24291,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "05651c3b-8ba5-40e4-a442-e4d1446f9217",
+          "id": "e2743327-5d45-408d-83a8-0c2c6ba8ae6a",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -24349,13 +24349,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "0d9e59ad-b71c-46e3-b26f-d2c04e0f3af5"
+      "item_id": "58c65e49-d53a-4ab2-b0a7-b2d7d72b7659"
     },
-    "6f4d8850-fae0-4149-b883-6cbde1c7667a": {
-      "id": "6f4d8850-fae0-4149-b883-6cbde1c7667a",
+    "edc91fcc-3937-40bd-813e-35fbad86efdb": {
+      "id": "edc91fcc-3937-40bd-813e-35fbad86efdb",
       "name": "Copper Coin",
       "map": {
-        "id": "97703dff-4a2c-483f-a1b8-f58899d2355e",
+        "id": "d45ebc6d-bff0-43bc-a565-79698acc54ba",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -24387,7 +24387,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "1479e6eb-8e00-4cc8-a285-3a8697790820",
+          "id": "e8943608-d01d-40a9-8bc5-1c020610c38e",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -24445,13 +24445,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "4ca5bffd-7aaa-4715-a721-73dfd0043450"
+      "item_id": "21525248-4f45-45a4-aadd-e662f1b41f99"
     },
-    "b11f4917-f0b1-4e9b-998b-aa83edd0afe3": {
-      "id": "b11f4917-f0b1-4e9b-998b-aa83edd0afe3",
+    "7c291543-7453-4864-a598-9bd43cf616c3": {
+      "id": "7c291543-7453-4864-a598-9bd43cf616c3",
       "name": "Feather",
       "map": {
-        "id": "54166a40-3be5-4ff7-affb-d2b8e1bb8f46",
+        "id": "b2411099-30c4-4580-a15c-fa4ed53efdc3",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -24483,7 +24483,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "cbadacf5-3883-4ec9-b20d-efe2dd3335e7",
+          "id": "1a2a6fb8-b253-4453-89b1-504c1b2f9fa9",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -24541,13 +24541,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "5cfe0106-9c42-4fcb-8478-273ab9b9aca3"
+      "item_id": "4dd87ce4-72ac-4337-a092-8e2a7b41aa04"
     },
-    "9e6afdde-8f8a-4122-bc6d-df73d16c21a2": {
-      "id": "9e6afdde-8f8a-4122-bc6d-df73d16c21a2",
+    "3c5e6093-d2ec-4e9f-8b57-ba992ebf625e": {
+      "id": "3c5e6093-d2ec-4e9f-8b57-ba992ebf625e",
       "name": "Gold Coin",
       "map": {
-        "id": "800c5d78-32dc-4048-80c2-7840d79f5dc4",
+        "id": "4e9fe425-d16e-4831-8ba5-23773d7aa337",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -24579,7 +24579,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "425cdfa1-74a4-4706-a8e3-80bfec86c195",
+          "id": "d1145302-14dd-45da-814d-25381d58a179",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -24637,13 +24637,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "c3b6a76f-4bc7-41e6-a6fd-487bf8e47c0b"
+      "item_id": "fb7b3666-b438-4067-bdef-9f9b2b2788e2"
     },
-    "240f921c-5dfc-4c44-8d02-70e6fcccb200": {
-      "id": "240f921c-5dfc-4c44-8d02-70e6fcccb200",
+    "8311427f-0a5c-4681-98e4-d177984946ae": {
+      "id": "8311427f-0a5c-4681-98e4-d177984946ae",
       "name": "Green Wood",
       "map": {
-        "id": "098bd259-d8ed-47ef-8e78-4c55864e99e3",
+        "id": "8ea84b17-c974-4c0c-8711-b97df5037bb4",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -24675,7 +24675,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "acdb133f-bc63-434d-86af-58f19cf95cff",
+          "id": "b7a76434-424c-4b76-9c41-1f24be9c13ef",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -24733,13 +24733,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "6f1f1164-3697-4666-93f3-4679d5a8ab09"
+      "item_id": "76b43135-a63f-49b4-ab56-492a766eb67a"
     },
-    "c0366f37-b44c-4d7b-8099-bc8c00a84733": {
-      "id": "c0366f37-b44c-4d7b-8099-bc8c00a84733",
+    "ad9cb5a9-b1b7-478e-936d-f83d82a6c4ca": {
+      "id": "ad9cb5a9-b1b7-478e-936d-f83d82a6c4ca",
       "name": "Green Wood Node",
       "map": {
-        "id": "52386a0c-4bb9-49c9-8738-39d9b4af27b3",
+        "id": "46026d2b-9a4d-4e28-83af-6472150d6cc5",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -24771,7 +24771,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "682446e4-8da8-4a12-834c-1fcc020b4c75",
+          "id": "377449ca-a108-4035-b144-e2f0397e9f5d",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -24829,13 +24829,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "63a42ffd-91e8-48b4-944d-7efa6553dc18"
+      "item_id": "3524d001-2443-455d-8587-ea4f8ecd135a"
     },
-    "684f74cc-db2b-43c7-a1dc-21fae5d77c25": {
-      "id": "684f74cc-db2b-43c7-a1dc-21fae5d77c25",
+    "370c9b23-b84d-486a-b696-4e19a7851324": {
+      "id": "370c9b23-b84d-486a-b696-4e19a7851324",
       "name": "Hand Axe",
       "map": {
-        "id": "30746f88-7dbc-4457-b94f-00dd3d836bc2",
+        "id": "a1206b61-b9c5-4601-abbc-37fd15039b55",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -24867,7 +24867,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "ee230932-96cd-497e-be01-7c7f6b2d1de1",
+          "id": "302f3f60-e1fe-4f72-b123-01f7827e9323",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -24925,13 +24925,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "17035394-107c-4f6f-8867-5b08406edbb9"
+      "item_id": "e104b1a0-23db-4ea6-b176-7f5d6e37c530"
     },
-    "3536d434-e0cc-4030-be82-2a0caf45e40a": {
-      "id": "3536d434-e0cc-4030-be82-2a0caf45e40a",
+    "4415e43b-0b09-4812-af17-de1e72a96989": {
+      "id": "4415e43b-0b09-4812-af17-de1e72a96989",
       "name": "Hunting Bow",
       "map": {
-        "id": "5d425dff-350d-4426-9085-f8144c7a20a2",
+        "id": "2ad0d92c-4b93-4313-adae-af1ef661537d",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -24963,7 +24963,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "3ff3772f-d8a9-4062-943a-fdcc85a8e1d9",
+          "id": "e63da879-562e-44ae-93f8-8fcc3312a13e",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -25021,13 +25021,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "667c1428-7345-4f3f-a0c0-e27bfe3f2834"
+      "item_id": "f75aef21-e181-4ab3-8574-fd3d9699b70d"
     },
-    "a89a2219-5000-4a26-9947-df450b67ffd8": {
-      "id": "a89a2219-5000-4a26-9947-df450b67ffd8",
+    "eaa4b7ef-c5bb-4a15-8e08-7b77d0291611": {
+      "id": "eaa4b7ef-c5bb-4a15-8e08-7b77d0291611",
       "name": "Leather Shoes",
       "map": {
-        "id": "3ba4cff4-933a-4e67-bc97-90a5ebf7071f",
+        "id": "467d8d01-9400-4c59-8922-a9ac344fea54",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -25059,7 +25059,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "253f0748-318f-4dcd-b25c-d0138e2f198d",
+          "id": "0ff5e8d1-b004-449f-96a8-f8fe80ea58b4",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -25117,13 +25117,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "ce39976c-1791-4556-be17-6504031afde9"
+      "item_id": "ca2c213d-a595-41cd-af08-eeb6eb7804b9"
     },
-    "92b2c10b-3109-4813-8a6f-6e6e35a36ee4": {
-      "id": "92b2c10b-3109-4813-8a6f-6e6e35a36ee4",
+    "87c3bd2b-e535-4d63-94e4-a916df9f65ba": {
+      "id": "87c3bd2b-e535-4d63-94e4-a916df9f65ba",
       "name": "Leather Vest",
       "map": {
-        "id": "c6e582a2-be3c-40c8-b3ba-e3f00c07ef91",
+        "id": "1e4f496e-e89f-4187-bfad-927150b26af8",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -25155,7 +25155,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "d84e4667-a04e-4fcc-9dd6-4406f3700055",
+          "id": "a87982a2-d7f9-4a43-9465-d4a708695aa6",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -25213,13 +25213,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "f5eada81-fb49-4829-8b0c-e2e976ab801d"
+      "item_id": "4ed922b4-80df-42b3-acda-c9168ff1f28b"
     },
-    "39749f81-0d38-4828-8339-d7e9a2430c30": {
-      "id": "39749f81-0d38-4828-8339-d7e9a2430c30",
+    "bb3129e7-f365-471f-a566-73bbbd2cf884": {
+      "id": "bb3129e7-f365-471f-a566-73bbbd2cf884",
       "name": "Linen Shirt",
       "map": {
-        "id": "834d23de-9b10-400e-a5a8-ef08bea4d19f",
+        "id": "41f65896-6df3-49b5-8209-1889a046e7d7",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -25251,7 +25251,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "981f6577-8c49-4f8b-ac2e-c96a16d7e604",
+          "id": "ab4dcb8a-885b-4407-8148-0fa4f5ff2cd7",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -25309,13 +25309,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "ccb24ecb-85ac-4b0b-8b5b-95484429f5ac"
+      "item_id": "568892a9-60bd-48d5-9e48-01dd0de7c7a7"
     },
-    "c0a0e2eb-46da-4b9f-b14c-d70f6ad38895": {
-      "id": "c0a0e2eb-46da-4b9f-b14c-d70f6ad38895",
+    "364ce9de-00de-4dbc-81d9-207e72d7be41": {
+      "id": "364ce9de-00de-4dbc-81d9-207e72d7be41",
       "name": "Loot Corpse",
       "map": {
-        "id": "438816e6-c5e3-4f30-a2c3-891758552244",
+        "id": "b2fa71ba-3819-46dc-8ead-f8c8951e6387",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -25347,7 +25347,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "c8e720d6-81ec-4f19-a88e-2a2bf71695c7",
+          "id": "056fc28d-6bee-4976-a220-f3a90e449274",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -25405,13 +25405,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "f7a5c316-bcfb-4f7a-82f8-33204ec784c2"
+      "item_id": "d1277ecf-a698-4c5c-a254-233c78a04c15"
     },
-    "0bf368b4-fe12-4091-873b-c1cc4b0a939f": {
-      "id": "0bf368b4-fe12-4091-873b-c1cc4b0a939f",
+    "5f77c6be-070e-473f-8d3c-8fe03d0c9a90": {
+      "id": "5f77c6be-070e-473f-8d3c-8fe03d0c9a90",
       "name": "Novice Mace",
       "map": {
-        "id": "101a5f54-4fa8-4104-a13b-1458e04c26b6",
+        "id": "a9039232-b12d-4c09-98e3-bbf9e08449a2",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -25443,7 +25443,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "a2d5cbbc-47bf-4945-993b-d1fd420a1e12",
+          "id": "7aa7187c-fc76-4590-99f8-a78e0d24f1c8",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -25501,13 +25501,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "2b853f48-0262-4ee2-9bb2-b4197a1d95f3"
+      "item_id": "ffd1ad3b-95fa-4cf9-b13d-640eae57d731"
     },
-    "203a36c8-e24f-4883-9c46-3df591177bf5": {
-      "id": "203a36c8-e24f-4883-9c46-3df591177bf5",
+    "6c92f2ec-abf5-4c1c-8a61-3075d0a828dc": {
+      "id": "6c92f2ec-abf5-4c1c-8a61-3075d0a828dc",
       "name": "Padded Armor",
       "map": {
-        "id": "50ba8ef3-b58f-4abd-9412-81eff895ef04",
+        "id": "c4e6e751-0394-41c4-9cc9-42436d4af843",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -25539,7 +25539,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "d74ece2a-d207-49e0-a9c3-82c0de2e68aa",
+          "id": "9bd26224-eed5-421a-81fa-a2e06fad2198",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -25597,13 +25597,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "db2f6f25-c3ec-4535-b50f-2127ead1d8f2"
+      "item_id": "76673079-c8ec-4327-9e63-97413cc71cbc"
     },
-    "6b1a159d-7c8e-4f15-839b-23f768d266b7": {
-      "id": "6b1a159d-7c8e-4f15-839b-23f768d266b7",
+    "71c63b9e-c945-43fb-9022-48e5f97a9b17": {
+      "id": "71c63b9e-c945-43fb-9022-48e5f97a9b17",
       "name": "Round Shield",
       "map": {
-        "id": "ab93f8be-beed-4ce7-9fbe-54d49c3bb172",
+        "id": "4495536b-1be0-4652-8fcb-d4057f367b05",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -25635,7 +25635,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "18abc0ac-dd84-49bb-ac5f-324666885485",
+          "id": "077f3d0b-9d43-43d7-aefa-c3a4a018047c",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -25693,13 +25693,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "d035d9bb-a0a8-4853-8f97-e8cc4ce98668"
+      "item_id": "7f5859ee-c730-4f65-a259-7a8cb1c03c7e"
     },
-    "f34a0850-ffb8-42af-8647-dbbc06a2faef": {
-      "id": "f34a0850-ffb8-42af-8647-dbbc06a2faef",
+    "b8dc0f69-a3a9-4317-833e-7fb27340f738": {
+      "id": "b8dc0f69-a3a9-4317-833e-7fb27340f738",
       "name": "Silver Coin",
       "map": {
-        "id": "369652f6-e2d9-4ae5-be86-9c1f8e182283",
+        "id": "ba99619c-0aa7-4932-ab3b-fe8d9b490671",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -25731,7 +25731,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "d55b5790-6c4b-47b7-838a-90e8565850eb",
+          "id": "9ec7eb63-c547-4edb-86b8-7c2a29a92e77",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -25789,13 +25789,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "638b6a84-cbca-41d9-9a3a-544a9c609b2f"
+      "item_id": "7b7c114d-a4a1-4c0b-b9d9-3880c43ad349"
     },
-    "9c8367fd-b7f2-4e83-96aa-72c466d4a28d": {
-      "id": "9c8367fd-b7f2-4e83-96aa-72c466d4a28d",
+    "c66d2c57-07e3-4d5c-a8cb-b4def6214dbf": {
+      "id": "c66d2c57-07e3-4d5c-a8cb-b4def6214dbf",
       "name": "Small Bag",
       "map": {
-        "id": "2c6039d9-b2a0-4794-8964-460e0a1bea1e",
+        "id": "b5beeade-6868-4cec-b8c4-d5da7ec5420e",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -25827,7 +25827,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "030dc0b3-ca67-4491-8d8e-d01a059ca64e",
+          "id": "d019773e-bda2-4139-92de-b63224d4d7ae",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -25885,13 +25885,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "8264c52a-d4ef-4934-b3fd-517d3a520590"
+      "item_id": "43d0a1ac-9596-4751-b833-405db794db6d"
     },
-    "09061667-2f6c-445c-9383-01551da7feca": {
-      "id": "09061667-2f6c-445c-9383-01551da7feca",
+    "43a276fa-ef8e-46c3-ba01-5112a4eb7b11": {
+      "id": "43a276fa-ef8e-46c3-ba01-5112a4eb7b11",
       "name": "Torch",
       "map": {
-        "id": "cd4af93c-ca0d-48a2-9371-7e423476e078",
+        "id": "4110af9e-101f-4ae6-92b2-b1ff6ad3e572",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -25923,7 +25923,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "1547ce7d-fb9f-42a1-9f53-5a8c081d59c5",
+          "id": "75959783-8d11-4b82-ac0d-09e018377857",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -25981,13 +25981,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "53b7bd71-b301-45bf-a441-2fa0343e32ff"
+      "item_id": "829007a2-fed6-4dce-b076-a72db79785a8"
     },
-    "5c740113-01f0-46a6-b361-fa293e2ec936": {
-      "id": "5c740113-01f0-46a6-b361-fa293e2ec936",
+    "e181994e-01d7-4762-9076-56bddf62d2f6": {
+      "id": "e181994e-01d7-4762-9076-56bddf62d2f6",
       "name": "Training Spear",
       "map": {
-        "id": "9a216ce1-5678-405d-8d85-4a745e395c26",
+        "id": "33ed8290-e0ef-4422-88b9-981a42253c67",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -26019,7 +26019,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "445e0e0b-ae48-450b-800f-4bfa38519684",
+          "id": "4c0cc647-507a-445d-b62a-2a5f5ae82a36",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -26077,13 +26077,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "da8755b1-0206-42ee-a8c2-1f963ef6cb7f"
+      "item_id": "1699baae-aeac-4cc2-a076-dfeabaa24e3d"
     },
-    "2d31aa22-8e41-4af2-a12f-9477a0bbc2cc": {
-      "id": "2d31aa22-8e41-4af2-a12f-9477a0bbc2cc",
+    "1f103f52-00ee-448e-98bb-ea4862efcc8d": {
+      "id": "1f103f52-00ee-448e-98bb-ea4862efcc8d",
       "name": "Training Sword",
       "map": {
-        "id": "1fea61c9-ad3d-457e-ac6c-c79daa1cd1b3",
+        "id": "d641b130-d89a-4dad-b25d-cc06787a8747",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -26115,7 +26115,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "d853b65e-6086-484b-aeb1-a2f2c9d16592",
+          "id": "efaaa32b-77e6-4eaa-9950-9958b0a4fd58",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -26173,13 +26173,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "b0f6fe69-ebef-4b98-894a-14e1b6fbdd01"
+      "item_id": "a5b1b56a-a110-470b-88e4-90a08ed9ae9b"
     },
-    "b21a3923-2fd9-49a0-9944-3d93d8ee179e": {
-      "id": "b21a3923-2fd9-49a0-9944-3d93d8ee179e",
+    "80737462-ece0-489a-8572-b257b9565c1b": {
+      "id": "80737462-ece0-489a-8572-b257b9565c1b",
       "name": "Wild Herb",
       "map": {
-        "id": "811778dd-9e18-4eee-b332-bfb9fcb0680f",
+        "id": "ad3edd9f-1641-42c1-be2e-3c7afda978c4",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -26211,7 +26211,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "57629ca7-8b11-40d9-be02-5e574f9c174f",
+          "id": "3c366843-c442-464d-95b3-9f3d9eabe3db",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -26269,13 +26269,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "9bcc298c-b3ec-4858-b3a4-7258c8443aef"
+      "item_id": "4d2db349-7e26-493c-8b1e-8659382e8022"
     },
-    "307d755a-f20e-41b7-9bd2-c5bd25f0828c": {
-      "id": "307d755a-f20e-41b7-9bd2-c5bd25f0828c",
+    "bd6cb89f-fd2c-4d71-bb8e-6b11445de2d2": {
+      "id": "bd6cb89f-fd2c-4d71-bb8e-6b11445de2d2",
       "name": "Wild Herb Node",
       "map": {
-        "id": "03c861e3-1c86-4c5a-9346-2ce4cc35530c",
+        "id": "5ca31eb9-b795-40df-874b-312ff46a162a",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -26307,7 +26307,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "042dbe10-401c-40da-b20d-57b42c6fc0c3",
+          "id": "92ed895a-c555-439e-a3c0-cd814c6b75cb",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -26365,13 +26365,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "7e8363d4-314f-4645-9f05-80b2e22132ea"
+      "item_id": "7a5700ad-60e2-48b2-8ef0-812844f34fcf"
     },
-    "1f3a8ade-56b6-4f1b-bd19-746b5bda9fb4": {
-      "id": "1f3a8ade-56b6-4f1b-bd19-746b5bda9fb4",
+    "b8f1e86a-81ed-429e-911d-423a23eedf77": {
+      "id": "b8f1e86a-81ed-429e-911d-423a23eedf77",
       "name": "Wooden Arrows",
       "map": {
-        "id": "c3f3fdf5-14e9-4beb-94b4-1094578a5171",
+        "id": "d3440871-bc0b-4dcb-abfb-92cf6dc3ceda",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -26403,7 +26403,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "93cba7d2-be0c-4ccc-8ef4-f87da4bd394e",
+          "id": "755f797a-4d94-4558-a2a5-77a612024496",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -26461,13 +26461,13 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "7359e4a2-c68f-4cd4-877e-e7e20b3858bd"
+      "item_id": "17ce7b30-3bd8-438d-8756-4afafbb3996e"
     },
-    "0eacef43-577b-4942-9593-389267b63fa7": {
-      "id": "0eacef43-577b-4942-9593-389267b63fa7",
+    "bb2cbe63-7d16-4e17-afe3-a4ba48203eb5": {
+      "id": "bb2cbe63-7d16-4e17-afe3-a4ba48203eb5",
       "name": "Wool Trousers",
       "map": {
-        "id": "39409265-c60f-4830-b36e-e72e94d070cf",
+        "id": "18f15bf2-1d45-44bf-b868-ace9c7130243",
         "name": "New Map",
         "offset": {
           "x": 0.0,
@@ -26499,7 +26499,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "6caaf613-b796-4d24-9f41-cf33b90e0e2a",
+          "id": "67a62538-1105-4249-af0b-d2251531a9b4",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,
@@ -26557,15 +26557,15 @@
         "y": 0.0,
         "z": 0.0
       },
-      "item_id": "3cba3ce7-7f5c-4499-9929-5365b54381f1"
+      "item_id": "7270c2ae-a127-40d6-b7dd-5fddffdd9ebe"
     }
   },
   "screens": {
-    "fb8e51cd-b62a-41e8-bb25-f9da53fcfb6e": {
-      "id": "fb8e51cd-b62a-41e8-bb25-f9da53fcfb6e",
+    "28a916b4-99b6-4311-a075-3e2f8b7bcae2": {
+      "id": "28a916b4-99b6-4311-a075-3e2f8b7bcae2",
       "name": "Play",
       "map": {
-        "id": "87324643-671c-48db-b72d-6023044c422f",
+        "id": "9b14ebd5-51ed-4b1b-b8a7-07e832f7d6a1",
         "name": "play",
         "offset": {
           "x": 0.0,
@@ -26922,7 +26922,7 @@
         "linedefs": [
           {
             "id": 0,
-            "creator_id": "e67b0f3c-93ad-419a-afed-809dc88364ad",
+            "creator_id": "3370f907-4cda-4706-9194-0e7006ce0c56",
             "name": "",
             "start_vertex": 0,
             "end_vertex": 1,
@@ -26935,7 +26935,7 @@
           },
           {
             "id": 1,
-            "creator_id": "a585f425-63d6-4512-9fe2-77e152af99db",
+            "creator_id": "5fba228d-6968-487f-ae36-d2a82604ad0d",
             "name": "",
             "start_vertex": 1,
             "end_vertex": 2,
@@ -26949,7 +26949,7 @@
           },
           {
             "id": 2,
-            "creator_id": "f69a61ac-70ae-4580-a149-1c54b0016e0a",
+            "creator_id": "7225dc41-3028-4ce7-a544-dc87290ed960",
             "name": "",
             "start_vertex": 2,
             "end_vertex": 3,
@@ -26962,7 +26962,7 @@
           },
           {
             "id": 3,
-            "creator_id": "64969b02-ca1b-460d-8ffa-0b4e1c09f208",
+            "creator_id": "bc2e5bbe-99ca-4190-b9fe-4d51f2ab1e89",
             "name": "",
             "start_vertex": 3,
             "end_vertex": 0,
@@ -26975,7 +26975,7 @@
           },
           {
             "id": 4,
-            "creator_id": "7e59b2bf-cd0b-46dd-8399-47e1d59610a7",
+            "creator_id": "4ad28cdf-2a45-43ab-95f9-8e9ed1b776d8",
             "name": "",
             "start_vertex": 4,
             "end_vertex": 1,
@@ -26988,7 +26988,7 @@
           },
           {
             "id": 5,
-            "creator_id": "31a03aac-e001-4336-b253-1dd6bbe3e06b",
+            "creator_id": "f855a134-ceb7-4dd8-bfef-f2b7c378a97e",
             "name": "",
             "start_vertex": 2,
             "end_vertex": 5,
@@ -27001,7 +27001,7 @@
           },
           {
             "id": 6,
-            "creator_id": "fc9ae58c-5cb1-4939-a637-e6648d911618",
+            "creator_id": "e8bfadaa-d4a4-4323-82a6-49f571470fea",
             "name": "",
             "start_vertex": 5,
             "end_vertex": 4,
@@ -27014,7 +27014,7 @@
           },
           {
             "id": 7,
-            "creator_id": "8ca9dac2-6d07-4e20-a6b1-823e3006768b",
+            "creator_id": "fc00f390-2216-4a7a-ae29-77c31acc1a98",
             "name": "",
             "start_vertex": 6,
             "end_vertex": 7,
@@ -27027,7 +27027,7 @@
           },
           {
             "id": 8,
-            "creator_id": "deb7e8eb-abe0-49b9-a584-77d3f62001ea",
+            "creator_id": "7e7ed56c-3ea7-457d-80c6-37ac09597a52",
             "name": "",
             "start_vertex": 7,
             "end_vertex": 8,
@@ -27040,7 +27040,7 @@
           },
           {
             "id": 9,
-            "creator_id": "21650f75-975d-41a5-ab8a-81308ebbed03",
+            "creator_id": "5cb86cf1-f2f1-4ad4-8d58-ca727a0b06ff",
             "name": "",
             "start_vertex": 8,
             "end_vertex": 9,
@@ -27053,7 +27053,7 @@
           },
           {
             "id": 10,
-            "creator_id": "3caa829a-0e8b-42b9-bd27-eb1082e075df",
+            "creator_id": "e0469ba3-7315-436b-b032-2a2200604279",
             "name": "",
             "start_vertex": 9,
             "end_vertex": 6,
@@ -27066,7 +27066,7 @@
           },
           {
             "id": 11,
-            "creator_id": "c5eb426b-015f-4de9-b1d6-d6f93998f8f2",
+            "creator_id": "956c844f-c53e-40c6-a120-0342f698b298",
             "name": "",
             "start_vertex": 9,
             "end_vertex": 8,
@@ -27079,7 +27079,7 @@
           },
           {
             "id": 12,
-            "creator_id": "ccf2cc05-5390-4aaf-ab3f-5992901df1d2",
+            "creator_id": "8620917e-3a42-474d-bed6-256e749f97f9",
             "name": "",
             "start_vertex": 8,
             "end_vertex": 10,
@@ -27092,7 +27092,7 @@
           },
           {
             "id": 13,
-            "creator_id": "cc533b2b-7adf-41b4-89f4-9bc25f67517a",
+            "creator_id": "94a49329-1010-4713-b1fa-37ba51c6588d",
             "name": "",
             "start_vertex": 10,
             "end_vertex": 11,
@@ -27105,7 +27105,7 @@
           },
           {
             "id": 14,
-            "creator_id": "c778a16c-93ee-4d92-b6c3-f26ecb386409",
+            "creator_id": "873f216b-4506-44c0-b062-e537e780bf3c",
             "name": "",
             "start_vertex": 11,
             "end_vertex": 9,
@@ -27118,7 +27118,7 @@
           },
           {
             "id": 15,
-            "creator_id": "093a9dbd-dcde-4f68-b28f-171faa4351f8",
+            "creator_id": "3e3e2479-b148-4cb3-98b6-2232c5f8a264",
             "name": "",
             "start_vertex": 12,
             "end_vertex": 13,
@@ -27131,7 +27131,7 @@
           },
           {
             "id": 16,
-            "creator_id": "f6564f18-a890-497c-8c68-b10b3031b966",
+            "creator_id": "b5c5b74a-8b27-4ab5-8254-8ce9118a1f25",
             "name": "",
             "start_vertex": 13,
             "end_vertex": 14,
@@ -27144,7 +27144,7 @@
           },
           {
             "id": 17,
-            "creator_id": "baf6f1bc-faff-49ab-a2ba-28bdc1f49a42",
+            "creator_id": "15fa94de-2bd3-4d7d-8751-a00c68ac9dde",
             "name": "",
             "start_vertex": 14,
             "end_vertex": 15,
@@ -27157,7 +27157,7 @@
           },
           {
             "id": 18,
-            "creator_id": "f9ee8ba6-4293-4084-9a59-921d874ffd3b",
+            "creator_id": "86047dbf-2fb2-4be2-bc3d-674c980ea704",
             "name": "",
             "start_vertex": 15,
             "end_vertex": 12,
@@ -27170,7 +27170,7 @@
           },
           {
             "id": 19,
-            "creator_id": "7a29f63d-f952-46a7-87fe-7c9c3dcb0c1a",
+            "creator_id": "b2bb9e81-dc73-45ec-8421-e0d7e54095c5",
             "name": "",
             "start_vertex": 16,
             "end_vertex": 17,
@@ -27183,7 +27183,7 @@
           },
           {
             "id": 20,
-            "creator_id": "73d0f486-0d30-4ec4-8b7d-b0fc8615ad92",
+            "creator_id": "df6b6578-1b1e-4a5c-9d87-24ee1fbda83b",
             "name": "",
             "start_vertex": 17,
             "end_vertex": 18,
@@ -27196,7 +27196,7 @@
           },
           {
             "id": 21,
-            "creator_id": "6f045922-d101-4158-bef2-220b524557a4",
+            "creator_id": "1bb79820-b9f0-4016-9b23-81378a6917b4",
             "name": "",
             "start_vertex": 18,
             "end_vertex": 19,
@@ -27209,7 +27209,7 @@
           },
           {
             "id": 22,
-            "creator_id": "409d9938-a563-465e-ac63-7fd68576d329",
+            "creator_id": "d8bc2c6d-f7e9-47e6-99cd-5ad3d47bf4b9",
             "name": "",
             "start_vertex": 19,
             "end_vertex": 16,
@@ -27222,7 +27222,7 @@
           },
           {
             "id": 23,
-            "creator_id": "ea9f949c-df0e-42b4-ab65-a51f875ef9f5",
+            "creator_id": "c44b5e22-f5c0-478b-892a-23b7f2ff23a2",
             "name": "",
             "start_vertex": 19,
             "end_vertex": 18,
@@ -27235,7 +27235,7 @@
           },
           {
             "id": 24,
-            "creator_id": "5125149c-3e92-45a5-aee8-07dc3b32c735",
+            "creator_id": "62f56c58-9d35-4a82-93eb-ca38c815a453",
             "name": "",
             "start_vertex": 18,
             "end_vertex": 20,
@@ -27248,7 +27248,7 @@
           },
           {
             "id": 25,
-            "creator_id": "11e8bc0c-52dd-40ea-b76e-0978c97729f7",
+            "creator_id": "c4980a03-982d-49d0-bad9-a6c8dafe51e3",
             "name": "",
             "start_vertex": 20,
             "end_vertex": 21,
@@ -27261,7 +27261,7 @@
           },
           {
             "id": 26,
-            "creator_id": "98f443ee-6add-478b-91d5-7bdd0090859d",
+            "creator_id": "5da52634-03fb-4c64-bbdb-8e704e41bbbf",
             "name": "",
             "start_vertex": 21,
             "end_vertex": 19,
@@ -27274,7 +27274,7 @@
           },
           {
             "id": 27,
-            "creator_id": "6b1c0489-c529-4d42-bb7d-cbb5cea9d6b0",
+            "creator_id": "7b2cc92d-ab0a-4ce6-90bd-5c00ac32b093",
             "name": "",
             "start_vertex": 22,
             "end_vertex": 23,
@@ -27287,7 +27287,7 @@
           },
           {
             "id": 28,
-            "creator_id": "8621ba48-5890-4411-a32e-68d7a2639b1a",
+            "creator_id": "3d3b0123-ce35-4139-b4c1-09293c528cbd",
             "name": "",
             "start_vertex": 23,
             "end_vertex": 24,
@@ -27300,7 +27300,7 @@
           },
           {
             "id": 29,
-            "creator_id": "2147c7f0-7c88-455c-9dcc-f005db1ad9bd",
+            "creator_id": "bd25ab64-d0ff-4ec5-a1dd-d7e240b05791",
             "name": "",
             "start_vertex": 24,
             "end_vertex": 25,
@@ -27313,7 +27313,7 @@
           },
           {
             "id": 30,
-            "creator_id": "97d718ad-b5b5-4f0d-b86d-db7dab74f265",
+            "creator_id": "c1a15fbd-5f29-4423-8158-b0b6ad6cb08a",
             "name": "",
             "start_vertex": 25,
             "end_vertex": 22,
@@ -27326,7 +27326,7 @@
           },
           {
             "id": 31,
-            "creator_id": "5bd0a951-7f0e-444f-acb5-67485a7e516e",
+            "creator_id": "df89be40-a5d5-423a-a26e-26aa87f09a5a",
             "name": "",
             "start_vertex": 23,
             "end_vertex": 26,
@@ -27339,7 +27339,7 @@
           },
           {
             "id": 32,
-            "creator_id": "61727ded-593a-46ed-8b6a-ba14fc107da7",
+            "creator_id": "121b2a0f-79bd-4aeb-b8d4-8a477785a312",
             "name": "",
             "start_vertex": 26,
             "end_vertex": 27,
@@ -27352,7 +27352,7 @@
           },
           {
             "id": 33,
-            "creator_id": "4e173d2a-2b84-4738-990d-b562c3593733",
+            "creator_id": "c4be1417-8ba3-48aa-9592-9738bae37508",
             "name": "",
             "start_vertex": 27,
             "end_vertex": 24,
@@ -27365,7 +27365,7 @@
           },
           {
             "id": 34,
-            "creator_id": "311b9582-81dc-4767-8cf9-c5fa97288ad7",
+            "creator_id": "aa0df4e7-b17b-4756-912a-947089b29c44",
             "name": "",
             "start_vertex": 24,
             "end_vertex": 23,
@@ -27378,7 +27378,7 @@
           },
           {
             "id": 35,
-            "creator_id": "12ce3ddd-2e13-4f68-ad45-565f6650f4d3",
+            "creator_id": "e1d5a403-1f62-46bb-90e0-98534a119951",
             "name": "",
             "start_vertex": 26,
             "end_vertex": 28,
@@ -27391,7 +27391,7 @@
           },
           {
             "id": 36,
-            "creator_id": "b5c2044d-facc-49de-9859-c1803524870e",
+            "creator_id": "7db84a46-e7fe-4de4-8772-46ed756bd6c2",
             "name": "",
             "start_vertex": 28,
             "end_vertex": 29,
@@ -27404,7 +27404,7 @@
           },
           {
             "id": 37,
-            "creator_id": "7f6e541e-40df-4ecd-be09-8e3ec92e5358",
+            "creator_id": "31745849-f759-49d2-ba84-8588de332145",
             "name": "",
             "start_vertex": 29,
             "end_vertex": 27,
@@ -27417,7 +27417,7 @@
           },
           {
             "id": 38,
-            "creator_id": "ffbffbcb-3d45-4c9a-b8d6-efe703128474",
+            "creator_id": "281c587c-d4db-4d3c-beda-7ba22f8586e9",
             "name": "",
             "start_vertex": 27,
             "end_vertex": 26,
@@ -27430,7 +27430,7 @@
           },
           {
             "id": 39,
-            "creator_id": "6bf964a2-01eb-4a5d-afcc-9da747002a22",
+            "creator_id": "bf22e2d4-eba5-44b5-99ee-9103d91bc417",
             "name": "",
             "start_vertex": 25,
             "end_vertex": 24,
@@ -27443,7 +27443,7 @@
           },
           {
             "id": 40,
-            "creator_id": "e3d809dc-1f81-462c-8511-ed91c514db2c",
+            "creator_id": "60161f0d-2983-41f7-b855-1de849e441d7",
             "name": "",
             "start_vertex": 24,
             "end_vertex": 30,
@@ -27456,7 +27456,7 @@
           },
           {
             "id": 41,
-            "creator_id": "de099f4d-5ffe-4c92-b20d-11b335f3aaaa",
+            "creator_id": "25793fb6-2e89-4124-9760-ac1fac74509e",
             "name": "",
             "start_vertex": 30,
             "end_vertex": 31,
@@ -27469,7 +27469,7 @@
           },
           {
             "id": 42,
-            "creator_id": "1cb96a8f-c650-47f4-bf0a-d8250f85b6ee",
+            "creator_id": "69b99e7c-a986-412f-8dc7-42211b79e838",
             "name": "",
             "start_vertex": 31,
             "end_vertex": 25,
@@ -27482,7 +27482,7 @@
           },
           {
             "id": 43,
-            "creator_id": "7af9899d-3e7d-4458-b351-d41eb60445ae",
+            "creator_id": "363d8872-4624-4513-a136-f529f7d05b38",
             "name": "",
             "start_vertex": 24,
             "end_vertex": 27,
@@ -27495,7 +27495,7 @@
           },
           {
             "id": 44,
-            "creator_id": "ea464683-1fb8-4343-83bb-221223c6862e",
+            "creator_id": "3aa6c79a-4f36-4e2a-951f-66fecce4ea26",
             "name": "",
             "start_vertex": 27,
             "end_vertex": 32,
@@ -27508,7 +27508,7 @@
           },
           {
             "id": 45,
-            "creator_id": "495c3578-1945-495b-a33a-0226c655da4b",
+            "creator_id": "1f28a7c6-9e6b-42f2-b4d6-d3f20d7451d4",
             "name": "",
             "start_vertex": 32,
             "end_vertex": 30,
@@ -27521,7 +27521,7 @@
           },
           {
             "id": 46,
-            "creator_id": "75bbc81c-4bb9-4104-9c8f-810689478abf",
+            "creator_id": "1e3ea36c-2756-4feb-a129-12d5e4d5a6de",
             "name": "",
             "start_vertex": 30,
             "end_vertex": 24,
@@ -27534,7 +27534,7 @@
           },
           {
             "id": 47,
-            "creator_id": "b3e5c081-7bcd-4dec-b6a5-591e5a62176d",
+            "creator_id": "8e0d0e5d-2475-4d0a-bcaf-4d8a92058939",
             "name": "",
             "start_vertex": 27,
             "end_vertex": 29,
@@ -27547,7 +27547,7 @@
           },
           {
             "id": 48,
-            "creator_id": "42b1d072-ad2b-4759-a52f-128d886f18d3",
+            "creator_id": "195b1e55-d645-493b-ad7c-45a0feabe69e",
             "name": "",
             "start_vertex": 29,
             "end_vertex": 33,
@@ -27560,7 +27560,7 @@
           },
           {
             "id": 49,
-            "creator_id": "473a7e0d-64fc-400f-9bf6-41fa80d70efc",
+            "creator_id": "aa677f5c-c3aa-41f6-b99b-6ef0b8972344",
             "name": "",
             "start_vertex": 33,
             "end_vertex": 32,
@@ -27573,7 +27573,7 @@
           },
           {
             "id": 50,
-            "creator_id": "68dbed81-aa10-488a-9014-6430b93dd3b5",
+            "creator_id": "5847627e-b4e8-4ed5-abf8-802eefe5d80f",
             "name": "",
             "start_vertex": 32,
             "end_vertex": 27,
@@ -27588,7 +27588,7 @@
         "sectors": [
           {
             "id": 0,
-            "creator_id": "5e518f73-23d4-42bd-8c80-3d89c16c4cfb",
+            "creator_id": "e7590128-f3b4-42bb-8daa-838dddf89eea",
             "name": "Game",
             "linedefs": [
               0,
@@ -27611,7 +27611,7 @@
           },
           {
             "id": 1,
-            "creator_id": "69e8e804-bb3e-4f35-94f3-6d30c9b64c92",
+            "creator_id": "c4b9fa57-bf9d-4cde-bb14-75622ce7ac63",
             "name": "Sidebar",
             "linedefs": [
               4,
@@ -27634,7 +27634,7 @@
           },
           {
             "id": 2,
-            "creator_id": "ce168ad0-d8b6-4ed8-bc0d-045eba509f81",
+            "creator_id": "7e58d68e-55ec-4dd3-8944-c5380952c742",
             "name": "Stats",
             "linedefs": [
               7,
@@ -27657,7 +27657,7 @@
           },
           {
             "id": 3,
-            "creator_id": "dfcee969-8d52-4c0e-98e4-a968b155c1c1",
+            "creator_id": "74fea163-9e6f-4606-8eb6-759fd902a5e7",
             "name": "Messages",
             "linedefs": [
               11,
@@ -27680,7 +27680,7 @@
           },
           {
             "id": 4,
-            "creator_id": "6741a677-2e10-45b3-9497-59a6da8090a0",
+            "creator_id": "90aaf7b0-e0d4-4b82-93b2-c718dcf60e63",
             "name": "Avatar",
             "linedefs": [
               15,
@@ -27703,7 +27703,7 @@
           },
           {
             "id": 5,
-            "creator_id": "f6651d47-b817-4125-8c3a-95716e60eb39",
+            "creator_id": "d1104bed-a873-4b81-a352-f7e389901176",
             "name": "Main Hand",
             "linedefs": [
               19,
@@ -27726,7 +27726,7 @@
           },
           {
             "id": 6,
-            "creator_id": "b9fb07ee-fca3-4da0-bfbe-16cdbccf8dcc",
+            "creator_id": "9eb5143f-f1f1-4285-8184-0fdf2c92988b",
             "name": "Off Hand",
             "linedefs": [
               23,
@@ -27749,7 +27749,7 @@
           },
           {
             "id": 7,
-            "creator_id": "9bb5f8b4-5367-497f-8ee7-363aa1157aaa",
+            "creator_id": "11735358-f667-42d9-820f-89ad83d78504",
             "name": "Inventory 0",
             "linedefs": [
               27,
@@ -27772,7 +27772,7 @@
           },
           {
             "id": 8,
-            "creator_id": "b78288c6-2ab4-44b4-8b0a-69960138b0f0",
+            "creator_id": "08917e22-ec57-4b52-8631-4122e9fd9891",
             "name": "Inventory 1",
             "linedefs": [
               31,
@@ -27795,7 +27795,7 @@
           },
           {
             "id": 9,
-            "creator_id": "b18918ea-bf14-4b0d-bf4c-53fdf1e55ff1",
+            "creator_id": "fe3b5a53-e7d7-4e02-9354-19ad6eca823a",
             "name": "Inventory 2",
             "linedefs": [
               35,
@@ -27818,7 +27818,7 @@
           },
           {
             "id": 10,
-            "creator_id": "3af09b42-1b33-483c-bc0b-61761401b43f",
+            "creator_id": "5a7881e2-f519-42f2-9ee8-6addfd0dfb5c",
             "name": "Intent Look",
             "linedefs": [
               39,
@@ -27841,7 +27841,7 @@
           },
           {
             "id": 11,
-            "creator_id": "f40b4303-de13-44e3-b7e3-2baf79c2d2e3",
+            "creator_id": "2949e796-1f7c-4ee2-92c9-158f4dc6ae94",
             "name": "Intent Take",
             "linedefs": [
               43,
@@ -27864,7 +27864,7 @@
           },
           {
             "id": 12,
-            "creator_id": "0bcb41f4-8f36-4ba5-99c4-3c15433116f5",
+            "creator_id": "c2d9aa06-a714-4e94-a870-da4cd7b524a9",
             "name": "Intent Attack",
             "linedefs": [
               47,
@@ -27903,7 +27903,7 @@
         "softrigs": {},
         "surfaces": {},
         "terrain_organic_layer": {
-          "id": "6d398cdb-3663-4420-87d6-34d7444b6d40",
+          "id": "c2488ae0-11ff-44ca-adac-132936e357d6",
           "name": "Main Organic Layer",
           "cell_size": 0.05,
           "page_size": 16,

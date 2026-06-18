@@ -1,0 +1,284 @@
+# Official Eldiron icon catalog.
+#
+# Bundled PNG masks are generated from this file by `eldiron-icon-builder`.
+# Runtime code may tint, dither, outline, or otherwise style these masks.
+
+[icons.walk]
+source = "game-icons"
+name = "walk"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["intent", "movement"]
+
+[icons.look]
+source = "game-icons"
+name = "look-at"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["intent"]
+
+[icons.use]
+source = "game-icons"
+name = "hand"
+author = "sbed"
+author_slug = "sbed"
+license = "CC BY 3.0"
+tags = ["intent", "interaction"]
+
+[icons.take]
+source = "game-icons"
+name = "grab"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["intent", "action", "interaction"]
+
+[icons.drop]
+source = "game-icons"
+name = "click"
+author = "Skoll"
+author_slug = "skoll"
+license = "CC BY 3.0"
+tags = ["intent", "interaction"]
+
+[icons.basic_attack]
+source = "game-icons"
+name = "crossed-swords"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["action", "combat"]
+
+[icons.power_strike]
+source = "game-icons"
+name = "sword-clash"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["action", "combat"]
+
+[icons.minor_heal]
+source = "game-icons"
+name = "healing"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["action", "spell"]
+
+[icons.holy_light]
+source = "game-icons"
+name = "holy-symbol"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["action", "spell"]
+
+[icons.gather_herbs]
+source = "game-icons"
+name = "herbs-bundle"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["action", "gather"]
+
+[icons.gather_wood]
+source = "game-icons"
+name = "log"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["action", "gather"]
+
+[icons.gather_feathers]
+source = "game-icons"
+name = "feather"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["action", "gather"]
+
+[icons.training_sword]
+source = "game-icons"
+name = "gladius"
+author = "Skoll"
+author_slug = "skoll"
+license = "CC BY 3.0"
+tags = ["item", "weapon"]
+
+[icons.hand_axe]
+source = "game-icons"
+name = "axe-swing"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["item", "weapon"]
+
+[icons.novice_mace]
+source = "game-icons"
+name = "flanged-mace"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "weapon"]
+
+[icons.hunting_bow]
+source = "game-icons"
+name = "pocket-bow"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["item", "weapon"]
+
+[icons.training_spear]
+source = "game-icons"
+name = "spear-feather"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "weapon"]
+
+[icons.padded_armor]
+source = "game-icons"
+name = "breastplate"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["item", "armor"]
+
+[icons.leather_vest]
+source = "game-icons"
+name = "leather-armor"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "armor"]
+
+[icons.chain_shirt]
+source = "game-icons"
+name = "mail-shirt"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["item", "armor"]
+
+[icons.round_shield]
+source = "game-icons"
+name = "round-shield"
+author = "Willdabeast"
+author_slug = "willdabeast"
+license = "CC BY 3.0"
+tags = ["item", "armor"]
+
+[icons.linen_shirt]
+source = "game-icons"
+name = "clothes"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "clothing"]
+
+[icons.wool_trousers]
+source = "game-icons"
+name = "trousers"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["item", "clothing"]
+
+[icons.leather_shoes]
+source = "game-icons"
+name = "leather-boot"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["item", "clothing"]
+
+[icons.small_bag]
+source = "game-icons"
+name = "backpack"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "container"]
+
+[icons.loot_corpse]
+source = "game-icons"
+name = "tombstone"
+author = "sbed"
+author_slug = "sbed"
+license = "CC BY 3.0"
+tags = ["item", "container"]
+
+[icons.wooden_arrows]
+source = "game-icons"
+name = "target-arrows"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["item", "ammunition"]
+
+[icons.blessed_herb]
+source = "game-icons"
+name = "herbs-bundle"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "reagent"]
+
+[icons.green_wood]
+source = "game-icons"
+name = "wood-pile"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "material"]
+
+[icons.feather]
+source = "game-icons"
+name = "feather"
+author = "Lorc"
+author_slug = "lorc"
+license = "CC BY 3.0"
+tags = ["item", "material"]
+
+[icons.wild_herb]
+source = "game-icons"
+name = "herbs-bundle"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "material"]
+
+[icons.wild_herb_node]
+source = "game-icons"
+name = "herbs-bundle"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "resource"]
+
+[icons.green_wood_node]
+source = "game-icons"
+name = "wood-pile"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "resource"]
+
+[icons.bird_nest_node]
+source = "game-icons"
+name = "bird-house"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "resource"]
+
+[icons.torch]
+source = "game-icons"
+name = "torch"
+author = "Delapouite"
+author_slug = "delapouite"
+license = "CC BY 3.0"
+tags = ["item", "utility", "light"]

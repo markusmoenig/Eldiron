@@ -1,0 +1,110 @@
+[abilities.basic_attack]
+name = "Basic Attack"
+kind = "attack"
+damage_kind = "physical"
+cooldown = 1.0
+range = "weapon"
+
+[abilities.guard]
+name = "Guard"
+kind = "stance"
+cooldown = 3.0
+duration = 2.0
+
+[abilities.guard.effects.armor]
+attribute = "ARMOR"
+value = 2
+
+[abilities.power_strike]
+name = "Power Strike"
+kind = "attack"
+damage_kind = "physical"
+cooldown = 4.0
+range = "weapon"
+
+[abilities.power_strike.damage]
+roll = "1d8"
+bonus = 2
+bonus_attribute = "STR"
+bonus_every = 4
+damage_kind = "physical"
+
+[spells.minor_heal]
+name = "Minor Heal"
+school = "restoration"
+kind = "heal"
+cooldown = 4.0
+cast_time = 1.0
+range = 5
+cost_mp = 3
+
+[spells.minor_heal.healing]
+roll = "1d6"
+bonus = 1
+bonus_attribute = "WIS"
+bonus_every = 4
+
+[spells.minor_heal.fx.cast]
+preset = "rising_motes"
+duration = 0.5
+density = "dense"
+size = "small"
+
+[spells.minor_heal.fx.impact]
+preset = "rising_motes"
+duration = 0.8
+density = "dense"
+size = "small"
+
+[spells.holy_light]
+name = "Holy Light"
+school = "restoration"
+kind = "damage"
+damage_kind = "arcane"
+cooldown = 5.0
+cast_time = 1.0
+range = 5
+cost_mp = 4
+
+[spells.holy_light.damage]
+roll = "1d6"
+bonus = 1
+bonus_attribute = "WIS"
+bonus_every = 4
+damage_kind = "arcane"
+
+[spells.holy_light.fx.cast]
+preset = "holy_glow"
+
+[spells.holy_light.fx.travel]
+preset = "holy_bolt"
+
+[spells.holy_light.fx.impact]
+preset = "hit_burst"
+colors = ["warm_white", "gold"]
+duration = 0.65
+density = "dense"
+size = "medium"
+
+[spells.fire_spark]
+name = "Fire Spark"
+school = "fire"
+kind = "damage"
+damage_kind = "fire"
+cooldown = 3.0
+cast_time = 1.0
+range = 6
+cost_mp = 2
+
+[spells.fire_spark.damage]
+roll = "1d6"
+bonus = 0
+bonus_attribute = "INT"
+bonus_every = 4
+damage_kind = "fire"
+
+[spells.fire_spark.fx.travel]
+preset = "ember_trail"
+
+[spells.fire_spark.fx.impact]
+preset = "fire_burst"

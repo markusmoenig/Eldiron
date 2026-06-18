@@ -1,0 +1,23 @@
+[package]
+name = "eldiron-ruleset"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Official Eldiron rulesets, validation, and ruleset query tools."
+keywords = ["game", "rpg", "ruleset", "eldiron"]
+readme = "README.md"
+
+[lib]
+name = "eldiron_ruleset"
+path = "src/lib.rs"
+
+[[bin]]
+name = "eldiron-ruleset"
+path = "src/main.rs"
+
+[dependencies]
+theframework.workspace = true
+toml = "0.9"

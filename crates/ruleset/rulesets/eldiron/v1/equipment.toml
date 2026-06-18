@@ -1,0 +1,983 @@
+[equipment]
+weapon_slots = ["main_hand", "off_hand"]
+armor_slots = ["head", "torso", "legs", "hands", "feet", "shield"]
+
+[equipment.weapon_categories.sword]
+handed = "one_handed"
+damage_kind = "physical"
+base_cooldown = 1.0
+
+[equipment.weapon_categories.axe]
+handed = "one_handed"
+damage_kind = "physical"
+base_cooldown = 1.2
+
+[equipment.weapon_categories.mace]
+handed = "one_handed"
+damage_kind = "physical"
+base_cooldown = 1.15
+
+[equipment.weapon_categories.spear]
+handed = "two_handed"
+damage_kind = "physical"
+base_cooldown = 1.25
+range = 2
+
+[equipment.weapon_categories.bow]
+handed = "two_handed"
+damage_kind = "physical"
+base_cooldown = 1.5
+range = 6
+
+[equipment.armor_categories.cloth]
+crafting_family = "tailoring"
+armor_bonus = 0
+dex_penalty = 0
+
+[equipment.armor_categories.leather]
+crafting_family = "leatherworking"
+armor_bonus = 1
+dex_penalty = 0
+
+[equipment.armor_categories.chain]
+crafting_family = "armorsmithing"
+armor_bonus = 2
+dex_penalty = 1
+
+[equipment.armor_categories.shield]
+crafting_family = "armorsmithing"
+armor_bonus = 1
+dex_penalty = 1
+
+[visual_templates.sword_diagonal]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "....................HHH.",
+    "...................HHBB.",
+    "..................HHBBB.",
+    ".................HHBBB..",
+    "................HHBBB...",
+    "...............HHBBB....",
+    "..............HHBBB.....",
+    ".............HHBBB......",
+    "............HHBBB.......",
+    "...........HHBBB........",
+    "......AG..HHBBB.........",
+    "......AAGHHBBB..........",
+    ".......AAGBBB...........",
+    "........AAGB............",
+    ".......AAAAA............",
+    "......AAA.AAG...........",
+    ".....AAA...AA...........",
+    "....AAA.................",
+    "..AAAA..................",
+    ".AGAA...................",
+    ".AAAA...................",
+    "..AA....................",
+    "........................",
+]
+
+[visual_templates.mace_diagonal]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    ".................BBBB...",
+    "................BHHBBB..",
+    "...............BBHHBBBB.",
+    "...............BBBBBBBB.",
+    "...............BBBBBBBB.",
+    "..............ABBBBBBBB.",
+    "..............AABBBBBB..",
+    "..............AAABBBB...",
+    ".............HAAAA......",
+    "............HAA.........",
+    "...........HAA..........",
+    "..........HAA...........",
+    ".........HAA............",
+    "........HAA.............",
+    ".......HAA..............",
+    "......HAA...............",
+    ".....HAA................",
+    "....GAA.................",
+    "...GGG..................",
+    "..GGG...................",
+    ".GGG....................",
+    ".GG.....................",
+    "........................",
+]
+
+[visual_templates.bow_diagonal]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "........................",
+    "...............GGGGGGG..",
+    "...........GGGG......H..",
+    ".........AGGG.......H...",
+    "........AAG........H....",
+    ".......AAAA.......H.....",
+    "......AAAA.......H......",
+    ".....AAAA.......H.......",
+    "....AAAA.......H........",
+    "....GGA.......H.........",
+    "...GG........H..........",
+    "...GG.......H...........",
+    "...G.......H............",
+    "...G......H.............",
+    "..G......H..............",
+    "..G.....H...............",
+    "..G....H................",
+    "..G...H.................",
+    "..G..H..................",
+    "..G.H...................",
+    "..GH....................",
+    "........................",
+    "........................",
+]
+
+[visual_templates.axe_diagonal]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "..........AAAA..........",
+    "...........AAAA.......B.",
+    "............AAAGG....AB.",
+    ".............AGGGAAAAAB.",
+    ".............GGGAAAAAAB.",
+    "............GGG.AAAAAAB.",
+    "...........GGG...AAAAB..",
+    "..........GGG....AAAAB..",
+    ".........GGG.....AAAB...",
+    "........GGG.....AAAB....",
+    ".......GGG.....AAAB.....",
+    "......GGG....BBBBB......",
+    ".....GGG................",
+    "....GGG.................",
+    "...GGG..................",
+    "..GGG...................",
+    ".GGG....................",
+    ".GG.....................",
+    "........................",
+    "........................",
+]
+
+[visual_templates.shield]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "........................",
+    ".........HHHAAA.........",
+    ".......HHHHHAAAAA.......",
+    "......HHHHHHAAAHAA......",
+    ".....HHHAHHHAAAAAAA.....",
+    "....AAHHHHHHAAAAAAAA....",
+    "...AAAAHHHHHAAAAAAAAA...",
+    "...AAAAAHHHHAAAAAAAAA...",
+    "..AAHAAAAHHHHAAAAAAAAA..",
+    "..AAHAAAAAHHAHAAAAABAA..",
+    "..AAAAAAAHAHAAAAAAAAAA..",
+    "..AAAAAAAAAB.B.BBBBBBB..",
+    "..AAAAAAAABB..BBBBBBBB..",
+    "..AAAAAAABAB.B.BBBBABB..",
+    "...ABAAABBBAB...BBB.B...",
+    "...AAAABBBBB.....BBBB...",
+    "....AABBBBBB......BB....",
+    ".....BBBABBB...B........",
+    "......BB.BBB............",
+    ".......BBBBB............",
+    ".........BBB............",
+    "........................",
+    "........................",
+]
+
+[visual_templates.arrow_diagonal]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "......................H.",
+    "....................HH..",
+    ".................HHHBH..",
+    "..................BBH...",
+    "..................GBH...",
+    ".................G..H...",
+    "................G.......",
+    "...............G........",
+    "..............G.........",
+    ".............G..........",
+    "............G...........",
+    "...........G............",
+    "..........G.............",
+    ".........G..............",
+    "........G...............",
+    ".......G................",
+    "....HBG.................",
+    "...HBGB.................",
+    "..HBGBH.................",
+    ".HBGBH..................",
+    "...BH...................",
+    "...H....................",
+    "........................",
+]
+
+[visual_templates.spear_diagonal]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    ".....................BB.",
+    "...................BBBB.",
+    "..................BAAB..",
+    ".................BAAAB..",
+    ".................AAAB...",
+    "..............BBGAAB....",
+    "...............AGG......",
+    "..............GAAB......",
+    ".............GGG.B......",
+    "............GGG.........",
+    "...........GGG..........",
+    "..........GGG...........",
+    ".........GGG............",
+    "........GGG.............",
+    ".......GGG..............",
+    "......GGG...............",
+    ".....GGG................",
+    "....GGG.................",
+    "...GGG..................",
+    "..GGG...................",
+    ".GGG....................",
+    ".GG.....................",
+    "........................",
+]
+
+[visual_templates.herb_sprig]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    ".............H..........",
+    "............HHH.........",
+    "...........HBAH.........",
+    "..........HBBBA.........",
+    "...........BBA..........",
+    "......H.....G.....H.....",
+    ".....HHH....G....HHH....",
+    "....HBAH....G...HBAH....",
+    "....ABBBG...G..GBBBA....",
+    ".....ABBG...G..GBBA.....",
+    ".......GGG..G.GGG.......",
+    "..........GGGGG.........",
+    "............G...........",
+    "............G...........",
+    "...........GG...........",
+    "...........G............",
+    "..........GG............",
+    "........................",
+    "........................",
+    "........................",
+]
+
+[visual_templates.bag_pouch]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "........AHHAAGAAG.......",
+    "........AHHAAGAG........",
+    ".........AAAAGGG........",
+    ".........GGGGGG.........",
+    "........BBBBBBBB........",
+    ".......AAAAAAABBBB......",
+    "......AAAHAAAAABGBB.....",
+    ".....AAHHAAAAAABGGB.....",
+    ".....AHHHHAAAAAAGGB.....",
+    "....AAHHHHAAAAAAGGGG....",
+    "....AAAHHAAAAAAAGGGG....",
+    "....AAAAAAAAAAAAGGGG....",
+    "....GAAAAAAAAAAGGGGG....",
+    "....GGAAAAAAAAGGGGGG....",
+    "....GGGAAAAAAGGGGGGG....",
+    "....GGGGGGGGGGGGGGGG....",
+    ".....GGGGGGGGGGGGGG.....",
+    "......GGGGGGGGGGGG......",
+    "........................",
+    "........................",
+]
+
+[visual_templates.tombstone_mark]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "........................",
+    ".........HHHHHHH........",
+    ".......HHHHHHHHHHH......",
+    "......HHHHHHHHHHHHH.....",
+    ".....HHHHHHHHHHHHHHH....",
+    ".....HHHHHHHHHHHHHHH....",
+    ".....HHHHHHHHHHHHHHH....",
+    ".....HHHHHHHHHHHHHHH....",
+    ".....GHHAAAAAAAAAHHG....",
+    ".....HHGAHAHAHAHAGHH....",
+    ".....HHHAHAAAHAAHHHH....",
+    ".....GHHGGGGGGGGGHHH....",
+    ".....HHHHGHHHHHHHHHH....",
+    ".....HHHHHHHHHHHHHHG....",
+    ".....HHHHHHHHHHHHHHH....",
+    ".....GHHHHHHHHGHHGGH....",
+    ".....GHGGGGHHGGHGGGG....",
+    ".....GGA.GGGHGGGGA......",
+    ".GGG..A.GA......G..GGGG.",
+    "GGG.GA..A.......A.GA.GGG",
+    "..AG.AA...GG......A.GA..",
+    "...A.....GA.........A...",
+    "........................",
+]
+
+[visual_templates.coin_round]
+width = 16
+height = 16
+pixels = [
+    "................",
+    ".....HHHHH......",
+    "...HHAAAAAH.....",
+    "..HAAAAAAAAH....",
+    ".HAAAHHHAAAAG...",
+    ".HAAHAAAAHAAAG..",
+    ".HAAHAAAAHAAAG..",
+    ".HAAAHAHHAAAAG..",
+    ".HAAAAHHAAAAAG..",
+    ".GAAAAAAAAAAAG..",
+    ".GGAAAAAAAAAG...",
+    "..GGAAAAAAAG....",
+    "...GGGGGGG......",
+    "................",
+    "................",
+    "................",
+]
+
+[visual_templates.torch_standing]
+width = 24
+height = 24
+pixels = [
+    "........................",
+    "..........HHHH..........",
+    ".........HHBBH..........",
+    ".........HBBBB..........",
+    "..........BBBB..........",
+    ".........GBBBH..........",
+    "..........AAA...........",
+    ".........AAAAA..........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    "..........AAA...........",
+    ".........GAAAG..........",
+    "........GGAAAGG.........",
+    "........................",
+    "........................",
+    "........................",
+]
+
+[items.weapons.training_sword]
+name = "Training Sword"
+description = "A blunt wooden practice sword used for early drills and safe sparring."
+category = "sword"
+slot = "main_hand"
+rarity = "common"
+color = 10
+icon = "training_sword"
+visual_template = "sword_diagonal"
+rig_scale = 0.85
+rig_pivot = [0.31, 0.82]
+rig_layer = "back"
+blade_color_index = 10
+grip_color_index = 7
+accent_color_index = 6
+highlight_color_index = 14
+
+[items.weapons.training_sword.attributes]
+DMG = 2
+attack_cooldown = 1.0
+damage_kind = "physical"
+
+[items.weapons.training_sword.damage]
+roll = "1d6"
+bonus = 1
+bonus_attribute = "STR"
+bonus_every = 4
+damage_kind = "physical"
+
+[items.weapons.hand_axe]
+name = "Hand Axe"
+description = "A compact iron axe with a worn wooden handle, useful as both tool and weapon."
+category = "axe"
+slot = "main_hand"
+rarity = "common"
+color = 25
+icon = "hand_axe"
+visual_template = "axe_diagonal"
+rig_scale = 0.85
+rig_pivot = [0.31, 0.82]
+rig_layer = "back"
+blade_color_index = 25
+grip_color_index = 10
+accent_color_index = 29
+highlight_color_index = 23
+
+[items.weapons.hand_axe.attributes]
+DMG = 3
+attack_cooldown = 1.2
+damage_kind = "physical"
+
+[items.weapons.hand_axe.damage]
+roll = "1d8"
+bonus = 1
+bonus_attribute = "STR"
+bonus_every = 4
+damage_kind = "physical"
+
+[items.weapons.novice_mace]
+name = "Novice Mace"
+description = "A plain iron mace with a wooden haft, heavy enough for first combat lessons."
+category = "mace"
+slot = "main_hand"
+rarity = "common"
+color = 25
+icon = "novice_mace"
+visual_template = "mace_diagonal"
+rig_scale = 0.85
+rig_pivot = [0.31, 0.82]
+rig_layer = "back"
+blade_color_index = 25
+grip_color_index = 10
+accent_color_index = 29
+highlight_color_index = 23
+
+[items.weapons.novice_mace.attributes]
+DMG = 2
+attack_cooldown = 1.15
+damage_kind = "physical"
+
+[items.weapons.novice_mace.damage]
+roll = "1d6"
+bonus = 0
+bonus_attribute = "STR"
+bonus_every = 4
+damage_kind = "physical"
+
+[items.weapons.hunting_bow]
+name = "Hunting Bow"
+description = "A simple wooden bow suitable for short patrols and first hunts."
+category = "bow"
+slot = "main_hand"
+rarity = "common"
+color = 7
+icon = "hunting_bow"
+visual_template = "bow_diagonal"
+rig_scale = 0.9
+rig_pivot = [0.36, 0.84]
+rig_layer = "back"
+grip_color_index = 10
+accent_color_index = 7
+highlight_color_index = 23
+
+[items.weapons.hunting_bow.attributes]
+DMG = 1
+attack_cooldown = 1.5
+damage_kind = "physical"
+ammunition = "wooden_arrows"
+ammunition_quantity = 1
+
+[items.weapons.hunting_bow.damage]
+roll = "1d6"
+bonus = 0
+bonus_attribute = "DEX"
+bonus_every = 4
+damage_kind = "physical"
+
+[items.weapons.training_spear]
+name = "Training Spear"
+description = "A simple practice spear with an iron tip and a long wooden shaft."
+category = "spear"
+slot = "main_hand"
+rarity = "common"
+color = 10
+icon = "training_spear"
+visual_template = "spear_diagonal"
+rig_scale = 0.9
+rig_pivot = [0.31, 0.82]
+rig_layer = "back"
+blade_color_index = 25
+grip_color_index = 10
+accent_color_index = 29
+highlight_color_index = 23
+
+[items.weapons.training_spear.attributes]
+DMG = 2
+attack_cooldown = 1.25
+damage_kind = "physical"
+
+[items.weapons.training_spear.damage]
+roll = "1d6"
+bonus = 1
+bonus_attribute = "STR"
+bonus_every = 4
+damage_kind = "physical"
+
+[items.armor.padded_armor]
+name = "Padded Armor"
+description = "Layered cloth padding that softens early blows without slowing movement."
+category = "cloth"
+slot = "torso"
+rarity = "common"
+color = 9
+icon = "padded_armor"
+avatar_channels = ["torso", "arms"]
+
+[items.armor.padded_armor.attributes]
+ARMOR = 1
+
+[items.armor.cleric_vestments]
+name = "Cleric Vestments"
+description = "Pale layered vestments reinforced for novice temple guardians and field healers."
+category = "cloth"
+slot = "torso"
+rarity = "common"
+color = 25
+icon = "linen_shirt"
+avatar_channels = ["torso", "arms"]
+
+[items.armor.cleric_vestments.attributes]
+ARMOR = 1
+
+[items.armor.leather_vest]
+name = "Leather Vest"
+description = "A flexible leather vest for scouts, hunters, and light guards."
+category = "leather"
+slot = "torso"
+rarity = "common"
+color = 7
+icon = "leather_vest"
+avatar_channels = ["torso"]
+
+[items.armor.leather_vest.attributes]
+ARMOR = 2
+
+[items.armor.chain_shirt]
+name = "Chain Shirt"
+description = "Interlinked metal rings worn over padding for reliable protection."
+category = "chain"
+slot = "torso"
+rarity = "common"
+color = 25
+icon = "chain_shirt"
+avatar_channels = ["torso", "arms"]
+
+[items.armor.chain_shirt.attributes]
+ARMOR = 3
+
+[items.armor.round_shield]
+name = "Round Shield"
+description = "A round wooden shield with a metal rim and a simple boss."
+category = "shield"
+slot = "shield"
+rarity = "common"
+color = 10
+icon = "round_shield"
+visual_template = "shield"
+rig_scale = 0.9
+rig_pivot = [0.5, 0.5]
+rig_layer = "front"
+blade_color_index = 10
+accent_color_index = 25
+highlight_color_index = 23
+
+[items.armor.round_shield.attributes]
+ARMOR = 1
+
+[items.clothing.linen_shirt]
+name = "Linen Shirt"
+description = "A plain linen shirt for everyday travel and layering under armor."
+category = "cloth"
+slot = "torso"
+rarity = "common"
+color = 2
+worth = 5
+icon = "linen_shirt"
+avatar_channels = ["torso", "arms"]
+
+[items.clothing.wool_trousers]
+name = "Wool Trousers"
+description = "Sturdy wool trousers suited for road dust and cold evenings."
+category = "cloth"
+slot = "legs"
+rarity = "common"
+color = 28
+worth = 6
+icon = "wool_trousers"
+avatar_channels = ["legs"]
+
+[items.clothing.leather_shoes]
+name = "Leather Shoes"
+description = "Simple leather shoes with enough grip for town paths and dry trails."
+category = "leather"
+slot = "feet"
+rarity = "common"
+color = 7
+worth = 8
+icon = "leather_shoes"
+avatar_channels = ["feet"]
+
+[items.containers.small_bag]
+name = "Small Bag"
+description = "A simple cloth pouch for carrying a few loose items."
+category = "bag"
+slot = "container"
+rarity = "common"
+color = 10
+max_stack = 1
+container_template = "bag_small"
+icon = "small_bag"
+visual_template = "bag_pouch"
+grip_color_index = 10
+accent_color_index = 11
+highlight_color_index = 14
+
+[items.containers.small_bag.attributes]
+container = true
+container_slots = 6
+takeable = true
+
+[items.containers.loot_corpse]
+name = "Loot Corpse"
+description = "A lootable body containing carried items."
+category = "corpse"
+slot = "container"
+rarity = "common"
+color = 28
+max_stack = 1
+container_template = "default"
+icon = "loot_corpse"
+visual_template = "tombstone_mark"
+blade_color_index = 30
+grip_color_index = 25
+accent_color_index = 29
+highlight_color_index = 23
+
+[items.containers.loot_corpse.attributes]
+container = true
+container_slots = 8
+static = true
+takeable = false
+visible = true
+
+[items.ammunition.wooden_arrows]
+name = "Wooden Arrows"
+description = "A bundle of plain wooden arrows for bows."
+category = "arrow"
+slot = "ammunition"
+rarity = "common"
+color = 8
+max_stack = 99
+icon = "wooden_arrows"
+visual_template = "arrow_diagonal"
+grip_color_index = 10
+blade_color_index = 25
+highlight_color_index = 23
+
+[items.ammunition.wooden_arrows.attributes]
+stackable = true
+quantity = 20
+ammo_for = "bow"
+
+[items.reagents.blessed_herb]
+name = "Blessed Herb"
+description = "A small bundle of blessed herbs used for simple restoration rites."
+category = "herb"
+slot = "reagent"
+rarity = "common"
+color = 13
+max_stack = 20
+icon = "blessed_herb"
+visual_template = "herb_sprig"
+blade_color_index = 13
+grip_color_index = 10
+accent_color_index = 14
+highlight_color_index = 23
+
+[items.reagents.blessed_herb.attributes]
+stackable = true
+quantity = 3
+reagent_for = "restoration"
+
+[items.materials.green_wood]
+name = "Green Wood"
+description = "Fresh flexible wood suitable for simple shafts, handles, and early crafting."
+category = "wood"
+slot = "material"
+rarity = "common"
+color = 10
+max_stack = 50
+icon = "gather_wood"
+icon_color = "#9a6a3a"
+
+[items.materials.green_wood.attributes]
+stackable = true
+quantity = 5
+crafting_family = "woodworking"
+
+[items.materials.feather]
+name = "Feather"
+description = "A clean feather used for fletching arrows and light craftwork."
+category = "feather"
+slot = "material"
+rarity = "common"
+color = 23
+max_stack = 50
+icon = "feather"
+
+[items.materials.feather.attributes]
+stackable = true
+quantity = 5
+crafting_family = "fletching"
+
+[items.materials.wild_herb]
+name = "Wild Herb"
+description = "An unprepared herb gathered from the field."
+category = "herb"
+slot = "material"
+rarity = "common"
+color = 13
+max_stack = 50
+icon = "wild_herb"
+visual_template = "herb_sprig"
+blade_color_index = 13
+grip_color_index = 10
+accent_color_index = 14
+highlight_color_index = 23
+
+[items.materials.wild_herb.attributes]
+stackable = true
+quantity = 5
+crafting_family = "herbalism"
+
+[items.resources.wild_herb_node]
+name = "Wild Herb Node"
+description = "A small wild herb growth that can be gathered for fresh herbs."
+category = "herb"
+slot = "resource"
+rarity = "common"
+color = 13
+icon = "wild_herb_node"
+visual_template = "herb_sprig"
+blade_color_index = 13
+grip_color_index = 10
+accent_color_index = 14
+highlight_color_index = 23
+
+[items.resources.wild_herb_node.attributes]
+static = true
+blocking = false
+visible = true
+resource_id = "wild_herb_node"
+resource_kind = "herb"
+resource_action = "gather_herbs"
+respawn = 300
+amount = 2
+takeable = false
+
+[items.resources.green_wood_node]
+name = "Green Wood Node"
+description = "A young flexible wood growth that can be gathered for green wood."
+category = "wood"
+slot = "resource"
+rarity = "common"
+color = 10
+icon = "green_wood_node"
+visual_template = "spear_diagonal"
+grip_color_index = 10
+highlight_color_index = 14
+
+[items.resources.green_wood_node.attributes]
+static = true
+blocking = false
+visible = true
+resource_id = "green_wood_node"
+resource_kind = "wood"
+resource_action = "gather_wood"
+respawn = 300
+amount = 3
+takeable = false
+
+[items.resources.bird_nest_node]
+name = "Bird Nest Node"
+description = "A small nest that can be gathered for usable feathers."
+category = "nest"
+slot = "resource"
+rarity = "common"
+color = 10
+icon = "bird_nest_node"
+visual_template = "arrow_diagonal"
+blade_color_index = 10
+grip_color_index = 23
+highlight_color_index = 14
+
+[items.resources.bird_nest_node.attributes]
+static = true
+blocking = false
+visible = true
+resource_id = "bird_nest_node"
+resource_kind = "nest"
+resource_action = "gather_feathers"
+respawn = 300
+amount = 2
+takeable = false
+
+[items.currency.copper_coin]
+name = "Copper Coin"
+description = "A small copper coin, the base unit of Eldiron trade."
+category = "coin"
+slot = "currency"
+rarity = "common"
+monetary = true
+currency = "copper"
+amount = 1
+worth = 1
+visual_template = "coin_round"
+blade_color_index = 10
+accent_color_index = 7
+highlight_color_index = 14
+
+[items.currency.silver_coin]
+name = "Silver Coin"
+description = "A stamped silver coin worth ten copper."
+category = "coin"
+slot = "currency"
+rarity = "common"
+monetary = true
+currency = "silver"
+amount = 1
+worth = 10
+visual_template = "coin_round"
+blade_color_index = 23
+accent_color_index = 16
+highlight_color_index = 14
+
+[items.currency.gold_coin]
+name = "Gold Coin"
+description = "A bright gold coin worth one hundred copper."
+category = "coin"
+slot = "currency"
+rarity = "common"
+monetary = true
+currency = "gold"
+amount = 1
+worth = 100
+visual_template = "coin_round"
+blade_color_index = 14
+accent_color_index = 10
+highlight_color_index = 23
+
+[items.tools.torch]
+name = "Torch"
+description = "A simple hand torch with an iron bracket and a rag-wrapped head."
+category = "utility"
+slot = "tool"
+rarity = "common"
+icon = "torch"
+visual_template = "torch_standing"
+blade_color_index = 10
+grip_color_index = 10
+accent_color_index = 23
+highlight_color_index = 14
+tile_id = "05ab6adc-1631-4ed2-9857-f85820a7f1ad"
+script = '''
+fn event(event, value) {
+    if event == "active" {
+        set_emit_light(value);
+        if value == true {
+            set_tile("f76473d1-70f6-4649-8b0d-cbac627f93d8");
+        } else {
+            set_tile("05ab6adc-1631-4ed2-9857-f85820a7f1ad");
+        }
+    }
+    if event == "intent" {
+        let intent = value.string;
+        if intent == "use" {
+            if value.distance > 2 {
+                message(value.subject_id, "{system.too_far_away}", "warning");
+            } else {
+                toggle_attr("active");
+                block_events(1, "intent");
+            }
+        }
+    }
+}
+'''
+
+[items.tools.torch.attributes]
+active = false
+blocking = false
+visible = true
+static = false
+radius = 0.5
+worth = 10
+monetary = false
+takeable = false
+on_look_off = "An unlit torch rests here, cold and dark."
+on_look_on = "A lit torch burns with a wavering flame, pushing back the shadows."
+off_tile_id = "05ab6adc-1631-4ed2-9857-f85820a7f1ad"
+on_tile_id = "f76473d1-70f6-4649-8b0d-cbac627f93d8"
+
+[items.tools.torch.durability]
+drain = "condition"
+when = "active"
+amount = 10
+per_game_minutes = 60
+on_empty = "destroy"
+
+[items.tools.torch.light]
+strength = 5.0
+range = 3.0
+flicker = 0.4
+
+[items.tools.torch.authoring]
+title = "Torch"
+description = """
+A simple hand torch with an iron bracket and a rag-wrapped head.
+"""
+
+[items.tools.torch.authoring.state.off]
+description = """
+An unlit torch rests here, cold and dark.
+"""
+on_use = "You light the torch."
+
+[items.tools.torch.authoring.state.on]
+description = """
+A lit torch burns with a wavering flame, pushing back the shadows.
+"""
+on_use = "You extinguish the torch."

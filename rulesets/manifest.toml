@@ -1,9 +1,0 @@
-[rulesets]
-"eldiron.official" = "eldiron/v1/ruleset.toml"
-
-[[ruleset]]
-id = "eldiron.official"
-name = "Eldiron Official Ruleset"
-version = "1.0.0"
-schema_version = "1"
-path = "eldiron/v1/ruleset.toml"

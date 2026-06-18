@@ -1,0 +1,93 @@
+[combat.unarmed_damage]
+roll = "1d3"
+bonus = 0
+bonus_attribute = "STR"
+bonus_every = 4
+damage_kind = "physical"
+
+[combat]
+default_damage_kind = "physical"
+default_attack_cooldown = 1.0
+default_cast_cooldown = 1.5
+global_cooldown = 0.5
+critical_roll = "20"
+critical_multiplier = 1.5
+
+[combat.messages]
+incoming_key = "combat.damage.incoming"
+incoming_category = "system"
+outgoing_key = "combat.damage.outgoing"
+outgoing_category = "system"
+
+[combat.audio]
+incoming_fx = "hit"
+incoming_bus = "sfx"
+incoming_gain = 1.0
+outgoing_fx = "attack"
+outgoing_bus = "sfx"
+outgoing_gain = 1.0
+
+[combat.kinds.physical]
+description = "Mundane weapon and body damage."
+
+[combat.kinds.physical.reduction]
+attribute = "ARMOR"
+equipped_armor_attribute = "ARMOR"
+
+[combat.kinds.physical.audio]
+incoming_fx = "hit"
+outgoing_fx = "attack"
+
+[combat.kinds.arcane]
+description = "Unshaped magical force."
+
+[combat.kinds.arcane.damage]
+bonus = 0
+source_bonus_attribute = "POWER"
+attacker_bonus_attribute = "POWER"
+bonus_attribute = "INT"
+bonus_every = 4
+
+[combat.kinds.arcane.reduction]
+attribute = "RESIST"
+equipped_armor_attribute = "RESIST"
+
+[combat.kinds.arcane.audio]
+incoming_fx = "hit"
+outgoing_fx = "arcane_cast"
+
+[combat.kinds.spell]
+description = "Compatibility name for unshaped magical force."
+
+[combat.kinds.spell.damage]
+bonus = 0
+source_bonus_attribute = "POWER"
+attacker_bonus_attribute = "POWER"
+bonus_attribute = "INT"
+bonus_every = 4
+
+[combat.kinds.spell.reduction]
+attribute = "RESIST"
+equipped_armor_attribute = "RESIST"
+
+[combat.kinds.spell.audio]
+incoming_fx = "hit"
+outgoing_fx = "arcane_cast"
+
+[combat.kinds.fire]
+description = "Heat, flame, and burning magic."
+
+[combat.kinds.fire.damage]
+bonus = 0
+source_bonus_attribute = "POWER"
+attacker_bonus_attribute = "POWER"
+bonus_attribute = "INT"
+bonus_every = 4
+
+[combat.kinds.fire.reduction]
+attribute = "FIRE_RESIST"
+equipped_armor_attribute = "FIRE_RESIST"
+
+[combat.kinds.fire.audio]
+incoming_fx = "hit"
+outgoing_fx = "fire_cast"

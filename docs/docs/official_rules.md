@@ -181,7 +181,7 @@ relations.
 | Race | Role | Avatar | Languages | Key defaults |
 | --- | --- | --- | --- | --- |
 | `Human` | balanced default people | `humanoid` | `common` | `HP 10`, all primary attributes `10` |
-| `Orc` | strong hostile test race | `humanoid` | `orcish` | `HP 14`, `STR 12`, `DEX 9`, `INT 8`, `WIS 8`, `VIT 12` |
+| `Orc` | strong hostile test race | `orc` | `orcish` | `HP 14`, `STR 12`, `DEX 9`, `INT 8`, `WIS 8`, `VIT 12` |
 
 Race names are not hardcoded factions. They are identity defaults that feed
 relations and reputation.
@@ -759,7 +759,7 @@ visual layer.
 | Visual rule | Value |
 | --- | --- |
 | Default avatar | `humanoid` |
-| Avatar asset | `assets/humanoid.eldiron_avatar` |
+| Avatar assets | `assets/humanoid.eldiron_avatar`, `assets/orc.eldiron_avatar` |
 | Palette | single 31-color mood palette based on Lospec's "31" palette |
 | Explicit override | project `tile_id`, `avatar`, or empty visual fields win |
 

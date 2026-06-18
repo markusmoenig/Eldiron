@@ -3176,26 +3176,11 @@ mod tests {
     use std::sync::Arc;
 
     fn official_rules_source() -> String {
-        [
-            include_str!("../../../../rulesets/eldiron/v1/ruleset.toml"),
-            include_str!("../../../../rulesets/eldiron/v1/identity.toml"),
-            include_str!("../../../../rulesets/eldiron/v1/attributes.toml"),
-            include_str!("../../../../rulesets/eldiron/v1/progression.toml"),
-            include_str!("../../../../rulesets/eldiron/v1/combat.toml"),
-            include_str!("../../../../rulesets/eldiron/v1/economy.toml"),
-            include_str!("../../../../rulesets/eldiron/v1/messages.toml"),
-            include_str!("../../../../rulesets/eldiron/v1/equipment.toml"),
-            include_str!("../../../../rulesets/eldiron/v1/fx.toml"),
-            include_str!("../../../../rulesets/eldiron/v1/actions.toml"),
-            include_str!("../../../../rulesets/eldiron/v1/recipes.toml"),
-            include_str!("../../../../rulesets/eldiron/v1/abilities_spells.toml"),
-            include_str!("../../../../rulesets/eldiron/v1/races_classes.toml"),
-        ]
-        .join("\n\n")
+        eldiron_ruleset::latest_official_ruleset().to_string()
     }
 
     fn official_locales_source() -> &'static str {
-        include_str!("../../../../rulesets/eldiron/v1/locales.toml")
+        eldiron_ruleset::latest_official_ruleset_locales()
     }
 
     fn toml_value_to_attr(value: &toml::Value) -> Option<Value> {
@@ -4637,7 +4622,10 @@ mod tests {
         assert_eq!(arena.entity(1).attributes.get_int_default("ARMOR", 0), 1);
         assert!(arena.has_str_array_attr(1, "start_equipped_items", "training_sword"));
         assert!(arena.has_str_array_attr(1, "start_equipped_items", "padded_armor"));
-        assert_eq!(arena.entity(1).attributes.get_int_default("hair_index", 0), 7);
+        assert_eq!(
+            arena.entity(1).attributes.get_int_default("hair_index", 0),
+            7
+        );
         assert!(!arena.has_str_array_attr(1, "start_items", "linen_shirt"));
         assert!(arena.has_str_array_attr(1, "abilities", "basic_attack"));
         assert!(arena.has_str_array_attr(1, "abilities", "guard"));
