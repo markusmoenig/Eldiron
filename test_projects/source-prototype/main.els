@@ -31,15 +31,15 @@ Screen "play" {
       type = "2d"
 
       [camera_safe_area]
-      right = 24
+      right = 34
     }
   }
 
   widget "Sidebar" {
     role = "deco"
-    x = 56
+    x = 46
     y = 0
-    width = 24
+    width = 34
     height = 24
 
     data {
@@ -47,15 +47,15 @@ Screen "play" {
       role = "deco"
       color = "#0000006f"
       border_color = "#444444"
-      border_size = 1
+      border_size = 0
     }
   }
 
   widget "Stats" {
     role = "text"
-    x = 57
-    y = 1
-    width = 22
+    x = 48
+    y = 2
+    width = 30
     height = 7
 
     data {
@@ -74,10 +74,10 @@ INT {PLAYER.INT}  WIS {PLAYER.WIS}
 
   widget "Messages" {
     role = "messages"
-    x = 57
-    y = 8
-    width = 22
-    height = 6
+    x = 48
+    y = 10
+    width = 30
+    height = 13
 
     data {
       [ui]
@@ -89,135 +89,6 @@ INT {PLAYER.INT}  WIS {PLAYER.WIS}
       severe = "#ff6666"
       success = "#88ff88"
       handles = ["messages", "dialogs", "multiple_choice", "offer_inventory"]
-    }
-  }
-
-  widget "Avatar" {
-    role = "avatar"
-    x = 57
-    y = 15
-    width = 10
-    height = 4
-
-    data {
-      [ui]
-      role = "avatar"
-      party = "leader"
-    }
-  }
-
-  widget "Main Hand" {
-    role = "button"
-    x = 68
-    y = 15
-    width = 11
-    height = 2
-
-    data {
-      [ui]
-      role = "button"
-      equipped_slot = "main_hand"
-    }
-  }
-
-  widget "Off Hand" {
-    role = "button"
-    x = 68
-    y = 17
-    width = 11
-    height = 2
-
-    data {
-      [ui]
-      role = "button"
-      equipped_slot = "off_hand"
-    }
-  }
-
-  widget "Inventory 0" {
-    role = "button"
-    x = 57
-    y = 20
-    width = 7
-    height = 2
-
-    data {
-      [ui]
-      role = "button"
-      inventory_index = 0
-    }
-  }
-
-  widget "Inventory 1" {
-    role = "button"
-    x = 64
-    y = 20
-    width = 7
-    height = 2
-
-    data {
-      [ui]
-      role = "button"
-      inventory_index = 1
-    }
-  }
-
-  widget "Inventory 2" {
-    role = "button"
-    x = 71
-    y = 20
-    width = 8
-    height = 2
-
-    data {
-      [ui]
-      role = "button"
-      inventory_index = 2
-    }
-  }
-
-  widget "Intent Look" {
-    role = "button"
-    x = 57
-    y = 22
-    width = 7
-    height = 2
-
-    data {
-      [ui]
-      role = "button"
-      command = "intent.look"
-      intent = "look"
-    }
-  }
-
-  widget "Intent Take" {
-    role = "button"
-    x = 64
-    y = 22
-    width = 7
-    height = 2
-
-    data {
-      [ui]
-      role = "button"
-      command = "intent.take"
-      intent = "take"
-    }
-  }
-
-  widget "Intent Attack" {
-    role = "button"
-    x = 71
-    y = 22
-    width = 8
-    height = 2
-
-    data {
-      [ui]
-      role = "button"
-      command = "intent.attack"
-      intent = "attack"
     }
   }
 }

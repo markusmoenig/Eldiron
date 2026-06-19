@@ -394,43 +394,34 @@ A small crossroads of worn earth and scattered stones, marking the meeting point
 """
 ```
 
-## Text Gameplay `stats`
+## Text Gameplay Commands
 
-Text gameplay supports a `stats` command to show the current player stats.
+Text gameplay commands are submitted through the messages widget command input.
+They are available to text play and can also be enabled by 2D/3D games that use
+the same messages widget input mode.
 
-By default it uses a small built-in stat block. You can customize the output in **Game / Authoring**:
+Core commands:
 
-```toml
-[text.stats]
-text = """
-STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}
-EXP:\t{PLAYER.EXP}\tLEVEL:\t{PLAYER.LEVEL}
-HP:\t{PLAYER.HP}\tMoney:\t{PLAYER.MONEY}
-ATK:\t{PLAYER.ATTACK}\tDEF:\t{PLAYER.ARMOR}
-"""
-```
+- `look`
+- `inventory` / `inv`
+- `stats`
+- `go <exit>`
+- `intent <name> [target]`
+- `<intent> <target>`, for example `attack orc`, `take herb`, or `talk guard`
+- `open <container>`
+- `put <item> in <container>`
+- `take <item> from <container>`
 
-You can also define the block as lines:
+Ruleset commands:
 
-```toml
-[text.stats]
-lines = [
-  "STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}",
-  "EXP:\t{PLAYER.EXP}\tLEVEL:\t{PLAYER.LEVEL}",
-  "HP:\t{PLAYER.HP}\tMoney:\t{PLAYER.MONEY}",
-  "ATK:\t{PLAYER.ATTACK}\tDEF:\t{PLAYER.ARMOR}",
-]
-```
+- `cast <spell> [target]`
+- `craft <recipe>`
+- `action <action> [target]`
+- `use action <action> [target]`
+- `use <action> [target]`
+- `<action> [target]`, when the action id is known by the active ruleset
 
-Supported placeholders use the same `PLAYER.*` style as screen text widgets, including:
-
-- `PLAYER.<ATTR>`
-- `PLAYER.CLASS`
-- `PLAYER.RACE`
-- `PLAYER.LEVEL`
-- `PLAYER.EXP`
-- `PLAYER.ATTACK`
-- `PLAYER.ARMOR`
-- `PLAYER.WEAPON.<ATTR>`
-- `PLAYER.EQUIPPED.<ATTR>`
-- `PLAYER.ARMOR.<ATTR>`
+The `stats` command is ruleset-driven. It prints the attributes declared by the
+active ruleset's `[attributes]` groups, such as `resources`, `primary`, `combat`,
+and `progression`. Project authoring no longer configures a custom text stats
+block.

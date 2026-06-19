@@ -22,5 +22,8 @@ grid_size = 40
 unit = "cell"
 resize = "fit"
 
+[terminal]
+text_updates = true
+
 [build]
 output = "dist/source-prototype.eldiron"

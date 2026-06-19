@@ -4,8 +4,7 @@ use crossterm::execute;
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span};
+use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::{Frame, Terminal as RatatuiTerminal};
 use rusterix::prelude::*;
@@ -25,6 +24,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 use toml::Table;
+use uuid::Uuid;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum StartupDisplay {
@@ -2256,8 +2256,45 @@ fn collect_roguelike_screen_output(app: &mut TerminalApp) -> Vec<String> {
         return Vec::new();
     };
     let region_id = app.project.regions[index].map.id;
-    let mut output = Vec::new();
+    let output = if roguelike_text_updates_enabled(app) {
+        collect_roguelike_text_updates(app, index, region_id)
+    } else {
+        collect_roguelike_runtime_messages(app, region_id)
+    };
 
+    append_roguelike_screen_messages(app, &output);
+
+    output
+}
+
+fn append_roguelike_screen_messages(app: &mut TerminalApp, messages: &[String]) {
+    if messages.is_empty() {
+        return;
+    }
+    app.screen_messages.extend(messages.iter().cloned());
+    let keep_from = app.screen_messages.len().saturating_sub(12);
+    if keep_from > 0 {
+        app.screen_messages.drain(0..keep_from);
+    }
+}
+
+fn append_roguelike_immediate_message(app: &mut TerminalApp, message: &str) {
+    let message = message.trim();
+    if message.is_empty() || roguelike_message_is_in_history(app, message) {
+        return;
+    }
+    append_roguelike_screen_messages(app, &[message.to_string()]);
+}
+
+fn roguelike_message_is_in_history(app: &TerminalApp, message: &str) -> bool {
+    app.screen_messages
+        .join("\n")
+        .trim_end()
+        .ends_with(message.trim())
+}
+
+fn collect_roguelike_runtime_messages(app: &mut TerminalApp, region_id: Uuid) -> Vec<String> {
+    let mut output = Vec::new();
     for (_sender_entity, _sender_item, _receiver, message, category) in
         app.server.get_messages(&region_id)
     {
@@ -2271,25 +2308,64 @@ fn collect_roguelike_screen_output(app: &mut TerminalApp) -> Vec<String> {
             output.push(message);
         }
     }
-
-    if !output.is_empty() {
-        app.screen_messages.extend(output.iter().cloned());
-        let keep_from = app.screen_messages.len().saturating_sub(8);
-        if keep_from > 0 {
-            app.screen_messages.drain(0..keep_from);
-        }
-    }
-
     output
 }
 
+fn collect_roguelike_text_updates(
+    app: &mut TerminalApp,
+    region_index: usize,
+    region_id: Uuid,
+) -> Vec<String> {
+    let map = app.project.regions[region_index].map.clone();
+    let outputs = app.session.collect(
+        &map,
+        &app.project.authoring,
+        app.server.get_messages(&region_id),
+        app.server.get_says(&region_id),
+        app.current_time_hour_and_label().map(|(hour, _)| hour),
+        app.current_time_hour_and_label().map(|(_, label)| label),
+        authoring_auto_attack_mode(&app.project.authoring) == AutoAttackMode::OnAttack,
+    );
+    app.auto_attack_target = app.session.auto_attack_target();
+
+    let mut rendered = Vec::new();
+    let mut saw_death = false;
+    for entry in outputs {
+        match entry {
+            TextSessionOutput::RenderRoom => {}
+            TextSessionOutput::Plain(text) => rendered.push(text),
+            TextSessionOutput::Message { text, category } => {
+                if should_print_terminal_message(&text, &category) {
+                    if text.trim() == "You died. Try again!" {
+                        saw_death = true;
+                    }
+                    rendered.push(text);
+                }
+            }
+        }
+    }
+    if saw_death {
+        app.auto_attack_target = None;
+        app.session.clear_auto_attack_target();
+        app.discard_pending_messages();
+    }
+    rendered
+}
+
+fn roguelike_text_updates_enabled(app: &TerminalApp) -> bool {
+    config_bool(&app.project.config, "terminal", "text_updates", true)
+        && config_bool(&app.project.config, "game", "terminal_text_updates", true)
+}
+
 fn roguelike_screen_message(app: &TerminalApp, immediate: Option<&str>) -> Option<String> {
+    let mut messages = app.screen_messages.clone();
     if let Some(message) = immediate
         && !message.trim().is_empty()
+        && !messages.join("\n").trim_end().ends_with(message.trim())
     {
-        return Some(message.trim().to_string());
+        messages.push(message.trim().to_string());
     }
-    (!app.screen_messages.is_empty()).then(|| app.screen_messages.join("\n"))
+    (!messages.is_empty()).then(|| messages.join("\n"))
 }
 
 fn trigger_text_intent(app: &mut TerminalApp, intent: &str, query: &str) -> Vec<String> {
@@ -2747,18 +2823,13 @@ fn run_roguelike_line_terminal_app(mut app: TerminalApp) {
         let (keep_running, message) = handle_roguelike_input(&mut app, &input);
         let mut message = message.unwrap_or_default();
         append_roguelike_diagnostics(&mut app, &mut message);
+        append_roguelike_immediate_message(&mut app, &message);
         if !keep_running {
             clear_terminal_prompt_line();
             break;
         }
         println!();
-        println!(
-            "{}",
-            render_roguelike_view_with_message(
-                &app,
-                (!message.trim().is_empty()).then_some(message.as_str())
-            )
-        );
+        println!("{}", render_roguelike_view(&app));
     }
 
     app.server.stop();
@@ -2793,7 +2864,17 @@ fn run_roguelike_raw_terminal_app(mut app: TerminalApp) {
     let tick_duration = tick_duration(&app.project);
     let mut last_view = render_roguelike_view(&app);
     let startup_message = diagnostic_message(app.drain_server_diagnostics());
-    if let Err(err) = draw_roguelike_tui(&mut terminal, &app, startup_message.as_deref()) {
+    if let Some(message) = &startup_message {
+        append_roguelike_immediate_message(&mut app, message);
+    }
+    let mut text_input = String::new();
+    let mut text_input_active = false;
+    if let Err(err) = draw_roguelike_tui(
+        &mut terminal,
+        &app,
+        startup_message.as_deref(),
+        roguelike_input_prompt(text_input_active, &text_input).as_deref(),
+    ) {
         restore_roguelike_terminal(&mut terminal);
         eprintln!("Failed to draw terminal view: {}", err);
         app.server.stop();
@@ -2804,17 +2885,27 @@ fn run_roguelike_raw_terminal_app(mut app: TerminalApp) {
         match event::poll(tick_duration) {
             Ok(true) => match event::read() {
                 Ok(Event::Key(key)) if key.kind == KeyEventKind::Press => {
-                    let Some(input) = key_event_to_input(key.code) else {
-                        continue;
-                    };
-                    let (keep_running, message) = handle_roguelike_input(&mut app, &input);
+                    let (keep_running, message, redraw) = handle_roguelike_raw_key(
+                        &mut app,
+                        key.code,
+                        &mut text_input_active,
+                        &mut text_input,
+                    );
                     if !keep_running {
                         break;
                     }
+                    if !redraw {
+                        continue;
+                    }
                     let mut message = message.unwrap_or_default();
                     append_roguelike_diagnostics(&mut app, &mut message);
-                    let message = (!message.trim().is_empty()).then_some(message);
-                    if let Err(err) = draw_roguelike_tui(&mut terminal, &app, message.as_deref()) {
+                    append_roguelike_immediate_message(&mut app, &message);
+                    if let Err(err) = draw_roguelike_tui(
+                        &mut terminal,
+                        &app,
+                        None,
+                        roguelike_input_prompt(text_input_active, &text_input).as_deref(),
+                    ) {
                         restore_roguelike_terminal(&mut terminal);
                         eprintln!("Failed to draw terminal view: {}", err);
                         app.server.stop();
@@ -2837,7 +2928,15 @@ fn run_roguelike_raw_terminal_app(mut app: TerminalApp) {
                 let view = render_roguelike_view(&app);
                 if !output.is_empty() || view != last_view {
                     let message = (!output.is_empty()).then(|| output.join("\n"));
-                    if let Err(err) = draw_roguelike_tui(&mut terminal, &app, message.as_deref()) {
+                    if let Some(message) = &message {
+                        append_roguelike_immediate_message(&mut app, message);
+                    }
+                    if let Err(err) = draw_roguelike_tui(
+                        &mut terminal,
+                        &app,
+                        None,
+                        roguelike_input_prompt(text_input_active, &text_input).as_deref(),
+                    ) {
                         restore_roguelike_terminal(&mut terminal);
                         eprintln!("Failed to draw terminal view: {}", err);
                         app.server.stop();
@@ -2869,13 +2968,19 @@ fn draw_roguelike_tui(
     terminal: &mut RatatuiTerminal<CrosstermBackend<io::Stdout>>,
     app: &TerminalApp,
     message: Option<&str>,
+    input_prompt: Option<&str>,
 ) -> io::Result<()> {
     terminal
-        .draw(|frame| render_roguelike_tui_frame(frame, app, message))
+        .draw(|frame| render_roguelike_tui_frame(frame, app, message, input_prompt))
         .map(|_| ())
 }
 
-fn render_roguelike_tui_frame(frame: &mut Frame, app: &TerminalApp, message: Option<&str>) {
+fn render_roguelike_tui_frame(
+    frame: &mut Frame,
+    app: &TerminalApp,
+    message: Option<&str>,
+    input_prompt: Option<&str>,
+) {
     let area = frame.area();
     let Some(region) = app.current_region() else {
         frame.render_widget(
@@ -2890,6 +2995,7 @@ fn render_roguelike_tui_frame(frame: &mut Frame, app: &TerminalApp, message: Opt
         header: String::new(),
         hint: String::new(),
         message: roguelike_screen_message(app, message),
+        input_prompt: input_prompt.map(str::to_string),
     };
 
     let Some(layout) = shared::terminal_screen::project_terminal_screen_layout(&app.project) else {
@@ -2954,13 +3060,37 @@ fn render_roguelike_tui_widget(
             );
         }
         "messages" => {
-            frame.render_widget(
-                Paragraph::new(text)
-                    .block(terminal_block(&widget.name).style(Style::default().fg(Color::Cyan)))
-                    .style(Style::default().fg(Color::White))
-                    .wrap(Wrap { trim: false }),
-                rect,
-            );
+            let label_height = if widget.name.trim().is_empty() {
+                0
+            } else {
+                1.min(rect.height)
+            };
+            if label_height > 0 {
+                frame.render_widget(
+                    Paragraph::new(widget.name.clone()).style(Style::default().fg(Color::Cyan)),
+                    Rect {
+                        x: rect.x,
+                        y: rect.y,
+                        width: rect.width,
+                        height: label_height,
+                    },
+                );
+            }
+
+            let content_height = rect.height.saturating_sub(label_height);
+            if content_height > 0 {
+                frame.render_widget(
+                    Paragraph::new(roguelike_tail_text(&lines, rect.width, content_height))
+                        .style(Style::default().fg(Color::White))
+                        .wrap(Wrap { trim: false }),
+                    Rect {
+                        x: rect.x,
+                        y: rect.y + label_height,
+                        width: rect.width,
+                        height: content_height,
+                    },
+                );
+            }
         }
         "text" => {
             frame.render_widget(
@@ -2981,7 +3111,6 @@ fn render_roguelike_tui_widget(
         "avatar" => {
             frame.render_widget(
                 Paragraph::new(text)
-                    .block(terminal_block(&widget.name))
                     .style(Style::default().fg(Color::LightMagenta))
                     .alignment(Alignment::Center)
                     .wrap(Wrap { trim: false }),
@@ -2991,7 +3120,6 @@ fn render_roguelike_tui_widget(
         "button" => {
             frame.render_widget(
                 Paragraph::new(text)
-                    .block(terminal_block(""))
                     .style(Style::default().fg(Color::Yellow))
                     .alignment(Alignment::Center)
                     .wrap(Wrap { trim: true }),
@@ -3001,7 +3129,6 @@ fn render_roguelike_tui_widget(
         "deco" => {
             frame.render_widget(
                 Block::default()
-                    .borders(Borders::ALL)
                     .border_style(Style::default().fg(Color::DarkGray))
                     .style(Style::default().bg(Color::Black)),
                 rect,
@@ -3011,20 +3138,52 @@ fn render_roguelike_tui_widget(
     }
 }
 
-fn terminal_block(title: &str) -> Block<'_> {
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
-    if title.trim().is_empty() {
-        block
-    } else {
-        block.title(Line::from(Span::styled(
-            title.to_string(),
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )))
+fn roguelike_input_prompt(active: bool, buffer: &str) -> Option<String> {
+    active.then(|| format!("@ {}", buffer))
+}
+
+fn roguelike_tail_text(lines: &[String], width: u16, height: u16) -> String {
+    let wrapped = roguelike_wrap_lines(lines, width as usize);
+    let start = wrapped.len().saturating_sub(height as usize);
+    wrapped[start..].join("\n")
+}
+
+fn roguelike_wrap_lines(lines: &[String], width: usize) -> Vec<String> {
+    if width == 0 {
+        return Vec::new();
     }
+
+    let mut wrapped = Vec::new();
+    for line in lines {
+        if line.trim().is_empty() {
+            wrapped.push(String::new());
+            continue;
+        }
+
+        let mut current = String::new();
+        for word in line.split_whitespace() {
+            if current.is_empty() {
+                current.push_str(word);
+            } else if current.chars().count() + 1 + word.chars().count() <= width {
+                current.push(' ');
+                current.push_str(word);
+            } else {
+                wrapped.push(current);
+                current = word.to_string();
+            }
+
+            while current.chars().count() > width {
+                let rest: String = current.chars().skip(width).collect();
+                current = current.chars().take(width).collect();
+                wrapped.push(current);
+                current = rest;
+            }
+        }
+        if !current.is_empty() {
+            wrapped.push(current);
+        }
+    }
+    wrapped
 }
 
 fn append_roguelike_diagnostics(app: &mut TerminalApp, output: &mut String) {
@@ -3066,6 +3225,54 @@ fn key_event_to_input(code: KeyCode) -> Option<String> {
         KeyCode::Enter => Some("look".to_string()),
         _ => None,
     }
+}
+
+fn handle_roguelike_raw_key(
+    app: &mut TerminalApp,
+    code: KeyCode,
+    text_input_active: &mut bool,
+    text_input: &mut String,
+) -> (bool, Option<String>, bool) {
+    if *text_input_active {
+        match code {
+            KeyCode::Enter => {
+                let command = text_input.trim().to_string();
+                text_input.clear();
+                *text_input_active = false;
+                if command.is_empty() {
+                    return (true, None, true);
+                }
+                let message = apply_roguelike_text_command(app, &command);
+                return (true, (!message.trim().is_empty()).then_some(message), true);
+            }
+            KeyCode::Esc => {
+                text_input.clear();
+                *text_input_active = false;
+                return (true, None, true);
+            }
+            KeyCode::Backspace => {
+                text_input.pop();
+                return (true, None, true);
+            }
+            KeyCode::Char(ch) => {
+                text_input.push(ch);
+                return (true, None, true);
+            }
+            _ => return (true, None, false),
+        }
+    }
+
+    if code == KeyCode::Enter {
+        *text_input_active = true;
+        text_input.clear();
+        return (true, None, true);
+    }
+
+    let Some(input) = key_event_to_input(code) else {
+        return (true, None, false);
+    };
+    let (keep_running, message) = handle_roguelike_input(app, &input);
+    (keep_running, message, true)
 }
 
 fn handle_roguelike_input(app: &mut TerminalApp, input: &str) -> (bool, Option<String>) {
@@ -3174,6 +3381,13 @@ fn set_roguelike_player_intent(app: &mut TerminalApp, intent: &str) -> String {
     } else {
         format!("Intent set: {}. Press a direction to target it.", intent)
     }
+}
+
+fn apply_roguelike_text_command(app: &mut TerminalApp, command: &str) -> String {
+    app.server
+        .local_player_action(EntityAction::TextCommand(command.trim().to_string()));
+    app.tick();
+    collect_roguelike_screen_output(app).join("\n")
 }
 
 fn active_player_input_map(app: &TerminalApp) -> BTreeMap<String, String> {
@@ -3294,6 +3508,7 @@ fn render_roguelike_view_with_message(app: &TerminalApp, message: Option<&str>) 
             header: String::new(),
             hint: String::new(),
             message: roguelike_screen_message(app, message),
+            input_prompt: None,
         },
     )
 }

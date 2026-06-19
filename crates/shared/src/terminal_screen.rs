@@ -34,6 +34,7 @@ pub struct TerminalScreenFrame {
     pub header: String,
     pub hint: String,
     pub message: Option<String>,
+    pub input_prompt: Option<String>,
 }
 
 pub fn project_terminal_screen_layout(project: &Project) -> Option<TerminalScreenLayout> {
@@ -186,6 +187,14 @@ pub fn terminal_widget_lines(
             {
                 lines.extend(message.lines().map(str::to_string));
             }
+            if let Some(input_prompt) = &frame.input_prompt
+                && !input_prompt.trim().is_empty()
+            {
+                if !lines.is_empty() {
+                    lines.push(String::new());
+                }
+                lines.push(input_prompt.clone());
+            }
             lines
         }
         "text" => render_text_widget(widget, region),
@@ -275,7 +284,7 @@ fn draw_message_widget(canvas: &mut [Vec<char>], widget: &TerminalWidget, lines:
         return;
     }
 
-    draw_horizontal_rule(canvas, &widget.rect, &widget.name);
+    draw_label(canvas, &widget.rect, &widget.name);
     if widget.rect.height <= 1 {
         return;
     }
@@ -286,7 +295,9 @@ fn draw_message_widget(canvas: &mut [Vec<char>], widget: &TerminalWidget, lines:
         width: widget.rect.width,
         height: widget.rect.height - 1,
     };
-    draw_text_block(canvas, &content_rect, lines);
+    let wrapped = wrap_lines(lines, content_rect.width);
+    let start = wrapped.len().saturating_sub(content_rect.height);
+    draw_block(canvas, &content_rect, &wrapped[start..]);
 }
 
 fn draw_button_widget(canvas: &mut [Vec<char>], widget: &TerminalWidget, region: &Region) {
@@ -295,7 +306,12 @@ fn draw_button_widget(canvas: &mut [Vec<char>], widget: &TerminalWidget, region:
 }
 
 fn draw_deco_widget(canvas: &mut [Vec<char>], widget: &TerminalWidget) {
-    draw_box(canvas, &widget.rect, "");
+    let border_size = widget_ui_table(widget)
+        .and_then(|ui| ui.get("border_size").and_then(toml::Value::as_integer))
+        .unwrap_or(0);
+    if border_size > 0 {
+        draw_box(canvas, &widget.rect, "");
+    }
 }
 
 fn draw_box(canvas: &mut [Vec<char>], rect: &TerminalRect, label: &str) {
@@ -340,20 +356,15 @@ fn draw_box(canvas: &mut [Vec<char>], rect: &TerminalRect, label: &str) {
     }
 }
 
-fn draw_horizontal_rule(canvas: &mut [Vec<char>], rect: &TerminalRect, label: &str) {
+fn draw_label(canvas: &mut [Vec<char>], rect: &TerminalRect, label: &str) {
+    let label = label.trim();
+    if label.is_empty() {
+        return;
+    }
     let Some(row) = canvas.get_mut(rect.y) else {
         return;
     };
-    for x in rect.x..rect.x.saturating_add(rect.width).min(row.len()) {
-        row[x] = '-';
-    }
-
-    let label = label.trim();
-    if label.is_empty() || rect.width < 4 {
-        return;
-    }
-    let decorated = format!(" {} ", label);
-    for (index, ch) in decorated.chars().take(rect.width).enumerate() {
+    for (index, ch) in label.chars().take(rect.width).enumerate() {
         if let Some(cell) = row.get_mut(rect.x + index) {
             *cell = ch;
         }
@@ -732,10 +743,12 @@ mod tests {
             header: "Cellar [roguelike]".to_string(),
             hint: "hints".to_string(),
             message: None,
+            input_prompt: None,
         };
         let rendered = render_roguelike_screen(&project, &region, &frame);
         assert!(rendered.contains("##"));
-        assert!(rendered.contains("Cellar"));
+        assert!(rendered.contains("hints"));
+        assert!(!rendered.contains("Cellar"));
     }
 
     fn add_widget(map: &mut Map, name: &str, role: &str, x: f32, y: f32, w: f32, h: f32) {

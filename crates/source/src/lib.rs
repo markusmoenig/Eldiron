@@ -17,6 +17,8 @@ struct ProjectToml {
     #[serde(default)]
     viewport: ViewportSection,
     #[serde(default)]
+    terminal: TerminalSection,
+    #[serde(default)]
     build: BuildSection,
 }
 
@@ -97,6 +99,20 @@ impl Default for ViewportSection {
             grid_size: default_viewport_grid_size(),
             unit: default_viewport_unit(),
             resize: default_viewport_resize(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct TerminalSection {
+    #[serde(default = "default_terminal_text_updates")]
+    text_updates: bool,
+}
+
+impl Default for TerminalSection {
+    fn default() -> Self {
+        Self {
+            text_updates: default_terminal_text_updates(),
         }
     }
 }
@@ -257,7 +273,7 @@ fn compile_project(config: &ProjectToml, source: SourceDocument) -> Result<Proje
     project.characters.clear();
     project.items.clear();
     project.screens.clear();
-    project.config = project_config(&config.game, &config.viewport);
+    project.config = project_config(&config.game, &config.viewport, &config.terminal);
     project.migrate_default_ruleset();
     project.authoring = "[startup]\nshow = \"room\"\n".to_string();
     project.sync_ruleset_items()?;
@@ -276,6 +292,11 @@ fn compile_project(config: &ProjectToml, source: SourceDocument) -> Result<Proje
             source_character.data
         };
         character.authoring = character_authoring(source_character.glyph);
+        character.module = module_shell(
+            "CharacterTemplate",
+            &character.name,
+            source_character.id == config.game.player,
+        );
         let template_id = character.id;
         character_templates.insert(source_character.id.clone(), template_id);
         if let Some(glyph) = source_character.glyph {
@@ -295,6 +316,7 @@ fn compile_project(config: &ProjectToml, source: SourceDocument) -> Result<Proje
             source_item.data
         };
         item.authoring = item_authoring(source_item.glyph);
+        item.module = module_shell("ItemTemplate", &item.name, false);
         let template_id = item.id;
         item_templates.insert(source_item.id.clone(), template_id);
         if let Some(glyph) = source_item.glyph {
@@ -345,6 +367,8 @@ fn compile_project(config: &ProjectToml, source: SourceDocument) -> Result<Proje
         ));
     }
 
+    normalize_project_modules(&mut project);
+
     Ok(project)
 }
 
@@ -365,6 +389,7 @@ fn compile_region(
     let mut region = Region::new();
     region.id = Uuid::new_v4();
     region.name = source_region.name.clone();
+    region.module = module_shell("Region", &region.name, false);
     region.map = build_map(&source_region)?;
     region.characters.clear();
     region.items.clear();
@@ -932,6 +957,7 @@ fn ensure_player_template(
     character.name = title_case_id(player_id);
     character.data = character_data(player_id, player_id);
     character.authoring = character_authoring(Some('@'));
+    character.module = module_shell("CharacterTemplate", &character.name, true);
     let template_id = character.id;
     character_templates.insert(player_id.to_string(), template_id);
     project.characters.insert(template_id, character);
@@ -943,6 +969,7 @@ fn character_instance(id: &str, template_id: Uuid, x: usize, y: usize, player: b
     character.position = grid_position(x, y);
     character.character_id = template_id;
     character.data = character_data(id, if player { id } else { "" });
+    character.module = module_shell("CharacterTemplate", &character.name, player);
     character
 }
 
@@ -959,9 +986,13 @@ fn item_instance(
         item.source = template.source.clone();
         item.source_debug = template.source_debug.clone();
         item.authoring = template.authoring.clone();
+        item.module = template.module.clone();
     }
     item.position = grid_position(x, y);
     item.item_id = template_id;
+    if item.module.is_null() {
+        item.module = module_shell("ItemTemplate", &item.name, false);
+    }
     item
 }
 
@@ -971,7 +1002,71 @@ fn default_item_instance(glyph: char, x: usize, y: usize) -> Item {
     item.position = grid_position(x, y);
     item.data = item_data(&glyph.to_string(), Some(glyph));
     item.authoring = item_authoring(Some(glyph));
+    item.module = module_shell("ItemTemplate", &item.name, false);
     item
+}
+
+fn module_shell(module_type: &str, name: &str, player: bool) -> serde_json::Value {
+    serde_json::json!({
+        "filter_text": "",
+        "id": Uuid::nil().to_string(),
+        "module_type": module_type,
+        "name": name,
+        "player": player,
+        "routines": {},
+        "view_name": "",
+    })
+}
+
+fn normalize_project_modules(project: &mut Project) {
+    if project.world_module.is_null() {
+        project.world_module = module_shell("World", "", false);
+    }
+
+    for item in project.items.values_mut() {
+        if item.module.is_null() {
+            item.module = module_shell("ItemTemplate", &item.name, false);
+        }
+    }
+    for character in project.characters.values_mut() {
+        if character.module.is_null() {
+            character.module = module_shell(
+                "CharacterTemplate",
+                &character.name,
+                character
+                    .data
+                    .parse::<toml::Table>()
+                    .ok()
+                    .and_then(|data| {
+                        data.get("attributes")
+                            .and_then(toml::Value::as_table)
+                            .cloned()
+                    })
+                    .and_then(|attributes| attributes.get("player").and_then(toml::Value::as_bool))
+                    .unwrap_or(false),
+            );
+        }
+    }
+
+    for region in &mut project.regions {
+        if region.module.is_null() {
+            region.module = module_shell("Region", &region.name, false);
+        }
+        for item in region.items.values_mut() {
+            if item.module.is_null() {
+                item.module = module_shell("ItemTemplate", &item.name, false);
+            }
+        }
+        for character in region.characters.values_mut() {
+            if character.module.is_null() {
+                character.module = module_shell(
+                    "CharacterTemplate",
+                    &character.name,
+                    character.data.contains("player = true"),
+                );
+            }
+        }
+    }
 }
 
 fn register_ruleset_item_glyphs(
@@ -1009,9 +1104,13 @@ fn grid_position(x: usize, y: usize) -> Vec3<f32> {
     Vec3::new(x as f32 + 0.5, 1.0, y as f32 + 0.5)
 }
 
-fn project_config(game: &GameSection, viewport: &ViewportSection) -> String {
+fn project_config(
+    game: &GameSection,
+    viewport: &ViewportSection,
+    terminal: &TerminalSection,
+) -> String {
     format!(
-        "[game]\nstart_region = \"{}\"\nstart_screen = \"{}\"\nterminal_mode = \"{}\"\nsimulation_mode = \"{}\"\nturn_timeout_ms = {}\nauto_create_player = {}\ncollision_mode = \"{}\"\n\n[viewport]\nwidth = {}\nheight = {}\ngrid_size = {}\nunit = \"{}\"\nresize = \"{}\"\n",
+        "[game]\nstart_region = \"{}\"\nstart_screen = \"{}\"\nterminal_mode = \"{}\"\nsimulation_mode = \"{}\"\nturn_timeout_ms = {}\nauto_create_player = {}\ncollision_mode = \"{}\"\n\n[viewport]\nwidth = {}\nheight = {}\ngrid_size = {}\nunit = \"{}\"\nresize = \"{}\"\n\n[terminal]\ntext_updates = {}\n",
         escape_toml_string(&game.start_region),
         escape_toml_string(&game.start_screen),
         escape_toml_string(&game.terminal_mode),
@@ -1023,7 +1122,8 @@ fn project_config(game: &GameSection, viewport: &ViewportSection) -> String {
         viewport.height,
         viewport.grid_size,
         escape_toml_string(&viewport.unit),
-        escape_toml_string(&viewport.resize)
+        escape_toml_string(&viewport.resize),
+        terminal.text_updates
     )
 }
 
@@ -1111,6 +1211,10 @@ fn default_player() -> String {
 
 fn default_terminal_mode() -> String {
     "roguelike".to_string()
+}
+
+fn default_terminal_text_updates() -> bool {
+    true
 }
 
 fn default_simulation_mode() -> String {
@@ -1219,6 +1323,7 @@ Screen "play" {
                 player: "player".to_string(),
             },
             viewport: ViewportSection::default(),
+            terminal: TerminalSection::default(),
             build: BuildSection::default(),
         };
         let source = SourceDocument {

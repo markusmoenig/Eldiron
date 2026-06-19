@@ -3548,6 +3548,152 @@ impl RegionInstance {
             .unwrap_or_else(|| recipe_id.replace('_', " "))
     }
 
+    fn text_command_ruleset_stats(ctx: &RegionCtx, entity: &Entity) -> String {
+        let groups = Self::text_command_ruleset_stat_groups(ctx);
+        if groups.is_empty() {
+            return "No ruleset stats.".to_string();
+        }
+
+        let mut lines = Vec::new();
+        for (group, keys) in groups {
+            let line = Self::text_command_ruleset_stat_line(ctx, entity, &keys);
+            if !line.is_empty() {
+                lines.push(format!(
+                    "{}: {}",
+                    Self::text_command_stat_group_label(&group),
+                    line
+                ));
+            }
+        }
+
+        if lines.is_empty() {
+            "No ruleset stats.".to_string()
+        } else {
+            lines.join("\n")
+        }
+    }
+
+    fn text_command_ruleset_stat_groups(ctx: &RegionCtx) -> Vec<(String, Vec<String>)> {
+        let Some(attributes) = ctx.rules.get("attributes").and_then(toml::Value::as_table) else {
+            return Vec::new();
+        };
+
+        let preferred = ["resources", "primary", "combat", "progression"];
+        let mut groups = Vec::new();
+        for group in preferred {
+            if let Some(keys) = Self::text_command_ruleset_string_array(attributes.get(group)) {
+                groups.push((group.to_string(), keys));
+            }
+        }
+
+        for (group, value) in attributes {
+            if group == "defaults" || preferred.contains(&group.as_str()) {
+                continue;
+            }
+            if let Some(keys) = Self::text_command_ruleset_string_array(Some(value)) {
+                groups.push((group.clone(), keys));
+            }
+        }
+        groups
+    }
+
+    fn text_command_ruleset_stat_line(ctx: &RegionCtx, entity: &Entity, keys: &[String]) -> String {
+        let declared = keys.iter().map(String::as_str).collect::<BTreeSet<_>>();
+        let mut consumed = BTreeSet::<String>::new();
+        let mut parts = Vec::new();
+
+        for key in keys {
+            if consumed.contains(key.as_str()) {
+                continue;
+            }
+
+            if let Some(base) = key.strip_prefix("MAX_") {
+                if declared.contains(base) {
+                    consumed.insert(key.clone());
+                    continue;
+                }
+            }
+
+            let Some(value) = Self::text_command_stat_value(ctx, entity, key) else {
+                continue;
+            };
+
+            let max_key = format!("MAX_{}", key);
+            if declared.contains(max_key.as_str())
+                && let Some(max_value) = Self::text_command_stat_value(ctx, entity, &max_key)
+            {
+                consumed.insert(max_key);
+                parts.push(format!("{} {}/{}", key, value, max_value));
+            } else {
+                parts.push(format!("{} {}", key, value));
+            }
+        }
+
+        parts.join("  ")
+    }
+
+    fn text_command_stat_value(ctx: &RegionCtx, entity: &Entity, key: &str) -> Option<String> {
+        entity
+            .attributes
+            .get(key)
+            .map(ToString::to_string)
+            .or_else(|| Self::ruleset_default_stat_value(ctx, key))
+    }
+
+    fn ruleset_default_stat_value(ctx: &RegionCtx, key: &str) -> Option<String> {
+        let value = ctx
+            .rules
+            .get("attributes")
+            .and_then(toml::Value::as_table)
+            .and_then(|attributes| attributes.get("defaults"))
+            .and_then(toml::Value::as_table)
+            .and_then(|defaults| defaults.get(key))?;
+
+        if let Some(value) = value.as_integer() {
+            Some(value.to_string())
+        } else if let Some(value) = value.as_float() {
+            Some(Self::text_command_format_float_stat(value as f32))
+        } else if let Some(value) = value.as_bool() {
+            Some(value.to_string())
+        } else {
+            value.as_str().map(str::to_string)
+        }
+    }
+
+    fn text_command_ruleset_string_array(value: Option<&toml::Value>) -> Option<Vec<String>> {
+        value
+            .and_then(toml::Value::as_array)
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(toml::Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .filter(|values| !values.is_empty())
+    }
+
+    fn text_command_stat_group_label(group: &str) -> String {
+        let mut label = group.replace('_', " ");
+        if let Some(first) = label.get_mut(0..1) {
+            first.make_ascii_uppercase();
+        }
+        label
+    }
+
+    fn text_command_format_float_stat(value: f32) -> String {
+        let rounded = value.round();
+        if (value - rounded).abs() < f32::EPSILON {
+            return (rounded as i32).to_string();
+        }
+        format!("{:.2}", value)
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    }
+
     fn text_command_action_target_kind(ctx: &RegionCtx, action_id: &str) -> String {
         ruleset_action_table(ctx, action_id)
             .as_ref()
@@ -3723,20 +3869,11 @@ impl RegionInstance {
                     .iter()
                     .find(|entity| entity.id == entity_id)
                 {
-                    let hp = entity.attributes.get_int_default("HP", 0);
-                    let max_hp = entity.attributes.get_int_default("MAX_HP", hp);
-                    let mp = entity.attributes.get_int_default("MP", 0);
-                    let max_mp = entity.attributes.get_int_default("MAX_MP", mp);
-                    Self::send_text_command_feedback(
+                    send_message(
                         ctx,
                         entity_id,
-                        "system.stats",
-                        &[
-                            ("hp", hp.to_string()),
-                            ("max_hp", max_hp.to_string()),
-                            ("mp", mp.to_string()),
-                            ("max_mp", max_mp.to_string()),
-                        ],
+                        Self::text_command_ruleset_stats(ctx, entity),
+                        "system",
                     );
                 }
             }
