@@ -358,12 +358,16 @@ Options:
 * `[metadata].hide_iso`: fades the object out while the player is inside that area in isometric gameplay.
 * `[metadata].visible`: initial object render visibility.
 * `[metadata].solid`: initial object mesh collision state.
+* `[material].preset`: high-level object material override. Use `default` to inherit from tile/material defaults.
+* `[material].finish`: high-level material finish modifier. Supported values are `natural`, `matte`, `polished`, and `wet`.
 * `[geometry].x`: object bounds center X.
 * `[geometry].y`: object bounds center Y / elevation.
 * `[geometry].z`: object bounds center Z.
 * `[geometry].width`: object bounds width.
 * `[geometry].height`: object bounds height.
 * `[geometry].depth`: object bounds depth.
+
+Supported `preset` values are `default`, `stone`, `wood`, `metal`, `glass`, `water`, `mirror`, `emissive`, `dirt`, `fabric`, and `plastic`.
 
 Scripted area behavior:
 
@@ -583,7 +587,7 @@ Options: none.
 
 ### Duplicate Tile
 
-Clone the currently selected tile, including all frames and material data.
+Clone the currently selected tile, including all frames, generated normal data, and tile metadata.
 
 Options: none.
 
@@ -600,11 +604,19 @@ Procedural tile metadata is stored as:
 style = "stone"
 kind = "floor"
 weight = 1
+
+[material]
+preset = "stone"
+finish = "natural"
 ```
 
 Supported `kind` values are `floor`, `wall`, `entrance`, and `exit`. Use `none` in the editor selector for non-procedural tiles. Gameplay objects such as doors, traps, and potions should be generated as item instances from the region `[procedural.items.*]` settings, not as tile kinds.
 
 Procedural tile metadata is consumed by **Build Procedural**, which is available in the 2D editor view. See [Procedural Map Generation](/docs/building_maps/procedural_generation) for the full workflow and [Region Settings: Procedural](/docs/building_maps/region_settings/#procedural) for the matching region-side settings.
+
+Material tile metadata stores the tile's default high-level render material. Object material overrides take priority over tile defaults. Palette entries have their own material metadata when a surface uses a `PaletteIndex` source. If no preset applies, Eldiron uses the default material: roughness `0.5`, metallic `0.0`, opacity `1.0`, emissive `0.0`.
+
+Supported `preset` values are `default`, `stone`, `wood`, `metal`, `glass`, `water`, `mirror`, `emissive`, `dirt`, `fabric`, and `plastic`.
 
 Options:
 
@@ -633,16 +645,3 @@ Options:
 * `mode`: `nearest`, `floyd-steinberg`, `bayer-4x4`, or `exact`.
 * `range`: palette range to use, for example `all`, `2`, or `2-8`.
 * `all`: when enabled, remaps all tiles instead of only the selected tile.
-
-### Set Tile Material
-
-*Shortcut: Alt + A*
-
-Apply material values to every pixel of the tile textures.
-
-Options:
-
-* `tile_material_roughness`: surface roughness value.
-* `tile_material_metallic`: metallic value.
-* `tile_material_opacity`: opacity value.
-* `tile_material_emissive`: emissive value.

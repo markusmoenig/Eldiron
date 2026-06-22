@@ -781,7 +781,6 @@ pub mod minimize;
 pub mod new_tile;
 pub mod orbit_camera;
 pub mod remap_tile;
-pub mod set_tile_material;
 pub mod split;
 pub mod surface_noise;
 pub mod toggle_editing_geo;
@@ -1076,6 +1075,23 @@ fn special_action_section_key(action_key: &str) -> Option<(&'static str, &'stati
         "iso_hide_on_enter" => Some(("iso", "hide_on_enter")),
         _ => None,
     }
+}
+
+fn material_selector_alias_index(action_key: &str, value: &str) -> Option<usize> {
+    let aliases: &[&str] = if action_key == "material_preset" {
+        &[
+            "default", "stone", "wood", "metal", "glass", "water", "mirror", "emissive", "dirt",
+            "fabric", "plastic",
+        ]
+    } else if action_key == "material_finish" {
+        &["natural", "matte", "polished", "wet"]
+    } else {
+        return None;
+    };
+
+    aliases
+        .iter()
+        .position(|alias| alias.eq_ignore_ascii_case(value.trim()))
 }
 
 fn section_table<'a>(table: &'a toml::Table, path: &[String]) -> Option<&'a toml::Table> {
@@ -1419,7 +1435,13 @@ pub fn apply_toml_to_nodeui(nodeui: &mut TheNodeUI, source: &str) -> Result<(), 
                             match value {
                                 toml::Value::Integer(v) => nodeui.set_i32_value(&id, *v as i32),
                                 toml::Value::String(name) => {
-                                    if let Some(index) = values.iter().position(|v| v == name) {
+                                    if let Some(index) = values
+                                        .iter()
+                                        .position(|v| v.eq_ignore_ascii_case(name))
+                                        .or_else(|| {
+                                            material_selector_alias_index(&action_key, name)
+                                        })
+                                    {
                                         nodeui.set_i32_value(&id, index as i32);
                                     }
                                 }

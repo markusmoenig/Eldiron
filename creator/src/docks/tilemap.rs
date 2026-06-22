@@ -449,6 +449,7 @@ impl Dock for TilemapDock {
                                             scale: tile_for_runtime.scale,
                                             alias: tile_for_runtime.name.clone(),
                                             procedural: Default::default(),
+                                            material: Default::default(),
                                             particle_emitter: None,
                                             light_emitter: None,
                                         };
@@ -658,6 +659,7 @@ impl TilemapDock {
             scale: rgba_tile.scale,
             alias: rgba_tile.name.clone(),
             procedural: Default::default(),
+            material: Default::default(),
             particle_emitter: None,
             light_emitter: None,
         });

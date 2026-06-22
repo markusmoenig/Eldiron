@@ -131,7 +131,7 @@ The output node holds graph-level settings such as:
 - output group size
 - tile pixel size
 - palette source
-- fallback roughness, metallic, opacity, and emissive values
+- legacy fallback R/M/O/E values for graph material-channel output
 
 It also receives the final graph outputs:
 
@@ -139,9 +139,11 @@ It also receives the final graph outputs:
 - `Height`
 - `Particles`
 - `Light`
-- optional material channels
+- optional legacy material channels
 
 `Height` is especially important because Eldiron uses it to generate procedural normals for node-group tiles.
+
+For normal authoring, use high-level material presets and finishes on tiles, palette entries, or geometry objects. Raw graph material channels are an advanced/legacy path and are not the standard material workflow.
 
 For FX graphs:
 

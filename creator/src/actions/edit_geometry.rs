@@ -1,6 +1,12 @@
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
+const MATERIAL_PRESET_VALUES: [&str; 11] = [
+    "default", "stone", "wood", "metal", "glass", "water", "mirror", "emissive", "dirt", "fabric",
+    "plastic",
+];
+const MATERIAL_FINISH_VALUES: [&str; 4] = ["natural", "matte", "polished", "wet"];
+
 pub struct EditGeometry {
     id: TheId,
     nodeui: TheNodeUI,
@@ -13,6 +19,38 @@ struct GeometryBounds {
 }
 
 impl EditGeometry {
+    fn material_preset_labels() -> Vec<String> {
+        vec![
+            fl!("material_preset_default"),
+            fl!("material_preset_stone"),
+            fl!("material_preset_wood"),
+            fl!("material_preset_metal"),
+            fl!("material_preset_glass"),
+            fl!("material_preset_water"),
+            fl!("material_preset_mirror"),
+            fl!("material_preset_emissive"),
+            fl!("material_preset_dirt"),
+            fl!("material_preset_fabric"),
+            fl!("material_preset_plastic"),
+        ]
+    }
+
+    fn material_finish_labels() -> Vec<String> {
+        vec![
+            fl!("material_finish_natural"),
+            fl!("material_finish_matte"),
+            fl!("material_finish_polished"),
+            fl!("material_finish_wet"),
+        ]
+    }
+
+    fn material_index(values: &[&str], value: &str, fallback: usize) -> i32 {
+        values
+            .iter()
+            .position(|candidate| candidate.eq_ignore_ascii_case(value.trim()))
+            .unwrap_or(fallback) as i32
+    }
+
     fn bounds(vertices: &[Vec3<f32>]) -> Option<GeometryBounds> {
         let mut min = Vec3::broadcast(f32::INFINITY);
         let mut max = Vec3::broadcast(f32::NEG_INFINITY);
@@ -102,6 +140,23 @@ impl Action for EditGeometry {
             "Solid".into(),
             "Include this geometry object in mesh collision.".into(),
             true,
+        ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
+
+        nodeui.add_item(TheNodeUIItem::OpenTree("material".into()));
+        nodeui.add_item(TheNodeUIItem::Selector(
+            "materialPreset".into(),
+            fl!("material_preset"),
+            fl!("status_material_preset"),
+            Self::material_preset_labels(),
+            0,
+        ));
+        nodeui.add_item(TheNodeUIItem::Selector(
+            "materialFinish".into(),
+            fl!("material_finish"),
+            fl!("status_material_finish"),
+            Self::material_finish_labels(),
+            0,
         ));
         nodeui.add_item(TheNodeUIItem::CloseTree);
 
@@ -201,6 +256,23 @@ impl Action for EditGeometry {
             "hide_iso",
             object.properties.get_bool_default("hide_iso", false),
         );
+        let material_preset = object
+            .properties
+            .get_str_default("material_preset", "default".to_string());
+        let mut material_finish = object
+            .properties
+            .get_str_default("material_finish", "natural".to_string());
+        if material_preset == "default" {
+            material_finish = "natural".to_string();
+        }
+        self.nodeui.set_i32_value(
+            "materialPreset",
+            Self::material_index(&MATERIAL_PRESET_VALUES, &material_preset, 0),
+        );
+        self.nodeui.set_i32_value(
+            "materialFinish",
+            Self::material_index(&MATERIAL_FINISH_VALUES, &material_finish, 0),
+        );
         self.nodeui.set_bool_value("visible", object.visible);
         self.nodeui.set_bool_value("solid", object.solid);
         self.nodeui.set_f32_value("x", bounds.center.x);
@@ -275,9 +347,38 @@ impl Action for EditGeometry {
             .nodeui
             .get_bool_value("hide_iso")
             .unwrap_or_else(|| object.properties.get_bool_default("hide_iso", false));
+        let material_preset_index = self
+            .nodeui
+            .get_i32_value("materialPreset")
+            .unwrap_or(0)
+            .max(0) as usize;
+        let material_finish_index = self
+            .nodeui
+            .get_i32_value("materialFinish")
+            .unwrap_or(0)
+            .max(0) as usize;
+        let material_preset = MATERIAL_PRESET_VALUES
+            .get(material_preset_index)
+            .copied()
+            .unwrap_or("default")
+            .to_string();
+        let mut material_finish = MATERIAL_FINISH_VALUES
+            .get(material_finish_index)
+            .copied()
+            .unwrap_or("natural")
+            .to_string();
+        if material_preset == "default" {
+            material_finish = "natural".to_string();
+        }
         let existing_item = object.properties.get_str_default("item", "".into());
         let existing_area = object.properties.get_bool_default("area", true);
         let existing_hide_iso = object.properties.get_bool_default("hide_iso", false);
+        let existing_material_preset = object
+            .properties
+            .get_str_default("material_preset", "default".to_string());
+        let existing_material_finish = object
+            .properties
+            .get_str_default("material_finish", "natural".to_string());
 
         if (to.center - from.center).magnitude_squared() <= 0.000001
             && (to.size - from.size).magnitude_squared() <= 0.000001
@@ -288,6 +389,8 @@ impl Action for EditGeometry {
             && item == existing_item
             && area == existing_area
             && hide_iso == existing_hide_iso
+            && material_preset == existing_material_preset
+            && material_finish == existing_material_finish
         {
             return None;
         }
@@ -308,6 +411,21 @@ impl Action for EditGeometry {
         }
         object.properties.set("area", Value::Bool(area));
         object.properties.set("hide_iso", Value::Bool(hide_iso));
+        if material_preset == "default" {
+            object.properties.remove("material_preset");
+            object.properties.remove("material_finish");
+        } else {
+            object
+                .properties
+                .set("material_preset", Value::Str(material_preset));
+            if material_finish == "natural" {
+                object.properties.remove("material_finish");
+            } else {
+                object
+                    .properties
+                    .set("material_finish", Value::Str(material_finish));
+            }
+        }
         Self::refit_vertices(&mut object.vertices, from, to);
 
         map.update_surfaces();
@@ -350,6 +468,9 @@ mod tests {
         assert!(toml.contains("name = \"\""));
         assert!(toml.contains("visible = true"));
         assert!(toml.contains("solid = true"));
+        assert!(toml.contains("[material]\n"));
+        assert!(toml.contains("preset = \"Default\""));
+        assert!(toml.contains("finish = \"Natural\""));
         assert!(toml.contains("[geometry]\n"));
         assert!(toml.contains("x = 0.0"));
         assert!(toml.contains("width = 1.0"));

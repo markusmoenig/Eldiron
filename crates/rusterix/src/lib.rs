@@ -181,7 +181,7 @@ pub use crate::{
         sector::Sector,
         softrig::{Keyform, SoftRig, SoftRigAnimator},
         surface::{BillboardAnimation, LoopOp, ProfileLoop, Surface},
-        tile::{Tile, TileRole},
+        tile::{Tile, TileMaterialMeta, TileRole},
         tilesource::{TileGroup, TileGroupMemberRef, TileSource},
         topology::MapTopology,
         vertex::Vertex,

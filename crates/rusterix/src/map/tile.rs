@@ -110,6 +110,111 @@ impl Default for TileProceduralMeta {
     }
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct TileMaterialMeta {
+    /// High-level material preset used by authoring tools, e.g. "stone" or "wood".
+    #[serde(default = "default_material_preset")]
+    pub preset: String,
+    /// High-level finish modifier, e.g. "matte", "natural", "polished", or "wet".
+    #[serde(default = "default_material_finish")]
+    pub finish: String,
+}
+
+fn default_material_preset() -> String {
+    "default".to_string()
+}
+
+fn default_material_finish() -> String {
+    "natural".to_string()
+}
+
+const PALETTE_TILE_UUID_PREFIX: u128 = 0x50414C455454455F0000000000000000u128;
+const PALETTE_TILE_UUID_MASK: u128 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00u128;
+
+impl TileMaterialMeta {
+    pub fn is_default(&self) -> bool {
+        self.preset.trim().is_empty()
+            || (self.preset.eq_ignore_ascii_case("default")
+                && self.finish.eq_ignore_ascii_case("natural"))
+    }
+
+    pub fn normalized_preset(&self) -> String {
+        let preset = self.preset.trim().to_ascii_lowercase();
+        if preset.is_empty() {
+            "default".to_string()
+        } else {
+            preset
+        }
+    }
+
+    pub fn normalized_finish(&self) -> String {
+        let finish = self.finish.trim().to_ascii_lowercase();
+        if finish.is_empty() {
+            "natural".to_string()
+        } else {
+            finish
+        }
+    }
+
+    pub fn rmoe_values(&self) -> Option<[f32; 4]> {
+        if self.is_default() {
+            return None;
+        }
+
+        let preset = self.normalized_preset();
+        let finish = self.normalized_finish();
+        let (mut roughness, metallic, opacity, emissive): (f32, f32, f32, f32) =
+            match preset.as_str() {
+                "stone" => (0.78, 0.0, 1.0, 0.0),
+                "wood" => (0.62, 0.0, 1.0, 0.0),
+                "metal" => (0.34, 0.9, 1.0, 0.0),
+                "glass" => (0.06, 0.0, 0.35, 0.0),
+                "water" => (0.03, 0.0, 0.55, 0.0),
+                "mirror" => (0.02, 1.0, 1.0, 0.0),
+                "emissive" => (0.45, 0.0, 1.0, 1.0),
+                "dirt" => (0.9, 0.0, 1.0, 0.0),
+                "fabric" => (0.85, 0.0, 1.0, 0.0),
+                "plastic" => (0.45, 0.0, 1.0, 0.0),
+                _ => (0.5, 0.0, 1.0, 0.0),
+            };
+
+        roughness += match finish.as_str() {
+            "matte" => 0.15,
+            "polished" => -0.25,
+            "wet" => -0.35,
+            _ => 0.0,
+        };
+
+        Some([roughness.clamp(0.02, 1.0), metallic, opacity, emissive])
+    }
+
+    pub fn variant_tile_id(base_id: Uuid, preset: &str, finish: &str) -> Uuid {
+        let mut hash = 0xcbf29ce484222325u64;
+        for byte in base_id
+            .as_bytes()
+            .iter()
+            .copied()
+            .chain(preset.trim().to_ascii_lowercase().bytes())
+            .chain([0])
+            .chain(finish.trim().to_ascii_lowercase().bytes())
+        {
+            hash ^= byte as u64;
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+
+        Uuid::from_u128(0x4D41544C5F5641520000000000000000u128 | hash as u128)
+    }
+}
+
+impl Default for TileMaterialMeta {
+    fn default() -> Self {
+        Self {
+            preset: default_material_preset(),
+            finish: default_material_finish(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
 pub struct Tile {
     pub id: Uuid,
@@ -128,6 +233,9 @@ pub struct Tile {
     /// Optional procedural generation hints used by region generators.
     #[serde(default)]
     pub procedural: TileProceduralMeta,
+    /// Optional high-level material metadata used to derive render material values.
+    #[serde(default, skip_serializing_if = "TileMaterialMeta::is_default")]
+    pub material: TileMaterialMeta,
     /// Optional particle emitter definition derived from a tilegraph output.
     #[serde(default)]
     pub particle_emitter: Option<ParticleEmitter>,
@@ -137,6 +245,10 @@ pub struct Tile {
 }
 
 impl Tile {
+    fn is_synthetic_palette_tile_id(id: Uuid) -> bool {
+        id.as_u128() & PALETTE_TILE_UUID_MASK == PALETTE_TILE_UUID_PREFIX
+    }
+
     /// Create a tile from a single texture.
     pub fn from_texture(texture: Texture) -> Self {
         Self {
@@ -148,6 +260,7 @@ impl Tile {
             scale: 1.0,
             alias: String::new(),
             procedural: TileProceduralMeta::default(),
+            material: TileMaterialMeta::default(),
             particle_emitter: None,
             light_emitter: None,
         }
@@ -163,6 +276,7 @@ impl Tile {
             scale: 1.0,
             alias: String::new(),
             procedural: TileProceduralMeta::default(),
+            material: TileMaterialMeta::default(),
             particle_emitter: None,
             light_emitter: None,
             ..Default::default()
@@ -201,10 +315,32 @@ impl Tile {
 
     /// Converts the frames to an array of material buffers
     pub fn to_material_array(&self) -> Vec<Vec<u8>> {
+        if let Some([roughness, metallic, opacity, emissive]) = self.material.rmoe_values() {
+            return self
+                .textures
+                .iter()
+                .map(|texture| {
+                    let mut texture = texture.clone();
+                    if texture.data_ext.is_none() {
+                        texture.generate_normals(true);
+                    }
+                    texture.set_materials_all(roughness, metallic, opacity, emissive);
+                    texture.data_ext.unwrap_or_default()
+                })
+                .collect();
+        }
+
+        let preserve_runtime_materials = Self::is_synthetic_palette_tile_id(self.id);
         let mut b = vec![];
-        for t in &self.textures {
-            if let Some(mat) = &t.data_ext {
-                b.push(mat.to_vec());
+        for texture in &self.textures {
+            if texture.data_ext.is_some() {
+                let mut texture = texture.clone();
+                if !preserve_runtime_materials {
+                    texture.set_materials_all(0.5, 0.0, 1.0, 0.0);
+                }
+                if let Some(mat) = texture.data_ext {
+                    b.push(mat);
+                }
             }
         }
         b
@@ -232,6 +368,7 @@ impl Tile {
             scale: self.scale,
             alias: self.alias.clone(),
             procedural: self.procedural.clone(),
+            material: self.material.clone(),
             particle_emitter: self.particle_emitter.clone(),
             light_emitter: self.light_emitter.clone(),
         }
@@ -276,4 +413,73 @@ impl Tile {
 
 const fn default_proc_weight() -> u32 {
     1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn material_meta_overrides_material_frames() {
+        let mut tile = Tile::from_texture(Texture::from_color([120, 120, 120, 255]));
+        tile.material = TileMaterialMeta {
+            preset: "metal".to_string(),
+            finish: "polished".to_string(),
+        };
+
+        let frames = tile.to_material_array();
+        assert_eq!(frames.len(), 1);
+
+        let mut material_texture = Texture::from_color([0, 0, 0, 255]);
+        material_texture.data_ext = Some(frames[0].clone());
+        let (roughness, metallic, opacity, emissive) = material_texture.get_materials(0, 0);
+
+        assert!(roughness <= 0.15);
+        assert!(metallic >= 0.85);
+        assert_eq!(opacity, 1.0);
+        assert_eq!(emissive, 0.0);
+    }
+
+    #[test]
+    fn default_material_meta_resets_legacy_material_pixels() {
+        let mut texture = Texture::from_color([120, 120, 120, 255]);
+        texture.set_materials_all(0.0, 1.0, 0.2, 1.0);
+        texture.set_normal(0, 0, 0.25, -0.5);
+        let tile = Tile::from_texture(texture);
+
+        let frames = tile.to_material_array();
+        assert_eq!(frames.len(), 1);
+
+        let mut material_texture = Texture::from_color([0, 0, 0, 255]);
+        material_texture.data_ext = Some(frames[0].clone());
+        let (roughness, metallic, opacity, emissive) = material_texture.get_materials(0, 0);
+        let (normal_x, normal_y) = material_texture.get_normal(0, 0);
+
+        assert_eq!(roughness, 0.53333336);
+        assert_eq!(metallic, 0.0);
+        assert_eq!(opacity, 1.0);
+        assert_eq!(emissive, 0.0);
+        assert!((normal_x - 0.25).abs() < 0.01);
+        assert!((normal_y + 0.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn synthetic_palette_tiles_preserve_runtime_material_pixels() {
+        let mut texture = Texture::from_color([120, 120, 120, 255]);
+        texture.set_materials_all(0.02, 1.0, 1.0, 0.0);
+        let mut tile = Tile::from_texture(texture);
+        tile.id = Uuid::from_u128(PALETTE_TILE_UUID_PREFIX | 7);
+
+        let frames = tile.to_material_array();
+        assert_eq!(frames.len(), 1);
+
+        let mut material_texture = Texture::from_color([0, 0, 0, 255]);
+        material_texture.data_ext = Some(frames[0].clone());
+        let (roughness, metallic, opacity, emissive) = material_texture.get_materials(0, 0);
+
+        assert!(roughness <= 0.1);
+        assert_eq!(metallic, 1.0);
+        assert_eq!(opacity, 1.0);
+        assert_eq!(emissive, 0.0);
+    }
 }

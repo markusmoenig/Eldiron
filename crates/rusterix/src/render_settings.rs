@@ -397,7 +397,10 @@ impl Default for RenderSettings {
             backend_2d: RendererBackend::Raster,
             backend_3d: RendererBackend::Raster,
             quality: RenderQualityPreset::Custom,
-            post: PostStackSettings::default(),
+            post: PostStackSettings {
+                enabled: true,
+                effects: Vec::new(),
+            },
             sky_color: [0.529, 0.808, 0.922], // #87CEEB
             background_color_2d: [0.0, 0.0, 0.0, 1.0],
             visibility_range_2d: 0.0,
@@ -407,7 +410,7 @@ impl Default for RenderSettings {
             sun_direction: [-0.5, -1.0, -0.3],
             sun_enabled: true,
             ambient_color: [0.8, 0.8, 0.8],
-            ambient_strength: 0.3,
+            ambient_strength: 0.24,
             fog_color: [0.502, 0.502, 0.502], // #808080
             fog_density: 0.0,
             ao_samples: 8.0,
@@ -422,8 +425,8 @@ impl Default for RenderSettings {
             firstp_blur_near: 3.0,
             firstp_blur_far: 8.0,
             raster_shadow_enabled: true,
-            raster_shadow_strength: 0.8,
-            raster_shadow_resolution: 1024.0,
+            raster_shadow_strength: 0.9,
+            raster_shadow_resolution: 2048.0,
             raster_shadow_bias: 0.0015,
             fade_mode: FadeMode::OrderedDither,
             lighting_model: LightingModel::CookTorrance,
@@ -435,14 +438,14 @@ impl Default for RenderSettings {
             avatar_shading_enabled: true,
             avatar_skin_shading_enabled: false,
             post_enabled: true,
-            post_tone_mapper: PostToneMapper::Reinhard,
-            post_exposure: 1.0,
+            post_tone_mapper: PostToneMapper::Aces,
+            post_exposure: 0.92,
             post_gamma: 2.2,
-            post_saturation: 1.0,
-            post_luminance: 1.0,
-            post_grit: 0.0,
+            post_saturation: 1.08,
+            post_luminance: 0.98,
+            post_grit: 0.015,
             post_posterize: 0.0,
-            post_palette_bias: 0.0,
+            post_palette_bias: 0.04,
             post_shadow_lift: 0.0,
             post_edge_soften: 0.0,
             frame_time_ms: 1000.0 / 30.0,
@@ -697,6 +700,15 @@ impl RenderSettings {
                 self.max_shadow_distance = 0.0;
                 self.reflection_samples = 0.0;
                 self.max_sky_distance = 15.0;
+                self.msaa_samples = 1;
+                self.raster_shadow_resolution = 512.0;
+                self.raster_shadow_strength = 0.75;
+                self.post_tone_mapper = PostToneMapper::Reinhard;
+                self.post_exposure = 0.95;
+                self.post_saturation = 1.0;
+                self.post_luminance = 1.0;
+                self.post_grit = 0.0;
+                self.post_palette_bias = 0.0;
             }
             RenderQualityPreset::Medium => {
                 self.ao_samples = 2.0;
@@ -704,6 +716,15 @@ impl RenderSettings {
                 self.max_shadow_distance = 5.0;
                 self.reflection_samples = 0.0;
                 self.max_sky_distance = 30.0;
+                self.msaa_samples = 2;
+                self.raster_shadow_resolution = 1024.0;
+                self.raster_shadow_strength = 0.82;
+                self.post_tone_mapper = PostToneMapper::Reinhard;
+                self.post_exposure = 0.95;
+                self.post_saturation = 1.04;
+                self.post_luminance = 0.99;
+                self.post_grit = 0.0;
+                self.post_palette_bias = 0.02;
             }
             RenderQualityPreset::High => {
                 self.ao_samples = 4.0;
@@ -711,6 +732,15 @@ impl RenderSettings {
                 self.max_shadow_distance = 10.0;
                 self.reflection_samples = 1.0;
                 self.max_sky_distance = 50.0;
+                self.msaa_samples = 4;
+                self.raster_shadow_resolution = 2048.0;
+                self.raster_shadow_strength = 0.9;
+                self.post_tone_mapper = PostToneMapper::Aces;
+                self.post_exposure = 0.92;
+                self.post_saturation = 1.08;
+                self.post_luminance = 0.98;
+                self.post_grit = 0.015;
+                self.post_palette_bias = 0.04;
             }
             RenderQualityPreset::Ultra => {
                 self.ao_samples = 8.0;
@@ -718,6 +748,15 @@ impl RenderSettings {
                 self.max_shadow_distance = 15.0;
                 self.reflection_samples = 2.0;
                 self.max_sky_distance = 75.0;
+                self.msaa_samples = 4;
+                self.raster_shadow_resolution = 4096.0;
+                self.raster_shadow_strength = 0.94;
+                self.post_tone_mapper = PostToneMapper::Aces;
+                self.post_exposure = 0.9;
+                self.post_saturation = 1.1;
+                self.post_luminance = 0.98;
+                self.post_grit = 0.02;
+                self.post_palette_bias = 0.05;
             }
             RenderQualityPreset::Custom => {}
         }

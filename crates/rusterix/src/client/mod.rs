@@ -2221,47 +2221,6 @@ impl Client {
             |layer| layer >= 0,
         );
 
-        // Draw the messages on top
-        for widget in &mut self.messages_widgets {
-            let hide = self.widgets_to_hide.iter().any(|pattern| {
-                if pattern.ends_with('*') {
-                    let prefix = &pattern[..pattern.len() - 1];
-                    widget.name.starts_with(prefix)
-                } else {
-                    widget.name == *pattern
-                }
-            });
-
-            if !hide {
-                let map = widget.update_draw(
-                    &mut self.target,
-                    assets,
-                    map,
-                    &self.server_time,
-                    messages.clone(),
-                    choices.clone(),
-                );
-                if map.is_some() {
-                    self.choice_map = map;
-                } else if !widget.has_active_choices() {
-                    self.choice_map = None;
-                }
-                self.target
-                    .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
-            } else {
-                let map = widget.process_messages(
-                    assets,
-                    map,
-                    &self.server_time,
-                    messages.clone(),
-                    choices.clone(),
-                );
-                if map.is_some() {
-                    self.choice_map = map;
-                }
-            }
-        }
-
         // Draw the text widgets on top
         for widget in self.text_widgets.values_mut() {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
@@ -2334,6 +2293,48 @@ impl Client {
                 screen_widget.build(&foreground_screen, assets);
                 screen_widget.draw_transparent(&foreground_screen, &self.server_time, assets);
                 self.target.blend_into(0, 0, &screen_widget.buffer);
+            }
+        }
+
+        // Draw messages after the screen foreground so message widgets can be
+        // placed as semi-transparent overlays inside the game widget.
+        for widget in &mut self.messages_widgets {
+            let hide = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    widget.name.starts_with(prefix)
+                } else {
+                    widget.name == *pattern
+                }
+            });
+
+            if !hide {
+                let map = widget.update_draw(
+                    &mut self.target,
+                    assets,
+                    map,
+                    &self.server_time,
+                    messages.clone(),
+                    choices.clone(),
+                );
+                if map.is_some() {
+                    self.choice_map = map;
+                } else if !widget.has_active_choices() {
+                    self.choice_map = None;
+                }
+                self.target
+                    .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
+            } else {
+                let map = widget.process_messages(
+                    assets,
+                    map,
+                    &self.server_time,
+                    messages.clone(),
+                    choices.clone(),
+                );
+                if map.is_some() {
+                    self.choice_map = map;
+                }
             }
         }
 
@@ -2802,46 +2803,6 @@ impl Client {
             |layer| layer >= 0,
         );
 
-        for widget in &mut self.messages_widgets {
-            let hide = self.widgets_to_hide.iter().any(|pattern| {
-                if pattern.ends_with('*') {
-                    let prefix = &pattern[..pattern.len() - 1];
-                    widget.name.starts_with(prefix)
-                } else {
-                    widget.name == *pattern
-                }
-            });
-
-            if !hide {
-                let map = widget.update_draw(
-                    &mut self.overlay,
-                    assets,
-                    map,
-                    &self.server_time,
-                    messages.clone(),
-                    choices.clone(),
-                );
-                if map.is_some() {
-                    self.choice_map = map;
-                } else if !widget.has_active_choices() {
-                    self.choice_map = None;
-                }
-                self.overlay
-                    .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
-            } else {
-                let map = widget.process_messages(
-                    assets,
-                    map,
-                    &self.server_time,
-                    messages.clone(),
-                    choices.clone(),
-                );
-                if map.is_some() {
-                    self.choice_map = map;
-                }
-            }
-        }
-
         for widget in self.text_widgets.values_mut() {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
@@ -2912,6 +2873,47 @@ impl Client {
                 screen_widget.build(&foreground_screen, assets);
                 screen_widget.draw_transparent(&foreground_screen, &self.server_time, assets);
                 self.overlay.blend_into(0, 0, &screen_widget.buffer);
+            }
+        }
+
+        // Draw messages after the screen foreground in the direct SceneVM path too.
+        for widget in &mut self.messages_widgets {
+            let hide = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    widget.name.starts_with(prefix)
+                } else {
+                    widget.name == *pattern
+                }
+            });
+
+            if !hide {
+                let map = widget.update_draw(
+                    &mut self.overlay,
+                    assets,
+                    map,
+                    &self.server_time,
+                    messages.clone(),
+                    choices.clone(),
+                );
+                if map.is_some() {
+                    self.choice_map = map;
+                } else if !widget.has_active_choices() {
+                    self.choice_map = None;
+                }
+                self.overlay
+                    .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
+            } else {
+                let map = widget.process_messages(
+                    assets,
+                    map,
+                    &self.server_time,
+                    messages.clone(),
+                    choices.clone(),
+                );
+                if map.is_some() {
+                    self.choice_map = map;
+                }
             }
         }
 

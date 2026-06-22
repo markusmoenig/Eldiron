@@ -813,6 +813,22 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
 }
 
 pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &ServerContext) {
+    let (tile_list, tile_indices) = {
+        let mut rusterix = RUSTERIX.write().unwrap();
+        rusterix.set_tiles_for_maps(
+            project.tiles.clone(),
+            true,
+            project.regions.iter().map(|region| &region.map),
+        );
+        (
+            rusterix.assets.tile_list.clone(),
+            rusterix.assets.tile_indices.clone(),
+        )
+    };
+    SCENEMANAGER
+        .write()
+        .unwrap()
+        .set_tile_list(tile_list, tile_indices);
     scenemanager_render_map(project, server_ctx);
     RUSTERIX.write().unwrap().set_dirty();
 }

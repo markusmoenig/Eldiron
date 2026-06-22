@@ -1,8 +1,10 @@
-use crate::{Value, prelude::*};
+use crate::{TileMaterialMeta, Value, prelude::*};
 use indexmap::IndexMap;
 use std::path::Path;
 use theframework::prelude::*;
 use toml::*;
+
+const DEFAULT_GEOMETRY_TILE_ID: &str = "27826750-a9e7-4346-994b-fb318b238452";
 
 #[derive(Clone)]
 pub struct Assets {
@@ -206,6 +208,123 @@ impl Assets {
         }
     }
 
+    pub fn object_material_meta(properties: &ValueContainer) -> Option<TileMaterialMeta> {
+        let preset = properties
+            .get_str_default("material_preset", "default".to_string())
+            .trim()
+            .to_ascii_lowercase();
+        if preset.is_empty() || preset == "default" {
+            return None;
+        }
+
+        let finish = properties
+            .get_str_default("material_finish", "natural".to_string())
+            .trim()
+            .to_ascii_lowercase();
+        Some(TileMaterialMeta {
+            preset,
+            finish: if finish.is_empty() {
+                "natural".to_string()
+            } else {
+                finish
+            },
+        })
+    }
+
+    pub fn material_variant_tile_id(base_id: Uuid, material: &TileMaterialMeta) -> Option<Uuid> {
+        if material.is_default() {
+            return None;
+        }
+
+        Some(TileMaterialMeta::variant_tile_id(
+            base_id,
+            &material.normalized_preset(),
+            &material.normalized_finish(),
+        ))
+    }
+
+    pub fn materialized_tile_id(
+        &self,
+        source: Option<&PixelSource>,
+        material: Option<&TileMaterialMeta>,
+    ) -> Uuid {
+        let base_id = source
+            .and_then(|source| source.render_tile_id(self))
+            .unwrap_or_else(Self::default_geometry_tile_id);
+
+        material
+            .and_then(|material| Self::material_variant_tile_id(base_id, material))
+            .filter(|variant_id| self.tile_index(variant_id).is_some())
+            .unwrap_or(base_id)
+    }
+
+    pub fn materialize_geometry_material_tiles(&self, tiles: &mut IndexMap<Uuid, Tile>) {
+        self.materialize_geometry_material_tiles_for_maps(tiles, self.maps.values());
+    }
+
+    pub fn materialize_geometry_material_tiles_for_maps<'a, I>(
+        &self,
+        tiles: &mut IndexMap<Uuid, Tile>,
+        maps: I,
+    ) where
+        I: IntoIterator<Item = &'a Map>,
+    {
+        let mut required = Vec::new();
+
+        for map in maps {
+            for object in &map.geometry_objects {
+                let Some(material) = Self::object_material_meta(&object.properties) else {
+                    continue;
+                };
+
+                for face in &object.faces {
+                    required.push((
+                        self.source_material_base_tile_id(face.tile.as_ref()),
+                        material.clone(),
+                    ));
+                    for source in face.tiles.values() {
+                        required.push((
+                            self.source_material_base_tile_id(Some(source)),
+                            material.clone(),
+                        ));
+                    }
+                }
+            }
+        }
+
+        for (base_id, material) in required {
+            let Some(variant_id) = Self::material_variant_tile_id(base_id, &material) else {
+                continue;
+            };
+            if tiles.contains_key(&variant_id) {
+                continue;
+            }
+
+            let Some(mut tile) = tiles
+                .get(&base_id)
+                .cloned()
+                .or_else(|| self.tiles.get(&base_id).cloned())
+                .or_else(|| self.materials.get(&base_id).cloned())
+            else {
+                continue;
+            };
+
+            tile.id = variant_id;
+            tile.material = material;
+            tiles.insert(variant_id, tile);
+        }
+    }
+
+    fn default_geometry_tile_id() -> Uuid {
+        Uuid::parse_str(DEFAULT_GEOMETRY_TILE_ID).unwrap_or_else(|_| Uuid::nil())
+    }
+
+    fn source_material_base_tile_id(&self, source: Option<&PixelSource>) -> Uuid {
+        source
+            .and_then(|source| source.render_tile_id(self))
+            .unwrap_or_else(Self::default_geometry_tile_id)
+    }
+
     pub fn set_tile_groups(&mut self, tile_groups: IndexMap<Uuid, TileGroup>) {
         self.tile_groups = tile_groups;
     }
@@ -357,5 +476,48 @@ impl Assets {
     pub fn textures(mut self, textures: Vec<Tile>) -> Self {
         self.tile_list = textures;
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{GeometryObject, PixelSource, Value};
+    use vek::Vec3;
+
+    #[test]
+    fn materialize_geometry_material_tiles_adds_object_variant() {
+        let base_id = Uuid::new_v4();
+        let mut base_tile = Tile::from_texture(Texture::from_color([100, 100, 100, 255]));
+        base_tile.id = base_id;
+
+        let mut tiles = IndexMap::new();
+        tiles.insert(base_id, base_tile);
+
+        let mut object = GeometryObject::box_("test", Vec3::zero(), Vec3::broadcast(1.0));
+        object
+            .properties
+            .set("material_preset", Value::Str("stone".to_string()));
+        object
+            .properties
+            .set("material_finish", Value::Str("wet".to_string()));
+        object.faces[0].tile = Some(PixelSource::TileId(base_id));
+
+        let mut map = Map::default();
+        map.geometry_objects.push(object);
+
+        let assets = Assets::new();
+        assets.materialize_geometry_material_tiles_for_maps(&mut tiles, [&map]);
+
+        let material = TileMaterialMeta {
+            preset: "stone".to_string(),
+            finish: "wet".to_string(),
+        };
+        let variant_id = Assets::material_variant_tile_id(base_id, &material).unwrap();
+        let variant = tiles.get(&variant_id).expect("material variant tile");
+
+        assert_eq!(variant.id, variant_id);
+        assert_eq!(variant.material.normalized_preset(), "stone");
+        assert_eq!(variant.material.normalized_finish(), "wet");
     }
 }

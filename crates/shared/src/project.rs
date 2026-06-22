@@ -178,14 +178,40 @@ pub fn merge_config_toml(project_config: &str, region_config: &str) -> String {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct PaletteMaterial {
-    #[serde(default = "default_palette_roughness")]
+    #[serde(
+        default = "default_palette_material_preset",
+        skip_serializing_if = "is_default_palette_material_preset"
+    )]
+    pub preset: String,
+    #[serde(
+        default = "default_palette_material_finish",
+        skip_serializing_if = "is_default_palette_material_finish"
+    )]
+    pub finish: String,
+    #[serde(default = "default_palette_roughness", skip_serializing)]
     pub roughness: f32,
-    #[serde(default = "default_palette_metallic")]
+    #[serde(default = "default_palette_metallic", skip_serializing)]
     pub metallic: f32,
-    #[serde(default = "default_palette_opacity")]
+    #[serde(default = "default_palette_opacity", skip_serializing)]
     pub opacity: f32,
-    #[serde(default = "default_palette_emissive")]
+    #[serde(default = "default_palette_emissive", skip_serializing)]
     pub emissive: f32,
+}
+
+fn default_palette_material_preset() -> String {
+    "default".to_string()
+}
+
+fn default_palette_material_finish() -> String {
+    "natural".to_string()
+}
+
+fn is_default_palette_material_preset(value: &String) -> bool {
+    value.trim().is_empty() || value.eq_ignore_ascii_case("default")
+}
+
+fn is_default_palette_material_finish(value: &String) -> bool {
+    value.trim().is_empty() || value.eq_ignore_ascii_case("natural")
 }
 
 fn default_palette_roughness() -> f32 {
@@ -207,11 +233,67 @@ fn default_palette_emissive() -> f32 {
 impl Default for PaletteMaterial {
     fn default() -> Self {
         Self {
+            preset: default_palette_material_preset(),
+            finish: default_palette_material_finish(),
             roughness: default_palette_roughness(),
             metallic: default_palette_metallic(),
             opacity: default_palette_opacity(),
             emissive: default_palette_emissive(),
         }
+    }
+}
+
+impl PaletteMaterial {
+    pub fn rmoe_values(&self) -> [f32; 4] {
+        let mut material = self.clone();
+        if !is_default_palette_material_preset(&material.preset)
+            || !is_default_palette_material_finish(&material.finish)
+        {
+            material.apply_preset_finish();
+        } else {
+            material.roughness = default_palette_roughness();
+            material.metallic = default_palette_metallic();
+            material.opacity = default_palette_opacity();
+            material.emissive = default_palette_emissive();
+        }
+        [
+            material.roughness,
+            material.metallic,
+            material.opacity,
+            material.emissive,
+        ]
+    }
+
+    pub fn apply_preset_finish(&mut self) {
+        let preset = self.preset.trim().to_ascii_lowercase();
+        let finish = self.finish.trim().to_ascii_lowercase();
+
+        let (mut roughness, metallic, opacity, emissive): (f32, f32, f32, f32) =
+            match preset.as_str() {
+                "stone" => (0.78, 0.0, 1.0, 0.0),
+                "wood" => (0.62, 0.0, 1.0, 0.0),
+                "metal" => (0.34, 0.9, 1.0, 0.0),
+                "glass" => (0.06, 0.0, 0.35, 0.0),
+                "water" => (0.03, 0.0, 0.55, 0.0),
+                "mirror" => (0.02, 1.0, 1.0, 0.0),
+                "emissive" => (0.45, 0.0, 1.0, 1.0),
+                "dirt" => (0.9, 0.0, 1.0, 0.0),
+                "fabric" => (0.85, 0.0, 1.0, 0.0),
+                "plastic" => (0.45, 0.0, 1.0, 0.0),
+                _ => (0.5, 0.0, 1.0, 0.0),
+            };
+
+        roughness += match finish.as_str() {
+            "matte" => 0.15,
+            "polished" => -0.25,
+            "wet" => -0.35,
+            _ => 0.0,
+        };
+
+        self.roughness = roughness.clamp(0.02, 1.0);
+        self.metallic = metallic;
+        self.opacity = opacity;
+        self.emissive = emissive;
     }
 }
 
@@ -1375,6 +1457,31 @@ mod tests {
         crate::rulesets::bundled_tiles_for_project(crate::rulesets::DEFAULT_RULESET_CONFIG)
             .unwrap()
             .len()
+    }
+
+    #[test]
+    fn palette_material_serializes_presets_not_raw_rmoe() {
+        let mut material = PaletteMaterial {
+            preset: "default".to_string(),
+            finish: "natural".to_string(),
+            roughness: 0.0,
+            metallic: 1.0,
+            opacity: 0.2,
+            emissive: 1.0,
+        };
+
+        assert_eq!(material.rmoe_values(), [0.5, 0.0, 1.0, 0.0]);
+
+        material.preset = "metal".to_string();
+        material.finish = "polished".to_string();
+        let serialized = toml::to_string(&material).unwrap();
+
+        assert!(serialized.contains("preset = \"metal\""));
+        assert!(serialized.contains("finish = \"polished\""));
+        assert!(!serialized.contains("roughness"));
+        assert!(!serialized.contains("metallic"));
+        assert!(!serialized.contains("opacity"));
+        assert!(!serialized.contains("emissive"));
     }
 
     #[test]

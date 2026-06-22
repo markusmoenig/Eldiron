@@ -98,6 +98,7 @@ fn play_project(project_dir: &Path) -> Result<(), String> {
     let client_mode = source_client_mode(project_dir)?;
     let output = eldiron_source::build_project(project_dir)?;
     println!("Wrote {}", output.display());
+    let output = output.canonicalize().unwrap_or(output);
     if client_mode_is_graphical(&client_mode) {
         run_graphical_client(&output)
     } else {
@@ -133,6 +134,7 @@ fn scaffold_project(project_dir: &Path, name: Option<String>, force: bool) -> Re
         "characters",
         "items",
         "regions",
+        "screens",
         "scripts",
         "tiles",
         "build",
@@ -152,6 +154,8 @@ fn scaffold_project(project_dir: &Path, name: Option<String>, force: bool) -> Re
         &project_dir.join("characters/player.els"),
         STARTER_PLAYER_ELS,
     )?;
+    write_new_file(&project_dir.join("regions/cellar.els"), STARTER_REGION_ELS)?;
+    write_new_file(&project_dir.join("screens/play.els"), STARTER_SCREEN_ELS)?;
 
     println!("Created {}", project_dir.display());
     println!("Next: eldiron-source play {}", project_dir.display());
@@ -250,7 +254,16 @@ fn should_rebuild_for_path(project_dir: &Path, path: &Path) -> bool {
         });
     if matches!(
         top_level,
-        Some("assets" | "characters" | "items" | "regions" | "scripts" | "tiles" | "images")
+        Some(
+            "assets"
+                | "characters"
+                | "items"
+                | "regions"
+                | "screens"
+                | "scripts"
+                | "tiles"
+                | "images",
+        )
     ) {
         return true;
     }
@@ -384,9 +397,13 @@ fn client_mode_is_graphical(mode: &str) -> bool {
 }
 
 fn run_terminal_client(game_path: &PathBuf) -> Result<(), String> {
+    if let Some(workspace_root) = workspace_root_for_cargo() {
+        return run_terminal_client_through_cargo_release(game_path, Some(&workspace_root));
+    }
+
     #[cfg(debug_assertions)]
     {
-        return run_terminal_client_through_cargo(game_path);
+        return run_terminal_client_through_cargo_release(game_path, None);
     }
 
     #[cfg(not(debug_assertions))]
@@ -397,8 +414,8 @@ fn run_terminal_client(game_path: &PathBuf) -> Result<(), String> {
         {
             candidates.push(dir.join("eldiron-client-terminal"));
         }
-        candidates.push(PathBuf::from("target/debug/eldiron-client-terminal"));
         candidates.push(PathBuf::from("target/release/eldiron-client-terminal"));
+        candidates.push(PathBuf::from("target/debug/eldiron-client-terminal"));
 
         for candidate in candidates {
             if candidate.exists() {
@@ -416,20 +433,29 @@ fn run_terminal_client(game_path: &PathBuf) -> Result<(), String> {
             }
         }
 
-        run_terminal_client_through_cargo(game_path)
+        run_terminal_client_through_cargo_release(game_path, None)
     }
 }
 
-fn run_terminal_client_through_cargo(game_path: &PathBuf) -> Result<(), String> {
-    let status = Command::new("cargo")
+fn run_terminal_client_through_cargo_release(
+    game_path: &PathBuf,
+    cwd: Option<&Path>,
+) -> Result<(), String> {
+    let mut command = Command::new("cargo");
+    command
         .arg("run")
+        .arg("--release")
         .arg("-p")
         .arg("eldiron-client-terminal")
         .arg("--")
         .arg(game_path)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    if let Some(cwd) = cwd {
+        command.current_dir(cwd);
+    }
+    let status = command
         .status()
         .map_err(|err| format!("Failed to start terminal client through cargo: {}", err))?;
     if status.success() {
@@ -440,9 +466,13 @@ fn run_terminal_client_through_cargo(game_path: &PathBuf) -> Result<(), String> 
 }
 
 fn run_graphical_client(game_path: &PathBuf) -> Result<(), String> {
+    if let Some(workspace_root) = workspace_root_for_cargo() {
+        return run_graphical_client_through_cargo_release(game_path, Some(&workspace_root));
+    }
+
     #[cfg(debug_assertions)]
     {
-        return run_graphical_client_through_cargo(game_path);
+        return run_graphical_client_through_cargo_release(game_path, None);
     }
 
     #[cfg(not(debug_assertions))]
@@ -453,8 +483,8 @@ fn run_graphical_client(game_path: &PathBuf) -> Result<(), String> {
         {
             candidates.push(dir.join("eldiron-client"));
         }
-        candidates.push(PathBuf::from("target/debug/eldiron-client"));
         candidates.push(PathBuf::from("target/release/eldiron-client"));
+        candidates.push(PathBuf::from("target/debug/eldiron-client"));
 
         for candidate in candidates {
             if candidate.exists() {
@@ -472,20 +502,29 @@ fn run_graphical_client(game_path: &PathBuf) -> Result<(), String> {
             }
         }
 
-        run_graphical_client_through_cargo(game_path)
+        run_graphical_client_through_cargo_release(game_path, None)
     }
 }
 
-fn run_graphical_client_through_cargo(game_path: &PathBuf) -> Result<(), String> {
-    let status = Command::new("cargo")
+fn run_graphical_client_through_cargo_release(
+    game_path: &PathBuf,
+    cwd: Option<&Path>,
+) -> Result<(), String> {
+    let mut command = Command::new("cargo");
+    command
         .arg("run")
+        .arg("--release")
         .arg("-p")
         .arg("eldiron-client")
         .arg("--")
         .arg(game_path)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    if let Some(cwd) = cwd {
+        command.current_dir(cwd);
+    }
+    let status = command
         .status()
         .map_err(|err| format!("Failed to start graphical client through cargo: {}", err))?;
     if status.success() {
@@ -495,7 +534,34 @@ fn run_graphical_client_through_cargo(game_path: &PathBuf) -> Result<(), String>
     }
 }
 
-const STARTER_MAIN_ELS: &str = r##"Region "cellar" {
+fn workspace_root_for_cargo() -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd);
+    }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+    {
+        candidates.push(dir.to_path_buf());
+    }
+
+    for candidate in candidates {
+        for dir in candidate.ancestors() {
+            if dir.join("Cargo.toml").exists()
+                && dir.join("crates/source/Cargo.toml").exists()
+                && dir.join("clients/client/Cargo.toml").exists()
+            {
+                return Some(dir.to_path_buf());
+            }
+        }
+    }
+    None
+}
+
+const STARTER_MAIN_ELS: &str = r##"# Project-wide source declarations can live here.
+"##;
+
+const STARTER_REGION_ELS: &str = r##"Region "cellar" {
   name = "Source Cellar"
   default = wall.stone
 
@@ -507,8 +573,9 @@ const STARTER_MAIN_ELS: &str = r##"Region "cellar" {
   #########
   """
 }
+"##;
 
-Screen "play" {
+const STARTER_SCREEN_ELS: &str = r##"Screen "play" {
   name = "Play"
 
   widget "Game" {

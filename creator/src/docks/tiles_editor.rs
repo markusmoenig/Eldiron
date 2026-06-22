@@ -644,7 +644,7 @@ impl Dock for TilesEditorDock {
         preview_mode.add_option("Material".to_string());
         preview_mode.set_selected_index(0);
         preview_mode.set_status_text(
-            "Choose what node previews display: the graph's color output or the packed material channels.",
+            "Choose what node previews display: the graph's color output or legacy material-channel output.",
         );
         toolbar_hlayout.add_widget(Box::new(preview_mode));
 

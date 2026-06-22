@@ -51,12 +51,13 @@ Paste preview and direct drawing are separate modes. While paste preview is acti
 
 ## Materials And Normals
 
-Tiles in Eldiron are used in both 2D and 3D, so the final tile data also carries packed material data and normals.
+Tiles in Eldiron are used in both 2D and 3D. The pixel tile editor edits the visible color frames; it does not paint per-pixel render material values.
 
 For authored pixel tiles:
 
 - editing changes the visible tile texture directly
-- normals are generated from the tile texture/material data path used by Eldiron
+- normals are generated from the tile texture data used by Eldiron
+- render material comes from high-level material metadata, such as tile presets, palette entry presets, or object overrides
 
 Procedural node groups use the node graph editor instead and can generate height-driven normals from graph output.
 

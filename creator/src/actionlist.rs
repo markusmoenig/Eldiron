@@ -58,7 +58,6 @@ impl ActionList {
             Box::new(crate::actions::new_tile::NewTile::new()),
             Box::new(crate::actions::minimize::Minimize::new()),
             Box::new(crate::actions::remap_tile::RemapTile::new()),
-            Box::new(crate::actions::set_tile_material::SetTileMaterial::new()),
             Box::new(crate::actions::split::Split::new()),
             Box::new(crate::actions::toggle_editing_geo::ToggleEditingGeo::new()),
             Box::new(crate::actions::toggle_editor_preview_render::ToggleEditorPreviewPost::new()),

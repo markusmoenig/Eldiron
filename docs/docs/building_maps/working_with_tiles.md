@@ -23,6 +23,8 @@ In the tile picker you can further edit tile sources and assign them to geometry
 
 Single tiles can also have a human-readable alias. Set it with **Edit Tile Meta** and then use that alias anywhere a `tile_id`-style source is accepted in TOML, actions, or `set_tile(...)`.
 
+Single tiles can also have high-level material metadata. Use **Edit Tile Meta** to assign a material preset and finish for tile sources. Palette colors carry their own material preset and finish in the **Palette** dock.
+
 The tile picker can now contain:
 
 - single tiles

@@ -206,7 +206,7 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
     rusterix.assets.palette_materials = project
         .palette_materials
         .iter()
-        .map(|m| [m.roughness, m.metallic, m.opacity, m.emissive])
+        .map(|m| m.rmoe_values())
         .collect();
     rusterix.assets.maps.clear();
     for region in &project.regions {

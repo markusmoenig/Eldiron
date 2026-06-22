@@ -519,6 +519,27 @@ impl Rusterix {
 
     /// Update the tiles
     pub fn set_tiles(&mut self, textures: IndexMap<Uuid, Tile>, editor: bool) {
+        let mut all_tiles = self.tiles_with_palette(textures);
+        self.assets
+            .materialize_geometry_material_tiles(&mut all_tiles);
+        self.apply_tiles(all_tiles, editor);
+    }
+
+    pub fn set_tiles_for_maps<'a, I>(
+        &mut self,
+        textures: IndexMap<Uuid, Tile>,
+        editor: bool,
+        maps: I,
+    ) where
+        I: IntoIterator<Item = &'a Map>,
+    {
+        let mut all_tiles = self.tiles_with_palette(textures);
+        self.assets
+            .materialize_geometry_material_tiles_for_maps(&mut all_tiles, maps);
+        self.apply_tiles(all_tiles, editor);
+    }
+
+    fn tiles_with_palette(&self, textures: IndexMap<Uuid, Tile>) -> IndexMap<Uuid, Tile> {
         let mut all_tiles = textures;
 
         // Register synthetic 1x1 tiles for all palette indices so PaletteIndex sources
@@ -544,6 +565,10 @@ impl Rusterix {
             }
         }
 
+        all_tiles
+    }
+
+    fn apply_tiles(&mut self, all_tiles: IndexMap<Uuid, Tile>, editor: bool) {
         self.scene_handler.build_atlas(&all_tiles, editor);
         self.assets.set_tiles(all_tiles);
         let palette: Vec<vek::Vec4<f32>> = self

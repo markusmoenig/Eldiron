@@ -598,7 +598,7 @@ fn palette_material_values(project: &Project) -> Vec<[f32; 4]> {
     project
         .palette_materials
         .iter()
-        .map(|m| [m.roughness, m.metallic, m.opacity, m.emissive])
+        .map(|m| m.rmoe_values())
         .collect()
 }
 
@@ -607,16 +607,39 @@ pub fn palette_status_text(
     color: Option<&TheColor>,
     material: Option<&shared::project::PaletteMaterial>,
 ) -> String {
+    fn preset_label(value: &str) -> String {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "stone" => fl!("material_preset_stone"),
+            "wood" => fl!("material_preset_wood"),
+            "metal" => fl!("material_preset_metal"),
+            "glass" => fl!("material_preset_glass"),
+            "water" => fl!("material_preset_water"),
+            "mirror" => fl!("material_preset_mirror"),
+            "emissive" => fl!("material_preset_emissive"),
+            "dirt" => fl!("material_preset_dirt"),
+            "fabric" => fl!("material_preset_fabric"),
+            "plastic" => fl!("material_preset_plastic"),
+            _ => fl!("material_preset_default"),
+        }
+    }
+
+    fn finish_label(value: &str) -> String {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "matte" => fl!("material_finish_matte"),
+            "polished" => fl!("material_finish_polished"),
+            "wet" => fl!("material_finish_wet"),
+            _ => fl!("material_finish_natural"),
+        }
+    }
+
     if let Some(color) = color {
         let material = material.cloned().unwrap_or_default();
         format!(
-            "Palette Index {}. Color {}. R: {:.2}, M: {:.2}, O: {:.2}, E: {:.2}",
+            "Palette Index {}. Color {}. Material: {}, Finish: {}.",
             index,
             color.to_hex(),
-            material.roughness,
-            material.metallic,
-            material.opacity,
-            material.emissive
+            preset_label(&material.preset),
+            finish_label(&material.finish)
         )
     } else {
         format!("Palette Index {}. Empty", index)
@@ -625,13 +648,22 @@ pub fn palette_status_text(
 
 pub fn refresh_palette_runtime(project: &Project) {
     *PALETTE.write().unwrap() = project.palette.clone();
-    {
+    let (tile_list, tile_indices) = {
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix.assets.palette = project.palette.clone();
         rusterix.assets.palette_materials = palette_material_values(project);
         rusterix.set_tiles(project.tiles.clone(), true);
         rusterix.set_tile_groups(project.tile_groups.clone());
-    }
+        rusterix.set_dirty();
+        (
+            rusterix.assets.tile_list.clone(),
+            rusterix.assets.tile_indices.clone(),
+        )
+    };
+    SCENEMANAGER
+        .write()
+        .unwrap()
+        .set_tile_list(tile_list, tile_indices);
     SCENEMANAGER
         .write()
         .unwrap()
@@ -759,17 +791,24 @@ pub fn apply_palette(
         .get(index)
         .cloned()
         .unwrap_or_default();
-    if let Some(widget) = ui.get_widget("Palette Dock Roughness") {
-        widget.set_value(TheValue::Float(material.roughness));
+    let preset_values = [
+        "default", "stone", "wood", "metal", "glass", "water", "mirror", "emissive", "dirt",
+        "fabric", "plastic",
+    ];
+    let finish_values = ["natural", "matte", "polished", "wet"];
+    let preset_index = preset_values
+        .iter()
+        .position(|value| value.eq_ignore_ascii_case(material.preset.trim()))
+        .unwrap_or(0) as i32;
+    let finish_index = finish_values
+        .iter()
+        .position(|value| value.eq_ignore_ascii_case(material.finish.trim()))
+        .unwrap_or(0) as i32;
+    if let Some(widget) = ui.get_widget("Palette Dock Material Preset") {
+        widget.set_value(TheValue::Int(preset_index));
     }
-    if let Some(widget) = ui.get_widget("Palette Dock Metallic") {
-        widget.set_value(TheValue::Float(material.metallic));
-    }
-    if let Some(widget) = ui.get_widget("Palette Dock Opacity") {
-        widget.set_value(TheValue::Float(material.opacity));
-    }
-    if let Some(widget) = ui.get_widget("Palette Dock Emissive") {
-        widget.set_value(TheValue::Float(material.emissive));
+    if let Some(widget) = ui.get_widget("Palette Dock Material Finish") {
+        widget.set_value(TheValue::Int(finish_index));
     }
 
     ctx.ui.send(TheEvent::Custom(

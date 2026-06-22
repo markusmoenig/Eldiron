@@ -315,7 +315,7 @@ For ruleset-driven projects:
 
 - palette clear/import actions are disabled
 - palette color picker and hex color edits are disabled
-- palette material attributes remain editable project render metadata
+- palette material preset/finish metadata remains editable project render metadata
 - the palette sidebar shows only the colors present in the active ruleset
 
 Palette changes should be made by overriding `[palette]` in **Game / Rules**.

@@ -17,10 +17,19 @@ impl GeometryObjectBuilder {
         Uuid::parse_str(DEFAULT_GEOMETRY_TILE_ID).unwrap_or_else(|_| Uuid::nil())
     }
 
-    fn face_tile_id(tile: Option<&PixelSource>, assets: &Assets) -> Uuid {
-        tile.and_then(|source| source.tile_from_tile_list(assets))
-            .map(|tile| tile.id)
-            .unwrap_or_else(Self::default_tile_id)
+    fn face_tile_id(
+        tile: Option<&PixelSource>,
+        material: Option<&crate::TileMaterialMeta>,
+        assets: &Assets,
+    ) -> Uuid {
+        let base_id = tile
+            .and_then(|source| source.render_tile_id(assets))
+            .unwrap_or_else(Self::default_tile_id);
+
+        material
+            .and_then(|material| Assets::material_variant_tile_id(base_id, material))
+            .filter(|variant_id| assets.tile_index(variant_id).is_some())
+            .unwrap_or(base_id)
     }
 
     fn auto_face_uvs(points: &[Vec3<f32>]) -> Vec<[f32; 2]> {
@@ -678,6 +687,7 @@ impl GeometryObjectBuilder {
         assets: &Assets,
         vmchunk: &mut scenevm::Chunk,
         object_id: Uuid,
+        material: Option<&crate::TileMaterialMeta>,
         face_uvs: &[Vec2<f32>],
         world_points: &[Vec3<f32>],
         object_center: Vec3<f32>,
@@ -741,12 +751,12 @@ impl GeometryObjectBuilder {
                 }
 
                 let source = face.tiles.get(&(tx, ty)).or(face.tile.as_ref());
-                let tile_id = Self::face_tile_id(source, assets);
+                let tile_id = Self::face_tile_id(source, material, assets);
                 let noise_tile_id = face
                     .surface_noise
                     .as_ref()
                     .and_then(|noise| noise.source.as_ref())
-                    .map(|source| Self::face_tile_id(Some(source), assets));
+                    .map(|source| Self::face_tile_id(Some(source), None, assets));
                 let tile_uvs = Self::tiled_face_base_uvs(&vertices_world);
                 let uvs = Self::transformed_face_uvs(face, &tile_uvs, Some(&vertices_world));
                 if let (Some(noise), Some(noise_tile_id)) =
@@ -803,13 +813,15 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 continue;
             }
             let object_center = Self::object_center(object, bbox);
+            let object_material = Assets::object_material_meta(&object.properties);
 
             for face in &object.faces {
                 if face.indices.len() < 3 {
                     continue;
                 }
 
-                let tile_id = Self::face_tile_id(face.tile.as_ref(), assets);
+                let tile_id =
+                    Self::face_tile_id(face.tile.as_ref(), object_material.as_ref(), assets);
                 let mut vertices = Vec::with_capacity(face.indices.len());
                 let mut local_points = Vec::with_capacity(face.indices.len());
                 let mut world_points = Vec::with_capacity(face.indices.len());
@@ -851,6 +863,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
                         assets,
                         vmchunk,
                         object.id,
+                        object_material.as_ref(),
                         &face_uvs,
                         &world_points,
                         object_center,
@@ -869,7 +882,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
                     .surface_noise
                     .as_ref()
                     .and_then(|noise| noise.source.as_ref())
-                    .map(|source| Self::face_tile_id(Some(source), assets));
+                    .map(|source| Self::face_tile_id(Some(source), None, assets));
                 if let (Some(noise), Some(noise_tile_id)) =
                     (face.surface_noise.as_ref(), noise_tile_id)
                 {

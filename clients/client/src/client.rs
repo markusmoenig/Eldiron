@@ -151,7 +151,11 @@ impl TheTrait for Client {
                 .iter()
                 .map(|m| [m.roughness, m.metallic, m.opacity, m.emissive])
                 .collect();
-            self.rusterix.set_tiles(project.tiles.clone(), false);
+            self.rusterix.set_tiles_for_maps(
+                project.tiles.clone(),
+                false,
+                project.regions.iter().map(|region| &region.map),
+            );
 
             // Init server / client
 

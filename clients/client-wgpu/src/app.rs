@@ -210,7 +210,11 @@ impl EldironPlayerApp {
             .iter()
             .map(|m| [m.roughness, m.metallic, m.opacity, m.emissive])
             .collect();
-        self.rusterix.set_tiles(project.tiles.clone(), false);
+        self.rusterix.set_tiles_for_maps(
+            project.tiles.clone(),
+            false,
+            project.regions.iter().map(|region| &region.map),
+        );
         start_server(&mut self.rusterix, &mut project, false);
         self.rusterix.clear_say_messages();
         let commands = setup_client(&mut self.rusterix, &mut project);
@@ -356,7 +360,11 @@ impl SceneVMApp for EldironPlayerApp {
         // One-time bootstrap on the active window-backed VM:
         // upload atlas/tiles so static chunk geometry can render.
         if !self.scenevm_bootstrapped {
-            self.rusterix.set_tiles(self.project.tiles.clone(), false);
+            self.rusterix.set_tiles_for_maps(
+                self.project.tiles.clone(),
+                false,
+                self.project.regions.iter().map(|region| &region.map),
+            );
             self.rusterix.scene_handler.mark_dynamics_dirty();
             self.scenevm_bootstrapped = true;
         }

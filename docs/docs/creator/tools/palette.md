@@ -37,14 +37,14 @@ The dock contains:
 
 ## Material Properties
 
-Each palette entry stores both a color and a small set of material properties:
+Each palette entry stores both a color and high-level material metadata:
 
-- `Roughness`
-- `Metallic`
-- `Opacity`
-- `Emissive`
+- `Material`
+- `Finish`
 
-These values are used when a palette entry is applied through `PaletteIndex` sources, for example on sectors, faces, or material slots.
+These values generate the internal roughness, metallic, opacity, and emissive values used by `PaletteIndex` sources, for example on sectors, faces, or material slots. Palette entries do not store raw R/M/O/E values in project files.
+
+Changing a palette entry's material or finish updates existing surfaces that use that palette index; you do not need to reapply the color.
 
 ## Minimap Color Picking
 

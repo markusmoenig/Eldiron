@@ -20,6 +20,8 @@ Character "player" {
     a = "action(left)"
     s = "action(backward)"
     d = "action(right)"
+    q = "action(strafe_left)"
+    e = "action(strafe_right)"
     up = "action(forward)"
     left = "action(left)"
     down = "action(backward)"

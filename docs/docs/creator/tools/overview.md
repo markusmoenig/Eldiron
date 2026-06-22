@@ -87,7 +87,7 @@ The **icons in the upper-right corner** of the HUD are **tool-specific** and all
 With the [Palette Tool](palette), the lower picker area shows the **Palette** dock instead:
 
 - a palette board for selecting and reordering palette entries
-- a material inspector for roughness, metallic, opacity, and emissive
+- material and finish selectors for palette entries
 - `Apply Color` and `Clear` actions for palette-based assignment
 
 ## Direct 3D Geometry Editing
@@ -118,7 +118,7 @@ The **Palette Tool** is another bottom-row mode toggle. When enabled, contexts t
 Palette mode is used for:
 
 - editing project palette entries
-- changing palette material properties
+- changing palette material and finish metadata
 - applying palette-index sources to geometry
 
 For the full workflow, see [Palette Tool](palette).

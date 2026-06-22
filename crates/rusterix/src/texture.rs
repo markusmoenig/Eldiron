@@ -1,6 +1,56 @@
 use crate::IntoDataInput;
+use serde::Serializer;
 use std::io::Cursor;
 use theframework::prelude::*;
+
+const DEFAULT_MATERIAL_BYTES: [u8; 2] = [0x08, 0x0f];
+
+fn reset_material_bytes_to_default(ext: &mut [u8]) {
+    for pixel in ext.chunks_exact_mut(4) {
+        pixel[0] = DEFAULT_MATERIAL_BYTES[0];
+        pixel[1] = DEFAULT_MATERIAL_BYTES[1];
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serializing_data_ext_drops_material_pixels_but_keeps_normals() {
+        let mut texture = Texture::from_color([80, 80, 80, 255]);
+        texture.set_materials_all(0.0, 1.0, 0.2, 1.0);
+        texture.set_normal(0, 0, 0.25, -0.5);
+
+        let serialized = serde_json::to_string(&texture).unwrap();
+        let decoded: Texture = serde_json::from_str(&serialized).unwrap();
+        let (roughness, metallic, opacity, emissive) = decoded.get_materials(0, 0);
+        let (normal_x, normal_y) = decoded.get_normal(0, 0);
+
+        assert_eq!(roughness, 0.53333336);
+        assert_eq!(metallic, 0.0);
+        assert_eq!(opacity, 1.0);
+        assert_eq!(emissive, 0.0);
+        assert!((normal_x - 0.25).abs() < 0.01);
+        assert!((normal_y + 0.5).abs() < 0.01);
+    }
+}
+
+fn serialize_data_ext_normals_only<S>(
+    data_ext: &Option<Vec<u8>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let Some(data_ext) = data_ext else {
+        return serializer.serialize_none();
+    };
+
+    let mut sanitized = data_ext.clone();
+    reset_material_bytes_to_default(&mut sanitized);
+    serializer.serialize_some(&sanitized)
+}
 
 /// Sample mode for texture sampling.
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
@@ -50,6 +100,11 @@ pub struct Texture {
     pub height: usize,
     /// Optional unified material+normal data (4 u8 bytes per pixel)
     /// See struct documentation for packed format details
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_data_ext_normals_only"
+    )]
     pub data_ext: Option<Vec<u8>>,
 }
 
@@ -552,7 +607,7 @@ impl Texture {
     }
 
     /// Generates normals from this texture's color data using Sobel filter on luma,
-    /// and stores them in the unified data_ext format (preserves any existing material data).
+    /// and stores them in the unified data_ext format.
     ///
     /// `wrap`: if true, samples wrap at edges (tiles nicely); if false, clamps at borders.
     pub fn generate_normals(&mut self, wrap: bool) {
@@ -632,14 +687,14 @@ impl Texture {
                     (0.0, 0.0)
                 };
 
-                // Store normal in data_ext, preserving material data
+                // Store normal in data_ext.
                 self.set_normal(x as u32, y as u32, nx, ny);
             }
         }
     }
 
     /// Generates normals from an external grayscale height field and stores them in the unified
-    /// data_ext format, preserving any existing material data.
+    /// data_ext format.
     ///
     /// `height` must contain one byte per pixel in row-major order.
     pub fn generate_normals_from_height(&mut self, height: &[u8], wrap: bool) {
@@ -851,7 +906,7 @@ impl Texture {
         }
     }
 
-    /// Set normal for a pixel, preserving material data
+    /// Set normal for a pixel.
     pub fn set_normal(&mut self, x: u32, y: u32, nx: f32, ny: f32) {
         self.ensure_data_ext();
         let x = x.min((self.width - 1) as u32) as usize;
@@ -863,7 +918,7 @@ impl Texture {
             let normal_bytes = normal_packed.to_le_bytes();
             ext[idx + 2] = normal_bytes[0];
             ext[idx + 3] = normal_bytes[1];
-            // Preserve bytes 0-1 (material data)
+            // Leave bytes 0-1 untouched; serialization normalizes material bytes.
         }
     }
 

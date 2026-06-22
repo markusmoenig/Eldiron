@@ -171,11 +171,39 @@ struct SourceItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct SourceTileSymbol {
+    tile: String,
+    material: SourceMaterial,
+}
+
+impl SourceTileSymbol {
+    fn tile_only(tile: String) -> Self {
+        Self {
+            tile,
+            material: SourceMaterial::default(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct SourceMaterial {
+    preset: Option<String>,
+    finish: Option<String>,
+}
+
+impl SourceMaterial {
+    fn is_empty(&self) -> bool {
+        self.preset.as_deref().unwrap_or_default().trim().is_empty()
+            && self.finish.as_deref().unwrap_or_default().trim().is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct SourceRegion {
     id: String,
     name: String,
     default: String,
-    tile_symbols: IndexMap<char, String>,
+    tile_symbols: IndexMap<char, SourceTileSymbol>,
     terrain: Vec<String>,
 }
 
@@ -199,7 +227,7 @@ struct SourceWidget {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 struct SourceDocument {
-    tile_symbols: IndexMap<char, String>,
+    tile_symbols: IndexMap<char, SourceTileSymbol>,
     characters: Vec<SourceCharacter>,
     items: Vec<SourceItem>,
     regions: Vec<SourceRegion>,
@@ -224,10 +252,25 @@ struct SourceTileLookup {
 
 #[derive(Debug, Default, Clone)]
 struct ResolvedSourceTiles {
-    explicit: IndexMap<char, PixelSource>,
-    wall: Option<PixelSource>,
-    floor: Option<PixelSource>,
-    ceiling: Option<PixelSource>,
+    explicit: IndexMap<char, ResolvedTileSymbol>,
+    wall: Option<ResolvedTileSymbol>,
+    floor: Option<ResolvedTileSymbol>,
+    ceiling: Option<ResolvedTileSymbol>,
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedTileSymbol {
+    source: PixelSource,
+    material: SourceMaterial,
+}
+
+impl ResolvedTileSymbol {
+    fn tile_only(source: PixelSource) -> Self {
+        Self {
+            source,
+            material: SourceMaterial::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -250,6 +293,12 @@ pub fn build_project(project_dir: &Path) -> Result<PathBuf, String> {
         .map_err(|err| format!("failed to read {}: {err}", config_path.display()))?;
     let config: ProjectToml = toml::from_str(&config_text)
         .map_err(|err| format!("failed to parse {}: {err}", config_path.display()))?;
+    let passthrough_config = project_config_passthrough(&config_text).map_err(|err| {
+        format!(
+            "failed to parse {} for runtime config: {err}",
+            config_path.display()
+        )
+    })?;
 
     let source_path = project_dir.join(&config.source.main);
     let source_text = fs::read_to_string(&source_path)
@@ -258,8 +307,11 @@ pub fn build_project(project_dir: &Path) -> Result<PathBuf, String> {
         .map_err(|err| format!("failed to parse {}: {err}", source_path.display()))?;
     source.extend(load_source_dir(project_dir, "characters")?);
     source.extend(load_source_dir(project_dir, "items")?);
+    source.extend(load_source_dir(project_dir, "regions")?);
+    source.extend(load_source_dir(project_dir, "screens")?);
 
-    let project = compile_project_with_project_dir(&config, source, project_dir)?;
+    let project =
+        compile_project_with_project_dir(&config, source, project_dir, &passthrough_config)?;
     let output_path = project_dir.join(&config.build.output);
     if let Some(parent) = output_path.parent() {
         fs::create_dir_all(parent)
@@ -467,7 +519,7 @@ impl SourceTileLookup {
 }
 
 impl ResolvedSourceTiles {
-    fn source_for_glyph(&self, glyph: char) -> Option<PixelSource> {
+    fn source_for_glyph(&self, glyph: char) -> Option<ResolvedTileSymbol> {
         self.explicit
             .get(&glyph)
             .cloned()
@@ -506,34 +558,43 @@ fn push_unique_candidate(candidates: &mut Vec<String>, candidate: String) {
 
 fn resolve_source_tiles(
     lookup: &SourceTileLookup,
-    global_tile_symbols: &IndexMap<char, String>,
+    global_tile_symbols: &IndexMap<char, SourceTileSymbol>,
     source_region: &SourceRegion,
 ) -> Result<ResolvedSourceTiles, String> {
     let mut symbols = global_tile_symbols.clone();
     symbols.extend(source_region.tile_symbols.clone());
 
     let mut explicit = IndexMap::default();
-    for (glyph, alias) in symbols {
-        let Some(source) = lookup.source_for(&alias) else {
+    for (glyph, symbol) in symbols {
+        let Some(source) = lookup.source_for(&symbol.tile) else {
             return Err(format!(
                 "Region '{}' maps '{}' to tile '{}', but no loaded tile with that alias/name exists",
-                source_region.id, glyph, alias
+                source_region.id, glyph, symbol.tile
             ));
         };
-        explicit.insert(glyph, source);
+        explicit.insert(
+            glyph,
+            ResolvedTileSymbol {
+                source,
+                material: symbol.material,
+            },
+        );
     }
 
     Ok(ResolvedSourceTiles {
         explicit,
         wall: lookup
             .source_for(&source_region.default)
-            .or_else(|| lookup.source_for("wall")),
+            .or_else(|| lookup.source_for("wall"))
+            .map(ResolvedTileSymbol::tile_only),
         floor: lookup
             .source_for("floor")
-            .or_else(|| lookup.source_for("floor.stone")),
+            .or_else(|| lookup.source_for("floor.stone"))
+            .map(ResolvedTileSymbol::tile_only),
         ceiling: lookup
             .source_for("ceiling")
-            .or_else(|| lookup.source_for("ceiling.stone")),
+            .or_else(|| lookup.source_for("ceiling.stone"))
+            .map(ResolvedTileSymbol::tile_only),
     })
 }
 
@@ -558,17 +619,29 @@ fn write_source_map_metadata(
 
 fn source_tile_metadata(source_tiles: &ResolvedSourceTiles) -> String {
     let mut lines = Vec::new();
-    if let Some(PixelSource::TileId(id)) = &source_tiles.wall {
+    if let Some(ResolvedTileSymbol {
+        source: PixelSource::TileId(id),
+        ..
+    }) = &source_tiles.wall
+    {
         lines.push(format!("wall = \"{}\"", id));
     }
-    if let Some(PixelSource::TileId(id)) = &source_tiles.floor {
+    if let Some(ResolvedTileSymbol {
+        source: PixelSource::TileId(id),
+        ..
+    }) = &source_tiles.floor
+    {
         lines.push(format!("floor = \"{}\"", id));
     }
-    if let Some(PixelSource::TileId(id)) = &source_tiles.ceiling {
+    if let Some(ResolvedTileSymbol {
+        source: PixelSource::TileId(id),
+        ..
+    }) = &source_tiles.ceiling
+    {
         lines.push(format!("ceiling = \"{}\"", id));
     }
-    for (glyph, source) in &source_tiles.explicit {
-        if let PixelSource::TileId(id) = source {
+    for (glyph, tile) in &source_tiles.explicit {
+        if let PixelSource::TileId(id) = &tile.source {
             lines.push(format!(
                 "\"{}\" = \"{}\"",
                 escape_toml_string(&glyph.to_string()),
@@ -581,21 +654,23 @@ fn source_tile_metadata(source_tiles: &ResolvedSourceTiles) -> String {
 
 #[cfg(test)]
 fn compile_project(config: &ProjectToml, source: SourceDocument) -> Result<Project, String> {
-    compile_project_inner(config, source, None)
+    compile_project_inner(config, source, None, "")
 }
 
 fn compile_project_with_project_dir(
     config: &ProjectToml,
     source: SourceDocument,
     project_dir: &Path,
+    passthrough_config: &str,
 ) -> Result<Project, String> {
-    compile_project_inner(config, source, Some(project_dir))
+    compile_project_inner(config, source, Some(project_dir), passthrough_config)
 }
 
 fn compile_project_inner(
     config: &ProjectToml,
     source: SourceDocument,
     project_dir: Option<&Path>,
+    passthrough_config: &str,
 ) -> Result<Project, String> {
     let mut project = Project::new();
     project.name = if config.project.name.trim().is_empty() {
@@ -607,7 +682,13 @@ fn compile_project_inner(
     project.characters.clear();
     project.items.clear();
     project.screens.clear();
-    project.config = project_config(&config.game, &config.viewport, &config.terminal, None);
+    project.config = project_config(
+        &config.game,
+        &config.viewport,
+        &config.terminal,
+        None,
+        passthrough_config,
+    );
     project.migrate_default_ruleset();
     project.authoring = "[startup]\nshow = \"room\"\n".to_string();
     project.sync_ruleset_items()?;
@@ -620,6 +701,7 @@ fn compile_project_inner(
         &config.viewport,
         &config.terminal,
         viewport_cursor_id(&config.viewport, &tile_lookup),
+        passthrough_config,
     );
     let global_tile_symbols = source.tile_symbols.clone();
 
@@ -741,7 +823,7 @@ fn compile_region(
     player_camera: Option<&str>,
     mode_3d: bool,
     tile_lookup: &SourceTileLookup,
-    global_tile_symbols: &IndexMap<char, String>,
+    global_tile_symbols: &IndexMap<char, SourceTileSymbol>,
 ) -> Result<Region, String> {
     if source_region.terrain.is_empty() {
         return Err(format!(
@@ -870,8 +952,8 @@ fn build_map(
             )),
         );
         write_source_map_metadata(&mut sector.properties, source_region, source_tiles);
-        if let Some(source) = source_tiles.floor.clone() {
-            sector.properties.set("source", Value::Source(source));
+        if let Some(tile) = source_tiles.floor.clone() {
+            sector.properties.set("source", Value::Source(tile.source));
         } else {
             sector
                 .properties
@@ -911,7 +993,7 @@ fn build_3d_blocks_from_source_terrain(
                 source_tiles
                     .source_for_glyph(glyph)
                     .or_else(|| source_tiles.floor.clone())
-                    .unwrap_or(PixelSource::PaletteIndex(8)),
+                    .unwrap_or_else(|| ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(8))),
                 true,
                 glyph == '@',
             );
@@ -931,7 +1013,7 @@ fn build_3d_blocks_from_source_terrain(
                     .ceiling
                     .clone()
                     .or_else(|| source_tiles.floor.clone())
-                    .unwrap_or(PixelSource::PaletteIndex(7)),
+                    .unwrap_or_else(|| ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(7))),
                 false,
                 false,
             );
@@ -969,7 +1051,9 @@ fn build_3d_blocks_from_source_terrain(
                 source_tiles
                     .source_for_glyph(glyph)
                     .or_else(|| source_tiles.wall.clone())
-                    .unwrap_or(PixelSource::PaletteIndex(12)),
+                    .unwrap_or_else(|| {
+                        ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(12))
+                    }),
                 true,
                 false,
             );
@@ -1015,7 +1099,7 @@ fn add_source_block(
     max_x: f32,
     max_y: f32,
     max_z: f32,
-    source: PixelSource,
+    tile: ResolvedTileSymbol,
     solid: bool,
     entrance: bool,
 ) {
@@ -1034,10 +1118,33 @@ fn add_source_block(
             .properties
             .set("procedural_kind", Value::Str("entrance".to_string()));
     }
+    apply_source_material(&mut object.properties, &tile.material);
     for face in &mut object.faces {
-        face.tile = Some(source.clone());
+        face.tile = Some(tile.source.clone());
     }
     map.geometry_objects.push(object);
+}
+
+fn apply_source_material(properties: &mut ValueContainer, material: &SourceMaterial) {
+    if material.is_empty() {
+        return;
+    }
+    if let Some(preset) = material
+        .preset
+        .as_deref()
+        .map(str::trim)
+        .filter(|preset| !preset.is_empty())
+    {
+        properties.set("material_preset", Value::Str(preset.to_string()));
+    }
+    if let Some(finish) = material
+        .finish
+        .as_deref()
+        .map(str::trim)
+        .filter(|finish| !finish.is_empty())
+    {
+        properties.set("material_finish", Value::Str(finish.to_string()));
+    }
 }
 
 fn source_block_has_walkable_neighbor(lines: &[String], x: isize, y: isize) -> bool {
@@ -1251,7 +1358,9 @@ fn parse_region(block: &NamedBlock) -> Result<SourceRegion, String> {
     })
 }
 
-fn parse_top_level_tile_symbol_blocks(src: &str) -> Result<IndexMap<char, String>, String> {
+fn parse_top_level_tile_symbol_blocks(
+    src: &str,
+) -> Result<IndexMap<char, SourceTileSymbol>, String> {
     let mut symbols = IndexMap::default();
     let mut depth = 0usize;
     let mut in_string = false;
@@ -1305,7 +1414,7 @@ fn parse_top_level_tile_symbol_blocks(src: &str) -> Result<IndexMap<char, String
     Ok(symbols)
 }
 
-fn parse_tile_symbol_blocks(src: &str) -> Result<IndexMap<char, String>, String> {
+fn parse_tile_symbol_blocks(src: &str) -> Result<IndexMap<char, SourceTileSymbol>, String> {
     let mut symbols = IndexMap::default();
     let mut search_from = 0;
     while let Some(relative) = src[search_from..].find("tiles") {
@@ -1327,7 +1436,7 @@ fn parse_tile_symbol_blocks(src: &str) -> Result<IndexMap<char, String>, String>
     Ok(symbols)
 }
 
-fn parse_tile_symbol_assignments(src: &str) -> Result<IndexMap<char, String>, String> {
+fn parse_tile_symbol_assignments(src: &str) -> Result<IndexMap<char, SourceTileSymbol>, String> {
     let mut symbols = IndexMap::default();
     for line in src.lines() {
         let line = strip_line_comment(line).trim();
@@ -1348,13 +1457,94 @@ fn parse_tile_symbol_assignments(src: &str) -> Result<IndexMap<char, String>, St
                 key
             ));
         }
-        let value = value.trim().trim_matches('"').to_string();
-        if value.is_empty() {
+        let value = parse_tile_symbol_value(value)?;
+        if value.tile.is_empty() {
             return Err(format!("tiles entry '{}' has an empty tile name", key));
         }
         symbols.insert(glyph, value);
     }
     Ok(symbols)
+}
+
+fn parse_tile_symbol_value(value: &str) -> Result<SourceTileSymbol, String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Ok(SourceTileSymbol::tile_only(String::new()));
+    }
+    if value.starts_with('{') {
+        return parse_tile_symbol_inline_table(value);
+    }
+
+    let mut tile = String::new();
+    let mut material = SourceMaterial::default();
+    for token in value.replace(',', " ").split_whitespace() {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+        if let Some((key, raw_value)) = token.split_once('=') {
+            let key = key.trim();
+            let raw_value = clean_tile_symbol_atom(raw_value);
+            match key {
+                "material" | "preset" | "material_preset" => material.preset = Some(raw_value),
+                "finish" | "material_finish" => material.finish = Some(raw_value),
+                "tile" | "source" => tile = raw_value,
+                _ => {
+                    return Err(format!(
+                        "unknown tiles entry option '{}'; expected tile, material/preset, or finish",
+                        key
+                    ));
+                }
+            }
+        } else if tile.is_empty() {
+            tile = clean_tile_symbol_atom(token);
+        } else {
+            return Err(format!(
+                "unexpected tiles entry token '{}'; use key=value options after the tile name",
+                token
+            ));
+        }
+    }
+
+    Ok(SourceTileSymbol { tile, material })
+}
+
+fn parse_tile_symbol_inline_table(value: &str) -> Result<SourceTileSymbol, String> {
+    let table: toml::Table = format!("symbol = {value}")
+        .parse()
+        .map_err(|err| format!("invalid tiles inline table '{}': {err}", value))?;
+    let Some(toml::Value::Table(symbol)) = table.get("symbol") else {
+        return Err(format!("invalid tiles inline table '{}'", value));
+    };
+    let tile = inline_string_value(symbol, "tile")
+        .or_else(|| inline_string_value(symbol, "source"))
+        .ok_or_else(|| format!("tiles inline table '{}' is missing tile/source", value))?;
+    let material = SourceMaterial {
+        preset: inline_string_value(symbol, "material")
+            .or_else(|| inline_string_value(symbol, "preset"))
+            .or_else(|| inline_string_value(symbol, "material_preset")),
+        finish: inline_string_value(symbol, "finish")
+            .or_else(|| inline_string_value(symbol, "material_finish")),
+    };
+    Ok(SourceTileSymbol { tile, material })
+}
+
+fn inline_string_value(table: &toml::Table, key: &str) -> Option<String> {
+    table.get(key).and_then(|value| match value {
+        toml::Value::String(value) => Some(value.trim().to_string()),
+        toml::Value::Integer(value) => Some(value.to_string()),
+        toml::Value::Float(value) => Some(value.to_string()),
+        toml::Value::Boolean(value) => Some(value.to_string()),
+        _ => None,
+    })
+}
+
+fn clean_tile_symbol_atom(value: &str) -> String {
+    value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_string()
 }
 
 fn strip_line_comment(line: &str) -> &str {
@@ -1840,11 +2030,12 @@ fn project_config(
     viewport: &ViewportSection,
     terminal: &TerminalSection,
     cursor_id: Option<Uuid>,
+    passthrough_config: &str,
 ) -> String {
     let cursor_line = cursor_id
         .map(|id| format!("cursor_id = \"{}\"\n", id))
         .unwrap_or_default();
-    format!(
+    let mut config = format!(
         "[game]\nstart_region = \"{}\"\nstart_screen = \"{}\"\nclient_mode = \"{}\"\nterminal_mode = \"{}\"\nsimulation_mode = \"{}\"\ngame_tick_ms = {}\nturn_timeout_ms = {}\nmovement_units_per_sec = {}\nturn_speed_deg_per_sec = {}\nauto_create_player = {}\ncollision_mode = \"{}\"\n\n[viewport]\nwidth = {}\nheight = {}\ngrid_size = {}\nunit = \"{}\"\nresize = \"{}\"\n{}\n[terminal]\ntext_updates = {}\n",
         escape_toml_string(&game.start_region),
         escape_toml_string(&game.start_screen),
@@ -1864,7 +2055,29 @@ fn project_config(
         escape_toml_string(&viewport.resize),
         cursor_line,
         terminal.text_updates
-    )
+    );
+    let passthrough_config = passthrough_config.trim();
+    if !passthrough_config.is_empty() {
+        config.push('\n');
+        config.push_str(passthrough_config);
+        config.push('\n');
+    }
+    config
+}
+
+fn project_config_passthrough(config_text: &str) -> Result<String, String> {
+    const SOURCE_OWNED_SECTIONS: &[&str] =
+        &["project", "source", "game", "viewport", "terminal", "build"];
+
+    let mut config: toml::Table = toml::from_str(config_text).map_err(|err| err.to_string())?;
+    for section in SOURCE_OWNED_SECTIONS {
+        config.remove(*section);
+    }
+    if config.is_empty() {
+        Ok(String::new())
+    } else {
+        toml::to_string(&config).map_err(|err| err.to_string())
+    }
 }
 
 fn character_data(id: &str, player_id: &str, player_camera: Option<&str>) -> String {
@@ -2081,7 +2294,7 @@ Item "herb" {
 Region "cellar" {
   default = wall.stone
   tiles {
-    "#" = wall
+    "#" = wall material=stone finish=matte
     "." = floor
   }
   terrain """
@@ -2106,12 +2319,32 @@ Screen "play" {
         assert_eq!(parsed.items.len(), 1);
         assert_eq!(parsed.items[0].id, "herb");
         assert_eq!(
-            parsed.regions[0].tile_symbols.get(&'#'),
-            Some(&"wall".to_string())
+            parsed.regions[0]
+                .tile_symbols
+                .get(&'#')
+                .map(|symbol| symbol.tile.as_str()),
+            Some("wall")
         );
         assert_eq!(
-            parsed.regions[0].tile_symbols.get(&'.'),
-            Some(&"floor".to_string())
+            parsed.regions[0]
+                .tile_symbols
+                .get(&'#')
+                .and_then(|symbol| symbol.material.preset.as_deref()),
+            Some("stone")
+        );
+        assert_eq!(
+            parsed.regions[0]
+                .tile_symbols
+                .get(&'#')
+                .and_then(|symbol| symbol.material.finish.as_deref()),
+            Some("matte")
+        );
+        assert_eq!(
+            parsed.regions[0]
+                .tile_symbols
+                .get(&'.')
+                .map(|symbol| symbol.tile.as_str()),
+            Some("floor")
         );
         assert_eq!(parsed.regions.len(), 1);
         assert_eq!(parsed.regions[0].terrain.len(), 3);
@@ -2264,6 +2497,162 @@ Screen "play" {
     }
 
     #[test]
+    fn build_preserves_runtime_toml_sections() {
+        let root = std::env::temp_dir().join(format!("eldiron-source-config-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).expect("project dir created");
+        fs::write(
+            root.join("eldiron.toml"),
+            r#"[project]
+name = "Runtime Config"
+
+[source]
+main = "main.els"
+
+[game]
+start_region = "cellar"
+start_screen = "play"
+client_mode = "3d"
+
+[viewport]
+width = 320
+height = 200
+grid_size = 1
+
+[renderer]
+backend_3d = "raster"
+style = "retro"
+
+[render]
+sun_enabled = false
+fog_density = 5.0
+
+[post]
+enabled = true
+posterize = 0.25
+
+[build]
+output = "build/game.eldiron"
+"#,
+        )
+        .expect("toml written");
+        fs::write(
+            root.join("main.els"),
+            r##"Region "cellar" {
+  default = wall.stone
+  terrain """
+  ###
+  #@#
+  ###
+  """
+}
+
+Screen "play" {
+  widget "Game" {
+    role = "game"
+    x = 0
+    y = 0
+    width = 320
+    height = 200
+  }
+}
+"##,
+        )
+        .expect("source written");
+
+        let output = build_project(&root).expect("project builds");
+        let project: Project =
+            serde_json::from_str(&fs::read_to_string(&output).expect("compiled project readable"))
+                .expect("compiled project parses");
+
+        assert!(project.config.contains("[renderer]"));
+        assert!(project.config.contains("backend_3d = \"raster\""));
+        assert!(project.config.contains("[render]"));
+        assert!(project.config.contains("sun_enabled = false"));
+        assert!(project.config.contains("[post]"));
+        assert!(project.config.contains("posterize = 0.25"));
+        assert!(!project.config.contains("[source]"));
+        assert!(!project.config.contains("[build]"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn build_loads_regions_and_screens_dirs() {
+        let root = std::env::temp_dir().join(format!("eldiron-source-split-{}", Uuid::new_v4()));
+        fs::create_dir_all(root.join("regions")).expect("regions dir created");
+        fs::create_dir_all(root.join("screens")).expect("screens dir created");
+        fs::write(
+            root.join("eldiron.toml"),
+            r#"[project]
+name = "Split Source"
+
+[source]
+main = "main.els"
+
+[game]
+start_region = "cellar"
+start_screen = "play"
+
+[build]
+output = "build/game.eldiron"
+"#,
+        )
+        .expect("toml written");
+        fs::write(root.join("main.els"), "tiles {\n}\n").expect("main source written");
+        fs::write(
+            root.join("regions/cellar.els"),
+            r##"Region "cellar" {
+  name = "Cellar"
+  default = wall.stone
+
+  terrain """
+  ###
+  #@#
+  ###
+  """
+}
+"##,
+        )
+        .expect("region source written");
+        fs::write(
+            root.join("screens/play.els"),
+            r##"Screen "play" {
+  name = "Play"
+
+  widget "Game" {
+    role = "game"
+    x = 0
+    y = 0
+    width = 80
+    height = 24
+  }
+}
+"##,
+        )
+        .expect("screen source written");
+
+        let output = build_project(&root).expect("project builds");
+        let project: Project =
+            serde_json::from_str(&fs::read_to_string(&output).expect("compiled project readable"))
+                .expect("compiled project parses");
+
+        assert!(
+            project
+                .regions
+                .iter()
+                .any(|region| region.map.name == "cellar")
+        );
+        assert!(
+            project
+                .screens
+                .values()
+                .any(|screen| screen.map.name == "play")
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn source_tile_symbols_resolve_to_project_tiles() {
         let root = std::env::temp_dir().join(format!("eldiron-source-tiles-{}", Uuid::new_v4()));
         let tiles_dir = root.join("tiles");
@@ -2298,8 +2687,8 @@ output = "build/game.eldiron"
         fs::write(
             root.join("main.els"),
             r##"tiles {
-  "#" = wall
-  "." = floor
+  "#" = wall material=stone finish=wet
+  "." = floor material=stone finish=polished
   "@" = floor
 }
 
@@ -2345,6 +2734,32 @@ Region "cellar" {
                 .filter(|object| object.name.starts_with("wall_"))
                 .flat_map(|object| &object.faces)
                 .any(|face| face.tile == Some(PixelSource::TileId(wall_id)))
+        );
+        let wall = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.name.starts_with("wall_"))
+            .expect("generated wall exists");
+        assert_eq!(
+            wall.properties.get_str("material_preset").as_deref(),
+            Some("stone")
+        );
+        assert_eq!(
+            wall.properties.get_str("material_finish").as_deref(),
+            Some("wet")
+        );
+        let floor = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.name.starts_with("floor_"))
+            .expect("generated floor exists");
+        assert_eq!(
+            floor.properties.get_str("material_preset").as_deref(),
+            Some("stone")
+        );
+        assert_eq!(
+            floor.properties.get_str("material_finish").as_deref(),
+            Some("polished")
         );
         assert!(
             map.properties

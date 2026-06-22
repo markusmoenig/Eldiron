@@ -266,6 +266,24 @@ tiles {
 }
 ```
 
+Symbol mappings can also carry high-level material metadata for generated 3D
+geometry. The tile alias still selects the base tile image/UUID, while
+`material` and `finish` become normal geometry object properties
+(`material_preset` and `material_finish`) in the compiled `.eldiron` file:
+
+```text
+tiles {
+  "#" = wall material=stone finish=matte
+  "." = floor material=stone finish=polished
+  "@" = floor
+}
+```
+
+Supported material presets currently follow Creator's material preset values:
+`default`, `stone`, `wood`, `metal`, `glass`, `water`, `mirror`, `emissive`,
+`dirt`, `fabric`, and `plastic`. Supported finishes are `natural`, `matte`,
+`polished`, and `wet`.
+
 During compilation, those names resolve to concrete UUIDs. The generated
 `.eldiron` file would contain normal Eldiron tile references, not source-only
 concepts.

@@ -749,7 +749,7 @@ impl Editor {
                 .project
                 .palette_materials
                 .iter()
-                .map(|m| [m.roughness, m.metallic, m.opacity, m.emissive])
+                .map(|m| m.rmoe_values())
                 .collect();
             rusterix.set_tiles(self.project.tiles.clone(), true);
             rusterix.set_tile_groups(self.project.tile_groups.clone());
@@ -759,7 +759,7 @@ impl Editor {
             self.project
                 .palette_materials
                 .iter()
-                .map(|m| [m.roughness, m.metallic, m.opacity, m.emissive])
+                .map(|m| m.rmoe_values())
                 .collect(),
         );
 

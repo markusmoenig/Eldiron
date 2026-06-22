@@ -6,10 +6,13 @@ use shared::project::PaletteMaterial;
 
 const PALETTE_DOCK_PICKER: &str = "Palette Dock Picker";
 const PALETTE_DOCK_HEX: &str = "Palette Dock Hex Edit";
-const PALETTE_DOCK_ROUGHNESS: &str = "Palette Dock Roughness";
-const PALETTE_DOCK_METALLIC: &str = "Palette Dock Metallic";
-const PALETTE_DOCK_OPACITY: &str = "Palette Dock Opacity";
-const PALETTE_DOCK_EMISSIVE: &str = "Palette Dock Emissive";
+const PALETTE_DOCK_MATERIAL_PRESET: &str = "Palette Dock Material Preset";
+const PALETTE_DOCK_MATERIAL_FINISH: &str = "Palette Dock Material Finish";
+const MATERIAL_PRESET_VALUES: [&str; 11] = [
+    "default", "stone", "wood", "metal", "glass", "water", "mirror", "emissive", "dirt", "fabric",
+    "plastic",
+];
+const MATERIAL_FINISH_VALUES: [&str; 4] = ["natural", "matte", "polished", "wet"];
 
 pub(crate) struct PaletteDockBoard {
     id: TheId,
@@ -316,6 +319,38 @@ pub struct PaletteDock {
 }
 
 impl PaletteDock {
+    fn material_preset_labels() -> Vec<String> {
+        vec![
+            fl!("material_preset_default"),
+            fl!("material_preset_stone"),
+            fl!("material_preset_wood"),
+            fl!("material_preset_metal"),
+            fl!("material_preset_glass"),
+            fl!("material_preset_water"),
+            fl!("material_preset_mirror"),
+            fl!("material_preset_emissive"),
+            fl!("material_preset_dirt"),
+            fl!("material_preset_fabric"),
+            fl!("material_preset_plastic"),
+        ]
+    }
+
+    fn material_finish_labels() -> Vec<String> {
+        vec![
+            fl!("material_finish_natural"),
+            fl!("material_finish_matte"),
+            fl!("material_finish_polished"),
+            fl!("material_finish_wet"),
+        ]
+    }
+
+    fn material_index(values: &[&str], value: &str, fallback: usize) -> i32 {
+        values
+            .iter()
+            .position(|candidate| candidate.eq_ignore_ascii_case(value.trim()))
+            .unwrap_or(fallback) as i32
+    }
+
     fn make_opaque(color: &mut Option<TheColor>) {
         if let Some(color) = color {
             color.a = 1.0;
@@ -358,37 +393,19 @@ impl PaletteDock {
             None,
             false,
         ));
-        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            PALETTE_DOCK_ROUGHNESS.into(),
-            fl!("roughness").into(),
-            "".into(),
-            0.5,
-            0.0..=1.0,
-            false,
+        nodeui.add_item(TheNodeUIItem::Selector(
+            PALETTE_DOCK_MATERIAL_PRESET.into(),
+            fl!("material_preset"),
+            fl!("status_material_preset"),
+            Self::material_preset_labels(),
+            0,
         ));
-        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            PALETTE_DOCK_METALLIC.into(),
-            fl!("metallic").into(),
-            "".into(),
-            0.0,
-            0.0..=1.0,
-            false,
-        ));
-        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            PALETTE_DOCK_OPACITY.into(),
-            fl!("opacity").into(),
-            "".into(),
-            1.0,
-            0.0..=1.0,
-            false,
-        ));
-        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
-            PALETTE_DOCK_EMISSIVE.into(),
-            fl!("emissive").into(),
-            "".into(),
-            0.0,
-            0.0..=1.0,
-            false,
+        nodeui.add_item(TheNodeUIItem::Selector(
+            PALETTE_DOCK_MATERIAL_FINISH.into(),
+            fl!("material_finish"),
+            fl!("status_material_finish"),
+            Self::material_finish_labels(),
+            0,
         ));
         nodeui
     }
@@ -426,14 +443,14 @@ impl PaletteDock {
             .get(index)
             .cloned()
             .unwrap_or_default();
-        self.nodeui
-            .set_f32_value(PALETTE_DOCK_ROUGHNESS, material.roughness);
-        self.nodeui
-            .set_f32_value(PALETTE_DOCK_METALLIC, material.metallic);
-        self.nodeui
-            .set_f32_value(PALETTE_DOCK_OPACITY, material.opacity);
-        self.nodeui
-            .set_f32_value(PALETTE_DOCK_EMISSIVE, material.emissive);
+        self.nodeui.set_i32_value(
+            PALETTE_DOCK_MATERIAL_PRESET,
+            Self::material_index(&MATERIAL_PRESET_VALUES, &material.preset, 0),
+        );
+        self.nodeui.set_i32_value(
+            PALETTE_DOCK_MATERIAL_FINISH,
+            Self::material_index(&MATERIAL_FINISH_VALUES, &material.finish, 0),
+        );
 
         if let Some(layout) = ui.get_text_layout("Palette Dock Inspector Layout") {
             self.nodeui.apply_to_text_layout(layout);
@@ -840,13 +857,10 @@ impl Dock for PaletteDock {
                 }
                 true
             }
-            TheEvent::ValueChanged(id, value)
+            TheEvent::ValueChanged(id, TheValue::Int(value))
                 if matches!(
                     id.name.as_str(),
-                    PALETTE_DOCK_ROUGHNESS
-                        | PALETTE_DOCK_METALLIC
-                        | PALETTE_DOCK_OPACITY
-                        | PALETTE_DOCK_EMISSIVE
+                    PALETTE_DOCK_MATERIAL_PRESET | PALETTE_DOCK_MATERIAL_FINISH
                 ) =>
             {
                 let index = project.palette.current_index as usize;
@@ -854,40 +868,40 @@ impl Dock for PaletteDock {
                 let prev = project.palette.clone();
                 let prev_materials = project.palette_materials.clone();
                 let material = &mut project.palette_materials[index];
-                let Some(value) = (match value {
-                    TheValue::Float(v) => Some(*v),
-                    TheValue::FloatRange(v, _) => Some(*v),
-                    TheValue::Text(text) => text.parse::<f32>().ok(),
-                    _ => None,
-                }) else {
-                    return false;
-                };
-                let value = value.clamp(0.0, 1.0);
+                let value = (*value).max(0) as usize;
                 let changed = match id.name.as_str() {
-                    PALETTE_DOCK_ROUGHNESS => {
-                        let changed = (material.roughness - value).abs() > f32::EPSILON;
-                        material.roughness = value;
+                    PALETTE_DOCK_MATERIAL_PRESET => {
+                        let preset = MATERIAL_PRESET_VALUES
+                            .get(value)
+                            .copied()
+                            .unwrap_or("default")
+                            .to_string();
+                        let changed = material.preset != preset;
+                        material.preset = preset;
+                        if material.preset == "default" {
+                            material.finish = "natural".to_string();
+                        }
                         changed
                     }
-                    PALETTE_DOCK_METALLIC => {
-                        let changed = (material.metallic - value).abs() > f32::EPSILON;
-                        material.metallic = value;
-                        changed
-                    }
-                    PALETTE_DOCK_OPACITY => {
-                        let changed = (material.opacity - value).abs() > f32::EPSILON;
-                        material.opacity = value;
-                        changed
-                    }
-                    PALETTE_DOCK_EMISSIVE => {
-                        let changed = (material.emissive - value).abs() > f32::EPSILON;
-                        material.emissive = value;
+                    PALETTE_DOCK_MATERIAL_FINISH => {
+                        let finish = MATERIAL_FINISH_VALUES
+                            .get(value)
+                            .copied()
+                            .unwrap_or("natural")
+                            .to_string();
+                        let changed = material.finish != finish;
+                        material.finish = finish;
                         changed
                     }
                     _ => false,
                 };
                 if changed {
+                    if material.preset == "default" {
+                        material.finish = "natural".to_string();
+                    }
+                    material.apply_preset_finish();
                     refresh_palette_runtime(project);
+                    self.sync_widgets(ui, ctx, project);
                     UNDOMANAGER
                         .write()
                         .unwrap()
