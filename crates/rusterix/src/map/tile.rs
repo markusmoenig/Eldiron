@@ -157,6 +157,10 @@ impl TileMaterialMeta {
     }
 
     pub fn rmoe_values(&self) -> Option<[f32; 4]> {
+        self.base_rmoe_values()
+    }
+
+    fn base_rmoe_values(&self) -> Option<[f32; 4]> {
         if self.is_default() {
             return None;
         }
@@ -186,6 +190,83 @@ impl TileMaterialMeta {
         };
 
         Some([roughness.clamp(0.02, 1.0), metallic, opacity, emissive])
+    }
+
+    fn color_luma_saturation(rgba: [u8; 4]) -> (f32, f32, f32) {
+        let r = rgba[0] as f32 / 255.0;
+        let g = rgba[1] as f32 / 255.0;
+        let b = rgba[2] as f32 / 255.0;
+        let a = rgba[3] as f32 / 255.0;
+        let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        let max = r.max(g).max(b);
+        let min = r.min(g).min(b);
+        let saturation = if max <= f32::EPSILON {
+            0.0
+        } else {
+            (max - min) / max
+        };
+        (luma, saturation, a)
+    }
+
+    pub fn rmoe_values_for_color(&self, rgba: [u8; 4]) -> Option<[f32; 4]> {
+        let [mut roughness, mut metallic, mut opacity, mut emissive] = self.base_rmoe_values()?;
+        let preset = self.normalized_preset();
+        let (luma, saturation, alpha) = Self::color_luma_saturation(rgba);
+        let dark_detail = 0.5 - luma;
+        let bright_detail = luma - 0.5;
+        let saturated_detail = saturation - 0.35;
+
+        match preset.as_str() {
+            "stone" => {
+                roughness += dark_detail * 0.18 + saturated_detail * 0.05;
+            }
+            "wood" => {
+                roughness += dark_detail * 0.14 - saturation * 0.04;
+            }
+            "metal" => {
+                roughness += dark_detail * 0.16 - bright_detail.max(0.0) * 0.05;
+                metallic *= 0.92 + luma * 0.08;
+            }
+            "glass" => {
+                roughness += dark_detail * 0.04 + saturation * 0.02;
+                opacity *= 0.85 + luma * 0.15;
+            }
+            "water" => {
+                roughness += dark_detail * 0.05 + saturation * 0.02;
+                opacity *= 0.75 + luma * 0.25;
+            }
+            "mirror" => {
+                roughness += dark_detail * 0.03;
+                metallic *= 0.9 + luma * 0.1;
+            }
+            "emissive" => {
+                roughness += dark_detail * 0.08;
+                emissive *= (0.25 + luma * 0.75 + saturation * 0.15).clamp(0.0, 1.0);
+            }
+            "dirt" => {
+                roughness += dark_detail * 0.18 + (1.0 - luma) * 0.08;
+            }
+            "fabric" => {
+                roughness += dark_detail * 0.16 + saturation * 0.05;
+            }
+            "plastic" => {
+                roughness += dark_detail * 0.08 - saturation * 0.03;
+            }
+            _ => {
+                roughness += dark_detail * 0.08;
+            }
+        }
+
+        if alpha < 0.98 {
+            opacity *= alpha;
+        }
+
+        Some([
+            roughness.clamp(0.02, 1.0),
+            metallic.clamp(0.0, 1.0),
+            opacity.clamp(0.0, 1.0),
+            emissive.clamp(0.0, 1.0),
+        ])
     }
 
     pub fn variant_tile_id(base_id: Uuid, preset: &str, finish: &str) -> Uuid {
@@ -247,6 +328,30 @@ pub struct Tile {
 impl Tile {
     fn is_synthetic_palette_tile_id(id: Uuid) -> bool {
         id.as_u128() & PALETTE_TILE_UUID_MASK == PALETTE_TILE_UUID_PREFIX
+    }
+
+    fn apply_material_meta_to_texture(material: &TileMaterialMeta, texture: &mut Texture) {
+        if texture.data_ext.is_none() {
+            texture.generate_normals(true);
+        }
+
+        for y in 0..texture.height {
+            for x in 0..texture.width {
+                let idx = (y * texture.width + x) * 4;
+                let rgba = [
+                    texture.data[idx],
+                    texture.data[idx + 1],
+                    texture.data[idx + 2],
+                    texture.data[idx + 3],
+                ];
+                if let Some([roughness, metallic, opacity, emissive]) =
+                    material.rmoe_values_for_color(rgba)
+                {
+                    texture
+                        .set_materials(x as u32, y as u32, roughness, metallic, opacity, emissive);
+                }
+            }
+        }
     }
 
     /// Create a tile from a single texture.
@@ -315,16 +420,13 @@ impl Tile {
 
     /// Converts the frames to an array of material buffers
     pub fn to_material_array(&self) -> Vec<Vec<u8>> {
-        if let Some([roughness, metallic, opacity, emissive]) = self.material.rmoe_values() {
+        if self.material.rmoe_values().is_some() {
             return self
                 .textures
                 .iter()
                 .map(|texture| {
                     let mut texture = texture.clone();
-                    if texture.data_ext.is_none() {
-                        texture.generate_normals(true);
-                    }
-                    texture.set_materials_all(roughness, metallic, opacity, emissive);
+                    Self::apply_material_meta_to_texture(&self.material, &mut texture);
                     texture.data_ext.unwrap_or_default()
                 })
                 .collect();
@@ -438,6 +540,32 @@ mod tests {
         assert!(metallic >= 0.85);
         assert_eq!(opacity, 1.0);
         assert_eq!(emissive, 0.0);
+    }
+
+    #[test]
+    fn material_meta_varies_by_pixel_color() {
+        let texture = Texture::new(
+            vec![
+                16, 16, 16, 255, //
+                240, 240, 240, 255,
+            ],
+            2,
+            1,
+        );
+        let mut tile = Tile::from_texture(texture);
+        tile.material = TileMaterialMeta {
+            preset: "emissive".to_string(),
+            finish: "natural".to_string(),
+        };
+
+        let frames = tile.to_material_array();
+        let mut material_texture = Texture::new(vec![0, 0, 0, 255, 0, 0, 0, 255], 2, 1);
+        material_texture.data_ext = Some(frames[0].clone());
+
+        let (_, _, _, dark_emissive) = material_texture.get_materials(0, 0);
+        let (_, _, _, bright_emissive) = material_texture.get_materials(1, 0);
+
+        assert!(bright_emissive > dark_emissive);
     }
 
     #[test]
