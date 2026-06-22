@@ -13,8 +13,8 @@ use scenevm::GeoId;
 
 use crate::prelude::*;
 use crate::{
-    BrushPreview, Command, D2ConceptBuilder, D2PreviewBuilder, Entity, EntityAction, MapMini,
-    PlayerCamera, Rect, SceneHandler, Surface, Value,
+    BrushPreview, Command, D2PreviewBuilder, Entity, EntityAction, MapMini, PlayerCamera, Rect,
+    SceneHandler, Surface, Value,
     client::action::ClientAction,
     client::command::{ClientCommandBinding, command_from_legacy_fields, parse_client_command},
     client::rules_ui::{CommandState, ContainerUiTemplate, RulesDescription},
@@ -127,7 +127,6 @@ pub struct Client {
     pub curr_map_id: Uuid,
 
     pub builder_d2: D2PreviewBuilder,
-    pub builder_d2_concept: D2ConceptBuilder,
     pub map_tool_type_d2: MapToolType,
 
     pub camera_d3: Box<dyn D3Camera>,
@@ -682,7 +681,6 @@ impl Client {
             curr_map_id: Uuid::default(),
 
             builder_d2: D2PreviewBuilder::new(),
-            builder_d2_concept: D2ConceptBuilder::new(),
             map_tool_type_d2: MapToolType::General,
 
             camera_d3: Box::new(D3FirstPCamera::new()),
@@ -843,7 +841,6 @@ impl Client {
     pub fn set_map_tool_type_d2(&mut self, tool: MapToolType) {
         self.map_tool_type_d2 = tool;
         self.builder_d2.set_map_tool_type(tool);
-        self.builder_d2_concept.set_map_tool_type(tool);
     }
 
     pub fn set_map_hover_info_d2(
@@ -852,18 +849,14 @@ impl Client {
         hover_cursor: Option<Vec2<f32>>,
     ) {
         self.builder_d2.set_map_hover_info(hover, hover_cursor);
-        self.builder_d2_concept
-            .set_map_hover_info(hover, hover_cursor);
     }
 
     pub fn set_camera_info_d2(&mut self, pos: Option<vek::Vec3<f32>>, look_at: Option<Vec3<f32>>) {
         self.builder_d2.set_camera_info(pos, look_at);
-        self.builder_d2_concept.set_camera_info(pos, look_at);
     }
 
     pub fn set_clip_rect_d2(&mut self, clip_rect: Option<Rect>) {
         self.builder_d2.set_clip_rect(clip_rect);
-        self.builder_d2_concept.set_clip_rect(clip_rect);
     }
 
     /// Build the 2D scene from the map.
@@ -879,34 +872,17 @@ impl Client {
     ) {
         self.update_active_player_camera(map);
         self.curr_map_id = map.id;
-        if self.map_tool_type_d2 == MapToolType::Dungeon {
-            self.scene_d2 = self
-                .builder_d2_concept
-                .build(map, assets, screen_size, values);
-            self.builder_d2_concept.build_entities_items(
-                map,
-                assets,
-                &mut self.scene_d2,
-                screen_size,
-                edit_surface,
-                scene_handler,
-                draw_sectors,
-            );
-        } else {
-            self.scene_d2 = self.builder_d2.build(map, assets, screen_size, values);
-            self.builder_d2.build_entities_items(
-                map,
-                assets,
-                &mut self.scene_d2,
-                screen_size,
-                edit_surface,
-                scene_handler,
-                draw_sectors,
-            );
-        }
-        if self.map_tool_type_d2 != MapToolType::Dungeon {
-            scene_handler.build_dynamics_2d(map, self.animation_frame, assets, &Default::default());
-        }
+        self.scene_d2 = self.builder_d2.build(map, assets, screen_size, values);
+        self.builder_d2.build_entities_items(
+            map,
+            assets,
+            &mut self.scene_d2,
+            screen_size,
+            edit_surface,
+            scene_handler,
+            draw_sectors,
+        );
+        scene_handler.build_dynamics_2d(map, self.animation_frame, assets, &Default::default());
     }
 
     /// Apply the entities to the 2D scene.
@@ -1337,7 +1313,6 @@ impl Client {
 
         let hour = self.server_time.to_f32();
 
-        scene_handler.apply_dungeon_render_overrides(map);
         scene_handler.apply_runtime_render_state_settings();
         scene_handler.settings.apply_hour(hour);
         scene_handler.settings.apply_3d(&mut scene_handler.vm);

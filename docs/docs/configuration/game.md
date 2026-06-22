@@ -36,6 +36,7 @@ collision_mode = "tile"        # Collision/path mode: "tile" or "mesh".
 auto_create_player = true      # Whether to auto-create a player entity.
 start_region = ""              # The name of the region to start the game in.
 start_screen = ""              # The name of the screen to show at startup.
+client_mode = "terminal"       # Source/tool play target: "terminal", "2d", or "3d".
 terminal_mode = "text"         # Terminal client mode: "text" or "roguelike".
 play_screen = ""               # Optional screen shown after game.start.
 click_intents_2d = false       # Target 2D intents with mouse clicks while keeping WASD movement.
@@ -149,6 +150,14 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
   `"roguelike"` uses the terminal glyph-map mode for source-authored maps that carry source terrain metadata.
   The terminal client's `--mode text|roguelike` option overrides this setting.
   Default: `"text"`.
+
+- **`client_mode`**
+  Selects which client family source/tooling launch commands should use.
+  `"terminal"` runs the terminal client and then follows `terminal_mode`.
+  `"2d"` launches the graphical client in the normal 2D mode.
+  `"3d"` builds source maps as generated first-person 3D geometry and launches the graphical client.
+  `"dungeon3d"` is accepted as a legacy alias for `"3d"`.
+  Default: `"terminal"`.
 
 - **`play_screen`**
   Optional screen to load after a `game.start` or `game.start_class.<Class>` button command.

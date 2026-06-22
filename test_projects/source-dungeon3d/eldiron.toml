@@ -1,0 +1,33 @@
+[project]
+name = "Source Dungeon 3D"
+version = "0.1.0"
+
+[source]
+main = "main.els"
+
+[game]
+start_region = "dungeon"
+start_screen = "play"
+client_mode = "3d"
+terminal_mode = "roguelike"
+simulation_mode = "hybrid"
+game_tick_ms = 100
+turn_timeout_ms = 300
+#movement_units_per_sec = 16
+#turn_speed_deg_per_sec = 420
+collision_mode = "mesh"
+auto_create_player = true
+player = "player"
+
+[viewport]
+width = 960
+height = 600
+grid_size = 1
+unit = "pixel"
+resize = "fit"
+
+[terminal]
+text_updates = true
+
+[build]
+output = "build/source-dungeon3d.eldiron"

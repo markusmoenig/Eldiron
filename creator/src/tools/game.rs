@@ -1,7 +1,4 @@
-use crate::{
-    editor::{DOCKMANAGER, RUSTERIX},
-    prelude::*,
-};
+use crate::{editor::RUSTERIX, prelude::*};
 use MapEvent::*;
 use rusterix::{EntityAction, Value};
 use std::sync::Mutex;
@@ -49,28 +46,13 @@ impl Tool for GameTool {
         tool_event: ToolEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &mut Project,
+        _project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match tool_event {
             ToolEvent::Activate => {
                 self.toolbar = None;
                 self.sidebar = None;
-                let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
-                if current_dock == "Dungeon" {
-                    let restore_dock = server_ctx
-                        .prev_dungeon_dock
-                        .take()
-                        .filter(|dock| !dock.is_empty() && dock != "Dungeon")
-                        .unwrap_or_else(|| "Tiles".to_string());
-                    DOCKMANAGER.write().unwrap().set_dock(
-                        restore_dock,
-                        ui,
-                        ctx,
-                        project,
-                        server_ctx,
-                    );
-                }
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                     layout.set_mode(TheSharedVLayoutMode::Top);
                     if let Some(canvas) = layout.get_canvas_mut(0) {

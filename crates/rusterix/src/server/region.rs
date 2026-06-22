@@ -5554,16 +5554,6 @@ impl RegionInstance {
                     if let Some(group_id) = s.properties.get_id("door_group_id") {
                         item.attributes.set("door_group_id", Value::Id(group_id));
                     }
-                    if let Some(mode) = s.properties.get_str("dungeon_door_mode") {
-                        item.attributes
-                            .set("door_mode", Value::Str(mode.to_string()));
-                    }
-                    if let Some(depth) = s.properties.get_float("dungeon_door_depth") {
-                        item.attributes.set("door_depth", Value::Float(depth));
-                    }
-                    if let Some(height) = s.properties.get_float("dungeon_door_height") {
-                        item.attributes.set("door_height", Value::Float(height));
-                    }
                     item.attributes.set(
                         "blocking",
                         Value::Bool(s.properties.get_bool_default("blocking", true)),

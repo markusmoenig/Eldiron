@@ -45,9 +45,6 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::palette::PaletteDock::new());
         docks.insert("Palette".into(), dock);
 
-        let dock: Box<dyn Dock> = Box::new(crate::docks::dungeon::DungeonDock::new());
-        docks.insert("Dungeon".into(), dock);
-
         let dock: Box<dyn Dock> = Box::new(crate::docks::authoring::AuthoringDock::new());
         docks.insert("Authoring".into(), dock);
 

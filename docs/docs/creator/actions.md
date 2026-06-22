@@ -470,8 +470,7 @@ Choose which editor geometry remains visible while editing.
 
 Options:
 
-* `editing_geo_filter_mode`: `All` shows normal editor geometry; `Dungeon` filters for dungeon editing.
-* `dungeon_no_ceiling`: hides dungeon ceiling geometry while the Dungeon filter is active.
+* `editing_geo_filter_mode`: `All` shows normal editor geometry.
 
 ### Surface Curve
 

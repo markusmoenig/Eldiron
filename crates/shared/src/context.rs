@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use rusterix::DungeonTileKind;
 use rusterix::Surface;
 pub use rusterix::{Value, VertexBlendPreset, map::*};
 use scenevm::GeoId;
@@ -149,22 +148,17 @@ impl EditorViewMode {
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum EditingGeoFilter {
     All,
-    DungeonOnly,
 }
 
 impl EditingGeoFilter {
     pub fn to_index(&self) -> i32 {
         match self {
             EditingGeoFilter::All => 0,
-            EditingGeoFilter::DungeonOnly => 1,
         }
     }
 
-    pub fn from_index(idx: i32) -> Self {
-        match idx {
-            1 => EditingGeoFilter::DungeonOnly,
-            _ => EditingGeoFilter::All,
-        }
+    pub fn from_index(_idx: i32) -> Self {
+        EditingGeoFilter::All
     }
 }
 
@@ -443,78 +437,6 @@ pub struct ServerContext {
     /// The currently selected BuilderGraph source, including built-ins that are not project assets.
     pub curr_builder_graph_data: Option<String>,
 
-    /// The currently selected conceptual dungeon paint archetype.
-    pub curr_dungeon_tile: DungeonTileKind,
-
-    /// Previous dock before switching to the dungeon dock.
-    pub prev_dungeon_dock: Option<String>,
-
-    /// Default floor base for dungeon painting.
-    pub curr_dungeon_floor_base: f32,
-
-    /// Default wall / room height for dungeon painting.
-    pub curr_dungeon_height: f32,
-
-    /// Whether generated dungeon geometry should create floor surfaces.
-    pub curr_dungeon_create_floor: bool,
-
-    /// Whether generated dungeon geometry should create ceiling surfaces.
-    pub curr_dungeon_create_ceiling: bool,
-
-    /// Whether newly painted dungeon cells should stay standalone and avoid merging.
-    pub curr_dungeon_standalone: bool,
-
-    /// Door span in tiles for newly painted dungeon door cells.
-    pub curr_dungeon_tile_span: i32,
-
-    /// Conceptual door depth hint for newly painted dungeon door cells.
-    pub curr_dungeon_tile_depth: f32,
-
-    /// Conceptual door opening height for newly painted dungeon door cells.
-    pub curr_dungeon_tile_height: f32,
-
-    /// Conceptual door opening mode for newly painted dungeon door cells.
-    pub curr_dungeon_tile_open_mode: i32,
-
-    /// Item handler class for newly painted dungeon door cells.
-    pub curr_dungeon_tile_item: String,
-
-    /// Target floor base for newly painted stair tiles.
-    pub curr_dungeon_stair_target_floor_base: f32,
-
-    /// Number of generated steps for newly painted stair tiles.
-    pub curr_dungeon_stair_steps: i32,
-
-    /// Default tile id for newly painted stair tiles.
-    pub curr_dungeon_stair_tile_id: String,
-
-    /// Default tile mode for newly painted stair tiles.
-    pub curr_dungeon_stair_tile_mode: i32,
-
-    /// Raw dungeon render override TOML block.
-    pub curr_dungeon_render_toml: String,
-
-    /// Whether dungeon-specific render overrides are enabled in gameplay.
-    pub curr_dungeon_render_enabled: bool,
-
-    /// Transition duration in seconds for dungeon render overrides.
-    pub curr_dungeon_render_transition_seconds: f32,
-
-    /// Whether sunlight is enabled while inside dungeon-generated sectors.
-    pub curr_dungeon_render_sun_enabled: bool,
-
-    /// Whether sun shadows are enabled while inside dungeon-generated sectors.
-    pub curr_dungeon_render_shadow_enabled: bool,
-
-    /// Fog density override for dungeon-generated sectors (same percent scale as [render]).
-    pub curr_dungeon_render_fog_density: f32,
-
-    /// Fog color override for dungeon-generated sectors.
-    pub curr_dungeon_render_fog_color: String,
-
-    /// Previous subdivision setting before entering Dungeon Tool.
-    pub prev_dungeon_subdivisions: Option<f32>,
-
     /// Whether the Builder tool is currently active.
     pub builder_tool_active: bool,
 
@@ -600,9 +522,6 @@ pub struct ServerContext {
 
     /// View mode of the editor
     pub editor_view_mode: EditorViewMode,
-    /// Previous editor view mode before entering Dungeon Tool.
-    pub prev_dungeon_view_mode: Option<EditorViewMode>,
-
     /// World mode is active
     pub world_mode: bool,
 
@@ -652,9 +571,6 @@ pub struct ServerContext {
 
     /// Editor-only visibility filter for geometry.
     pub editing_geo_filter: EditingGeoFilter,
-    /// Hide dungeon ceilings while dungeon-only filtering is active.
-    pub dungeon_no_ceiling: bool,
-
     /// Position of the 2D editing slice.
     pub editing_slice: f32,
     /// Height/thickness of the 2D editing slice.
@@ -750,30 +666,6 @@ impl ServerContext {
             curr_builder_graph_id: None,
             curr_builder_graph_name: None,
             curr_builder_graph_data: None,
-            curr_dungeon_tile: DungeonTileKind::FLOOR,
-            prev_dungeon_dock: None,
-            curr_dungeon_floor_base: 0.0,
-            curr_dungeon_height: 4.0,
-            curr_dungeon_create_floor: true,
-            curr_dungeon_create_ceiling: true,
-            curr_dungeon_standalone: false,
-            curr_dungeon_tile_span: 2,
-            curr_dungeon_tile_depth: 0.5,
-            curr_dungeon_tile_height: 2.25,
-            curr_dungeon_tile_open_mode: 0,
-            curr_dungeon_tile_item: "Door Handler".to_string(),
-            curr_dungeon_stair_target_floor_base: -1.0,
-            curr_dungeon_stair_steps: 4,
-            curr_dungeon_stair_tile_id: String::new(),
-            curr_dungeon_stair_tile_mode: 1,
-            curr_dungeon_render_toml: "[render]\ntransition_seconds = 1.0\nsun_enabled = false\nshadow_enabled = true\nfog_density = 5.0\nfog_color = \"#000000\"\n".to_string(),
-            curr_dungeon_render_enabled: true,
-            curr_dungeon_render_transition_seconds: 1.0,
-            curr_dungeon_render_sun_enabled: false,
-            curr_dungeon_render_shadow_enabled: true,
-            curr_dungeon_render_fog_density: 5.0,
-            curr_dungeon_render_fog_color: "#000000".to_string(),
-            prev_dungeon_subdivisions: None,
             builder_tool_active: false,
             builder_auto_vertex_mode: false,
             palette_tool_active: false,
@@ -815,7 +707,6 @@ impl ServerContext {
             selected_wall_row: Some(0),
 
             editor_view_mode: EditorViewMode::D2,
-            prev_dungeon_view_mode: None,
 
             world_mode: false,
             game_mode: false,
@@ -842,8 +733,6 @@ impl ServerContext {
             selected_hud_icon_index: 0,
             show_editing_geometry: true,
             editing_geo_filter: EditingGeoFilter::All,
-            dungeon_no_ceiling: false,
-
             gizmo_mode: GizmoMode::XZ,
             geometry_edit_mode: GeometryEditMode::Geometry,
             geometry_gizmo_op: GeometryGizmoOp::Move,

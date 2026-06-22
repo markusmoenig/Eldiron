@@ -142,6 +142,14 @@ impl MessagesWidget {
         }
     }
 
+    fn fallback_font() -> Option<fontdue::Font> {
+        fontdue::Font::from_bytes(
+            include_bytes!("../../../../theframework/embedded/fonts/Roboto-Bold.ttf").as_slice(),
+            fontdue::FontSettings::default(),
+        )
+        .ok()
+    }
+
     fn accepts_message_category(&self, category: &str) -> bool {
         match category.trim().to_ascii_lowercase().as_str() {
             "dialog" => self.handle_dialogs,
@@ -326,9 +334,12 @@ impl MessagesWidget {
             self.table = table;
         }
 
-        if let Some(font) = assets.fonts.get(&font_name) {
-            self.font = Some(font.clone());
-        }
+        self.font = assets
+            .fonts
+            .get(&font_name)
+            .or_else(|| assets.fonts.values().next())
+            .cloned()
+            .or_else(Self::fallback_font);
     }
 
     fn parse_pause_duration(msg: &str, category: &str) -> Option<Duration> {

@@ -242,161 +242,6 @@ impl Editor {
         );
     }
 
-    fn sector_is_dungeon_generated(sector: &rusterix::Sector) -> bool {
-        sector
-            .properties
-            .get_str_default("generated_by", String::new())
-            == "dungeon_tool"
-    }
-
-    fn linedef_has_dungeon_host(map: &Map, linedef_id: u32) -> bool {
-        if map.sectors.iter().any(|sector| {
-            Self::sector_is_dungeon_generated(sector) && sector.linedefs.contains(&linedef_id)
-        }) {
-            return true;
-        }
-
-        let Some(linedef) = map.find_linedef(linedef_id) else {
-            return false;
-        };
-        let (Some(v0), Some(v1)) = (
-            map.find_vertex(linedef.start_vertex),
-            map.find_vertex(linedef.end_vertex),
-        ) else {
-            return false;
-        };
-        let midpoint = Vec2::new((v0.x + v1.x) * 0.5, (v0.y + v1.y) * 0.5);
-        map.sectors.iter().any(|sector| {
-            if !Self::sector_is_dungeon_generated(sector) {
-                return false;
-            }
-            let mut bbox = sector.bounding_box(map);
-            bbox.expand(Vec2::new(0.25, 0.25));
-            bbox.contains(midpoint)
-        })
-    }
-
-    fn vertex_has_dungeon_host(map: &Map, vertex_id: u32) -> bool {
-        if map.sectors.iter().any(|sector| {
-            Self::sector_is_dungeon_generated(sector)
-                && sector.linedefs.iter().any(|linedef_id| {
-                    map.find_linedef(*linedef_id).is_some_and(|linedef| {
-                        linedef.start_vertex == vertex_id || linedef.end_vertex == vertex_id
-                    })
-                })
-        }) {
-            return true;
-        }
-
-        let Some(vertex) = map.find_vertex(vertex_id) else {
-            return false;
-        };
-        let pos = Vec2::new(vertex.x, vertex.y);
-        map.sectors.iter().any(|sector| {
-            if !Self::sector_is_dungeon_generated(sector) {
-                return false;
-            }
-            let mut bbox = sector.bounding_box(map);
-            bbox.expand(Vec2::new(0.25, 0.25));
-            bbox.contains(pos)
-        })
-    }
-
-    fn apply_editor_geo_filter(
-        filter: EditingGeoFilter,
-        dungeon_no_ceiling: bool,
-        map: &Map,
-        rusterix: &mut Rusterix,
-    ) {
-        let dungeon_only = filter == EditingGeoFilter::DungeonOnly;
-        if !dungeon_only && !dungeon_no_ceiling {
-            return;
-        }
-
-        for sector in &map.sectors {
-            let is_dungeon = Self::sector_is_dungeon_generated(sector);
-            let dungeon_part = sector
-                .properties
-                .get_str_default("dungeon_part", String::new());
-            let hide_dungeon_ceiling = dungeon_no_ceiling
-                && is_dungeon
-                && (dungeon_part == "ceiling" || dungeon_part == "stair_ceiling");
-            let base_visible = sector.properties.get_bool_default("visible", true);
-            let base_opacity = if base_visible {
-                sector.properties.get_float_default("opacity", 1.0)
-            } else {
-                0.0
-            };
-            let visible = if dungeon_only {
-                base_visible && is_dungeon && !hide_dungeon_ceiling
-            } else {
-                base_visible && !hide_dungeon_ceiling
-            };
-            let opacity = if visible { base_opacity } else { 0.0 };
-
-            rusterix
-                .scene_handler
-                .vm
-                .execute(scenevm::Atom::SetGeoVisible {
-                    id: scenevm::GeoId::Sector(sector.id),
-                    visible,
-                });
-            rusterix
-                .scene_handler
-                .vm
-                .execute(scenevm::Atom::SetGeoOpacity {
-                    id: scenevm::GeoId::Sector(sector.id),
-                    opacity,
-                });
-        }
-
-        for linedef in &map.linedefs {
-            let visible = if dungeon_only {
-                Self::linedef_has_dungeon_host(map, linedef.id)
-            } else {
-                true
-            };
-            let opacity = if visible { 1.0 } else { 0.0 };
-            rusterix
-                .scene_handler
-                .vm
-                .execute(scenevm::Atom::SetGeoVisible {
-                    id: scenevm::GeoId::Linedef(linedef.id),
-                    visible,
-                });
-            rusterix
-                .scene_handler
-                .vm
-                .execute(scenevm::Atom::SetGeoOpacity {
-                    id: scenevm::GeoId::Linedef(linedef.id),
-                    opacity,
-                });
-        }
-
-        for vertex in &map.vertices {
-            let visible = if dungeon_only {
-                Self::vertex_has_dungeon_host(map, vertex.id)
-            } else {
-                true
-            };
-            let opacity = if visible { 1.0 } else { 0.0 };
-            rusterix
-                .scene_handler
-                .vm
-                .execute(scenevm::Atom::SetGeoVisible {
-                    id: scenevm::GeoId::Vertex(vertex.id),
-                    visible,
-                });
-            rusterix
-                .scene_handler
-                .vm
-                .execute(scenevm::Atom::SetGeoOpacity {
-                    id: scenevm::GeoId::Vertex(vertex.id),
-                    opacity,
-                });
-        }
-    }
-
     fn log_segment_has_warning_or_error(segment: &str) -> bool {
         let segment = segment.to_ascii_lowercase();
         segment.contains("[error]") || segment.contains("[warning]") || segment.contains("[warn]")
@@ -3375,7 +3220,6 @@ impl Editor {
             }
             "Builder" => Some("docs/creator/tools/builder".into()),
             "Palette" => Some("docs/creator/tools/palette".into()),
-            "Dungeon" => Some("docs/creator/tools/dungeon".into()),
             "Object Tool" => Some("docs/creator/tools/object".into()),
             "Vertex Tool" => Some("docs/creator/tools/vertex".into()),
             "Linedef Tool" | "Linedef / Edge Tool" => Some("docs/creator/tools/linedef".into()),
@@ -3439,7 +3283,6 @@ impl Editor {
                     "Tiles" => Some("docs/creator/docks/tile_picker_editor".into()),
                     "Builder" => Some("docs/creator/tools/builder".into()),
                     "Palette" => Some("docs/creator/tools/palette".into()),
-                    "Dungeon" => Some("docs/creator/tools/dungeon".into()),
                     "Data" => Some(self.help_url_for_data_context()),
                     "Code" => Some("docs/creator/docks/eldrin_script_editor".into()),
                     _ => TOOLLIST
@@ -4783,12 +4626,6 @@ impl TheTrait for Editor {
                                 let animation_frame = rusterix.client.animation_frame;
                                 rusterix.scene_handler.mark_dynamics_dirty();
                                 rusterix.build_dynamics_3d(&region.map, animation_frame);
-                                Self::apply_editor_geo_filter(
-                                    self.server_ctx.editing_geo_filter,
-                                    self.server_ctx.dungeon_no_ceiling,
-                                    &region.map,
-                                    rusterix,
-                                );
                                 let editor_neutral_background =
                                     !is_running && !self.server_ctx.game_mode;
                                 rusterix.draw_d3_with_editor_background(
@@ -4831,10 +4668,6 @@ impl TheTrait for Editor {
 
                                 // let start_time = ctx.get_time();
 
-                                let use_dungeon_concept = self.server_ctx.editor_view_mode
-                                    == EditorViewMode::D2
-                                    && self.server_ctx.curr_map_tool_type == MapToolType::Dungeon;
-
                                 if let Some(clipboard) = &self.server_ctx.paste_clipboard {
                                     // During a paste operation we use a merged map
 
@@ -4844,39 +4677,19 @@ impl TheTrait for Editor {
                                     }
 
                                     rusterix.set_dirty();
-                                    if use_dungeon_concept {
-                                        rusterix.build_custom_scene_d2(
-                                            Vec2::new(dim.width as f32, dim.height as f32),
-                                            &map,
-                                            &self.build_values,
-                                            &self.server_ctx.editing_surface,
-                                            true,
-                                        );
-                                    } else {
-                                        rusterix.apply_entities_items(
-                                            Vec2::new(dim.width as f32, dim.height as f32),
-                                            &map,
-                                            &self.server_ctx.editing_surface,
-                                            false,
-                                        );
-                                    }
+                                    rusterix.apply_entities_items(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        &map,
+                                        &self.server_ctx.editing_surface,
+                                        false,
+                                    );
                                 } else if let Some(map) = self.project.get_map(&self.server_ctx) {
-                                    if use_dungeon_concept {
-                                        rusterix.build_custom_scene_d2(
-                                            Vec2::new(dim.width as f32, dim.height as f32),
-                                            map,
-                                            &self.build_values,
-                                            &self.server_ctx.editing_surface,
-                                            true,
-                                        );
-                                    } else {
-                                        rusterix.apply_entities_items(
-                                            Vec2::new(dim.width as f32, dim.height as f32),
-                                            map,
-                                            &self.server_ctx.editing_surface,
-                                            false,
-                                        );
-                                    }
+                                    rusterix.apply_entities_items(
+                                        Vec2::new(dim.width as f32, dim.height as f32),
+                                        map,
+                                        &self.server_ctx.editing_surface,
+                                        false,
+                                    );
                                 }
 
                                 // Prepare the messages for the region for drawing
@@ -4901,47 +4714,17 @@ impl TheTrait for Editor {
                                 if self.server_ctx.editor_view_mode == EditorViewMode::D2
                                     && rusterix.scene_handler.vm.vm_layer_count() > 1
                                 {
-                                    let overlay_enabled = if self.server_ctx.curr_map_tool_type
-                                        == MapToolType::Dungeon
-                                    {
-                                        true
-                                    } else {
-                                        self.server_ctx.show_editing_geometry
-                                    };
-                                    rusterix
-                                        .scene_handler
-                                        .vm
-                                        .set_layer_enabled(1, overlay_enabled);
-                                }
-                                if self.server_ctx.editor_view_mode == EditorViewMode::D2
-                                    && self.server_ctx.curr_map_tool_type == MapToolType::Dungeon
-                                {
-                                    Self::apply_editor_geo_filter(
-                                        self.server_ctx.editing_geo_filter,
-                                        self.server_ctx.dungeon_no_ceiling,
-                                        map,
-                                        rusterix,
-                                    );
-                                    rusterix.draw_custom_d2(
-                                        map,
-                                        render_view.render_buffer_mut().pixels_mut(),
-                                        dim.width as usize,
-                                        dim.height as usize,
-                                    );
-                                } else {
-                                    Self::apply_editor_geo_filter(
-                                        self.server_ctx.editing_geo_filter,
-                                        self.server_ctx.dungeon_no_ceiling,
-                                        map,
-                                        rusterix,
-                                    );
-                                    rusterix.draw_scene(
-                                        map,
-                                        render_view.render_buffer_mut().pixels_mut(),
-                                        dim.width as usize,
-                                        dim.height as usize,
+                                    rusterix.scene_handler.vm.set_layer_enabled(
+                                        1,
+                                        self.server_ctx.show_editing_geometry,
                                     );
                                 }
+                                rusterix.draw_scene(
+                                    map,
+                                    render_view.render_buffer_mut().pixels_mut(),
+                                    dim.width as usize,
+                                    dim.height as usize,
+                                );
                             }
                         } else if self.server_ctx.get_map_context() == MapContext::Region
                             && self.server_ctx.editing_surface.is_some()
@@ -4979,12 +4762,6 @@ impl TheTrait for Editor {
                                         &self.server_ctx.editing_surface,
                                         true,
                                     );
-                                    Self::apply_editor_geo_filter(
-                                        self.server_ctx.editing_geo_filter,
-                                        self.server_ctx.dungeon_no_ceiling,
-                                        &map,
-                                        rusterix,
-                                    );
                                     rusterix.draw_custom_d2(
                                         &map,
                                         render_view.render_buffer_mut().pixels_mut(),
@@ -4998,12 +4775,6 @@ impl TheTrait for Editor {
                                         &self.build_values,
                                         &self.server_ctx.editing_surface,
                                         true,
-                                    );
-                                    Self::apply_editor_geo_filter(
-                                        self.server_ctx.editing_geo_filter,
-                                        self.server_ctx.dungeon_no_ceiling,
-                                        profile,
-                                        rusterix,
                                     );
                                     rusterix.draw_custom_d2(
                                         profile,
@@ -5328,45 +5099,6 @@ impl TheTrait for Editor {
                         self.server_ctx.tile_node_group_id = None;
                         DOCKMANAGER.write().unwrap().minimize(ui, ctx);
                         redraw = true;
-                    } else if id.name == "Open Dungeon Dock" {
-                        let current = DOCKMANAGER.read().unwrap().dock.clone();
-                        if current != "Dungeon" {
-                            self.server_ctx.prev_dungeon_dock = if current.is_empty() {
-                                None
-                            } else {
-                                Some(current)
-                            };
-                        }
-                        DOCKMANAGER.write().unwrap().set_dock(
-                            "Dungeon".into(),
-                            ui,
-                            ctx,
-                            &self.project,
-                            &mut self.server_ctx,
-                        );
-                        ctx.ui.relayout = true;
-                        ctx.ui.redraw_all = true;
-                        redraw = true;
-                    } else if id.name == "Restore Previous Dock" {
-                        if let TheValue::Text(dock) = value {
-                            if self.server_ctx.game_mode {
-                                self.server_ctx.prev_dungeon_dock = None;
-                                continue;
-                            }
-                            let current = DOCKMANAGER.read().unwrap().dock.clone();
-                            if current == "Dungeon" {
-                                DOCKMANAGER.write().unwrap().set_dock(
-                                    dock.clone(),
-                                    ui,
-                                    ctx,
-                                    &self.project,
-                                    &mut self.server_ctx,
-                                );
-                                ctx.ui.relayout = true;
-                                ctx.ui.redraw_all = true;
-                                redraw = true;
-                            }
-                        }
                     } else if id.name == "Minimize Dock" {
                         DOCKMANAGER.write().unwrap().minimize(ui, ctx);
                         ctx.ui.relayout = true;

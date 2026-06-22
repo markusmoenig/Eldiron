@@ -1,5 +1,5 @@
 use crate::{
-    Entity, Item, Light, LightType, PixelSource, Value,
+    Entity, Item, Light, LightType, PixelSource, PlayerCamera, Value,
     server::entity::{EntitySequence, EntitySequenceStep},
 };
 use indexmap::IndexMap;
@@ -39,6 +39,18 @@ fn facing_to_orientation(facing: &str) -> Option<vek::Vec2<f32>> {
         "back" | "south" | "s" => Some(vek::Vec2::new(0.0, 1.0)),
         "right" | "east" | "e" => Some(vek::Vec2::new(1.0, 0.0)),
         "left" | "west" | "w" => Some(vek::Vec2::new(-1.0, 0.0)),
+        _ => None,
+    }
+}
+
+fn player_camera_from_str(camera: &str) -> Option<PlayerCamera> {
+    match camera.trim().to_ascii_lowercase().as_str() {
+        "2d" => Some(PlayerCamera::D2),
+        "2d_grid" => Some(PlayerCamera::D2Grid),
+        "iso" => Some(PlayerCamera::D3Iso),
+        "iso_grid" => Some(PlayerCamera::D2Grid),
+        "firstp" => Some(PlayerCamera::D3FirstP),
+        "firstp_grid" => Some(PlayerCamera::D3FirstPGrid),
         _ => None,
     }
 }
@@ -192,6 +204,16 @@ pub fn apply_entity_data(entity: &mut Entity, toml: &str) {
                                     entity.set_attribute(key, crate::Value::Str(value.to_string()));
                                     if let Some(orientation) = facing_to_orientation(value) {
                                         entity.orientation = orientation;
+                                    }
+                                } else if key == "player_camera" {
+                                    if let Some(camera) = player_camera_from_str(value) {
+                                        entity
+                                            .set_attribute(key, crate::Value::PlayerCamera(camera));
+                                    } else {
+                                        entity.set_attribute(
+                                            key,
+                                            crate::Value::Str(value.to_string()),
+                                        );
                                     }
                                 } else {
                                     entity.set_attribute(key, crate::Value::Str(value.to_string()));

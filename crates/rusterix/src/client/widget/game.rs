@@ -1214,7 +1214,7 @@ impl GameWidget {
 
     fn prepare_d3(
         &mut self,
-        map: &Map,
+        _map: &Map,
         time: &TheTime,
         animation_frame: usize,
         scene_handler: &mut SceneHandler,
@@ -1245,7 +1245,6 @@ impl GameWidget {
 
         let hour = time.to_f32();
 
-        scene_handler.apply_dungeon_render_overrides(map);
         scene_handler.apply_runtime_render_state_settings();
         scene_handler.settings.apply_hour(hour);
         scene_handler.settings.apply_3d(&mut scene_handler.vm);
@@ -1388,25 +1387,6 @@ impl GameWidget {
         if self.camera != PlayerCamera::D3Iso {
             scene_handler.vm.set_active_vm(0);
             for sector in &map.sectors {
-                let is_dungeon_door_panel = sector
-                    .properties
-                    .get_str_default("generated_by", String::new())
-                    == "dungeon_tool"
-                    && sector
-                        .properties
-                        .get_str_default("dungeon_part", String::new())
-                        == "door_panel";
-                if is_dungeon_door_panel {
-                    scene_handler.vm.execute(scenevm::Atom::SetGeoOpacity {
-                        id: scenevm::GeoId::Sector(sector.id),
-                        opacity: 0.0,
-                    });
-                    scene_handler.vm.execute(scenevm::Atom::SetGeoVisible {
-                        id: scenevm::GeoId::Sector(sector.id),
-                        visible: false,
-                    });
-                    continue;
-                }
                 scene_handler.vm.execute(scenevm::Atom::SetGeoOpacity {
                     id: scenevm::GeoId::Sector(sector.id),
                     opacity: 1.0,
@@ -1543,26 +1523,6 @@ impl GameWidget {
 
         scene_handler.vm.set_active_vm(0);
         for sector in &map.sectors {
-            let is_dungeon_door_panel = sector
-                .properties
-                .get_str_default("generated_by", String::new())
-                == "dungeon_tool"
-                && sector
-                    .properties
-                    .get_str_default("dungeon_part", String::new())
-                    == "door_panel";
-            if is_dungeon_door_panel {
-                scene_handler.vm.execute(scenevm::Atom::SetGeoOpacity {
-                    id: scenevm::GeoId::Sector(sector.id),
-                    opacity: 0.0,
-                });
-                scene_handler.vm.execute(scenevm::Atom::SetGeoVisible {
-                    id: scenevm::GeoId::Sector(sector.id),
-                    visible: false,
-                });
-                self.iso_sector_fade.insert(sector.id, 0.0);
-                continue;
-            }
             let was_hidden = self.iso_hidden_sectors.contains(&sector.id);
             let should_hide = target_hidden.contains(&sector.id);
             let base_visible = sector.properties.get_bool_default("visible", true);

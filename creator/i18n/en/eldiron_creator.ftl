@@ -239,7 +239,6 @@ action_remap_tile_desc = Remaps the colors of the tile to the palette.
 tool_game = Game Tool (K). Play the game!
 tool_builder = Builder Tool (B). Select a reusable prop or assembly asset, then click in the 3D scene to bake it into editable geometry.
 tool_palette = Palette Tool (P). Edit palette entries and apply palette colors.
-tool_dungeon = Dungeon Tool (U). Paint conceptual dungeon structures.
 tool_linedef = Linedef / Edge Tool (E). Create 2D line definitions and edit 3D geometry edges.
 tool_object = Object Tool (O). Select and move directly editable 3D objects.
 tool_rect = Rect Tool (R). Click to draw the current tile. Shift-click to delete. Alt/Opt-click to pick from the map.

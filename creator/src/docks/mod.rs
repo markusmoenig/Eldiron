@@ -7,7 +7,6 @@ pub mod console;
 pub mod data;
 pub mod data_editor;
 pub mod data_undo;
-pub mod dungeon;
 pub mod log;
 pub mod palette;
 pub mod particle_preview;

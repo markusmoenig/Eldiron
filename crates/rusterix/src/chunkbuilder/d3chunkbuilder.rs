@@ -65,88 +65,6 @@ fn matches_preview_hide_pattern(name: &str, pattern: &str) -> bool {
     name_l == pattern_l
 }
 
-fn sector_is_dungeon_filtered(
-    sector: &crate::Sector,
-    dungeon_only: bool,
-    dungeon_no_ceiling: bool,
-) -> bool {
-    let generated_by = sector
-        .properties
-        .get_str_default("generated_by", String::new());
-    let is_dungeon = generated_by == "dungeon_tool";
-    if dungeon_only && !is_dungeon {
-        return true;
-    }
-    if dungeon_no_ceiling && is_dungeon {
-        let dungeon_part = sector
-            .properties
-            .get_str_default("dungeon_part", String::new());
-        if dungeon_part == "ceiling" || dungeon_part == "stair_ceiling" {
-            return true;
-        }
-    }
-    false
-}
-
-fn sector_is_dungeon_generated(sector: &crate::Sector) -> bool {
-    sector
-        .properties
-        .get_str_default("generated_by", String::new())
-        == "dungeon_tool"
-}
-
-fn linedef_has_dungeon_host(map: &Map, linedef: &crate::Linedef) -> bool {
-    if map
-        .sectors
-        .iter()
-        .any(|sector| sector_is_dungeon_generated(sector) && sector.linedefs.contains(&linedef.id))
-    {
-        return true;
-    }
-
-    let Some(v0) = map.find_vertex(linedef.start_vertex) else {
-        return false;
-    };
-    let Some(v1) = map.find_vertex(linedef.end_vertex) else {
-        return false;
-    };
-    let midpoint = Vec2::new((v0.x + v1.x) * 0.5, (v0.y + v1.y) * 0.5);
-    map.sectors.iter().any(|sector| {
-        if !sector_is_dungeon_generated(sector) {
-            return false;
-        }
-        let mut bbox = sector.bounding_box(map);
-        bbox.expand(Vec2::new(0.25, 0.25));
-        bbox.contains(midpoint)
-    })
-}
-
-fn vertex_has_dungeon_host(map: &Map, vertex_id: u32) -> bool {
-    if map.sectors.iter().any(|sector| {
-        sector_is_dungeon_generated(sector)
-            && sector.linedefs.iter().any(|linedef_id| {
-                map.find_linedef(*linedef_id).is_some_and(|linedef| {
-                    linedef.start_vertex == vertex_id || linedef.end_vertex == vertex_id
-                })
-            })
-    }) {
-        return true;
-    }
-
-    let Some(vertex) = map.find_vertex(vertex_id) else {
-        return false;
-    };
-    let pos = Vec2::new(vertex.x, vertex.y);
-    map.sectors.iter().any(|sector| {
-        if !sector_is_dungeon_generated(sector) {
-            return false;
-        }
-        let mut bbox = sector.bounding_box(map);
-        bbox.expand(Vec2::new(0.25, 0.25));
-        bbox.contains(pos)
-    })
-}
-
 fn profile_sector_item(map: &Map, profile_id: Uuid, sector_id: u32) -> Option<&Item> {
     let profile_map = map.profiles.get(&profile_id)?;
     profile_map
@@ -1262,10 +1180,6 @@ impl ChunkBuilder for D3ChunkBuilder {
         vmchunk: &mut scenevm::Chunk,
     ) {
         let mut hidden: FxHashSet<GeoId> = FxHashSet::default();
-        let dungeon_only = map
-            .properties
-            .get_bool_default("editing_filter_dungeon", false);
-        let dungeon_no_ceiling = map.properties.get_bool_default("dungeon_no_ceiling", false);
         let preview_hide_patterns: Vec<String> = match map.properties.get("preview_hide") {
             Some(Value::StrArray(values)) => values.clone(),
             _ => Vec::new(),
@@ -1308,11 +1222,7 @@ impl ChunkBuilder for D3ChunkBuilder {
                 matches_preview_hide_pattern(&sector.name, pattern)
                     || (!roof_name.is_empty() && matches_preview_hide_pattern(&roof_name, pattern))
             });
-            if !visible
-                || hidden_by_preview
-                || builder_hide_host
-                || sector_is_dungeon_filtered(sector, dungeon_only, dungeon_no_ceiling)
-            {
+            if !visible || hidden_by_preview || builder_hide_host {
                 hidden.insert(GeoId::Sector(sector.id));
             }
 
@@ -1348,10 +1258,6 @@ impl ChunkBuilder for D3ChunkBuilder {
             if builder_replace_surface && surface.plane.normal.y > 0.7 {
                 continue;
             }
-            if sector_is_dungeon_filtered(sector, dungeon_only, dungeon_no_ceiling) {
-                continue;
-            }
-
             let bbox = sector.bounding_box(map);
             // Cull with the sector bbox: only use intersection
             if !bbox.intersects(&chunk.bbox) || !chunk.bbox.contains(bbox.center()) {
@@ -2409,28 +2315,19 @@ impl ChunkBuilder for D3ChunkBuilder {
             }
         }
 
-        // Build optional non-destructive linedef/features. In dungeon-only mode,
-        // keep builder features that are attached to dungeon-generated hosts.
-        if !dungeon_only {
-            generate_sector_stairs(map, assets, chunk, vmchunk);
-            generate_sector_campfires(map, assets, chunk, vmchunk);
-            generate_sector_builder_features(map, assets, chunk, vmchunk, false);
-            generate_sector_roofs(map, assets, chunk, vmchunk);
-            generate_vertex_builder_features(map, assets, chunk, vmchunk, false);
-            generate_builder_linedef_features(map, assets, chunk, vmchunk, false);
-            generate_linedef_features(map, assets, chunk, vmchunk);
-        } else {
-            generate_sector_builder_features(map, assets, chunk, vmchunk, true);
-            generate_vertex_builder_features(map, assets, chunk, vmchunk, true);
-            generate_builder_linedef_features(map, assets, chunk, vmchunk, true);
-        }
+        // Build optional non-destructive linedef/features.
+        generate_sector_stairs(map, assets, chunk, vmchunk);
+        generate_sector_campfires(map, assets, chunk, vmchunk);
+        generate_sector_builder_features(map, assets, chunk, vmchunk);
+        generate_sector_roofs(map, assets, chunk, vmchunk);
+        generate_vertex_builder_features(map, assets, chunk, vmchunk);
+        generate_builder_linedef_features(map, assets, chunk, vmchunk);
+        generate_linedef_features(map, assets, chunk, vmchunk);
 
         // Generate terrain for this chunk
         let terrain_counter = chunk.bbox.min.x as u32 * 10000 + chunk.bbox.min.y as u32;
-        if !dungeon_only {
-            generate_terrain(map, assets, chunk, vmchunk, terrain_counter);
-            generate_organic_volumes(map, assets, chunk, vmchunk);
-        }
+        generate_terrain(map, assets, chunk, vmchunk, terrain_counter);
+        generate_organic_volumes(map, assets, chunk, vmchunk);
 
         // Set all hidden geometry as not visible.
         // This needs to run after all generators (roofs/features/terrain),
@@ -2565,17 +2462,10 @@ impl ChunkBuilder for D3ChunkBuilder {
                     0.0
                 };
                 let is_horizontal = normalized_y > 0.7; // If Y component > 0.7, it's horizontal (floor/ceiling)
-                let dungeon_part = sector
-                    .properties
-                    .get_str_default("dungeon_part", String::new());
-                let is_dungeon_door_panel = dungeon_part == "door_panel";
 
                 // Only add blocking volumes for VERTICAL surfaces (walls)
                 // Horizontal surfaces (floors/ceilings) should not block movement
                 if !is_horizontal {
-                    if is_dungeon_door_panel {
-                        continue;
-                    }
                     if stairs_generated && (stairs_part == "riser" || stairs_part == "tread") {
                         continue;
                     }
@@ -3023,15 +2913,8 @@ impl ChunkBuilder for D3ChunkBuilder {
                         0.0
                     };
                     let is_horizontal = normalized_y > 0.7;
-                    let dungeon_part = sector
-                        .properties
-                        .get_str_default("dungeon_part", String::new());
-                    let is_dungeon_door_panel = dungeon_part == "door_panel";
 
                     if !is_horizontal {
-                        if is_dungeon_door_panel {
-                            continue;
-                        }
                         if stairs_generated && (stairs_part == "riser" || stairs_part == "tread") {
                             continue;
                         }
@@ -3137,65 +3020,10 @@ impl ChunkBuilder for D3ChunkBuilder {
         // so add blocking volumes here to match render geometry.
         add_generated_feature_collision(map, &chunk_bbox, &mut collision);
         add_linedef_feature_collision(map, &chunk_bbox, &mut collision);
-        add_dungeon_door_collision(map, &chunk_bbox, &mut collision);
-
         let mut geometry_builder = GeometryObjectBuilder::new();
         collision.extend(geometry_builder.build_collision(map, assets, chunk_origin, chunk_size));
 
         collision
-    }
-}
-
-fn add_dungeon_door_collision(
-    map: &Map,
-    chunk_bbox: &crate::BBox,
-    collision: &mut crate::collision_world::ChunkCollision,
-) {
-    for sector in &map.sectors {
-        let generated_by = sector
-            .properties
-            .get_str_default("generated_by", String::new());
-        if generated_by != "dungeon_tool" {
-            continue;
-        }
-        let dungeon_part = sector
-            .properties
-            .get_str_default("dungeon_part", String::new());
-        if dungeon_part != "door_panel" {
-            continue;
-        }
-
-        let bbox = sector.bounding_box(map);
-        if !bbox.intersects(chunk_bbox) {
-            continue;
-        }
-
-        let Some(vertices) = sector.vertices_world(map) else {
-            continue;
-        };
-        if vertices.len() < 3 {
-            continue;
-        }
-
-        let boundary_2d: Vec<Vec2<f32>> = vertices.iter().map(|v| Vec2::new(v.x, v.z)).collect();
-        let floor_height = sector.properties.get_float_default(
-            "floor_base",
-            vertices.iter().map(|v| v.y).fold(f32::INFINITY, f32::min),
-        );
-        let ceiling_height = floor_height
-            + sector
-                .properties
-                .get_float_default("dungeon_door_height", 2.0)
-                .max(0.1);
-
-        collision.dynamic_openings.push(DynamicOpening {
-            geo_id: GeoId::Sector(sector.id),
-            item_blocking: Some(sector.properties.get_bool_default("blocking", true)),
-            boundary_2d,
-            floor_height,
-            ceiling_height,
-            opening_type: OpeningType::Door,
-        });
     }
 }
 
@@ -5523,7 +5351,6 @@ fn generate_builder_linedef_features(
     assets: &Assets,
     chunk: &Chunk,
     vmchunk: &mut scenevm::Chunk,
-    dungeon_only: bool,
 ) {
     let mut grouped: FxHashMap<
         Uuid,
@@ -5531,9 +5358,6 @@ fn generate_builder_linedef_features(
     > = FxHashMap::default();
 
     for linedef in &map.linedefs {
-        if dungeon_only && !linedef_has_dungeon_host(map, linedef) {
-            continue;
-        }
         let builder_graph_data = linedef
             .properties
             .get_str_default("builder_graph_data", String::new());
@@ -5886,15 +5710,11 @@ fn generate_vertex_builder_features(
     assets: &Assets,
     chunk: &Chunk,
     vmchunk: &mut scenevm::Chunk,
-    dungeon_only: bool,
 ) {
     let mut grouped: FxHashMap<Uuid, Vec<(u32, Vec3<f32>, ValueContainer, String, i32)>> =
         FxHashMap::default();
 
     for vertex in &map.vertices {
-        if dungeon_only && !vertex_has_dungeon_host(map, vertex.id) {
-            continue;
-        }
         let builder_graph_data = vertex
             .properties
             .get_str_default("builder_graph_data", String::new());
@@ -7100,12 +6920,8 @@ fn generate_sector_builder_features(
     assets: &Assets,
     chunk: &mut Chunk,
     vmchunk: &mut scenevm::Chunk,
-    dungeon_only: bool,
 ) {
     for sector in &map.sectors {
-        if dungeon_only && !sector_is_dungeon_generated(sector) {
-            continue;
-        }
         let builder_graph_data = sector
             .properties
             .get_str_default("builder_graph_data", String::new());

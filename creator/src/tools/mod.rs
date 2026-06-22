@@ -9,7 +9,6 @@ pub mod geometry;
 // pub mod info;
 pub mod builder;
 pub mod collision_probe;
-pub mod dungeon;
 pub mod linedef;
 pub mod palette;
 pub mod rect;

@@ -331,7 +331,6 @@ authoring_target_item = 物品
 tool_game = Game Tool (K)。开始游玩！
 tool_builder = Builder Tool (B)。选择可复用的道具或组合资源，然后在 3D 场景中单击，将其烘焙为可编辑几何体。
 tool_palette = 调色板工具 (P)。编辑调色板条目并应用调色板颜色。
-tool_dungeon = 地牢工具 (U)。绘制概念性的地牢结构。
 builder_picker_title = Builder 选择器
 palette_apply_color = 应用颜色
 status_palette_apply_color = 将当前调色板条目应用到所选目标。

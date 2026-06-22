@@ -292,6 +292,7 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
             );
             if let Some(character) = project.characters.get(&instance.character_id) {
                 entity.set_attribute("class_name", Value::Str(character.name.clone()));
+                rusterix::server::data::apply_entity_data(&mut entity, &character.data);
             }
             region.map.entities.push(entity);
         }

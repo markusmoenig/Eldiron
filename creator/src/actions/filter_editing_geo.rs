@@ -15,14 +15,8 @@ impl Action for FilterEditingGeo {
             "actionEditingGeoFilterMode".into(),
             "Mode".into(),
             "Choose which editor geometry remains visible while editing.".into(),
-            vec!["All".into(), "Dungeon".into()],
+            vec!["All".into()],
             0,
-        ));
-        nodeui.add_item(TheNodeUIItem::Checkbox(
-            "actionDungeonNoCeiling".into(),
-            "Dungeon No Ceiling".into(),
-            "Hide dungeon ceiling geometry while the Dungeon filter is active.".into(),
-            false,
         ));
         nodeui.add_item(TheNodeUIItem::Markdown(
             "desc".into(),
@@ -61,8 +55,6 @@ impl Action for FilterEditingGeo {
             "actionEditingGeoFilterMode",
             server_ctx.editing_geo_filter.to_index(),
         );
-        self.nodeui
-            .set_bool_value("actionDungeonNoCeiling", server_ctx.dungeon_no_ceiling);
     }
 
     fn apply_project(
@@ -77,10 +69,6 @@ impl Action for FilterEditingGeo {
             .get_i32_value("actionEditingGeoFilterMode")
             .unwrap_or(0);
         server_ctx.editing_geo_filter = EditingGeoFilter::from_index(mode);
-        server_ctx.dungeon_no_ceiling = self
-            .nodeui
-            .get_bool_value("actionDungeonNoCeiling")
-            .unwrap_or(false);
 
         crate::utils::editor_scene_full_rebuild(project, server_ctx);
         crate::editor::TOOLLIST

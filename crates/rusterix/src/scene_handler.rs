@@ -1,13 +1,9 @@
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    str::FromStr,
-};
+use std::{hash::Hasher, str::FromStr};
 
 use crate::server::message::RuntimeRenderState;
 use crate::{
     Assets, AvatarDirection, AvatarShadingOptions, BillboardAnimation, BillboardMetadata, D3Camera,
-    Item, Map, ParticleEmitter, PixelSource, RenderSettings, Texture, Tile, Value, ValueTomlLoader,
+    Item, Map, ParticleEmitter, PixelSource, RenderSettings, Texture, Tile, Value,
     avatar_builder::{AvatarFrameStyle, AvatarRuntimeBuilder},
     chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
     client::widget::Widget,
@@ -17,7 +13,7 @@ use buildergraph::{BuilderDocument, BuilderOutputTarget, BuilderPrimitive};
 use indexmap::IndexMap;
 use rust_embed::EmbeddedFile;
 use rustc_hash::{FxHashMap, FxHashSet};
-use scenevm::{Atom, Chunk, DynamicMeshVertex, DynamicObject, GeoId, Light, SceneVM};
+use scenevm::{Atom, Chunk, DynamicObject, GeoId, Light, SceneVM};
 use theframework::prelude::*;
 
 /// Tracks per-billboard animation state so we can interpolate on visibility changes.
@@ -201,33 +197,6 @@ mod tests {
     }
 }
 
-#[derive(Default)]
-pub(crate) struct DoorAnimState {
-    start_open: f32,
-    target_open: f32,
-    start_frame: usize,
-}
-
-impl DoorAnimState {
-    fn new(initial_open: f32, frame: usize) -> Self {
-        Self {
-            start_open: initial_open,
-            target_open: initial_open,
-            start_frame: frame,
-        }
-    }
-
-    fn open_amount(&self, frame: usize, fps: f32, duration_seconds: f32) -> f32 {
-        if duration_seconds <= 0.0 {
-            return self.target_open;
-        }
-        let elapsed_seconds = frame.saturating_sub(self.start_frame) as f32 / fps;
-        let t = (elapsed_seconds / duration_seconds).clamp(0.0, 1.0);
-        let smooth = t * t * (3.0 - 2.0 * t);
-        self.start_open + (self.target_open - self.start_open) * smooth
-    }
-}
-
 pub struct SceneHandler {
     pub vm: SceneVM,
     pub build_index: SceneBuildIndex,
@@ -266,7 +235,6 @@ pub struct SceneHandler {
 
     // Animation state per billboard
     pub(crate) billboard_anim_states: FxHashMap<GeoId, BillboardAnimState>,
-    pub(crate) door_anim_states: FxHashMap<GeoId, DoorAnimState>,
     // Per-item animation phase starts for one-shot impact effects.
     impact_anim_starts: FxHashMap<GeoId, u32>,
     campfire_emitters: FxHashMap<u32, ParticleEmitter>,
@@ -292,8 +260,6 @@ pub struct SceneHandler {
     game_tick_fps: f32,
     pending_particle_steps_2d: usize,
     pending_particle_steps_3d: usize,
-    last_dungeon_render_signature: Option<u64>,
-    dungeon_render_apply_immediate: bool,
 }
 
 impl Default for SceneHandler {
@@ -475,8 +441,6 @@ impl SceneHandler {
         _ = base.read(config);
         self.base_settings = base.clone();
         self.settings = base;
-        self.last_dungeon_render_signature = None;
-        self.dungeon_render_apply_immediate = true;
     }
 
     pub fn apply_runtime_render_state_settings(&mut self) {
@@ -509,177 +473,6 @@ impl SceneHandler {
 
     pub fn apply_runtime_render_state_3d(&mut self) {
         // 3D render/post overrides are applied to settings before settings.apply_3d().
-    }
-
-    fn sector_floor_height_for_player(map: &Map, sector: &crate::Sector) -> Option<f32> {
-        if map
-            .get_surface_for_sector_id(sector.id)
-            .map(|surface| surface.plane.normal.y.abs() <= 0.7)
-            .unwrap_or(true)
-        {
-            return None;
-        }
-        if sector.properties.get_float_default("roof_height", 0.0) > 0.0 {
-            return None;
-        }
-
-        let mut vertex_ids: FxHashSet<u32> = FxHashSet::default();
-        let mut sum_y = 0.0f32;
-        let mut count = 0usize;
-        for linedef_id in &sector.linedefs {
-            let Some(ld) = map.find_linedef(*linedef_id) else {
-                continue;
-            };
-            for vertex_id in [ld.start_vertex, ld.end_vertex] {
-                if vertex_ids.insert(vertex_id)
-                    && let Some(v) = map.get_vertex_3d(vertex_id)
-                {
-                    sum_y += v.y;
-                    count += 1;
-                }
-            }
-        }
-        if count == 0 {
-            None
-        } else {
-            Some(sum_y / count as f32)
-        }
-    }
-
-    fn current_player_sector<'a>(map: &'a Map) -> Option<&'a crate::Sector> {
-        let player = map.entities.iter().find(|entity| entity.is_player())?;
-        let player_pos = player.get_pos_xz();
-        let reference_y = player.position.y;
-        let mut best_below: Option<(&crate::Sector, f32)> = None;
-        let mut best_above: Option<(&crate::Sector, f32)> = None;
-        const FLOOR_EPS: f32 = 0.05;
-
-        for sector in map
-            .sectors
-            .iter()
-            .filter(|s| s.layer.is_none() && s.is_inside(map, player_pos))
-        {
-            let Some(h) = Self::sector_floor_height_for_player(map, sector) else {
-                continue;
-            };
-            if h <= reference_y + FLOOR_EPS {
-                if best_below.is_none_or(|(_, curr_h)| h > curr_h) {
-                    best_below = Some((sector, h));
-                }
-            } else {
-                let dist = h - reference_y;
-                if best_above.is_none_or(|(_, curr_dist)| dist < curr_dist) {
-                    best_above = Some((sector, dist));
-                }
-            }
-        }
-
-        best_below
-            .map(|(sector, _)| sector)
-            .or_else(|| best_above.map(|(sector, _)| sector))
-            .or_else(|| map.find_sector_at(player_pos))
-    }
-
-    fn dungeon_render_signature(map: &Map, active: bool) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        active.hash(&mut hasher);
-        Self::dungeon_render_toml(map).hash(&mut hasher);
-        if let Some(sector) = Self::current_player_sector(map) {
-            sector.id.hash(&mut hasher);
-        }
-        hasher.finish()
-    }
-
-    fn dungeon_render_toml(map: &Map) -> String {
-        if let Some(render_toml) = map.properties.get_str("dungeon_render_toml")
-            && !render_toml.trim().is_empty()
-        {
-            return render_toml.to_string();
-        }
-
-        if map
-            .properties
-            .get("dungeon_render_transition_seconds")
-            .is_some()
-            || map.properties.get("dungeon_render_sun_enabled").is_some()
-            || map
-                .properties
-                .get("dungeon_render_shadow_enabled")
-                .is_some()
-            || map.properties.get("dungeon_render_fog_density").is_some()
-            || map.properties.get("dungeon_render_fog_color").is_some()
-        {
-            return format!(
-                "[render]\ntransition_seconds = {}\nsun_enabled = {}\nshadow_enabled = {}\nfog_density = {}\nfog_color = \"{}\"\n",
-                map.properties
-                    .get_float_default("dungeon_render_transition_seconds", 1.0),
-                map.properties
-                    .get_bool_default("dungeon_render_sun_enabled", false),
-                map.properties
-                    .get_bool_default("dungeon_render_shadow_enabled", true),
-                map.properties
-                    .get_float_default("dungeon_render_fog_density", 5.0),
-                map.properties
-                    .get_str_default("dungeon_render_fog_color", "#000000".to_string()),
-            );
-        }
-
-        "[render]\ntransition_seconds = 1.0\nsun_enabled = false\nshadow_enabled = true\nfog_density = 5.0\nfog_color = \"#000000\"\n".to_string()
-    }
-
-    pub fn apply_dungeon_render_overrides(&mut self, map: &Map) {
-        let current_sector = Self::current_player_sector(map);
-        let in_dungeon = current_sector
-            .map(|sector| {
-                sector
-                    .properties
-                    .get_str_default("generated_by", String::new())
-                    == "dungeon_tool"
-            })
-            .unwrap_or(false);
-
-        let signature = Self::dungeon_render_signature(map, in_dungeon);
-        if self.last_dungeon_render_signature == Some(signature) {
-            return;
-        }
-        self.last_dungeon_render_signature = Some(signature);
-
-        let render_toml = Self::dungeon_render_toml(map);
-        let render_group = if in_dungeon {
-            ValueTomlLoader::from_str(&render_toml)
-                .ok()
-                .and_then(|groups| groups.get("render").cloned())
-        } else {
-            None
-        };
-        let mut transition = render_group
-            .as_ref()
-            .and_then(|render| render.get_float("transition_seconds"))
-            .unwrap_or(1.0)
-            .max(0.0);
-        if self.dungeon_render_apply_immediate {
-            transition = 0.0;
-            self.dungeon_render_apply_immediate = false;
-        }
-
-        for name in RenderSettings::runtime_override_names() {
-            let mut target = render_group
-                .as_ref()
-                .and_then(|render| render.get(name).cloned())
-                .or_else(|| self.base_settings.value_for_name(name));
-            if *name == "fog_density"
-                && let Some(Value::Float(v)) = target.as_mut()
-                && render_group
-                    .as_ref()
-                    .and_then(|render| render.get(name))
-                    .is_some()
-            {
-                *v /= 100.0;
-            }
-            if let Some(target) = target {
-                let _ = self.settings.set(name, target, transition);
-            }
-        }
     }
 
     fn rebuild_campfire_particles(
@@ -2416,357 +2209,6 @@ impl SceneHandler {
             .find(|item| item.attributes.get_id("door_group_id") == Some(group_id))
     }
 
-    fn dungeon_door_mode_from_str(value: &str) -> &'static str {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "slide_up" | "slide up" => "slide_up",
-            "slide_down" | "slide down" => "slide_down",
-            "slide_left" | "slide left" => "slide_left",
-            "slide_right" | "slide right" => "slide_right",
-            "split_sides" | "split sides" => "split_sides",
-            _ => "auto",
-        }
-    }
-
-    fn tile_id_from_source(source: &PixelSource, assets: &Assets) -> Option<Uuid> {
-        source.tile_from_tile_list(assets).map(|tile| tile.id)
-    }
-
-    fn dynamic_door_tile_id(sector: &crate::Sector, assets: &Assets) -> Option<Uuid> {
-        sector
-            .properties
-            .get_source("jamb_source")
-            .and_then(|src| Self::tile_id_from_source(src, assets))
-            .or_else(|| {
-                sector
-                    .properties
-                    .get_source("side_source")
-                    .and_then(|src| Self::tile_id_from_source(src, assets))
-            })
-            .or_else(|| {
-                sector
-                    .properties
-                    .get_source("source")
-                    .and_then(|src| Self::tile_id_from_source(src, assets))
-            })
-            .or_else(|| {
-                sector
-                    .properties
-                    .get_source("floor_source")
-                    .and_then(|src| Self::tile_id_from_source(src, assets))
-            })
-            .or_else(|| Uuid::parse_str(DEFAULT_TILE_ID).ok())
-    }
-
-    fn item_open_state(item: &Item) -> bool {
-        if item.attributes.get("active").is_some() {
-            return item.attributes.get_bool_default("active", false);
-        }
-        if item.attributes.get("blocking").is_some() {
-            return !item.attributes.get_bool_default("blocking", true);
-        }
-        !item.attributes.get_bool_default("visible", true)
-    }
-
-    fn apply_dynamic_door_transform(
-        points: &mut [Vec3<f32>],
-        open_amount: f32,
-        mode: &str,
-        width: f32,
-        height: f32,
-        center: Vec3<f32>,
-        axis_horizontal: Vec3<f32>,
-        axis_normal: Vec3<f32>,
-    ) {
-        match mode {
-            "slide_up" => {
-                let offset = Vec3::unit_y() * (height * open_amount);
-                for p in points {
-                    *p += offset;
-                }
-            }
-            "slide_down" => {
-                let offset = Vec3::unit_y() * (height * open_amount);
-                for p in points {
-                    *p -= offset;
-                }
-            }
-            "slide_left" => {
-                let offset = axis_horizontal * (width * open_amount);
-                for p in points {
-                    *p -= offset;
-                }
-            }
-            "slide_right" => {
-                let offset = axis_horizontal * (width * open_amount);
-                for p in points {
-                    *p += offset;
-                }
-            }
-            "split_sides" => {
-                let offset = axis_horizontal * (width * 0.5 * open_amount);
-                for p in points {
-                    let sign = if (*p - center).dot(axis_horizontal) >= 0.0 {
-                        1.0
-                    } else {
-                        -1.0
-                    };
-                    *p += offset * sign;
-                }
-            }
-            _ => {
-                let offset = axis_normal * (width.max(0.25) * open_amount);
-                for p in points {
-                    *p += offset;
-                }
-            }
-        }
-    }
-
-    fn build_dynamic_door_meshes(
-        sector: &crate::Sector,
-        map: &Map,
-        assets: &Assets,
-        open_amount: f32,
-        mode: &str,
-    ) -> Option<Vec<(Uuid, Vec<DynamicMeshVertex>, Vec<u32>, f32)>> {
-        let mut points = sector.vertices_world(map)?;
-        if points.len() < 4 {
-            return None;
-        }
-        points.truncate(4);
-        let original_points = points.clone();
-
-        let min = points
-            .iter()
-            .copied()
-            .reduce(|a, b| Vec3::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)))?;
-        let max = points
-            .iter()
-            .copied()
-            .reduce(|a, b| Vec3::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)))?;
-        let center = (min + max) * 0.5;
-        let width_x = (max.x - min.x).abs();
-        let width_z = (max.z - min.z).abs();
-        let axis_horizontal = if width_x >= width_z {
-            Vec3::unit_x()
-        } else {
-            Vec3::unit_z()
-        };
-        let axis_normal = if width_x >= width_z {
-            Vec3::unit_z()
-        } else {
-            Vec3::unit_x()
-        };
-        let width = width_x.max(width_z).max(0.001);
-        let height = (max.y - min.y).abs().max(0.001);
-        Self::apply_dynamic_door_transform(
-            &mut points,
-            open_amount,
-            mode,
-            width,
-            height,
-            center,
-            axis_horizontal,
-            axis_normal,
-        );
-
-        let mut opacity = 1.0f32;
-        if open_amount >= 0.999 {
-            opacity = 0.0;
-        }
-
-        let normal = {
-            let a = points[1] - points[0];
-            let b = points[2] - points[0];
-            let mut n = a.cross(b);
-            if n.magnitude_squared() <= 1e-8 {
-                n = Vec3::unit_y();
-            } else {
-                n = n.normalized();
-            }
-            n
-        };
-
-        let Some(surface) = map.get_surface_for_sector_id(sector.id) else {
-            let tile_id = Self::dynamic_door_tile_id(sector, assets)?;
-            let verts = vec![
-                DynamicMeshVertex {
-                    position: points[0],
-                    uv: Vec2::new(0.0, height),
-                    normal,
-                },
-                DynamicMeshVertex {
-                    position: points[1],
-                    uv: Vec2::new(0.0, 0.0),
-                    normal,
-                },
-                DynamicMeshVertex {
-                    position: points[2],
-                    uv: Vec2::new(width, 0.0),
-                    normal,
-                },
-                DynamicMeshVertex {
-                    position: points[3],
-                    uv: Vec2::new(width, height),
-                    normal,
-                },
-            ];
-            return Some(vec![(tile_id, verts, vec![0, 1, 2, 0, 2, 3], opacity)]);
-        };
-
-        if let Some(Value::TileOverrides(tile_overrides)) = sector.properties.get("tiles") {
-            let original_local: Vec<Vec2<f32>> = original_points
-                .iter()
-                .map(|p| surface.uv_to_tile_local(surface.world_to_uv(*p), map))
-                .collect();
-            let min_local = original_local
-                .iter()
-                .fold(Vec2::new(f32::INFINITY, f32::INFINITY), |acc, p| {
-                    Vec2::new(acc.x.min(p.x), acc.y.min(p.y))
-                });
-            let max_local = original_local
-                .iter()
-                .fold(Vec2::new(f32::NEG_INFINITY, f32::NEG_INFINITY), |acc, p| {
-                    Vec2::new(acc.x.max(p.x), acc.y.max(p.y))
-                });
-            let base_tile_id = Self::dynamic_door_tile_id(sector, assets)?;
-
-            let mut meshes = Vec::new();
-            for ty in min_local.y.floor() as i32..max_local.y.ceil() as i32 {
-                for tx in min_local.x.floor() as i32..max_local.x.ceil() as i32 {
-                    let x0 = min_local.x.max(tx as f32);
-                    let x1 = max_local.x.min(tx as f32 + 1.0);
-                    let y0 = min_local.y.max(ty as f32);
-                    let y1 = max_local.y.min(ty as f32 + 1.0);
-                    if x1 - x0 <= 1e-4 || y1 - y0 <= 1e-4 {
-                        continue;
-                    }
-                    let tile_id = tile_overrides
-                        .get(&(tx, ty))
-                        .and_then(|source| Self::tile_id_from_source(source, assets))
-                        .unwrap_or(base_tile_id);
-                    let local_corners = [
-                        Vec2::new(x0, y1),
-                        Vec2::new(x0, y0),
-                        Vec2::new(x1, y0),
-                        Vec2::new(x1, y1),
-                    ];
-                    let mut cell_points: Vec<Vec3<f32>> = local_corners
-                        .iter()
-                        .map(|local| surface.uv_to_world(surface.tile_local_to_uv(*local, map)))
-                        .collect();
-                    Self::apply_dynamic_door_transform(
-                        &mut cell_points,
-                        open_amount,
-                        mode,
-                        width,
-                        height,
-                        center,
-                        axis_horizontal,
-                        axis_normal,
-                    );
-                    let verts = vec![
-                        DynamicMeshVertex {
-                            position: cell_points[0],
-                            uv: Vec2::new(0.0, y1 - y0),
-                            normal,
-                        },
-                        DynamicMeshVertex {
-                            position: cell_points[1],
-                            uv: Vec2::new(0.0, 0.0),
-                            normal,
-                        },
-                        DynamicMeshVertex {
-                            position: cell_points[2],
-                            uv: Vec2::new(x1 - x0, 0.0),
-                            normal,
-                        },
-                        DynamicMeshVertex {
-                            position: cell_points[3],
-                            uv: Vec2::new(x1 - x0, y1 - y0),
-                            normal,
-                        },
-                    ];
-                    meshes.push((tile_id, verts, vec![0, 1, 2, 0, 2, 3], opacity));
-                }
-            }
-            if !meshes.is_empty() {
-                return Some(meshes);
-            }
-        }
-
-        let verts_uv: Vec<[f32; 2]> = original_points
-            .iter()
-            .map(|p| {
-                let uv = surface.world_to_uv(*p);
-                [uv.x, uv.y]
-            })
-            .collect();
-        let mut minx = f32::INFINITY;
-        let mut miny = f32::INFINITY;
-        let mut maxy = f32::NEG_INFINITY;
-        for v in &verts_uv {
-            minx = minx.min(v[0]);
-            miny = miny.min(v[1]);
-            maxy = maxy.max(v[1]);
-        }
-        let wall_like = surface.plane.normal.y.abs() < 0.25;
-        let flip_v = wall_like && surface.edit_uv.up.y < 0.0;
-        let tile_mode = sector.properties.get_int_default("tile_mode", 1);
-        let tex_scale_x = sector
-            .properties
-            .get_float_default("texture_scale_x", 1.0)
-            .max(1e-6);
-        let tex_scale_y = sector
-            .properties
-            .get_float_default("texture_scale_y", 1.0)
-            .max(1e-6);
-        let sx = (verts_uv
-            .iter()
-            .map(|v| v[0])
-            .fold(f32::NEG_INFINITY, f32::max)
-            - minx)
-            .max(1e-6);
-        let sy = (maxy - miny).max(1e-6);
-
-        let uvs = verts_uv
-            .iter()
-            .map(|v| {
-                let vv = if flip_v { maxy - v[1] } else { v[1] - miny };
-                if tile_mode == 0 {
-                    Vec2::new((v[0] - minx) / sx, vv / sy)
-                } else {
-                    Vec2::new((v[0] - minx) / tex_scale_x, vv / tex_scale_y)
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let tile_id = Self::dynamic_door_tile_id(sector, assets)?;
-        let verts = vec![
-            DynamicMeshVertex {
-                position: points[0],
-                uv: uvs[0],
-                normal,
-            },
-            DynamicMeshVertex {
-                position: points[1],
-                uv: uvs[1],
-                normal,
-            },
-            DynamicMeshVertex {
-                position: points[2],
-                uv: uvs[2],
-                normal,
-            },
-            DynamicMeshVertex {
-                position: points[3],
-                uv: uvs[3],
-                normal,
-            },
-        ];
-        Some(vec![(tile_id, verts, vec![0, 1, 2, 0, 2, 3], opacity)])
-    }
-
     pub fn empty() -> Self {
         let mut vm = SceneVM::default();
         vm.set_layer_activity_logging(false);
@@ -2806,7 +2248,6 @@ impl SceneHandler {
 
             billboards: FxHashMap::default(),
             billboard_anim_states: FxHashMap::default(),
-            door_anim_states: FxHashMap::default(),
             impact_anim_starts: FxHashMap::default(),
             campfire_emitters: FxHashMap::default(),
             tile_emitters_2d: FxHashMap::default(),
@@ -2827,8 +2268,6 @@ impl SceneHandler {
             game_tick_fps: 4.0, // default 250ms ticks
             pending_particle_steps_2d: 0,
             pending_particle_steps_3d: 0,
-            last_dungeon_render_signature: None,
-            dungeon_render_apply_immediate: true,
         }
     }
 
@@ -4244,95 +3683,10 @@ impl SceneHandler {
 
         // Billboards (doors/gates)
         const BILLBOARD_ANIMATION_DURATION_S: f32 = 0.35;
-        const DUNGEON_DOOR_ANIMATION_DURATION_S: f32 = 0.30;
 
         // Drop stale animation states for billboards that vanished with chunk updates.
         self.billboard_anim_states
             .retain(|geo_id, _| self.billboards.contains_key(geo_id));
-
-        let mut active_door_geo: FxHashSet<GeoId> = FxHashSet::default();
-        for sector in &map.sectors {
-            if sector
-                .properties
-                .get_str_default("generated_by", String::new())
-                != "dungeon_tool"
-            {
-                continue;
-            }
-            if sector
-                .properties
-                .get_str_default("dungeon_part", String::new())
-                != "door_panel"
-            {
-                continue;
-            }
-
-            let geo_id = GeoId::Sector(sector.id);
-            active_door_geo.insert(geo_id);
-
-            let Some(item) = Self::find_item_by_sector_id(map, sector.id) else {
-                continue;
-            };
-            let desired_open = if Self::item_open_state(item) {
-                1.0
-            } else {
-                0.0
-            };
-            let state = self
-                .door_anim_states
-                .entry(geo_id)
-                .or_insert_with(|| DoorAnimState::new(desired_open, self.frame_counter));
-            if (desired_open - state.target_open).abs() > f32::EPSILON {
-                let current_open = state.open_amount(
-                    self.frame_counter,
-                    self.render_fps,
-                    DUNGEON_DOOR_ANIMATION_DURATION_S,
-                );
-                *state = DoorAnimState {
-                    start_open: current_open,
-                    target_open: desired_open,
-                    start_frame: self.frame_counter,
-                };
-            }
-            let open_amount = state.open_amount(
-                self.frame_counter,
-                self.render_fps,
-                DUNGEON_DOOR_ANIMATION_DURATION_S,
-            );
-            if (open_amount - state.target_open).abs() <= 1e-3 {
-                state.start_open = state.target_open;
-                state.start_frame = self.frame_counter;
-            }
-
-            let mut mode = Self::dungeon_door_mode_from_str(
-                &sector
-                    .properties
-                    .get_str_default("dungeon_door_mode", "auto".to_string()),
-            );
-            if mode == "split_sides" {
-                mode = match sector
-                    .properties
-                    .get_str_default("dungeon_door_leaf", String::new())
-                    .as_str()
-                {
-                    "left" => "slide_left",
-                    "right" => "slide_right",
-                    _ => "split_sides",
-                };
-            }
-            let Some(meshes) =
-                Self::build_dynamic_door_meshes(sector, map, assets, open_amount, mode)
-            else {
-                continue;
-            };
-            for (tile_id, verts, indices, opacity) in meshes {
-                let dynamic =
-                    DynamicObject::mesh(geo_id, tile_id, verts, indices).with_opacity(opacity);
-                self.vm.execute(Atom::AddDynamic { object: dynamic });
-            }
-        }
-        self.door_anim_states
-            .retain(|geo_id, _| active_door_geo.contains(geo_id));
 
         for (geo_id, billboard) in &self.billboards {
             // Doors/gates use GeoId::Hole(host_sector, profile_sector)

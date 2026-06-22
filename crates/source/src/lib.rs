@@ -1,6 +1,9 @@
-use rusterix::{Map, MapCamera, PixelSource, Sector, Value};
+use rusterix::{
+    GeometryObject, GeometryObjectKind, Map, MapCamera, PixelSource, Sector, Texture, Tile,
+    TileRole, Value, ValueContainer,
+};
 use serde::Deserialize;
-use shared::prelude::{Character, IndexMap, Item, Project, Region, Screen};
+use shared::prelude::{Asset, AssetBuffer, Character, IndexMap, Item, Project, Region, Screen};
 use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -48,12 +51,20 @@ struct GameSection {
     start_region: String,
     #[serde(default)]
     start_screen: String,
+    #[serde(default = "default_client_mode")]
+    client_mode: String,
     #[serde(default = "default_terminal_mode")]
     terminal_mode: String,
     #[serde(default = "default_simulation_mode")]
     simulation_mode: String,
+    #[serde(default = "default_game_tick_ms")]
+    game_tick_ms: u32,
     #[serde(default = "default_turn_timeout_ms")]
     turn_timeout_ms: u32,
+    #[serde(default = "default_movement_units_per_sec")]
+    movement_units_per_sec: u32,
+    #[serde(default = "default_turn_speed_deg_per_sec")]
+    turn_speed_deg_per_sec: u32,
     #[serde(default = "default_collision_mode")]
     collision_mode: String,
     #[serde(default)]
@@ -67,9 +78,13 @@ impl Default for GameSection {
         Self {
             start_region: String::new(),
             start_screen: String::new(),
+            client_mode: default_client_mode(),
             terminal_mode: default_terminal_mode(),
             simulation_mode: default_simulation_mode(),
+            game_tick_ms: default_game_tick_ms(),
             turn_timeout_ms: default_turn_timeout_ms(),
+            movement_units_per_sec: default_movement_units_per_sec(),
+            turn_speed_deg_per_sec: default_turn_speed_deg_per_sec(),
             collision_mode: default_collision_mode(),
             auto_create_player: true,
             player: default_player(),
@@ -89,6 +104,10 @@ struct ViewportSection {
     unit: String,
     #[serde(default = "default_viewport_resize")]
     resize: String,
+    #[serde(default)]
+    cursor: String,
+    #[serde(default)]
+    cursor_id: String,
 }
 
 impl Default for ViewportSection {
@@ -99,6 +118,8 @@ impl Default for ViewportSection {
             grid_size: default_viewport_grid_size(),
             unit: default_viewport_unit(),
             resize: default_viewport_resize(),
+            cursor: String::new(),
+            cursor_id: String::new(),
         }
     }
 }
@@ -154,6 +175,7 @@ struct SourceRegion {
     id: String,
     name: String,
     default: String,
+    tile_symbols: IndexMap<char, String>,
     terrain: Vec<String>,
 }
 
@@ -177,6 +199,7 @@ struct SourceWidget {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 struct SourceDocument {
+    tile_symbols: IndexMap<char, String>,
     characters: Vec<SourceCharacter>,
     items: Vec<SourceItem>,
     regions: Vec<SourceRegion>,
@@ -185,11 +208,26 @@ struct SourceDocument {
 
 impl SourceDocument {
     fn extend(&mut self, other: SourceDocument) {
+        self.tile_symbols.extend(other.tile_symbols);
         self.characters.extend(other.characters);
         self.items.extend(other.items);
         self.regions.extend(other.regions);
         self.screens.extend(other.screens);
     }
+}
+
+#[derive(Debug, Default)]
+struct SourceTileLookup {
+    aliases: IndexMap<String, Uuid>,
+    leaf_aliases: IndexMap<String, Option<Uuid>>,
+}
+
+#[derive(Debug, Default, Clone)]
+struct ResolvedSourceTiles {
+    explicit: IndexMap<char, PixelSource>,
+    wall: Option<PixelSource>,
+    floor: Option<PixelSource>,
+    ceiling: Option<PixelSource>,
 }
 
 #[derive(Debug, Clone)]
@@ -221,7 +259,7 @@ pub fn build_project(project_dir: &Path) -> Result<PathBuf, String> {
     source.extend(load_source_dir(project_dir, "characters")?);
     source.extend(load_source_dir(project_dir, "items")?);
 
-    let project = compile_project(&config, source)?;
+    let project = compile_project_with_project_dir(&config, source, project_dir)?;
     let output_path = project_dir.join(&config.build.output);
     if let Some(parent) = output_path.parent() {
         fs::create_dir_all(parent)
@@ -262,7 +300,303 @@ fn load_source_dir(project_dir: &Path, name: &str) -> Result<SourceDocument, Str
     Ok(document)
 }
 
+fn load_project_directory_assets(project: &mut Project, project_dir: &Path) -> Result<(), String> {
+    load_generic_assets_dir(project, project_dir, "assets")?;
+    load_tile_image_dir(project, project_dir, "tiles")?;
+    load_tile_image_dir(project, project_dir, "images")?;
+    Ok(())
+}
+
+fn load_generic_assets_dir(
+    project: &mut Project,
+    project_dir: &Path,
+    dir_name: &str,
+) -> Result<(), String> {
+    let root = project_dir.join(dir_name);
+    if !root.exists() {
+        return Ok(());
+    }
+    if !root.is_dir() {
+        return Err(format!("{} must be a directory", root.display()));
+    }
+
+    for path in collect_files_recursive(&root)? {
+        let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
+            continue;
+        };
+        let ext = ext.to_ascii_lowercase();
+        let Some(buffer) = (match ext.as_str() {
+            "ttf" | "otf" => Some(AssetBuffer::Font(read_bytes(&path)?)),
+            "wav" | "ogg" | "mp3" | "flac" => Some(AssetBuffer::Audio(read_bytes(&path)?)),
+            "png" | "jpg" | "jpeg" => {
+                let texture = Texture::from_image_safe(path.as_path())
+                    .ok_or_else(|| format!("failed to decode image asset {}", path.display()))?;
+                Some(AssetBuffer::Image(texture.to_rgba()))
+            }
+            _ => None,
+        }) else {
+            continue;
+        };
+
+        let mut asset = Asset::new();
+        asset.name = asset_name_from_path(&root, &path);
+        asset.buffer = buffer;
+        project.assets.insert(asset.id, asset);
+    }
+
+    Ok(())
+}
+
+fn load_tile_image_dir(
+    project: &mut Project,
+    project_dir: &Path,
+    dir_name: &str,
+) -> Result<(), String> {
+    let root = project_dir.join(dir_name);
+    if !root.exists() {
+        return Ok(());
+    }
+    if !root.is_dir() {
+        return Err(format!("{} must be a directory", root.display()));
+    }
+
+    for path in collect_files_recursive(&root)? {
+        let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
+            continue;
+        };
+        if !matches!(ext.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg") {
+            continue;
+        }
+
+        let texture = Texture::from_image_safe(path.as_path())
+            .ok_or_else(|| format!("failed to decode tile image {}", path.display()))?;
+        let mut tile = Tile::from_texture(texture);
+        tile.role = TileRole::ManMade;
+        tile.alias = asset_name_from_path(&root, &path);
+        project.tiles.insert(tile.id, tile);
+    }
+
+    Ok(())
+}
+
+fn collect_files_recursive(root: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut files = Vec::new();
+    collect_files_recursive_into(root, &mut files)?;
+    files.sort();
+    Ok(files)
+}
+
+fn collect_files_recursive_into(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    let entries = fs::read_dir(dir)
+        .map_err(|err| format!("failed to read asset directory {}: {err}", dir.display()))?;
+    for entry in entries {
+        let path = entry
+            .map_err(|err| format!("failed to read asset directory {}: {err}", dir.display()))?
+            .path();
+        if path.is_dir() {
+            collect_files_recursive_into(&path, files)?;
+        } else if path.is_file() {
+            files.push(path);
+        }
+    }
+    Ok(())
+}
+
+fn read_bytes(path: &Path) -> Result<Vec<u8>, String> {
+    fs::read(path).map_err(|err| format!("failed to read {}: {err}", path.display()))
+}
+
+fn asset_name_from_path(root: &Path, path: &Path) -> String {
+    let relative = path.strip_prefix(root).unwrap_or(path);
+    let without_ext = relative.with_extension("");
+    without_ext
+        .components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(part) => part.to_str(),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+impl SourceTileLookup {
+    fn from_project(project: &Project) -> Self {
+        let mut lookup = Self::default();
+        for tile in project.tiles.values() {
+            let alias = tile.alias.trim();
+            if alias.is_empty() {
+                continue;
+            }
+            lookup.aliases.insert(alias.to_string(), tile.id);
+            if let Some(leaf) = alias.rsplit('/').next()
+                && !leaf.is_empty()
+            {
+                match lookup.leaf_aliases.get_mut(leaf) {
+                    Some(existing) => {
+                        if *existing != Some(tile.id) {
+                            *existing = None;
+                        }
+                    }
+                    None => {
+                        lookup.leaf_aliases.insert(leaf.to_string(), Some(tile.id));
+                    }
+                }
+            }
+        }
+        lookup
+    }
+
+    fn source_for(&self, name: &str) -> Option<PixelSource> {
+        let name = name.trim().trim_matches('"');
+        if name.is_empty() {
+            return None;
+        }
+        if let Ok(id) = Uuid::parse_str(name) {
+            return Some(PixelSource::TileId(id));
+        }
+        for candidate in tile_alias_candidates(name) {
+            if let Some(id) = self.aliases.get(&candidate) {
+                return Some(PixelSource::TileId(*id));
+            }
+            if let Some(Some(id)) = self.leaf_aliases.get(&candidate) {
+                return Some(PixelSource::TileId(*id));
+            }
+        }
+        None
+    }
+}
+
+impl ResolvedSourceTiles {
+    fn source_for_glyph(&self, glyph: char) -> Option<PixelSource> {
+        self.explicit
+            .get(&glyph)
+            .cloned()
+            .or_else(|| {
+                source_glyph_blocks(glyph)
+                    .then(|| self.wall.clone())
+                    .flatten()
+            })
+            .or_else(|| {
+                (!source_glyph_blocks(glyph))
+                    .then(|| self.floor.clone())
+                    .flatten()
+            })
+    }
+}
+
+fn tile_alias_candidates(name: &str) -> Vec<String> {
+    let mut candidates = Vec::new();
+    push_unique_candidate(&mut candidates, name.to_string());
+    push_unique_candidate(&mut candidates, name.replace('.', "/"));
+    push_unique_candidate(&mut candidates, name.replace('.', "_"));
+    if let Some(leaf) = name.rsplit('.').next() {
+        push_unique_candidate(&mut candidates, leaf.to_string());
+    }
+    if let Some(leaf) = name.rsplit('/').next() {
+        push_unique_candidate(&mut candidates, leaf.to_string());
+    }
+    candidates
+}
+
+fn push_unique_candidate(candidates: &mut Vec<String>, candidate: String) {
+    if !candidate.is_empty() && !candidates.contains(&candidate) {
+        candidates.push(candidate);
+    }
+}
+
+fn resolve_source_tiles(
+    lookup: &SourceTileLookup,
+    global_tile_symbols: &IndexMap<char, String>,
+    source_region: &SourceRegion,
+) -> Result<ResolvedSourceTiles, String> {
+    let mut symbols = global_tile_symbols.clone();
+    symbols.extend(source_region.tile_symbols.clone());
+
+    let mut explicit = IndexMap::default();
+    for (glyph, alias) in symbols {
+        let Some(source) = lookup.source_for(&alias) else {
+            return Err(format!(
+                "Region '{}' maps '{}' to tile '{}', but no loaded tile with that alias/name exists",
+                source_region.id, glyph, alias
+            ));
+        };
+        explicit.insert(glyph, source);
+    }
+
+    Ok(ResolvedSourceTiles {
+        explicit,
+        wall: lookup
+            .source_for(&source_region.default)
+            .or_else(|| lookup.source_for("wall")),
+        floor: lookup
+            .source_for("floor")
+            .or_else(|| lookup.source_for("floor.stone")),
+        ceiling: lookup
+            .source_for("ceiling")
+            .or_else(|| lookup.source_for("ceiling.stone")),
+    })
+}
+
+fn write_source_map_metadata(
+    properties: &mut ValueContainer,
+    source_region: &SourceRegion,
+    source_tiles: &ResolvedSourceTiles,
+) {
+    properties.set(
+        "eldiron_source_terrain",
+        Value::Str(source_region.terrain.join("\n")),
+    );
+    properties.set(
+        "eldiron_source_default",
+        Value::Str(source_region.default.clone()),
+    );
+    let tile_map = source_tile_metadata(source_tiles);
+    if !tile_map.is_empty() {
+        properties.set("eldiron_source_tiles", Value::Str(tile_map));
+    }
+}
+
+fn source_tile_metadata(source_tiles: &ResolvedSourceTiles) -> String {
+    let mut lines = Vec::new();
+    if let Some(PixelSource::TileId(id)) = &source_tiles.wall {
+        lines.push(format!("wall = \"{}\"", id));
+    }
+    if let Some(PixelSource::TileId(id)) = &source_tiles.floor {
+        lines.push(format!("floor = \"{}\"", id));
+    }
+    if let Some(PixelSource::TileId(id)) = &source_tiles.ceiling {
+        lines.push(format!("ceiling = \"{}\"", id));
+    }
+    for (glyph, source) in &source_tiles.explicit {
+        if let PixelSource::TileId(id) = source {
+            lines.push(format!(
+                "\"{}\" = \"{}\"",
+                escape_toml_string(&glyph.to_string()),
+                id
+            ));
+        }
+    }
+    lines.join("\n")
+}
+
+#[cfg(test)]
 fn compile_project(config: &ProjectToml, source: SourceDocument) -> Result<Project, String> {
+    compile_project_inner(config, source, None)
+}
+
+fn compile_project_with_project_dir(
+    config: &ProjectToml,
+    source: SourceDocument,
+    project_dir: &Path,
+) -> Result<Project, String> {
+    compile_project_inner(config, source, Some(project_dir))
+}
+
+fn compile_project_inner(
+    config: &ProjectToml,
+    source: SourceDocument,
+    project_dir: Option<&Path>,
+) -> Result<Project, String> {
     let mut project = Project::new();
     project.name = if config.project.name.trim().is_empty() {
         "Eldiron Source Project".to_string()
@@ -273,23 +607,40 @@ fn compile_project(config: &ProjectToml, source: SourceDocument) -> Result<Proje
     project.characters.clear();
     project.items.clear();
     project.screens.clear();
-    project.config = project_config(&config.game, &config.viewport, &config.terminal);
+    project.config = project_config(&config.game, &config.viewport, &config.terminal, None);
     project.migrate_default_ruleset();
     project.authoring = "[startup]\nshow = \"room\"\n".to_string();
     project.sync_ruleset_items()?;
+    if let Some(project_dir) = project_dir {
+        load_project_directory_assets(&mut project, project_dir)?;
+    }
+    let tile_lookup = SourceTileLookup::from_project(&project);
+    project.config = project_config(
+        &config.game,
+        &config.viewport,
+        &config.terminal,
+        viewport_cursor_id(&config.viewport, &tile_lookup),
+    );
+    let global_tile_symbols = source.tile_symbols.clone();
 
     let mut character_templates = IndexMap::default();
     let mut item_templates = IndexMap::default();
     register_ruleset_item_glyphs(&project.items, &mut item_templates);
+    let player_camera = source_player_camera(&config.game);
     for source_character in source.characters {
         let mut character = Character::new();
         character.name = source_character.name;
         character.source = source_character.script;
         character.source_debug = character.source.clone();
         character.data = if source_character.data.trim().is_empty() {
-            character_data(&source_character.id, &config.game.player)
+            character_data(&source_character.id, &config.game.player, player_camera)
         } else {
-            source_character.data
+            let camera = if source_character.id == config.game.player {
+                player_camera
+            } else {
+                None
+            };
+            ensure_source_player_camera(&source_character.data, camera)
         };
         character.authoring = character_authoring(source_character.glyph);
         character.module = module_shell(
@@ -325,7 +676,12 @@ fn compile_project(config: &ProjectToml, source: SourceDocument) -> Result<Proje
         project.items.insert(template_id, item);
     }
 
-    ensure_player_template(&mut project, &mut character_templates, &config.game.player);
+    ensure_player_template(
+        &mut project,
+        &mut character_templates,
+        &config.game.player,
+        player_camera,
+    );
 
     for source_region in source.regions {
         project.regions.push(compile_region(
@@ -334,6 +690,10 @@ fn compile_project(config: &ProjectToml, source: SourceDocument) -> Result<Proje
             &item_templates,
             &project.items,
             &config.game.player,
+            player_camera,
+            game_client_mode_is_3d(&config.game),
+            &tile_lookup,
+            &global_tile_symbols,
         )?);
     }
 
@@ -378,6 +738,10 @@ fn compile_region(
     item_templates: &IndexMap<String, Uuid>,
     item_template_data: &IndexMap<Uuid, Item>,
     player_id: &str,
+    player_camera: Option<&str>,
+    mode_3d: bool,
+    tile_lookup: &SourceTileLookup,
+    global_tile_symbols: &IndexMap<char, String>,
 ) -> Result<Region, String> {
     if source_region.terrain.is_empty() {
         return Err(format!(
@@ -390,7 +754,8 @@ fn compile_region(
     region.id = Uuid::new_v4();
     region.name = source_region.name.clone();
     region.module = module_shell("Region", &region.name, false);
-    region.map = build_map(&source_region)?;
+    let source_tiles = resolve_source_tiles(tile_lookup, global_tile_symbols, &source_region)?;
+    region.map = build_map(&source_region, mode_3d, &source_tiles)?;
     region.characters.clear();
     region.items.clear();
 
@@ -402,13 +767,27 @@ fn compile_region(
                     .get(player_id)
                     .copied()
                     .ok_or_else(|| format!("player template '{}' was not generated", player_id))?;
-                let instance = character_instance(player_id, template_id, spawn.x, spawn.y, true);
+                let instance = character_instance(
+                    player_id,
+                    template_id,
+                    spawn.x,
+                    spawn.y,
+                    true,
+                    player_camera,
+                );
                 region.characters.insert(instance.id, instance);
             }
             SpawnKind::Character(glyph) => {
                 let id = glyph.to_string();
                 if let Some(template_id) = character_templates.get(&id).copied() {
-                    let instance = character_instance(&id, template_id, spawn.x, spawn.y, false);
+                    let instance = character_instance(
+                        &id,
+                        template_id,
+                        spawn.x,
+                        spawn.y,
+                        false,
+                        player_camera,
+                    );
                     region.characters.insert(instance.id, instance);
                 }
             }
@@ -427,7 +806,11 @@ fn compile_region(
     Ok(region)
 }
 
-fn build_map(source_region: &SourceRegion) -> Result<Map, String> {
+fn build_map(
+    source_region: &SourceRegion,
+    mode_3d: bool,
+    source_tiles: &ResolvedSourceTiles,
+) -> Result<Map, String> {
     let width = source_region
         .terrain
         .iter()
@@ -444,13 +827,23 @@ fn build_map(source_region: &SourceRegion) -> Result<Map, String> {
 
     let mut map = Map::default();
     map.name = source_region.id.clone();
-    map.camera = MapCamera::TwoD;
+    map.camera = if mode_3d {
+        MapCamera::ThreeDFirstPerson
+    } else {
+        MapCamera::TwoD
+    };
     map.vertices.clear();
     map.linedefs.clear();
     map.sectors.clear();
     map.geometry_objects.clear();
     map.entities.clear();
     map.items.clear();
+
+    if mode_3d {
+        write_source_map_metadata(&mut map.properties, source_region, source_tiles);
+        build_3d_blocks_from_source_terrain(&mut map, source_region, source_tiles)?;
+        return Ok(map);
+    }
 
     let x0 = 0.0;
     let y0 = 0.0;
@@ -476,20 +869,197 @@ fn build_map(source_region: &SourceRegion) -> Result<Map, String> {
                 escape_toml_string(&source_region.name)
             )),
         );
-        sector.properties.set(
-            "eldiron_source_terrain",
-            Value::Str(source_region.terrain.join("\n")),
-        );
-        sector.properties.set(
-            "eldiron_source_default",
-            Value::Str(source_region.default.clone()),
-        );
+        write_source_map_metadata(&mut sector.properties, source_region, source_tiles);
+        if let Some(source) = source_tiles.floor.clone() {
+            sector.properties.set("source", Value::Source(source));
+        } else {
+            sector
+                .properties
+                .set("source", Value::Source(PixelSource::Off));
+        }
+    }
+
+    Ok(map)
+}
+
+fn build_3d_blocks_from_source_terrain(
+    map: &mut Map,
+    source_region: &SourceRegion,
+    source_tiles: &ResolvedSourceTiles,
+) -> Result<(), String> {
+    map.vertices.clear();
+    map.linedefs.clear();
+    map.sectors.clear();
+    map.surfaces.clear();
+    map.geometry_objects.clear();
+
+    let mut cells = 0usize;
+    for (y, row) in source_region.terrain.iter().enumerate() {
+        for (x, glyph) in row.chars().enumerate() {
+            if source_glyph_blocks(glyph) {
+                continue;
+            }
+            add_source_block(
+                map,
+                format!("floor_{x}_{y}"),
+                x as f32,
+                -0.1,
+                y as f32,
+                x as f32 + 1.0,
+                0.0,
+                y as f32 + 1.0,
+                source_tiles
+                    .source_for_glyph(glyph)
+                    .or_else(|| source_tiles.floor.clone())
+                    .unwrap_or(PixelSource::PaletteIndex(8)),
+                true,
+                glyph == '@',
+            );
+            if glyph == '@' {
+                add_source_entrance_sector(map, x as f32, y as f32)?;
+            }
+            add_source_block(
+                map,
+                format!("ceiling_{x}_{y}"),
+                x as f32,
+                3.0,
+                y as f32,
+                x as f32 + 1.0,
+                3.1,
+                y as f32 + 1.0,
+                source_tiles
+                    .ceiling
+                    .clone()
+                    .or_else(|| source_tiles.floor.clone())
+                    .unwrap_or(PixelSource::PaletteIndex(7)),
+                false,
+                false,
+            );
+            cells += 1;
+        }
+    }
+
+    if cells == 0 {
+        return Err(format!(
+            "Region '{}' has no walkable cells for 3d mode",
+            source_region.id
+        ));
+    }
+
+    for (y, row) in source_region.terrain.iter().enumerate() {
+        for (x, glyph) in row.chars().enumerate() {
+            if !source_glyph_blocks(glyph)
+                || !source_block_has_walkable_neighbor(
+                    &source_region.terrain,
+                    x as isize,
+                    y as isize,
+                )
+            {
+                continue;
+            }
+            add_source_block(
+                map,
+                format!("wall_{x}_{y}"),
+                x as f32,
+                0.0,
+                y as f32,
+                x as f32 + 1.0,
+                3.0,
+                y as f32 + 1.0,
+                source_tiles
+                    .source_for_glyph(glyph)
+                    .or_else(|| source_tiles.wall.clone())
+                    .unwrap_or(PixelSource::PaletteIndex(12)),
+                true,
+                false,
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn add_source_entrance_sector(map: &mut Map, x: f32, y: f32) -> Result<(), String> {
+    let v0 = map.add_vertex_at(x, y);
+    let v1 = map.add_vertex_at(x + 1.0, y);
+    let v2 = map.add_vertex_at(x + 1.0, y + 1.0);
+    let v3 = map.add_vertex_at(x, y + 1.0);
+    map.possible_polygon.clear();
+    let _ = map.create_linedef_manual(v0, v1);
+    let _ = map.create_linedef_manual(v1, v2);
+    let _ = map.create_linedef_manual(v2, v3);
+    let _ = map.create_linedef_manual(v3, v0);
+    let sector_id = map
+        .close_polygon_manual()
+        .ok_or_else(|| "failed to create source entrance marker".to_string())?;
+    if let Some(sector) = map.find_sector_mut(sector_id) {
+        sector.name = "entrance".to_string();
+        sector.properties.set("visible", Value::Bool(false));
+        sector
+            .properties
+            .set("procedural_kind", Value::Str("entrance".to_string()));
         sector
             .properties
             .set("source", Value::Source(PixelSource::Off));
     }
+    Ok(())
+}
 
-    Ok(map)
+#[allow(clippy::too_many_arguments)]
+fn add_source_block(
+    map: &mut Map,
+    name: String,
+    min_x: f32,
+    min_y: f32,
+    min_z: f32,
+    max_x: f32,
+    max_y: f32,
+    max_z: f32,
+    source: PixelSource,
+    solid: bool,
+    entrance: bool,
+) {
+    let mut object = GeometryObject::box_from_bounds(
+        name,
+        Vec3::new(min_x, min_y, min_z),
+        Vec3::new(max_x, max_y, max_z),
+    );
+    object.kind = GeometryObjectKind::Generated;
+    object.solid = solid;
+    object.group = "eldiron-source".to_string();
+    if entrance {
+        object.name = "entrance".to_string();
+        object.properties.set("area", Value::Bool(true));
+        object
+            .properties
+            .set("procedural_kind", Value::Str("entrance".to_string()));
+    }
+    for face in &mut object.faces {
+        face.tile = Some(source.clone());
+    }
+    map.geometry_objects.push(object);
+}
+
+fn source_block_has_walkable_neighbor(lines: &[String], x: isize, y: isize) -> bool {
+    !source_cell_blocks(lines, x, y - 1)
+        || !source_cell_blocks(lines, x + 1, y)
+        || !source_cell_blocks(lines, x, y + 1)
+        || !source_cell_blocks(lines, x - 1, y)
+}
+
+fn source_cell_blocks(lines: &[String], x: isize, y: isize) -> bool {
+    if x < 0 || y < 0 {
+        return true;
+    }
+    lines
+        .get(y as usize)
+        .and_then(|line| line.chars().nth(x as usize))
+        .map(source_glyph_blocks)
+        .unwrap_or(true)
+}
+
+fn source_glyph_blocks(glyph: char) -> bool {
+    glyph == '#' || glyph == ' '
 }
 
 fn compile_screen(
@@ -607,6 +1177,9 @@ fn widget_data(role: &str, data: &str) -> String {
 
 fn parse_source(src: &str) -> Result<SourceDocument, String> {
     let mut document = SourceDocument::default();
+    document
+        .tile_symbols
+        .extend(parse_top_level_tile_symbol_blocks(src)?);
     for block in find_named_blocks(src, "Character")? {
         document.characters.push(parse_character(&block)?);
     }
@@ -665,6 +1238,7 @@ fn parse_item(block: &NamedBlock) -> Result<SourceItem, String> {
 fn parse_region(block: &NamedBlock) -> Result<SourceRegion, String> {
     let name = string_field(&block.body, "name").unwrap_or_else(|| title_case_id(&block.name));
     let default = bare_field(&block.body, "default").unwrap_or_else(|| "wall.stone".to_string());
+    let tile_symbols = parse_tile_symbol_blocks(&block.body)?;
     let terrain = triple_string_field(&block.body, "terrain")
         .ok_or_else(|| format!("Region '{}' is missing terrain \"\"\"...\"\"\"", block.name))?;
     let lines = normalize_terrain_lines(&terrain);
@@ -672,8 +1246,136 @@ fn parse_region(block: &NamedBlock) -> Result<SourceRegion, String> {
         id: block.name.clone(),
         name,
         default,
+        tile_symbols,
         terrain: lines,
     })
+}
+
+fn parse_top_level_tile_symbol_blocks(src: &str) -> Result<IndexMap<char, String>, String> {
+    let mut symbols = IndexMap::default();
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut index = 0usize;
+    while index < src.len() {
+        if !in_string && src[index..].starts_with("\"\"\"") {
+            index += 3;
+            let end = src[index..]
+                .find("\"\"\"")
+                .ok_or_else(|| "unterminated triple-quoted string".to_string())?;
+            index += end + 3;
+            continue;
+        }
+        if !in_string
+            && depth == 0
+            && src[index..].starts_with("tiles")
+            && is_boundary(src, index, "tiles".len())
+        {
+            let cursor = skip_ws(src, index + "tiles".len());
+            if src[cursor..].chars().next() == Some('{') {
+                let end = find_matching_brace(src, cursor).ok_or_else(|| {
+                    format!("tiles block at byte {index} has an unterminated body")
+                })?;
+                symbols.extend(parse_tile_symbol_assignments(&src[cursor + 1..end])?);
+                index = end + 1;
+                continue;
+            }
+        }
+        let Some(ch) = src[index..].chars().next() else {
+            break;
+        };
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+        } else {
+            match ch {
+                '"' => in_string = true,
+                '{' => depth += 1,
+                '}' => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+        }
+        index += ch.len_utf8();
+    }
+    Ok(symbols)
+}
+
+fn parse_tile_symbol_blocks(src: &str) -> Result<IndexMap<char, String>, String> {
+    let mut symbols = IndexMap::default();
+    let mut search_from = 0;
+    while let Some(relative) = src[search_from..].find("tiles") {
+        let pos = search_from + relative;
+        if !is_boundary(src, pos, "tiles".len()) {
+            search_from = pos + "tiles".len();
+            continue;
+        }
+        let cursor = skip_ws(src, pos + "tiles".len());
+        if src[cursor..].chars().next() != Some('{') {
+            search_from = cursor;
+            continue;
+        }
+        let end = find_matching_brace(src, cursor)
+            .ok_or_else(|| format!("tiles block at byte {pos} has an unterminated body"))?;
+        symbols.extend(parse_tile_symbol_assignments(&src[cursor + 1..end])?);
+        search_from = end + 1;
+    }
+    Ok(symbols)
+}
+
+fn parse_tile_symbol_assignments(src: &str) -> Result<IndexMap<char, String>, String> {
+    let mut symbols = IndexMap::default();
+    for line in src.lines() {
+        let line = strip_line_comment(line).trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            return Err(format!("invalid tiles entry '{}'", line));
+        };
+        let key = key.trim().trim_matches('"');
+        let mut chars = key.chars();
+        let Some(glyph) = chars.next() else {
+            return Err("tiles entry has an empty glyph".to_string());
+        };
+        if chars.next().is_some() {
+            return Err(format!(
+                "tiles entry '{}' must use a single-character glyph",
+                key
+            ));
+        }
+        let value = value.trim().trim_matches('"').to_string();
+        if value.is_empty() {
+            return Err(format!("tiles entry '{}' has an empty tile name", key));
+        }
+        symbols.insert(glyph, value);
+    }
+    Ok(symbols)
+}
+
+fn strip_line_comment(line: &str) -> &str {
+    let mut in_string = false;
+    let mut escaped = false;
+    for (index, ch) in line.char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+        } else if ch == '"' {
+            in_string = true;
+        } else if ch == '#' {
+            return &line[..index];
+        }
+    }
+    line
 }
 
 fn parse_screen(block: &NamedBlock) -> Result<SourceScreen, String> {
@@ -949,13 +1651,14 @@ fn ensure_player_template(
     project: &mut Project,
     character_templates: &mut IndexMap<String, Uuid>,
     player_id: &str,
+    player_camera: Option<&str>,
 ) {
     if character_templates.contains_key(player_id) {
         return;
     }
     let mut character = Character::new();
     character.name = title_case_id(player_id);
-    character.data = character_data(player_id, player_id);
+    character.data = character_data(player_id, player_id, player_camera);
     character.authoring = character_authoring(Some('@'));
     character.module = module_shell("CharacterTemplate", &character.name, true);
     let template_id = character.id;
@@ -963,12 +1666,23 @@ fn ensure_player_template(
     project.characters.insert(template_id, character);
 }
 
-fn character_instance(id: &str, template_id: Uuid, x: usize, y: usize, player: bool) -> Character {
+fn character_instance(
+    id: &str,
+    template_id: Uuid,
+    x: usize,
+    y: usize,
+    player: bool,
+    player_camera: Option<&str>,
+) -> Character {
     let mut character = Character::new();
     character.name = title_case_id(id);
     character.position = grid_position(x, y);
     character.character_id = template_id;
-    character.data = character_data(id, if player { id } else { "" });
+    character.data = character_data(
+        id,
+        if player { id } else { "" },
+        player.then_some(player_camera).flatten(),
+    );
     character.module = module_shell("CharacterTemplate", &character.name, player);
     character
 }
@@ -1104,18 +1818,43 @@ fn grid_position(x: usize, y: usize) -> Vec3<f32> {
     Vec3::new(x as f32 + 0.5, 1.0, y as f32 + 0.5)
 }
 
+fn viewport_cursor_id(viewport: &ViewportSection, lookup: &SourceTileLookup) -> Option<Uuid> {
+    let explicit = viewport.cursor_id.trim();
+    if let Ok(id) = Uuid::parse_str(explicit) {
+        return Some(id);
+    }
+    if let Some(PixelSource::TileId(id)) = lookup.source_for(explicit) {
+        return Some(id);
+    }
+    if let Some(PixelSource::TileId(id)) = lookup.source_for(&viewport.cursor) {
+        return Some(id);
+    }
+    if let Some(PixelSource::TileId(id)) = lookup.source_for("cursor") {
+        return Some(id);
+    }
+    None
+}
+
 fn project_config(
     game: &GameSection,
     viewport: &ViewportSection,
     terminal: &TerminalSection,
+    cursor_id: Option<Uuid>,
 ) -> String {
+    let cursor_line = cursor_id
+        .map(|id| format!("cursor_id = \"{}\"\n", id))
+        .unwrap_or_default();
     format!(
-        "[game]\nstart_region = \"{}\"\nstart_screen = \"{}\"\nterminal_mode = \"{}\"\nsimulation_mode = \"{}\"\nturn_timeout_ms = {}\nauto_create_player = {}\ncollision_mode = \"{}\"\n\n[viewport]\nwidth = {}\nheight = {}\ngrid_size = {}\nunit = \"{}\"\nresize = \"{}\"\n\n[terminal]\ntext_updates = {}\n",
+        "[game]\nstart_region = \"{}\"\nstart_screen = \"{}\"\nclient_mode = \"{}\"\nterminal_mode = \"{}\"\nsimulation_mode = \"{}\"\ngame_tick_ms = {}\nturn_timeout_ms = {}\nmovement_units_per_sec = {}\nturn_speed_deg_per_sec = {}\nauto_create_player = {}\ncollision_mode = \"{}\"\n\n[viewport]\nwidth = {}\nheight = {}\ngrid_size = {}\nunit = \"{}\"\nresize = \"{}\"\n{}\n[terminal]\ntext_updates = {}\n",
         escape_toml_string(&game.start_region),
         escape_toml_string(&game.start_screen),
+        escape_toml_string(&game.client_mode),
         escape_toml_string(&game.terminal_mode),
         escape_toml_string(&game.simulation_mode),
+        game.game_tick_ms,
         game.turn_timeout_ms,
+        game.movement_units_per_sec,
+        game.turn_speed_deg_per_sec,
         game.auto_create_player,
         escape_toml_string(&game.collision_mode),
         viewport.width,
@@ -1123,17 +1862,30 @@ fn project_config(
         viewport.grid_size,
         escape_toml_string(&viewport.unit),
         escape_toml_string(&viewport.resize),
+        cursor_line,
         terminal.text_updates
     )
 }
 
-fn character_data(id: &str, player_id: &str) -> String {
+fn character_data(id: &str, player_id: &str, player_camera: Option<&str>) -> String {
     let is_player = !player_id.is_empty() && id == player_id;
+    let uses_3d_player_camera = player_camera.is_some();
     let mut data = format!(
         "[attributes]\nplayer = {}\nsource_id = \"{}\"\n",
         is_player,
         escape_toml_string(id)
     );
+    if let Some(player_camera) = player_camera
+        && is_player
+    {
+        data.push_str(&format!(
+            "player_camera = \"{}\"\n",
+            escape_toml_string(player_camera)
+        ));
+    }
+    if is_player && uses_3d_player_camera {
+        data.push_str("radius = 0.35\n");
+    }
     if is_player {
         data.push_str(
             "\n[input]\nw = \"control.forward\"\na = \"control.left\"\ns = \"control.backward\"\nd = \"control.right\"\nup = \"control.forward\"\nleft = \"control.left\"\ndown = \"control.backward\"\nright = \"control.right\"\n",
@@ -1141,6 +1893,39 @@ fn character_data(id: &str, player_id: &str) -> String {
         data.push_str("g = \"intent(take)\"\n");
     }
     data
+}
+
+fn ensure_source_player_camera(data: &str, player_camera: Option<&str>) -> String {
+    let Some(player_camera) = player_camera else {
+        return data.to_string();
+    };
+    let Ok(mut table) = data.parse::<toml::Table>() else {
+        return data.to_string();
+    };
+    let attributes = table
+        .entry("attributes".to_string())
+        .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+    let Some(attributes) = attributes.as_table_mut() else {
+        return data.to_string();
+    };
+    attributes
+        .entry("player_camera".to_string())
+        .or_insert_with(|| toml::Value::String(player_camera.to_string()));
+    attributes
+        .entry("radius".to_string())
+        .or_insert_with(|| toml::Value::Float(0.35));
+    toml::to_string(&table).unwrap_or_else(|_| data.to_string())
+}
+
+fn game_client_mode_is_3d(game: &GameSection) -> bool {
+    matches!(
+        game.client_mode.trim().to_ascii_lowercase().as_str(),
+        "3d" | "firstp" | "firstp_grid" | "dungeon3d" | "dungeon_3d"
+    )
+}
+
+fn source_player_camera(game: &GameSection) -> Option<&'static str> {
+    game_client_mode_is_3d(game).then_some("firstp_grid")
 }
 
 fn character_authoring(glyph: Option<char>) -> String {
@@ -1209,6 +1994,10 @@ fn default_player() -> String {
     "player".to_string()
 }
 
+fn default_client_mode() -> String {
+    "terminal".to_string()
+}
+
 fn default_terminal_mode() -> String {
     "roguelike".to_string()
 }
@@ -1221,8 +2010,20 @@ fn default_simulation_mode() -> String {
     "hybrid".to_string()
 }
 
+fn default_game_tick_ms() -> u32 {
+    250
+}
+
 fn default_turn_timeout_ms() -> u32 {
     600
+}
+
+fn default_movement_units_per_sec() -> u32 {
+    4
+}
+
+fn default_turn_speed_deg_per_sec() -> u32 {
+    120
 }
 
 fn default_collision_mode() -> String {
@@ -1250,16 +2051,18 @@ fn default_viewport_resize() -> String {
 }
 
 fn default_output() -> String {
-    "dist/game.eldiron".to_string()
+    "build/game.eldiron".to_string()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusterix::ChunkBuilder;
+    use vek::Vec2;
 
     #[test]
     fn parses_minimal_source() {
-        let source = r#"
+        let source = r##"
 Character "player" {
   name = "Player"
   glyph = "@"
@@ -1277,6 +2080,10 @@ Item "herb" {
 
 Region "cellar" {
   default = wall.stone
+  tiles {
+    "#" = wall
+    "." = floor
+  }
   terrain """
   ####
   #@.#
@@ -1291,13 +2098,21 @@ Screen "play" {
     height = 20
   }
 }
-"#;
+"##;
         let parsed = parse_source(source).expect("source parses");
         assert_eq!(parsed.characters.len(), 1);
         assert_eq!(parsed.characters[0].id, "player");
         assert!(parsed.characters[0].script.contains("on_interact"));
         assert_eq!(parsed.items.len(), 1);
         assert_eq!(parsed.items[0].id, "herb");
+        assert_eq!(
+            parsed.regions[0].tile_symbols.get(&'#'),
+            Some(&"wall".to_string())
+        );
+        assert_eq!(
+            parsed.regions[0].tile_symbols.get(&'.'),
+            Some(&"floor".to_string())
+        );
         assert_eq!(parsed.regions.len(), 1);
         assert_eq!(parsed.regions[0].terrain.len(), 3);
         assert_eq!(parsed.screens.len(), 1);
@@ -1315,9 +2130,13 @@ Screen "play" {
             game: GameSection {
                 start_region: "cellar".to_string(),
                 start_screen: String::new(),
+                client_mode: "terminal".to_string(),
                 terminal_mode: "text".to_string(),
                 simulation_mode: "hybrid".to_string(),
+                game_tick_ms: 250,
                 turn_timeout_ms: 600,
+                movement_units_per_sec: 4,
+                turn_speed_deg_per_sec: 120,
                 collision_mode: "tile".to_string(),
                 auto_create_player: true,
                 player: "player".to_string(),
@@ -1327,12 +2146,14 @@ Screen "play" {
             build: BuildSection::default(),
         };
         let source = SourceDocument {
+            tile_symbols: IndexMap::default(),
             characters: Vec::new(),
             items: Vec::new(),
             regions: vec![SourceRegion {
                 id: "cellar".to_string(),
                 name: "Cellar".to_string(),
                 default: "wall.stone".to_string(),
+                tile_symbols: IndexMap::default(),
                 terrain: vec!["###".to_string(), "#@#".to_string(), "###".to_string()],
             }],
             screens: Vec::new(),
@@ -1342,5 +2163,300 @@ Screen "play" {
         assert_eq!(project.regions[0].map.name, "cellar");
         assert_eq!(project.characters.len(), 1);
         assert_eq!(project.regions[0].characters.len(), 1);
+    }
+
+    #[test]
+    fn compiles_3d_project() {
+        let config = ProjectToml {
+            project: ProjectSection {
+                name: "Dungeon".to_string(),
+            },
+            source: SourceSection::default(),
+            game: GameSection {
+                start_region: "cellar".to_string(),
+                start_screen: String::new(),
+                client_mode: "3d".to_string(),
+                terminal_mode: "roguelike".to_string(),
+                simulation_mode: "hybrid".to_string(),
+                game_tick_ms: 250,
+                turn_timeout_ms: 600,
+                movement_units_per_sec: 4,
+                turn_speed_deg_per_sec: 120,
+                collision_mode: "tile".to_string(),
+                auto_create_player: true,
+                player: "player".to_string(),
+            },
+            viewport: ViewportSection::default(),
+            terminal: TerminalSection::default(),
+            build: BuildSection::default(),
+        };
+        let source = SourceDocument {
+            tile_symbols: IndexMap::default(),
+            characters: Vec::new(),
+            items: Vec::new(),
+            regions: vec![SourceRegion {
+                id: "cellar".to_string(),
+                name: "Cellar".to_string(),
+                default: "wall.stone".to_string(),
+                tile_symbols: IndexMap::default(),
+                terrain: vec![
+                    "#####".to_string(),
+                    "#@..#".to_string(),
+                    "#...#".to_string(),
+                    "#####".to_string(),
+                ],
+            }],
+            screens: Vec::new(),
+        };
+        let project = compile_project(&config, source).expect("project compiles");
+        let map = &project.regions[0].map;
+        assert_eq!(map.camera, MapCamera::ThreeDFirstPerson);
+        assert!(
+            map.geometry_objects
+                .iter()
+                .any(|object| object.name == "entrance")
+        );
+        assert!(
+            map.geometry_objects
+                .iter()
+                .any(|object| object.name.starts_with("wall_"))
+        );
+        let player = project
+            .characters
+            .values()
+            .find(|character| character.name == "Player")
+            .expect("player template exists");
+        assert!(player.data.contains("player_camera = \"firstp_grid\""));
+    }
+
+    #[test]
+    fn loads_standard_asset_directories() {
+        let root = std::env::temp_dir().join(format!("eldiron-source-assets-{}", Uuid::new_v4()));
+        let assets_dir = root.join("assets/fonts");
+        let tiles_dir = root.join("tiles/dungeon");
+        fs::create_dir_all(&assets_dir).expect("asset dir created");
+        fs::create_dir_all(&tiles_dir).expect("tile dir created");
+        fs::write(
+            assets_dir.join("Roboto-Bold.ttf"),
+            include_bytes!("../../theframework/embedded/fonts/Roboto-Bold.ttf"),
+        )
+        .expect("font copied");
+        fs::write(
+            tiles_dir.join("stone.png"),
+            include_bytes!("../../rusterix/embedded/icons/character_on.png"),
+        )
+        .expect("tile image written");
+
+        let mut project = Project::new();
+        load_project_directory_assets(&mut project, &root).expect("assets load");
+
+        assert!(project.assets.values().any(|asset| {
+            asset.name == "fonts/Roboto-Bold" && matches!(asset.buffer, AssetBuffer::Font(_))
+        }));
+        assert!(
+            project
+                .tiles
+                .values()
+                .any(|tile| tile.alias == "dungeon/stone" && !tile.textures.is_empty())
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn source_tile_symbols_resolve_to_project_tiles() {
+        let root = std::env::temp_dir().join(format!("eldiron-source-tiles-{}", Uuid::new_v4()));
+        let tiles_dir = root.join("tiles");
+        fs::create_dir_all(&tiles_dir).expect("tile dir created");
+        fs::write(
+            tiles_dir.join("floor.png"),
+            include_bytes!("../../rusterix/embedded/icons/character_on.png"),
+        )
+        .expect("floor tile written");
+        fs::write(
+            tiles_dir.join("wall.png"),
+            include_bytes!("../../rusterix/embedded/icons/character_on.png"),
+        )
+        .expect("wall tile written");
+        fs::write(
+            root.join("eldiron.toml"),
+            r#"[project]
+name = "Tile Symbols"
+
+[source]
+main = "main.els"
+
+[game]
+start_region = "cellar"
+client_mode = "3d"
+
+[build]
+output = "build/game.eldiron"
+"#,
+        )
+        .expect("toml written");
+        fs::write(
+            root.join("main.els"),
+            r##"tiles {
+  "#" = wall
+  "." = floor
+  "@" = floor
+}
+
+Region "cellar" {
+  default = wall.stone
+  terrain """
+  ####
+  #@.#
+  ####
+  """
+}
+"##,
+        )
+        .expect("source written");
+
+        let output = build_project(&root).expect("project builds");
+        let project: Project =
+            serde_json::from_str(&fs::read_to_string(&output).expect("compiled project readable"))
+                .expect("compiled project parses");
+        let floor_id = project
+            .tiles
+            .values()
+            .find(|tile| tile.alias == "floor")
+            .expect("floor tile loaded")
+            .id;
+        let wall_id = project
+            .tiles
+            .values()
+            .find(|tile| tile.alias == "wall")
+            .expect("wall tile loaded")
+            .id;
+        let map = &project.regions[0].map;
+        assert!(
+            map.geometry_objects
+                .iter()
+                .filter(|object| object.name.starts_with("floor_"))
+                .flat_map(|object| &object.faces)
+                .any(|face| face.tile == Some(PixelSource::TileId(floor_id)))
+        );
+        assert!(
+            map.geometry_objects
+                .iter()
+                .filter(|object| object.name.starts_with("wall_"))
+                .flat_map(|object| &object.faces)
+                .any(|face| face.tile == Some(PixelSource::TileId(wall_id)))
+        );
+        assert!(
+            map.properties
+                .get_str("eldiron_source_tiles")
+                .is_some_and(|tiles| tiles.contains(&floor_id.to_string()))
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn source_3d_one_tile_corridor_supports_firstp_direct_movement() {
+        let config = ProjectToml {
+            project: ProjectSection {
+                name: "Dungeon".to_string(),
+            },
+            source: SourceSection::default(),
+            game: GameSection {
+                start_region: "cellar".to_string(),
+                start_screen: String::new(),
+                client_mode: "3d".to_string(),
+                terminal_mode: "roguelike".to_string(),
+                simulation_mode: "hybrid".to_string(),
+                game_tick_ms: 250,
+                turn_timeout_ms: 600,
+                movement_units_per_sec: 4,
+                turn_speed_deg_per_sec: 120,
+                collision_mode: "mesh".to_string(),
+                auto_create_player: true,
+                player: "player".to_string(),
+            },
+            viewport: ViewportSection::default(),
+            terminal: TerminalSection::default(),
+            build: BuildSection::default(),
+        };
+        let source = SourceDocument {
+            tile_symbols: IndexMap::default(),
+            characters: Vec::new(),
+            items: Vec::new(),
+            regions: vec![SourceRegion {
+                id: "cellar".to_string(),
+                name: "Cellar".to_string(),
+                default: "wall.stone".to_string(),
+                tile_symbols: IndexMap::default(),
+                terrain: vec![
+                    "#####".to_string(),
+                    "#@..#".to_string(),
+                    "#...#".to_string(),
+                    "#####".to_string(),
+                ],
+            }],
+            screens: Vec::new(),
+        };
+        let project = compile_project(&config, source).expect("project compiles");
+        let region = &project.regions[0];
+        let map = &region.map;
+        let player = region
+            .characters
+            .values()
+            .find(|character| character.name == "Player")
+            .expect("player instance exists");
+        let start = Vec2::new(player.position.x, player.position.z);
+        let radius = 0.34;
+
+        let mut world = rusterix::CollisionWorld::new(10);
+        let mut builder = rusterix::D3ChunkBuilder::new();
+        let assets = rusterix::Assets::default();
+        let bbox = map.bbox();
+        let min_chunk = Vec2::new(
+            (bbox.min.x / 10.0).floor() as i32,
+            (bbox.min.y / 10.0).floor() as i32,
+        );
+        let max_chunk = Vec2::new(
+            (bbox.max.x / 10.0).floor() as i32,
+            (bbox.max.y / 10.0).floor() as i32,
+        );
+        for cy in min_chunk.y..=max_chunk.y {
+            for cx in min_chunk.x..=max_chunk.x {
+                let chunk_origin = Vec2::new(cx, cy);
+                let collision = builder.build_collision(map, &assets, chunk_origin, 10);
+                world.update_chunk(chunk_origin, collision);
+            }
+        }
+
+        let (east, arrived_east) = world
+            .move_towards_on_floors_direct(
+                start,
+                start + Vec2::new(0.4, 0.0),
+                0.4,
+                radius,
+                1.0,
+                0.0,
+            )
+            .expect("source floor should support firstp direct movement");
+        assert!(
+            east.x > start.x + 0.1,
+            "player should be able to move east from source spawn, start={start:?}, end={east:?}, arrived={arrived_east}"
+        );
+
+        let (north, arrived_north) = world
+            .move_towards_on_floors_direct(
+                start,
+                start + Vec2::new(0.0, -0.8),
+                0.8,
+                radius,
+                1.0,
+                0.0,
+            )
+            .expect("source floor should have collision context");
+        assert!(
+            !arrived_north && north.z > start.y - 0.7,
+            "north wall should block firstp direct movement, start={start:?}, end={north:?}"
+        );
     }
 }

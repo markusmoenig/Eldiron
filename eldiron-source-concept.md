@@ -42,12 +42,20 @@ my-game/
   items/
     key.els
     lantern.els
+  assets/
+    fonts/
+      ui.ttf
+    audio/
+      door.wav
+  tiles/
+    wall_stone.png
+    floor_stone.png
   regions/
     cellar.els
     town.els
   scripts/
     shared.eldrin
-  dist/
+  build/
     my-game.eldiron
 ```
 
@@ -64,6 +72,7 @@ main = "main.els"
 [game]
 start_region = "cellar"
 start_screen = "terminal"
+client_mode = "terminal"
 terminal_mode = "roguelike"
 simulation_mode = "hybrid"
 turn_timeout_ms = 600
@@ -79,12 +88,33 @@ unit = "cell"
 resize = "fit"
 
 [build]
-output = "dist/forgotten-well.eldiron"
+output = "build/forgotten-well.eldiron"
 ```
 
 The TOML file is responsible for project configuration and boot settings. The
 `.els` files are responsible for game content. Eldrin remains responsible for
 behavior.
+
+Projects should also have conventional asset folders. `assets/` is for general
+project assets that should be copied into the compiled `.eldiron` file, such as
+fonts, audio, and standalone images. `tiles/` is for PNG/JPEG image files that
+should become Eldiron tile definitions. `images/` is accepted as an alias for
+tile images while the project convention settles, but `tiles/` is the clearer
+name for source projects.
+
+At compile time:
+
+```text
+assets/**/*.ttf, *.otf       -> project font assets
+assets/**/*.wav, *.ogg, ...  -> project audio assets
+assets/**/*.png, *.jpg       -> project image assets
+tiles/**/*.png, *.jpg        -> project tiles
+images/**/*.png, *.jpg       -> project tiles
+```
+
+Imported asset and tile names are derived from their relative path without the
+extension, so `tiles/dungeon/wall_stone.png` becomes the tile alias
+`dungeon/wall_stone`.
 
 ```text
 TOML   = project identity, build settings, start region, start screen
@@ -226,19 +256,25 @@ tiles {
 ```
 
 For readability, `.els` should probably also support named aliases that are
-resolved through the active ruleset:
+resolved through the active ruleset or through project tile aliases:
 
 ```text
 tiles {
-  "#" = wall.stone
-  "." = floor.damp
-  "~" = water.shallow
+  "#" = wall
+  "." = floor
+  "@" = floor
 }
 ```
 
-During compilation, those names would resolve to concrete UUIDs. The generated
+During compilation, those names resolve to concrete UUIDs. The generated
 `.eldiron` file would contain normal Eldiron tile references, not source-only
 concepts.
+
+When a project has image tiles in `tiles/`, Eldiron Source resolves these values
+by tile alias/name. For example, `tiles/wall.png` creates the alias `wall`, so
+`"#" = wall` compiles to that tile's UUID. Nested tile paths also work:
+`tiles/dungeon/wall.png` has the alias `dungeon/wall` and can be referenced by
+the full alias or by the unique leaf name `wall`.
 
 This gives Eldiron Source a clean authoring layer while keeping `.eldiron` and
 Eldiron Creator grounded in the existing UUID-based tile model.
@@ -354,6 +390,27 @@ Region "town" {
 This keeps source maps editable while still allowing precise hand-authored
 layouts.
 
+## CLI
+
+`eldiron-source` should be a normal command-line tool with proper command help.
+The first concrete commands are:
+
+```sh
+eldiron-source new my-game
+eldiron-source build my-game
+eldiron-source play my-game
+eldiron-source watch my-game
+eldiron-source help new
+```
+
+- `new` scaffolds an Eldiron Source project folder with `eldiron.toml`,
+  `main.els`, and the conventional `characters/`, `items/`, `regions/`,
+  `scripts/`, `assets/`, `tiles/`, and `build/` folders.
+- `build` compiles the source project into the configured `.eldiron` output.
+- `play` builds first, then launches the configured terminal, 2D, or 3D client.
+- `watch` observes project sources and assets and rebuilds the `.eldiron` file
+  after edits. Runtime reload can be layered on top later.
+
 ## Terminal Play
 
 Instant terminal play is a major part of the appeal. The important rule is that
@@ -376,14 +433,16 @@ A good authoring loop would be:
 eldiron-source watch
 ```
 
-The watch command could:
+The watch command currently:
 
 ```text
 detect source changes
   -> compile .els project into .eldiron
-  -> reload the .eldiron in the terminal runtime
-  -> show compile errors inline when compilation fails
+  -> print compile errors when compilation fails
 ```
+
+Later, a terminal or graphical runtime can add live reload of the compiled
+`.eldiron` file.
 
 ## Terminal Runtime
 
@@ -436,6 +495,13 @@ Examples:
 This runtime would be useful beyond Eldiron Source. Eldiron Creator could also
 offer "Preview in Terminal" for any `.eldiron` project.
 
+Graphical source play should still compile to `.eldiron` first. For example,
+`client_mode = "3d"` can build source text-map regions into Eldiron's generated
+first-person 3D geometry, set the player to first-person grid input, and launch
+the normal graphical client. `client_mode = "2d"` should use the graphical 2D
+client path. Eldiron Source remains the compiler and source tooling layer, not a
+second graphical runtime.
+
 ## Formatting and TUI Infrastructure
 
 Because terminal play needs formatted output, Eldiron will eventually need
@@ -463,7 +529,7 @@ The first implementation milestone could be intentionally narrow:
 5. Compile semantic maps into normal Eldiron region data.
 6. Write a `.eldiron` file.
 7. Load that `.eldiron` file in a terminal player.
-8. Add `watch` for compile-and-reload workflow.
+8. Add runtime reload on top of `watch` for a compile-and-play workflow.
 
 This would establish Eldiron Source as a real alternate authoring frontend while
 keeping `.eldiron` as the shared project format.
@@ -520,7 +586,7 @@ unit = "cell"
 resize = "fit"
 
 [build]
-output = "dist/source-prototype.eldiron"
+output = "build/source-prototype.eldiron"
 ```
 
 Minimal `main.els`:
@@ -547,9 +613,10 @@ Region "cellar" {
 }
 ```
 
-The prototype can rely on the default source symbols from the active ruleset.
-Explicit `symbols { ... }` or `tiles { ... }` blocks can come later as override
-mechanisms.
+The prototype can rely on default source symbols, and projects can use
+`tiles { ... }` blocks to map terrain glyphs to project tile aliases. More
+general `symbols { ... }` blocks can come later for character, item, and spawn
+overrides.
 
 The generated `.eldiron` should be a regular serialized Eldiron project. The
 current codebase already uses JSON serialization for `.eldiron` files, so the
@@ -573,7 +640,7 @@ Prototype compiler responsibilities:
 Prototype non-goals:
 
 - No full source formatter yet.
-- No watch mode yet.
+- No live runtime reload yet.
 - No folder auto-discovery yet.
 - No procedural placement yet.
 - No custom TUI editor.
@@ -583,7 +650,7 @@ The first acceptance test should be practical:
 
 ```sh
 eldiron-source build sample-source-game
-eldiron-client-terminal sample-source-game/dist/source-prototype.eldiron
+eldiron-client-terminal sample-source-game/build/source-prototype.eldiron
 ```
 
 If the terminal client starts in the `cellar` region and Creator can open the

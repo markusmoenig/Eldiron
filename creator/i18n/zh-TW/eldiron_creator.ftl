@@ -331,7 +331,6 @@ authoring_target_item = 物品
 tool_game = Game Tool (K)。開始遊玩！
 tool_builder = Builder Tool (B)。選取可重複使用的道具或組裝資產，然後在 3D 場景中按一下，將它烘焙為可編輯幾何。
 tool_palette = 調色盤工具 (P)。編輯調色盤項目並套用調色盤顏色。
-tool_dungeon = 地城工具 (U)。繪製概念性的地城結構。
 builder_picker_title = Builder 選擇器
 palette_apply_color = 套用顏色
 status_palette_apply_color = 將目前的調色盤項目套用到所選目標。

@@ -331,7 +331,6 @@ authoring_target_item = Objeto
 tool_game = Game Tool (K). ¡Juega!
 tool_builder = Builder Tool (B). Selecciona un recurso reutilizable de utilería o ensamblaje y haz clic en la escena 3D para hornearlo como geometría editable.
 tool_palette = Herramienta de paleta (P). Edita entradas de la paleta y aplica colores de la paleta.
-tool_dungeon = Herramienta de mazmorras (U). Pinta estructuras conceptuales de mazmorras.
 builder_picker_title = Selector del constructor
 palette_apply_color = Aplicar color
 status_palette_apply_color = Aplica la entrada actual de la paleta al objetivo seleccionado.

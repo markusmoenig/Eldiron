@@ -75,6 +75,14 @@ impl TextWidget {
         }
     }
 
+    fn fallback_font() -> Option<fontdue::Font> {
+        fontdue::Font::from_bytes(
+            include_bytes!("../../../../theframework/embedded/fonts/Roboto-Bold.ttf").as_slice(),
+            fontdue::FontSettings::default(),
+        )
+        .ok()
+    }
+
     pub fn init(&mut self, assets: &Assets) {
         let mut font_name = String::new();
         if let Ok(config) = assets.config.parse::<toml::Table>() {
@@ -134,9 +142,12 @@ impl TextWidget {
             self.table = table;
         }
 
-        if let Some(font) = assets.fonts.get(&font_name) {
-            self.font = Some(font.clone());
-        }
+        self.font = assets
+            .fonts
+            .get(&font_name)
+            .or_else(|| assets.fonts.values().next())
+            .cloned()
+            .or_else(Self::fallback_font);
     }
 
     pub fn update_draw(

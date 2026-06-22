@@ -132,15 +132,6 @@ export const homepageContent = {
           linkLabel: "Open docs",
         },
         {
-          title: "Dungeon Tool",
-          description:
-            "Block out rooms, corridors, shafts, and doors in a conceptual grid, then let Eldiron generate editable map geometry from it. You can even dynamically change fog and other render settings.",
-          image: "/img/screenshots/Eldiron_v0.92_DT.png",
-          alt: "Dungeon Tool preview",
-          href: "/docs/building_maps/procedural_generation",
-          linkLabel: "Open docs",
-        },
-        {
           title: "Interactive Fiction",
           description:
             "Layer narrative metadata onto sectors, linedefs, and entities, and use Eldiron's powerful intent system to build a world model that can be explored entirely through text.",

@@ -3384,101 +3384,17 @@ impl ToolList {
 
         if let Some(region) = project.get_region_ctx(&server_ctx) {
             let map = &region.map;
-            let dungeon_only = server_ctx.editing_geo_filter == EditingGeoFilter::DungeonOnly;
             let mut visible_sector_ids: FxHashSet<u32> = FxHashSet::default();
             let mut visible_linedef_ids: FxHashSet<u32> = FxHashSet::default();
             let mut visible_vertex_ids: FxHashSet<u32> = FxHashSet::default();
 
-            let sector_is_dungeon = |sector: &rusterix::Sector| {
-                sector
-                    .properties
-                    .get_str_default("generated_by", String::new())
-                    == "dungeon_tool"
-            };
-            let linedef_has_dungeon_host = |linedef_id: u32| {
-                if map.sectors.iter().any(|sector| {
-                    sector_is_dungeon(sector) && sector.linedefs.contains(&linedef_id)
-                }) {
-                    return true;
-                }
-                let Some(linedef) = map.find_linedef(linedef_id) else {
-                    return false;
-                };
-                let (Some(v0), Some(v1)) = (
-                    map.find_vertex(linedef.start_vertex),
-                    map.find_vertex(linedef.end_vertex),
-                ) else {
-                    return false;
-                };
-                let midpoint = Vec2::new((v0.x + v1.x) * 0.5, (v0.y + v1.y) * 0.5);
-                map.sectors.iter().any(|sector| {
-                    if !sector_is_dungeon(sector) {
-                        return false;
-                    }
-                    let mut bbox = sector.bounding_box(map);
-                    bbox.expand(Vec2::new(0.25, 0.25));
-                    bbox.contains(midpoint)
-                })
-            };
-            let vertex_has_dungeon_host = |vertex_id: u32| {
-                if map.sectors.iter().any(|sector| {
-                    sector_is_dungeon(sector)
-                        && sector.linedefs.iter().any(|linedef_id| {
-                            map.find_linedef(*linedef_id).is_some_and(|linedef| {
-                                linedef.start_vertex == vertex_id || linedef.end_vertex == vertex_id
-                            })
-                        })
-                }) {
-                    return true;
-                }
-                let Some(vertex) = map.find_vertex(vertex_id) else {
-                    return false;
-                };
-                let pos = Vec2::new(vertex.x, vertex.y);
-                map.sectors.iter().any(|sector| {
-                    if !sector_is_dungeon(sector) {
-                        return false;
-                    }
-                    let mut bbox = sector.bounding_box(map);
-                    bbox.expand(Vec2::new(0.25, 0.25));
-                    bbox.contains(pos)
-                })
-            };
-
             for sector in &map.sectors {
-                let is_dungeon = sector_is_dungeon(sector);
-                if dungeon_only && !is_dungeon {
-                    continue;
-                }
-                if server_ctx.dungeon_no_ceiling && is_dungeon {
-                    let dungeon_part = sector
-                        .properties
-                        .get_str_default("dungeon_part", String::new());
-                    if dungeon_part == "ceiling" || dungeon_part == "stair_ceiling" {
-                        continue;
-                    }
-                }
                 visible_sector_ids.insert(sector.id);
                 for linedef_id in &sector.linedefs {
                     visible_linedef_ids.insert(*linedef_id);
                     if let Some(linedef) = map.find_linedef(*linedef_id) {
                         visible_vertex_ids.insert(linedef.start_vertex);
                         visible_vertex_ids.insert(linedef.end_vertex);
-                    }
-                }
-            }
-
-            if dungeon_only {
-                for linedef in &map.linedefs {
-                    if linedef_has_dungeon_host(linedef.id) {
-                        visible_linedef_ids.insert(linedef.id);
-                        visible_vertex_ids.insert(linedef.start_vertex);
-                        visible_vertex_ids.insert(linedef.end_vertex);
-                    }
-                }
-                for vertex in &map.vertices {
-                    if vertex_has_dungeon_host(vertex.id) {
-                        visible_vertex_ids.insert(vertex.id);
                     }
                 }
             }
@@ -4336,9 +4252,6 @@ impl ToolList {
                         pos += view_nudge;
                         let selected = map.selected_vertices.contains(&v.id)
                             || server_ctx.hover.0 == Some(v.id);
-                        if dungeon_only && !visible_vertex_ids.contains(&v.id) && !selected {
-                            continue;
-                        }
 
                         push_vertex(GeoId::Vertex(v.id), pos, selected, &mut rusterix);
                     }
@@ -4412,13 +4325,6 @@ impl ToolList {
                         for linedef in &map.linedefs {
                             let is_selected = map.selected_linedefs.contains(&linedef.id);
                             let is_hovered = server_ctx.hover.1 == Some(linedef.id);
-                            if dungeon_only
-                                && !visible_linedef_ids.contains(&linedef.id)
-                                && !is_selected
-                                && !is_hovered
-                            {
-                                continue;
-                            }
                             let show_in_builder =
                                 server_ctx.builder_tool_active && (is_selected || is_hovered);
                             if !linedef.sector_ids.is_empty() && !show_in_builder {
@@ -4531,13 +4437,6 @@ impl ToolList {
                     };
                     let sector_is_selected = map.selected_sectors.contains(&sector_id);
                     let sector_is_hovered = server_ctx.hover.2 == Some(sector_id);
-                    if dungeon_only
-                        && !visible_sector_ids.contains(&sector_id)
-                        && !sector_is_selected
-                        && !sector_is_hovered
-                    {
-                        continue;
-                    }
 
                     if sector.properties.contains("rect") && server_ctx.no_rect_geo_on_map {
                         continue;

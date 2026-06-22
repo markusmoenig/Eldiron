@@ -361,49 +361,7 @@ pub fn apply_surface_source_to_sector(
     source: &SurfaceApplySource,
     tile_mode: Option<i32>,
 ) -> bool {
-    let target_sector_ids: Vec<u32> = if let Some(sector) = map.find_sector(sector_id) {
-        let generated_by = sector
-            .properties
-            .get_str_default("generated_by", String::new());
-        let dungeon_part = sector
-            .properties
-            .get_str_default("dungeon_part", String::new());
-        if generated_by == "dungeon_tool"
-            && (dungeon_part == "stair_tread"
-                || dungeon_part == "stair_riser"
-                || dungeon_part == "stair_ceiling")
-            && let (Some(layer_id), Some(cell_x), Some(cell_y)) = (
-                sector.properties.get_id("dungeon_layer_id"),
-                sector.properties.get_int("dungeon_cell_x"),
-                sector.properties.get_int("dungeon_cell_y"),
-            )
-        {
-            map.sectors
-                .iter()
-                .filter(|candidate| {
-                    candidate
-                        .properties
-                        .get_str_default("generated_by", String::new())
-                        == "dungeon_tool"
-                        && candidate.properties.get_id("dungeon_layer_id") == Some(layer_id)
-                        && candidate.properties.get_int("dungeon_cell_x") == Some(cell_x)
-                        && candidate.properties.get_int("dungeon_cell_y") == Some(cell_y)
-                        && matches!(
-                            candidate
-                                .properties
-                                .get_str_default("dungeon_part", String::new())
-                                .as_str(),
-                            "stair_tread" | "stair_riser" | "stair_ceiling"
-                        )
-                })
-                .map(|sector| sector.id)
-                .collect()
-        } else {
-            vec![sector_id]
-        }
-    } else {
-        vec![sector_id]
-    };
+    let target_sector_ids: Vec<u32> = vec![sector_id];
 
     match source {
         SurfaceApplySource::Direct(pixel_source) => {
@@ -414,25 +372,6 @@ pub fn apply_surface_source_to_sector(
                     sector
                         .properties
                         .set(source_key, Value::Source(pixel_source.clone()));
-                    let dungeon_part = sector
-                        .properties
-                        .get_str_default("dungeon_part", String::new());
-                    if source_key == "source"
-                        && matches!(
-                            dungeon_part.as_str(),
-                            "stair_tread" | "stair_riser" | "stair_ceiling"
-                        )
-                    {
-                        sector
-                            .properties
-                            .set("source", Value::Source(pixel_source.clone()));
-                        sector
-                            .properties
-                            .set("floor_source", Value::Source(pixel_source.clone()));
-                        sector
-                            .properties
-                            .set("ceiling_source", Value::Source(pixel_source.clone()));
-                    }
                     if let Some(tile_mode) = tile_mode {
                         sector.properties.set("tile_mode", Value::Int(tile_mode));
                     }
@@ -852,16 +791,7 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
     if server_ctx.editor_view_mode == EditorViewMode::D2 {
         // In 2D we render the current map (region/profile/character/item), but never screens.
         if let Some(map) = project.get_map(server_ctx) {
-            let mut map = map.clone();
-            map.properties.set(
-                "editing_filter_dungeon",
-                Value::Bool(server_ctx.editing_geo_filter == EditingGeoFilter::DungeonOnly),
-            );
-            map.properties.set(
-                "dungeon_no_ceiling",
-                Value::Bool(server_ctx.dungeon_no_ceiling),
-            );
-            SCENEMANAGER.write().unwrap().set_map(map);
+            SCENEMANAGER.write().unwrap().set_map(map.clone());
         }
     } else {
         // In 3D, SceneManager builds region geometry. This includes profile/surface editing
@@ -876,14 +806,6 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
                 let mut map = region.map.clone();
                 // Keep editor-only preview filters in sync with region config for 3D builds.
                 apply_region_config(&mut map, region.config.clone());
-                map.properties.set(
-                    "editing_filter_dungeon",
-                    Value::Bool(server_ctx.editing_geo_filter == EditingGeoFilter::DungeonOnly),
-                );
-                map.properties.set(
-                    "dungeon_no_ceiling",
-                    Value::Bool(server_ctx.dungeon_no_ceiling),
-                );
                 SCENEMANAGER.write().unwrap().set_map(map);
             }
         }

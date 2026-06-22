@@ -26,4 +26,4 @@ resize = "fit"
 text_updates = true
 
 [build]
-output = "dist/source-prototype.eldiron"
+output = "build/source-prototype.eldiron"

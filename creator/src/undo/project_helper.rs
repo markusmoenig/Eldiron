@@ -12,7 +12,6 @@ fn tiles_or_authoring_dock() -> String {
             .name
             .as_str()
         {
-            "Dungeon Tool" => "Dungeon".into(),
             "Builder Tool" => "Builder".into(),
             _ => "Tiles".into(),
         }

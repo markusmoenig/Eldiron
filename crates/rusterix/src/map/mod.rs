@@ -1,5 +1,4 @@
 pub mod bbox;
-pub mod dungeon;
 pub mod geometry;
 pub mod geometry_object;
 pub mod light;
@@ -51,7 +50,6 @@ pub struct GeometryPlacementFloor {
 pub enum MapToolType {
     General,
     Selection,
-    Dungeon,
     Vertex,
     Linedef,
     Sector,
@@ -72,9 +70,6 @@ pub struct Map {
     pub offset: Vec2<f32>,
     pub grid_size: f32,
     pub subdivisions: f32,
-
-    #[serde(default)]
-    pub dungeon: dungeon::DungeonMap,
 
     // When adding linedefs we keep track of them to check if we have a closed polygon
     #[serde(skip)]
@@ -380,8 +375,6 @@ impl Map {
             offset: Vec2::zero(),
             grid_size: 30.0,
             subdivisions: 1.0,
-
-            dungeon: dungeon::DungeonMap::default(),
 
             possible_polygon: vec![],
             curr_grid_pos: None,
@@ -2525,8 +2518,6 @@ impl Map {
             offset: self.offset,
             grid_size: self.grid_size,
             subdivisions: self.subdivisions,
-
-            dungeon: dungeon::DungeonMap::default(),
 
             possible_polygon: vec![],
             curr_grid_pos: None,

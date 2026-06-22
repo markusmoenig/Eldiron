@@ -331,7 +331,6 @@ authoring_target_item = Gegenstand
 tool_game = Game Tool (K). Spiel spielen!
 tool_builder = Builder Tool (B). Wähle ein wiederverwendbares Requisiten- oder Montage-Asset aus und klicke dann in die 3D-Szene, um es als editierbare Geometrie zu backen.
 tool_palette = Palettenwerkzeug (P). Bearbeite Paletteneinträge und wende Palettenfarben an.
-tool_dungeon = Dungeon-Werkzeug (U). Konzeptionelle Dungeon-Strukturen malen.
 builder_picker_title = Builder-Picker
 palette_apply_color = Farbe anwenden
 status_palette_apply_color = Den aktuellen Paletteneintrag auf das ausgewählte Ziel anwenden.
