@@ -469,11 +469,35 @@ impl Client {
         if let Some(slot) = widget.command_slot.as_deref() {
             return Self::command_for_slot(slot, assets, entity, ui_state);
         }
-        widget.command.clone().or_else(|| {
-            widget
-                .command_binding()
-                .map(|binding| binding.command_string())
-        })
+        widget
+            .command
+            .clone()
+            .or_else(|| {
+                widget
+                    .command_binding()
+                    .map(|binding| binding.command_string())
+            })
+            .map(|command| Self::resolve_ui_placeholders(&command, ui_state))
+    }
+
+    fn resolve_ui_placeholders(input: &str, ui_state: &FxHashMap<String, String>) -> String {
+        let mut out = String::with_capacity(input.len());
+        let mut rest = input;
+
+        while let Some(start) = rest.find("{UI.") {
+            out.push_str(&rest[..start]);
+            let after = &rest[start + 4..];
+            let Some(end) = after.find('}') else {
+                out.push_str(&rest[start..]);
+                return out;
+            };
+            let key = after[..end].trim();
+            out.push_str(ui_state.get(key).map(String::as_str).unwrap_or_default());
+            rest = &after[end + 1..];
+        }
+
+        out.push_str(rest);
+        out
     }
 
     fn resolved_widget_binding(
@@ -1833,6 +1857,50 @@ impl Client {
         self.sync_bound_button_activation(binding);
     }
 
+    fn set_or_append_ui_state(
+        &mut self,
+        binding: &str,
+        value: &str,
+        append: bool,
+        separator: &str,
+        max_parts: Option<usize>,
+    ) {
+        if !append {
+            self.set_ui_state(binding, value);
+            return;
+        }
+
+        let binding = binding.trim();
+        let value = value.trim();
+        if binding.is_empty() || value.is_empty() {
+            self.set_ui_state(binding, "");
+            return;
+        }
+
+        let separator = if separator.is_empty() { " " } else { separator };
+        let mut parts = self
+            .ui_state
+            .get(binding)
+            .map(|existing| {
+                existing
+                    .split(separator)
+                    .map(str::trim)
+                    .filter(|part| !part.is_empty())
+                    .map(str::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        parts.push(value.to_string());
+        if let Some(max_parts) = max_parts
+            && max_parts > 0
+            && parts.len() > max_parts
+        {
+            let drop_count = parts.len() - max_parts;
+            parts.drain(0..drop_count);
+        }
+        self.set_ui_state(binding, &parts.join(separator));
+    }
+
     fn sync_bound_button_activation(&mut self, binding: &str) {
         let selected_value = self.ui_state.get(binding).map(|value| value.trim());
         let mut selected_button_id = None;
@@ -2427,7 +2495,11 @@ impl Client {
                             assets,
                             resolved_command.as_deref(),
                             visual_state,
+                            widget.show_icon,
                         );
+                        if !widget.show_icon {
+                            widget.draw_label(&mut self.target, assets, &self.draw2d, visual_state);
+                        }
                     }
                 }
             }
@@ -3021,7 +3093,16 @@ impl Client {
                             assets,
                             resolved_command.as_deref(),
                             visual_state,
+                            widget.show_icon,
                         );
+                        if !widget.show_icon {
+                            widget.draw_label(
+                                &mut self.overlay,
+                                assets,
+                                &self.draw2d,
+                                visual_state,
+                            );
+                        }
                     }
                 }
             }
@@ -3841,6 +3922,65 @@ impl Client {
         true
     }
 
+    fn refresh_3d_pick_at(
+        &mut self,
+        p: Vec2<i32>,
+        map: &Map,
+        scene_handler: &mut SceneHandler,
+    ) -> bool {
+        let point = Vec2::new(p.x as f32, p.y as f32);
+        let Some(widget) = self
+            .game_widgets
+            .values()
+            .find(|widget| widget.rect.contains(point) && !Self::is_2d_camera(&widget.camera))
+        else {
+            return false;
+        };
+
+        self.hovered_entity_id = None;
+        self.hovered_item_id = None;
+        self.hovered_world_pos = None;
+        self.hover_distance = f32::MAX;
+
+        let dx = p.x as f32 - widget.rect.x;
+        let dy = p.y as f32 - widget.rect.y;
+        let screen_uv = Vec2::new(dx / widget.rect.width, dy / widget.rect.height);
+        let Some((geoid, world_pos, distance)) = scene_handler.vm.pick_geo_id_at_uv(
+            widget.rect.width as u32,
+            widget.rect.height as u32,
+            [screen_uv.x, screen_uv.y],
+            false,
+            true,
+        ) else {
+            return true;
+        };
+
+        self.hovered_world_pos = Some(world_pos);
+        self.hover_distance = distance;
+        match geoid {
+            GeoId::Character(entity_id) => {
+                self.hovered_entity_id = Some(entity_id);
+            }
+            GeoId::Hole(sector_id, hole_id) => {
+                if let Some(item) =
+                    SceneHandler::find_item_by_profile_attrs(map, Some(sector_id), Some(hole_id))
+                {
+                    self.hovered_item_id = Some(item.id);
+                }
+            }
+            GeoId::Sector(sector_id) => {
+                if let Some(item) = SceneHandler::find_item_by_sector_id(map, sector_id) {
+                    self.hovered_item_id = Some(item.id);
+                }
+            }
+            GeoId::Item(item_id) => {
+                self.hovered_item_id = Some(item_id);
+            }
+            _ => {}
+        }
+        true
+    }
+
     /// Drag event
     pub fn touch_dragged(
         &mut self,
@@ -4062,13 +4202,14 @@ impl Client {
         coord: Vec2<i32>,
         map: &Map,
         assets: &Assets,
+        scene_handler: &mut SceneHandler,
     ) -> Option<EntityAction> {
         let mut action = None;
         let mut camera_action = None;
         let mut render_camera_switches: Vec<(Option<String>, PlayerCamera)> = Vec::new();
         let mut selected_walk_button_id = None;
         let mut selected_targeting_button_id = None;
-        let mut bound_state_update: Option<(String, String)> = None;
+        let mut bound_state_update: Option<(String, String, bool, String, Option<usize>)> = None;
         let active_intent = self.get_current_intent_for_action();
         self.dragging_item_id = None;
         self.dragging_item_owner_entity_id = None;
@@ -4190,8 +4331,10 @@ impl Client {
             }
         }
 
+        let clicked_3d_game_widget = self.refresh_3d_pick_at(p, map, scene_handler);
+
         // If we hovered over an item in 3D, send an explicit ItemClicked intent
-        if let Some(entity_id) = self.hovered_entity_id {
+        if clicked_3d_game_widget && let Some(entity_id) = self.hovered_entity_id {
             let intent = self.get_current_intent_for_action();
             if intent.is_some() {
                 self.consume_one_shot_2d_intent();
@@ -4204,7 +4347,7 @@ impl Client {
         }
 
         // If we hovered over an item in 3D, send an explicit ItemClicked intent or start a drag
-        if let Some(item_id) = self.hovered_item_id {
+        if clicked_3d_game_widget && let Some(item_id) = self.hovered_item_id {
             if self.has_drag_drop_targets() {
                 self.dragging_item_id = Some(item_id);
                 self.dragging_item_owner_entity_id = None;
@@ -4243,7 +4386,13 @@ impl Client {
                 if let (Some(binding), Some(value)) =
                     (widget.binding.as_deref(), widget.value.as_deref())
                 {
-                    bound_state_update = Some((binding.to_string(), value.to_string()));
+                    bound_state_update = Some((
+                        binding.to_string(),
+                        value.to_string(),
+                        widget.binding_append,
+                        widget.binding_separator.clone(),
+                        widget.binding_max_parts,
+                    ));
                 }
 
                 if widget.drag_drop {
@@ -4377,8 +4526,8 @@ impl Client {
         if let Some(button_id) = selected_walk_button_id {
             self.activate_walk_button(button_id);
         }
-        if let Some((binding, value)) = bound_state_update {
-            self.set_ui_state(&binding, &value);
+        if let Some((binding, value, append, separator, max_parts)) = bound_state_update {
+            self.set_or_append_ui_state(&binding, &value, append, &separator, max_parts);
         }
         for (target, camera) in render_camera_switches {
             self.set_game_widget_camera_mode(target.as_deref(), camera);
@@ -5083,6 +5232,9 @@ impl Client {
                             let mut group = None;
                             let mut binding = None;
                             let mut value = None;
+                            let mut binding_append = false;
+                            let mut binding_separator = " ".to_string();
+                            let mut binding_max_parts = None;
                             let mut selection = None;
                             let mut show: Option<Vec<String>> = None;
                             let mut hide: Option<Vec<String>> = None;
@@ -5101,6 +5253,7 @@ impl Client {
                             let mut item_cursor_id = None;
                             let mut item_clicked_cursor_id = None;
                             let mut border_size: i32 = 0;
+                            let mut show_icon = true;
                             let mut border_color: [u8; 4] = [255, 255, 255, 255];
                             let mut label = String::new();
                             let mut label_font = String::new();
@@ -5173,6 +5326,28 @@ impl Client {
                                     value = Some(v.to_string());
                                 }
                                 if let Some(v) = ui
+                                    .get("append")
+                                    .or_else(|| ui.get("binding_append"))
+                                    .and_then(toml::Value::as_bool)
+                                {
+                                    binding_append = v;
+                                }
+                                if let Some(v) = ui
+                                    .get("separator")
+                                    .or_else(|| ui.get("binding_separator"))
+                                    .and_then(toml::Value::as_str)
+                                {
+                                    binding_separator = v.to_string();
+                                }
+                                if let Some(v) = ui
+                                    .get("max_parts")
+                                    .or_else(|| ui.get("binding_max_parts"))
+                                    .and_then(toml::Value::as_integer)
+                                    && v > 0
+                                {
+                                    binding_max_parts = Some(v as usize);
+                                }
+                                if let Some(v) = ui
                                     .get("selection")
                                     .and_then(toml::Value::as_str)
                                     .map(str::trim)
@@ -5191,15 +5366,24 @@ impl Client {
                                 {
                                     label_font = v.to_string();
                                 }
-                                if let Some(value) = ui.get("font_size")
-                                    && let Some(v) = value.as_float()
-                                {
-                                    label_font_size = v as f32;
+                                if let Some(value) = ui.get("font_size") {
+                                    if let Some(v) = value.as_float() {
+                                        label_font_size = v as f32;
+                                    } else if let Some(v) = value.as_integer() {
+                                        label_font_size = v as f32;
+                                    }
                                 }
                                 if let Some(value) = ui.get("color")
                                     && let Some(v) = value.as_str()
                                 {
                                     label_color = Self::hex_to_rgba_u8(v);
+                                }
+                                if let Some(value) = ui
+                                    .get("show_icon")
+                                    .or_else(|| ui.get("icon"))
+                                    .and_then(toml::Value::as_bool)
+                                {
+                                    show_icon = value;
                                 }
                                 if let Some(color) = Self::ui_style_color(ui, None, "text", "color")
                                     .or_else(|| Self::ui_style_color(ui, None, "color", "color"))
@@ -5412,6 +5596,9 @@ impl Client {
                                 group,
                                 binding,
                                 value,
+                                binding_append,
+                                binding_separator,
+                                binding_max_parts,
                                 selection,
                                 show,
                                 hide,
@@ -5431,6 +5618,7 @@ impl Client {
                                 item_clicked_cursor_id,
                                 border_color,
                                 border_size,
+                                show_icon,
                                 label,
                                 label_font,
                                 label_font_size,
@@ -5645,6 +5833,7 @@ impl Client {
         assets: &Assets,
         command: Option<&str>,
         visual_state: ButtonVisualState,
+        show_icon: bool,
     ) {
         let stride = target.stride();
         let safe = (
@@ -5665,7 +5854,8 @@ impl Client {
             175
         };
 
-        if let Some((texture, _)) = Widget::command_icon_texture(assets, command, visual_state)
+        if show_icon
+            && let Some((texture, _)) = Widget::command_icon_texture(assets, command, visual_state)
             && Self::draw_alpha_masked_command_overlay(target, rect, texture, alpha)
         {
             return;

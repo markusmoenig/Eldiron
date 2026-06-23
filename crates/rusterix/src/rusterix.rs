@@ -257,10 +257,14 @@ impl Rusterix {
                 if let Some(Value::PlayerCamera(camera)) = e.attributes.get("player_camera") {
                     if *camera != self.player_camera {
                         self.player_camera = camera.clone();
-                        if self.player_camera == PlayerCamera::D3Iso {
-                            self.client.camera_d3 = Box::new(D3IsoCamera::new())
-                        } else if self.player_camera == PlayerCamera::D3FirstP {
-                            self.client.camera_d3 = Box::new(D3FirstPCamera::new());
+                        match self.player_camera {
+                            PlayerCamera::D3Iso => {
+                                self.client.camera_d3 = Box::new(D3IsoCamera::new())
+                            }
+                            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid => {
+                                self.client.camera_d3 = Box::new(D3FirstPCamera::new());
+                            }
+                            PlayerCamera::D2 | PlayerCamera::D2Grid => {}
                         }
                     }
                     break;
@@ -491,7 +495,9 @@ impl Rusterix {
 
     /// Send a touch down event to the client.
     pub fn client_touch_down(&mut self, coord: Vec2<i32>, map: &Map) -> Option<EntityAction> {
-        let action = self.client.touch_down(coord, map, &self.assets);
+        let action = self
+            .client
+            .touch_down(coord, map, &self.assets, &mut self.scene_handler);
         let commands = self
             .client
             .process_pending_runtime_commands(&mut self.assets, &mut self.scene_handler);

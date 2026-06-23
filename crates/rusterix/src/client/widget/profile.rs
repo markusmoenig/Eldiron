@@ -87,6 +87,10 @@ pub struct ProfileWidget {
     text_gap: f32,
     image_size: Option<f32>,
     show_text: bool,
+    selected_frame: bool,
+    selected_frame_color: [u8; 4],
+    selected_frame_size: usize,
+    selected_frame_padding: usize,
     stat_bars: Vec<ProfileStatBar>,
     stats_layout: ProfileStatsLayout,
     stat_gap: f32,
@@ -122,6 +126,10 @@ impl ProfileWidget {
             text_gap: 4.0,
             image_size: None,
             show_text: true,
+            selected_frame: false,
+            selected_frame_color: [69, 203, 208, 255],
+            selected_frame_size: 2,
+            selected_frame_padding: 4,
             stat_bars: Vec::new(),
             stats_layout: ProfileStatsLayout::default(),
             stat_gap: 8.0,
@@ -215,6 +223,37 @@ impl ProfileWidget {
             }
             if let Some(v) = ui.get("show_text").and_then(toml::Value::as_bool) {
                 self.show_text = v;
+            }
+            if let Some(v) = ui
+                .get("selected_frame")
+                .or_else(|| ui.get("selected"))
+                .and_then(toml::Value::as_bool)
+            {
+                self.selected_frame = v;
+            }
+            if let Some(color) = ui
+                .get("selected_frame_color")
+                .or_else(|| ui.get("frame_color"))
+                .and_then(toml::Value::as_str)
+                .map(TheColor::from_hex)
+            {
+                self.selected_frame_color = color.to_u8_array();
+            }
+            if let Some(v) = ui
+                .get("selected_frame_size")
+                .or_else(|| ui.get("frame_size"))
+                .and_then(toml::Value::as_integer)
+                && v >= 0
+            {
+                self.selected_frame_size = v as usize;
+            }
+            if let Some(v) = ui
+                .get("selected_frame_padding")
+                .or_else(|| ui.get("frame_padding"))
+                .and_then(toml::Value::as_integer)
+                && v >= 0
+            {
+                self.selected_frame_padding = v as usize;
             }
             if let Some(v) = ui
                 .get("stats_layout")
@@ -450,6 +489,64 @@ impl ProfileWidget {
         );
     }
 
+    fn draw_selected_frame(&mut self, draw2d: &Draw2D) {
+        if !self.selected_frame
+            || self.selected_frame_size == 0
+            || self.selected_frame_color[3] == 0
+        {
+            return;
+        }
+
+        let w = self.buffer.dim().width.max(0) as usize;
+        let h = self.buffer.dim().height.max(0) as usize;
+        if w == 0 || h == 0 {
+            return;
+        }
+
+        let stride = self.buffer.stride();
+        draw2d.rect_outline_thickness(
+            self.buffer.pixels_mut(),
+            &(0, 0, w, h),
+            stride,
+            &self.selected_frame_color,
+            self.selected_frame_size,
+        );
+    }
+
+    fn finish_draw(&mut self, target: &mut TheRGBABuffer, draw2d: &Draw2D) {
+        self.draw_selected_frame(draw2d);
+        target.blend_into(self.rect.x as i32, self.rect.y as i32, &self.buffer);
+    }
+
+    fn content_inset(&self) -> usize {
+        if self.selected_frame && self.selected_frame_size > 0 && self.selected_frame_color[3] > 0 {
+            self.selected_frame_size + self.selected_frame_padding
+        } else {
+            0
+        }
+    }
+
+    fn offset_layout(
+        image_rect: &mut (usize, usize, usize, usize),
+        text_rect: &mut Option<Rect>,
+        stat_rects: &mut [(usize, usize, usize, usize)],
+        inset: usize,
+    ) {
+        if inset == 0 {
+            return;
+        }
+        image_rect.0 += inset;
+        image_rect.1 += inset;
+        if let Some(rect) = text_rect {
+            rect.x += inset as f32;
+            rect.y += inset as f32;
+        }
+        for rect in stat_rects {
+            rect.0 += inset;
+            rect.1 += inset;
+        }
+    }
+
     fn fallback_font() -> Option<fontdue::Font> {
         fontdue::Font::from_bytes(
             include_bytes!("../../../../theframework/embedded/fonts/Roboto-Bold.ttf").as_slice(),
@@ -568,8 +665,24 @@ impl ProfileWidget {
         } else {
             let stats_x = next_x;
             let stats_w = (w - stats_x).max(1.0);
-            let mut bar_y =
-                self.name_font_size + self.text_gap + self.class_font_size + self.stats_top_gap;
+            let text_bottom = self.name_font_size + self.text_gap + self.class_font_size;
+            let bar_count = self.stat_bars.len();
+            let total_bar_height = self
+                .stat_bars
+                .iter()
+                .map(|bar| bar.height.max(1.0))
+                .sum::<f32>();
+            let desired_gap_space =
+                self.stats_top_gap + self.stat_gap * bar_count.saturating_sub(1) as f32;
+            let available_gap_space = (h - text_bottom - total_bar_height).max(0.0);
+            let gap_scale = if desired_gap_space > available_gap_space && desired_gap_space > 0.0 {
+                available_gap_space / desired_gap_space
+            } else {
+                1.0
+            };
+            let top_gap = self.stats_top_gap * gap_scale;
+            let stat_gap = self.stat_gap * gap_scale;
+            let mut bar_y = text_bottom + top_gap;
             self.stat_bars
                 .iter()
                 .map(|bar| {
@@ -579,7 +692,7 @@ impl ProfileWidget {
                         stats_w.round() as usize,
                         bar.height.round().max(1.0) as usize,
                     );
-                    bar_y += bar.height.max(1.0) + self.stat_gap;
+                    bar_y += bar.height.max(1.0) + stat_gap;
                     rect
                 })
                 .filter(|(x, y, width, height)| {
@@ -846,7 +959,7 @@ impl ProfileWidget {
         self.buffer.fill([0, 0, 0, 0]);
 
         let Some(entity) = entity else {
-            target.blend_into(self.rect.x as i32, self.rect.y as i32, &self.buffer);
+            self.finish_draw(target, draw2d);
             return;
         };
 
@@ -856,7 +969,15 @@ impl ProfileWidget {
         if dst_w == 0 || dst_h == 0 {
             return;
         }
-        let (image_rect, text_rect, stat_rects) = self.layout(dst_w, dst_h);
+        let inset = self.content_inset().min(dst_w / 2).min(dst_h / 2);
+        let inner_w = dst_w.saturating_sub(inset * 2);
+        let inner_h = dst_h.saturating_sub(inset * 2);
+        if inner_w == 0 || inner_h == 0 {
+            self.finish_draw(target, draw2d);
+            return;
+        }
+        let (mut image_rect, mut text_rect, mut stat_rects) = self.layout(inner_w, inner_h);
+        Self::offset_layout(&mut image_rect, &mut text_rect, &mut stat_rects, inset);
 
         if let Some(texture) = Self::explicit_profile_texture(entity, assets) {
             draw2d.blend_scale_chunk(
@@ -871,7 +992,7 @@ impl ProfileWidget {
                 self.draw_identity_text(entity, assets, draw2d, text_rect);
             }
             self.draw_stat_bars(entity, draw2d, &stat_rects);
-            target.blend_into(self.rect.x as i32, self.rect.y as i32, &self.buffer);
+            self.finish_draw(target, draw2d);
             return;
         }
 
@@ -881,7 +1002,7 @@ impl ProfileWidget {
             .and_then(|name| assets.avatars.get(name))
             .or_else(|| AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets))
         else {
-            target.blend_into(self.rect.x as i32, self.rect.y as i32, &self.buffer);
+            self.finish_draw(target, draw2d);
             return;
         };
 
@@ -895,17 +1016,17 @@ impl ProfileWidget {
             AvatarShadingOptions::default(),
             self.show_weapons,
         ) else {
-            target.blend_into(self.rect.x as i32, self.rect.y as i32, &self.buffer);
+            self.finish_draw(target, draw2d);
             return;
         };
 
         let size = out.size as usize;
         let Some(crop_rect) = Self::crop_rect(size, &out.rgba, self.crop) else {
-            target.blend_into(self.rect.x as i32, self.rect.y as i32, &self.buffer);
+            self.finish_draw(target, draw2d);
             return;
         };
         let Some(cropped) = Self::cropped_rgba(&out.rgba, size, crop_rect) else {
-            target.blend_into(self.rect.x as i32, self.rect.y as i32, &self.buffer);
+            self.finish_draw(target, draw2d);
             return;
         };
         let (_, _, crop_w, crop_h) = crop_rect;
@@ -921,6 +1042,6 @@ impl ProfileWidget {
             self.draw_identity_text(entity, assets, draw2d, text_rect);
         }
         self.draw_stat_bars(entity, draw2d, &stat_rects);
-        target.blend_into(self.rect.x as i32, self.rect.y as i32, &self.buffer);
+        self.finish_draw(target, draw2d);
     }
 }

@@ -1,5 +1,0 @@
-tiles {
-  "#" = wall material=stone finish=matte
-  "." = floor material=stone finish=natural
-  "@" = floor material=stone finish=natural
-}

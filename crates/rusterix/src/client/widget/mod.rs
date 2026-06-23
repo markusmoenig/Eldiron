@@ -48,6 +48,9 @@ pub struct Widget {
     pub group: Option<String>,
     pub binding: Option<String>,
     pub value: Option<String>,
+    pub binding_append: bool,
+    pub binding_separator: String,
+    pub binding_max_parts: Option<usize>,
     pub selection: Option<String>,
     pub show: Option<Vec<String>>,
     pub hide: Option<Vec<String>>,
@@ -67,6 +70,7 @@ pub struct Widget {
     pub item_clicked_cursor_id: Option<Uuid>,
     pub border_color: Pixel,
     pub border_size: i32,
+    pub show_icon: bool,
     pub label: String,
     pub label_font: String,
     pub label_font_size: f32,
@@ -197,6 +201,9 @@ impl Widget {
             group: None,
             binding: None,
             value: None,
+            binding_append: false,
+            binding_separator: " ".to_string(),
+            binding_max_parts: None,
             selection: None,
             show: None,
             hide: None,
@@ -216,6 +223,7 @@ impl Widget {
             item_clicked_cursor_id: None,
             border_color: WHITE,
             border_size: 0,
+            show_icon: true,
             label: String::new(),
             label_font: String::new(),
             label_font_size: 18.0,
@@ -277,13 +285,7 @@ impl Widget {
         let stride = buffer.stride();
         let buffer_width = buffer.dim().width as isize;
         let buffer_height = buffer.dim().height as isize;
-        let state_style = match visual_state {
-            ButtonVisualState::Normal => ButtonStateStyle::default(),
-            ButtonVisualState::Hover => self.hover_style,
-            ButtonVisualState::Pressed => self.pressed_style,
-            ButtonVisualState::Selected => self.selected_style,
-            ButtonVisualState::Disabled => self.disabled_style,
-        };
+        let state_style = self.state_style(visual_state);
         let is_command_slot = self.command_slot.is_some();
         let is_command_button = is_command_slot
             || resolved_command
@@ -342,7 +344,8 @@ impl Widget {
 
         let is_item_slot = self.inventory_index.is_some() || self.equipped_slot.is_some();
         let mut drew_primary_texture = false;
-        if !is_item_slot
+        if self.show_icon
+            && !is_item_slot
             && let Some((texture, color)) = Self::command_icon_texture(
                 assets,
                 resolved_command.or(self.command.as_deref()),
@@ -453,36 +456,74 @@ impl Widget {
             );
         }
 
-        if !self.label.trim().is_empty() {
-            let font = if self.label_font.trim().is_empty() {
-                assets.fonts.values().next()
-            } else {
-                assets
-                    .fonts
-                    .get(self.label_font.trim())
-                    .or_else(|| assets.fonts.values().next())
-            };
+        self.draw_label(buffer, assets, draw2d, visual_state);
+    }
 
-            if let Some(font) = font {
-                draw2d.text_rect_blend_safe(
-                    buffer.pixels_mut(),
-                    &(
-                        self.rect.x.floor() as isize + 4,
-                        self.rect.y.floor() as isize,
-                        self.rect.width.ceil() as isize - 8,
-                        self.rect.height.ceil() as isize,
-                    ),
-                    stride,
-                    font,
-                    self.label_font_size,
-                    &self.label,
-                    &state_style.label_color.unwrap_or(self.label_color),
-                    draw2d::TheHorizontalAlign::Center,
-                    draw2d::TheVerticalAlign::Center,
-                    &(0, 0, buffer_width, buffer_height),
-                );
-            }
+    fn state_style(&self, visual_state: ButtonVisualState) -> ButtonStateStyle {
+        match visual_state {
+            ButtonVisualState::Normal => ButtonStateStyle::default(),
+            ButtonVisualState::Hover => self.hover_style,
+            ButtonVisualState::Pressed => self.pressed_style,
+            ButtonVisualState::Selected => self.selected_style,
+            ButtonVisualState::Disabled => self.disabled_style,
         }
+    }
+
+    pub fn draw_label(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        assets: &Assets,
+        draw2d: &Draw2D,
+        visual_state: ButtonVisualState,
+    ) {
+        if self.label.trim().is_empty() {
+            return;
+        }
+
+        let fallback = Self::fallback_font();
+        let font = if self.label_font.trim().is_empty() {
+            assets.fonts.values().next().or(fallback.as_ref())
+        } else {
+            assets
+                .fonts
+                .get(self.label_font.trim())
+                .or_else(|| assets.fonts.values().next())
+                .or(fallback.as_ref())
+        };
+
+        let Some(font) = font else {
+            return;
+        };
+
+        let stride = buffer.stride();
+        let buffer_width = buffer.dim().width as isize;
+        let buffer_height = buffer.dim().height as isize;
+        let state_style = self.state_style(visual_state);
+        draw2d.text_rect_blend_safe(
+            buffer.pixels_mut(),
+            &(
+                self.rect.x.floor() as isize + 4,
+                self.rect.y.floor() as isize,
+                self.rect.width.ceil() as isize - 8,
+                self.rect.height.ceil() as isize,
+            ),
+            stride,
+            font,
+            self.label_font_size,
+            &self.label,
+            &state_style.label_color.unwrap_or(self.label_color),
+            draw2d::TheHorizontalAlign::Center,
+            draw2d::TheVerticalAlign::Center,
+            &(0, 0, buffer_width, buffer_height),
+        );
+    }
+
+    fn fallback_font() -> Option<fontdue::Font> {
+        fontdue::Font::from_bytes(
+            include_bytes!("../../../../theframework/embedded/fonts/Roboto-Bold.ttf").as_slice(),
+            fontdue::FontSettings::default(),
+        )
+        .ok()
     }
 
     pub(crate) fn command_icon_texture<'a>(

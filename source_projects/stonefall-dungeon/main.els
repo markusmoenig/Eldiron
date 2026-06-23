@@ -1,0 +1,7 @@
+tiles {
+  "#" = wall material=stone finish=matte
+  "." = floor material=stone finish=natural
+  "@" = floor material=stone finish=natural
+  "L" = floor material=stone finish=natural
+  "x" = floor material=stone finish=natural
+}

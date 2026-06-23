@@ -1,0 +1,52 @@
+Character "lysa" {
+  name = "Lysa"
+  glyph = "L"
+
+  data {
+    [attributes]
+    race = "Human"
+    class = "Scout"
+    LEVEL = 1
+    HP = 10
+    MAX_HP = 10
+    MP = 4
+    MAX_MP = 4
+    DEX = 13
+    visible = true
+    radius = 0.35
+    inventory_slots = 6
+    source_id = "lysa"
+    on_look = "A scout waits in the gloom, listening for movement beyond the wall."
+
+    [intent_distance]
+    talk = 3
+
+    [dialog]
+    start = "greeting"
+
+    [dialog.nodes.greeting]
+    text = "Lysa lowers her blade. \"Stonefall shifts in the dark. I can help you find the way out.\""
+    choices = [
+      { label = "Join me.", event = "join_party", end = true, unless = "self.party_member" },
+      { label = "Stay here.", end = true, unless = "self.party_member" },
+      { label = "Ready?", next = "joined", if = "self.party_member" },
+    ]
+
+    [dialog.nodes.joined]
+    text = "\"I am with you. Keep your eyes on the side passages.\""
+    choices = [
+      { label = "Let's move.", end = true },
+    ]
+  }
+
+  script {
+    fn event(event, value) {
+        if event == "join_party" {
+            set_attr( "party_member",  true);
+            set_attr( "party_index",  1);
+            set_attr( "party_role",  "party.1");
+            message( value.subject_id,  "Lysa joins your party.",  "success");
+        }
+    }
+  }
+}

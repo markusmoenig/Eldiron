@@ -299,12 +299,12 @@ impl GameWidget {
             self.table = groups;
             if let Some(camera) = self.table.get("camera") {
                 let camera_type = camera.get_str_default("type".into(), "2d".into());
-                if camera_type == "iso" {
-                    self.set_camera_mode(PlayerCamera::D3Iso);
-                } else if camera_type == "firstp" {
-                    self.set_camera_mode(PlayerCamera::D3FirstP);
-                } else {
-                    self.set_camera_mode(PlayerCamera::D2);
+                match camera_type.as_str() {
+                    "iso" => self.set_camera_mode(PlayerCamera::D3Iso),
+                    "firstp" => self.set_camera_mode(PlayerCamera::D3FirstP),
+                    "firstp_grid" => self.set_camera_mode(PlayerCamera::D3FirstPGrid),
+                    "2d_grid" => self.set_camera_mode(PlayerCamera::D2Grid),
+                    _ => self.set_camera_mode(PlayerCamera::D2),
                 }
             }
             if let Some(safe_area) = self.table.get("camera_safe_area") {

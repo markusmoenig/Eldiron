@@ -1,0 +1,68 @@
+Character "player" {
+  name = "Player"
+  glyph = "@"
+
+  data {
+    [attributes]
+    race = "Human"
+    class = "Ranger"
+    LEVEL = 1
+    MP = 8
+    MAX_MP = 8
+    WIS = 12
+    size_2d = 1.25
+    visible = true
+    player = true
+    radius = 0.35
+    wealth = 1
+    inventory_slots = 6
+    spells = ["minor_heal"]
+    source_id = "player"
+
+    [input]
+    w = "action(forward)"
+    a = "action(left)"
+    s = "action(backward)"
+    d = "action(right)"
+    q = "action(strafe_left)"
+    e = "action(strafe_right)"
+    up = "action(forward)"
+    left = "action(left)"
+    down = "action(backward)"
+    right = "action(right)"
+    t = "intent(attack)"
+    c = "intent(talk)"
+    g = "intent(take)"
+    l = "intent(look)"
+  }
+
+  script {
+    fn event(event, value) {
+        if event == "startup" {
+            set_player_camera( "firstp_grid");
+        }
+        if event == "death" {
+            set_attr( "mode",  "active");
+            set_attr( "visible",  true);
+            message( id(),  "You died. Try again!",  "severe");
+        }
+        if event == "intent" && value == "attack" {
+            set_target( value.subject_id);
+            attack();
+        }
+        if event == "intent" && value == "take" {
+            take( value.subject_id);
+        }
+        if event == "intent" && value == "talk" {
+            dialog( value.subject_id,  "");
+        }
+        if event == "intent" && value == "spell:LO VI" {
+            use_action( "minor_heal");
+        }
+        if event == "kill" {
+            let name = get_attr_of( value,  "name");
+            message( id(),   "You kill the " + name,  "success");
+        }
+    }
+  }
+}

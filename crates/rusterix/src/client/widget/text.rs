@@ -13,7 +13,7 @@ fn substitute_placeholders<F>(input: &str, mut resolver: F) -> String
 where
     F: FnMut(&str, &str) -> Option<String>,
 {
-    let re = Regex::new(r"\{([A-Z_]+)\.([A-Z0-9_\.]+)\}").unwrap();
+    let re = Regex::new(r"\{([A-Za-z_]+)\.([A-Za-z0-9_\.]+)\}").unwrap();
 
     re.replace_all(input, |caps: &regex::Captures| {
         let category = &caps[1];
@@ -248,6 +248,7 @@ impl TextWidget {
                             None
                         }
                         "START" => Self::start_ui_value(assets, ui_state, key),
+                        "UI" => Some(ui_state.get(key).cloned().unwrap_or_default()),
                         // "WORLD" => map.world.get_value(key),
                         _ => None,
                     }

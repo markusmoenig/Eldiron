@@ -116,6 +116,21 @@ Imported asset and tile names are derived from their relative path without the
 extension, so `tiles/dungeon/wall_stone.png` becomes the tile alias
 `dungeon/wall_stone`.
 
+Source screen widgets can reference these tile aliases directly. This is useful
+for icon buttons in Dungeon Master-style layouts:
+
+```text
+widget "Forward" {
+  role = "button"
+  source = "move_forward"
+  command = "control.forward"
+}
+```
+
+`source = "..."` and `tile = "..."` are equivalent on source widgets. The value
+must resolve to a loaded tile alias from `tiles/` or `images/`; compilation
+fails if the alias is unknown.
+
 ```text
 TOML   = project identity, build settings, start region, start screen
 ELS    = maps, characters, items, regions, screens, semantic content

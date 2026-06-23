@@ -218,6 +218,7 @@ struct SourceScreen {
 struct SourceWidget {
     name: String,
     role: String,
+    source: Option<String>,
     x: i32,
     y: i32,
     width: i32,
@@ -780,7 +781,11 @@ fn compile_project_inner(
     }
 
     for source_screen in source.screens {
-        project.add_screen(compile_screen(source_screen, &config.viewport)?);
+        project.add_screen(compile_screen(
+            source_screen,
+            &config.viewport,
+            &tile_lookup,
+        )?);
     }
 
     if project.regions.is_empty() {
@@ -1172,6 +1177,7 @@ fn source_glyph_blocks(glyph: char) -> bool {
 fn compile_screen(
     source_screen: SourceScreen,
     viewport: &ViewportSection,
+    tile_lookup: &SourceTileLookup,
 ) -> Result<Screen, String> {
     if source_screen.widgets.is_empty() {
         return Err(format!(
@@ -1182,13 +1188,14 @@ fn compile_screen(
 
     let mut screen = Screen::new();
     screen.name = source_screen.name.clone();
-    screen.map = build_screen_map(&source_screen, viewport)?;
+    screen.map = build_screen_map(&source_screen, viewport, tile_lookup)?;
     Ok(screen)
 }
 
 fn build_screen_map(
     source_screen: &SourceScreen,
     viewport: &ViewportSection,
+    tile_lookup: &SourceTileLookup,
 ) -> Result<Map, String> {
     let mut map = Map::default();
     map.name = source_screen.id.clone();
@@ -1204,7 +1211,7 @@ fn build_screen_map(
     let start_x = -(viewport.width as f32) / 2.0;
     let start_y = -(viewport.height as f32) / 2.0;
     for widget in &source_screen.widgets {
-        add_screen_widget_sector(&mut map, widget, start_x, start_y)?;
+        add_screen_widget_sector(&mut map, widget, start_x, start_y, tile_lookup)?;
     }
     Ok(map)
 }
@@ -1214,6 +1221,7 @@ fn add_screen_widget_sector(
     widget: &SourceWidget,
     start_x: f32,
     start_y: f32,
+    tile_lookup: &SourceTileLookup,
 ) -> Result<(), String> {
     if widget.width <= 0 || widget.height <= 0 {
         return Err(format!(
@@ -1257,9 +1265,17 @@ fn add_screen_widget_sector(
         sector
             .properties
             .set("data", Value::Str(widget_data(&widget.role, &widget.data)));
-        sector
-            .properties
-            .set("source", Value::Source(PixelSource::Off));
+        let source = if let Some(source) = widget.source.as_deref() {
+            tile_lookup.source_for(source).ok_or_else(|| {
+                format!(
+                    "Widget '{}' references tile/source '{}', but no loaded tile with that alias/name exists",
+                    widget.name, source
+                )
+            })?
+        } else {
+            PixelSource::Off
+        };
+        sector.properties.set("source", Value::Source(source));
     }
     Ok(())
 }
@@ -1586,6 +1602,12 @@ fn parse_screen(block: &NamedBlock) -> Result<SourceScreen, String> {
 
 fn parse_widget(block: &NamedBlock) -> Result<SourceWidget, String> {
     let role = string_field(&block.body, "role").unwrap_or_else(|| "none".to_string());
+    let source = string_field(&block.body, "source")
+        .or_else(|| string_field(&block.body, "tile"))
+        .or_else(|| bare_field(&block.body, "source"))
+        .or_else(|| bare_field(&block.body, "tile"))
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
     let x = int_field(&block.body, "x").unwrap_or(0);
     let y = int_field(&block.body, "y").unwrap_or(0);
     let width = int_field(&block.body, "width")
@@ -1601,6 +1623,7 @@ fn parse_widget(block: &NamedBlock) -> Result<SourceWidget, String> {
     Ok(SourceWidget {
         name: block.name.clone(),
         role,
+        source,
         x,
         y,
         width,

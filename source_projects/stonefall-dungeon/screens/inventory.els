@@ -1,0 +1,336 @@
+Screen "inventory" {
+  name = "Stonefall Inventory"
+
+  widget "Inventory Back" {
+    role = "deco"
+    x = 0
+    y = 0
+    width = 960
+    height = 600
+
+    data {
+      [ui]
+      role = "deco"
+      color = "#07090df2"
+      border_size = 0
+    }
+  }
+
+  widget "Leader Profile" {
+    role = "profile"
+    x = 24
+    y = 24
+    width = 300
+    height = 112
+
+    data {
+      [ui]
+      role = "profile"
+      party = "leader"
+      crop = "bust"
+      image_size = 88
+      selected = true
+      selected_frame_size = 1
+      selected_frame_padding = 6
+      selected_frame_color = "#45cbd0"
+      name_font_size = 19.0
+      class_font_size = 14.0
+      border_size = 1
+      border_color = "#b8c0cc"
+      stats_layout = "side"
+      stats_top_gap = 10
+      stat_gap = 8
+
+      [[ui.stats]]
+      stat = "HP"
+      max_stat = "MAX_HP"
+      height = 14
+      fill_color = "#d63a3a"
+      background_color = "#250909"
+      border_color = "#6c3030"
+      border_size = 1
+
+      [[ui.stats]]
+      stat = "MP"
+      max_stat = "MAX_MP"
+      height = 14
+      fill_color = "#3269d6"
+      background_color = "#081427"
+      border_color = "#263f72"
+      border_size = 1
+    }
+  }
+
+  widget "Title" {
+    role = "text"
+    x = 360
+    y = 32
+    width = 420
+    height = 36
+
+    data {
+      [ui]
+      role = "text"
+      font_size = 22.0
+      color = "#e5fbff"
+      text = """
+INVENTORY
+"""
+    }
+  }
+
+  widget "Stats" {
+    role = "text"
+    x = 360
+    y = 78
+    width = 420
+    height = 86
+
+    data {
+      [ui]
+      role = "text"
+      font_size = 14.0
+      color = "#d9fbff"
+      spacing = 4.0
+      text = """
+Health  {PLAYER.HP}/{PLAYER.MAX_HP}
+Mana    {PLAYER.MP}/{PLAYER.MAX_MP}
+STR     {PLAYER.STR}
+DEX     {PLAYER.DEX}
+"""
+    }
+  }
+
+  widget "Back Button" {
+    role = "button"
+    x = 820
+    y = 32
+    width = 104
+    height = 34
+
+    data {
+      [ui]
+      role = "button"
+      command = "screen.goto.play"
+      border_size = 1
+      border_color = "#45cbd0"
+      background_color = "#0b2028cc"
+      show_icon = false
+      label = "BACK"
+      font_size = 13.0
+      color = "#d9fbff"
+    }
+  }
+
+  widget "Hands Label" {
+    role = "text"
+    x = 64
+    y = 180
+    width = 240
+    height = 24
+
+    data {
+      [ui]
+      role = "text"
+      font_size = 15.0
+      color = "#2fd5df"
+      text = """
+HANDS
+"""
+    }
+  }
+
+  widget "Main Hand" {
+    role = "button"
+    x = 64
+    y = 216
+    width = 128
+    height = 96
+
+    data {
+      [ui]
+      role = "button"
+      party = "leader"
+      equipped_slot = "main_hand"
+      drag_drop = true
+      border_size = 1
+      border_color = "#45cbd0"
+      background_color = "#0b2028cc"
+      label = "MAIN"
+      font_size = 12.0
+      color = "#d9fbff"
+    }
+  }
+
+  widget "Off Hand" {
+    role = "button"
+    x = 216
+    y = 216
+    width = 128
+    height = 96
+
+    data {
+      [ui]
+      role = "button"
+      party = "leader"
+      equipped_slot = "off_hand"
+      drag_drop = true
+      border_size = 1
+      border_color = "#45cbd0"
+      background_color = "#0b2028cc"
+      label = "OFF"
+      font_size = 12.0
+      color = "#d9fbff"
+    }
+  }
+
+  widget "Pack Label" {
+    role = "text"
+    x = 420
+    y = 180
+    width = 320
+    height = 24
+
+    data {
+      [ui]
+      role = "text"
+      font_size = 15.0
+      color = "#2fd5df"
+      text = """
+BACKPACK
+"""
+    }
+  }
+
+  widget "Pack 0" {
+    role = "button"
+    x = 420
+    y = 216
+    width = 110
+    height = 92
+
+    data {
+      [ui]
+      role = "button"
+      party = "leader"
+      inventory_index = 0
+      drag_drop = true
+      border_size = 1
+      border_color = "#45cbd0"
+      background_color = "#09171dcc"
+      label = "1"
+      font_size = 12.0
+      color = "#d9fbff"
+    }
+  }
+
+  widget "Pack 1" {
+    role = "button"
+    x = 548
+    y = 216
+    width = 110
+    height = 92
+
+    data {
+      [ui]
+      role = "button"
+      party = "leader"
+      inventory_index = 1
+      drag_drop = true
+      border_size = 1
+      border_color = "#45cbd0"
+      background_color = "#09171dcc"
+      label = "2"
+      font_size = 12.0
+      color = "#d9fbff"
+    }
+  }
+
+  widget "Pack 2" {
+    role = "button"
+    x = 676
+    y = 216
+    width = 110
+    height = 92
+
+    data {
+      [ui]
+      role = "button"
+      party = "leader"
+      inventory_index = 2
+      drag_drop = true
+      border_size = 1
+      border_color = "#45cbd0"
+      background_color = "#09171dcc"
+      label = "3"
+      font_size = 12.0
+      color = "#d9fbff"
+    }
+  }
+
+  widget "Pack 3" {
+    role = "button"
+    x = 420
+    y = 328
+    width = 110
+    height = 92
+
+    data {
+      [ui]
+      role = "button"
+      party = "leader"
+      inventory_index = 3
+      drag_drop = true
+      border_size = 1
+      border_color = "#45cbd0"
+      background_color = "#09171dcc"
+      label = "4"
+      font_size = 12.0
+      color = "#d9fbff"
+    }
+  }
+
+  widget "Pack 4" {
+    role = "button"
+    x = 548
+    y = 328
+    width = 110
+    height = 92
+
+    data {
+      [ui]
+      role = "button"
+      party = "leader"
+      inventory_index = 4
+      drag_drop = true
+      border_size = 1
+      border_color = "#45cbd0"
+      background_color = "#09171dcc"
+      label = "5"
+      font_size = 12.0
+      color = "#d9fbff"
+    }
+  }
+
+  widget "Pack 5" {
+    role = "button"
+    x = 676
+    y = 328
+    width = 110
+    height = 92
+
+    data {
+      [ui]
+      role = "button"
+      party = "leader"
+      inventory_index = 5
+      drag_drop = true
+      border_size = 1
+      border_color = "#45cbd0"
+      background_color = "#09171dcc"
+      label = "6"
+      font_size = 12.0
+      color = "#d9fbff"
+    }
+  }
+}

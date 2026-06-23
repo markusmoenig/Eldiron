@@ -1,0 +1,13 @@
+Item "exit" {
+  name = "Exit Marker"
+  glyph = "x"
+
+  data {
+    [attributes]
+    source_id = "exit"
+    source_symbol = "x"
+    terminal_glyph = "x"
+    on_look = "Cold air slips through a narrow stairwell. This must be the way out."
+    on_use = "You found the exit from Stonefall. The demo path ends here for now."
+  }
+}

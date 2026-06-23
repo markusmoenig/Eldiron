@@ -154,6 +154,9 @@ If only those two icons exist, Eldiron keeps using them. Pressed buttons tempora
 - **active** - Set this button’s state to active by default.
 - **bind** / **binding** - Optional UI state key updated by this button, for example `start.class`.
 - **value** - Value written to the bound UI state key when clicked.
+- **append** / **binding_append** - Append `value` to the current bound UI state instead of replacing it. Useful for rune/spell queues.
+- **separator** / **binding_separator** - Separator used while appending values. Defaults to a space.
+- **max_parts** / **binding_max_parts** - Maximum number of appended parts to keep.
 - **selection** - Use `"single"` for mutually exclusive choice buttons. A button is selected when its `value` matches the current value of `bind`.
 - **group** - Optional group name. Buttons with `bind` and `group` default to single-choice behavior.
 - **camera** - Switch game widget rendering camera: `2d`, `iso`, `firstp`.
@@ -162,6 +165,7 @@ If only those two icons exist, Eldiron keeps using them. Pressed buttons tempora
 - **border_size** - An optional border for the button. Default size is 0 (no border).
 - **border_color** - The color for the border. Default is white ("#FFFFFF").
 - **text** / **label** - Optional centered button text.
+- **show_icon** - Set to `false` to render a command button as text-only while keeping its command binding.
 - **font** - Font used by text buttons.
 - **font_size** - Text size for text buttons.
 - **color** - Text color for text buttons.
@@ -433,6 +437,10 @@ portrait art.
 - **show_weapons** - Include equipped weapon overlays in generated profiles.
 - **image_size** / **profile_size** - Portrait size in pixels.
 - **show_text** - Show or hide name and class text. Defaults to `true`.
+- **selected** / **selected_frame** - Draw a selection frame around the whole profile.
+- **selected_frame_color** / **frame_color** - Selection frame color.
+- **selected_frame_size** / **frame_size** - Selection frame size in pixels. Defaults to `2`.
+- **selected_frame_padding** / **frame_padding** - Inner padding reserved for the selected frame. Defaults to `4`.
 - **name_color** / **color** - Name text color.
 - **class_color** / **subtitle_color** - Class text color.
 - **name_font_size** / **font_size** - Name text size.
@@ -480,6 +488,10 @@ role = "profile"
 party = "leader"
 crop = "bust"
 image_size = 64
+selected = true
+selected_frame_color = "#45cbd0"
+selected_frame_size = 2
+selected_frame_padding = 4
 name_font_size = 16.0
 class_font_size = 13.0
 border_size = 1
@@ -559,7 +571,7 @@ border_color = "#6d7890"
 
 ### UI Section
 
-- **text**: multiline string content; placeholders like `{PLAYER.CLASS}`, `{PLAYER.RACE}`, `{PLAYER.STR}`, `{PLAYER.DEX}`, `{PLAYER.FUNDS}`, `{PLAYER.LEVEL}`, `{PLAYER.EXP}`, `{PLAYER.ATTACK}`, `{PLAYER.ARMOR}`, and start-screen placeholders like `{START.CLASS}` are replaced at runtime.
+- **text**: multiline string content; placeholders like `{PLAYER.CLASS}`, `{PLAYER.RACE}`, `{PLAYER.STR}`, `{PLAYER.DEX}`, `{PLAYER.FUNDS}`, `{PLAYER.LEVEL}`, `{PLAYER.EXP}`, `{PLAYER.ATTACK}`, `{PLAYER.ARMOR}`, UI placeholders like `{UI.spell.runes}`, and start-screen placeholders like `{START.CLASS}` are replaced at runtime.
 - **tab_width**: optional tab stop width in pixels for `\t` alignment inside the text.
 - **font**: font family name.
 - **font_size**: size of the font.
@@ -588,6 +600,7 @@ Start-screen placeholders use generic UI state and work before the player has sp
 - `START.NAME` is the current `start.name` input value.
 - `START.CLASS` is the current `start.class` choice.
 - `START.CLASS_ROLE`, `START.CLASS_ATTRIBUTES`, `START.CLASS_WEAPONS`, `START.CLASS_ARMOR`, `START.CLASS_ABILITIES`, `START.CLASS_SPELLS`, `START.CLASS_EQUIPMENT`, and `START.CLASS_INVENTORY` are resolved from the active ruleset class.
+- `UI.<key>` resolves any client UI state key, such as a rune queue stored by buttons with `bind = "spell.runes"`.
 
 ### Example
 
