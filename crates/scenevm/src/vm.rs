@@ -1767,14 +1767,30 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let vertical_weight = (1.0 - abs(N.y)) * scene_surface;
     let ceiling_weight = smoothstep(0.18, 0.72, -N.y) * scene_surface;
     let floor_weight = smoothstep(0.18, 0.72, N.y) * scene_surface;
-    ambient_probe *= clamp(1.0 - ceiling_weight * 0.11 - vertical_weight * 0.025 + floor_weight * 0.115, 0.66, 1.18);
+    // Outdoor iso/orbit readability: clear sunny scenes need stronger plane separation
+    // without extra user-facing settings.
+    let non_first_person = select(1.0, 0.0, UBO.cam_kind == 2u);
+    let clear_air = 1.0 - smoothstep(0.04, 0.55, UBO.fog_color_density.w);
+    let outdoor_space = scene_surface * non_first_person * sun_enabled * clear_air;
+    let sunward = smoothstep(0.08, 0.72, dot(Nf_sun, L));
+    let sky_luma = dot(UBO.sky_color.xyz, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let sky_chroma = mix(vec3<f32>(sky_luma), UBO.sky_color.xyz, 0.55);
+    ambient_probe += sky_chroma * outdoor_space * (floor_weight * 0.030 + vertical_weight * (0.010 + (1.0 - sunward) * 0.016));
+    ambient_probe *= 1.0 - outdoor_space * vertical_weight * (1.0 - sunward) * 0.075;
+    ambient_probe *= clamp(1.0 - ceiling_weight * 0.08 - vertical_weight * 0.025 + floor_weight * 0.115, 0.66, 1.18);
     let n_dot_v = max(dot(Nf_view, V), 0.0);
     var albedo = color_linear;
     if (!is_avatar) {
         let material_noise = surface_noise_value(in.world_pos * 3.35 + N * 0.19, 23.0) * 2.0 - 1.0;
         albedo *= 1.0 + material_noise * matte_weight * 0.075;
         let albedo_luma = dot(albedo, vec3<f32>(0.2126, 0.7152, 0.0722));
-        albedo = mix(albedo, vec3<f32>(albedo_luma) + (albedo - vec3<f32>(albedo_luma)) * 1.08, matte_weight * 0.35);
+        let matte_contrast = vec3<f32>(albedo_luma) + (albedo - vec3<f32>(albedo_luma)) * 1.08;
+        let ceiling_soft_contrast = vec3<f32>(albedo_luma) + (albedo - vec3<f32>(albedo_luma)) * 0.78;
+        albedo = mix(
+            mix(albedo, matte_contrast, matte_weight * 0.35),
+            ceiling_soft_contrast,
+            ceiling_weight * 0.28
+        );
     }
     if (style_active && !is_avatar) {
         let style_amount = select(0.58, 0.88, use_grimy);
@@ -1872,18 +1888,37 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
     if (!is_avatar) {
         let edge = pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 2.4);
-        let edge_amount = edge * (0.018 + matte_weight * 0.020 + polished_weight * 0.045);
+        let edge_amount = edge * (0.018 + matte_weight * 0.020 + polished_weight * 0.045 + outdoor_space * 0.016);
         lit_color += albedo * edge_amount;
         let lit_luma = dot(lit_color, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let view_dist = distance(in.world_pos, UBO.cam_pos.xyz);
+        // Dark first-person dungeon fill: keeps unlit corridors readable while staying
+        // inactive in bright/open scenes.
+        let first_person_space = select(0.0, 1.0, UBO.cam_kind == 2u);
+        let dark_fog_space = smoothstep(0.32, 1.25, UBO.fog_color_density.w)
+            * (1.0 - smoothstep(0.12, 0.46, dot(UBO.fog_color_density.xyz, vec3<f32>(0.2126, 0.7152, 0.0722))));
+        let corridor_band = smoothstep(1.6, 5.5, view_dist) * (1.0 - smoothstep(22.0, 34.0, view_dist));
+        let corridor_dark = 1.0 - smoothstep(0.045, 0.18, lit_luma);
+        let corridor_surface = vertical_weight * (0.50 + n_dot_v * 0.35) + floor_weight * 0.58 + ceiling_weight * 0.18;
+        let corridor_fill = first_person_space * dark_fog_space * corridor_band * corridor_dark * corridor_surface * (0.035 + matte_weight * 0.014);
+        let ambient_luma = dot(UBO.ambient_color_strength.xyz, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let corridor_tint = mix(vec3<f32>(ambient_luma), UBO.ambient_color_strength.xyz, 0.62);
+        lit_color += albedo * corridor_tint * corridor_fill;
         let dark_floor = (1.0 - smoothstep(0.035, 0.16, lit_luma)) * floor_weight;
         let floor_bounce = dark_floor * (0.014 + probe_luma * 0.26 + matte_weight * 0.012);
         lit_color += albedo * floor_bounce;
-        let near_wall = vertical_weight * (1.0 - smoothstep(1.1, 3.4, distance(in.world_pos, UBO.cam_pos.xyz)));
+        let near_wall = vertical_weight * (1.0 - smoothstep(1.1, 3.4, view_dist));
         let near_wall_luma = dot(lit_color, vec3<f32>(0.2126, 0.7152, 0.0722));
-        let near_wall_compress = near_wall * smoothstep(0.22, 0.72, near_wall_luma) * 0.18;
+        let near_wall_compress = near_wall * smoothstep(0.18, 0.66, near_wall_luma) * 0.24;
         lit_color *= 1.0 - near_wall_compress;
-        let upper_shadow = ceiling_weight * (0.032 + matte_weight * 0.014);
+        let upper_shadow = ceiling_weight * (0.022 + matte_weight * 0.010);
         lit_color *= 1.0 - upper_shadow;
+        let outdoor_luma = dot(lit_color, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let outdoor_highlight = outdoor_space * smoothstep(0.48, 1.05, outdoor_luma);
+        let outdoor_sat = vec3<f32>(outdoor_luma) + (lit_color - vec3<f32>(outdoor_luma)) * 1.06;
+        let outdoor_capped = lit_color * (1.0 - outdoor_highlight * 0.13);
+        lit_color = mix(lit_color, outdoor_sat, outdoor_space * 0.14);
+        lit_color = mix(lit_color, outdoor_capped, outdoor_highlight);
     }
 
     if (style_active && !is_avatar) {
