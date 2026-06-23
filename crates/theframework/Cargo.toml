@@ -23,7 +23,7 @@ maths-rs = { version = "0.2.6", features = [
 ] }
 vek = { version = "0.17.1", default-features = true }
 winit = { version = "0.30", optional = true }
-pixels = { version = "0.16.0", optional = true }
+pixels = { version = "0.17.1", optional = true }
 rust-embed = { version = "8", default-features = true, features = [
     "include-exclude",
 ] }

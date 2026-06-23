@@ -2613,6 +2613,7 @@ impl VM {
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
 
                 // Clear the read buffer (prev frame) to avoid garbage on first frame
@@ -2635,6 +2636,7 @@ impl VM {
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
 
                 queue.submit(Some(encoder.finish()));
@@ -2675,6 +2677,7 @@ impl VM {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             queue.submit(Some(encoder.finish()));
 
@@ -4596,8 +4599,8 @@ impl VM {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("vm-2d-pipeline-layout"),
-            bind_group_layouts: &[&globals_bgl, &atlas_bgl],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&globals_bgl), Some(&atlas_bgl)],
+            immediate_size: 0,
         });
 
         let vbuf_layout = wgpu::VertexBufferLayout {
@@ -4631,7 +4634,7 @@ impl VM {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -4643,7 +4646,7 @@ impl VM {
             address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
         let sampler_linear: wgpu::Sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -4653,7 +4656,7 @@ impl VM {
             address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             anisotropy_clamp: 8,
             ..Default::default()
         });
@@ -4665,7 +4668,7 @@ impl VM {
             address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             anisotropy_clamp: 1,
             ..Default::default()
         });
@@ -5238,8 +5241,8 @@ impl VM {
                 layout: Some(
                     &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                         label: Some("vm-2d-cs-layout"),
-                        bind_group_layouts: &[g.u2d_bgl.as_ref().unwrap()],
-                        push_constant_ranges: &[],
+                        bind_group_layouts: &[Some(g.u2d_bgl.as_ref().unwrap())],
+                        immediate_size: 0,
                     }),
                 ),
                 module: &cs2d,
@@ -5268,8 +5271,8 @@ impl VM {
                 layout: Some(
                     &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                         label: Some("vm-sdf-cs-layout"),
-                        bind_group_layouts: &[g.u_sdf_bgl.as_ref().unwrap()],
-                        push_constant_ranges: &[],
+                        bind_group_layouts: &[Some(g.u_sdf_bgl.as_ref().unwrap())],
+                        immediate_size: 0,
                     }),
                 ),
                 module: &cs_sdf,
@@ -5346,8 +5349,8 @@ impl VM {
             layout: Some(
                 &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("vm-3d-cs-layout"),
-                    bind_group_layouts: &[g.u3d_bgl.as_ref().unwrap()],
-                    push_constant_ranges: &[],
+                    bind_group_layouts: &[Some(g.u3d_bgl.as_ref().unwrap())],
+                    immediate_size: 0,
                 }),
             ),
             module: &cs3d,
@@ -5451,8 +5454,8 @@ impl VM {
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("vm-2d-raster-pipeline-layout"),
-            bind_group_layouts: &[&u_raster2d_bgl],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&u_raster2d_bgl)],
+            immediate_size: 0,
         });
         let raster2d_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("vm-2d-raster-pipeline"),
@@ -5519,7 +5522,7 @@ impl VM {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
         let u_raster2d_buf = device.create_buffer(&wgpu::BufferDescriptor {
@@ -5775,14 +5778,14 @@ impl VM {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("vm-3d-raster-pipeline-layout"),
-            bind_group_layouts: &[&u_raster3d_bgl],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&u_raster3d_bgl)],
+            immediate_size: 0,
         });
         let shadow_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("vm-3d-raster-shadow-pipeline-layout"),
-                bind_group_layouts: &[&u_raster3d_shadow_bgl],
-                push_constant_ranges: &[],
+                bind_group_layouts: &[Some(&u_raster3d_shadow_bgl)],
+                immediate_size: 0,
             });
 
         let raster3d_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -5890,8 +5893,8 @@ impl VM {
             },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::LessEqual,
+                depth_write_enabled: Some(true),
+                depth_compare: Some(wgpu::CompareFunction::LessEqual),
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
@@ -5900,7 +5903,7 @@ impl VM {
                 alpha_to_coverage_enabled: true,
                 ..Default::default()
             },
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
         let raster3d_alpha_pipeline =
@@ -6009,11 +6012,11 @@ impl VM {
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: false,
+                    depth_write_enabled: Some(false),
                     // Transparent surfaces still blend without writing depth, but they
                     // must respect opaque depth so water/glass volumes do not draw over
                     // bridge posts or other opaque geometry inside/behind the volume.
-                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),
@@ -6022,7 +6025,7 @@ impl VM {
                     alpha_to_coverage_enabled: false,
                     ..Default::default()
                 },
-                multiview: None,
+                multiview_mask: None,
                 cache: None,
             });
         let raster3d_particle_pipeline =
@@ -6131,8 +6134,8 @@ impl VM {
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: false,
-                    depth_compare: wgpu::CompareFunction::Always,
+                    depth_write_enabled: Some(false),
+                    depth_compare: Some(wgpu::CompareFunction::Always),
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),
@@ -6141,7 +6144,7 @@ impl VM {
                     alpha_to_coverage_enabled: false,
                     ..Default::default()
                 },
-                multiview: None,
+                multiview_mask: None,
                 cache: None,
             });
         let raster3d_line_pipeline =
@@ -6190,8 +6193,8 @@ impl VM {
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: false,
-                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    depth_write_enabled: Some(false),
+                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),
@@ -6200,7 +6203,7 @@ impl VM {
                     alpha_to_coverage_enabled: true,
                     ..Default::default()
                 },
-                multiview: None,
+                multiview_mask: None,
                 cache: None,
             });
         let raster3d_organic_billboard_pipeline =
@@ -6234,8 +6237,8 @@ impl VM {
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: true,
-                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    depth_write_enabled: Some(true),
+                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),
@@ -6244,7 +6247,7 @@ impl VM {
                     alpha_to_coverage_enabled: true,
                     ..Default::default()
                 },
-                multiview: None,
+                multiview_mask: None,
                 cache: None,
             });
         let raster3d_shadow_pipeline =
@@ -6349,8 +6352,8 @@ impl VM {
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: true,
-                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    depth_write_enabled: Some(true),
+                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState {
                         constant: 1,
@@ -6359,7 +6362,7 @@ impl VM {
                     },
                 }),
                 multisample: wgpu::MultisampleState::default(),
-                multiview: None,
+                multiview_mask: None,
                 cache: None,
             });
 
@@ -7673,6 +7676,7 @@ impl VM {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             if let Some([x, y, w, h]) = self.viewport_rect2d
@@ -9539,6 +9543,7 @@ impl VM {
                     }),
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
                 shadow_pass.set_pipeline(g.raster3d_shadow_pipeline.as_ref().unwrap());
                 shadow_pass.set_bind_group(0, g.u_raster3d_shadow_bg.as_ref().unwrap(), &[]);
@@ -9580,6 +9585,7 @@ impl VM {
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             if let Some([x, y, w, h]) = self.viewport_rect2d
                 && w > 0.0

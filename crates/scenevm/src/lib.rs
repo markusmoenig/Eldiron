@@ -271,8 +271,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("scenevm-composite-pipeline-layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
         });
         let mode_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scenevm-composite-mode"),
@@ -315,7 +315,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -413,8 +413,8 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("scenevm-rgba-overlay-pipeline-layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
         });
 
         let rect_buf = device.create_buffer(&wgpu::BufferDescriptor {
@@ -471,7 +471,7 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -561,6 +561,13 @@ fn selected_wgpu_backends() -> wgpu::Backends {
     } else {
         backends
     }
+}
+
+#[cfg(feature = "gpu")]
+fn scenevm_instance_descriptor(backends: wgpu::Backends) -> wgpu::InstanceDescriptor {
+    let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
+    descriptor.backends = backends;
+    descriptor
 }
 
 #[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
@@ -893,7 +900,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             label: Some("scenevm-present-sampler"),
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
 
@@ -934,8 +941,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("scenevm-present-pipeline-layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -963,7 +970,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -1251,6 +1258,7 @@ impl SceneVM {
                             depth_stencil_attachment: None,
                             timestamp_writes: None,
                             occlusion_query_set: None,
+                            multiview_mask: None,
                         });
 
                         rpass.set_pipeline(&pipeline.pipeline);
@@ -1314,6 +1322,7 @@ impl SceneVM {
                         depth_stencil_attachment: None,
                         timestamp_writes: None,
                         occlusion_query_set: None,
+                        multiview_mask: None,
                     });
                     rpass.set_pipeline(&pipeline.pipeline);
                     rpass.set_bind_group(0, &bind_group, &[]);
@@ -1611,10 +1620,8 @@ impl SceneVM {
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-                backends: selected_wgpu_backends(),
-                ..Default::default()
-            });
+            let instance =
+                wgpu::Instance::new(scenevm_instance_descriptor(selected_wgpu_backends()));
             let adapter =
                 pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
                     power_preference: wgpu::PowerPreference::HighPerformance,
@@ -1670,10 +1677,7 @@ impl SceneVM {
         let width = initial_size.width.max(1);
         let height = initial_size.height.max(1);
 
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: selected_wgpu_backends(),
-            ..Default::default()
-        });
+        let instance = wgpu::Instance::new(scenevm_instance_descriptor(selected_wgpu_backends()));
         let surface = unsafe {
             instance.create_surface_unsafe(
                 wgpu::SurfaceTargetUnsafe::from_window(window)
@@ -1777,10 +1781,7 @@ impl SceneVM {
         let width = width.max(1);
         let height = height.max(1);
 
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: selected_wgpu_backends(),
-            ..Default::default()
-        });
+        let instance = wgpu::Instance::new(scenevm_instance_descriptor(selected_wgpu_backends()));
 
         let surface = unsafe {
             instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(layer_ptr))
@@ -1914,10 +1915,8 @@ impl SceneVM {
                 return;
             }
             let (w, h) = self.size;
-            let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-                backends: selected_wgpu_backends(),
-                ..Default::default()
-            });
+            let instance =
+                wgpu::Instance::new(scenevm_instance_descriptor(selected_wgpu_backends()));
             let adapter =
                 pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
                     power_preference: wgpu::PowerPreference::HighPerformance,
@@ -2048,22 +2047,18 @@ impl SceneVM {
 
         let debug_acquire_start = debug_enabled.then(instant::Instant::now);
         let frame = match ws.surface.get_current_texture() {
-            Ok(frame) => frame,
-            Err(wgpu::SurfaceError::Lost) | Err(wgpu::SurfaceError::Outdated) => {
+            wgpu::CurrentSurfaceTexture::Success(frame)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
+            wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
                 ws.reconfigure(&gpu.device);
                 return Ok(RenderResult::InitPending);
             }
-            Err(wgpu::SurfaceError::Timeout) => {
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
                 return Ok(RenderResult::ReadbackPending);
             }
-            Err(wgpu::SurfaceError::Other) => {
+            wgpu::CurrentSurfaceTexture::Validation => {
                 return Err(SceneVMError::InvalidOperation(
-                    "Surface returned an unspecified error".to_string(),
-                ));
-            }
-            Err(wgpu::SurfaceError::OutOfMemory) => {
-                return Err(SceneVMError::BufferAllocationFailed(
-                    "Surface out of memory".to_string(),
+                    "Surface returned a validation error".to_string(),
                 ));
             }
         };
@@ -2158,6 +2153,7 @@ impl SceneVM {
                 })],
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
                 timestamp_writes: None,
             });
             pass.set_pipeline(&present.pipeline);
@@ -2567,10 +2563,7 @@ async fn global_gpu_init_async() {
     if global_gpu_get().is_some() {
         return;
     }
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::BROWSER_WEBGPU,
-        ..Default::default()
-    });
+    let instance = wgpu::Instance::new(scenevm_instance_descriptor(wgpu::Backends::BROWSER_WEBGPU));
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
