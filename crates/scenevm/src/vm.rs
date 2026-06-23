@@ -5,7 +5,7 @@ mod raster3d;
 
 use crate::{
     Camera3D, CameraKind, Chunk, Light, LightType, Poly2D, Texture,
-    atlas::{AtlasEntry, AtlasGpuTables, SharedAtlas, default_material_frame},
+    atlas::{AtlasEntry, AtlasGpuTables, SharedAtlas, TileEmissiveSummary, default_material_frame},
     core::{
         Atom, GeoId, LayerBlendMode, OrganicBillboardInstance, OrganicBillboardSprite,
         PaletteRemap2DMode, RenderMode, VMDebugStats,
@@ -61,6 +61,17 @@ struct TileBinPod {
 }
 
 const ORGANIC_DETAIL_TEXTURE_SIZE: u32 = 48;
+const RASTER3D_MAX_POINT_LIGHTS: usize = 8;
+const EMISSIVE_SURFACE_LIGHT_BUDGET: usize = 6;
+const EMISSIVE_SURFACE_POINT_LIGHTS_ENABLED: bool = false;
+const EMISSIVE_SURFACE_IRRADIANCE_ENABLED: bool = true;
+const EMISSIVE_SURFACE_CLUSTER_SIZE: f32 = 2.0;
+const IRRADIANCE_GRID_MAX_SOURCES: usize = 64;
+const IRRADIANCE_GRID_TARGET_CELL_SIZE: f32 = 3.0;
+const IRRADIANCE_GRID_MAX_XZ: u32 = 18;
+const IRRADIANCE_GRID_MAX_Y: u32 = 8;
+const IRRADIANCE_OCCLUSION_MAX_TRIANGLES: usize = 1024;
+const IRRADIANCE_OCCLUSION_BLOCKED_VISIBILITY: f32 = 0.18;
 
 #[derive(Debug, Clone, Default)]
 struct OrganicSurfaceTextureData {
@@ -79,6 +90,30 @@ struct OrganicDirtyRect {
     y: u32,
     width: u32,
     height: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RasterPointLight {
+    position: Vec3<f32>,
+    color: Vec3<f32>,
+    intensity: f32,
+    range: f32,
+    score: f32,
+}
+
+#[derive(Debug, Clone, Default)]
+struct EmissiveSurfaceLighting {
+    point_lights: Vec<RasterPointLight>,
+    broad_color: Vec3<f32>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct IrradianceOccluder {
+    a: [f32; 3],
+    b: [f32; 3],
+    c: [f32; 3],
+    min: Vec3<f32>,
+    max: Vec3<f32>,
 }
 
 fn palette_index_tile_uuid(index: u16) -> Uuid {
@@ -271,6 +306,8 @@ pub struct VMGpu {
     pub organic_billboard_ssbo: Option<wgpu::Buffer>,
     pub organic_billboard_ssbo_size: usize,
     pub organic_billboard_count: u32,
+    pub irradiance_grid_ssbo: Option<wgpu::Buffer>,
+    pub irradiance_grid_ssbo_size: usize,
     // --- Scene-wide uniform grid buffers (3D)
     pub grid_hdr: Option<wgpu::Buffer>,
     pub grid_data: Option<wgpu::Buffer>,
@@ -931,8 +968,8 @@ struct U {
     shadow_light_extents: vec4<f32>,
     shadow_params: vec4<f32>,
     render_params: vec4<f32>,
-    point_light_pos_intensity: array<vec4<f32>, 4>,
-    point_light_color_range: array<vec4<f32>, 4>,
+    point_light_pos_intensity: array<vec4<f32>, 8>,
+    point_light_color_range: array<vec4<f32>, 8>,
     point_light_count_pad: vec4<u32>,
     _pad_lights: vec4<u32>,
     fb_size: vec2<f32>,
@@ -963,6 +1000,8 @@ struct U {
 struct SceneDataBuf { data: array<u32> };
 @group(0) @binding(8) var<storage, read> scene_data: SceneDataBuf;
 @group(0) @binding(9) var organic_detail_tex: texture_2d<f32>;
+struct IrradianceGridBuf { data: array<vec4<f32>> };
+@group(0) @binding(11) var<storage, read> irradiance_grid: IrradianceGridBuf;
 
 struct TileAnimMeta { first_frame: u32, frame_count: u32, _pad0: u32, _pad1: u32 };
 struct TileFrame { ofs: vec2<f32>, scale: vec2<f32> };
@@ -1291,6 +1330,77 @@ fn bayer4_threshold(x: u32, y: u32) -> f32 {
     return (f32(v[idx]) + 0.5) / 16.0;
 }
 
+fn irradiance_grid_index(x: u32, y: u32, z: u32, dims: vec3<u32>) -> u32 {
+    return 3u + x + y * dims.x + z * dims.x * dims.y;
+}
+
+fn irradiance_grid_sample_at(x: u32, y: u32, z: u32, dims: vec3<u32>) -> vec3<f32> {
+    let idx = irradiance_grid_index(
+        min(x, dims.x - 1u),
+        min(y, dims.y - 1u),
+        min(z, dims.z - 1u),
+        dims
+    );
+    if (idx >= arrayLength(&irradiance_grid.data)) {
+        return vec3<f32>(0.0);
+    }
+    return max(irradiance_grid.data[idx].xyz, vec3<f32>(0.0));
+}
+
+fn sample_irradiance_grid_raw(world_pos: vec3<f32>) -> vec3<f32> {
+    if (arrayLength(&irradiance_grid.data) < 4u || irradiance_grid.data[0u].w < 0.5) {
+        return vec3<f32>(0.0);
+    }
+    let dims = vec3<u32>(
+        max(u32(round(irradiance_grid.data[2u].x)), 2u),
+        max(u32(round(irradiance_grid.data[2u].y)), 2u),
+        max(u32(round(irradiance_grid.data[2u].z)), 2u)
+    );
+    let cell = max(irradiance_grid.data[1u].xyz, vec3<f32>(0.001));
+    let local = clamp(
+        (world_pos - irradiance_grid.data[0u].xyz) / cell,
+        vec3<f32>(0.0),
+        vec3<f32>(f32(dims.x - 1u), f32(dims.y - 1u), f32(dims.z - 1u))
+    );
+    let base_f = floor(local);
+    let f = local - base_f;
+    let base = vec3<u32>(
+        min(u32(base_f.x), dims.x - 2u),
+        min(u32(base_f.y), dims.y - 2u),
+        min(u32(base_f.z), dims.z - 2u)
+    );
+
+    let c000 = irradiance_grid_sample_at(base.x, base.y, base.z, dims);
+    let c100 = irradiance_grid_sample_at(base.x + 1u, base.y, base.z, dims);
+    let c010 = irradiance_grid_sample_at(base.x, base.y + 1u, base.z, dims);
+    let c110 = irradiance_grid_sample_at(base.x + 1u, base.y + 1u, base.z, dims);
+    let c001 = irradiance_grid_sample_at(base.x, base.y, base.z + 1u, dims);
+    let c101 = irradiance_grid_sample_at(base.x + 1u, base.y, base.z + 1u, dims);
+    let c011 = irradiance_grid_sample_at(base.x, base.y + 1u, base.z + 1u, dims);
+    let c111 = irradiance_grid_sample_at(base.x + 1u, base.y + 1u, base.z + 1u, dims);
+
+    let cx00 = mix(c000, c100, f.x);
+    let cx10 = mix(c010, c110, f.x);
+    let cx01 = mix(c001, c101, f.x);
+    let cx11 = mix(c011, c111, f.x);
+    let cxy0 = mix(cx00, cx10, f.y);
+    let cxy1 = mix(cx01, cx11, f.y);
+    return mix(cxy0, cxy1, f.z);
+}
+
+fn sample_irradiance_grid(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+    if (arrayLength(&irradiance_grid.data) < 4u || irradiance_grid.data[0u].w < 0.5) {
+        return vec3<f32>(0.0);
+    }
+    let cell = max(irradiance_grid.data[1u].xyz, vec3<f32>(0.001));
+    let probe_step = max(max(cell.x, cell.y), cell.z) * 0.42;
+    let n = normalize(normal);
+    let center = sample_irradiance_grid_raw(world_pos);
+    let front = sample_irradiance_grid_raw(world_pos + n * probe_step);
+    let up_bias = 0.82 + clamp(n.y, -1.0, 1.0) * 0.10;
+    return max(mix(center, front, 0.62) * up_bias, vec3<f32>(0.0));
+}
+
 fn sample_shadow(world_pos: vec3<f32>, NdotL: f32) -> f32 {
     if (UBO.sun_dir_enabled.w <= 0.5 || UBO.shadow_params.x <= 0.5) {
         return 1.0;
@@ -1605,12 +1715,13 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         is_particle || has_material_fade || (in.opacity < 0.999 && fade_mode == 1u)
     );
     let color_linear = pow(color.rgb, vec3<f32>(2.2));
-    if (mat.w > 0.95) {
-        let emissive_boost = select(2.0, 3.2, is_particle);
-        let emissive_color = select(color_linear, color_linear * max(in.normal, vec3<f32>(0.0)), is_particle);
+    if (mat.w > 0.001) {
+        let emissive_boost = 0.65 + mat.w * 1.35;
+        let emissive_color = color_linear;
         return vec4<f32>(apply_post(emissive_color * emissive_boost, in.pos), out_alpha);
     }
-    let ambient = UBO.ambient_color_strength.xyz * UBO.ambient_color_strength.w;
+    let ambient = UBO.ambient_color_strength.xyz * UBO.ambient_color_strength.w
+        + max(UBO.post_style1.yzw, vec3<f32>(0.0));
     var N = normalize(in.normal);
     let V = normalize(UBO.cam_pos.xyz - in.world_pos);
     var bump_strength = clamp(UBO.shadow_params.z, 0.0, 1.0);
@@ -1634,10 +1745,14 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let bump_apply = (!is_avatar) && bump_strength > 0.001 && abs(det) > 1e-6;
     let bump_mix = select(0.0, bump_strength, bump_apply);
     N = normalize(mix(N, N_ws, bump_mix));
-    // Two-sided lighting must be light-facing, not camera-facing, otherwise iso camera motion
-    // changes whether a surface is considered lit by the sun.
-    let Nf_sun = select(-N, N, dot(N, L) >= 0.0);
+    // Match probe lookup to the same two-sided surface convention as direct lighting.
     let Nf_view = select(-N, N, dot(N, V) >= 0.0);
+    let Nf_sun = select(-N, N, dot(N, L) >= 0.0);
+    let probe = sample_irradiance_grid(in.world_pos, Nf_view);
+    let probe_luma = dot(probe, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let point_residual = 1.0 - smoothstep(0.025, 0.16, probe_luma) * 0.9;
+    var ambient_probe = ambient + probe;
+    // Sun lighting stays light-facing so iso camera motion does not change whether a surface is lit.
     let lighting_model = UBO._pad0.y;
     let use_retro = lighting_model == 3u;
     let use_grimy = lighting_model == 4u;
@@ -1646,7 +1761,21 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let use_pbr = lighting_model == 2u;
     var roughness = clamp(mat.x, 0.04, 1.0);
     var metallic = clamp(mat.y, 0.0, 1.0);
+    let scene_surface = select(1.0, 0.0, is_avatar);
+    let matte_weight = smoothstep(0.58, 0.92, roughness) * (1.0 - metallic) * scene_surface;
+    let polished_weight = smoothstep(0.20, 0.70, metallic + (1.0 - roughness)) * scene_surface;
+    let vertical_weight = (1.0 - abs(N.y)) * scene_surface;
+    let ceiling_weight = smoothstep(0.18, 0.72, -N.y) * scene_surface;
+    let floor_weight = smoothstep(0.18, 0.72, N.y) * scene_surface;
+    ambient_probe *= clamp(1.0 - ceiling_weight * 0.11 - vertical_weight * 0.025 + floor_weight * 0.115, 0.66, 1.18);
+    let n_dot_v = max(dot(Nf_view, V), 0.0);
     var albedo = color_linear;
+    if (!is_avatar) {
+        let material_noise = surface_noise_value(in.world_pos * 3.35 + N * 0.19, 23.0) * 2.0 - 1.0;
+        albedo *= 1.0 + material_noise * matte_weight * 0.075;
+        let albedo_luma = dot(albedo, vec3<f32>(0.2126, 0.7152, 0.0722));
+        albedo = mix(albedo, vec3<f32>(albedo_luma) + (albedo - vec3<f32>(albedo_luma)) * 1.08, matte_weight * 0.35);
+    }
     if (style_active && !is_avatar) {
         let style_amount = select(0.58, 0.88, use_grimy);
         let target_roughness = select(0.76, 0.92, use_grimy);
@@ -1685,7 +1814,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         }
     }
     var point = vec3<f32>(0.0);
-    let point_count = min(UBO.point_light_count_pad.x, 4u);
+    let point_count = min(UBO.point_light_count_pad.x, 8u);
     for (var li: u32 = 0u; li < point_count; li = li + 1u) {
         let lp = UBO.point_light_pos_intensity[li].xyz;
         let l_intensity = UBO.point_light_pos_intensity[li].w;
@@ -1717,16 +1846,16 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             }
         }
     }
-    let n_dot_v = max(dot(Nf_view, V), 0.0);
+    point *= point_residual;
     var lit_color = vec3<f32>(0.0);
     if (use_lambert) {
-        lit_color = max(albedo * (ambient + sun + point), vec3<f32>(0.0));
+        lit_color = max(albedo * (ambient_probe + sun + point), vec3<f32>(0.0));
     } else if (use_pbr) {
         // PBR ambient term: diffuse + roughness-aware specular IBL approximation from scene colors.
         let F_ambient = fresnel_schlick_roughness(n_dot_v, F0, roughness);
         let kS_ambient = F_ambient;
         let kD_ambient = (vec3<f32>(1.0) - kS_ambient) * (1.0 - metallic);
-        let diffuse_ambient = ambient * albedo * kD_ambient;
+        let diffuse_ambient = ambient_probe * albedo * kD_ambient;
 
         // Cheap environment estimate using sky/fog colors and reflected view direction.
         let refl = reflect(-V, Nf_view);
@@ -1738,7 +1867,23 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         lit_color = max(diffuse_ambient + specular_ambient + sun + point, vec3<f32>(0.0));
     } else {
         // Cook-Torrance direct lighting + diffuse ambient only.
-        lit_color = max(ambient * albedo + sun + point, vec3<f32>(0.0));
+        lit_color = max(ambient_probe * albedo + sun + point, vec3<f32>(0.0));
+    }
+
+    if (!is_avatar) {
+        let edge = pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 2.4);
+        let edge_amount = edge * (0.018 + matte_weight * 0.020 + polished_weight * 0.045);
+        lit_color += albedo * edge_amount;
+        let lit_luma = dot(lit_color, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let dark_floor = (1.0 - smoothstep(0.035, 0.16, lit_luma)) * floor_weight;
+        let floor_bounce = dark_floor * (0.014 + probe_luma * 0.26 + matte_weight * 0.012);
+        lit_color += albedo * floor_bounce;
+        let near_wall = vertical_weight * (1.0 - smoothstep(1.1, 3.4, distance(in.world_pos, UBO.cam_pos.xyz)));
+        let near_wall_luma = dot(lit_color, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let near_wall_compress = near_wall * smoothstep(0.22, 0.72, near_wall_luma) * 0.18;
+        lit_color *= 1.0 - near_wall_compress;
+        let upper_shadow = ceiling_weight * (0.032 + matte_weight * 0.014);
+        lit_color *= 1.0 - upper_shadow;
     }
 
     if (style_active && !is_avatar) {
@@ -1760,7 +1905,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let avatar_rim = max(UBO.avatar_highlight_params.z, 0.0);
         let rim = pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 2.0);
         let key = UBO.sun_color_intensity.xyz * UBO.sun_color_intensity.w;
-        let fill = ambient * albedo;
+        let fill = ambient_probe * albedo;
         let boosted = lit_color * avatar_lift + fill * avatar_fill + key * (avatar_rim * rim);
 
         // Keep pale atlas colors from clipping to white after post exposure.
@@ -1807,8 +1952,8 @@ struct U {
     shadow_light_extents: vec4<f32>,
     shadow_params: vec4<f32>,
     render_params: vec4<f32>,
-    point_light_pos_intensity: array<vec4<f32>, 4>,
-    point_light_color_range: array<vec4<f32>, 4>,
+    point_light_pos_intensity: array<vec4<f32>, 8>,
+    point_light_color_range: array<vec4<f32>, 8>,
     point_light_count_pad: vec4<u32>,
     _pad_lights: vec4<u32>,
     fb_size: vec2<f32>,
@@ -1901,8 +2046,8 @@ struct U {
     shadow_light_extents: vec4<f32>,
     shadow_params: vec4<f32>,
     render_params: vec4<f32>,
-    point_light_pos_intensity: array<vec4<f32>, 4>,
-    point_light_color_range: array<vec4<f32>, 4>,
+    point_light_pos_intensity: array<vec4<f32>, 8>,
+    point_light_color_range: array<vec4<f32>, 8>,
     point_light_count_pad: vec4<u32>,
     _pad_lights: vec4<u32>,
     fb_size: vec2<f32>,
@@ -2176,8 +2321,12 @@ pub struct VM {
     cached_tile_anim_meta: Vec<TileAnimMetaPod>,
     cached_tile_frame_data: Vec<TileFramePod>,
     cached_atlas_layout_version: u64,
+    cached_tile_emissive_summaries: Vec<TileEmissiveSummary>,
+    cached_tile_emissive_content_version: u64,
     tile_gpu_dirty: bool,
     cached_scene_data_hash: u64,
+    irradiance_grid_dirty: bool,
+    cached_irradiance_grid_data: Vec<[f32; 4]>,
     raster_had_dynamics_last_frame: bool,
     organic_surface_slots: FxHashMap<Uuid, OrganicSurfaceGpuMeta>,
     organic_surface_pixels: FxHashMap<Uuid, OrganicSurfaceTextureData>,
@@ -3446,10 +3595,16 @@ impl VM {
     }
 
     #[inline]
+    fn mark_irradiance_grid_dirty(&mut self) {
+        self.irradiance_grid_dirty = true;
+    }
+
+    #[inline]
     pub fn mark_all_geometry_dirty(&mut self) {
         self.geometry2d_dirty = true;
         self.accel_dirty = true;
         self.line3d_dirty = true;
+        self.mark_irradiance_grid_dirty();
         self.cached_static_v3.clear();
         self.cached_static_i3.clear();
         self.cached_static_tri_visibility.clear();
@@ -3709,8 +3864,12 @@ impl VM {
             cached_tile_anim_meta: Vec::new(),
             cached_tile_frame_data: Vec::new(),
             cached_atlas_layout_version: 0,
+            cached_tile_emissive_summaries: Vec::new(),
+            cached_tile_emissive_content_version: u64::MAX,
             tile_gpu_dirty: true,
             cached_scene_data_hash: 0,
+            irradiance_grid_dirty: true,
+            cached_irradiance_grid_data: Self::disabled_irradiance_grid_data(),
             raster_had_dynamics_last_frame: false,
             organic_surface_slots: FxHashMap::default(),
             organic_surface_pixels: FxHashMap::default(),
@@ -3749,6 +3908,7 @@ impl VM {
                     // Only mark visibility dirty, NOT accel_dirty
                     // This avoids rebuilding the BVH structure
                     self.visibility_dirty = true;
+                    self.mark_irradiance_grid_dirty();
                 }
             }
             Atom::SetGeoOpacity { id, opacity } => {
@@ -4189,12 +4349,15 @@ impl VM {
             }
             Atom::AddLight { id, light } => {
                 self.lights.insert(id, light);
+                self.mark_irradiance_grid_dirty();
             }
             Atom::RemoveLight { id } => {
                 self.lights.remove(&id);
+                self.mark_irradiance_grid_dirty();
             }
             Atom::ClearLights => {
                 self.lights.clear();
+                self.mark_irradiance_grid_dirty();
             }
             Atom::ClearDynamics => {
                 self.dynamic_objects.clear();
@@ -4563,6 +4726,8 @@ impl VM {
             organic_billboard_ssbo: None,
             organic_billboard_ssbo_size: 0,
             organic_billboard_count: 0,
+            irradiance_grid_ssbo: None,
+            irradiance_grid_ssbo_size: 0,
             grid_hdr: None,
             grid_data: None,
             sdf_data_ssbo: None,
@@ -5459,6 +5624,16 @@ impl VM {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 11,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -5527,6 +5702,16 @@ impl VM {
                     },
                     wgpu::BindGroupLayoutEntry {
                         binding: 8,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 11,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -6337,6 +6522,773 @@ impl VM {
         let mut particles = self.cached_static_raster_particle_indices.clone();
         particles.extend_from_slice(&dynamic_particles);
         (visible, opaque, transparent, particles)
+    }
+
+    fn ensure_tile_emissive_summaries(&mut self) {
+        let content_version = self.shared_atlas.content_version();
+        if self.cached_tile_emissive_content_version != content_version {
+            self.cached_tile_emissive_summaries = self.shared_atlas.tile_emissive_summaries();
+            self.cached_tile_emissive_content_version = content_version;
+        }
+    }
+
+    fn collect_emissive_surface_lighting(
+        &mut self,
+        visible_indices: &[u32],
+        _camera: &Camera3D,
+        budget: usize,
+    ) -> EmissiveSurfaceLighting {
+        if budget == 0 || visible_indices.is_empty() {
+            return EmissiveSurfaceLighting::default();
+        }
+
+        self.ensure_tile_emissive_summaries();
+        if self.cached_tile_emissive_summaries.is_empty() {
+            return EmissiveSurfaceLighting::default();
+        }
+
+        const TILE_INDEX_ALL_FLAGS_MASK_CPU: u32 = 0xF800_0000;
+        const TILE_INDEX_PARTICLE_FLAG_CPU: u32 = 0x0800_0000;
+        const TILE_INDEX_CLAMP_UV_FLAG_CPU: u32 = 0x4000_0000;
+        let base_tile_index = |idx: u32| idx & !TILE_INDEX_ALL_FLAGS_MASK_CPU;
+
+        #[derive(Clone, Copy)]
+        struct Cluster {
+            position_weighted: Vec3<f32>,
+            color_weighted: Vec3<f32>,
+            weight: f32,
+            intensity: f32,
+            range: f32,
+            score: f32,
+        }
+
+        let mut clusters: FxHashMap<(i32, i32, i32), Cluster> = FxHashMap::default();
+        let mut broad_energy = Vec3::zero();
+        let mut broad_area = 0.0f32;
+
+        for tri in visible_indices.chunks_exact(3) {
+            let Some(v0) = self.cached_v3.get(tri[0] as usize) else {
+                continue;
+            };
+            let Some(v1) = self.cached_v3.get(tri[1] as usize) else {
+                continue;
+            };
+            let Some(v2) = self.cached_v3.get(tri[2] as usize) else {
+                continue;
+            };
+            if (v0.tile_index2 | v1.tile_index2 | v2.tile_index2) & TILE_INDEX_PARTICLE_FLAG_CPU
+                != 0
+            {
+                continue;
+            }
+
+            let tile_index = base_tile_index(v0.tile_index) as usize;
+            let Some(summary) = self.cached_tile_emissive_summaries.get(tile_index) else {
+                continue;
+            };
+            if summary.strength <= 0.002 || summary.hotspot_strength <= 0.0 {
+                continue;
+            }
+
+            let p0 = Vec3::new(v0.pos[0], v0.pos[1], v0.pos[2]);
+            let p1 = Vec3::new(v1.pos[0], v1.pos[1], v1.pos[2]);
+            let p2 = Vec3::new(v2.pos[0], v2.pos[1], v2.pos[2]);
+            let edge0 = p1 - p0;
+            let edge1 = p2 - p0;
+            let cross = edge0.cross(edge1);
+            let cross_len = cross.magnitude();
+            if cross_len <= 1e-5 {
+                continue;
+            }
+            let area = (cross_len * 0.5).clamp(0.001, 64.0);
+            let normal = cross / cross_len;
+
+            let uv0 = Vec2::new(v0.uv[0], v0.uv[1]);
+            let uv1 = Vec2::new(v1.uv[0], v1.uv[1]);
+            let uv2 = Vec2::new(v2.uv[0], v2.uv[1]);
+            let hotspot_uv = Vec2::new(summary.hotspot_uv[0], summary.hotspot_uv[1]);
+            let repeats_uv = (v0.tile_index2 & TILE_INDEX_CLAMP_UV_FLAG_CPU) == 0;
+            let hotspot_anchor = Self::world_position_from_triangle_hotspot_uv(
+                hotspot_uv, repeats_uv, uv0, uv1, uv2, p0, p1, p2,
+            );
+
+            let position = if summary.coverage < 0.45 {
+                let Some(anchor) = hotspot_anchor else {
+                    continue;
+                };
+                anchor
+            } else {
+                hotspot_anchor.unwrap_or((p0 + p1 + p2) / 3.0)
+            } + normal * 0.04;
+
+            let color = Vec3::new(
+                summary.color_linear[0],
+                summary.color_linear[1],
+                summary.color_linear[2],
+            )
+            .map(|v: f32| v.clamp(0.0, 8.0));
+
+            let emissive_area = area * summary.coverage.clamp(0.0, 1.0);
+            if emissive_area > 0.0 {
+                broad_energy += color * (summary.strength * emissive_area);
+                broad_area += emissive_area;
+            }
+
+            if summary.coverage > 0.65 && area > 0.45 {
+                continue;
+            }
+
+            let area_gain = area.sqrt().clamp(0.35, 4.0);
+            let coverage_gain = summary.coverage.sqrt().clamp(0.25, 1.0);
+            let intensity = (summary.strength * area_gain * coverage_gain * 5.5).clamp(0.03, 8.0);
+            let range = (1.25 + area_gain * 1.6 + summary.coverage * 2.0).clamp(1.5, 8.0);
+            let score = intensity * range * (0.5 + summary.coverage);
+            let key = (
+                (position.x / EMISSIVE_SURFACE_CLUSTER_SIZE).floor() as i32,
+                (position.y / EMISSIVE_SURFACE_CLUSTER_SIZE).floor() as i32,
+                (position.z / EMISSIVE_SURFACE_CLUSTER_SIZE).floor() as i32,
+            );
+            let weight = intensity.max(0.001);
+
+            clusters
+                .entry(key)
+                .and_modify(|cluster| {
+                    cluster.position_weighted += position * weight;
+                    cluster.color_weighted += color * weight;
+                    cluster.weight += weight;
+                    cluster.intensity = (cluster.intensity + intensity).clamp(0.03, 8.0);
+                    cluster.range = cluster.range.max(range);
+                    cluster.score = cluster.score.max(score);
+                })
+                .or_insert(Cluster {
+                    position_weighted: position * weight,
+                    color_weighted: color * weight,
+                    weight,
+                    intensity,
+                    range,
+                    score,
+                });
+        }
+
+        let mut lights: Vec<RasterPointLight> = clusters
+            .values()
+            .filter_map(|cluster| {
+                if cluster.weight <= 0.0 || cluster.intensity <= 0.0 {
+                    return None;
+                }
+                let inv_weight = 1.0 / cluster.weight;
+                Some(RasterPointLight {
+                    position: cluster.position_weighted * inv_weight,
+                    color: cluster.color_weighted * inv_weight,
+                    intensity: cluster.intensity,
+                    range: cluster.range,
+                    score: cluster.score,
+                })
+            })
+            .collect();
+        lights.sort_by(|a, b| b.score.total_cmp(&a.score));
+        lights.truncate(budget);
+
+        let broad_color = if broad_area > 0.0 {
+            let area_factor = (broad_area / 18.0).sqrt().clamp(0.0, 1.25);
+            (broad_energy / broad_area * (0.34 * area_factor)).map(|v: f32| v.clamp(0.0, 0.65))
+        } else {
+            Vec3::zero()
+        };
+
+        EmissiveSurfaceLighting {
+            point_lights: lights,
+            broad_color,
+        }
+    }
+
+    fn world_position_from_triangle_hotspot_uv(
+        hotspot_uv: Vec2<f32>,
+        repeats_uv: bool,
+        uv0: Vec2<f32>,
+        uv1: Vec2<f32>,
+        uv2: Vec2<f32>,
+        p0: Vec3<f32>,
+        p1: Vec3<f32>,
+        p2: Vec3<f32>,
+    ) -> Option<Vec3<f32>> {
+        if !repeats_uv {
+            return Self::world_position_from_triangle_uv(hotspot_uv, uv0, uv1, uv2, p0, p1, p2);
+        }
+
+        let uv_centroid = (uv0 + uv1 + uv2) / 3.0;
+        let base_offset = Vec2::new(
+            (uv_centroid.x - hotspot_uv.x).round(),
+            (uv_centroid.y - hotspot_uv.y).round(),
+        );
+        let mut best: Option<(f32, Vec3<f32>)> = None;
+        for oy in -1..=1 {
+            for ox in -1..=1 {
+                let repeated_uv = hotspot_uv + base_offset + Vec2::new(ox as f32, oy as f32);
+                let Some(position) =
+                    Self::world_position_from_triangle_uv(repeated_uv, uv0, uv1, uv2, p0, p1, p2)
+                else {
+                    continue;
+                };
+                let dist2 = (repeated_uv - uv_centroid).magnitude_squared();
+                match best {
+                    Some((best_dist2, _)) if dist2 >= best_dist2 => {}
+                    _ => best = Some((dist2, position)),
+                }
+            }
+        }
+        best.map(|(_, position)| position)
+    }
+
+    fn world_position_from_triangle_uv(
+        uv: Vec2<f32>,
+        uv0: Vec2<f32>,
+        uv1: Vec2<f32>,
+        uv2: Vec2<f32>,
+        p0: Vec3<f32>,
+        p1: Vec3<f32>,
+        p2: Vec3<f32>,
+    ) -> Option<Vec3<f32>> {
+        let v0 = uv1 - uv0;
+        let v1 = uv2 - uv0;
+        let v2 = uv - uv0;
+        let denom = v0.x * v1.y - v1.x * v0.y;
+        if denom.abs() <= 1e-6 {
+            return None;
+        }
+        let b1 = (v2.x * v1.y - v1.x * v2.y) / denom;
+        let b2 = (v0.x * v2.y - v2.x * v0.y) / denom;
+        let b0 = 1.0 - b1 - b2;
+        let tolerance = -0.03;
+        if b0 < tolerance || b1 < tolerance || b2 < tolerance {
+            return None;
+        }
+        Some(p0 * b0 + p1 * b1 + p2 * b2)
+    }
+
+    fn collect_emissive_irradiance_sources(&mut self, budget: usize) -> Vec<RasterPointLight> {
+        if budget == 0 || self.cached_i3.is_empty() {
+            return Vec::new();
+        }
+
+        self.ensure_tile_emissive_summaries();
+        if self.cached_tile_emissive_summaries.is_empty() {
+            return Vec::new();
+        }
+
+        const TILE_INDEX_ALL_FLAGS_MASK_CPU: u32 = 0xF800_0000;
+        const TILE_INDEX_PARTICLE_FLAG_CPU: u32 = 0x0800_0000;
+        const TILE_INDEX_CLAMP_UV_FLAG_CPU: u32 = 0x4000_0000;
+        let base_tile_index = |idx: u32| idx & !TILE_INDEX_ALL_FLAGS_MASK_CPU;
+
+        #[derive(Clone, Copy)]
+        struct Cluster {
+            position_weighted: Vec3<f32>,
+            color_weighted: Vec3<f32>,
+            weight: f32,
+            intensity: f32,
+            range: f32,
+            score: f32,
+        }
+
+        let mut clusters: FxHashMap<(i32, i32, i32), Cluster> = FxHashMap::default();
+        let cluster_size = EMISSIVE_SURFACE_CLUSTER_SIZE * 1.75;
+
+        for (tri_idx, tri) in self.cached_i3.chunks_exact(3).enumerate() {
+            let word = tri_idx / 32;
+            let bit = tri_idx % 32;
+            let visible = self
+                .cached_tri_visibility
+                .get(word)
+                .map(|w| ((w >> bit) & 1) != 0)
+                .unwrap_or(true);
+            if !visible {
+                continue;
+            }
+            let Some(v0) = self.cached_v3.get(tri[0] as usize) else {
+                continue;
+            };
+            let Some(v1) = self.cached_v3.get(tri[1] as usize) else {
+                continue;
+            };
+            let Some(v2) = self.cached_v3.get(tri[2] as usize) else {
+                continue;
+            };
+            if (v0.tile_index2 | v1.tile_index2 | v2.tile_index2) & TILE_INDEX_PARTICLE_FLAG_CPU
+                != 0
+            {
+                continue;
+            }
+
+            let tile_index = base_tile_index(v0.tile_index) as usize;
+            let Some(summary) = self.cached_tile_emissive_summaries.get(tile_index) else {
+                continue;
+            };
+            if summary.strength <= 0.002 || summary.hotspot_strength <= 0.0 {
+                continue;
+            }
+
+            let p0 = Vec3::new(v0.pos[0], v0.pos[1], v0.pos[2]);
+            let p1 = Vec3::new(v1.pos[0], v1.pos[1], v1.pos[2]);
+            let p2 = Vec3::new(v2.pos[0], v2.pos[1], v2.pos[2]);
+            let edge0 = p1 - p0;
+            let edge1 = p2 - p0;
+            let cross = edge0.cross(edge1);
+            let cross_len = cross.magnitude();
+            if cross_len <= 1e-5 {
+                continue;
+            }
+            let area = (cross_len * 0.5).clamp(0.001, 96.0);
+            let normal = cross / cross_len;
+
+            let uv0 = Vec2::new(v0.uv[0], v0.uv[1]);
+            let uv1 = Vec2::new(v1.uv[0], v1.uv[1]);
+            let uv2 = Vec2::new(v2.uv[0], v2.uv[1]);
+            let hotspot_uv = Vec2::new(summary.hotspot_uv[0], summary.hotspot_uv[1]);
+            let repeats_uv = (v0.tile_index2 & TILE_INDEX_CLAMP_UV_FLAG_CPU) == 0;
+            let hotspot_anchor = Self::world_position_from_triangle_hotspot_uv(
+                hotspot_uv, repeats_uv, uv0, uv1, uv2, p0, p1, p2,
+            );
+            let position = hotspot_anchor.unwrap_or((p0 + p1 + p2) / 3.0) + normal * 0.08;
+            let color = Vec3::new(
+                summary.color_linear[0],
+                summary.color_linear[1],
+                summary.color_linear[2],
+            )
+            .map(|v: f32| v.clamp(0.0, 8.0));
+
+            let area_gain = area.sqrt().clamp(0.35, 5.0);
+            let coverage_gain = summary.coverage.sqrt().clamp(0.25, 1.0);
+            let intensity = (summary.strength * area_gain * coverage_gain * 4.8).clamp(0.025, 7.0);
+            let range = (2.5 + area_gain * 1.9 + summary.coverage * 3.8).clamp(2.5, 12.0);
+            let score = intensity * range * (0.5 + summary.coverage);
+            let key = (
+                (position.x / cluster_size).floor() as i32,
+                (position.y / cluster_size).floor() as i32,
+                (position.z / cluster_size).floor() as i32,
+            );
+            let weight = intensity.max(0.001);
+
+            clusters
+                .entry(key)
+                .and_modify(|cluster| {
+                    cluster.position_weighted += position * weight;
+                    cluster.color_weighted += color * weight;
+                    cluster.weight += weight;
+                    cluster.intensity = cluster.intensity.max(intensity);
+                    cluster.range = cluster.range.max(range);
+                    cluster.score += score;
+                })
+                .or_insert(Cluster {
+                    position_weighted: position * weight,
+                    color_weighted: color * weight,
+                    weight,
+                    intensity,
+                    range,
+                    score,
+                });
+        }
+
+        let mut sources: Vec<RasterPointLight> = clusters
+            .values()
+            .filter_map(|cluster| {
+                if cluster.weight <= 0.0 || cluster.intensity <= 0.0 {
+                    return None;
+                }
+                let inv_weight = 1.0 / cluster.weight;
+                Some(RasterPointLight {
+                    position: cluster.position_weighted * inv_weight,
+                    color: cluster.color_weighted * inv_weight,
+                    intensity: cluster.intensity,
+                    range: cluster.range,
+                    score: cluster.score,
+                })
+            })
+            .collect();
+        sources.sort_by(|a, b| b.score.total_cmp(&a.score));
+        sources.truncate(budget);
+        sources
+    }
+
+    fn disabled_irradiance_grid_data() -> Vec<[f32; 4]> {
+        vec![
+            [0.0, 0.0, 0.0, 0.0],
+            [1.0, 1.0, 1.0, 0.0],
+            [2.0, 2.0, 2.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+        ]
+    }
+
+    fn collect_irradiance_occluders(&self) -> Vec<IrradianceOccluder> {
+        if self.cached_i3.is_empty() || self.cached_v3.is_empty() {
+            return Vec::new();
+        }
+
+        const TILE_INDEX_ALL_FLAGS_MASK_CPU: u32 = 0xF800_0000;
+        const TILE_INDEX_PARTICLE_FLAG_CPU: u32 = 0x0800_0000;
+        let base_tile_index = |idx: u32| idx & !TILE_INDEX_ALL_FLAGS_MASK_CPU;
+        let mut translucent_tile_cache: FxHashMap<u32, bool> = FxHashMap::default();
+        let mut tile_is_translucent = |idx: u32| -> bool {
+            let base = base_tile_index(idx);
+            if let Some(v) = translucent_tile_cache.get(&base) {
+                *v
+            } else {
+                let v = self.shared_atlas.tile_index_has_translucency(base);
+                translucent_tile_cache.insert(base, v);
+                v
+            }
+        };
+
+        let mut occluders = Vec::new();
+        for (tri_idx, tri) in self.cached_i3.chunks_exact(3).enumerate() {
+            let visible = if self.cached_tri_visibility.is_empty() {
+                true
+            } else {
+                let word = tri_idx / 32;
+                let bit = tri_idx % 32;
+                self.cached_tri_visibility
+                    .get(word)
+                    .map(|w| ((w >> bit) & 1) != 0)
+                    .unwrap_or(false)
+            };
+            if !visible {
+                continue;
+            }
+
+            let Some(v0) = self.cached_v3.get(tri[0] as usize) else {
+                continue;
+            };
+            let Some(v1) = self.cached_v3.get(tri[1] as usize) else {
+                continue;
+            };
+            let Some(v2) = self.cached_v3.get(tri[2] as usize) else {
+                continue;
+            };
+            if (v0.tile_index2 | v1.tile_index2 | v2.tile_index2) & TILE_INDEX_PARTICLE_FLAG_CPU
+                != 0
+            {
+                continue;
+            }
+            if v0.opacity < 0.999
+                || v1.opacity < 0.999
+                || v2.opacity < 0.999
+                || tile_is_translucent(v0.tile_index)
+                || tile_is_translucent(v0.tile_index2)
+                || tile_is_translucent(v1.tile_index)
+                || tile_is_translucent(v1.tile_index2)
+                || tile_is_translucent(v2.tile_index)
+                || tile_is_translucent(v2.tile_index2)
+            {
+                continue;
+            }
+
+            let p0 = Vec3::new(v0.pos[0], v0.pos[1], v0.pos[2]);
+            let p1 = Vec3::new(v1.pos[0], v1.pos[1], v1.pos[2]);
+            let p2 = Vec3::new(v2.pos[0], v2.pos[1], v2.pos[2]);
+            let normal_len = (p1 - p0).cross(p2 - p0).magnitude();
+            if normal_len <= 1e-5 {
+                continue;
+            }
+            let min = Vec3::new(
+                p0.x.min(p1.x).min(p2.x),
+                p0.y.min(p1.y).min(p2.y),
+                p0.z.min(p1.z).min(p2.z),
+            );
+            let max = Vec3::new(
+                p0.x.max(p1.x).max(p2.x),
+                p0.y.max(p1.y).max(p2.y),
+                p0.z.max(p1.z).max(p2.z),
+            );
+            occluders.push(IrradianceOccluder {
+                a: v0.pos,
+                b: v1.pos,
+                c: v2.pos,
+                min,
+                max,
+            });
+        }
+
+        if occluders.len() > IRRADIANCE_OCCLUSION_MAX_TRIANGLES {
+            let stride = occluders
+                .len()
+                .div_ceil(IRRADIANCE_OCCLUSION_MAX_TRIANGLES)
+                .max(1);
+            occluders = occluders
+                .into_iter()
+                .step_by(stride)
+                .take(IRRADIANCE_OCCLUSION_MAX_TRIANGLES)
+                .collect();
+        }
+        occluders
+    }
+
+    fn segment_intersects_aabb(
+        origin: Vec3<f32>,
+        dir: Vec3<f32>,
+        max_t: f32,
+        min: Vec3<f32>,
+        max: Vec3<f32>,
+    ) -> bool {
+        let mut t_min = 0.0f32;
+        let mut t_max = max_t;
+        for axis in 0..3 {
+            let o = origin[axis];
+            let d = dir[axis];
+            let mn = min[axis] - 0.015;
+            let mx = max[axis] + 0.015;
+            if d.abs() <= 1e-6 {
+                if o < mn || o > mx {
+                    return false;
+                }
+            } else {
+                let inv_d = 1.0 / d;
+                let mut t0 = (mn - o) * inv_d;
+                let mut t1 = (mx - o) * inv_d;
+                if t0 > t1 {
+                    std::mem::swap(&mut t0, &mut t1);
+                }
+                t_min = t_min.max(t0);
+                t_max = t_max.min(t1);
+                if t_max < t_min {
+                    return false;
+                }
+            }
+        }
+        t_max >= 0.0 && t_min <= max_t
+    }
+
+    fn irradiance_segment_visibility(
+        probe: Vec3<f32>,
+        source: Vec3<f32>,
+        occluders: &[IrradianceOccluder],
+    ) -> f32 {
+        if occluders.is_empty() {
+            return 1.0;
+        }
+        let to_source = source - probe;
+        let dist = to_source.magnitude();
+        if dist <= 0.2 {
+            return 1.0;
+        }
+
+        let dir = to_source / dist;
+        let origin = probe + dir * 0.08;
+        let max_t = (dist - 0.16).max(0.0);
+        if max_t <= 0.0 {
+            return 1.0;
+        }
+
+        for occ in occluders {
+            if !Self::segment_intersects_aabb(origin, dir, max_t, occ.min, occ.max) {
+                continue;
+            }
+            let Some((t, _, _)) = ray_triangle_intersect(origin, dir, occ.a, occ.b, occ.c) else {
+                continue;
+            };
+            if t > 0.04 && t < max_t - 0.04 {
+                return IRRADIANCE_OCCLUSION_BLOCKED_VISIBILITY;
+            }
+        }
+        1.0
+    }
+
+    fn build_irradiance_grid_data(&mut self) -> Vec<[f32; 4]> {
+        if self.cached_v3.is_empty() {
+            return Self::disabled_irradiance_grid_data();
+        }
+
+        let mut sources: Vec<RasterPointLight> = self
+            .lights
+            .values()
+            .filter(|l| l.emitting && matches!(l.light_type, LightType::Point))
+            .map(|light| RasterPointLight {
+                position: light.position,
+                color: light.color,
+                intensity: light.intensity,
+                range: light.end_distance.max(light.radius).max(0.1),
+                score: light.intensity * light.end_distance.max(0.1),
+            })
+            .collect();
+        if EMISSIVE_SURFACE_IRRADIANCE_ENABLED {
+            let remaining = IRRADIANCE_GRID_MAX_SOURCES.saturating_sub(sources.len());
+            sources.extend(self.collect_emissive_irradiance_sources(remaining));
+        }
+        sources.sort_by(|a, b| b.score.total_cmp(&a.score));
+        sources.truncate(IRRADIANCE_GRID_MAX_SOURCES);
+        if sources.is_empty() {
+            return Self::disabled_irradiance_grid_data();
+        }
+        let occluders = self.collect_irradiance_occluders();
+
+        let mut bmin = Vec3::broadcast(f32::INFINITY);
+        let mut bmax = Vec3::broadcast(f32::NEG_INFINITY);
+        for v in &self.cached_v3 {
+            let p = Vec3::new(v.pos[0], v.pos[1], v.pos[2]);
+            bmin.x = bmin.x.min(p.x);
+            bmin.y = bmin.y.min(p.y);
+            bmin.z = bmin.z.min(p.z);
+            bmax.x = bmax.x.max(p.x);
+            bmax.y = bmax.y.max(p.y);
+            bmax.z = bmax.z.max(p.z);
+        }
+        if !bmin.x.is_finite() || !bmax.x.is_finite() {
+            return Self::disabled_irradiance_grid_data();
+        }
+
+        let margin = IRRADIANCE_GRID_TARGET_CELL_SIZE * 1.25;
+        bmin -= Vec3::broadcast(margin);
+        bmax += Vec3::broadcast(margin);
+        let extent = Vec3::new(
+            (bmax.x - bmin.x).max(1.0),
+            (bmax.y - bmin.y).max(1.0),
+            (bmax.z - bmin.z).max(1.0),
+        );
+        let dim_for = |extent: f32, max_dim: u32| -> u32 {
+            ((extent / IRRADIANCE_GRID_TARGET_CELL_SIZE).ceil() as u32 + 1).clamp(2, max_dim)
+        };
+        let dims = [
+            dim_for(extent.x, IRRADIANCE_GRID_MAX_XZ),
+            dim_for(extent.y, IRRADIANCE_GRID_MAX_Y),
+            dim_for(extent.z, IRRADIANCE_GRID_MAX_XZ),
+        ];
+        let cell = Vec3::new(
+            extent.x / (dims[0] - 1) as f32,
+            extent.y / (dims[1] - 1) as f32,
+            extent.z / (dims[2] - 1) as f32,
+        );
+        let probe_count = (dims[0] * dims[1] * dims[2]) as usize;
+        let mut direct = vec![Vec3::zero(); probe_count];
+
+        let idx = |x: u32, y: u32, z: u32| -> usize {
+            (x + y * dims[0] + z * dims[0] * dims[1]) as usize
+        };
+        let smooth_range = |range: f32, dist: f32| -> f32 {
+            let t = ((range - dist) / range.max(0.001)).clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        };
+
+        for z in 0..dims[2] {
+            for y in 0..dims[1] {
+                for x in 0..dims[0] {
+                    let p = Vec3::new(
+                        bmin.x + cell.x * x as f32,
+                        bmin.y + cell.y * y as f32,
+                        bmin.z + cell.z * z as f32,
+                    );
+                    let mut irradiance = Vec3::zero();
+                    for source in &sources {
+                        let to_probe = p - source.position;
+                        let dist2 = to_probe.magnitude_squared().max(0.45);
+                        let dist = dist2.sqrt();
+                        if dist > source.range {
+                            continue;
+                        }
+                        let visibility =
+                            Self::irradiance_segment_visibility(p, source.position, &occluders);
+                        let range_factor = smooth_range(source.range, dist);
+                        let atten = source.intensity * range_factor / dist2;
+                        irradiance += source.color * (atten * 0.24 * visibility);
+                    }
+                    direct[idx(x, y, z)] = irradiance.map(|v: f32| v.clamp(0.0, 1.25));
+                }
+            }
+        }
+
+        let mut propagated = direct.clone();
+        for _ in 0..2 {
+            let previous = propagated.clone();
+            for z in 0..dims[2] {
+                for y in 0..dims[1] {
+                    for x in 0..dims[0] {
+                        let mut sum = Vec3::zero();
+                        let mut count = 0.0f32;
+                        for (ox, oy, oz) in [
+                            (-1i32, 0i32, 0i32),
+                            (1, 0, 0),
+                            (0, -1, 0),
+                            (0, 1, 0),
+                            (0, 0, -1),
+                            (0, 0, 1),
+                        ] {
+                            let nx = x as i32 + ox;
+                            let ny = y as i32 + oy;
+                            let nz = z as i32 + oz;
+                            if nx < 0
+                                || ny < 0
+                                || nz < 0
+                                || nx >= dims[0] as i32
+                                || ny >= dims[1] as i32
+                                || nz >= dims[2] as i32
+                            {
+                                continue;
+                            }
+                            sum += previous[idx(nx as u32, ny as u32, nz as u32)];
+                            count += 1.0;
+                        }
+                        let neighbor = if count > 0.0 {
+                            sum / count
+                        } else {
+                            Vec3::zero()
+                        };
+                        let i = idx(x, y, z);
+                        propagated[i] = (direct[i] + neighbor * 0.42 + previous[i] * 0.18)
+                            .map(|v: f32| v.clamp(0.0, 0.85));
+                    }
+                }
+            }
+        }
+
+        let mut out = Vec::with_capacity(3 + probe_count);
+        out.push([bmin.x, bmin.y, bmin.z, 1.0]);
+        out.push([cell.x, cell.y, cell.z, 0.0]);
+        out.push([dims[0] as f32, dims[1] as f32, dims[2] as f32, 0.0]);
+        for c in propagated {
+            out.push([c.x, c.y, c.z, 0.0]);
+        }
+        out
+    }
+
+    fn upload_irradiance_grid_ssbo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        if self.gpu.is_none() {
+            return;
+        }
+        if EMISSIVE_SURFACE_IRRADIANCE_ENABLED
+            && self.cached_tile_emissive_content_version != self.shared_atlas.content_version()
+        {
+            self.mark_irradiance_grid_dirty();
+        }
+        let rebuilt = self.irradiance_grid_dirty || self.cached_irradiance_grid_data.is_empty();
+        if rebuilt {
+            self.cached_irradiance_grid_data = self.build_irradiance_grid_data();
+            self.irradiance_grid_dirty = false;
+        }
+        let byte_len = (self.cached_irradiance_grid_data.len() * std::mem::size_of::<[f32; 4]>())
+            .max(std::mem::size_of::<[f32; 4]>());
+        let needs_recreate = self
+            .gpu
+            .as_ref()
+            .map(|g| g.irradiance_grid_ssbo.is_none() || g.irradiance_grid_ssbo_size != byte_len)
+            .unwrap_or(true);
+        if !rebuilt && !needs_recreate {
+            return;
+        }
+        let bytes: &[u8] = bytemuck::cast_slice(&self.cached_irradiance_grid_data);
+        let g = self.gpu.as_mut().unwrap();
+        if needs_recreate {
+            use wgpu::util::DeviceExt;
+            g.irradiance_grid_ssbo = Some(device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("vm-raster3d-irradiance-grid"),
+                    contents: bytes,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                },
+            ));
+            g.irradiance_grid_ssbo_size = byte_len;
+        } else if rebuilt {
+            if let Some(buf) = g.irradiance_grid_ssbo.as_ref() {
+                queue.write_buffer(buf, 0, bytes);
+            }
+        }
     }
 
     /// Dispatches 2D compute pipeline into a storage-capable surface.
@@ -7905,6 +8857,7 @@ impl VM {
                 self.cached_static_raster_indices_valid = false;
             }
 
+            self.mark_irradiance_grid_dirty();
             geometry_changed = true;
             self.visibility_dirty = false;
             self.geometry3d_dirty = false;
@@ -7939,6 +8892,7 @@ impl VM {
             }
             self.cached_tri_visibility = visibility_bits;
             self.cached_static_raster_indices_valid = false;
+            self.mark_irradiance_grid_dirty();
             self.visibility_dirty = false;
             debug_visibility_ms = debug_visibility_start.elapsed().as_secs_f64() * 1000.0;
         }
@@ -8088,47 +9042,62 @@ impl VM {
             }
         }
 
-        let mut ranked_lights: Vec<(&Light, f32)> = self
+        let mut ranked_lights: Vec<RasterPointLight> = self
             .lights
             .values()
             .filter(|l| l.emitting && matches!(l.light_type, LightType::Point))
             .map(|light| {
-                let to_cam = light.position - c.pos;
-                let dist2 = to_cam.magnitude_squared().max(1e-4);
-                let score = light.intensity / dist2;
-                (light, score)
+                let score = light.intensity * light.end_distance.max(light.radius).max(0.1);
+                let flicker_multiplier: f32 = if light.flicker > 0.0 {
+                    let hash = hash_u32(self.animation_counter as u32);
+                    let combined_hash = hash.wrapping_add(
+                        (light.position.x as u32
+                            + light.position.y as u32
+                            + light.position.z as u32)
+                            * 100,
+                    );
+                    let flicker_value = (combined_hash as f32 / u32::MAX as f32).clamp(0.0, 1.0);
+                    1.0 - flicker_value * light.flicker
+                } else {
+                    1.0
+                };
+                RasterPointLight {
+                    position: light.position,
+                    color: light.color,
+                    intensity: light.intensity * flicker_multiplier,
+                    range: light.end_distance,
+                    score: score * 1.15,
+                }
             })
             .collect();
-        ranked_lights.sort_by(|a, b| b.1.total_cmp(&a.1));
-        let mut point_light_pos_intensity = [[0.0; 4]; 4];
-        let mut point_light_color_range = [[0.0; 4]; 4];
-        let point_count = ranked_lights.len().min(4);
-        for i in 0..point_count {
-            let light = ranked_lights[i].0;
-            let flicker_multiplier: f32 = if light.flicker > 0.0 {
-                let hash = hash_u32(self.animation_counter as u32);
-                let combined_hash = hash.wrapping_add(
-                    (light.position.x as u32 + light.position.y as u32 + light.position.z as u32)
-                        * 100,
-                );
-                let flicker_value = (combined_hash as f32 / u32::MAX as f32).clamp(0.0, 1.0);
-                1.0 - flicker_value * light.flicker
+        let emissive_lighting = self.collect_emissive_surface_lighting(
+            &visible_indices,
+            &c,
+            if EMISSIVE_SURFACE_POINT_LIGHTS_ENABLED {
+                EMISSIVE_SURFACE_LIGHT_BUDGET.min(RASTER3D_MAX_POINT_LIGHTS)
             } else {
-                1.0
-            };
+                0
+            },
+        );
+        ranked_lights.extend(emissive_lighting.point_lights.iter().copied());
+        ranked_lights.sort_by(|a, b| b.score.total_cmp(&a.score));
+        let mut point_light_pos_intensity = [[0.0; 4]; RASTER3D_MAX_POINT_LIGHTS];
+        let mut point_light_color_range = [[0.0; 4]; RASTER3D_MAX_POINT_LIGHTS];
+        let point_count = ranked_lights.len().min(RASTER3D_MAX_POINT_LIGHTS);
+        for i in 0..point_count {
+            let light = ranked_lights[i];
             point_light_pos_intensity[i] = [
                 light.position.x,
                 light.position.y,
                 light.position.z,
-                light.intensity * flicker_multiplier,
+                light.intensity,
             ];
-            point_light_color_range[i] = [
-                light.color.x,
-                light.color.y,
-                light.color.z,
-                light.end_distance,
-            ];
+            point_light_color_range[i] = [light.color.x, light.color.y, light.color.z, light.range];
         }
+        let mut post_style1 = self.raster3d_post_style1.into_array();
+        post_style1[1] = emissive_lighting.broad_color.x;
+        post_style1[2] = emissive_lighting.broad_color.y;
+        post_style1[3] = emissive_lighting.broad_color.z;
 
         let u = Raster3DUniforms {
             cam_pos: [c.pos.x, c.pos.y, c.pos.z, 0.0],
@@ -8173,7 +9142,7 @@ impl VM {
             ],
             post_color_adjust: [self.gp8.z.max(0.0), self.gp8.w.max(0.0), 1.0, 0.0],
             post_style0: self.raster3d_post_style0.into_array(),
-            post_style1: self.raster3d_post_style1.into_array(),
+            post_style1,
             avatar_highlight_params: self.raster3d_avatar_highlight_params.into_array(),
             _pad_tail: [0, 0, 0, 0],
             palette: self.palette,
@@ -8184,6 +9153,7 @@ impl VM {
         let debug_upload_start = instant::Instant::now();
         {
             self.upload_organic_billboard_ssbo(device, queue);
+            self.upload_irradiance_grid_ssbo(device, queue);
             let g = self.gpu.as_mut().unwrap();
             g.ensure_raster3d_targets(device, fb_w, fb_h, shadow_res, raster_samples);
             queue.write_buffer(
@@ -8370,6 +9340,10 @@ impl VM {
                         binding: 8,
                         resource: g.scene_data_ssbo.as_ref().unwrap().as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 11,
+                        resource: g.irradiance_grid_ssbo.as_ref().unwrap().as_entire_binding(),
+                    },
                 ],
             }));
             g.u_raster3d_bg = Some(
@@ -8430,6 +9404,10 @@ impl VM {
                                 .as_ref()
                                 .unwrap()
                                 .as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 11,
+                            resource: g.irradiance_grid_ssbo.as_ref().unwrap().as_entire_binding(),
                         },
                     ],
                 }),

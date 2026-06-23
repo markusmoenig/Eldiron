@@ -47,8 +47,8 @@ pub struct Raster3DUniforms {
     pub shadow_light_extents: [f32; 4],
     pub shadow_params: [f32; 4],
     pub render_params: [f32; 4],
-    pub point_light_pos_intensity: [[f32; 4]; 4],
-    pub point_light_color_range: [[f32; 4]; 4],
+    pub point_light_pos_intensity: [[f32; 4]; 8],
+    pub point_light_color_range: [[f32; 4]; 8],
     pub point_light_count: u32,
     pub _pad_light_count: [u32; 3],
     pub _pad_lights: [u32; 4],
@@ -74,18 +74,18 @@ pub struct Raster3DUniforms {
 
 // WGSL uniform buffers use strict alignment. Keep this layout exact because
 // some backends are less forgiving about scalar/vector packing mismatches.
-const RASTER3D_UNIFORM_WGSL_BYTES: usize = 5696;
+const RASTER3D_UNIFORM_WGSL_BYTES: usize = 5824;
 const _: [(); 0] = [(); std::mem::size_of::<Raster3DUniforms>() % 16];
 const _: [(); RASTER3D_UNIFORM_WGSL_BYTES] = [(); std::mem::size_of::<Raster3DUniforms>()];
-const _: [(); 384] = [(); std::mem::offset_of!(Raster3DUniforms, point_light_count)];
-const _: [(); 400] = [(); std::mem::offset_of!(Raster3DUniforms, _pad_lights)];
-const _: [(); 416] = [(); std::mem::offset_of!(Raster3DUniforms, fb_size)];
-const _: [(); 464] = [(); std::mem::offset_of!(Raster3DUniforms, post_params)];
-const _: [(); 496] = [(); std::mem::offset_of!(Raster3DUniforms, post_style0)];
-const _: [(); 528] = [(); std::mem::offset_of!(Raster3DUniforms, avatar_highlight_params)];
-const _: [(); 560] = [(); std::mem::offset_of!(Raster3DUniforms, palette)];
-const _: [(); 4656] = [(); std::mem::offset_of!(Raster3DUniforms, palette_tile_indices)];
-const _: [(); 5680] = [(); std::mem::offset_of!(Raster3DUniforms, organic_params)];
+const _: [(); 512] = [(); std::mem::offset_of!(Raster3DUniforms, point_light_count)];
+const _: [(); 528] = [(); std::mem::offset_of!(Raster3DUniforms, _pad_lights)];
+const _: [(); 544] = [(); std::mem::offset_of!(Raster3DUniforms, fb_size)];
+const _: [(); 592] = [(); std::mem::offset_of!(Raster3DUniforms, post_params)];
+const _: [(); 624] = [(); std::mem::offset_of!(Raster3DUniforms, post_style0)];
+const _: [(); 656] = [(); std::mem::offset_of!(Raster3DUniforms, avatar_highlight_params)];
+const _: [(); 688] = [(); std::mem::offset_of!(Raster3DUniforms, palette)];
+const _: [(); 4784] = [(); std::mem::offset_of!(Raster3DUniforms, palette_tile_indices)];
+const _: [(); 5808] = [(); std::mem::offset_of!(Raster3DUniforms, organic_params)];
 
 impl super::VMGpu {
     pub(super) fn ensure_raster3d_targets(

@@ -65,75 +65,40 @@ Screen "play" {
     }
   }
 
-  widget "Leader Avatar" {
-    role = "avatar"
+  widget "Leader Profile" {
+    role = "profile"
     x = 8
     y = 8
-    width = 64
+    width = 222
     height = 80
 
     data {
       [ui]
-      role = "avatar"
+      role = "profile"
       party = "leader"
-      perspective = "front"
+      crop = "bust"
+      image_size = 64
+      name_font_size = 16.0
+      class_font_size = 13.0
       border_size = 1
       border_color = "#b8c0cc"
-      damage_border_color = "#ff4040"
-    }
-  }
+      stats_layout = "side"
+      stats_top_gap = 8
+      stat_gap = 8
 
-  widget "Leader Name" {
-    role = "text"
-    x = 80
-    y = 8
-    width = 150
-    height = 24
-
-    data {
-      [ui]
-      role = "text"
-      font_size = 16.0
-      color = "#f0f0f0"
-      text = """
-{PLAYER.CLASS}  LVL {PLAYER.LEVEL}
-"""
-    }
-  }
-
-  widget "Leader HP" {
-    role = "stat"
-    x = 80
-    y = 40
-    width = 140
-    height = 14
-
-    data {
-      [ui]
-      role = "stat"
-      party = "leader"
+      [[ui.stats]]
       stat = "HP"
       max_stat = "MAX_HP"
+      height = 14
       fill_color = "#d63a3a"
       background_color = "#250909"
       border_color = "#6c3030"
       border_size = 1
-    }
-  }
 
-  widget "Leader MP" {
-    role = "stat"
-    x = 80
-    y = 62
-    width = 140
-    height = 14
-
-    data {
-      [ui]
-      role = "stat"
-      party = "leader"
+      [[ui.stats]]
       stat = "MP"
       max_stat = "MAX_MP"
+      height = 14
       fill_color = "#3269d6"
       background_color = "#081427"
       border_color = "#263f72"

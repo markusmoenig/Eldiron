@@ -20,8 +20,8 @@ use crate::{
     client::rules_ui::{CommandState, ContainerUiTemplate, RulesDescription},
     client::widget::{
         ButtonStateStyle, ButtonVisualState, TextInputWidget, Widget, avatar::AvatarWidget,
-        deco::DecoWidget, game::GameWidget, messages::MessagesWidget, screen::ScreenWidget,
-        stat::StatWidget, text::TextWidget,
+        deco::DecoWidget, game::GameWidget, messages::MessagesWidget, profile::ProfileWidget,
+        screen::ScreenWidget, stat::StatWidget, text::TextWidget,
     },
 };
 use draw2d::Draw2D;
@@ -180,6 +180,7 @@ pub struct Client {
     game_widgets: FxHashMap<Uuid, GameWidget>,
     button_widgets: FxHashMap<u32, Widget>,
     avatar_widgets: FxHashMap<Uuid, AvatarWidget>,
+    profile_widgets: FxHashMap<Uuid, ProfileWidget>,
     stat_widgets: FxHashMap<Uuid, StatWidget>,
     text_widgets: FxHashMap<Uuid, TextWidget>,
     text_input_widgets: FxHashMap<u32, TextInputWidget>,
@@ -726,6 +727,7 @@ impl Client {
             game_widgets: FxHashMap::default(),
             button_widgets: FxHashMap::default(),
             avatar_widgets: FxHashMap::default(),
+            profile_widgets: FxHashMap::default(),
             stat_widgets: FxHashMap::default(),
             text_widgets: FxHashMap::default(),
             text_input_widgets: FxHashMap::default(),
@@ -2263,6 +2265,22 @@ impl Client {
             }
         }
 
+        for widget in self.profile_widgets.values_mut() {
+            let hide = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    widget.name.starts_with(prefix)
+                } else {
+                    widget.name == *pattern
+                }
+            });
+
+            if !hide {
+                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                widget.update_draw(&mut self.target, assets, entity, &self.draw2d);
+            }
+        }
+
         for widget in self.stat_widgets.values_mut() {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
@@ -2828,6 +2846,22 @@ impl Client {
         }
 
         for widget in self.avatar_widgets.values_mut() {
+            let hide = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    widget.name.starts_with(prefix)
+                } else {
+                    widget.name == *pattern
+                }
+            });
+
+            if !hide {
+                let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+                widget.update_draw(&mut self.overlay, assets, entity, &self.draw2d);
+            }
+        }
+
+        for widget in self.profile_widgets.values_mut() {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
                     let prefix = &pattern[..pattern.len() - 1];
@@ -4133,6 +4167,27 @@ impl Client {
                     ));
                 }
             }
+            for widget in self.profile_widgets.values() {
+                let hidden = self.widgets_to_hide.iter().any(|pattern| {
+                    if pattern.ends_with('*') {
+                        let prefix = &pattern[..pattern.len() - 1];
+                        widget.name.starts_with(prefix)
+                    } else {
+                        widget.name == *pattern
+                    }
+                });
+                if hidden || !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
+                    continue;
+                }
+                if let Some(entity) = Self::resolve_party_entity(map, widget.party.as_deref()) {
+                    self.consume_one_shot_2d_intent();
+                    return Some(EntityAction::EntityClicked(
+                        entity.id,
+                        0.0,
+                        active_intent.clone(),
+                    ));
+                }
+            }
         }
 
         // If we hovered over an item in 3D, send an explicit ItemClicked intent
@@ -4924,6 +4979,7 @@ impl Client {
         self.game_widgets.clear();
         self.button_widgets.clear();
         self.avatar_widgets.clear();
+        self.profile_widgets.clear();
         self.stat_widgets.clear();
         self.text_widgets.clear();
         self.text_input_widgets.clear();
@@ -5489,6 +5545,16 @@ impl Client {
                             };
                             avatar_widget.init();
                             self.avatar_widgets.insert(widget.creator_id, avatar_widget);
+                        } else if role == "profile" {
+                            let mut profile_widget = ProfileWidget::new();
+                            profile_widget.name = widget.name.clone();
+                            profile_widget.rect = Rect::new(x, y, width, height);
+                            profile_widget.toml_str = data.clone();
+                            profile_widget.buffer =
+                                TheRGBABuffer::new(TheDim::sized(width as i32, height as i32));
+                            profile_widget.init();
+                            self.profile_widgets
+                                .insert(widget.creator_id, profile_widget);
                         } else if role == "stat" {
                             let mut stat_widget = StatWidget::new();
                             stat_widget.name = widget.name.clone();

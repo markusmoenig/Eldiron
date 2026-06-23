@@ -34,6 +34,15 @@ pub struct Tile {
     pub material_frames: Vec<Vec<u8>>,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TileEmissiveSummary {
+    pub color_linear: [f32; 3],
+    pub strength: f32,
+    pub coverage: f32,
+    pub hotspot_uv: [f32; 2],
+    pub hotspot_strength: f32,
+}
+
 pub struct SharedAtlasInner {
     pub tiles_map: FxHashMap<Uuid, Tile>,
     pub tiles_order: Vec<Uuid>,
@@ -45,6 +54,7 @@ pub struct SharedAtlasInner {
     pub tiles_index_map: FxHashMap<Uuid, u32>,
     pub atlas_map: FxHashMap<Uuid, Vec<AtlasEntry>>,
     pub auto_size: bool,
+    pub content_version: u64,
 }
 
 #[derive(Clone)]
@@ -66,6 +76,7 @@ impl SharedAtlas {
                 tiles_index_map: FxHashMap::default(),
                 atlas_map: FxHashMap::default(),
                 auto_size: true,
+                content_version: 0,
             })),
         }
     }
@@ -98,11 +109,32 @@ impl SharedAtlas {
         }
         guard.atlas_dirty = true;
         guard.layout_dirty = true;
+        guard.content_version = guard.content_version.wrapping_add(1);
     }
 
     pub fn layout_version(&self) -> u64 {
         let guard = self.inner.lock().unwrap();
         guard.layout_version
+    }
+
+    pub fn content_version(&self) -> u64 {
+        let guard = self.inner.lock().unwrap();
+        guard.content_version
+    }
+
+    pub fn tile_emissive_summaries(&self) -> Vec<TileEmissiveSummary> {
+        let guard = self.inner.lock().unwrap();
+        let mut summaries = Vec::new();
+        for id in &guard.tiles_order {
+            if !guard.tiles_index_map.contains_key(id) {
+                continue;
+            }
+            let Some(tile) = guard.tiles_map.get(id) else {
+                continue;
+            };
+            summaries.push(summarize_tile_emission(tile));
+        }
+        summaries
     }
 
     pub fn tile_index(&self, id: &Uuid) -> Option<u32> {
@@ -220,6 +252,7 @@ impl SharedAtlas {
         guard.atlas_map.remove(id);
         guard.atlas_dirty = true;
         guard.layout_dirty = true;
+        guard.content_version = guard.content_version.wrapping_add(1);
     }
 
     pub fn clear(&self) {
@@ -231,6 +264,7 @@ impl SharedAtlas {
         guard.atlas_map.clear();
         guard.atlas_dirty = true;
         guard.layout_dirty = true;
+        guard.content_version = guard.content_version.wrapping_add(1);
     }
 
     pub fn with_tile_mut<R>(&self, id: &Uuid, f: impl FnOnce(&mut Tile) -> R) -> Option<R> {
@@ -238,6 +272,7 @@ impl SharedAtlas {
         let tile = guard.tiles_map.get_mut(id)?;
         let out = f(tile);
         guard.atlas_dirty = true;
+        guard.content_version = guard.content_version.wrapping_add(1);
         // Pixel/material edits don't require repacking atlas layout.
         Some(out)
     }
@@ -368,6 +403,7 @@ impl SharedAtlas {
         guard.atlas_map.clear();
         guard.tiles_index_map.clear();
         guard.layout_version = guard.layout_version.wrapping_add(1);
+        guard.content_version = guard.content_version.wrapping_add(1);
         guard.auto_size = false;
     }
 
@@ -618,6 +654,91 @@ pub fn default_material_frame(bytes: usize) -> Vec<u8> {
         v.resize(bytes, 0);
     }
     v
+}
+
+fn summarize_tile_emission(tile: &Tile) -> TileEmissiveSummary {
+    if tile.w == 0 || tile.h == 0 || tile.frames.is_empty() {
+        return TileEmissiveSummary::default();
+    }
+
+    let pixels_per_frame = (tile.w as usize).saturating_mul(tile.h as usize);
+    if pixels_per_frame == 0 {
+        return TileEmissiveSummary::default();
+    }
+
+    let mut weighted_color = [0.0f32; 3];
+    let mut emissive_sum = 0.0f32;
+    let mut covered_sum = 0.0f32;
+    let mut total_texels = 0usize;
+    let mut hotspot_uv = [0.5f32, 0.5f32];
+    let mut hotspot_strength = 0.0f32;
+
+    for (frame_index, frame) in tile.frames.iter().enumerate() {
+        let material_frame = tile
+            .material_frames
+            .get(frame_index)
+            .or_else(|| tile.material_frames.first());
+        let Some(material_frame) = material_frame else {
+            continue;
+        };
+        let frame_texels = pixels_per_frame
+            .min(frame.len() / 4)
+            .min(material_frame.len() / 4);
+        total_texels += frame_texels;
+
+        for texel in 0..frame_texels {
+            let offset = texel * 4;
+            let color_alpha = frame[offset + 3] as f32 / 255.0;
+            let packed_oe = material_frame[offset + 1];
+            let opacity = (packed_oe & 0x0F) as f32 / 15.0;
+            let emissive = ((packed_oe >> 4) & 0x0F) as f32 / 15.0;
+            let strength = emissive * opacity * color_alpha;
+            if strength <= 0.0 {
+                continue;
+            }
+
+            let r = srgb_u8_to_linear(frame[offset]);
+            let g = srgb_u8_to_linear(frame[offset + 1]);
+            let b = srgb_u8_to_linear(frame[offset + 2]);
+            weighted_color[0] += r * strength;
+            weighted_color[1] += g * strength;
+            weighted_color[2] += b * strength;
+            emissive_sum += strength;
+            covered_sum += (opacity * color_alpha).min(1.0);
+
+            if strength > hotspot_strength {
+                let x = (texel % tile.w as usize) as f32;
+                let y = (texel / tile.w as usize) as f32;
+                hotspot_uv = [
+                    (x + 0.5) / tile.w.max(1) as f32,
+                    (y + 0.5) / tile.h.max(1) as f32,
+                ];
+                hotspot_strength = strength;
+            }
+        }
+    }
+
+    if emissive_sum <= 0.0 || total_texels == 0 {
+        return TileEmissiveSummary::default();
+    }
+
+    let inv = 1.0 / emissive_sum;
+    TileEmissiveSummary {
+        color_linear: [
+            weighted_color[0] * inv,
+            weighted_color[1] * inv,
+            weighted_color[2] * inv,
+        ],
+        strength: emissive_sum / total_texels as f32,
+        coverage: covered_sum / total_texels as f32,
+        hotspot_uv,
+        hotspot_strength,
+    }
+}
+
+#[inline]
+fn srgb_u8_to_linear(value: u8) -> f32 {
+    (value as f32 / 255.0).powf(2.2)
 }
 
 fn blit_rgba_into(

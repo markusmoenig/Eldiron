@@ -3,6 +3,7 @@ pub mod deco;
 pub mod game;
 pub mod game_backend;
 pub mod messages;
+pub mod profile;
 pub mod screen;
 pub mod stat;
 pub mod text;

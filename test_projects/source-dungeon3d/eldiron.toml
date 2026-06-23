@@ -40,23 +40,23 @@ shadow_strength = 0.85
 sun_enabled = false
 
 # Ambient light color
-ambient_color = "#999999"
+ambient_color = "#AAAAA0"
 
 # Ambient light strength (0.0 - 1.0)
-ambient_strength = 0.30
+ambient_strength = 0.39
 
 # Fog color
 fog_color = "#000000"
 
 # Fog density (0.0 = no fog, higher values = denser fog)
-fog_density = 2.0
+fog_density = 1.32
 
 # Avatar ambient fill contribution.
 avatar_highlight_fill = 0.24
 
 [post]
 # Exposure multiplier before tone mapping.
-exposure = 1.05
+exposure = 1.1
 # Post luminance/brightness multiplier.
 luminance = 1.0
 

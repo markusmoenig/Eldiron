@@ -412,6 +412,103 @@ This system is intentionally expandable. Current projects continue to work becau
 
 ---
 
+## Profile Widgets
+
+Use a widget with **role = "profile"** to render a complete party-member profile
+block. A profile widget can show the character portrait, name, class, and live
+stat bars inside one configurable widget.
+
+Profiles are designed for party UIs. If the bound character has an explicit
+profile image, that image is used. Otherwise Eldiron generates a bust from the
+character avatar, which makes dynamic party profiles possible without separate
+portrait art.
+
+### UI Section
+
+- **party** - Optional binding target. If omitted, Eldiron uses the current leader.
+- **avatar** - Optional avatar name override. If omitted, the bound character avatar is used.
+- **animation** - Optional avatar animation used for generated profiles.
+- **frame_index** - Avatar animation frame index for generated profiles. Defaults to `0`.
+- **crop** - Generated avatar crop: `bust`, `face`, or `full`. Defaults to `bust`.
+- **show_weapons** - Include equipped weapon overlays in generated profiles.
+- **image_size** / **profile_size** - Portrait size in pixels.
+- **show_text** - Show or hide name and class text. Defaults to `true`.
+- **name_color** / **color** - Name text color.
+- **class_color** / **subtitle_color** - Class text color.
+- **name_font_size** / **font_size** - Name text size.
+- **class_font_size** - Class text size.
+- **text_gap** - Gap between name and class text.
+- **border_size** - Portrait silhouette border size. Use `0` to hide it.
+- **border_color** - Portrait silhouette border color.
+- **stats_layout** - Embedded stat-bar placement:
+  - `side`: portrait on the left, text and horizontal bars on the right.
+  - `bottom`: text/portrait above, full-width horizontal bars below.
+  - `vertical`: portrait/text plus vertical meters filled from bottom to top.
+- **stats_top_gap** - Gap before the stat-bar group.
+- **stat_gap** - Gap between embedded stat bars.
+
+### Embedded Stats
+
+Add embedded stat bars with `[[ui.stats]]`. Each entry reads live attributes
+from the bound party entity, just like a standalone `role = "stat"` widget.
+
+- **stat** / **attribute** / **value** - Current attribute to read, such as `HP` or `MP`.
+- **max_stat** / **max_attribute** / **max** - Maximum attribute used for the ratio. Defaults to `MAX_<stat>`.
+- **height** - Horizontal bar height in pixels.
+- **width** - Vertical meter width in pixels. Used by `stats_layout = "vertical"`.
+- **background_color** / **background** - Empty bar color.
+- **fill_color** / **color** - Filled bar color.
+- **border_color** - Bar border color.
+- **border_size** - Bar border size.
+
+### Character Profile Images
+
+The profile widget checks the bound character attributes for explicit profile
+art before generating a profile from the avatar:
+
+- `profile_tile_id`
+- `profile_source`
+- `portrait_tile_id`
+
+If none of those are present, the widget builds a front-facing avatar bust.
+
+### Example
+
+```toml
+[ui]
+role = "profile"
+party = "leader"
+crop = "bust"
+image_size = 64
+name_font_size = 16.0
+class_font_size = 13.0
+border_size = 1
+border_color = "#b8c0cc"
+stats_layout = "side"
+stats_top_gap = 8
+stat_gap = 8
+
+[[ui.stats]]
+stat = "HP"
+max_stat = "MAX_HP"
+height = 14
+fill_color = "#d63a3a"
+background_color = "#250909"
+border_color = "#6c3030"
+border_size = 1
+
+[[ui.stats]]
+stat = "MP"
+max_stat = "MAX_MP"
+height = 14
+fill_color = "#3269d6"
+background_color = "#081427"
+border_color = "#263f72"
+border_size = 1
+```
+
+---
+
 ## Stat Widgets
 
 Use a widget with **role = "stat"** to show a live character resource such as health or mana.
