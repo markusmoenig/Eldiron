@@ -1,3 +1,13 @@
+# Eldiron v0.91.1
+
+## Bug Fixes
+
+### Windows
+
+- Fixed the WiX MSI installer so Eldiron Creator installs per-user under `%LOCALAPPDATA%\Programs\EldironCreator` and updates the user `PATH`, avoiding administrator rights for the installed executable.
+
+---
+
 # Eldiron v0.91.0
 
 ## Improvements

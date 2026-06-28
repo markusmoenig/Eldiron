@@ -42,3 +42,4 @@ target/x86_64-pc-windows-gnu/release/eldiron-creator.exe
 - Build only one Windows target at a time. Running multiple `cross` builds in parallel can race on the target/toolchain setup.
 - If `cross` says it cannot connect to Docker, start Docker first and rerun the command.
 - This workflow builds the GNU Windows target: `x86_64-pc-windows-gnu`.
+- The WiX MSI is intentionally a per-user installer. It installs Eldiron Creator under `%LOCALAPPDATA%\Programs\EldironCreator` and updates the user `PATH`, so the installed app does not require administrator rights.

@@ -7,7 +7,7 @@
              Codepage="1252"
              Version="0.1.0"
              Manufacturer="Markus Moenig">
-        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"/>
+        <Package InstallerVersion="200" Compressed="yes" InstallScope="perUser" InstallPrivileges="limited"/>
         <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of [ProductName] is already installed."/>
         <Icon Id="EldironIcon" SourceFile=".\build\windows\eldiron.ico"/>
         <WixVariable Id="WixUILicenseRtf" Value=".\build\windows\wix\license.rtf"/>
@@ -27,8 +27,10 @@
         </UI>
 
         <Directory Id="TARGETDIR" Name="SourceDir">
-            <Directory Id="ProgramFiles64Folder">
-                <Directory Id="INSTALLDIR" Name="EldironCreator"/>
+            <Directory Id="LocalAppDataFolder">
+                <Directory Id="ProgramsFolder" Name="Programs">
+                    <Directory Id="INSTALLDIR" Name="EldironCreator"/>
+                </Directory>
             </Directory>
             <Directory Id="ProgramMenuFolder">
                 <Directory Id="ProgramMenu" Name="EldironCreator"/>
@@ -60,8 +62,8 @@
         </DirectoryRef>
 
         <DirectoryRef Id="INSTALLDIR">
-            <Component Id="ModifyPathEnv" Guid="b3a054af-f2f6-429f-a0fa-6a8aff07f8e4" KeyPath="yes">
-                <Environment Id="PathEnv" Value="[INSTALLDIR]" Name="PATH" Permanent="no" Part="first" Action="set" System="yes"/>
+            <Component Id="ModifyPathEnv" Guid="33568f59-697c-47ff-b239-a46bc0f22ab0" KeyPath="yes">
+                <Environment Id="PathEnv" Value="[INSTALLDIR]" Name="PATH" Permanent="no" Part="first" Action="set" System="no"/>
             </Component>
         </DirectoryRef>
 
