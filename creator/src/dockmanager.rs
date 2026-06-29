@@ -45,6 +45,9 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::palette::PaletteDock::new());
         docks.insert("Palette".into(), dock);
 
+        let dock: Box<dyn Dock> = Box::new(crate::docks::iso_paint::IsoPaintDock::new());
+        docks.insert("Iso Paint".into(), dock);
+
         let dock: Box<dyn Dock> = Box::new(crate::docks::authoring::AuthoringDock::new());
         docks.insert("Authoring".into(), dock);
 

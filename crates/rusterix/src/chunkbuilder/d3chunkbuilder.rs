@@ -235,38 +235,50 @@ fn tile_local_to_uv_xy(
     Vec2::new(x, y)
 }
 
-fn surface_organic_detail(
-    surface: &crate::Surface,
-    map: &Map,
-) -> Option<scenevm::OrganicSurfaceDetail> {
-    let (local_min, local_max) = surface
-        .tile_local_bounds(map)
-        .or_else(|| surface.organic_local_bounds(map))?;
-    Some(scenevm::OrganicSurfaceDetail {
-        surface_id: surface.id,
-        anchor_uv: surface.tile_local_anchor_uv(map).into_array(),
-        local_min: local_min.into_array(),
-        local_size: Vec2::new(
-            (local_max.x - local_min.x).max(0.001),
-            (local_max.y - local_min.y).max(0.001),
-        )
-        .into_array(),
-        flip_x: surface.tile_local_flip_x(),
-    })
+#[allow(clippy::too_many_arguments)]
+fn add_terrain_poly_3d(
+    vmchunk: &mut scenevm::Chunk,
+    _map: &Map,
+    id: GeoId,
+    tile_id: Uuid,
+    vertices: Vec<[f32; 4]>,
+    uvs: Vec<[f32; 2]>,
+    indices: Vec<(usize, usize, usize)>,
+    layer: i32,
+    visible: bool,
+    _tile_x: i32,
+    _tile_z: i32,
+) {
+    vmchunk.add_poly_3d(id, tile_id, vertices, uvs, indices, layer, visible);
 }
 
-fn terrain_organic_detail(tile_x: i32, tile_z: i32) -> scenevm::OrganicSurfaceDetail {
-    scenevm::OrganicSurfaceDetail {
-        surface_id: crate::terrain_organic_detail_id(tile_x, tile_z),
-        anchor_uv: [tile_x as f32, tile_z as f32],
-        local_min: [tile_x as f32, tile_z as f32],
-        local_size: [1.0, 1.0],
-        flip_x: false,
-    }
-}
-
-fn terrain_organic_uvs(vertices: &[[f32; 4]]) -> Vec<[f32; 2]> {
-    vertices.iter().map(|v| [v[0], v[2]]).collect()
+#[allow(clippy::too_many_arguments)]
+fn add_terrain_poly_3d_blended(
+    vmchunk: &mut scenevm::Chunk,
+    _map: &Map,
+    id: GeoId,
+    tile_id: Uuid,
+    tile_id2: Uuid,
+    vertices: Vec<[f32; 4]>,
+    uvs: Vec<[f32; 2]>,
+    blend_weights: Vec<f32>,
+    indices: Vec<(usize, usize, usize)>,
+    layer: i32,
+    visible: bool,
+    _tile_x: i32,
+    _tile_z: i32,
+) {
+    vmchunk.add_poly_3d_blended(
+        id,
+        tile_id,
+        tile_id2,
+        vertices,
+        uvs,
+        blend_weights,
+        indices,
+        layer,
+        visible,
+    );
 }
 
 fn road_noise_hash(value: f32) -> f32 {
@@ -364,86 +376,44 @@ fn organic_road_weight(
 
 fn add_surface_poly_3d(
     vmchunk: &mut scenevm::Chunk,
-    surface: &crate::Surface,
-    map: &Map,
+    _surface: &crate::Surface,
+    _map: &Map,
     id: GeoId,
     tile_id: Uuid,
     vertices: Vec<[f32; 4]>,
     uvs: Vec<[f32; 2]>,
-    organic_uvs: Vec<[f32; 2]>,
     indices: Vec<(usize, usize, usize)>,
     layer: i32,
     visible: bool,
 ) {
-    if let Some(detail) = surface_organic_detail(surface, map) {
-        let organic_uvs = if organic_uvs.len() == vertices.len() {
-            organic_uvs
-        } else {
-            build_surface_local_uvs_from_world_vertices(&vertices, surface, map)
-        };
-        vmchunk.add_surface_poly_3d(
-            id,
-            tile_id,
-            vertices,
-            uvs,
-            organic_uvs,
-            indices,
-            layer,
-            visible,
-            detail,
-        );
-    } else {
-        vmchunk.add_poly_3d(id, tile_id, vertices, uvs, indices, layer, visible);
-    }
+    vmchunk.add_poly_3d(id, tile_id, vertices, uvs, indices, layer, visible);
 }
 
 fn add_surface_poly_3d_blended(
     vmchunk: &mut scenevm::Chunk,
-    surface: &crate::Surface,
-    map: &Map,
+    _surface: &crate::Surface,
+    _map: &Map,
     id: GeoId,
     tile_id: Uuid,
     tile_id2: Uuid,
     vertices: Vec<[f32; 4]>,
     uvs: Vec<[f32; 2]>,
-    organic_uvs: Vec<[f32; 2]>,
     blend_weights: Vec<f32>,
     indices: Vec<(usize, usize, usize)>,
     layer: i32,
     visible: bool,
 ) {
-    if let Some(detail) = surface_organic_detail(surface, map) {
-        let organic_uvs = if organic_uvs.len() == vertices.len() {
-            organic_uvs
-        } else {
-            build_surface_local_uvs_from_world_vertices(&vertices, surface, map)
-        };
-        vmchunk.add_surface_poly_3d_blended(
-            id,
-            tile_id,
-            tile_id2,
-            vertices,
-            uvs,
-            organic_uvs,
-            blend_weights,
-            indices,
-            layer,
-            visible,
-            detail,
-        );
-    } else {
-        vmchunk.add_poly_3d_blended(
-            id,
-            tile_id,
-            tile_id2,
-            vertices,
-            uvs,
-            blend_weights,
-            indices,
-            layer,
-            visible,
-        );
-    }
+    vmchunk.add_poly_3d_blended(
+        id,
+        tile_id,
+        tile_id2,
+        vertices,
+        uvs,
+        blend_weights,
+        indices,
+        layer,
+        visible,
+    );
 }
 
 fn build_surface_uvs(
@@ -494,37 +464,6 @@ fn build_surface_uvs(
     }
 
     uvs
-}
-
-fn build_surface_local_uvs(
-    verts_uv: &[[f32; 2]],
-    surface: &crate::Surface,
-    map: &Map,
-) -> Vec<[f32; 2]> {
-    verts_uv
-        .iter()
-        .map(|uv| {
-            surface
-                .uv_to_tile_local(Vec2::new(uv[0], uv[1]), map)
-                .into_array()
-        })
-        .collect()
-}
-
-fn build_surface_local_uvs_from_world_vertices(
-    vertices: &[[f32; 4]],
-    surface: &crate::Surface,
-    map: &Map,
-) -> Vec<[f32; 2]> {
-    vertices
-        .iter()
-        .map(|vertex| {
-            let world = Vec3::new(vertex[0], vertex[1], vertex[2]);
-            surface
-                .uv_to_tile_local(surface.world_to_uv(world), map)
-                .into_array()
-        })
-        .collect()
 }
 
 fn distance_point_to_segment_2d(point: Vec2<f32>, seg_start: Vec2<f32>, seg_end: Vec2<f32>) -> f32 {
@@ -1508,7 +1447,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                     }
 
                     let uvs = build_surface_uvs(&verts_uv, sector, surface);
-                    let organic_uvs = build_surface_local_uvs(&verts_uv, surface, map);
                     #[derive(Clone, Copy)]
                     enum MaterialKind {
                         Cap,
@@ -1526,7 +1464,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                         verts: Vec<[f32; 4]>,
                         inds: Vec<(usize, usize, usize)>,
                         uvs_in: Vec<[f32; 2]>,
-                        organic_uvs_in: Vec<[f32; 2]>,
                     ) {
                         let source_key = match kind {
                             MaterialKind::Side => "jamb_source",
@@ -1550,7 +1487,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                         tile.id,
                                         verts.clone(),
                                         uvs_in.clone(),
-                                        organic_uvs_in.clone(),
                                         inds.clone(),
                                         0,
                                         true,
@@ -1580,7 +1516,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                     Uuid::from_str(DEFAULT_TILE_ID).unwrap(),
                                     verts.clone(),
                                     uvs_in.clone(),
-                                    organic_uvs_in.clone(),
                                     inds.clone(),
                                     0,
                                     true,
@@ -1773,7 +1708,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 *tile_id,
                                 world_vertices.clone(),
                                 override_uvs.clone(),
-                                organic_uvs.clone(),
                                 inds.clone(),
                                 0,
                                 true,
@@ -1794,7 +1728,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                     *tile_id2,
                                     world_vertices.clone(),
                                     override_uvs.clone(),
-                                    organic_uvs.clone(),
                                     blend_weights.clone(),
                                     inds.clone(),
                                     0,
@@ -1815,7 +1748,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                             world_vertices.clone(),
                             default_indices.clone(),
                             uvs.clone(),
-                            organic_uvs.clone(),
                         );
                     }
 
@@ -1952,9 +1884,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 }
 
                                 let back_uvs = build_surface_uvs(&back_verts_uv, sector, surface);
-                                let back_organic_uvs =
-                                    build_surface_local_uvs(&back_verts_uv, surface, map);
-
                                 for (tile_id, inds) in &back_override_batches {
                                     if !inds.is_empty() {
                                         // shift to back plane (already baked during build)
@@ -1966,7 +1895,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                             *tile_id,
                                             back_world_vertices.clone(),
                                             back_override_uvs.clone(),
-                                            back_organic_uvs.clone(),
                                             inds.clone(),
                                             0,
                                             true,
@@ -1988,7 +1916,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                                 *tile_id2,
                                                 back_world_vertices.clone(),
                                                 back_override_uvs.clone(),
-                                                back_organic_uvs.clone(),
                                                 blend_weights.clone(),
                                                 inds.clone(),
                                                 0,
@@ -2009,7 +1936,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                         back_world_vertices,
                                         back_default_indices,
                                         back_uvs,
-                                        back_organic_uvs,
                                     );
                                 }
                             }
@@ -2034,7 +1960,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 ring_v,
                                 ring_i,
                                 ring_uv,
-                                Vec::new(),
                             );
                         };
 
@@ -2150,7 +2075,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                     }
 
                     let uvs = build_surface_uvs(&verts_uv, sector, surface);
-                    let organic_uvs = build_surface_local_uvs(&verts_uv, surface, map);
                     #[allow(dead_code)]
                     #[derive(Clone, Copy)]
                     enum MaterialKind {
@@ -2169,7 +2093,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                         verts: Vec<[f32; 4]>,
                         inds: Vec<(usize, usize, usize)>,
                         uvs_in: Vec<[f32; 2]>,
-                        organic_uvs_in: Vec<[f32; 2]>,
                     ) {
                         let source_key = match kind {
                             MaterialKind::Side => "jamb_source",
@@ -2193,7 +2116,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                     tile.id,
                                     verts.clone(),
                                     uvs_in.clone(),
-                                    organic_uvs_in.clone(),
                                     inds.clone(),
                                     0,
                                     true,
@@ -2211,7 +2133,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 Uuid::from_str(DEFAULT_TILE_ID).unwrap(),
                                 verts,
                                 uvs_in,
-                                organic_uvs_in,
                                 inds,
                                 0,
                                 true,
@@ -2229,7 +2150,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 *tile_id,
                                 world_vertices.clone(),
                                 uvs.clone(),
-                                organic_uvs.clone(),
                                 inds.clone(),
                                 0,
                                 true,
@@ -2249,7 +2169,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                     *tile_id2,
                                     world_vertices.clone(),
                                     override_uvs.clone(),
-                                    organic_uvs.clone(),
                                     blend_weights.clone(),
                                     inds.clone(),
                                     0,
@@ -2269,7 +2188,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 *tile_id,
                                 world_vertices.clone(),
                                 override_uvs.clone(),
-                                organic_uvs.clone(),
                                 inds.clone(),
                                 0,
                                 true,
@@ -2288,7 +2206,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                                 *tile_id2,
                                 world_vertices.clone(),
                                 override_uvs.clone(),
-                                organic_uvs.clone(),
                                 blend_weights.clone(),
                                 inds.clone(),
                                 0,
@@ -2308,7 +2225,6 @@ impl ChunkBuilder for D3ChunkBuilder {
                             world_vertices,
                             default_indices,
                             uvs,
-                            organic_uvs,
                         );
                     }
                 }
@@ -3160,7 +3076,6 @@ mod tests {
             },
             extrusion: ExtrusionSpec::default(),
             profile: None,
-            organic_layers: indexmap::IndexMap::default(),
             world_vertices: vec![],
         }
     }
@@ -8239,19 +8154,20 @@ fn generate_terrain(
                                 blend_weights.push(w.clamp(0.0, 1.0));
                             }
                         }
-                        let organic_uvs = terrain_organic_uvs(&blended_verts);
-                        vmchunk.add_surface_poly_3d_blended(
+                        add_terrain_poly_3d_blended(
+                            vmchunk,
+                            map,
                             GeoId::Terrain(tile_x, tile_z),
                             bg_tile,
                             road_tile_id,
                             blended_verts,
                             blended_uvs,
-                            organic_uvs,
                             blend_weights,
                             blended_indices,
                             0,
                             true,
-                            terrain_organic_detail(tile_x, tile_z),
+                            tile_x,
+                            tile_z,
                         );
                         continue;
                     }
@@ -8316,20 +8232,20 @@ fn generate_terrain(
                                 blend_weights.push(w.clamp(0.0, 1.0));
                             }
                         }
-
-                        let organic_uvs = terrain_organic_uvs(&blended_verts);
-                        vmchunk.add_surface_poly_3d_blended(
+                        add_terrain_poly_3d_blended(
+                            vmchunk,
+                            map,
                             GeoId::Terrain(tile_x, tile_z),
                             bg_tile,
                             road_tile_id,
                             blended_verts,
                             blended_uvs,
-                            organic_uvs,
                             blend_weights,
                             blended_indices,
                             0,
                             true,
-                            terrain_organic_detail(tile_x, tile_z),
+                            tile_x,
+                            tile_z,
                         );
                         continue;
                     }
@@ -8391,20 +8307,20 @@ fn generate_terrain(
                                 blend_weights.push(w.clamp(0.0, 1.0));
                             }
                         }
-
-                        let organic_uvs = terrain_organic_uvs(&blended_verts);
-                        vmchunk.add_surface_poly_3d_blended(
+                        add_terrain_poly_3d_blended(
+                            vmchunk,
+                            map,
                             GeoId::Terrain(tile_x, tile_z),
                             bg_tile,
                             road_tile_id,
                             blended_verts,
                             blended_uvs,
-                            organic_uvs,
                             blend_weights,
                             blended_indices,
                             0,
                             true,
-                            terrain_organic_detail(tile_x, tile_z),
+                            tile_x,
+                            tile_z,
                         );
                         continue;
                     }
@@ -8456,19 +8372,20 @@ fn generate_terrain(
                                 }
 
                                 // Add blended poly
-                                let organic_uvs = terrain_organic_uvs(&blended_verts);
-                                vmchunk.add_surface_poly_3d_blended(
+                                add_terrain_poly_3d_blended(
+                                    vmchunk,
+                                    map,
                                     GeoId::Terrain(tile_x, tile_z),
                                     *tile_id,
                                     tile2.id,
                                     blended_verts,
                                     blended_uvs,
-                                    organic_uvs,
                                     blend_weights,
                                     blended_indices,
                                     0,
                                     true,
-                                    terrain_organic_detail(tile_x, tile_z),
+                                    tile_x,
+                                    tile_z,
                                 );
                                 continue;
                             }
@@ -8492,18 +8409,18 @@ fn generate_terrain(
                         [uvs[i2][0], map_v(uvs[i2][1])],
                     ];
                     let tri_indices = vec![(0, 1, 2)];
-
-                    let organic_uvs = terrain_organic_uvs(&tri_vertices);
-                    vmchunk.add_surface_poly_3d(
+                    add_terrain_poly_3d(
+                        vmchunk,
+                        map,
                         GeoId::Terrain(tile_x, tile_z),
                         *tile_id,
                         tri_vertices,
                         tri_uvs,
-                        organic_uvs,
                         tri_indices,
                         0,
                         true,
-                        terrain_organic_detail(tile_x, tile_z),
+                        tile_x,
+                        tile_z,
                     );
                 }
             }
@@ -9277,12 +9194,7 @@ fn emit_feature_meshes(
             mesh.uvs.clone(),
         )
         .repeat_mode(RepeatMode::RepeatXY)
-        .geometry_source(GeometrySource::Sector(sector.id))
-        .organic_detail(if is_cap {
-            surface.organic_batch_detail(map)
-        } else {
-            None
-        });
+        .geometry_source(GeometrySource::Sector(sector.id));
 
         let source_key = if let Some(override_key) = source_key_override {
             override_key
@@ -9304,7 +9216,6 @@ fn emit_feature_meshes(
                     tile.id,
                     mesh.vertices.clone(),
                     mesh.uvs.clone(),
-                    Vec::new(),
                     mesh_indices.clone(),
                     0,
                     true,
@@ -9335,7 +9246,6 @@ fn emit_feature_meshes(
                 Uuid::from_str(DEFAULT_TILE_ID).unwrap(),
                 mesh.vertices.clone(),
                 mesh.uvs.clone(),
-                Vec::new(),
                 mesh_indices,
                 0,
                 true,
@@ -10333,12 +10243,7 @@ fn process_feature_loop_with_action(
                                         mesh.uvs.clone(),
                                     )
                                     .repeat_mode(RepeatMode::RepeatXY)
-                                    .geometry_source(GeometrySource::Sector(sector.id))
-                                    .organic_detail(if is_cap {
-                                        surface.organic_batch_detail(map)
-                                    } else {
-                                        None
-                                    });
+                                    .geometry_source(GeometrySource::Sector(sector.id));
                                     if let Some(tex) = assets.tile_index(&tile.id) {
                                         batch.source = PixelSource::StaticTileIndex(tex);
                                     }
@@ -11148,12 +11053,7 @@ fn process_feature_loop_with_action(
             mesh.uvs.clone(),
         )
         .repeat_mode(RepeatMode::RepeatXY)
-        .geometry_source(GeometrySource::Sector(sector.id))
-        .organic_detail(if is_cap {
-            surface.organic_batch_detail(map)
-        } else {
-            None
-        });
+        .geometry_source(GeometrySource::Sector(sector.id));
 
         // Determine material source key based on mesh type
         // Use unified property names that work for all actions

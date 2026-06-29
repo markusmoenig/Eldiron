@@ -6,6 +6,7 @@ pub enum ShortcutAction {
     ToolVertex,
     ToolEdge,
     ToolFace,
+    ToolIsoPaint,
 }
 
 impl ShortcutAction {
@@ -15,6 +16,7 @@ impl ShortcutAction {
             Self::ToolVertex => "tool.vertex",
             Self::ToolEdge => "tool.edge",
             Self::ToolFace => "tool.face",
+            Self::ToolIsoPaint => "tool.iso_paint",
         }
     }
 
@@ -24,6 +26,7 @@ impl ShortcutAction {
             "tool.vertex" => Some(Self::ToolVertex),
             "tool.edge" => Some(Self::ToolEdge),
             "tool.face" => Some(Self::ToolFace),
+            "tool.iso_paint" => Some(Self::ToolIsoPaint),
             _ => None,
         }
     }
@@ -98,6 +101,7 @@ impl ShortcutResolver {
             Self::geometry_tool_binding(ShortcutAction::ToolVertex, 'V', false),
             Self::geometry_tool_binding(ShortcutAction::ToolEdge, 'E', false),
             Self::geometry_tool_binding(ShortcutAction::ToolFace, 'F', false),
+            Self::geometry_tool_binding(ShortcutAction::ToolIsoPaint, 'I', false),
             // Transitional aliases: keep old 3D muscle memory working while the documented
             // defaults move to Object/Vertex/Edge/Face = O/V/E/F.
             Self::geometry_tool_binding(ShortcutAction::ToolObject, 'G', true),
@@ -208,6 +212,10 @@ mod tests {
             resolver.resolve('f', ctx()),
             Some(ShortcutResolution::Run(ShortcutAction::ToolFace))
         );
+        assert_eq!(
+            resolver.resolve('i', ctx()),
+            Some(ShortcutResolution::Run(ShortcutAction::ToolIsoPaint))
+        );
     }
 
     #[test]
@@ -265,6 +273,7 @@ mod tests {
 [shortcuts]
 "tool.object" = "Q"
 "tool.face" = "A"
+"tool.iso_paint" = "P"
 "#,
         );
 
@@ -276,6 +285,11 @@ mod tests {
             resolver.resolve('a', ctx()),
             Some(ShortcutResolution::Run(ShortcutAction::ToolFace))
         );
+        assert_eq!(
+            resolver.resolve('p', ctx()),
+            Some(ShortcutResolution::Run(ShortcutAction::ToolIsoPaint))
+        );
         assert_eq!(resolver.resolve('o', ctx()), None);
+        assert_eq!(resolver.resolve('i', ctx()), None);
     }
 }

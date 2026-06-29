@@ -6,6 +6,7 @@ use rusterix::Assets;
 // pub mod data;
 pub mod game;
 pub mod geometry;
+pub mod iso_paint;
 // pub mod info;
 pub mod builder;
 pub mod collision_probe;

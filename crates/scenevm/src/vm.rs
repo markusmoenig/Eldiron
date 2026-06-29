@@ -60,7 +60,6 @@ struct TileBinPod {
     pub count: u32,
 }
 
-const ORGANIC_DETAIL_TEXTURE_SIZE: u32 = 48;
 const RASTER3D_MAX_POINT_LIGHTS: usize = 8;
 const EMISSIVE_SURFACE_LIGHT_BUDGET: usize = 6;
 const EMISSIVE_SURFACE_POINT_LIGHTS_ENABLED: bool = false;
@@ -72,25 +71,6 @@ const IRRADIANCE_GRID_MAX_XZ: u32 = 18;
 const IRRADIANCE_GRID_MAX_Y: u32 = 8;
 const IRRADIANCE_OCCLUSION_MAX_TRIANGLES: usize = 1024;
 const IRRADIANCE_OCCLUSION_BLOCKED_VISIBILITY: f32 = 0.18;
-
-#[derive(Debug, Clone, Default)]
-struct OrganicSurfaceTextureData {
-    rgba: Vec<u8>,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct OrganicSurfaceGpuMeta {
-    slot: u32,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct OrganicDirtyRect {
-    surface_id: Uuid,
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-}
 
 #[derive(Debug, Clone, Copy)]
 struct RasterPointLight {
@@ -285,10 +265,6 @@ pub struct VMGpu {
     pub raster3d_shadow_tex: Option<wgpu::Texture>,
     pub raster3d_shadow_view: Option<wgpu::TextureView>,
     pub raster3d_shadow_res: u32,
-    pub organic_detail_tex: Option<wgpu::Texture>,
-    pub organic_detail_view: Option<wgpu::TextureView>,
-    pub organic_detail_extent: (u32, u32),
-    pub organic_slots_per_row: u32,
     pub raster3d_msaa_color_tex: Option<wgpu::Texture>,
     pub raster3d_msaa_color_view: Option<wgpu::TextureView>,
     pub raster3d_depth_tex: Option<wgpu::Texture>,
@@ -999,7 +975,6 @@ struct U {
 @group(0) @binding(7) var atlas_mat_tex: texture_2d<f32>;
 struct SceneDataBuf { data: array<u32> };
 @group(0) @binding(8) var<storage, read> scene_data: SceneDataBuf;
-@group(0) @binding(9) var organic_detail_tex: texture_2d<f32>;
 struct IrradianceGridBuf { data: array<vec4<f32>> };
 @group(0) @binding(11) var<storage, read> irradiance_grid: IrradianceGridBuf;
 
@@ -1012,35 +987,26 @@ struct TileFrameBuf { data: array<TileFrame> };
 
 struct VsIn {
     @location(0) pos: vec3<f32>,
-    @location(1) organic_enabled: f32,
+    @location(1) _pad0: f32,
     @location(2) uv: vec2<f32>,
-    @location(3) organic_atlas_min: vec2<f32>,
+    @location(3) _pad1: vec2<f32>,
     @location(4) tile_index: u32,
     @location(5) tile_index2: u32,
     @location(6) blend_factor: f32,
     @location(7) opacity: f32,
     @location(8) normal: vec3<f32>,
-    @location(9) organic_uv: vec2<f32>,
-    @location(10) organic_local_min: vec2<f32>,
-    @location(11) organic_local_size: vec2<f32>,
-    @location(12) organic_atlas_size: vec2<f32>,
+    @location(9) _pad2: f32,
     @location(13) surface_noise: vec4<f32>,
 };
 
 struct VsOut {
     @builtin(position) pos: vec4<f32>,
-    @location(0) @interpolate(flat) organic_enabled: f32,
-    @location(1) uv: vec2<f32>,
-    @location(2) organic_atlas_min: vec2<f32>,
+    @location(0) uv: vec2<f32>,
     @location(3) @interpolate(flat) tile_index: u32,
     @location(4) @interpolate(flat) tile_index2: u32,
     @location(5) blend_factor: f32,
     @location(6) opacity: f32,
     @location(7) normal: vec3<f32>,
-    @location(8) organic_uv: vec2<f32>,
-    @location(9) organic_local_min: vec2<f32>,
-    @location(10) organic_local_size: vec2<f32>,
-    @location(11) organic_atlas_size: vec2<f32>,
     @location(12) world_pos: vec3<f32>,
     @location(13) surface_noise: vec4<f32>,
 };
@@ -1179,27 +1145,6 @@ fn palette_tile_index(idx: u32) -> u32 {
     if (lane == 1u) { return pack.y; }
     if (lane == 2u) { return pack.z; }
     return pack.w;
-}
-
-fn sample_organic_detail(
-    enabled: f32,
-    local: vec2<f32>,
-    local_min: vec2<f32>,
-    local_size: vec2<f32>,
-    atlas_min: vec2<f32>,
-    atlas_size: vec2<f32>,
-) -> vec4<f32> {
-    if (UBO.organic_params.x == 0u || enabled < 0.5 || local_size.x <= 0.0001 || local_size.y <= 0.0001) {
-        return vec4<f32>(0.0);
-    }
-    let suv = (local - local_min) / local_size;
-    if (any(suv < vec2<f32>(0.0)) || any(suv > vec2<f32>(1.0))) {
-        return vec4<f32>(0.0);
-    }
-    let atlas_uv = atlas_min + clamp(suv, vec2<f32>(0.0), vec2<f32>(0.999999)) * atlas_size;
-    let dims = vec2<f32>(textureDimensions(organic_detail_tex, 0));
-    let pix = vec2<i32>(floor(clamp(atlas_uv, vec2<f32>(0.0), vec2<f32>(0.999999)) * dims));
-    return textureLoad(organic_detail_tex, pix, 0);
 }
 
 fn sample_avatar(meta_idx: u32, uv: vec2<f32>) -> vec4<f32> {
@@ -1510,18 +1455,12 @@ fn vs_main(in: VsIn) -> VsOut {
     var out: VsOut;
     let is_particle = (in.tile_index2 & TILE_INDEX_PARTICLE_FLAG) != 0u;
     out.pos = camera_to_clip(in.pos);
-    out.organic_enabled = in.organic_enabled;
     out.uv = in.uv;
-    out.organic_atlas_min = in.organic_atlas_min;
     out.tile_index = in.tile_index;
     out.tile_index2 = in.tile_index2;
     out.blend_factor = in.blend_factor;
     out.opacity = clamp(in.opacity, 0.0, 1.0);
     out.normal = select(normalize(in.normal), max(in.normal, vec3<f32>(0.0)), is_particle);
-    out.organic_uv = in.organic_uv;
-    out.organic_local_min = in.organic_local_min;
-    out.organic_local_size = in.organic_local_size;
-    out.organic_atlas_size = in.organic_atlas_size;
     out.world_pos = in.pos;
     out.surface_noise = in.surface_noise;
     return out;
@@ -1642,33 +1581,6 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let n1_ts = unpack_material_normal_ts(m1_raw);
     let n_ts = normalize(select(mix(n0_ts, n1_ts, blend), n0_ts, is_avatar));
     var color = select(mix(c0, c1, blend), c0, is_avatar);
-    let organic_sample = sample_organic_detail(
-        in.organic_enabled,
-        in.organic_uv,
-        in.organic_local_min,
-        in.organic_local_size,
-        in.organic_atlas_min,
-        in.organic_atlas_size
-    );
-    if (organic_sample.a > 0.0) {
-        let organic_idx = u32(round(clamp(organic_sample.r, 0.0, 1.0) * 255.0));
-        let organic_tile_idx = palette_tile_index(organic_idx);
-        let organic_uv = vec2<f32>(0.5, 0.5);
-        let organic_color = sample_tile(organic_tile_idx, organic_uv, true, 0u);
-        let organic_mat_raw = sample_tile_material(organic_tile_idx, organic_uv, true, 0u);
-        let organic_mat = unpack_material_nibbles(organic_mat_raw);
-        let organic_blend = organic_sample.a;
-        color = vec4<f32>(
-            mix(color.rgb, organic_color.rgb, organic_blend),
-            max(color.a, organic_color.a)
-        );
-        mat = vec4<f32>(
-            mix(mat.x, organic_mat.x, organic_blend),
-            mix(mat.y, organic_mat.y, organic_blend),
-            max(mat.z, organic_mat.z),
-            mix(mat.w, organic_mat.w, organic_blend)
-        );
-    }
     let color_base = select(mix(c0_base, c1_base, blend), c0_base, is_avatar);
     // Keep first-person nearby surfaces crisp by blending from LOD0 near the camera.
     var alpha_sample = color.a;
@@ -2363,10 +2275,6 @@ pub struct VM {
     irradiance_grid_dirty: bool,
     cached_irradiance_grid_data: Vec<[f32; 4]>,
     raster_had_dynamics_last_frame: bool,
-    organic_surface_slots: FxHashMap<Uuid, OrganicSurfaceGpuMeta>,
-    organic_surface_pixels: FxHashMap<Uuid, OrganicSurfaceTextureData>,
-    organic_detail_dirty: bool,
-    organic_dirty_rects: Vec<OrganicDirtyRect>,
     organic_visible: bool,
 
     // Camera
@@ -2386,24 +2294,6 @@ impl VM {
             out[(index as usize) / 4][(index as usize) % 4] = tile_index;
         }
         out
-    }
-
-    fn organic_slot_rect(&self, slot: u32) -> Option<([f32; 2], [f32; 2])> {
-        let g = self.gpu.as_ref()?;
-        let slots_per_row = g.organic_slots_per_row.max(1);
-        let (width, height) = g.organic_detail_extent;
-        if width == 0 || height == 0 {
-            return None;
-        }
-        let px = (slot % slots_per_row) * ORGANIC_DETAIL_TEXTURE_SIZE;
-        let py = (slot / slots_per_row) * ORGANIC_DETAIL_TEXTURE_SIZE;
-        Some((
-            [px as f32 / width as f32, py as f32 / height as f32],
-            [
-                ORGANIC_DETAIL_TEXTURE_SIZE as f32 / width as f32,
-                ORGANIC_DETAIL_TEXTURE_SIZE as f32 / height as f32,
-            ],
-        ))
     }
 
     #[inline]
@@ -3462,176 +3352,6 @@ impl VM {
         self.organic_billboards.dirty = false;
     }
 
-    fn ensure_organic_surface_slot(&mut self, surface_id: Uuid) -> OrganicSurfaceGpuMeta {
-        if let Some(meta) = self.organic_surface_slots.get(&surface_id).copied() {
-            return meta;
-        }
-        let meta = OrganicSurfaceGpuMeta {
-            slot: self.organic_surface_slots.len() as u32,
-        };
-        self.organic_surface_slots.insert(surface_id, meta);
-        self.organic_detail_dirty = true;
-        self.accel_dirty = true;
-        meta
-    }
-
-    fn ensure_organic_detail_texture(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
-        let slot_count = self.organic_surface_slots.len().max(1) as u32;
-        let max_dim = device
-            .limits()
-            .max_texture_dimension_2d
-            .max(ORGANIC_DETAIL_TEXTURE_SIZE);
-        let max_slots_per_row = (max_dim / ORGANIC_DETAIL_TEXTURE_SIZE).max(1);
-        let mut slots_per_row = ((slot_count as f32).sqrt().ceil() as u32).max(1);
-        slots_per_row = slots_per_row.min(max_slots_per_row);
-        let rows = slot_count.div_ceil(slots_per_row).max(1);
-        let width = (slots_per_row * ORGANIC_DETAIL_TEXTURE_SIZE).min(max_dim);
-        let height = (rows * ORGANIC_DETAIL_TEXTURE_SIZE).min(max_dim);
-        let needs_recreate = self
-            .gpu
-            .as_ref()
-            .map(|g| {
-                g.organic_detail_tex.is_none()
-                    || g.organic_detail_extent.0 < width
-                    || g.organic_detail_extent.1 < height
-                    || g.organic_slots_per_row != slots_per_row
-            })
-            .unwrap_or(true);
-
-        if !needs_recreate {
-            self.upload_organic_surface_textures(queue);
-            return;
-        }
-
-        let Some(g) = self.gpu.as_mut() else {
-            return;
-        };
-
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("vm-organic-detail-tex"),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        let view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("vm-organic-detail-view"),
-            dimension: Some(wgpu::TextureViewDimension::D2),
-            ..Default::default()
-        });
-        g.organic_detail_tex = Some(texture);
-        g.organic_detail_view = Some(view);
-        g.organic_detail_extent = (width, height);
-        g.organic_slots_per_row = slots_per_row;
-        self.organic_detail_dirty = true;
-        self.accel_dirty = true;
-
-        self.upload_organic_surface_textures(queue);
-    }
-
-    fn upload_organic_surface_textures(&mut self, queue: &wgpu::Queue) {
-        if !self.organic_detail_dirty && self.organic_dirty_rects.is_empty() {
-            return;
-        }
-        let Some(g) = self.gpu.as_ref() else {
-            return;
-        };
-        let Some(texture) = g.organic_detail_tex.as_ref() else {
-            return;
-        };
-        let slots_per_row = g.organic_slots_per_row.max(1);
-
-        if self.organic_detail_dirty {
-            let blank =
-                vec![0u8; (ORGANIC_DETAIL_TEXTURE_SIZE * ORGANIC_DETAIL_TEXTURE_SIZE * 4) as usize];
-
-            for (surface_id, meta) in &self.organic_surface_slots {
-                let data = self
-                    .organic_surface_pixels
-                    .get(surface_id)
-                    .map(|d| d.rgba.as_slice())
-                    .unwrap_or(blank.as_slice());
-                queue.write_texture(
-                    wgpu::TexelCopyTextureInfo {
-                        texture,
-                        mip_level: 0,
-                        origin: wgpu::Origin3d {
-                            x: (meta.slot % slots_per_row) * ORGANIC_DETAIL_TEXTURE_SIZE,
-                            y: (meta.slot / slots_per_row) * ORGANIC_DETAIL_TEXTURE_SIZE,
-                            z: 0,
-                        },
-                        aspect: wgpu::TextureAspect::All,
-                    },
-                    data,
-                    wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(ORGANIC_DETAIL_TEXTURE_SIZE * 4),
-                        rows_per_image: Some(ORGANIC_DETAIL_TEXTURE_SIZE),
-                    },
-                    wgpu::Extent3d {
-                        width: ORGANIC_DETAIL_TEXTURE_SIZE,
-                        height: ORGANIC_DETAIL_TEXTURE_SIZE,
-                        depth_or_array_layers: 1,
-                    },
-                );
-            }
-        } else {
-            for dirty in self.organic_dirty_rects.drain(..) {
-                let Some(meta) = self.organic_surface_slots.get(&dirty.surface_id) else {
-                    continue;
-                };
-                let Some(data) = self.organic_surface_pixels.get(&dirty.surface_id) else {
-                    continue;
-                };
-                if dirty.width == 0 || dirty.height == 0 {
-                    continue;
-                }
-                let mut rect_rgba = vec![0u8; (dirty.width * dirty.height * 4) as usize];
-                for row in 0..dirty.height as usize {
-                    let src_x = dirty.x as usize;
-                    let src_y = dirty.y as usize + row;
-                    let src_offset = (src_y * ORGANIC_DETAIL_TEXTURE_SIZE as usize + src_x) * 4;
-                    let dst_offset = row * dirty.width as usize * 4;
-                    let len = dirty.width as usize * 4;
-                    rect_rgba[dst_offset..dst_offset + len]
-                        .copy_from_slice(&data.rgba[src_offset..src_offset + len]);
-                }
-                queue.write_texture(
-                    wgpu::TexelCopyTextureInfo {
-                        texture,
-                        mip_level: 0,
-                        origin: wgpu::Origin3d {
-                            x: (meta.slot % slots_per_row) * ORGANIC_DETAIL_TEXTURE_SIZE + dirty.x,
-                            y: (meta.slot / slots_per_row) * ORGANIC_DETAIL_TEXTURE_SIZE + dirty.y,
-                            z: 0,
-                        },
-                        aspect: wgpu::TextureAspect::All,
-                    },
-                    &rect_rgba,
-                    wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(dirty.width * 4),
-                        rows_per_image: Some(dirty.height),
-                    },
-                    wgpu::Extent3d {
-                        width: dirty.width,
-                        height: dirty.height,
-                        depth_or_array_layers: 1,
-                    },
-                );
-            }
-        }
-
-        self.organic_detail_dirty = false;
-    }
-
     #[inline]
     fn mark_irradiance_grid_dirty(&mut self) {
         self.irradiance_grid_dirty = true;
@@ -3909,10 +3629,6 @@ impl VM {
             irradiance_grid_dirty: true,
             cached_irradiance_grid_data: Self::disabled_irradiance_grid_data(),
             raster_had_dynamics_last_frame: false,
-            organic_surface_slots: FxHashMap::default(),
-            organic_surface_pixels: FxHashMap::default(),
-            organic_detail_dirty: true,
-            organic_dirty_rects: Vec::new(),
             organic_visible: true,
             camera3d: Camera3D::default(),
             enabled: true,
@@ -4286,10 +4002,6 @@ impl VM {
                     dirty: true,
                     ..OrganicBillboardData::default()
                 };
-                self.organic_surface_slots.clear();
-                self.organic_surface_pixels.clear();
-                self.organic_detail_dirty = true;
-                self.organic_dirty_rects.clear();
             }
             Atom::ClearTiles => {
                 // Clear tile-related state and atlas pixels; keep scene/chunks
@@ -4314,10 +4026,6 @@ impl VM {
                     dirty: true,
                     ..OrganicBillboardData::default()
                 };
-                self.organic_surface_slots.clear();
-                self.organic_surface_pixels.clear();
-                self.organic_detail_dirty = true;
-                self.organic_dirty_rects.clear();
             }
             Atom::SetBackground(v) => {
                 self.background = v;
@@ -4411,92 +4119,6 @@ impl VM {
                 }
                 self.dynamic_avatar_data
                     .insert(id, DynamicAvatarData { size, rgba });
-            }
-            Atom::SetOrganicSurfaceDetail {
-                surface_id,
-                size,
-                rgba,
-            } => {
-                let expected_len = size as usize * size as usize * 4;
-                if size != ORGANIC_DETAIL_TEXTURE_SIZE || rgba.len() != expected_len {
-                    return;
-                }
-                self.ensure_organic_surface_slot(surface_id);
-                self.organic_surface_pixels
-                    .insert(surface_id, OrganicSurfaceTextureData { rgba });
-                self.organic_detail_dirty = true;
-            }
-            Atom::SetOrganicSurfaceBounds {
-                surface_id,
-                local_min,
-                local_size,
-            } => {
-                let mut updated = 0usize;
-                for chunk in self.chunks_map.values_mut() {
-                    for poly_list in chunk.polys3d_map.values_mut() {
-                        for poly in poly_list {
-                            if let Some(detail) = poly.organic_detail.as_mut()
-                                && detail.surface_id == surface_id
-                            {
-                                detail.local_min = local_min;
-                                detail.local_size =
-                                    [local_size[0].max(0.001), local_size[1].max(0.001)];
-                                updated += 1;
-                            }
-                        }
-                    }
-                }
-                if updated > 0 {
-                    self.accel_dirty = true;
-                }
-            }
-            Atom::SetOrganicSurfaceDetailRect {
-                surface_id,
-                size,
-                x,
-                y,
-                width,
-                height,
-                rgba,
-            } => {
-                let expected_len = width as usize * height as usize * 4;
-                if size != ORGANIC_DETAIL_TEXTURE_SIZE
-                    || width == 0
-                    || height == 0
-                    || x + width > ORGANIC_DETAIL_TEXTURE_SIZE
-                    || y + height > ORGANIC_DETAIL_TEXTURE_SIZE
-                    || rgba.len() != expected_len
-                {
-                    return;
-                }
-                let meta = self.ensure_organic_surface_slot(surface_id);
-                let full_len =
-                    (ORGANIC_DETAIL_TEXTURE_SIZE * ORGANIC_DETAIL_TEXTURE_SIZE * 4) as usize;
-                let data = self
-                    .organic_surface_pixels
-                    .entry(surface_id)
-                    .or_insert_with(|| OrganicSurfaceTextureData {
-                        rgba: vec![0u8; full_len],
-                    });
-                for row in 0..height as usize {
-                    let dst_x = x as usize;
-                    let dst_y = y as usize + row;
-                    let dst_offset = (dst_y * ORGANIC_DETAIL_TEXTURE_SIZE as usize + dst_x) * 4;
-                    let src_offset = row * width as usize * 4;
-                    let len = width as usize * 4;
-                    data.rgba[dst_offset..dst_offset + len]
-                        .copy_from_slice(&rgba[src_offset..src_offset + len]);
-                }
-                if !self.organic_detail_dirty {
-                    self.organic_dirty_rects.push(OrganicDirtyRect {
-                        surface_id,
-                        x,
-                        y,
-                        width,
-                        height,
-                    });
-                }
-                let _ = meta;
             }
             Atom::SetOrganicVisible { visible } => {
                 self.organic_visible = visible;
@@ -4745,10 +4367,6 @@ impl VM {
             raster3d_shadow_tex: None,
             raster3d_shadow_view: None,
             raster3d_shadow_res: 0,
-            organic_detail_tex: None,
-            organic_detail_view: None,
-            organic_detail_extent: (0, 0),
-            organic_slots_per_row: 0,
             raster3d_msaa_color_tex: None,
             raster3d_msaa_color_view: None,
             raster3d_depth_tex: None,
@@ -5643,16 +5261,6 @@ impl VM {
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 9,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
                     binding: 10,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
@@ -5847,25 +5455,10 @@ impl VM {
                         wgpu::VertexAttribute {
                             offset: 60,
                             shader_location: 9,
-                            format: wgpu::VertexFormat::Float32x2,
+                            format: wgpu::VertexFormat::Float32,
                         },
                         wgpu::VertexAttribute {
-                            offset: 68,
-                            shader_location: 10,
-                            format: wgpu::VertexFormat::Float32x2,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 76,
-                            shader_location: 11,
-                            format: wgpu::VertexFormat::Float32x2,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 84,
-                            shader_location: 12,
-                            format: wgpu::VertexFormat::Float32x2,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 92,
+                            offset: 64,
                             shader_location: 13,
                             format: wgpu::VertexFormat::Float32x4,
                         },
@@ -5966,25 +5559,10 @@ impl VM {
                             wgpu::VertexAttribute {
                                 offset: 60,
                                 shader_location: 9,
-                                format: wgpu::VertexFormat::Float32x2,
+                                format: wgpu::VertexFormat::Float32,
                             },
                             wgpu::VertexAttribute {
-                                offset: 68,
-                                shader_location: 10,
-                                format: wgpu::VertexFormat::Float32x2,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 76,
-                                shader_location: 11,
-                                format: wgpu::VertexFormat::Float32x2,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 84,
-                                shader_location: 12,
-                                format: wgpu::VertexFormat::Float32x2,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 92,
+                                offset: 64,
                                 shader_location: 13,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
@@ -6088,25 +5666,10 @@ impl VM {
                             wgpu::VertexAttribute {
                                 offset: 60,
                                 shader_location: 9,
-                                format: wgpu::VertexFormat::Float32x2,
+                                format: wgpu::VertexFormat::Float32,
                             },
                             wgpu::VertexAttribute {
-                                offset: 68,
-                                shader_location: 10,
-                                format: wgpu::VertexFormat::Float32x2,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 76,
-                                shader_location: 11,
-                                format: wgpu::VertexFormat::Float32x2,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 84,
-                                shader_location: 12,
-                                format: wgpu::VertexFormat::Float32x2,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 92,
+                                offset: 64,
                                 shader_location: 13,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
@@ -6310,25 +5873,10 @@ impl VM {
                             wgpu::VertexAttribute {
                                 offset: 60,
                                 shader_location: 9,
-                                format: wgpu::VertexFormat::Float32x2,
+                                format: wgpu::VertexFormat::Float32,
                             },
                             wgpu::VertexAttribute {
-                                offset: 68,
-                                shader_location: 10,
-                                format: wgpu::VertexFormat::Float32x2,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 76,
-                                shader_location: 11,
-                                format: wgpu::VertexFormat::Float32x2,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 84,
-                                shader_location: 12,
-                                format: wgpu::VertexFormat::Float32x2,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 92,
+                                offset: 64,
                                 shader_location: 13,
                                 format: wgpu::VertexFormat::Float32x4,
                             },
@@ -8049,7 +7597,6 @@ impl VM {
         }
 
         self.upload_atlas_to_gpu_with(device, queue);
-        self.ensure_organic_detail_texture(device, queue);
         let (_atlas_tex_view, _atlas_mat_tex_view) = self
             .shared_atlas
             .texture_views()
@@ -8129,23 +7676,6 @@ impl VM {
                         // Validate blend_weights length matches vertices
                         let has_valid_blend = poly.tile_id2.is_some()
                             && poly.blend_weights.len() == poly.vertices.len();
-                        let organic_meta = poly.organic_detail.as_ref().and_then(|detail| {
-                            self.organic_surface_slots
-                                .get(&detail.surface_id)
-                                .and_then(|slot| {
-                                    self.organic_slot_rect(slot.slot).map(
-                                        |(atlas_min, atlas_size)| {
-                                            (
-                                                1.0f32,
-                                                atlas_min,
-                                                [detail.local_min[0], detail.local_min[1]],
-                                                [detail.local_size[0], detail.local_size[1]],
-                                                atlas_size,
-                                            )
-                                        },
-                                    )
-                                })
-                        });
                         let surface_noise = poly
                             .surface_noise
                             .map(|noise| [noise.scale, noise.amount, noise.seed, 1.0])
@@ -8159,35 +7689,17 @@ impl VM {
                             } else {
                                 0.0
                             };
-                            let (
-                                organic_enabled,
-                                organic_atlas_min,
-                                organic_local_min,
-                                organic_local_size,
-                                organic_atlas_size,
-                            ) = organic_meta.unwrap_or((
-                                0.0,
-                                [0.0, 0.0],
-                                [0.0, 0.0],
-                                [0.0, 0.0],
-                                [0.0, 0.0],
-                            ));
-
-                            let organic_uv = poly.organic_uvs.get(i).copied().unwrap_or([0.0, 0.0]);
                             v3.push(Vert3DPod {
                                 pos: [p[0], p[1], p[2]],
-                                organic_enabled,
+                                _pad0: 0.0,
                                 uv: [uv0[0], uv0[1]],
-                                organic_atlas_min,
+                                _pad1: [0.0, 0.0],
                                 tile_index,
                                 tile_index2,
                                 blend_factor,
                                 opacity: poly.opacity,
                                 normal: [n[0], n[1], n[2]],
-                                organic_uv,
-                                organic_local_min,
-                                organic_local_size,
-                                organic_atlas_size,
+                                _pad2: 0.0,
                                 surface_noise,
                             });
                         }
@@ -8208,18 +7720,15 @@ impl VM {
             if v3.is_empty() {
                 v3.push(Vert3DPod {
                     pos: [0.0; 3],
-                    organic_enabled: 0.0,
+                    _pad0: 0.0,
                     uv: [0.0; 2],
-                    organic_atlas_min: [0.0, 0.0],
+                    _pad1: [0.0, 0.0],
                     tile_index: 0,
                     tile_index2: 0,
                     blend_factor: 0.0,
                     opacity: 1.0,
                     normal: [0.0, 0.0, 1.0],
-                    organic_uv: [0.0, 0.0],
-                    organic_local_min: [0.0, 0.0],
-                    organic_local_size: [0.0, 0.0],
-                    organic_atlas_size: [0.0, 0.0],
+                    _pad2: 0.0,
                     surface_noise: [0.0, 0.0, 0.0, 0.0],
                 });
             }
@@ -8516,7 +8025,6 @@ impl VM {
         let debug_prepare_start = instant::Instant::now();
         self.upload_tile_metadata_to_gpu(device);
         self.upload_scene_data_ssbo(device, queue);
-        self.ensure_organic_detail_texture(device, queue);
         let (write_view, _prev_view, next_front) =
             self.prepare_layer_views(device, queue, fb_w, fb_h);
 
@@ -8613,23 +8121,6 @@ impl VM {
                             }
                             let has_valid_blend = poly.tile_id2.is_some()
                                 && poly.blend_weights.len() == poly.vertices.len();
-                            let organic_meta = poly.organic_detail.as_ref().and_then(|detail| {
-                                self.organic_surface_slots.get(&detail.surface_id).and_then(
-                                    |slot| {
-                                        self.organic_slot_rect(slot.slot).map(
-                                            |(atlas_min, atlas_size)| {
-                                                (
-                                                    1.0f32,
-                                                    atlas_min,
-                                                    [detail.local_min[0], detail.local_min[1]],
-                                                    [detail.local_size[0], detail.local_size[1]],
-                                                    atlas_size,
-                                                )
-                                            },
-                                        )
-                                    },
-                                )
-                            });
                             let surface_noise = poly
                                 .surface_noise
                                 .map(|noise| [noise.scale, noise.amount, noise.seed, 1.0])
@@ -8643,35 +8134,17 @@ impl VM {
                                 } else {
                                     0.0
                                 };
-                                let (
-                                    organic_enabled,
-                                    organic_atlas_min,
-                                    organic_local_min,
-                                    organic_local_size,
-                                    organic_atlas_size,
-                                ) = organic_meta.unwrap_or((
-                                    0.0,
-                                    [0.0, 0.0],
-                                    [0.0, 0.0],
-                                    [0.0, 0.0],
-                                    [0.0, 0.0],
-                                ));
-                                let organic_uv =
-                                    poly.organic_uvs.get(i).copied().unwrap_or([0.0, 0.0]);
                                 v3.push(Vert3DPod {
                                     pos: [p[0], p[1], p[2]],
-                                    organic_enabled,
+                                    _pad0: 0.0,
                                     uv: [uv0[0], uv0[1]],
-                                    organic_atlas_min,
+                                    _pad1: [0.0, 0.0],
                                     tile_index,
                                     tile_index2,
                                     blend_factor,
                                     opacity: poly.opacity,
                                     normal: [n[0], n[1], n[2]],
-                                    organic_uv,
-                                    organic_local_min,
-                                    organic_local_size,
-                                    organic_atlas_size,
+                                    _pad2: 0.0,
                                     surface_noise,
                                 });
                             }
@@ -8785,18 +8258,15 @@ impl VM {
                     let p = pts[i];
                     v3.push(Vert3DPod {
                         pos: [p.x, p.y, p.z],
-                        organic_enabled: 0.0,
+                        _pad0: 0.0,
                         uv: uvs[i],
-                        organic_atlas_min: [0.0, 0.0],
+                        _pad1: [0.0, 0.0],
                         tile_index,
                         tile_index2,
                         blend_factor: 0.0,
                         opacity,
                         normal: [normal_or_tint.x, normal_or_tint.y, normal_or_tint.z],
-                        organic_uv: [0.0, 0.0],
-                        organic_local_min: [0.0, 0.0],
-                        organic_local_size: [0.0, 0.0],
-                        organic_atlas_size: [0.0, 0.0],
+                        _pad2: 0.0,
                         surface_noise: [0.0, 0.0, 0.0, 0.0],
                     });
                 }
@@ -8831,18 +8301,15 @@ impl VM {
                     }
                     v3.push(Vert3DPod {
                         pos: [p.x / w, p.y / w, p.z / w],
-                        organic_enabled: 0.0,
+                        _pad0: 0.0,
                         uv: [vert.uv.x, vert.uv.y],
-                        organic_atlas_min: [0.0, 0.0],
+                        _pad1: [0.0, 0.0],
                         tile_index,
                         tile_index2,
                         blend_factor: 0.0,
                         opacity,
                         normal: [nn.x, nn.y, nn.z],
-                        organic_uv: [0.0, 0.0],
-                        organic_local_min: [0.0, 0.0],
-                        organic_local_size: [0.0, 0.0],
-                        organic_atlas_size: [0.0, 0.0],
+                        _pad2: 0.0,
                         surface_noise: [0.0, 0.0, 0.0, 0.0],
                     });
                 }
@@ -8856,18 +8323,15 @@ impl VM {
             if v3.is_empty() {
                 v3.push(Vert3DPod {
                     pos: [0.0; 3],
-                    organic_enabled: 0.0,
+                    _pad0: 0.0,
                     uv: [0.0; 2],
-                    organic_atlas_min: [0.0, 0.0],
+                    _pad1: [0.0, 0.0],
                     tile_index: 0,
                     tile_index2: 0,
                     blend_factor: 0.0,
                     opacity: 1.0,
                     normal: [0.0, 0.0, 1.0],
-                    organic_uv: [0.0, 0.0],
-                    organic_local_min: [0.0, 0.0],
-                    organic_local_size: [0.0, 0.0],
-                    organic_atlas_size: [0.0, 0.0],
+                    _pad2: 0.0,
                     surface_noise: [0.0, 0.0, 0.0, 0.0],
                 });
             }
@@ -9429,12 +8893,6 @@ impl VM {
                         wgpu::BindGroupEntry {
                             binding: 8,
                             resource: g.scene_data_ssbo.as_ref().unwrap().as_entire_binding(),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 9,
-                            resource: wgpu::BindingResource::TextureView(
-                                g.organic_detail_view.as_ref().unwrap(),
-                            ),
                         },
                         wgpu::BindGroupEntry {
                             binding: 10,

@@ -170,10 +170,8 @@ pub use crate::{
         meta::MapMeta,
         mini::MapMini,
         organic::{
-            OrganicBatchDetail, OrganicBushCluster, OrganicChannelBinding, OrganicColumn,
-            OrganicDetailCell, OrganicDetailPage, OrganicGrowthShape, OrganicSpan,
-            OrganicVineStroke, OrganicVolumeLayer, default_organic_bush_clusters,
-            default_organic_layers, default_organic_vine_strokes, terrain_organic_detail_id,
+            OrganicBushCluster, OrganicGrowthShape, OrganicVineStroke,
+            default_organic_bush_clusters, default_organic_vine_strokes,
         },
         particle::{Particle, ParticleEmitter},
         pixelsource::NoiseTarget,
@@ -245,12 +243,10 @@ pub mod prelude {
     pub use crate::{D3Camera, D3FirstPCamera, D3IsoCamera, D3OrbitCamera};
     pub use crate::{GridShader, Shader, VGrayGradientShader};
     pub use crate::{
-        Keyform, Light, LightType, Map, MapMeta, MapToolType, NoiseTarget, OrganicBatchDetail,
-        OrganicBushCluster, OrganicChannelBinding, OrganicColumn, OrganicDetailCell,
-        OrganicDetailPage, OrganicGrowthShape, OrganicSpan, OrganicVineStroke, OrganicVolumeLayer,
-        Particle, ParticleEmitter, PixelSource, Sector, SoftRig, SoftRigAnimator, Tile, TileGroup,
-        TileGroupMemberRef, TileRole, TileSource, Vertex, default_organic_bush_clusters,
-        default_organic_layers, default_organic_vine_strokes, terrain_organic_detail_id,
+        Keyform, Light, LightType, Map, MapMeta, MapToolType, NoiseTarget, OrganicBushCluster,
+        OrganicGrowthShape, OrganicVineStroke, Particle, ParticleEmitter, PixelSource, Sector,
+        SoftRig, SoftRigAnimator, Tile, TileGroup, TileGroupMemberRef, TileRole, TileSource,
+        Vertex, default_organic_bush_clusters, default_organic_vine_strokes,
     };
     pub use crate::{
         Rect, Scene, SceneManager, SceneManagerCmd, SceneManagerResult, Value, ValueContainer,

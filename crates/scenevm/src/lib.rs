@@ -62,7 +62,7 @@ pub mod prelude {
         light::{Light, LightType},
         line3d::Line3D,
         poly2d::Poly2D,
-        poly3d::{OrganicSurfaceDetail, Poly3D},
+        poly3d::Poly3D,
         texture::Texture,
     };
 
@@ -119,7 +119,7 @@ pub use crate::{
     light::{Light, LightType},
     line3d::Line3D,
     poly2d::Poly2D,
-    poly3d::{OrganicSurfaceDetail, Poly3D, SurfaceNoiseLayer},
+    poly3d::{Poly3D, SurfaceNoiseLayer},
     texture::Texture,
 };
 #[cfg(feature = "gpu")]

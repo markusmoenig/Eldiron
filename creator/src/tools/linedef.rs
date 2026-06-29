@@ -3006,7 +3006,6 @@ mod tests {
             },
             extrusion: ExtrusionSpec::default(),
             profile: None,
-            organic_layers: indexmap::IndexMap::default(),
             world_vertices: Vec::new(),
         }
     }

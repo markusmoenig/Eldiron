@@ -3220,6 +3220,8 @@ impl Editor {
             }
             "Builder" => Some("docs/creator/tools/builder".into()),
             "Palette" => Some("docs/creator/tools/palette".into()),
+            "Iso Paint" => Some("docs/creator/tools/iso-paint".into()),
+            "Iso Paint Tool" => Some("docs/creator/tools/iso-paint".into()),
             "Object Tool" => Some("docs/creator/tools/object".into()),
             "Vertex Tool" => Some("docs/creator/tools/vertex".into()),
             "Linedef Tool" | "Linedef / Edge Tool" => Some("docs/creator/tools/linedef".into()),
@@ -3283,6 +3285,8 @@ impl Editor {
                     "Tiles" => Some("docs/creator/docks/tile_picker_editor".into()),
                     "Builder" => Some("docs/creator/tools/builder".into()),
                     "Palette" => Some("docs/creator/tools/palette".into()),
+                    "Iso Paint" => Some("docs/creator/tools/iso-paint".into()),
+                    "Iso Paint Tool" => Some("docs/creator/tools/iso-paint".into()),
                     "Data" => Some(self.help_url_for_data_context()),
                     "Code" => Some("docs/creator/docks/eldrin_script_editor".into()),
                     _ => TOOLLIST

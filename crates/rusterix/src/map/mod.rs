@@ -17,8 +17,8 @@ pub mod topology;
 pub mod vertex;
 
 use crate::{
-    BBox, GeometryObject, Keyform, MapMini, OrganicVolumeLayer, PixelSource, SoftRig,
-    SoftRigAnimator, Surface, Value, ValueContainer,
+    BBox, GeometryObject, Keyform, MapMini, PixelSource, SoftRig, SoftRigAnimator, Surface, Value,
+    ValueContainer,
 };
 use indexmap::IndexMap;
 use std::collections::VecDeque;
@@ -55,6 +55,7 @@ pub enum MapToolType {
     Sector,
     CollisionProbe,
     Effects,
+    IsoPaint,
     Rect,
     Game,
     MiniMap,
@@ -150,10 +151,6 @@ pub struct Map {
     /// The surfaces of the 3D meshes.
     #[serde(default)]
     pub surfaces: IndexMap<Uuid, Surface>,
-
-    /// Sparse painted detail for terrain tiles.
-    #[serde(default)]
-    pub terrain_organic_layer: OrganicVolumeLayer,
 
     /// The optional profile of surfaces.
     #[serde(default)]
@@ -415,7 +412,6 @@ impl Map {
             soft_animator: None,
 
             surfaces: IndexMap::default(),
-            terrain_organic_layer: OrganicVolumeLayer::default(),
             profiles: FxHashMap::default(),
             shaders: IndexMap::default(),
 
@@ -2558,7 +2554,6 @@ impl Map {
             soft_animator: None,
 
             surfaces: IndexMap::default(),
-            terrain_organic_layer: OrganicVolumeLayer::default(),
             profiles: FxHashMap::default(),
             shaders: IndexMap::default(),
 

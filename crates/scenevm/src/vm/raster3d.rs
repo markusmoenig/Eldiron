@@ -5,18 +5,15 @@ use wgpu::util::DeviceExt;
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Vert3DPod {
     pub pos: [f32; 3],
-    pub organic_enabled: f32,
+    pub _pad0: f32,
     pub uv: [f32; 2],
-    pub organic_atlas_min: [f32; 2],
+    pub _pad1: [f32; 2],
     pub tile_index: u32,
     pub tile_index2: u32,
     pub blend_factor: f32,
     pub opacity: f32,
     pub normal: [f32; 3],
-    pub organic_uv: [f32; 2],
-    pub organic_local_min: [f32; 2],
-    pub organic_local_size: [f32; 2],
-    pub organic_atlas_size: [f32; 2],
+    pub _pad2: f32,
     pub surface_noise: [f32; 4],
 }
 

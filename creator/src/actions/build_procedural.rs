@@ -765,7 +765,6 @@ impl BuildProcedural {
         map.softrigs.clear();
         map.editing_rig = None;
         map.soft_animator = None;
-        map.terrain_organic_layer = Default::default();
         map.properties.remove("tiles");
         map.properties.remove("blend_tiles");
         map.clear_temp();

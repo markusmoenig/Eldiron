@@ -143,6 +143,7 @@ impl ToolList {
             ShortcutAction::ToolVertex => "Vertex Tool",
             ShortcutAction::ToolEdge => "Linedef / Edge Tool",
             ShortcutAction::ToolFace => "Sector / Face Tool",
+            ShortcutAction::ToolIsoPaint => "Iso Paint Tool",
         }
     }
 
@@ -1261,6 +1262,7 @@ impl ToolList {
             Box::new(LinedefTool::new()),
             Box::new(SectorTool::new()),
             Box::new(GeometryTool::new()),
+            Box::new(IsoPaintTool::new()),
             Box::new(RectTool::new()),
             Box::new(crate::tools::entity::EntityTool::new()),
             Box::new(crate::tools::builder::BuilderTool::new()),
