@@ -8,7 +8,7 @@ use crate::{
     atlas::{AtlasEntry, AtlasGpuTables, SharedAtlas, TileEmissiveSummary, default_material_frame},
     core::{
         Atom, GeoId, LayerBlendMode, OrganicBillboardInstance, OrganicBillboardSprite,
-        PaletteRemap2DMode, RenderMode, VMDebugStats,
+        PaintSurfaceBuffer, PaletteRemap2DMode, RenderMode, VMDebugStats,
     },
     dynamic::{DynamicKind, DynamicObject},
 };
@@ -18,7 +18,10 @@ pub use raster3d::{Line3DPod, Raster3DUniforms, Vert3DPod};
 #[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::{cmp::Ordering, hash::Hasher};
+use std::{
+    cmp::Ordering,
+    hash::{Hash, Hasher},
+};
 use uuid::Uuid;
 use vek::{Mat3, Mat4, Vec2, Vec3, Vec4};
 
@@ -9273,17 +9276,179 @@ impl VM {
         Ok(())
     }
 
+    pub fn paint_surface_key(&self, fb_w: u32, fb_h: u32) -> u64 {
+        let mut hasher = rustc_hash::FxHasher::default();
+        fb_w.hash(&mut hasher);
+        fb_h.hash(&mut hasher);
+        (self.cached_static_v3.len() as u64).hash(&mut hasher);
+        (self.cached_static_i3.len() as u64).hash(&mut hasher);
+        (self.cached_static_tri_geo_ids.len() as u64).hash(&mut hasher);
+        for value in [
+            self.camera3d.pos.x,
+            self.camera3d.pos.y,
+            self.camera3d.pos.z,
+            self.camera3d.forward.x,
+            self.camera3d.forward.y,
+            self.camera3d.forward.z,
+            self.camera3d.right.x,
+            self.camera3d.right.y,
+            self.camera3d.right.z,
+            self.camera3d.up.x,
+            self.camera3d.up.y,
+            self.camera3d.up.z,
+            self.camera3d.vfov_deg,
+            self.camera3d.ortho_half_h,
+            self.camera3d.near,
+            self.camera3d.far,
+        ] {
+            value.to_bits().hash(&mut hasher);
+        }
+        (self.camera3d.kind as u8).hash(&mut hasher);
+        self.cached_static_tri_visibility.hash(&mut hasher);
+        if let Some(first) = self.cached_static_tri_geo_ids.first() {
+            first.hash(&mut hasher);
+        }
+        if let Some(mid) = self
+            .cached_static_tri_geo_ids
+            .get(self.cached_static_tri_geo_ids.len() / 2)
+        {
+            mid.hash(&mut hasher);
+        }
+        if let Some(last) = self.cached_static_tri_geo_ids.last() {
+            last.hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
+    pub fn paint_surface_buffer(&self, fb_w: u32, fb_h: u32) -> PaintSurfaceBuffer {
+        let mut buffer = PaintSurfaceBuffer::new(fb_w, fb_h);
+        if fb_w == 0
+            || fb_h == 0
+            || self.cached_static_i3.len() < 3
+            || self.cached_static_v3.is_empty()
+        {
+            return buffer;
+        }
+
+        let width = fb_w as i32;
+        let height = fb_h as i32;
+        let mut depth = vec![f32::INFINITY; fb_w as usize * fb_h as usize];
+
+        for (tri_idx, tri) in self.cached_static_i3.chunks_exact(3).enumerate() {
+            if !self.static_triangle_visible(tri_idx) {
+                continue;
+            }
+            let Some(a) = self.cached_static_v3.get(tri[0] as usize).copied() else {
+                continue;
+            };
+            let Some(b) = self.cached_static_v3.get(tri[1] as usize).copied() else {
+                continue;
+            };
+            let Some(c) = self.cached_static_v3.get(tri[2] as usize).copied() else {
+                continue;
+            };
+
+            let Some((pa, da)) = paint_project_point(&self.camera3d, fb_w, fb_h, a.pos) else {
+                continue;
+            };
+            let Some((pb, db)) = paint_project_point(&self.camera3d, fb_w, fb_h, b.pos) else {
+                continue;
+            };
+            let Some((pc, dc)) = paint_project_point(&self.camera3d, fb_w, fb_h, c.pos) else {
+                continue;
+            };
+
+            let area = paint_edge(pa, pb, pc);
+            if area.abs() <= 1e-5 {
+                continue;
+            }
+
+            let min_x = pa.x.min(pb.x).min(pc.x).floor().max(0.0) as i32;
+            let max_x = pa.x.max(pb.x).max(pc.x).ceil().min((width - 1) as f32) as i32;
+            let min_y = pa.y.min(pb.y).min(pc.y).floor().max(0.0) as i32;
+            let max_y = pa.y.max(pb.y).max(pc.y).ceil().min((height - 1) as f32) as i32;
+            if min_x > max_x || min_y > max_y {
+                continue;
+            }
+
+            let geo_id = self
+                .cached_static_tri_geo_ids
+                .get(tri_idx)
+                .copied()
+                .unwrap_or(GeoId::Unknown(0));
+            let face_id = tri_idx as u32;
+
+            for y in min_y..=max_y {
+                for x in min_x..=max_x {
+                    let p = Vec2::new(x as f32 + 0.5, y as f32 + 0.5);
+                    let w0 = paint_edge(pb, pc, p) / area;
+                    let w1 = paint_edge(pc, pa, p) / area;
+                    let w2 = paint_edge(pa, pb, p) / area;
+                    if w0 < -0.0001 || w1 < -0.0001 || w2 < -0.0001 {
+                        continue;
+                    }
+
+                    let d = w0 * da + w1 * db + w2 * dc;
+                    let index = y as usize * fb_w as usize + x as usize;
+                    if d >= depth[index] {
+                        continue;
+                    }
+
+                    depth[index] = d;
+                    let world = [
+                        a.pos[0] * w0 + b.pos[0] * w1 + c.pos[0] * w2,
+                        a.pos[1] * w0 + b.pos[1] * w1 + c.pos[1] * w2,
+                        a.pos[2] * w0 + b.pos[2] * w1 + c.pos[2] * w2,
+                    ];
+                    let normal_vec = Vec3::new(
+                        a.normal[0] * w0 + b.normal[0] * w1 + c.normal[0] * w2,
+                        a.normal[1] * w0 + b.normal[1] * w1 + c.normal[1] * w2,
+                        a.normal[2] * w0 + b.normal[2] * w1 + c.normal[2] * w2,
+                    )
+                    .try_normalized()
+                    .unwrap_or_else(Vec3::unit_y);
+                    let uv = [
+                        a.uv[0] * w0 + b.uv[0] * w1 + c.uv[0] * w2,
+                        a.uv[1] * w0 + b.uv[1] * w1 + c.uv[1] * w2,
+                    ];
+
+                    buffer.pixels[index] = crate::core::PaintSurfacePixel {
+                        valid: true,
+                        geo_id,
+                        face_id,
+                        depth: d,
+                        world,
+                        normal: [normal_vec.x, normal_vec.y, normal_vec.z],
+                        uv,
+                    };
+                }
+            }
+        }
+
+        buffer
+    }
+
+    fn static_triangle_visible(&self, tri_idx: usize) -> bool {
+        if self.cached_static_tri_visibility.is_empty() {
+            return true;
+        }
+        self.cached_static_tri_visibility
+            .get(tri_idx)
+            .copied()
+            .unwrap_or(false)
+    }
+
     /// Cast a CPU-side ray through a normalized screen UV and return the hit GeoId (if any).
     /// Uses the same camera model and 3D transforms as the GPU compute path.
     /// Returns the GeoId, world-space hit position, and the distance along the ray.
-    pub fn pick_geo_id_at_uv(
+    pub fn pick_geo_id_normal_at_uv(
         &self,
         fb_w: u32,
         fb_h: u32,
         screen_uv: [f32; 2],
         include_hidden: bool,
         include_billboards: bool,
-    ) -> Option<(GeoId, Vec3<f32>, f32)> {
+    ) -> Option<(GeoId, Vec3<f32>, f32, Vec3<f32>)> {
         if fb_w == 0 || fb_h == 0 {
             return None;
         }
@@ -9292,6 +9457,7 @@ impl VM {
         let mut best_t = f32::INFINITY;
         let mut best_geo: Option<GeoId> = None;
         let mut best_pos = Vec3::new(0.0, 0.0, 0.0);
+        let mut best_normal = Vec3::unit_y();
 
         let m = self.transform3d;
 
@@ -9308,7 +9474,7 @@ impl VM {
 
             #[cfg(not(target_arch = "wasm32"))]
             {
-                if let Some((t, geo, pos)) = cached_static_i3
+                if let Some((t, geo, pos, normal)) = cached_static_i3
                     .par_chunks_exact(3)
                     .enumerate()
                     .filter_map(|(tri_idx, tri)| {
@@ -9326,18 +9492,20 @@ impl VM {
                         let a = a.pos;
                         let b = b.pos;
                         let c = c.pos;
+                        let normal = triangle_normal(a, b, c)?;
                         let (t, _, _) = ray_triangle_intersect(ray_origin, ray_dir, a, b, c)?;
                         if t <= 1e-5 {
                             return None;
                         }
                         let geo = cached_static_tri_geo_ids.get(tri_idx).copied()?;
-                        Some((t, geo, ray_origin + ray_dir * t))
+                        Some((t, geo, ray_origin + ray_dir * t, normal))
                     })
                     .reduce_with(|a, b| if a.0 <= b.0 { a } else { b })
                 {
                     best_t = t;
                     best_geo = Some(geo);
                     best_pos = pos;
+                    best_normal = normal;
                 }
             }
 
@@ -9359,6 +9527,9 @@ impl VM {
                         (Some(a), Some(b), Some(c)) => (a.pos, b.pos, c.pos),
                         _ => continue,
                     };
+                    let Some(normal) = triangle_normal(a, b, c) else {
+                        continue;
+                    };
                     let Some((t, _, _)) = ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
                     else {
                         continue;
@@ -9372,18 +9543,20 @@ impl VM {
                     best_t = t;
                     best_geo = Some(geo);
                     best_pos = ray_origin + ray_dir * t;
+                    best_normal = normal;
                 }
             }
         } else {
             #[cfg(not(target_arch = "wasm32"))]
             {
                 let chunks: Vec<&Chunk> = self.chunks_map.values().collect();
-                if let Some((t, geo, pos)) = chunks
+                if let Some((t, geo, pos, normal)) = chunks
                     .par_iter()
                     .filter_map(|chunk| {
                         let mut best_t = f32::INFINITY;
                         let mut best_geo: Option<GeoId> = None;
                         let mut best_pos = Vec3::new(0.0, 0.0, 0.0);
+                        let mut best_normal = Vec3::unit_y();
 
                         for poly_list in chunk.polys3d_map.values() {
                             for poly in poly_list {
@@ -9411,6 +9584,9 @@ impl VM {
                                         (Some(a), Some(b), Some(c)) => (a, b, c),
                                         _ => continue,
                                     };
+                                    let Some(normal) = triangle_normal(a, b, c) else {
+                                        continue;
+                                    };
                                     if let Some((t, _, _)) =
                                         ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
                                         && t > 1e-5
@@ -9419,18 +9595,20 @@ impl VM {
                                         best_t = t;
                                         best_geo = Some(poly.id);
                                         best_pos = ray_origin + ray_dir * t;
+                                        best_normal = normal;
                                     }
                                 }
                             }
                         }
 
-                        best_geo.map(|geo| (best_t, geo, best_pos))
+                        best_geo.map(|geo| (best_t, geo, best_pos, best_normal))
                     })
                     .reduce_with(|a, b| if a.0 <= b.0 { a } else { b })
                 {
                     best_t = t;
                     best_geo = Some(geo);
                     best_pos = pos;
+                    best_normal = normal;
                 }
             }
 
@@ -9463,6 +9641,9 @@ impl VM {
                                     (Some(a), Some(b), Some(c)) => (a, b, c),
                                     _ => continue,
                                 };
+                                let Some(normal) = triangle_normal(a, b, c) else {
+                                    continue;
+                                };
                                 if let Some((t, _, _)) =
                                     ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
                                     && t > 1e-5
@@ -9471,6 +9652,7 @@ impl VM {
                                     best_t = t;
                                     best_geo = Some(poly.id);
                                     best_pos = ray_origin + ray_dir * t;
+                                    best_normal = normal;
                                 }
                             }
                         }
@@ -9502,6 +9684,9 @@ impl VM {
                             (Some(a), Some(b), Some(c)) => (a, b, c),
                             _ => continue,
                         };
+                        let Some(normal) = triangle_normal(a, b, c) else {
+                            continue;
+                        };
                         if let Some((t, _, _)) =
                             ray_triangle_intersect(ray_origin, ray_dir, a, b, c)
                         {
@@ -9509,6 +9694,7 @@ impl VM {
                                 best_t = t;
                                 best_geo = Some(obj.id);
                                 best_pos = ray_origin + ray_dir * t;
+                                best_normal = normal;
                             }
                         }
                     }
@@ -9643,11 +9829,24 @@ impl VM {
                     best_t = t;
                     best_geo = Some(obj.id);
                     best_pos = hit;
+                    best_normal = (normal / normal_len).normalized();
                 }
             }
         }
 
-        best_geo.map(|id| (id, best_pos, best_t))
+        best_geo.map(|id| (id, best_pos, best_t, best_normal))
+    }
+
+    pub fn pick_geo_id_at_uv(
+        &self,
+        fb_w: u32,
+        fb_h: u32,
+        screen_uv: [f32; 2],
+        include_hidden: bool,
+        include_billboards: bool,
+    ) -> Option<(GeoId, Vec3<f32>, f32)> {
+        self.pick_geo_id_normal_at_uv(fb_w, fb_h, screen_uv, include_hidden, include_billboards)
+            .map(|(geo_id, pos, distance, _normal)| (geo_id, pos, distance))
     }
 
     /// Collect all visible GeoIds of the requested variant whose screen-space projection
@@ -10270,6 +10469,54 @@ fn camera_ray_from_uv(
     }
 }
 
+fn paint_project_point(
+    camera: &Camera3D,
+    fb_w: u32,
+    fb_h: u32,
+    point: [f32; 3],
+) -> Option<(Vec2<f32>, f32)> {
+    let p = Vec3::new(point[0], point[1], point[2]);
+    let rel = p - camera.pos;
+    let depth = rel.dot(camera.forward);
+    if !depth.is_finite() || depth <= camera.near || depth >= camera.far {
+        return None;
+    }
+
+    let fb_w_f = fb_w.max(1) as f32;
+    let fb_h_f = fb_h.max(1) as f32;
+    let aspect = fb_w_f / fb_h_f;
+    let x_cam = rel.dot(camera.right);
+    let y_cam = rel.dot(camera.up);
+
+    let (ndc_x, ndc_y) = match camera.kind {
+        CameraKind::OrthoIso => {
+            let half_h = camera.ortho_half_h.max(1e-6);
+            let half_w = half_h * aspect;
+            (x_cam / half_w, y_cam / half_h)
+        }
+        CameraKind::OrbitPersp | CameraKind::FirstPersonPersp => {
+            let tan_half = (camera.vfov_deg.to_radians() * 0.5).tan().max(1e-6);
+            (
+                x_cam / (depth * tan_half * aspect),
+                y_cam / (depth * tan_half),
+            )
+        }
+    };
+
+    if !ndc_x.is_finite() || !ndc_y.is_finite() {
+        return None;
+    }
+
+    Some((
+        Vec2::new((ndc_x * 0.5 + 0.5) * fb_w_f, (0.5 - ndc_y * 0.5) * fb_h_f),
+        depth,
+    ))
+}
+
+fn paint_edge(a: Vec2<f32>, b: Vec2<f32>, c: Vec2<f32>) -> f32 {
+    (c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x)
+}
+
 fn ray_triangle_intersect(
     ray_origin: Vec3<f32>,
     ray_dir: Vec3<f32>,
@@ -10303,6 +10550,17 @@ fn ray_triangle_intersect(
         return None;
     }
     Some((t, u, v))
+}
+
+fn triangle_normal(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> Option<Vec3<f32>> {
+    let a = Vec3::new(a[0], a[1], a[2]);
+    let b = Vec3::new(b[0], b[1], b[2]);
+    let c = Vec3::new(c[0], c[1], c[2]);
+    let normal = (b - a).cross(c - a);
+    if normal.magnitude() <= 1e-6 || !normal.magnitude().is_finite() {
+        return None;
+    }
+    Some(normal.normalized())
 }
 
 /// Hash for light flickering

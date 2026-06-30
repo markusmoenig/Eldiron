@@ -116,6 +116,17 @@ pub trait Tool: Send + Sync {
         None
     }
 
+    fn region_map_event(
+        &mut self,
+        map_event: MapEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        region: &mut Region,
+        server_ctx: &mut ServerContext,
+    ) -> Option<ProjectUndoAtom> {
+        self.map_event(map_event, ui, ctx, &mut region.map, server_ctx)
+    }
+
     fn handle_event(
         &mut self,
         event: &TheEvent,

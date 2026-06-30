@@ -482,6 +482,13 @@ impl Rusterix {
         self.client.game_widget_rect()
     }
 
+    pub fn for_each_game_widget_mut<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut crate::client::widget::game::GameWidget),
+    {
+        self.client.for_each_game_widget_mut(f);
+    }
+
     /// Get presentation transform from viewport coordinates into a target surface.
     pub fn presentation_transform_for_surface(&self, size: (u32, u32)) -> (f32, f32, f32) {
         self.client

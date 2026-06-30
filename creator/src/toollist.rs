@@ -225,6 +225,52 @@ impl ToolList {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn current_tool_map_event(
+        &mut self,
+        map_event: MapEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) -> Option<ProjectUndoAtom> {
+        if server_ctx.get_map_context() == MapContext::Region {
+            let iso_paint_color = if server_ctx.curr_map_tool_type == MapToolType::IsoPaint {
+                project.palette.get_current_color().map(|color| {
+                    let mut color = color.to_u8_array();
+                    color[3] = 255;
+                    color
+                })
+            } else {
+                None
+            };
+            if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                if let Some(color) = iso_paint_color {
+                    region.iso_paint.active_color = color;
+                }
+                let undo_atom = self
+                    .get_current_tool()
+                    .region_map_event(map_event, ui, ctx, region, server_ctx);
+                if undo_atom
+                    .as_ref()
+                    .is_some_and(|atom| !atom.is_iso_paint_only())
+                {
+                    region.map.changed += 1;
+                }
+                return undo_atom;
+            }
+        } else if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
+            let undo_atom = self
+                .get_current_tool()
+                .map_event(map_event, ui, ctx, map, server_ctx);
+            if undo_atom.is_some() {
+                map.changed += 1;
+            }
+            return undo_atom;
+        }
+        None
+    }
+
     fn geometry_selection_snapshot(map: &Map) -> GeometrySelectionSnapshot {
         GeometrySelectionSnapshot {
             objects: map.selected_geometry_objects.clone(),
@@ -1538,49 +1584,53 @@ impl ToolList {
         if let Some(undo_atom) = undo_atom {
             if let Some(pc) = undo_atom.pc() {
                 if pc.is_region() {
-                    let rect_paint_dirty_chunks = if server_ctx.curr_map_tool_type
-                        == MapToolType::Rect
-                        && server_ctx.editor_view_mode != EditorViewMode::D2
-                        && let ProjectUndoAtom::MapEdit(_, old_map, new_map) = &undo_atom
-                    {
-                        Self::changed_rect_paint_chunks(old_map, new_map)
+                    if undo_atom.is_iso_paint_only() {
+                        ctx.ui.redraw_all = true;
                     } else {
-                        None
-                    };
-                    let geometry_replacement_plan = if rect_paint_dirty_chunks.is_none()
-                        && server_ctx.editor_view_mode != EditorViewMode::D2
-                        && let ProjectUndoAtom::MapEdit(_, old_map, new_map) = &undo_atom
-                    {
-                        Self::changed_geometry_replacement_plan(old_map, new_map)
-                    } else {
-                        None
-                    };
-                    if server_ctx.editor_view_mode == EditorViewMode::D2
-                        && server_ctx.editing_surface.is_some()
-                        || rect_paint_dirty_chunks.is_some()
-                        || geometry_replacement_plan.is_some()
-                    {
-                    } else {
-                        self.update_geometry_overlay_3d(project, server_ctx);
-                    }
-                    let mut used_incremental_terrain_update = false;
-                    if let Some(dirty_chunks) = rect_paint_dirty_chunks
-                        && let ProjectUndoAtom::MapEdit(_, _, new_map) = &undo_atom
-                    {
-                        crate::utils::editor_scene_incremental_map_update(
-                            (**new_map).clone(),
-                            dirty_chunks,
-                        );
-                        used_incremental_terrain_update = true;
-                    }
-                    if let Some(plan) = geometry_replacement_plan
-                        && let ProjectUndoAtom::MapEdit(_, _, new_map) = &undo_atom
-                    {
-                        used_incremental_terrain_update =
-                            Self::apply_geometry_scene_update(new_map, plan);
-                    }
-                    if !used_incremental_terrain_update {
-                        crate::utils::editor_scene_full_rebuild(project, server_ctx);
+                        let rect_paint_dirty_chunks = if server_ctx.curr_map_tool_type
+                            == MapToolType::Rect
+                            && server_ctx.editor_view_mode != EditorViewMode::D2
+                            && let ProjectUndoAtom::MapEdit(_, old_map, new_map) = &undo_atom
+                        {
+                            Self::changed_rect_paint_chunks(old_map, new_map)
+                        } else {
+                            None
+                        };
+                        let geometry_replacement_plan = if rect_paint_dirty_chunks.is_none()
+                            && server_ctx.editor_view_mode != EditorViewMode::D2
+                            && let ProjectUndoAtom::MapEdit(_, old_map, new_map) = &undo_atom
+                        {
+                            Self::changed_geometry_replacement_plan(old_map, new_map)
+                        } else {
+                            None
+                        };
+                        if server_ctx.editor_view_mode == EditorViewMode::D2
+                            && server_ctx.editing_surface.is_some()
+                            || rect_paint_dirty_chunks.is_some()
+                            || geometry_replacement_plan.is_some()
+                        {
+                        } else {
+                            self.update_geometry_overlay_3d(project, server_ctx);
+                        }
+                        let mut used_incremental_terrain_update = false;
+                        if let Some(dirty_chunks) = rect_paint_dirty_chunks
+                            && let ProjectUndoAtom::MapEdit(_, _, new_map) = &undo_atom
+                        {
+                            crate::utils::editor_scene_incremental_map_update(
+                                (**new_map).clone(),
+                                dirty_chunks,
+                            );
+                            used_incremental_terrain_update = true;
+                        }
+                        if let Some(plan) = geometry_replacement_plan
+                            && let ProjectUndoAtom::MapEdit(_, _, new_map) = &undo_atom
+                        {
+                            used_incremental_terrain_update =
+                                Self::apply_geometry_scene_update(new_map, plan);
+                        }
+                        if !used_incremental_terrain_update {
+                            crate::utils::editor_scene_full_rebuild(project, server_ctx);
+                        }
                     }
                 }
             }
@@ -2064,16 +2114,13 @@ impl ToolList {
                                 }
                             }
 
-                            let undo_atom = self.get_current_tool().map_event(
+                            let undo_atom = self.current_tool_map_event(
                                 MapEvent::MapKey(*c),
                                 ui,
                                 ctx,
-                                map,
+                                project,
                                 server_ctx,
                             );
-                            if undo_atom.is_some() {
-                                map.changed += 1;
-                            }
                             self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                             if server_ctx.editor_view_mode != EditorViewMode::D2 {
                                 self.update_geometry_overlay_3d(project, server_ctx);
@@ -2372,7 +2419,7 @@ impl ToolList {
                             return false;
                         }
                         if *code == TheKeyCode::Escape {
-                            if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
+                            if let Some(_map) = Self::get_tool_map_mut(project, server_ctx) {
                                 if server_ctx.editor_fly_nav_active {
                                     server_ctx.editor_fly_nav_active = false;
                                     server_ctx.editor_fly_nav_mouse_down = false;
@@ -2390,33 +2437,27 @@ impl ToolList {
                                     return true;
                                 }
 
-                                let undo_atom = self.get_current_tool().map_event(
+                                let undo_atom = self.current_tool_map_event(
                                     MapEvent::MapEscape,
                                     ui,
                                     ctx,
-                                    map,
+                                    project,
                                     server_ctx,
                                 );
-                                if undo_atom.is_some() {
-                                    map.changed += 1;
-                                }
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                                 if server_ctx.editor_view_mode != EditorViewMode::D2 {
                                     self.update_geometry_overlay_3d(project, server_ctx);
                                 }
                             }
                         } else if *code == TheKeyCode::Delete {
-                            if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
-                                let undo_atom = self.get_current_tool().map_event(
+                            if let Some(_map) = Self::get_tool_map_mut(project, server_ctx) {
+                                let undo_atom = self.current_tool_map_event(
                                     MapEvent::MapDelete,
                                     ui,
                                     ctx,
-                                    map,
+                                    project,
                                     server_ctx,
                                 );
-                                if undo_atom.is_some() {
-                                    map.changed += 1;
-                                }
                                 self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                                 if server_ctx.editor_view_mode != EditorViewMode::D2 {
                                     self.update_geometry_overlay_3d(project, server_ctx);
@@ -2549,20 +2590,21 @@ impl ToolList {
                             }
                         }
 
-                        if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
-                            let undo_atom = self.get_current_tool().map_event(
+                        {
+                            let undo_atom = self.current_tool_map_event(
                                 MapEvent::MapClicked(*coord),
                                 ui,
                                 ctx,
-                                map,
+                                project,
                                 server_ctx,
                             );
-                            if undo_atom.is_some() {
-                                map.changed += 1;
-                            }
+                            let paint_only_undo = undo_atom
+                                .as_ref()
+                                .is_some_and(ProjectUndoAtom::is_iso_paint_only);
                             self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
 
                             if server_ctx.editor_view_mode != EditorViewMode::D2
+                                && !paint_only_undo
                                 && server_ctx.curr_map_tool_type != MapToolType::Rect
                             {
                                 self.update_geometry_overlay_3d(project, server_ctx);
@@ -2573,11 +2615,11 @@ impl ToolList {
                         let current_map = RUSTERIX.read().unwrap().client.current_map.clone();
                         for r in &mut project.regions {
                             if r.map.name == current_map {
-                                self.get_current_tool().map_event(
+                                self.get_current_tool().region_map_event(
                                     MapEvent::MapClicked(*coord),
                                     ui,
                                     ctx,
-                                    &mut r.map,
+                                    r,
                                     server_ctx,
                                 );
                             }
@@ -2705,21 +2747,18 @@ impl ToolList {
                         }
                     }
 
-                    if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
-                        let undo_atom = self.get_current_tool().map_event(
+                    {
+                        let undo_atom = self.current_tool_map_event(
                             MapEvent::MapDragged(*coord),
                             ui,
                             ctx,
-                            map,
+                            project,
                             server_ctx,
                         );
-                        if undo_atom.is_some() {
-                            map.changed += 1;
-                            // if server_ctx.get_map_context() == MapContext::Shader {
-                            // }
-                        }
                         if undo_atom.is_none() {
-                            Self::apply_live_geometry_owner_replacement(map, server_ctx);
+                            if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
+                                Self::apply_live_geometry_owner_replacement(map, server_ctx);
+                            }
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
 
@@ -2767,21 +2806,26 @@ impl ToolList {
                             .reset_mouse_tracking();
                     }
 
-                    if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
-                        let undo_atom = self.get_current_tool().map_event(
+                    {
+                        let undo_atom = self.current_tool_map_event(
                             MapEvent::MapUp(*coord),
                             ui,
                             ctx,
-                            map,
+                            project,
                             server_ctx,
                         );
+                        let paint_only_undo = undo_atom
+                            .as_ref()
+                            .is_some_and(ProjectUndoAtom::is_iso_paint_only);
 
-                        if undo_atom.is_some() {
-                            map.changed += 1;
-                            map.update_surfaces();
+                        if undo_atom.is_some() && !paint_only_undo {
+                            if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
+                                map.update_surfaces();
+                            }
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
                         if server_ctx.editor_view_mode != EditorViewMode::D2
+                            && !paint_only_undo
                             && self.should_refresh_3d_overlay()
                         {
                             self.update_geometry_overlay_3d(project, server_ctx);
@@ -2866,25 +2910,30 @@ impl ToolList {
                             // println!("{:?}", server_ctx.geo_hit);
                         }
                     }
-                    if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
+                    {
                         let old_hover = server_ctx.hover;
-                        let undo_atom = self.get_current_tool().map_event(
+                        let undo_atom = self.current_tool_map_event(
                             MapEvent::MapHover(*coord),
                             ui,
                             ctx,
-                            map,
+                            project,
                             server_ctx,
                         );
-                        if undo_atom.is_some() {
-                            map.changed += 1;
-                            map.update_surfaces();
+                        let paint_only_undo = undo_atom
+                            .as_ref()
+                            .is_some_and(ProjectUndoAtom::is_iso_paint_only);
+                        if undo_atom.is_some() && !paint_only_undo {
+                            if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
+                                map.update_surfaces();
+                            }
                         }
                         self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
 
                         if server_ctx.editor_view_mode != EditorViewMode::D2 {
                             let hover_changed = old_hover != server_ctx.hover;
-                            let fast_preview_tool =
-                                server_ctx.curr_map_tool_type == MapToolType::Rect;
+                            let fast_preview_tool = server_ctx.curr_map_tool_type
+                                == MapToolType::Rect
+                                || paint_only_undo;
 
                             if hover_changed && !fast_preview_tool {
                                 self.update_geometry_overlay_3d(project, server_ctx);
@@ -5006,6 +5055,7 @@ impl ToolList {
         server_ctx.hover_ray_dir_3d = None;
         server_ctx.hover_surface = None;
         server_ctx.hover_surface_hit_pos = None;
+        server_ctx.hover_surface_normal = None;
         if let Some((ray_origin, ray_dir)) = rusterix.scene_handler.vm.ray_from_uv_with_size(
             dim.width as u32,
             dim.height as u32,
@@ -5037,7 +5087,7 @@ impl ToolList {
         }
 
         rusterix.scene_handler.vm.set_active_vm(0);
-        if let Some(raw) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
+        if let Some(raw) = rusterix.scene_handler.vm.pick_geo_id_normal_at_uv(
             dim.width as u32,
             dim.height as u32,
             screen_uv,
@@ -5045,6 +5095,7 @@ impl ToolList {
             false,
         ) {
             server_ctx.hover_cursor_3d = Some(raw.1);
+            server_ctx.hover_surface_normal = Some(raw.3);
             if let Some(map) = project.get_map(server_ctx) {
                 let mut best_surface: Option<(Surface, f32)> = None;
                 for surface in map.surfaces.values() {
@@ -5066,6 +5117,9 @@ impl ToolList {
                 }
                 server_ctx.hover_surface = best_surface.map(|(surface, _)| surface);
                 server_ctx.hover_surface_hit_pos = Some(raw.1);
+            }
+            if server_ctx.curr_map_tool_type == MapToolType::IsoPaint {
+                return Some((raw.0, raw.1));
             }
             if server_ctx.curr_map_tool_type == MapToolType::Sector
                 && server_ctx.geometry_edit_mode != GeometryEditMode::Detail

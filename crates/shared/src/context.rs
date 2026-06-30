@@ -468,6 +468,8 @@ pub struct ServerContext {
 
     /// The current 3d hover position
     pub hover_cursor_3d: Option<Vec3<f32>>,
+    /// Current Iso Paint hover position in render-buffer screen coordinates.
+    pub iso_paint_hover_screen: Option<Vec2<i32>>,
     /// Ray origin for the current 3D hover position.
     pub hover_ray_origin_3d: Option<Vec3<f32>>,
     /// Ray direction for the current 3D hover hit.
@@ -477,6 +479,8 @@ pub struct ServerContext {
     pub hover_surface: Option<Surface>,
     /// World-space hit position for the hovered surface, if any.
     pub hover_surface_hit_pos: Option<Vec3<f32>>,
+    /// World-space normal for the exact hovered 3D triangle, if any.
+    pub hover_surface_normal: Option<Vec3<f32>>,
     /// The currently active surface for a 3D detail edit chain.
     pub active_detail_surface: Option<Surface>,
 
@@ -681,10 +685,12 @@ impl ServerContext {
             hover: (None, None, None),
             hover_cursor: None,
             hover_cursor_3d: None,
+            iso_paint_hover_screen: None,
             hover_ray_origin_3d: None,
             hover_ray_dir_3d: None,
             hover_surface: None,
             hover_surface_hit_pos: None,
+            hover_surface_normal: None,
             active_detail_surface: None,
             hover_height: None,
 

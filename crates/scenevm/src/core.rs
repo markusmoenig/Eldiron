@@ -20,6 +20,56 @@ pub enum GeoId {
     Gizmo(u32),
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct PaintSurfacePixel {
+    pub valid: bool,
+    pub geo_id: GeoId,
+    pub face_id: u32,
+    pub depth: f32,
+    pub world: [f32; 3],
+    pub normal: [f32; 3],
+    pub uv: [f32; 2],
+}
+
+impl Default for PaintSurfacePixel {
+    fn default() -> Self {
+        Self {
+            valid: false,
+            geo_id: GeoId::Unknown(0),
+            face_id: u32::MAX,
+            depth: f32::INFINITY,
+            world: [0.0; 3],
+            normal: [0.0, 1.0, 0.0],
+            uv: [0.0; 2],
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PaintSurfaceBuffer {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<PaintSurfacePixel>,
+}
+
+impl PaintSurfaceBuffer {
+    pub fn new(width: u32, height: u32) -> Self {
+        Self {
+            width,
+            height,
+            pixels: vec![PaintSurfacePixel::default(); width as usize * height as usize],
+        }
+    }
+
+    pub fn pixel(&self, x: i32, y: i32) -> Option<&PaintSurfacePixel> {
+        if x < 0 || y < 0 || x as u32 >= self.width || y as u32 >= self.height {
+            return None;
+        }
+        self.pixels
+            .get(y as usize * self.width as usize + x as usize)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct OrganicBillboardSprite {
     pub width: u32,

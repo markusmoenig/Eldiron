@@ -2615,6 +2615,15 @@ impl Client {
         self.game_widgets.values().next().map(|w| w.rect)
     }
 
+    pub fn for_each_game_widget_mut<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&mut GameWidget),
+    {
+        for widget in self.game_widgets.values_mut() {
+            f(widget);
+        }
+    }
+
     /// Startup window size multiplier from `[viewport].window_scale` (default `1.0`).
     pub fn window_scale(&self) -> f32 {
         self.get_config_f32_default("viewport", "window_scale", 1.0)

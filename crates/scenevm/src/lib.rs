@@ -55,7 +55,8 @@ pub mod prelude {
         chunk::Chunk,
         core::{
             Atom, GeoId, LayerBlendMode, LineStrip2D, OrganicBillboardInstance,
-            OrganicBillboardSprite, PaletteRemap2DMode, RenderMode, VMDebugStats,
+            OrganicBillboardSprite, PaintSurfaceBuffer, PaintSurfacePixel, PaletteRemap2DMode,
+            RenderMode, VMDebugStats,
         },
         dynamic::{AlphaMode, DynamicKind, DynamicMeshVertex, DynamicObject, RepeatMode},
         intodata::IntoDataInput,
@@ -112,7 +113,7 @@ pub use crate::{
     chunk::Chunk,
     core::{
         Atom, GeoId, LayerBlendMode, LineStrip2D, OrganicBillboardInstance, OrganicBillboardSprite,
-        PaletteRemap2DMode, RenderMode, VMDebugStats,
+        PaintSurfaceBuffer, PaintSurfacePixel, PaletteRemap2DMode, RenderMode, VMDebugStats,
     },
     dynamic::{AlphaMode, DynamicKind, DynamicMeshVertex, DynamicObject, RepeatMode},
     intodata::IntoDataInput,
@@ -1507,6 +1508,31 @@ impl SceneVM {
             include_hidden,
             include_billboards,
         )
+    }
+
+    pub fn pick_geo_id_normal_at_uv(
+        &self,
+        fb_w: u32,
+        fb_h: u32,
+        screen_uv: [f32; 2],
+        include_hidden: bool,
+        include_billboards: bool,
+    ) -> Option<(GeoId, vek::Vec3<f32>, f32, vek::Vec3<f32>)> {
+        self.active_vm().pick_geo_id_normal_at_uv(
+            fb_w,
+            fb_h,
+            screen_uv,
+            include_hidden,
+            include_billboards,
+        )
+    }
+
+    pub fn paint_surface_buffer(&self, fb_w: u32, fb_h: u32) -> PaintSurfaceBuffer {
+        self.active_vm().paint_surface_buffer(fb_w, fb_h)
+    }
+
+    pub fn paint_surface_key(&self, fb_w: u32, fb_h: u32) -> u64 {
+        self.active_vm().paint_surface_key(fb_w, fb_h)
     }
 
     /// Build a world-space ray from screen uv (0..1) using the active VM's camera and a provided framebuffer size.

@@ -2,6 +2,7 @@ pub mod asset;
 pub mod character;
 pub mod context;
 pub mod interaction;
+pub mod iso_paint;
 pub mod item;
 pub mod project;
 pub mod region;
@@ -28,6 +29,7 @@ pub mod prelude {
     pub use crate::character::Character;
     pub use crate::context::*;
     pub use crate::interaction::*;
+    pub use crate::iso_paint::*;
     pub use crate::item::Item;
     pub use crate::project::{
         BuilderGraphAsset, NodeGroupAsset, Project, TileCollectionAsset, TileCollectionEntry,

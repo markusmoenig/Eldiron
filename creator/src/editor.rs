@@ -28,7 +28,6 @@ use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::mpsc::Receiver;
 #[cfg(all(
     feature = "self-update",
     any(target_os = "windows", target_os = "linux", target_os = "macos")
@@ -37,6 +36,7 @@ use std::sync::{
     Arc, Mutex,
     mpsc::{Sender, channel},
 };
+use std::sync::{Arc, mpsc::Receiver};
 
 #[cfg(all(
     feature = "self-update",
@@ -79,6 +79,43 @@ struct ProjectSession {
     project_path: Option<PathBuf>,
     undo: UndoManager,
     dirty: bool,
+}
+
+#[derive(Default)]
+struct IsoPaintStrokeRenderCache {
+    origin: [i32; 2],
+    screen_anchor: Option<[i32; 2]>,
+    world_anchor: Option<[f32; 3]>,
+    camera_scale: Option<f32>,
+    brush: String,
+    clip: String,
+    color: [u8; 4],
+    pattern_kind: String,
+    pattern_scale: f32,
+    pattern_mortar: f32,
+    pattern_detail: f32,
+    pattern_variation: f32,
+    erase: bool,
+    buffer: TheRGBABuffer,
+}
+
+#[derive(Default)]
+struct IsoPaintChunkRenderCache {
+    revision: u64,
+    strokes: Vec<IsoPaintStrokeRenderCache>,
+}
+
+#[derive(Default)]
+struct IsoPaintRenderCache {
+    region_id: Option<Uuid>,
+    chunks: HashMap<String, IsoPaintChunkRenderCache>,
+}
+
+#[derive(Default)]
+struct IsoPaintSurfaceBufferCache {
+    region_id: Option<Uuid>,
+    key: u64,
+    buffer: Option<Arc<scenevm::PaintSurfaceBuffer>>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -164,6 +201,8 @@ pub struct Editor {
     starter_manifest_cache: Option<Vec<StarterProjectEntry>>,
     starter_loader_rx: Option<Receiver<Vec<StarterProjectEntry>>>,
     selected_starter_manifest_id: Option<String>,
+    iso_paint_render_cache: IsoPaintRenderCache,
+    iso_paint_surface_cache: IsoPaintSurfaceBufferCache,
 }
 
 impl Editor {
@@ -174,6 +213,916 @@ impl Editor {
     const STARTER_PREVIEW_ID: &'static str = "Starter Project Preview";
     const STARTER_CREATE_ID: &'static str = "Starter Project Create";
     const STARTER_CANCEL_ID: &'static str = "Starter Project Cancel";
+
+    fn iso_paint_color_with_opacity(mut color: [u8; 4], opacity: f32) -> [u8; 4] {
+        color[3] = (opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
+        color
+    }
+
+    fn iso_paint_blend_pixel(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        x: i32,
+        y: i32,
+        color: [u8; 4],
+    ) {
+        if x < 0 || y < 0 || x as usize >= width || y as usize >= height || color[3] == 0 {
+            return;
+        }
+        let index = (y as usize * width + x as usize) * 4;
+        if index + 3 >= pixels.len() {
+            return;
+        }
+
+        let src_a = color[3] as u16;
+        let inv_a = 255 - src_a;
+        pixels[index] = ((color[0] as u16 * src_a + pixels[index] as u16 * inv_a) / 255) as u8;
+        pixels[index + 1] =
+            ((color[1] as u16 * src_a + pixels[index + 1] as u16 * inv_a) / 255) as u8;
+        pixels[index + 2] =
+            ((color[2] as u16 * src_a + pixels[index + 2] as u16 * inv_a) / 255) as u8;
+        pixels[index + 3] = (src_a + (pixels[index + 3] as u16 * inv_a) / 255).min(255) as u8;
+    }
+
+    fn iso_paint_stamp(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        local_x: i32,
+        local_y: i32,
+        radius: i32,
+        color: [u8; 4],
+    ) {
+        let radius = radius.max(1);
+        let radius_sq = radius * radius;
+        for oy in -radius..=radius {
+            for ox in -radius..=radius {
+                if ox * ox + oy * oy > radius_sq {
+                    continue;
+                }
+                Self::iso_paint_blend_pixel(
+                    pixels,
+                    width,
+                    height,
+                    local_x + ox,
+                    local_y + oy,
+                    color,
+                );
+            }
+        }
+    }
+
+    fn iso_paint_draw_segment(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        a: [i32; 2],
+        b: [i32; 2],
+        origin: [i32; 2],
+        radius: i32,
+        color: [u8; 4],
+    ) {
+        let dx = b[0] - a[0];
+        let dy = b[1] - a[1];
+        let steps = dx.abs().max(dy.abs()).max(1);
+        for step in 0..=steps {
+            let t = step as f32 / steps as f32;
+            let x = (a[0] as f32 + dx as f32 * t).round() as i32;
+            let y = (a[1] as f32 + dy as f32 * t).round() as i32;
+            Self::iso_paint_stamp(
+                pixels,
+                width,
+                height,
+                x - origin[0],
+                y - origin[1],
+                radius,
+                color,
+            );
+        }
+    }
+
+    fn iso_paint_sample_brick_color(
+        pattern_x: f32,
+        pattern_y: f32,
+        base: [u8; 4],
+        pattern_kind: &str,
+        pattern_scale: f32,
+        pattern_mortar: f32,
+        pattern_detail: f32,
+        pattern_variation: f32,
+    ) -> [u8; 4] {
+        let pattern_scale = pattern_scale.clamp(0.25, 4.0);
+        let pattern_mortar = pattern_mortar.clamp(0.0, 0.4);
+        let pattern_detail = pattern_detail.clamp(0.0, 1.0);
+        let pattern_variation = pattern_variation.clamp(0.0, 1.0);
+        let staggered = !matches!(pattern_kind, "tile" | "tiles");
+        let brick_w = if staggered { 34.0 } else { 24.0 } * pattern_scale;
+        let brick_h = if staggered { 17.0 } else { 24.0 } * pattern_scale;
+        let mortar =
+            (brick_w.min(brick_h) * pattern_mortar).clamp(0.0, brick_w.min(brick_h) * 0.45);
+
+        let row = (pattern_y / brick_h).floor();
+        let offset_x = if staggered && row as i32 & 1 != 0 {
+            brick_w * 0.5
+        } else {
+            0.0
+        };
+        let local_x = (pattern_x + offset_x).rem_euclid(brick_w);
+        let local_y = pattern_y.rem_euclid(brick_h);
+        let col = ((pattern_x + offset_x) / brick_w).floor() as i32;
+        let row_i = row as i32;
+
+        let hash = |x: i32, y: i32, salt: i32| -> f32 {
+            let mut n = x
+                .wrapping_mul(374_761_393)
+                .wrapping_add(y.wrapping_mul(668_265_263))
+                .wrapping_add(salt.wrapping_mul(2_147_483_647));
+            n = (n ^ (n >> 13)).wrapping_mul(1_274_126_177);
+            ((n ^ (n >> 16)) & 0xffff) as f32 / 65_535.0
+        };
+
+        if local_x < mortar || local_y < mortar {
+            return [base[0], base[1], base[2], 0];
+        }
+
+        let edge_distance = local_x
+            .min(local_y)
+            .min(brick_w - local_x)
+            .min(brick_h - local_y);
+        let edge_wear = if edge_distance < mortar + 1.6 {
+            1.0 - 0.12 * pattern_detail + hash(col, row_i, 31) * 0.06 * pattern_detail
+        } else {
+            1.0
+        };
+        let brick_variation = 1.0 + (hash(col, row_i, 11) - 0.5) * 0.44 * pattern_variation;
+        let grain = 1.0
+            + (hash(
+                pattern_x.floor() as i32,
+                pattern_y.floor() as i32,
+                col.wrapping_mul(19) ^ row_i.wrapping_mul(23),
+            ) - 0.5)
+                * 0.20
+                * pattern_detail;
+        let hairline = if (local_y - mortar).abs() < 1.0 || (local_x - mortar).abs() < 0.8 {
+            1.0 - 0.07 * pattern_detail
+        } else {
+            1.0
+        };
+        let shade = brick_variation * grain * edge_wear * hairline;
+        [
+            (base[0] as f32 * shade).clamp(0.0, 255.0) as u8,
+            (base[1] as f32 * shade).clamp(0.0, 255.0) as u8,
+            (base[2] as f32 * shade).clamp(0.0, 255.0) as u8,
+            base[3],
+        ]
+    }
+
+    fn iso_paint_sample_brick_surface_color(
+        surface_uv: [f32; 2],
+        base: [u8; 4],
+        pattern_kind: &str,
+        pattern_scale: f32,
+        pattern_mortar: f32,
+        pattern_detail: f32,
+        pattern_variation: f32,
+    ) -> [u8; 4] {
+        let pixels_per_world = 42.0;
+        Self::iso_paint_sample_brick_color(
+            surface_uv[0] * pixels_per_world,
+            surface_uv[1] * pixels_per_world,
+            base,
+            pattern_kind,
+            pattern_scale,
+            pattern_mortar,
+            pattern_detail,
+            pattern_variation,
+        )
+    }
+
+    fn iso_paint_composite_at(target: &mut TheRGBABuffer, paint: &TheRGBABuffer, x: i32, y: i32) {
+        let target_dim = *target.dim();
+        let paint_dim = *paint.dim();
+        if target_dim.width <= 0
+            || target_dim.height <= 0
+            || paint_dim.width <= 0
+            || paint_dim.height <= 0
+        {
+            return;
+        }
+
+        let target_w = target_dim.width as usize;
+        let paint_w = paint_dim.width as usize;
+        let paint_h = paint_dim.height as usize;
+        let target_pixels = target.pixels_mut();
+        let paint_pixels = paint.pixels();
+
+        for py in 0..paint_h {
+            let dy = y + py as i32;
+            if dy < 0 || dy >= target_dim.height {
+                continue;
+            }
+            for px in 0..paint_w {
+                let dx = x + px as i32;
+                if dx < 0 || dx >= target_dim.width {
+                    continue;
+                }
+                let src_index = (py * paint_w + px) * 4;
+                let dst_index = (dy as usize * target_w + dx as usize) * 4;
+                if src_index + 3 >= paint_pixels.len() || dst_index + 3 >= target_pixels.len() {
+                    continue;
+                }
+                let src = &paint_pixels[src_index..src_index + 4];
+                let src_a = src[3] as u16;
+                if src_a == 0 {
+                    continue;
+                }
+                let inv_a = 255 - src_a;
+                target_pixels[dst_index] =
+                    ((src[0] as u16 * src_a + target_pixels[dst_index] as u16 * inv_a) / 255) as u8;
+                target_pixels[dst_index + 1] = ((src[1] as u16 * src_a
+                    + target_pixels[dst_index + 1] as u16 * inv_a)
+                    / 255) as u8;
+                target_pixels[dst_index + 2] = ((src[2] as u16 * src_a
+                    + target_pixels[dst_index + 2] as u16 * inv_a)
+                    / 255) as u8;
+                target_pixels[dst_index + 3] = target_pixels[dst_index + 3].max(src[3]);
+            }
+        }
+    }
+
+    fn iso_paint_geo_object_matches(a: scenevm::GeoId, b: scenevm::GeoId) -> bool {
+        match (a, b) {
+            (scenevm::GeoId::GeometryObject(a), scenevm::GeoId::GeometryObject(b)) => a == b,
+            (scenevm::GeoId::Sector(a), scenevm::GeoId::Sector(b)) => a == b,
+            (scenevm::GeoId::Terrain(..), scenevm::GeoId::Terrain(..)) => true,
+            (scenevm::GeoId::Character(a), scenevm::GeoId::Character(b)) => a == b,
+            (scenevm::GeoId::Item(a), scenevm::GeoId::Item(b)) => a == b,
+            (scenevm::GeoId::Triangle(a), scenevm::GeoId::Triangle(b)) => a == b,
+            _ => a == b,
+        }
+    }
+
+    fn iso_paint_start_clip_pixel(
+        surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
+        clip: &str,
+        start_screen: Option<[i32; 2]>,
+    ) -> Option<scenevm::PaintSurfacePixel> {
+        if clip == "none" {
+            return None;
+        }
+        let start_screen = start_screen?;
+        surface_buffer?
+            .pixel(start_screen[0], start_screen[1])
+            .copied()
+            .filter(|pixel| pixel.valid)
+    }
+
+    fn iso_paint_clip_allows(
+        surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
+        clip: &str,
+        start_pixel: Option<scenevm::PaintSurfacePixel>,
+        x: i32,
+        y: i32,
+    ) -> bool {
+        match clip {
+            "none" => true,
+            _ => {
+                let Some(start) = start_pixel else {
+                    return false;
+                };
+                surface_buffer
+                    .and_then(|surface| surface.pixel(x, y))
+                    .is_some_and(|pixel| {
+                        pixel.valid
+                            && Self::iso_paint_geo_object_matches(start.geo_id, pixel.geo_id)
+                    })
+            }
+        }
+    }
+
+    fn iso_paint_composite_scaled_at(
+        target: &mut TheRGBABuffer,
+        paint: &TheRGBABuffer,
+        surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
+        clip: &str,
+        start_screen: Option<[i32; 2]>,
+        x: i32,
+        y: i32,
+        scale: f32,
+    ) {
+        let target_dim = *target.dim();
+        let paint_dim = *paint.dim();
+        if target_dim.width <= 0
+            || target_dim.height <= 0
+            || paint_dim.width <= 0
+            || paint_dim.height <= 0
+        {
+            return;
+        }
+
+        let scale = scale.clamp(0.05, 20.0);
+        let target_w = target_dim.width as usize;
+        let paint_w = paint_dim.width as usize;
+        let paint_h = paint_dim.height as usize;
+        let draw_w = ((paint_dim.width as f32) * scale).round().max(1.0) as usize;
+        let draw_h = ((paint_dim.height as f32) * scale).round().max(1.0) as usize;
+        let target_pixels = target.pixels_mut();
+        let paint_pixels = paint.pixels();
+        let start_pixel = Self::iso_paint_start_clip_pixel(surface_buffer, clip, start_screen);
+
+        for dy_local in 0..draw_h {
+            let dy = y + dy_local as i32;
+            if dy < 0 || dy >= target_dim.height {
+                continue;
+            }
+            let sy = ((dy_local as f32) / scale).floor() as usize;
+            if sy >= paint_h {
+                continue;
+            }
+            for dx_local in 0..draw_w {
+                let dx = x + dx_local as i32;
+                if dx < 0 || dx >= target_dim.width {
+                    continue;
+                }
+                let sx = ((dx_local as f32) / scale).floor() as usize;
+                if sx >= paint_w {
+                    continue;
+                }
+
+                let src_index = (sy * paint_w + sx) * 4;
+                let dst_index = (dy as usize * target_w + dx as usize) * 4;
+                if src_index + 3 >= paint_pixels.len() || dst_index + 3 >= target_pixels.len() {
+                    continue;
+                }
+                let src = &paint_pixels[src_index..src_index + 4];
+                let src_a = src[3] as u16;
+                if src_a == 0 {
+                    continue;
+                }
+                if !Self::iso_paint_clip_allows(surface_buffer, clip, start_pixel, dx, dy) {
+                    continue;
+                }
+                let inv_a = 255 - src_a;
+                target_pixels[dst_index] =
+                    ((src[0] as u16 * src_a + target_pixels[dst_index] as u16 * inv_a) / 255) as u8;
+                target_pixels[dst_index + 1] = ((src[1] as u16 * src_a
+                    + target_pixels[dst_index + 1] as u16 * inv_a)
+                    / 255) as u8;
+                target_pixels[dst_index + 2] = ((src[2] as u16 * src_a
+                    + target_pixels[dst_index + 2] as u16 * inv_a)
+                    / 255) as u8;
+                target_pixels[dst_index + 3] = target_pixels[dst_index + 3].max(src[3]);
+            }
+        }
+    }
+
+    fn iso_paint_composite_brick_scaled_at(
+        target: &mut TheRGBABuffer,
+        mask: &TheRGBABuffer,
+        surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
+        clip: &str,
+        start_screen: Option<[i32; 2]>,
+        x: i32,
+        y: i32,
+        scale: f32,
+        base: [u8; 4],
+        pattern_kind: &str,
+        pattern_scale: f32,
+        pattern_mortar: f32,
+        pattern_detail: f32,
+        pattern_variation: f32,
+    ) {
+        let target_dim = *target.dim();
+        let mask_dim = *mask.dim();
+        if target_dim.width <= 0
+            || target_dim.height <= 0
+            || mask_dim.width <= 0
+            || mask_dim.height <= 0
+        {
+            return;
+        }
+
+        if surface_buffer.is_none() {
+            return;
+        }
+
+        let scale = scale.clamp(0.05, 20.0);
+        let target_w = target_dim.width as usize;
+        let mask_w = mask_dim.width as usize;
+        let mask_h = mask_dim.height as usize;
+        let draw_w = ((mask_dim.width as f32) * scale).round().max(1.0) as usize;
+        let draw_h = ((mask_dim.height as f32) * scale).round().max(1.0) as usize;
+        let target_pixels = target.pixels_mut();
+        let mask_pixels = mask.pixels();
+        let start_pixel = Self::iso_paint_start_clip_pixel(surface_buffer, clip, start_screen);
+
+        for dy_local in 0..draw_h {
+            let dy = y + dy_local as i32;
+            if dy < 0 || dy >= target_dim.height {
+                continue;
+            }
+            let sy = ((dy_local as f32) / scale).floor() as usize;
+            if sy >= mask_h {
+                continue;
+            }
+            for dx_local in 0..draw_w {
+                let dx = x + dx_local as i32;
+                if dx < 0 || dx >= target_dim.width {
+                    continue;
+                }
+                let sx = ((dx_local as f32) / scale).floor() as usize;
+                if sx >= mask_w {
+                    continue;
+                }
+
+                let src_index = (sy * mask_w + sx) * 4;
+                if src_index + 3 >= mask_pixels.len() {
+                    continue;
+                }
+                let mask_alpha = mask_pixels[src_index + 3];
+                if mask_alpha == 0 {
+                    continue;
+                }
+                if !Self::iso_paint_clip_allows(surface_buffer, clip, start_pixel, dx, dy) {
+                    continue;
+                }
+
+                let surface_uv = surface_buffer
+                    .and_then(|surface| surface.pixel(dx, dy))
+                    .filter(|pixel| pixel.valid)
+                    .map(|pixel| pixel.uv);
+                let Some(surface_uv) = surface_uv else {
+                    continue;
+                };
+                let mut color = Self::iso_paint_sample_brick_surface_color(
+                    surface_uv,
+                    base,
+                    pattern_kind,
+                    pattern_scale,
+                    pattern_mortar,
+                    pattern_detail,
+                    pattern_variation,
+                );
+                color[3] = ((color[3] as u16 * mask_alpha as u16) / 255) as u8;
+                Self::iso_paint_blend_pixel(
+                    target_pixels,
+                    target_w,
+                    target_dim.height as usize,
+                    dx,
+                    dy,
+                    color,
+                );
+            }
+        }
+    }
+
+    fn iso_paint_clear_scaled_at(
+        target: &mut TheRGBABuffer,
+        mask: &TheRGBABuffer,
+        surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
+        clip: &str,
+        start_screen: Option<[i32; 2]>,
+        x: i32,
+        y: i32,
+        scale: f32,
+    ) {
+        let target_dim = *target.dim();
+        let mask_dim = *mask.dim();
+        if target_dim.width <= 0
+            || target_dim.height <= 0
+            || mask_dim.width <= 0
+            || mask_dim.height <= 0
+        {
+            return;
+        }
+
+        let scale = scale.clamp(0.05, 20.0);
+        let target_w = target_dim.width as usize;
+        let mask_w = mask_dim.width as usize;
+        let mask_h = mask_dim.height as usize;
+        let draw_w = ((mask_dim.width as f32) * scale).round().max(1.0) as usize;
+        let draw_h = ((mask_dim.height as f32) * scale).round().max(1.0) as usize;
+        let target_pixels = target.pixels_mut();
+        let mask_pixels = mask.pixels();
+        let start_pixel = Self::iso_paint_start_clip_pixel(surface_buffer, clip, start_screen);
+
+        for dy_local in 0..draw_h {
+            let dy = y + dy_local as i32;
+            if dy < 0 || dy >= target_dim.height {
+                continue;
+            }
+            let sy = ((dy_local as f32) / scale).floor() as usize;
+            if sy >= mask_h {
+                continue;
+            }
+            for dx_local in 0..draw_w {
+                let dx = x + dx_local as i32;
+                if dx < 0 || dx >= target_dim.width {
+                    continue;
+                }
+                let sx = ((dx_local as f32) / scale).floor() as usize;
+                if sx >= mask_w {
+                    continue;
+                }
+
+                let src_index = (sy * mask_w + sx) * 4;
+                let dst_index = (dy as usize * target_w + dx as usize) * 4;
+                if src_index + 3 >= mask_pixels.len() || dst_index + 3 >= target_pixels.len() {
+                    continue;
+                }
+                let mask_a = mask_pixels[src_index + 3] as u16;
+                if mask_a == 0 {
+                    continue;
+                }
+                if !Self::iso_paint_clip_allows(surface_buffer, clip, start_pixel, dx, dy) {
+                    continue;
+                }
+                let keep = 255 - mask_a;
+                target_pixels[dst_index + 3] =
+                    ((target_pixels[dst_index + 3] as u16 * keep) / 255) as u8;
+            }
+        }
+    }
+
+    fn iso_paint_preview_color(layer: &IsoPaintLayer) -> [u8; 4] {
+        match layer.active_operation.as_str() {
+            "erase" => [242, 92, 84, 230],
+            "pick" => [87, 186, 255, 230],
+            _ => {
+                let mut color = layer.active_color;
+                color[3] = 230;
+                color
+            }
+        }
+    }
+
+    fn draw_iso_paint_preview(
+        buffer: &mut TheRGBABuffer,
+        layer: &IsoPaintLayer,
+        hover: Option<Vec2<i32>>,
+    ) {
+        if !layer.visible || layer.active_operation == "pick" && hover.is_none() {
+            return;
+        }
+
+        let Some(hover) = hover else {
+            return;
+        };
+        let dim = *buffer.dim();
+        if dim.width <= 0 || dim.height <= 0 {
+            return;
+        }
+
+        let radius = (layer.active_size * 2.0).round().clamp(3.0, 96.0) as i32;
+        let outer = radius + 2;
+        let radius_sq = radius * radius;
+        let inner_sq = (radius - 2).max(1).pow(2);
+        let shadow_sq = outer * outer;
+        let color = Self::iso_paint_preview_color(layer);
+        let fill = [color[0], color[1], color[2], 38];
+        let shadow = [8, 10, 12, 145];
+        let pixels = buffer.pixels_mut();
+        let width = dim.width as usize;
+        let height = dim.height as usize;
+
+        for oy in -outer..=outer {
+            for ox in -outer..=outer {
+                let d = ox * ox + oy * oy;
+                let x = hover.x + ox;
+                let y = hover.y + oy;
+                if d <= shadow_sq && d > radius_sq {
+                    Self::iso_paint_blend_pixel(pixels, width, height, x, y, shadow);
+                } else if d <= radius_sq && d >= inner_sq {
+                    Self::iso_paint_blend_pixel(pixels, width, height, x, y, color);
+                } else if d < inner_sq && layer.active_operation != "pick" {
+                    Self::iso_paint_blend_pixel(pixels, width, height, x, y, fill);
+                }
+            }
+        }
+    }
+
+    fn iso_paint_current_camera_scale() -> Option<f32> {
+        RUSTERIX
+            .read()
+            .ok()
+            .map(|rusterix| rusterix.client.camera_d3.scale())
+    }
+
+    fn iso_paint_project_world_anchor(
+        point: [f32; 3],
+        width: i32,
+        height: i32,
+    ) -> Option<[i32; 2]> {
+        if width <= 0 || height <= 0 {
+            return None;
+        }
+
+        let rusterix = RUSTERIX.read().ok()?;
+        let view = rusterix.client.camera_d3.view_matrix();
+        let proj = rusterix
+            .client
+            .camera_d3
+            .projection_matrix(width as f32, height as f32);
+        let clip = (proj * view) * Vec4::new(point[0], point[1], point[2], 1.0);
+        if clip.w.abs() <= f32::EPSILON {
+            return None;
+        }
+
+        let ndc = Vec3::new(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
+        Some([
+            ((ndc.x * 0.5 + 0.5) * width as f32).round() as i32,
+            ((1.0 - (ndc.y * 0.5 + 0.5)) * height as f32).round() as i32,
+        ])
+    }
+
+    fn iso_paint_stroke_anchor(
+        stroke: &IsoPaintStroke,
+    ) -> (Option<[i32; 2]>, Option<[f32; 3]>, Option<f32>) {
+        for point in &stroke.points {
+            if let Some(world) = point.world {
+                return (Some(point.screen), Some(world), point.camera_scale);
+            }
+        }
+        (None, None, None)
+    }
+
+    fn iso_paint_stroke_bounds(stroke: &IsoPaintStroke) -> ([i32; 2], [i32; 2]) {
+        let pad = (stroke.size * 2.0).round().max(1.0) as i32 + 1;
+        let min = [stroke.screen_bounds[0] - pad, stroke.screen_bounds[1] - pad];
+        let max = [stroke.screen_bounds[2] + pad, stroke.screen_bounds[3] + pad];
+        (min, max)
+    }
+
+    fn build_iso_paint_stroke_caches(stroke: &IsoPaintStroke) -> Vec<IsoPaintStrokeRenderCache> {
+        if stroke.points.is_empty() || stroke.operation == "pick" {
+            return Vec::new();
+        }
+
+        let erase = stroke.operation == "erase";
+        let (origin, max) = Self::iso_paint_stroke_bounds(stroke);
+        let width = (max[0] - origin[0] + 1).max(1);
+        let height = (max[1] - origin[1] + 1).max(1);
+        let mut paint = TheRGBABuffer::new(TheDim::sized(width, height));
+        let paint_w = width as usize;
+        let paint_h = height as usize;
+
+        let (screen_anchor, world_anchor, camera_scale) = Self::iso_paint_stroke_anchor(stroke);
+        if !erase && stroke.brush == "brick" && world_anchor.is_none() {
+            return Vec::new();
+        }
+
+        let color = if erase {
+            [
+                0,
+                0,
+                0,
+                (stroke.opacity.clamp(0.0, 1.0) * 255.0).round() as u8,
+            ]
+        } else if stroke.brush == "brick" {
+            [
+                255,
+                255,
+                255,
+                (stroke.opacity.clamp(0.0, 1.0) * 255.0).round() as u8,
+            ]
+        } else {
+            Self::iso_paint_color_with_opacity(stroke.color, stroke.opacity)
+        };
+        let radius = (stroke.size * 2.0).round().max(1.0) as i32;
+        let pixels = paint.pixels_mut();
+
+        if stroke.points.len() == 1 {
+            let point = &stroke.points[0];
+            Self::iso_paint_stamp(
+                pixels,
+                paint_w,
+                paint_h,
+                point.screen[0] - origin[0],
+                point.screen[1] - origin[1],
+                radius,
+                color,
+            );
+        } else {
+            for pair in stroke.points.windows(2) {
+                Self::iso_paint_stamp(
+                    pixels,
+                    paint_w,
+                    paint_h,
+                    pair[0].screen[0] - origin[0],
+                    pair[0].screen[1] - origin[1],
+                    radius,
+                    color,
+                );
+                Self::iso_paint_draw_segment(
+                    pixels,
+                    paint_w,
+                    paint_h,
+                    pair[0].screen,
+                    pair[1].screen,
+                    origin,
+                    radius,
+                    color,
+                );
+            }
+        }
+
+        vec![IsoPaintStrokeRenderCache {
+            origin,
+            screen_anchor,
+            world_anchor,
+            camera_scale: camera_scale.or_else(Self::iso_paint_current_camera_scale),
+            brush: stroke.brush.clone(),
+            clip: stroke.clip.clone(),
+            color: Self::iso_paint_color_with_opacity(stroke.color, 1.0),
+            pattern_kind: stroke.pattern_kind.clone(),
+            pattern_scale: stroke.pattern_scale,
+            pattern_mortar: stroke.pattern_mortar,
+            pattern_detail: stroke.pattern_detail,
+            pattern_variation: stroke.pattern_variation,
+            erase,
+            buffer: paint,
+        }]
+    }
+
+    fn build_iso_paint_chunk_cache(chunk: &IsoPaintChunk) -> IsoPaintChunkRenderCache {
+        IsoPaintChunkRenderCache {
+            revision: chunk.revision,
+            strokes: chunk
+                .strokes
+                .iter()
+                .flat_map(Self::build_iso_paint_stroke_caches)
+                .collect(),
+        }
+    }
+
+    fn iso_paint_surface_buffer(
+        &mut self,
+        region_id: Uuid,
+        width: i32,
+        height: i32,
+    ) -> Option<Arc<scenevm::PaintSurfaceBuffer>> {
+        if width <= 0 || height <= 0 {
+            self.iso_paint_surface_cache.buffer = None;
+            return None;
+        }
+
+        let Ok(rusterix) = RUSTERIX.read() else {
+            return self.iso_paint_surface_cache.buffer.clone();
+        };
+        let key = rusterix
+            .scene_handler
+            .vm
+            .paint_surface_key(width as u32, height as u32);
+        let rebuild = self.iso_paint_surface_cache.region_id != Some(region_id)
+            || self.iso_paint_surface_cache.key != key
+            || self.iso_paint_surface_cache.buffer.is_none();
+        if rebuild {
+            let buffer = rusterix
+                .scene_handler
+                .vm
+                .paint_surface_buffer(width as u32, height as u32);
+            self.iso_paint_surface_cache.region_id = Some(region_id);
+            self.iso_paint_surface_cache.key = key;
+            self.iso_paint_surface_cache.buffer = Some(Arc::new(buffer));
+        }
+
+        self.iso_paint_surface_cache.buffer.clone()
+    }
+
+    fn draw_iso_paint_layer(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        region_id: Uuid,
+        layer: &IsoPaintLayer,
+    ) {
+        let target_dim = *buffer.dim();
+        let paint_surface =
+            self.iso_paint_surface_buffer(region_id, target_dim.width, target_dim.height);
+        Self::draw_iso_paint_layer_prepared(
+            &mut self.iso_paint_render_cache,
+            buffer,
+            region_id,
+            layer,
+            paint_surface.as_deref(),
+            Self::iso_paint_current_camera_scale(),
+            Self::iso_paint_project_world_anchor,
+        );
+    }
+
+    fn draw_iso_paint_layer_prepared(
+        render_cache: &mut IsoPaintRenderCache,
+        buffer: &mut TheRGBABuffer,
+        region_id: Uuid,
+        layer: &IsoPaintLayer,
+        paint_surface: Option<&scenevm::PaintSurfaceBuffer>,
+        current_camera_scale: Option<f32>,
+        project_world_anchor: impl Fn([f32; 3], i32, i32) -> Option<[i32; 2]>,
+    ) {
+        if render_cache.region_id != Some(region_id) {
+            render_cache.region_id = Some(region_id);
+            render_cache.chunks.clear();
+        }
+
+        if !layer.visible || layer.chunks.is_empty() {
+            return;
+        }
+
+        let target_dim = *buffer.dim();
+        if target_dim.width <= 0 || target_dim.height <= 0 {
+            return;
+        }
+        let mut paint_overlay = TheRGBABuffer::new(target_dim);
+
+        render_cache
+            .chunks
+            .retain(|key, _| layer.chunks.contains_key(key));
+
+        for (key, chunk) in &layer.chunks {
+            let rebuild = render_cache
+                .chunks
+                .get(key)
+                .map(|cached| cached.revision != chunk.revision)
+                .unwrap_or(true);
+            if rebuild {
+                let cached = Self::build_iso_paint_chunk_cache(chunk);
+                render_cache.chunks.insert(key.clone(), cached);
+            }
+
+            if let Some(cached) = render_cache.chunks.get(key) {
+                for stroke in &cached.strokes {
+                    let mut draw_origin = stroke.origin;
+                    let mut draw_scale = 1.0;
+                    let mut start_screen = stroke.screen_anchor;
+                    if let (Some(screen_anchor), Some(world_anchor)) =
+                        (stroke.screen_anchor, stroke.world_anchor)
+                    {
+                        if let Some(current_screen) =
+                            project_world_anchor(world_anchor, target_dim.width, target_dim.height)
+                        {
+                            if let (Some(source_scale), Some(current_scale)) =
+                                (stroke.camera_scale, current_camera_scale)
+                            {
+                                draw_scale =
+                                    (source_scale / current_scale.max(0.001)).clamp(0.05, 20.0);
+                            }
+                            let anchor_local_x = screen_anchor[0] - stroke.origin[0];
+                            let anchor_local_y = screen_anchor[1] - stroke.origin[1];
+                            draw_origin[0] = (current_screen[0] as f32
+                                - anchor_local_x as f32 * draw_scale)
+                                .round() as i32;
+                            draw_origin[1] = (current_screen[1] as f32
+                                - anchor_local_y as f32 * draw_scale)
+                                .round() as i32;
+                            start_screen = Some(current_screen);
+                        }
+                    }
+                    if stroke.erase {
+                        Self::iso_paint_clear_scaled_at(
+                            &mut paint_overlay,
+                            &stroke.buffer,
+                            paint_surface,
+                            &stroke.clip,
+                            start_screen,
+                            draw_origin[0],
+                            draw_origin[1],
+                            draw_scale,
+                        );
+                    } else if stroke.brush == "brick" {
+                        Self::iso_paint_composite_brick_scaled_at(
+                            &mut paint_overlay,
+                            &stroke.buffer,
+                            paint_surface,
+                            &stroke.clip,
+                            start_screen,
+                            draw_origin[0],
+                            draw_origin[1],
+                            draw_scale,
+                            stroke.color,
+                            &stroke.pattern_kind,
+                            stroke.pattern_scale,
+                            stroke.pattern_mortar,
+                            stroke.pattern_detail,
+                            stroke.pattern_variation,
+                        );
+                    } else {
+                        Self::iso_paint_composite_scaled_at(
+                            &mut paint_overlay,
+                            &stroke.buffer,
+                            paint_surface,
+                            &stroke.clip,
+                            start_screen,
+                            draw_origin[0],
+                            draw_origin[1],
+                            draw_scale,
+                        );
+                    }
+                }
+            }
+        }
+
+        Self::iso_paint_composite_at(buffer, &paint_overlay, 0, 0);
+    }
 
     fn ensure_project_extension(mut path: PathBuf) -> PathBuf {
         if let Some(file_name) = path.file_name().and_then(|name| name.to_str()) {
@@ -3404,6 +4353,8 @@ impl TheTrait for Editor {
             starter_manifest_cache: None,
             starter_loader_rx: None,
             selected_starter_manifest_id: None,
+            iso_paint_render_cache: IsoPaintRenderCache::default(),
+            iso_paint_surface_cache: IsoPaintSurfaceBufferCache::default(),
         }
     }
 
@@ -4567,7 +5518,62 @@ impl TheTrait for Editor {
                         };
                         for r in &mut self.project.regions {
                             if r.map.name == rusterix.client.current_map {
+                                let region_id = r.id;
+                                let iso_paint = r.iso_paint.clone();
                                 rusterix.draw_game(&r.map, game_messages, game_says, game_choices);
+                                if iso_paint.visible && !iso_paint.chunks.is_empty() {
+                                    let Rusterix {
+                                        client,
+                                        scene_handler,
+                                        ..
+                                    } = &mut **rusterix;
+                                    let scene_handler = &*scene_handler;
+                                    client.for_each_game_widget_mut(|widget| {
+                                        let dim = *widget.buffer.dim();
+                                        if dim.width <= 0 || dim.height <= 0 {
+                                            return;
+                                        }
+                                        let paint_surface = scene_handler.vm.paint_surface_buffer(
+                                            dim.width as u32,
+                                            dim.height as u32,
+                                        );
+                                        let view = widget.camera_d3.view_matrix();
+                                        let proj = widget
+                                            .camera_d3
+                                            .projection_matrix(dim.width as f32, dim.height as f32);
+                                        let camera_scale = Some(widget.camera_d3.scale());
+                                        Self::draw_iso_paint_layer_prepared(
+                                            &mut self.iso_paint_render_cache,
+                                            &mut widget.buffer,
+                                            region_id,
+                                            &iso_paint,
+                                            Some(&paint_surface),
+                                            camera_scale,
+                                            |point, width, height| {
+                                                if width <= 0 || height <= 0 {
+                                                    return None;
+                                                }
+                                                let clip = (proj * view)
+                                                    * Vec4::new(point[0], point[1], point[2], 1.0);
+                                                if clip.w.abs() <= f32::EPSILON {
+                                                    return None;
+                                                }
+                                                let ndc = Vec3::new(
+                                                    clip.x / clip.w,
+                                                    clip.y / clip.w,
+                                                    clip.z / clip.w,
+                                                );
+                                                Some([
+                                                    ((ndc.x * 0.5 + 0.5) * width as f32).round()
+                                                        as i32,
+                                                    ((1.0 - (ndc.y * 0.5 + 0.5)) * height as f32)
+                                                        .round()
+                                                        as i32,
+                                                ])
+                                            },
+                                        );
+                                    });
+                                }
                                 break;
                             }
                         }
@@ -4876,6 +5882,26 @@ impl TheTrait for Editor {
                                     );
                                 }
                             }
+                        }
+                    }
+                }
+                if !self.server_ctx.game_mode
+                    && self.server_ctx.get_map_context() == MapContext::Region
+                    && self.server_ctx.editor_view_mode == EditorViewMode::Iso
+                {
+                    let iso_paint = self
+                        .project
+                        .get_region(&self.server_ctx.curr_region)
+                        .map(|region| region.iso_paint.clone());
+                    if let Some(iso_paint) = iso_paint {
+                        let buffer = render_view.render_buffer_mut();
+                        self.draw_iso_paint_layer(buffer, self.server_ctx.curr_region, &iso_paint);
+                        if self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint {
+                            Self::draw_iso_paint_preview(
+                                buffer,
+                                &iso_paint,
+                                self.server_ctx.iso_paint_hover_screen,
+                            );
                         }
                     }
                 }

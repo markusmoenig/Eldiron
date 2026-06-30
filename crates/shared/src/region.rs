@@ -14,6 +14,10 @@ pub struct Region {
     pub name: String,
     pub map: Map,
 
+    /// Fixed-camera isometric screen-space paint authored over this region.
+    #[serde(default)]
+    pub iso_paint: IsoPaintLayer,
+
     #[serde(default)]
     pub config: String,
 
@@ -73,6 +77,7 @@ impl Region {
             name: "New Region".to_string(),
 
             map,
+            iso_paint: IsoPaintLayer::default(),
             config: String::new(),
             module: serde_json::Value::Null,
             source: String::new(),

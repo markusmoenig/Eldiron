@@ -8,6 +8,7 @@ use theframework::prelude::*;
 #[derive(Clone, Debug)]
 pub enum ProjectUndoAtom {
     MapEdit(ProjectContext, Box<Map>, Box<Map>),
+    RegionEdit(ProjectContext, Box<Region>, Box<Region>),
     TilePickerEdit(Box<Project>, Box<Project>),
     ProjectEdit(String, Box<Project>, Box<Project>),
     AddRegion(Region),
@@ -108,10 +109,68 @@ impl ProjectUndoAtom {
             .update_geometry_overlay_3d(project, server_ctx);
     }
 
+    fn apply_region_edit_state(
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        pc: ProjectContext,
+        restored_region: &Region,
+    ) {
+        let preserved_dock = DOCKMANAGER.read().unwrap().dock.clone();
+        set_project_context(ctx, ui, project, server_ctx, pc);
+        if let Some(region) = project.get_region_mut(&restored_region.id) {
+            *region = restored_region.clone();
+            region.map.clear_temp();
+            region.map.update_surfaces();
+            SCENEMANAGER.write().unwrap().update_map(region.map.clone());
+            update_region(ctx);
+        }
+        if !preserved_dock.is_empty() && DOCKMANAGER.read().unwrap().dock != preserved_dock {
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock(preserved_dock, ui, ctx, project, server_ctx);
+        }
+        TOOLLIST
+            .write()
+            .unwrap()
+            .update_geometry_overlay_3d(project, server_ctx);
+    }
+
+    fn is_iso_paint_only_region_edit(old: &Region, new: &Region) -> bool {
+        if old.iso_paint == new.iso_paint {
+            return false;
+        }
+
+        let mut normalized_new = new.clone();
+        normalized_new.iso_paint = old.iso_paint.clone();
+        serde_json::to_value(old).ok() == serde_json::to_value(normalized_new).ok()
+    }
+
+    pub fn is_iso_paint_only(&self) -> bool {
+        match self {
+            RegionEdit(_, old, new) => Self::is_iso_paint_only_region_edit(old, new),
+            _ => false,
+        }
+    }
+
+    fn apply_region_paint_state(
+        project: &mut Project,
+        ctx: &mut TheContext,
+        restored_region: &Region,
+    ) {
+        if let Some(region) = project.get_region_mut(&restored_region.id) {
+            *region = restored_region.clone();
+            ctx.ui.redraw_all = true;
+        }
+    }
+
     /// Returns the ProjectContext for the MapEdit
     pub fn pc(&self) -> Option<ProjectContext> {
         match self {
             MapEdit(pc, _, _) => Some(*pc),
+            RegionEdit(pc, _, _) => Some(*pc),
             _ => None,
         }
     }
@@ -120,6 +179,7 @@ impl ProjectUndoAtom {
     pub fn to_string(&self) -> String {
         match self {
             MapEdit(_, _, _) => "Map Edit".to_string(),
+            RegionEdit(_, _, _) => "Region Edit".to_string(),
             TilePickerEdit(_, _) => "Tile Picker Edit".to_string(),
             ProjectEdit(label, _, _) => label.clone(),
             AddRegion(region) => format!("Add Region: {}", region.name),
@@ -194,6 +254,13 @@ impl ProjectUndoAtom {
         match self {
             MapEdit(pc, old, new) => {
                 Self::apply_map_edit_state(project, ui, ctx, server_ctx, *pc, old, Some(new));
+            }
+            RegionEdit(pc, old, new) => {
+                if Self::is_iso_paint_only_region_edit(old, new) {
+                    Self::apply_region_paint_state(project, ctx, old);
+                } else {
+                    Self::apply_region_edit_state(project, ui, ctx, server_ctx, *pc, old);
+                }
             }
             TilePickerEdit(old, _new) => {
                 *project = (*old.clone()).clone();
@@ -812,6 +879,13 @@ impl ProjectUndoAtom {
         match self {
             MapEdit(pc, old, new) => {
                 Self::apply_map_edit_state(project, ui, ctx, server_ctx, *pc, new, Some(old));
+            }
+            RegionEdit(pc, old, new) => {
+                if Self::is_iso_paint_only_region_edit(old, new) {
+                    Self::apply_region_paint_state(project, ctx, new);
+                } else {
+                    Self::apply_region_edit_state(project, ui, ctx, server_ctx, *pc, new);
+                }
             }
             TilePickerEdit(_old, new) => {
                 *project = (*new.clone()).clone();
