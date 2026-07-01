@@ -117,9 +117,47 @@ impl super::VMGpu {
 
         if self.raster3d_fb_size != (fb_w, fb_h)
             || self.raster3d_sample_count != raster_samples
+            || self.raster3d_scene_tex.is_none()
+            || self.raster3d_bloom_tex.is_none()
             || self.raster3d_msaa_color_tex.is_none()
             || self.raster3d_depth_tex.is_none()
         {
+            let scene_tex = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("vm-raster3d-scene-color"),
+                size: wgpu::Extent3d {
+                    width: fb_w,
+                    height: fb_h,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            let scene_view = scene_tex.create_view(&wgpu::TextureViewDescriptor::default());
+
+            let bloom_w = (fb_w / 2).max(1);
+            let bloom_h = (fb_h / 2).max(1);
+            let bloom_tex = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("vm-raster3d-bloom-color"),
+                size: wgpu::Extent3d {
+                    width: bloom_w,
+                    height: bloom_h,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            let bloom_view = bloom_tex.create_view(&wgpu::TextureViewDescriptor::default());
+
             let msaa_color_tex = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("vm-raster3d-msaa-color"),
                 size: wgpu::Extent3d {
@@ -130,7 +168,7 @@ impl super::VMGpu {
                 mip_level_count: 1,
                 sample_count: raster_samples,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8Unorm,
+                format: wgpu::TextureFormat::Rgba16Float,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
             });
@@ -153,6 +191,11 @@ impl super::VMGpu {
             });
             let depth_view = depth_tex.create_view(&wgpu::TextureViewDescriptor::default());
 
+            self.raster3d_scene_tex = Some(scene_tex);
+            self.raster3d_scene_view = Some(scene_view);
+            self.raster3d_bloom_tex = Some(bloom_tex);
+            self.raster3d_bloom_view = Some(bloom_view);
+            self.raster3d_bloom_size = (bloom_w, bloom_h);
             self.raster3d_msaa_color_tex = Some(msaa_color_tex);
             self.raster3d_msaa_color_view = Some(msaa_color_view);
             self.raster3d_depth_tex = Some(depth_tex);

@@ -235,6 +235,8 @@ pub struct VMGpu {
     pub raster3d_line_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_organic_billboard_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_shadow_pipeline: Option<wgpu::RenderPipeline>,
+    pub raster3d_bloom_extract_pipeline: Option<wgpu::RenderPipeline>,
+    pub raster3d_bloom_composite_pipeline: Option<wgpu::RenderPipeline>,
     pub u2d_buf: Option<wgpu::Buffer>,
     pub u3d_buf: Option<wgpu::Buffer>,
     pub u_sdf_buf: Option<wgpu::Buffer>,
@@ -246,6 +248,7 @@ pub struct VMGpu {
     pub u_raster2d_bgl: Option<wgpu::BindGroupLayout>,
     pub u_raster3d_bgl: Option<wgpu::BindGroupLayout>,
     pub u_raster3d_shadow_bgl: Option<wgpu::BindGroupLayout>,
+    pub u_raster3d_post_bgl: Option<wgpu::BindGroupLayout>,
     pub u2d_bg: Option<wgpu::BindGroup>,
     pub u3d_bg: Option<wgpu::BindGroup>,
     pub u_sdf_bg: Option<wgpu::BindGroup>,
@@ -277,6 +280,11 @@ pub struct VMGpu {
     pub raster3d_shadow_tex: Option<wgpu::Texture>,
     pub raster3d_shadow_view: Option<wgpu::TextureView>,
     pub raster3d_shadow_res: u32,
+    pub raster3d_scene_tex: Option<wgpu::Texture>,
+    pub raster3d_scene_view: Option<wgpu::TextureView>,
+    pub raster3d_bloom_tex: Option<wgpu::Texture>,
+    pub raster3d_bloom_view: Option<wgpu::TextureView>,
+    pub raster3d_bloom_size: (u32, u32),
     pub raster3d_msaa_color_tex: Option<wgpu::Texture>,
     pub raster3d_msaa_color_view: Option<wgpu::TextureView>,
     pub raster3d_depth_tex: Option<wgpu::Texture>,
@@ -1540,6 +1548,9 @@ fn apply_post(color_linear: vec3<f32>, frag_pos: vec4<f32>) -> vec3<f32> {
     let shadow_lift = clamp(UBO.post_style0.w, 0.0, 1.0);
     let edge_soften = clamp(UBO.post_style1.x, 0.0, 1.0);
     var c = max(color_linear, vec3<f32>(0.0));
+    if (UBO.post_color_adjust.z > 0.5) {
+        return c;
+    }
 
     if (post_enabled) {
         c = c * exposure;
@@ -2221,6 +2232,174 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 }
 "#;
 
+pub const SCENEVM_3D_POST_WGSL: &str = r#"
+struct U {
+    cam_pos: vec4<f32>,
+    cam_fwd: vec4<f32>,
+    cam_right: vec4<f32>,
+    cam_up: vec4<f32>,
+    sun_color_intensity: vec4<f32>,
+    sun_dir_enabled: vec4<f32>,
+    ambient_color_strength: vec4<f32>,
+    sky_color: vec4<f32>,
+    fog_color_density: vec4<f32>,
+    shadow_light_right: vec4<f32>,
+    shadow_light_up: vec4<f32>,
+    shadow_light_fwd: vec4<f32>,
+    shadow_light_center: vec4<f32>,
+    shadow_light_extents: vec4<f32>,
+    shadow_params: vec4<f32>,
+    render_params: vec4<f32>,
+    point_light_pos_intensity: array<vec4<f32>, 8>,
+    point_light_color_range: array<vec4<f32>, 8>,
+    point_light_count_pad: vec4<u32>,
+    _pad_lights: vec4<u32>,
+    fb_size: vec2<f32>,
+    cam_vfov_deg: f32,
+    cam_ortho_half_h: f32,
+    cam_near: f32,
+    cam_far: f32,
+    cam_kind: u32,
+    anim_counter: u32,
+    _pad0: vec2<u32>,
+    _pad_post_pre: vec2<u32>,
+    post_params: vec4<f32>,
+    post_color_adjust: vec4<f32>,
+    post_style0: vec4<f32>,
+    post_style1: vec4<f32>,
+    avatar_highlight_params: vec4<f32>,
+    _pad_tail: vec4<u32>,
+    palette: array<vec4<f32>, 256>,
+    palette_tile_indices: array<vec4<u32>, 64>,
+    organic_params: vec4<u32>,
+};
+
+@group(0) @binding(0) var<uniform> UBO: U;
+@group(0) @binding(1) var scene_tex: texture_2d<f32>;
+@group(0) @binding(2) var bloom_tex: texture_2d<f32>;
+@group(0) @binding(3) var post_smp: sampler;
+
+struct VsOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+};
+
+fn hash12(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(12.9898, 78.233))) * 43758.5453123);
+}
+
+fn apply_post(color_linear: vec3<f32>, frag_pos: vec4<f32>) -> vec3<f32> {
+    let post_enabled = UBO.post_params.x > 0.5;
+    let tone_mapper = u32(max(UBO.post_params.y, 0.0));
+    let first_person_post = UBO.cam_kind == 2u;
+    let post_style_strength = select(1.0, 0.45, first_person_post);
+    let exposure = max(UBO.post_params.z, 0.0);
+    let gamma = max(UBO.post_params.w, 0.001);
+    let grit = clamp(UBO.post_style0.x, 0.0, 1.0);
+    let posterize = clamp(UBO.post_style0.y, 0.0, 1.0);
+    let palette_bias = clamp(UBO.post_style0.z, 0.0, 1.0);
+    let shadow_lift = clamp(UBO.post_style0.w, 0.0, 1.0);
+    let edge_soften = clamp(UBO.post_style1.x, 0.0, 1.0);
+    var c = max(color_linear, vec3<f32>(0.0));
+
+    if (post_enabled) {
+        c = c * exposure;
+        if (tone_mapper == 1u) {
+            c = c / (c + vec3<f32>(1.0));
+        } else if (tone_mapper == 2u) {
+            let a = 2.51;
+            let b = 0.03;
+            let d = 0.59;
+            let e = 0.14;
+            c = clamp((c * (a * c + b)) / (c * (2.43 * c + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+        }
+
+        let luminance = max(UBO.post_color_adjust.y, 0.0);
+        c = c * luminance;
+        let highlight = max(c - vec3<f32>(0.62), vec3<f32>(0.0));
+        let highlight_luma = dot(highlight, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let bloom_tint = mix(vec3<f32>(1.0), max(UBO.post_style1.yzw, vec3<f32>(0.0)), 0.28);
+        c = c + highlight * bloom_tint * (0.035 + highlight_luma * 0.045) * post_style_strength;
+        let saturation = max(UBO.post_color_adjust.x, 0.0);
+        let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+        c = mix(c, c + vec3<f32>(pow(max(1.0 - luma, 0.0), 2.0)) * 0.12, shadow_lift);
+        let earth = vec3<f32>(luma) * vec3<f32>(1.07, 0.98, 0.82);
+        c = mix(c, mix(c, earth, 0.45), palette_bias);
+        let levels = mix(32.0, 7.0, posterize);
+        c = mix(c, floor(c * levels + vec3<f32>(0.5)) / levels, posterize);
+        let grain = hash12(floor(frag_pos.xy)) * 2.0 - 1.0;
+        let grain_amount = select(0.026, 0.014, first_person_post);
+        c = c + vec3<f32>(grain) * grit * grain_amount;
+        let paper = hash12(floor(frag_pos.xy * 0.5) + vec2<f32>(17.0, 3.0)) * 2.0 - 1.0;
+        let nomad_luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let shadow_tone = 1.0 - smoothstep(0.14, 0.62, nomad_luma);
+        c = mix(c, c * vec3<f32>(1.035, 0.995, 0.925), shadow_tone * 0.075 * post_style_strength);
+        c = c + vec3<f32>(paper) * 0.0035 * post_style_strength;
+        c = mix(c, vec3<f32>(dot(c, vec3<f32>(0.2126, 0.7152, 0.0722))), edge_soften * 0.10);
+        let sat_luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+        c = mix(vec3<f32>(sat_luma), c, saturation);
+    }
+
+    return pow(max(c, vec3<f32>(0.0)), vec3<f32>(1.0 / gamma));
+}
+
+@vertex
+fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VsOut {
+    var out: VsOut;
+    let xy = array<vec2<f32>, 3>(
+        vec2<f32>(-1.0, -3.0),
+        vec2<f32>(-1.0,  1.0),
+        vec2<f32>( 3.0,  1.0)
+    );
+    out.pos = vec4<f32>(xy[vertex_index], 0.0, 1.0);
+    out.uv = out.pos.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5);
+    return out;
+}
+
+fn bright_part(c: vec3<f32>) -> vec3<f32> {
+    let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let threshold = select(0.82, 1.05, UBO.cam_kind == 2u);
+    let knee = 0.48;
+    let soft = clamp((luma - threshold + knee) / max(knee, 0.001), 0.0, 1.0);
+    let weight = soft * soft * (3.0 - 2.0 * soft);
+    return c * weight;
+}
+
+@fragment
+fn fs_extract(in: VsOut) -> @location(0) vec4<f32> {
+    let texel = 1.0 / vec2<f32>(textureDimensions(scene_tex, 0));
+    var c = textureSampleLevel(scene_tex, post_smp, in.uv, 0.0).rgb * 0.28;
+    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>( 1.5,  0.0), 0.0).rgb * 0.12;
+    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>(-1.5,  0.0), 0.0).rgb * 0.12;
+    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>( 0.0,  1.5), 0.0).rgb * 0.12;
+    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>( 0.0, -1.5), 0.0).rgb * 0.12;
+    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>( 2.5,  2.5), 0.0).rgb * 0.06;
+    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>(-2.5,  2.5), 0.0).rgb * 0.06;
+    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>( 2.5, -2.5), 0.0).rgb * 0.06;
+    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>(-2.5, -2.5), 0.0).rgb * 0.06;
+    return vec4<f32>(bright_part(c), 1.0);
+}
+
+@fragment
+fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
+    let scene = textureSampleLevel(scene_tex, post_smp, in.uv, 0.0);
+    let bloom_texel = 1.0 / vec2<f32>(textureDimensions(bloom_tex, 0));
+    var bloom = textureSampleLevel(bloom_tex, post_smp, in.uv, 0.0).rgb * 0.34;
+    bloom += textureSampleLevel(bloom_tex, post_smp, in.uv + bloom_texel * vec2<f32>( 2.0,  0.0), 0.0).rgb * 0.12;
+    bloom += textureSampleLevel(bloom_tex, post_smp, in.uv + bloom_texel * vec2<f32>(-2.0,  0.0), 0.0).rgb * 0.12;
+    bloom += textureSampleLevel(bloom_tex, post_smp, in.uv + bloom_texel * vec2<f32>( 0.0,  2.0), 0.0).rgb * 0.12;
+    bloom += textureSampleLevel(bloom_tex, post_smp, in.uv + bloom_texel * vec2<f32>( 0.0, -2.0), 0.0).rgb * 0.12;
+    bloom += textureSampleLevel(bloom_tex, post_smp, in.uv + bloom_texel * vec2<f32>( 5.0,  5.0), 0.0).rgb * 0.045;
+    bloom += textureSampleLevel(bloom_tex, post_smp, in.uv + bloom_texel * vec2<f32>(-5.0,  5.0), 0.0).rgb * 0.045;
+    bloom += textureSampleLevel(bloom_tex, post_smp, in.uv + bloom_texel * vec2<f32>( 5.0, -5.0), 0.0).rgb * 0.045;
+    bloom += textureSampleLevel(bloom_tex, post_smp, in.uv + bloom_texel * vec2<f32>(-5.0, -5.0), 0.0).rgb * 0.045;
+
+    let bloom_strength = select(0.34, 0.22, UBO.cam_kind == 2u);
+    let color = scene.rgb + bloom * bloom_strength;
+    return vec4<f32>(apply_post(color, in.pos), scene.a);
+}
+"#;
+
 pub const SCENEVM_3D_ORGANIC_BILLBOARD_WGSL: &str = r#"
 struct U {
     cam_pos: vec4<f32>,
@@ -2318,6 +2497,9 @@ fn camera_to_clip(world_pos: vec3<f32>) -> vec4<f32> {
 
 fn apply_post(color_in: vec3<f32>, pos: vec4<f32>) -> vec3<f32> {
     var c = max(color_in, vec3<f32>(0.0));
+    if (UBO.post_color_adjust.z > 0.5) {
+        return c;
+    }
     if (UBO.post_params.x > 0.5) {
         c *= max(UBO.post_params.z, 0.0);
         let tone = u32(max(UBO.post_params.y, 0.0));
@@ -4774,6 +4956,8 @@ impl VM {
             raster3d_line_pipeline: None,
             raster3d_organic_billboard_pipeline: None,
             raster3d_shadow_pipeline: None,
+            raster3d_bloom_extract_pipeline: None,
+            raster3d_bloom_composite_pipeline: None,
             u2d_buf: None,
             u3d_buf: None,
             u_sdf_buf: None,
@@ -4785,6 +4969,7 @@ impl VM {
             u_raster2d_bgl: None,
             u_raster3d_bgl: None,
             u_raster3d_shadow_bgl: None,
+            u_raster3d_post_bgl: None,
             u2d_bg: None,
             u3d_bg: None,
             u_sdf_bg: None,
@@ -4816,6 +5001,11 @@ impl VM {
             raster3d_shadow_tex: None,
             raster3d_shadow_view: None,
             raster3d_shadow_res: 0,
+            raster3d_scene_tex: None,
+            raster3d_scene_view: None,
+            raster3d_bloom_tex: None,
+            raster3d_bloom_view: None,
+            raster3d_bloom_size: (0, 0),
             raster3d_msaa_color_tex: None,
             raster3d_msaa_color_view: None,
             raster3d_depth_tex: None,
@@ -5623,8 +5813,11 @@ impl VM {
             && g.raster3d_alpha_pipeline.is_some()
             && g.raster3d_line_pipeline.is_some()
             && g.u_raster3d_bgl.is_some()
+            && g.u_raster3d_post_bgl.is_some()
             && g.u_raster3d_buf.is_some()
             && g.raster3d_organic_billboard_pipeline.is_some()
+            && g.raster3d_bloom_extract_pipeline.is_some()
+            && g.raster3d_bloom_composite_pipeline.is_some()
         {
             return Ok(());
         }
@@ -5864,10 +6057,59 @@ impl VM {
                     },
                 ],
             });
+        let u_raster3d_post_bgl =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("vm-raster3d-post-bgl"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<
+                                Raster3DUniforms,
+                            >()
+                                as _),
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+            });
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("vm-3d-raster-shader"),
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SCENEVM_3D_RASTER_WGSL)),
+        });
+        let post_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("vm-3d-post-shader"),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SCENEVM_3D_POST_WGSL)),
         });
         let organic_billboard_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("vm-3d-organic-billboard-shader"),
@@ -5891,6 +6133,11 @@ impl VM {
                 bind_group_layouts: &[Some(&u_raster3d_shadow_bgl)],
                 immediate_size: 0,
             });
+        let post_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("vm-3d-post-pipeline-layout"),
+            bind_group_layouts: &[Some(&u_raster3d_post_bgl)],
+            immediate_size: 0,
+        });
 
         let raster3d_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("vm-3d-raster-pipeline"),
@@ -5966,7 +6213,7 @@ impl VM {
                 entry_point: Some("fs_main"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    format: wgpu::TextureFormat::Rgba16Float,
                     blend: None,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -6070,7 +6317,7 @@ impl VM {
                     entry_point: Some("fs_main"),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        format: wgpu::TextureFormat::Rgba16Float,
                         blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
@@ -6177,7 +6424,7 @@ impl VM {
                     entry_point: Some("fs_main"),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        format: wgpu::TextureFormat::Rgba16Float,
                         blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
@@ -6236,7 +6483,7 @@ impl VM {
                     entry_point: Some("fs_main"),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        format: wgpu::TextureFormat::Rgba16Float,
                         blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
@@ -6280,7 +6527,7 @@ impl VM {
                     entry_point: Some("fs_main"),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        format: wgpu::TextureFormat::Rgba16Float,
                         blend: None,
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
@@ -6306,6 +6553,74 @@ impl VM {
                     alpha_to_coverage_enabled: true,
                     ..Default::default()
                 },
+                multiview_mask: None,
+                cache: None,
+            });
+        let raster3d_bloom_extract_pipeline =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("vm-3d-bloom-extract-pipeline"),
+                layout: Some(&post_pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &post_shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &post_shader,
+                    entry_point: Some("fs_extract"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Rgba16Float,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: None,
+                    unclipped_depth: false,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState::default(),
+                multiview_mask: None,
+                cache: None,
+            });
+        let raster3d_bloom_composite_pipeline =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("vm-3d-bloom-composite-pipeline"),
+                layout: Some(&post_pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &post_shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &post_shader,
+                    entry_point: Some("fs_composite"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: None,
+                    unclipped_depth: false,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState::default(),
                 multiview_mask: None,
                 cache: None,
             });
@@ -6429,12 +6744,15 @@ impl VM {
 
         g.u_raster3d_bgl = Some(u_raster3d_bgl);
         g.u_raster3d_shadow_bgl = Some(u_raster3d_shadow_bgl);
+        g.u_raster3d_post_bgl = Some(u_raster3d_post_bgl);
         g.u_raster3d_buf = Some(u_raster3d_buf);
         g.raster3d_pipeline = Some(raster3d_pipeline);
         g.raster3d_alpha_pipeline = Some(raster3d_alpha_pipeline);
         g.raster3d_particle_pipeline = Some(raster3d_particle_pipeline);
         g.raster3d_line_pipeline = Some(raster3d_line_pipeline);
         g.raster3d_organic_billboard_pipeline = Some(raster3d_organic_billboard_pipeline);
+        g.raster3d_bloom_extract_pipeline = Some(raster3d_bloom_extract_pipeline);
+        g.raster3d_bloom_composite_pipeline = Some(raster3d_bloom_composite_pipeline);
         g.raster3d_shadow_pipeline = Some(raster3d_shadow_pipeline);
         g.shadow_sampler_compare = Some(shadow_sampler_compare);
 
@@ -9457,91 +9775,12 @@ impl VM {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("vm-3d-raster-enc"),
         });
-        let tone_mapper = self.gp9.y.max(0.0) as u32;
-        let post_enabled = self.gp9.x > 0.5;
-        let exposure = self.gp9.z.max(0.0);
-        let gamma = self.gp9.w.max(0.001);
-        let saturation = self.gp8.z.max(0.0);
-        let luminance = self.gp8.w.max(0.0);
-        let post_style0 = self.raster3d_post_style0.into_array();
-        let posterize = post_style0[1].clamp(0.0, 1.0);
-        let palette_bias = post_style0[2].clamp(0.0, 1.0);
-        let shadow_lift = post_style0[3].clamp(0.0, 1.0);
-        let apply_post_cpu = |mut c: [f32; 3]| -> [f32; 3] {
-            c[0] = c[0].max(0.0);
-            c[1] = c[1].max(0.0);
-            c[2] = c[2].max(0.0);
-            if post_enabled {
-                c[0] = (c[0] * exposure).max(0.0);
-                c[1] = (c[1] * exposure).max(0.0);
-                c[2] = (c[2] * exposure).max(0.0);
-                match tone_mapper {
-                    1 => {
-                        c[0] = c[0] / (c[0] + 1.0);
-                        c[1] = c[1] / (c[1] + 1.0);
-                        c[2] = c[2] / (c[2] + 1.0);
-                    }
-                    2 => {
-                        let aces = |x: f32| -> f32 {
-                            let a = 2.51;
-                            let b = 0.03;
-                            let c2 = 2.43;
-                            let d = 0.59;
-                            let e = 0.14;
-                            ((x * (a * x + b)) / (x * (c2 * x + d) + e)).clamp(0.0, 1.0)
-                        };
-                        c[0] = aces(c[0]);
-                        c[1] = aces(c[1]);
-                        c[2] = aces(c[2]);
-                    }
-                    _ => {}
-                }
-                c[0] *= luminance;
-                c[1] *= luminance;
-                c[2] *= luminance;
-                let luma = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
-                let lift = (1.0 - luma).max(0.0).powf(2.0) * 0.12 * shadow_lift;
-                c[0] += lift;
-                c[1] += lift;
-                c[2] += lift;
-                let luma = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
-                let earth = [luma * 1.07, luma * 0.98, luma * 0.82];
-                c[0] = c[0] + ((c[0] + (earth[0] - c[0]) * 0.45) - c[0]) * palette_bias;
-                c[1] = c[1] + ((c[1] + (earth[1] - c[1]) * 0.45) - c[1]) * palette_bias;
-                c[2] = c[2] + ((c[2] + (earth[2] - c[2]) * 0.45) - c[2]) * palette_bias;
-                if posterize > 0.0 {
-                    let levels = 32.0 + (7.0 - 32.0) * posterize;
-                    let q0 = ((c[0] * levels + 0.5).floor() / levels).max(0.0);
-                    let q1 = ((c[1] * levels + 0.5).floor() / levels).max(0.0);
-                    let q2 = ((c[2] * levels + 0.5).floor() / levels).max(0.0);
-                    c[0] = c[0] + (q0 - c[0]) * posterize;
-                    c[1] = c[1] + (q1 - c[1]) * posterize;
-                    c[2] = c[2] + (q2 - c[2]) * posterize;
-                }
-                let luma = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
-                c[0] = luma + (c[0] - luma) * saturation;
-                c[1] = luma + (c[1] - luma) * saturation;
-                c[2] = luma + (c[2] - luma) * saturation;
-            }
-            c[0] = c[0].powf(1.0 / gamma);
-            c[1] = c[1].powf(1.0 / gamma);
-            c[2] = c[2].powf(1.0 / gamma);
-            c
-        };
         let sky = if self.gp0.x.abs() + self.gp0.y.abs() + self.gp0.z.abs() > 0.01 {
             self.gp0
         } else {
             self.background
         };
-        let sky = {
-            let post = apply_post_cpu([sky.x, sky.y, sky.z]);
-            Vec3::new(post[0], post[1], post[2])
-        };
-        let sky_srgb = [
-            sky.x.clamp(0.0, 1.0),
-            sky.y.clamp(0.0, 1.0),
-            sky.z.clamp(0.0, 1.0),
-        ];
+        let sky_srgb = [sky.x.max(0.0), sky.y.max(0.0), sky.z.max(0.0)];
         // Overlay VMs must preserve transparency when they clear.
         // Base layer remains opaque by default.
         let clear_alpha = if self.layer_index == 0 {
@@ -9583,9 +9822,13 @@ impl VM {
                     view: if use_msaa {
                         g.raster3d_msaa_color_view.as_ref().unwrap()
                     } else {
-                        &write_view
+                        g.raster3d_scene_view.as_ref().unwrap()
                     },
-                    resolve_target: if use_msaa { Some(&write_view) } else { None },
+                    resolve_target: if use_msaa {
+                        Some(g.raster3d_scene_view.as_ref().unwrap())
+                    } else {
+                        None
+                    },
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: sky_srgb[0] as f64,
@@ -9668,6 +9911,101 @@ impl VM {
                 pass.set_vertex_buffer(0, g.line3d_raster.as_ref().unwrap().slice(..));
                 pass.draw(0..g.line3d_raster_count, 0..1);
             }
+            drop(pass);
+
+            let post_extract_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("vm-raster3d-bloom-extract-bg"),
+                layout: g.u_raster3d_post_bgl.as_ref().unwrap(),
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: g.u_raster3d_buf.as_ref().unwrap().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(
+                            g.raster3d_scene_view.as_ref().unwrap(),
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::TextureView(
+                            g.raster3d_scene_view.as_ref().unwrap(),
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: wgpu::BindingResource::Sampler(&g.sampler_linear),
+                    },
+                ],
+            });
+            {
+                let mut bloom_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("vm-3d-bloom-extract-pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: g.raster3d_bloom_view.as_ref().unwrap(),
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                bloom_pass.set_pipeline(g.raster3d_bloom_extract_pipeline.as_ref().unwrap());
+                bloom_pass.set_bind_group(0, &post_extract_bg, &[]);
+                bloom_pass.draw(0..3, 0..1);
+            }
+
+            let post_composite_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("vm-raster3d-bloom-composite-bg"),
+                layout: g.u_raster3d_post_bgl.as_ref().unwrap(),
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: g.u_raster3d_buf.as_ref().unwrap().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(
+                            g.raster3d_scene_view.as_ref().unwrap(),
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::TextureView(
+                            g.raster3d_bloom_view.as_ref().unwrap(),
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: wgpu::BindingResource::Sampler(&g.sampler_linear),
+                    },
+                ],
+            });
+            let mut composite_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("vm-3d-bloom-composite-pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &write_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            composite_pass.set_pipeline(g.raster3d_bloom_composite_pipeline.as_ref().unwrap());
+            composite_pass.set_bind_group(0, &post_composite_bg, &[]);
+            composite_pass.draw(0..3, 0..1);
         }
         let debug_encode_ms = debug_encode_start.elapsed().as_secs_f64() * 1000.0;
         let debug_submit_start = instant::Instant::now();
