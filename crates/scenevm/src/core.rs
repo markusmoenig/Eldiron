@@ -115,6 +115,7 @@ pub enum Atom {
         height: u32,
         color_rgba: Vec<u8>,
         material_rgba: Vec<u8>,
+        paint_alpha_geo_ids: Vec<GeoId>,
     },
     ClearRaster3DPaintOverlay,
     BuildAtlas,

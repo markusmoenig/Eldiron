@@ -42,6 +42,7 @@ pub struct MaterialDefinition {
     pub fuzz: f32,
     pub porosity: f32,
     pub sheen: f32,
+    pub clearcoat: f32,
 }
 
 pub const SEMANTIC_MATERIAL_MARKER: u8 = 0xFE;
@@ -143,7 +144,7 @@ impl MaterialDefinition {
                 self.sheen,
                 self.family as u8 as f32,
                 self.finish as u8 as f32,
-                0.0,
+                self.clearcoat,
             ],
         ]
     }
@@ -159,22 +160,23 @@ impl MaterialDefinition {
             fuzz,
             porosity,
             mut sheen,
-        ): (f32, f32, f32, f32, f32, f32, f32, f32, f32) = match family {
-            MaterialFamily::Stone => (0.78, 0.0, 1.0, 0.0, 0.00, 0.00, 0.00, 0.48, 0.08),
-            MaterialFamily::Dirt => (0.92, 0.0, 1.0, 0.0, 0.00, 0.00, 0.00, 0.82, 0.02),
-            MaterialFamily::Wood => (0.64, 0.0, 1.0, 0.0, 0.02, 0.00, 0.00, 0.36, 0.08),
-            MaterialFamily::Metal => (0.34, 0.9, 1.0, 0.0, 0.00, 0.00, 0.00, 0.00, 0.58),
-            MaterialFamily::Glass => (0.06, 0.0, 0.35, 0.0, 0.00, 0.72, 0.00, 0.00, 0.80),
-            MaterialFamily::Water => (0.03, 0.0, 0.55, 0.0, 0.00, 0.86, 0.00, 0.00, 0.76),
-            MaterialFamily::Mirror => (0.02, 1.0, 1.0, 0.0, 0.00, 0.00, 0.00, 0.00, 0.95),
-            MaterialFamily::Emissive => (0.45, 0.0, 1.0, 1.0, 0.00, 0.00, 0.00, 0.00, 0.10),
-            MaterialFamily::Fabric => (0.86, 0.0, 1.0, 0.0, 0.03, 0.00, 0.76, 0.48, 0.03),
-            MaterialFamily::Plastic => (0.45, 0.0, 1.0, 0.0, 0.00, 0.00, 0.00, 0.02, 0.28),
-            MaterialFamily::Foliage => (0.78, 0.0, 1.0, 0.0, 0.18, 0.35, 0.12, 0.62, 0.04),
-            MaterialFamily::Skin => (0.56, 0.0, 1.0, 0.0, 0.62, 0.12, 0.16, 0.18, 0.18),
-            MaterialFamily::Bone => (0.66, 0.0, 1.0, 0.0, 0.16, 0.03, 0.00, 0.24, 0.10),
-            MaterialFamily::Wax => (0.42, 0.0, 1.0, 0.0, 0.78, 0.22, 0.00, 0.08, 0.26),
-            MaterialFamily::Default => (0.50, 0.0, 1.0, 0.0, 0.00, 0.00, 0.00, 0.12, 0.08),
+            mut clearcoat,
+        ): (f32, f32, f32, f32, f32, f32, f32, f32, f32, f32) = match family {
+            MaterialFamily::Stone => (0.78, 0.0, 1.0, 0.0, 0.00, 0.00, 0.00, 0.48, 0.08, 0.02),
+            MaterialFamily::Dirt => (0.92, 0.0, 1.0, 0.0, 0.00, 0.00, 0.00, 0.82, 0.02, 0.00),
+            MaterialFamily::Wood => (0.64, 0.0, 1.0, 0.0, 0.02, 0.00, 0.00, 0.36, 0.08, 0.05),
+            MaterialFamily::Metal => (0.34, 0.9, 1.0, 0.0, 0.00, 0.00, 0.00, 0.00, 0.58, 0.18),
+            MaterialFamily::Glass => (0.06, 0.0, 0.35, 0.0, 0.00, 0.72, 0.00, 0.00, 0.80, 0.92),
+            MaterialFamily::Water => (0.03, 0.0, 0.55, 0.0, 0.00, 0.86, 0.00, 0.00, 0.76, 1.00),
+            MaterialFamily::Mirror => (0.02, 1.0, 1.0, 0.0, 0.00, 0.00, 0.00, 0.00, 0.95, 0.30),
+            MaterialFamily::Emissive => (0.45, 0.0, 1.0, 1.0, 0.00, 0.00, 0.00, 0.00, 0.10, 0.00),
+            MaterialFamily::Fabric => (0.86, 0.0, 1.0, 0.0, 0.03, 0.00, 0.76, 0.48, 0.03, 0.00),
+            MaterialFamily::Plastic => (0.45, 0.0, 1.0, 0.0, 0.00, 0.00, 0.00, 0.02, 0.28, 0.24),
+            MaterialFamily::Foliage => (0.78, 0.0, 1.0, 0.0, 0.18, 0.35, 0.12, 0.62, 0.04, 0.03),
+            MaterialFamily::Skin => (0.56, 0.0, 1.0, 0.0, 0.62, 0.12, 0.16, 0.18, 0.18, 0.05),
+            MaterialFamily::Bone => (0.66, 0.0, 1.0, 0.0, 0.16, 0.03, 0.00, 0.24, 0.10, 0.02),
+            MaterialFamily::Wax => (0.42, 0.0, 1.0, 0.0, 0.78, 0.22, 0.00, 0.08, 0.26, 0.28),
+            MaterialFamily::Default => (0.50, 0.0, 1.0, 0.0, 0.00, 0.00, 0.00, 0.12, 0.08, 0.03),
         };
 
         match finish {
@@ -185,10 +187,12 @@ impl MaterialDefinition {
             MaterialFinish::Polished => {
                 roughness -= 0.25;
                 sheen += 0.18;
+                clearcoat += 0.12;
             }
             MaterialFinish::Wet => {
                 roughness -= 0.35;
                 sheen += 0.32;
+                clearcoat += 0.35;
             }
             MaterialFinish::Natural => {}
         }
@@ -205,6 +209,7 @@ impl MaterialDefinition {
             fuzz,
             porosity,
             sheen: sheen.clamp(0.0, 1.0),
+            clearcoat: clearcoat.clamp(0.0, 1.0),
         }
     }
 }

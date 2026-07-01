@@ -13,6 +13,28 @@ pub struct IsoPaintTool {
 }
 
 impl IsoPaintTool {
+    fn sync_live_paint_settings(ui: &mut TheUI, region: &mut Region) {
+        if let Some(opacity) = ui
+            .get_widget_value("Iso Paint Tool Opacity")
+            .and_then(|value| value.to_f32())
+        {
+            region.iso_paint.active_opacity = opacity.clamp(0.0, 1.0);
+        }
+        if let Some(size) = ui
+            .get_widget_value("Iso Paint Tool Size")
+            .and_then(|value| value.to_f32())
+        {
+            region.iso_paint.active_size = size.clamp(0.05, 8.0);
+        }
+        if let Some(TheValue::Int(index)) = ui.get_widget_value("Iso Paint Material Mode") {
+            region.iso_paint.active_material_mode = if index == 1 {
+                "replace".to_string()
+            } else {
+                "coat".to_string()
+            };
+        }
+    }
+
     fn hit_status(server_ctx: &ServerContext) -> String {
         if server_ctx.geo_hit.is_some() {
             fl!("status_iso_paint_hit")
@@ -137,6 +159,11 @@ impl Tool for IsoPaintTool {
                     region.map.camera = MapCamera::ThreeDIso;
                     region.map.clear_selection();
                     region.map.clear_temp();
+                    if matches!(region.iso_paint.active_brush.as_str(), "material" | "brick")
+                        && region.iso_paint.active_size <= 1.001
+                    {
+                        region.iso_paint.active_size = 8.0;
+                    }
                 }
 
                 let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
@@ -250,15 +277,32 @@ impl Tool for IsoPaintTool {
                 self.painting = true;
                 server_ctx.iso_paint_hover_screen = Some(coord);
                 self.stroke_before = Some(region.clone());
+                Self::sync_live_paint_settings(_ui, region);
                 let stroke_id = region
                     .iso_paint
                     .begin_stroke(Self::paint_point(coord, server_ctx));
+                let (stroke_opacity, stroke_material_mode) = region
+                    .iso_paint
+                    .chunks
+                    .values()
+                    .flat_map(|chunk| chunk.strokes.iter())
+                    .find(|stroke| stroke.id == stroke_id)
+                    .map(|stroke| (stroke.opacity, stroke.material_mode.clone()))
+                    .unwrap_or((
+                        region.iso_paint.active_opacity,
+                        region.iso_paint.active_material_mode.clone(),
+                    ));
                 self.active_stroke = Some(stroke_id);
                 self.stroke_changed = true;
                 Self::request_paint_redraw(ctx);
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
-                    Self::hit_status(server_ctx),
+                    format!(
+                        "{} opacity {:.3} mode {}",
+                        Self::hit_status(server_ctx),
+                        stroke_opacity,
+                        stroke_material_mode
+                    ),
                 ));
             }
             MapDragged(coord) => {
@@ -271,21 +315,11 @@ impl Tool for IsoPaintTool {
                 {
                     self.stroke_changed = true;
                     Self::request_paint_redraw(ctx);
-                    ctx.ui.send(TheEvent::SetStatusText(
-                        TheId::empty(),
-                        Self::hit_status(server_ctx),
-                    ));
                 }
             }
             MapHover(coord) => {
                 server_ctx.iso_paint_hover_screen = Some(coord);
                 Self::request_paint_redraw(ctx);
-                if !self.painting {
-                    ctx.ui.send(TheEvent::SetStatusText(
-                        TheId::empty(),
-                        Self::hit_status(server_ctx),
-                    ));
-                }
             }
             MapUp(coord) => {
                 server_ctx.iso_paint_hover_screen = Some(coord);

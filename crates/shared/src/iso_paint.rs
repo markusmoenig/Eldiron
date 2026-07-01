@@ -29,6 +29,10 @@ fn default_material_id() -> u8 {
     0
 }
 
+fn default_material_mode() -> String {
+    "coat".to_string()
+}
+
 fn default_clip() -> String {
     "object".to_string()
 }
@@ -140,6 +144,8 @@ pub struct IsoPaintStroke {
     pub finish: String,
     #[serde(default = "default_material_id")]
     pub material_id: u8,
+    #[serde(default = "default_material_mode")]
+    pub material_mode: String,
     #[serde(default = "default_clip")]
     pub clip: String,
     #[serde(default = "default_color")]
@@ -167,6 +173,7 @@ impl IsoPaintStroke {
         material: String,
         finish: String,
         material_id: u8,
+        material_mode: String,
         clip: String,
         color: [u8; 4],
         pattern_kind: String,
@@ -186,6 +193,7 @@ impl IsoPaintStroke {
             material,
             finish,
             material_id,
+            material_mode,
             clip,
             color,
             pattern_kind,
@@ -245,6 +253,8 @@ pub struct IsoPaintLayer {
     pub active_finish: String,
     #[serde(default = "default_material_id")]
     pub active_material_id: u8,
+    #[serde(default = "default_material_mode")]
+    pub active_material_mode: String,
     #[serde(default = "default_clip")]
     pub active_clip: String,
     #[serde(default = "default_color")]
@@ -276,6 +286,7 @@ impl Default for IsoPaintLayer {
             active_material: default_material(),
             active_finish: default_finish(),
             active_material_id: default_material_id(),
+            active_material_mode: default_material_mode(),
             active_clip: default_clip(),
             active_color: default_color(),
             active_pattern_kind: default_pattern_kind(),
@@ -306,6 +317,7 @@ impl IsoPaintLayer {
         material: impl Into<String>,
         finish: impl Into<String>,
         material_id: u8,
+        material_mode: impl Into<String>,
         clip: impl Into<String>,
         color: [u8; 4],
         pattern_kind: impl Into<String>,
@@ -321,6 +333,12 @@ impl IsoPaintLayer {
         self.active_material = material.into();
         self.active_finish = finish.into();
         self.active_material_id = material_id;
+        let material_mode = material_mode.into();
+        self.active_material_mode = if material_mode == "replace" {
+            "replace".to_string()
+        } else {
+            "coat".to_string()
+        };
         self.active_clip = clip.into();
         self.active_color = color;
         self.active_pattern_kind = pattern_kind.into();
@@ -353,6 +371,7 @@ impl IsoPaintLayer {
             self.active_material.clone(),
             self.active_finish.clone(),
             self.active_material_id,
+            self.active_material_mode.clone(),
             self.active_clip.clone(),
             self.active_color,
             self.active_pattern_kind.clone(),

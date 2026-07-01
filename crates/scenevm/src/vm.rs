@@ -231,6 +231,7 @@ pub struct VMGpu {
     pub raster2d_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_alpha_pipeline: Option<wgpu::RenderPipeline>,
+    pub raster3d_paint_alpha_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_particle_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_line_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_organic_billboard_pipeline: Option<wgpu::RenderPipeline>,
@@ -267,6 +268,10 @@ pub struct VMGpu {
     pub i3d_raster_opaque: Option<wgpu::Buffer>,
     pub i3d_raster_opaque_count: u32,
     pub i3d_raster_opaque_capacity: u64,
+    pub i3d_raster_paint_alpha: Option<wgpu::Buffer>,
+    pub i3d_raster_paint_alpha_count: u32,
+    pub i3d_raster_paint_alpha_capacity: u64,
+    pub raster3d_paint_debug_counts: Option<(usize, u32, u32, u32, u32)>,
     pub i3d_raster_transparent: Option<wgpu::Buffer>,
     pub i3d_raster_transparent_count: u32,
     pub i3d_raster_transparent_capacity: u64,
@@ -1050,7 +1055,7 @@ struct IrradianceGridBuf { data: array<vec4<f32>> };
 struct MaterialTableBuf { data: array<vec4<f32>> };
 @group(0) @binding(12) var<storage, read> material_table: MaterialTableBuf;
 @group(0) @binding(13) var paint_color_tex: texture_2d<f32>;
-@group(0) @binding(14) var paint_material_tex: texture_2d<f32>;
+@group(0) @binding(14) var paint_material_tex: texture_2d<u32>;
 
 struct TileAnimMeta { first_frame: u32, frame_count: u32, _pad0: u32, _pad1: u32 };
 struct TileFrame { ofs: vec2<f32>, scale: vec2<f32> };
@@ -1314,16 +1319,16 @@ fn sample_paint_overlay(frag_pos: vec4<f32>) -> vec4<f32> {
     return textureLoad(paint_color_tex, px, 0);
 }
 
-fn sample_paint_material_id(frag_pos: vec4<f32>) -> u32 {
+fn sample_paint_material(frag_pos: vec4<f32>) -> vec4<u32> {
     let dims = textureDimensions(paint_material_tex, 0);
     if (dims.x == 0u || dims.y == 0u) {
-        return 0u;
+        return vec4<u32>(0u);
     }
     let px = vec2<i32>(
         clamp(i32(floor(frag_pos.x)), 0, i32(dims.x) - 1),
         clamp(i32(floor(frag_pos.y)), 0, i32(dims.y) - 1)
     );
-    return unpack_material_id(textureLoad(paint_material_tex, px, 0));
+    return textureLoad(paint_material_tex, px, 0);
 }
 
 fn unpack_material_normal_ts(m: vec4<f32>) -> vec3<f32> {
@@ -1731,19 +1736,39 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     var material_traits1 = semantic_material_traits1(material_id);
     let n0_ts = select(unpack_material_normal_ts(m0_raw), vec3<f32>(0.0, 0.0, 1.0), is_avatar);
     let n1_ts = unpack_material_normal_ts(m1_raw);
-    let n_ts = normalize(select(mix(n0_ts, n1_ts, blend), n0_ts, is_avatar));
+    var n_ts = normalize(select(mix(n0_ts, n1_ts, blend), n0_ts, is_avatar));
     var color = select(mix(c0, c1, blend), c0, is_avatar);
     let color_base = select(mix(c0_base, c1_base, blend), c0_base, is_avatar);
     let paint_overlay = sample_paint_overlay(in.pos);
-    let paint_weight = clamp(paint_overlay.a, 0.0, 1.0) * select(1.0, 0.0, is_avatar);
-    if (paint_weight > 0.001) {
-        let paint_material_id = sample_paint_material_id(in.pos);
+    let paint_material_raw = sample_paint_material(in.pos);
+    let paint_color_weight = clamp(paint_overlay.a, 0.0, 1.0) * select(1.0, 0.0, is_avatar);
+    let paint_material_marker = paint_material_raw.r == 254u;
+    let paint_material_weight = (f32(paint_material_raw.a) * (1.0 / 255.0)) * select(1.0, 0.0, is_avatar);
+    let paint_replace_material = paint_material_raw.b > 0u;
+    let paint_replace_opacity_byte = paint_material_raw.b - min(paint_material_raw.b, 1u);
+    let paint_replace_opacity = clamp(f32(paint_replace_opacity_byte) * (1.0 / 254.0), 0.0, 1.0);
+    let paint_replace_active = paint_replace_material && paint_material_weight > 0.001;
+    let paint_weight = max(paint_color_weight, paint_material_weight);
+    if (paint_material_marker && paint_material_weight > 0.001) {
+        let paint_material_id = paint_material_raw.g;
         let paint_mat = semantic_material_rmoe(paint_material_id);
+        let base_opacity = mat.z;
+        let coated_mat = mix(mat, paint_mat, paint_material_weight);
         material_id = paint_material_id;
         material_traits0 = semantic_material_traits0(material_id);
         material_traits1 = semantic_material_traits1(material_id);
-        color = vec4<f32>(mix(color.rgb, paint_overlay.rgb, paint_weight), color.a);
-        mat = mix(mat, paint_mat, paint_weight);
+        let replace_opacity = clamp(paint_mat.z * paint_replace_opacity * paint_material_weight, 0.0, 1.0);
+        let replace_mat = vec4<f32>(paint_mat.x, paint_mat.y, replace_opacity, paint_mat.w);
+        let coat_mat = vec4<f32>(coated_mat.x, coated_mat.y, base_opacity, coated_mat.w);
+        mat = select(coat_mat, replace_mat, paint_replace_material);
+        n_ts = select(n_ts, vec3<f32>(0.0, 0.0, 1.0), paint_replace_material);
+    }
+    if (paint_color_weight > 0.001) {
+        color = select(
+            vec4<f32>(mix(color.rgb, paint_overlay.rgb, paint_color_weight), color.a),
+            vec4<f32>(paint_overlay.rgb, color.a),
+            paint_replace_active
+        );
     }
     // Keep first-person nearby surfaces crisp by blending from LOD0 near the camera.
     var alpha_sample = color.a;
@@ -1752,8 +1777,9 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let near_end = max(UBO.render_params.z, 0.0);
         let far_start = max(UBO.render_params.w, near_end + 0.001);
         let t = smoothstep(near_end, far_start, dist);
-        color = mix(color_base, color, t);
-        alpha_sample = mix(color_base.a, color.a, t);
+        let lod_t = select(t, 1.0, paint_replace_active);
+        color = mix(color_base, color, lod_t);
+        alpha_sample = mix(color_base.a, color.a, lod_t);
     }
     // Keep opacity/cutout tied to the same sample path as color to avoid distant dark speckles.
     let intrinsic_alpha = clamp(alpha_sample * mat.z, 0.0, 1.0);
@@ -1772,7 +1798,6 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let is_fading = in.opacity < 0.999 || has_material_fade;
     if (is_fading) {
         if (!is_particle && !has_material_fade && fade_mode == 0u) {
-            // Ordered dither mode: stable pseudo-transparency without alpha sorting.
             let dither = bayer4_threshold(u32(in.pos.x), u32(in.pos.y));
             if (coverage <= dither) {
                 discard;
@@ -1819,7 +1844,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let t = smoothstep(near_end, far_start, dist);
         bump_strength = bump_strength * (1.0 - t);
     }
-    if (intrinsic_alpha < 0.999) {
+    if (intrinsic_alpha < 0.999 || paint_replace_active) {
         bump_strength = 0.0;
     }
     let det = dpdx_uv.x * dpdy_uv.y - dpdx_uv.y * dpdy_uv.x;
@@ -1832,7 +1857,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     N = normalize(mix(N, N_ws, bump_mix));
     let material_family = u32(round(clamp(material_traits1.y, 0.0, 255.0)));
     let material_finish = u32(round(clamp(material_traits1.z, 0.0, 3.0)));
-    let painted_material_weight = select(1.0, paint_weight, paint_weight > 0.001);
+    let painted_material_weight = select(1.0, paint_material_weight, paint_material_weight > 0.001);
     let water_surface_weight = select(0.0, 1.0, material_family == 6u)
         * select(1.0, 0.0, is_avatar)
         * painted_material_weight
@@ -1993,6 +2018,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let semantic_fuzz = material_traits0.z;
         let semantic_porosity = material_traits0.w;
         let semantic_sheen = clamp(material_traits1.x, 0.0, 1.0);
+        let semantic_clearcoat = clamp(material_traits1.w, 0.0, 1.0);
         let grazing = pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 2.6);
         let glint_noise = surface_noise_value(in.world_pos * 10.0 + N * 1.7, 71.0);
         let finish_wet_sheen = wet_finish_weight * (0.060 + grazing * 0.115);
@@ -2014,10 +2040,16 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let semantic_fuzz_light = albedo * sky_chroma * semantic_fuzz * pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 1.2) * 0.040 * material_style_strength;
         let semantic_porous_dark = semantic_porosity * (0.010 + shadow_depth * 0.026) * material_style_strength;
         let semantic_family_sheen = env_color * semantic_sheen * pow(max(1.0 - roughness, 0.0), 1.25) * (0.030 + grazing * 0.070) * material_style_strength;
+        let clearcoat_weight = semantic_clearcoat * scene_surface * painted_material_weight;
+        let clearcoat_gloss = env_color
+            * clearcoat_weight
+            * (0.035 + pow(max(1.0 - roughness, 0.0), 1.8) * 0.075 + grazing * 0.135)
+            * (0.72 + glint_noise * 0.52)
+            * material_style_strength;
         let matte_tooth = (surface_noise_value(in.world_pos * 6.5 + vec3<f32>(13.0, 3.0, 7.0), 41.0) * 2.0 - 1.0)
             * matte_weight
             * material_style_strength;
-        lit_color += cool_shadow + matte_scatter + polish_env + wet_sheen + puddle_gloss + semantic_sss + semantic_fuzz_light + semantic_family_sheen;
+        lit_color += cool_shadow + matte_scatter + polish_env + wet_sheen + puddle_gloss + semantic_sss + semantic_fuzz_light + semantic_family_sheen + clearcoat_gloss;
         lit_color *= 1.0 + matte_tooth * 0.018 - semantic_porous_dark;
 
         let edge = pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 2.4);
@@ -2649,6 +2681,7 @@ pub struct VM {
     pub material_table: Vec<[f32; 4]>,
     pub material_table_dirty: bool,
     raster3d_paint_overlay: Option<Raster3DPaintOverlayData>,
+    raster3d_paint_alpha_geo_ids: FxHashSet<GeoId>,
     raster3d_paint_overlay_dirty: bool,
     pub palette: [[f32; 4]; 256],
     pub palette_dirty: bool,
@@ -2678,6 +2711,7 @@ pub struct VM {
     cached_static_tri_geo_ids: Vec<GeoId>,
     cached_static_raster_visible_indices: Vec<u32>,
     cached_static_raster_opaque_indices: Vec<u32>,
+    cached_static_raster_paint_alpha_indices: Vec<u32>,
     cached_static_raster_transparent_indices: Vec<u32>,
     cached_static_raster_particle_indices: Vec<u32>,
     cached_static_raster_camera_key: [f32; 6],
@@ -3119,6 +3153,26 @@ impl VM {
             GeoId::Hole(host, profile) => (11, host as u64, profile as u64),
             GeoId::Gizmo(v) => (12, v as u64, 0),
         }
+    }
+
+    fn geo_id_object_matches(a: GeoId, b: GeoId) -> bool {
+        match (a, b) {
+            (GeoId::GeometryObject(a), GeoId::GeometryObject(b)) => a == b,
+            (GeoId::Sector(a), GeoId::Sector(b)) => a == b,
+            (GeoId::Terrain(..), GeoId::Terrain(..)) => true,
+            (GeoId::Character(a), GeoId::Character(b)) => a == b,
+            (GeoId::Item(a), GeoId::Item(b)) => a == b,
+            (GeoId::Triangle(a), GeoId::Triangle(b)) => a == b,
+            _ => a == b,
+        }
+    }
+
+    fn raster3d_paint_alpha_matches(&self, geo_id: GeoId) -> bool {
+        self.raster3d_paint_alpha_geo_ids.contains(&geo_id)
+            || self
+                .raster3d_paint_alpha_geo_ids
+                .iter()
+                .any(|paint_geo_id| Self::geo_id_object_matches(*paint_geo_id, geo_id))
     }
 
     fn dynamic_object_order(a: &DynamicObject, b: &DynamicObject) -> Ordering {
@@ -3801,6 +3855,7 @@ impl VM {
         self.cached_static_tri_geo_ids.clear();
         self.cached_static_raster_visible_indices.clear();
         self.cached_static_raster_opaque_indices.clear();
+        self.cached_static_raster_paint_alpha_indices.clear();
         self.cached_static_raster_transparent_indices.clear();
         self.cached_static_raster_particle_indices.clear();
         self.cached_static_raster_indices_valid = false;
@@ -4041,7 +4096,7 @@ impl VM {
 
         let g = self.gpu.as_mut().unwrap();
         if recreate {
-            let desc = |label: &'static str| wgpu::TextureDescriptor {
+            let desc = |label: &'static str, format: wgpu::TextureFormat| wgpu::TextureDescriptor {
                 label: Some(label),
                 size: wgpu::Extent3d {
                     width,
@@ -4051,12 +4106,18 @@ impl VM {
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8Unorm,
+                format,
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
             };
-            let color_tex = device.create_texture(&desc("vm-raster3d-paint-color"));
-            let material_tex = device.create_texture(&desc("vm-raster3d-paint-material"));
+            let color_tex = device.create_texture(&desc(
+                "vm-raster3d-paint-color",
+                wgpu::TextureFormat::Rgba8Unorm,
+            ));
+            let material_tex = device.create_texture(&desc(
+                "vm-raster3d-paint-material",
+                wgpu::TextureFormat::Rgba8Uint,
+            ));
             g.raster3d_paint_color_view =
                 Some(color_tex.create_view(&wgpu::TextureViewDescriptor::default()));
             g.raster3d_paint_material_view =
@@ -4173,6 +4234,7 @@ impl VM {
             material_table: Self::default_material_table(),
             material_table_dirty: true,
             raster3d_paint_overlay: None,
+            raster3d_paint_alpha_geo_ids: FxHashSet::default(),
             raster3d_paint_overlay_dirty: true,
             transform2d: Mat3::identity(),
             transform3d: Mat4::identity(),
@@ -4195,6 +4257,7 @@ impl VM {
             cached_static_tri_geo_ids: Vec::new(),
             cached_static_raster_visible_indices: Vec::new(),
             cached_static_raster_opaque_indices: Vec::new(),
+            cached_static_raster_paint_alpha_indices: Vec::new(),
             cached_static_raster_transparent_indices: Vec::new(),
             cached_static_raster_particle_indices: Vec::new(),
             cached_static_raster_camera_key: [0.0; 6],
@@ -4350,6 +4413,7 @@ impl VM {
                 height,
                 color_rgba,
                 material_rgba,
+                paint_alpha_geo_ids,
             } => {
                 let expected = width as usize * height as usize * 4;
                 if width == 0
@@ -4357,11 +4421,17 @@ impl VM {
                     || color_rgba.len() != expected
                     || material_rgba.len() != expected
                 {
-                    if self.raster3d_paint_overlay.is_some() {
+                    if self.raster3d_paint_overlay.is_some()
+                        || !self.raster3d_paint_alpha_geo_ids.is_empty()
+                    {
                         self.raster3d_paint_overlay = None;
+                        self.raster3d_paint_alpha_geo_ids.clear();
                         self.raster3d_paint_overlay_dirty = true;
+                        self.cached_static_raster_indices_valid = false;
                     }
                 } else {
+                    let next_paint_alpha_geo_ids: FxHashSet<GeoId> =
+                        paint_alpha_geo_ids.into_iter().collect();
                     let next = Raster3DPaintOverlayData {
                         width,
                         height,
@@ -4378,16 +4448,24 @@ impl VM {
                                 || current.material_rgba != next.material_rgba
                         })
                         .unwrap_or(true);
-                    if changed {
+                    let alpha_geo_changed =
+                        self.raster3d_paint_alpha_geo_ids != next_paint_alpha_geo_ids;
+                    if changed || alpha_geo_changed {
                         self.raster3d_paint_overlay = Some(next);
+                        self.raster3d_paint_alpha_geo_ids = next_paint_alpha_geo_ids;
                         self.raster3d_paint_overlay_dirty = true;
+                        self.cached_static_raster_indices_valid = false;
                     }
                 }
             }
             Atom::ClearRaster3DPaintOverlay => {
-                if self.raster3d_paint_overlay.is_some() {
+                if self.raster3d_paint_overlay.is_some()
+                    || !self.raster3d_paint_alpha_geo_ids.is_empty()
+                {
                     self.raster3d_paint_overlay = None;
+                    self.raster3d_paint_alpha_geo_ids.clear();
                     self.raster3d_paint_overlay_dirty = true;
+                    self.cached_static_raster_indices_valid = false;
                 }
             }
             Atom::SetTileMaterialFrames { id, frames } => {
@@ -4711,6 +4789,7 @@ impl VM {
                     if let Some(g) = self.gpu.as_mut() {
                         g.raster3d_pipeline = None;
                         g.raster3d_alpha_pipeline = None;
+                        g.raster3d_paint_alpha_pipeline = None;
                         g.raster3d_particle_pipeline = None;
                         g.raster3d_organic_billboard_pipeline = None;
                         g.raster3d_shadow_pipeline = None;
@@ -4952,6 +5031,7 @@ impl VM {
             raster2d_pipeline: None,
             raster3d_pipeline: None,
             raster3d_alpha_pipeline: None,
+            raster3d_paint_alpha_pipeline: None,
             raster3d_particle_pipeline: None,
             raster3d_line_pipeline: None,
             raster3d_organic_billboard_pipeline: None,
@@ -4988,6 +5068,10 @@ impl VM {
             i3d_raster_opaque: None,
             i3d_raster_opaque_count: 0,
             i3d_raster_opaque_capacity: 0,
+            i3d_raster_paint_alpha: None,
+            i3d_raster_paint_alpha_count: 0,
+            i3d_raster_paint_alpha_capacity: 0,
+            raster3d_paint_debug_counts: None,
             i3d_raster_transparent: None,
             i3d_raster_transparent_count: 0,
             i3d_raster_transparent_capacity: 0,
@@ -5811,6 +5895,7 @@ impl VM {
         let g = self.gpu.as_mut().unwrap();
         if g.raster3d_pipeline.is_some()
             && g.raster3d_alpha_pipeline.is_some()
+            && g.raster3d_paint_alpha_pipeline.is_some()
             && g.raster3d_line_pipeline.is_some()
             && g.u_raster3d_bgl.is_some()
             && g.u_raster3d_post_bgl.is_some()
@@ -5953,7 +6038,7 @@ impl VM {
                     binding: 14,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        sample_type: wgpu::TextureSampleType::Uint,
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
                     },
@@ -6337,6 +6422,110 @@ impl VM {
                     // Transparent surfaces still blend without writing depth, but they
                     // must respect opaque depth so water/glass volumes do not draw over
                     // bridge posts or other opaque geometry inside/behind the volume.
+                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState {
+                    count: raster_samples,
+                    alpha_to_coverage_enabled: false,
+                    ..Default::default()
+                },
+                multiview_mask: None,
+                cache: None,
+            });
+        let raster3d_paint_alpha_pipeline =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("vm-3d-raster-paint-alpha-pipeline"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<Vert3DPod>() as u64,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &[
+                            wgpu::VertexAttribute {
+                                offset: 0,
+                                shader_location: 0,
+                                format: wgpu::VertexFormat::Float32x3,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 12,
+                                shader_location: 1,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 16,
+                                shader_location: 2,
+                                format: wgpu::VertexFormat::Float32x2,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 24,
+                                shader_location: 3,
+                                format: wgpu::VertexFormat::Float32x2,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 32,
+                                shader_location: 4,
+                                format: wgpu::VertexFormat::Uint32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 36,
+                                shader_location: 5,
+                                format: wgpu::VertexFormat::Uint32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 40,
+                                shader_location: 6,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 44,
+                                shader_location: 7,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 48,
+                                shader_location: 8,
+                                format: wgpu::VertexFormat::Float32x3,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 60,
+                                shader_location: 9,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                            wgpu::VertexAttribute {
+                                offset: 64,
+                                shader_location: 13,
+                                format: wgpu::VertexFormat::Float32x4,
+                            },
+                        ],
+                    }],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Rgba16Float,
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: None,
+                    unclipped_depth: false,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: Some(true),
                     depth_compare: Some(wgpu::CompareFunction::LessEqual),
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
@@ -6748,6 +6937,7 @@ impl VM {
         g.u_raster3d_buf = Some(u_raster3d_buf);
         g.raster3d_pipeline = Some(raster3d_pipeline);
         g.raster3d_alpha_pipeline = Some(raster3d_alpha_pipeline);
+        g.raster3d_paint_alpha_pipeline = Some(raster3d_paint_alpha_pipeline);
         g.raster3d_particle_pipeline = Some(raster3d_particle_pipeline);
         g.raster3d_line_pipeline = Some(raster3d_line_pipeline);
         g.raster3d_organic_billboard_pipeline = Some(raster3d_organic_billboard_pipeline);
@@ -6779,9 +6969,9 @@ impl VM {
         camera: &Camera3D,
         tri_start: usize,
         tri_end: usize,
-    ) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>) {
+    ) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>) {
         if self.cached_i3.is_empty() || self.cached_tri_visibility.is_empty() {
-            return (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+            return (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
         }
         const TILE_INDEX_FLAGS_MASK_CPU: u32 = 0xF000_0000;
         const TILE_INDEX_PARTICLE_FLAG_CPU: u32 = 0x0800_0000u32;
@@ -6804,6 +6994,7 @@ impl VM {
         let index_capacity = (tri_end - tri_start) * 3;
         let mut all_visible: Vec<u32> = Vec::with_capacity(index_capacity);
         let mut opaque: Vec<u32> = Vec::with_capacity(index_capacity);
+        let mut paint_alpha: Vec<u32> = Vec::new();
         let mut transparent_tris: Vec<(f32, [u32; 3])> = Vec::new();
         let mut particle_tris: Vec<(f32, [u32; 3])> = Vec::new();
         for tri in tri_start..tri_end {
@@ -6831,6 +7022,10 @@ impl VM {
                     } else {
                         false
                     };
+                    let paint_alpha_tri = self
+                        .cached_tri_geo_ids
+                        .get(tri)
+                        .is_some_and(|geo_id| self.raster3d_paint_alpha_matches(*geo_id));
                     let is_transparent = if let (Some(a), Some(b), Some(c)) = (v0, v1, v2) {
                         a.opacity < 0.999
                             || b.opacity < 0.999
@@ -6844,7 +7039,9 @@ impl VM {
                     } else {
                         false
                     };
-                    if is_transparent {
+                    if paint_alpha_tri && !is_particle {
+                        paint_alpha.extend_from_slice(&[i0, i1, i2]);
+                    } else if is_transparent {
                         if let (Some(a), Some(b), Some(c)) = (v0, v1, v2) {
                             let centroid = Vec3::new(
                                 (a.pos[0] + b.pos[0] + c.pos[0]) / 3.0,
@@ -6874,16 +7071,16 @@ impl VM {
         for (_, tri) in particle_tris {
             particles.extend_from_slice(&tri);
         }
-        (all_visible, opaque, transparent, particles)
+        (all_visible, opaque, paint_alpha, transparent, particles)
     }
 
     fn rebuild_raster_visible_indices(
         &mut self,
         camera: &Camera3D,
-    ) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>) {
+    ) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>) {
         let tri_capacity = self.cached_i3.len() / 3;
         if tri_capacity == 0 {
-            return (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+            return (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
         }
 
         let static_tri_count = (self.cached_static_i3.len() / 3).min(tri_capacity);
@@ -6891,10 +7088,11 @@ impl VM {
         let static_cache_valid = self.cached_static_raster_indices_valid
             && Self::raster_camera_key_matches(self.cached_static_raster_camera_key, camera_key);
         if !static_cache_valid {
-            let (visible, opaque, transparent, particles) =
+            let (visible, opaque, paint_alpha, transparent, particles) =
                 self.split_raster_visible_indices_range(camera, 0, static_tri_count);
             self.cached_static_raster_visible_indices = visible;
             self.cached_static_raster_opaque_indices = opaque;
+            self.cached_static_raster_paint_alpha_indices = paint_alpha;
             self.cached_static_raster_transparent_indices = transparent;
             self.cached_static_raster_particle_indices = particles;
             self.cached_static_raster_camera_key = camera_key;
@@ -6905,23 +7103,31 @@ impl VM {
             return (
                 self.cached_static_raster_visible_indices.clone(),
                 self.cached_static_raster_opaque_indices.clone(),
+                self.cached_static_raster_paint_alpha_indices.clone(),
                 self.cached_static_raster_transparent_indices.clone(),
                 self.cached_static_raster_particle_indices.clone(),
             );
         }
 
-        let (dynamic_visible, dynamic_opaque, dynamic_transparent, dynamic_particles) =
-            self.split_raster_visible_indices_range(camera, static_tri_count, tri_capacity);
+        let (
+            dynamic_visible,
+            dynamic_opaque,
+            dynamic_paint_alpha,
+            dynamic_transparent,
+            dynamic_particles,
+        ) = self.split_raster_visible_indices_range(camera, static_tri_count, tri_capacity);
 
         let mut visible = self.cached_static_raster_visible_indices.clone();
         visible.extend_from_slice(&dynamic_visible);
         let mut opaque = self.cached_static_raster_opaque_indices.clone();
         opaque.extend_from_slice(&dynamic_opaque);
+        let mut paint_alpha = self.cached_static_raster_paint_alpha_indices.clone();
+        paint_alpha.extend_from_slice(&dynamic_paint_alpha);
         let mut transparent = self.cached_static_raster_transparent_indices.clone();
         transparent.extend_from_slice(&dynamic_transparent);
         let mut particles = self.cached_static_raster_particle_indices.clone();
         particles.extend_from_slice(&dynamic_particles);
-        (visible, opaque, transparent, particles)
+        (visible, opaque, paint_alpha, transparent, particles)
     }
 
     fn ensure_tile_emissive_summaries(&mut self) {
@@ -9293,8 +9499,13 @@ impl VM {
             .texture_views()
             .expect("atlas GPU resources missing");
         let debug_visibility_start = instant::Instant::now();
-        let (visible_indices, opaque_indices, transparent_indices, particle_indices) =
-            self.rebuild_raster_visible_indices(&c);
+        let (
+            visible_indices,
+            opaque_indices,
+            paint_alpha_indices,
+            transparent_indices,
+            particle_indices,
+        ) = self.rebuild_raster_visible_indices(&c);
         debug_visibility_ms += debug_visibility_start.elapsed().as_secs_f64() * 1000.0;
 
         let debug_visible_count = visible_indices.len();
@@ -9496,6 +9707,7 @@ impl VM {
             self.upload_irradiance_grid_ssbo(device, queue);
             self.upload_material_table_ssbo(device, queue);
             self.upload_raster3d_paint_overlay(device, queue);
+            let paint_alpha_geo_id_count = self.raster3d_paint_alpha_geo_ids.len();
             let g = self.gpu.as_mut().unwrap();
             g.ensure_raster3d_targets(device, fb_w, fb_h, shadow_res, raster_samples);
             queue.write_buffer(
@@ -9612,6 +9824,25 @@ impl VM {
                 &opaque_upload,
             );
 
+            let paint_alpha_upload = if paint_alpha_indices.is_empty() {
+                vec![0u32]
+            } else {
+                paint_alpha_indices
+            };
+            g.i3d_raster_paint_alpha_count = if paint_alpha_upload.len() == 1 {
+                0
+            } else {
+                paint_alpha_upload.len() as u32
+            };
+            VMGpu::update_or_create_index_buffer(
+                device,
+                queue,
+                &mut g.i3d_raster_paint_alpha,
+                &mut g.i3d_raster_paint_alpha_capacity,
+                "vm-3d-indices-raster-paint-alpha",
+                &paint_alpha_upload,
+            );
+
             let transparent_upload = if transparent_indices.is_empty() {
                 vec![0u32]
             } else {
@@ -9649,6 +9880,31 @@ impl VM {
                 "vm-3d-indices-raster-particles",
                 &particle_upload,
             );
+
+            let paint_debug_counts = (
+                paint_alpha_geo_id_count,
+                g.i3d_raster_opaque_count,
+                g.i3d_raster_paint_alpha_count,
+                g.i3d_raster_transparent_count,
+                g.i3d_raster_particles_count,
+            );
+            if std::env::var_os("ELDIRON_ISO_PAINT_DEBUG").is_some()
+                && (paint_debug_counts.0 > 0 || paint_debug_counts.2 > 0)
+            {
+                if g.raster3d_paint_debug_counts != Some(paint_debug_counts) {
+                    eprintln!(
+                        "Raster3D paint bucket debug: alpha_geo_ids={} opaque_indices={} paint_alpha_indices={} transparent_indices={} particle_indices={}",
+                        paint_debug_counts.0,
+                        paint_debug_counts.1,
+                        paint_debug_counts.2,
+                        paint_debug_counts.3,
+                        paint_debug_counts.4
+                    );
+                    g.raster3d_paint_debug_counts = Some(paint_debug_counts);
+                }
+            } else {
+                g.raster3d_paint_debug_counts = None;
+            }
 
             g.u_raster3d_shadow_bg = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("vm-raster3d-shadow-bg"),
@@ -9879,6 +10135,16 @@ impl VM {
                     wgpu::IndexFormat::Uint32,
                 );
                 pass.draw_indexed(0..g.i3d_raster_opaque_count, 0, 0..1);
+            }
+            if g.i3d_raster_paint_alpha_count > 0 {
+                pass.set_pipeline(g.raster3d_paint_alpha_pipeline.as_ref().unwrap());
+                pass.set_bind_group(0, g.u_raster3d_bg.as_ref().unwrap(), &[]);
+                pass.set_vertex_buffer(0, g.v3d_ssbo.as_ref().unwrap().slice(..));
+                pass.set_index_buffer(
+                    g.i3d_raster_paint_alpha.as_ref().unwrap().slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+                pass.draw_indexed(0..g.i3d_raster_paint_alpha_count, 0, 0..1);
             }
             if g.organic_billboard_count > 0 && self.organic_visible {
                 pass.set_pipeline(g.raster3d_organic_billboard_pipeline.as_ref().unwrap());

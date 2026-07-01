@@ -11,6 +11,7 @@ const ISO_PAINT_INSPECTOR: &str = "Iso Paint Inspector";
 const ISO_PAINT_BRUSH_SELECTED: &str = "Iso Paint Brush Selected";
 const ISO_PAINT_MATERIAL_PRESET_SELECTED: &str = "Iso Paint Material Preset Selected";
 const ISO_PAINT_MATERIAL_FINISH_SELECTED: &str = "Iso Paint Material Finish Selected";
+const ISO_PAINT_MATERIAL_MODE: &str = "Iso Paint Material Mode";
 const ISO_PAINT_OPERATION_GROUP: &str = "Iso Paint Operation Group";
 const ISO_PAINT_LAYER_VISIBLE: &str = "Iso Paint Layer Visible";
 const ISO_PAINT_CLEAR_ALL: &str = "Iso Paint Clear All";
@@ -41,6 +42,12 @@ enum IsoPaintClipMode {
 enum IsoPaintPatternKind {
     Tiles,
     Bricks,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum IsoPaintMaterialMode {
+    Coat,
+    Replace,
 }
 
 #[derive(Clone, Copy)]
@@ -834,8 +841,11 @@ pub struct IsoPaintDock {
     operation: IsoPaintOperation,
     size: f32,
     opacity: f32,
+    brush_sizes: [f32; 7],
+    brush_opacities: [f32; 7],
     material_preset: i32,
     material_finish: i32,
+    material_mode: IsoPaintMaterialMode,
     paint_visible: bool,
     clip_mode: IsoPaintClipMode,
     pattern_kind: IsoPaintPatternKind,
@@ -851,7 +861,7 @@ impl IsoPaintDock {
     const BRUSHES: [IsoPaintBrushPreset; 7] = [
         IsoPaintBrushPreset {
             key: "material",
-            size: 1.0,
+            size: 8.0,
             opacity: 1.0,
             pattern_scale: 1.0,
             mortar: 0.08,
@@ -859,7 +869,7 @@ impl IsoPaintDock {
         },
         IsoPaintBrushPreset {
             key: "brick",
-            size: 1.0,
+            size: 8.0,
             opacity: 1.0,
             pattern_scale: 1.0,
             mortar: 0.08,
@@ -934,6 +944,14 @@ impl IsoPaintDock {
             fl!("material_finish_polished"),
             fl!("material_finish_wet"),
         ]
+    }
+
+    fn default_brush_sizes() -> [f32; 7] {
+        std::array::from_fn(|index| Self::BRUSHES[index].size)
+    }
+
+    fn default_brush_opacities() -> [f32; 7] {
+        std::array::from_fn(|index| Self::BRUSHES[index].opacity)
     }
 
     fn operation_index(operation: IsoPaintOperation) -> i32 {
@@ -1024,6 +1042,27 @@ impl IsoPaintDock {
         ]
     }
 
+    fn material_mode_key(material_mode: IsoPaintMaterialMode) -> &'static str {
+        match material_mode {
+            IsoPaintMaterialMode::Coat => "coat",
+            IsoPaintMaterialMode::Replace => "replace",
+        }
+    }
+
+    fn material_mode_from_key(key: &str) -> IsoPaintMaterialMode {
+        match key {
+            "replace" => IsoPaintMaterialMode::Replace,
+            _ => IsoPaintMaterialMode::Coat,
+        }
+    }
+
+    fn material_mode_labels() -> Vec<String> {
+        vec![
+            fl!("iso_paint_material_mode_coat"),
+            fl!("iso_paint_material_mode_replace"),
+        ]
+    }
+
     fn selected_material_key(&self) -> &'static str {
         MATERIAL_PRESET_VALUES
             .get(self.material_preset.max(0) as usize)
@@ -1077,6 +1116,37 @@ impl IsoPaintDock {
     fn build_nodeui(&self) -> TheNodeUI {
         let mut nodeui = TheNodeUI::default();
         let brush = self.selected_preset();
+
+        nodeui.add_item(TheNodeUIItem::Separator(fl!("iso_paint_section_brush")));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            ISO_PAINT_TOOL_SIZE.into(),
+            fl!("iso_paint_size"),
+            fl!("status_iso_paint_size"),
+            self.size,
+            0.05..=8.0,
+            true,
+        ));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            ISO_PAINT_TOOL_OPACITY.into(),
+            fl!("iso_paint_opacity"),
+            fl!("status_iso_paint_opacity"),
+            self.opacity,
+            0.0..=1.0,
+            true,
+        ));
+
+        nodeui.add_item(TheNodeUIItem::Separator(fl!("iso_paint_section_material")));
+        nodeui.add_item(TheNodeUIItem::Selector(
+            ISO_PAINT_MATERIAL_MODE.into(),
+            fl!("iso_paint_material_mode"),
+            fl!("status_iso_paint_material_mode"),
+            Self::material_mode_labels(),
+            if self.material_mode == IsoPaintMaterialMode::Replace {
+                1
+            } else {
+                0
+            },
+        ));
 
         match brush.key {
             "brick" => {
@@ -1149,19 +1219,16 @@ impl IsoPaintDock {
             .unwrap_or(Self::BRUSHES[0])
     }
 
+    fn brush_index_from_key(key: &str) -> usize {
+        Self::BRUSHES
+            .iter()
+            .position(|brush| brush.key == key)
+            .unwrap_or(0)
+    }
+
     fn sync_inspector(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.nodeui = self.build_nodeui();
         self.sync_toolbar(ui, ctx);
-        ui.set_widget_value(
-            ISO_PAINT_TOOL_SIZE,
-            ctx,
-            TheValue::Float((self.size * 100.0).round() / 100.0),
-        );
-        ui.set_widget_value(
-            ISO_PAINT_TOOL_OPACITY,
-            ctx,
-            TheValue::Float((self.opacity * 100.0).round() / 100.0),
-        );
         if let Some(widget) = ui.get_widget(ISO_PAINT_BRUSH_LIST)
             && let Some(board) = widget.as_any().downcast_mut::<IsoPaintBrushBoard>()
         {
@@ -1200,8 +1267,15 @@ impl IsoPaintDock {
     }
 
     fn select_brush(&mut self, index: usize, ui: &mut TheUI, ctx: &mut TheContext) {
+        let current = self
+            .selected_brush
+            .min(Self::BRUSHES.len().saturating_sub(1));
+        self.brush_sizes[current] = self.size;
+        self.brush_opacities[current] = self.opacity;
         self.selected_brush = index.min(Self::BRUSHES.len().saturating_sub(1));
         let brush = self.selected_preset();
+        self.size = self.brush_sizes[self.selected_brush];
+        self.opacity = self.brush_opacities[self.selected_brush];
         if brush.key == "puddle" {
             if let Some(index) = MATERIAL_PRESET_VALUES
                 .iter()
@@ -1282,6 +1356,7 @@ impl IsoPaintDock {
             material_key,
             finish_key,
             material_id,
+            Self::material_mode_key(self.material_mode),
             Self::clip_key(self.clip_mode),
             color,
             Self::pattern_kind_key(self.pattern_kind),
@@ -1305,8 +1380,11 @@ impl Dock for IsoPaintDock {
             operation: IsoPaintOperation::Draw,
             size: Self::BRUSHES[0].size,
             opacity: Self::BRUSHES[0].opacity,
+            brush_sizes: Self::default_brush_sizes(),
+            brush_opacities: Self::default_brush_opacities(),
             material_preset: 0,
             material_finish: 0,
+            material_mode: IsoPaintMaterialMode::Coat,
             paint_visible: true,
             clip_mode: IsoPaintClipMode::Object,
             pattern_kind: IsoPaintPatternKind::Bricks,
@@ -1378,43 +1456,7 @@ impl Dock for IsoPaintDock {
         clip_group.set_index(Self::clip_index(self.clip_mode));
         toolbar.add_widget(Box::new(clip_group));
 
-        let mut size_label = TheText::new(TheId::named("Iso Paint Size Label"));
-        size_label.set_text(fl!("iso_paint_size"));
-        size_label.set_text_size(12.0);
-        size_label.set_text_color([230, 230, 230, 255]);
-        size_label.limiter_mut().set_min_width(28);
-        size_label.limiter_mut().set_max_width(28);
-        toolbar.add_widget(Box::new(size_label));
-
-        let mut size = TheTextLineEdit::new(TheId::named(ISO_PAINT_TOOL_SIZE));
-        size.set_value(TheValue::Float(self.size));
-        size.set_info_text(None);
-        size.set_range(TheValue::RangeF32(0.05..=8.0));
-        size.set_continuous(true);
-        size.set_status_text(&fl!("status_iso_paint_size"));
-        size.limiter_mut().set_min_width(104);
-        size.limiter_mut().set_max_width(104);
-        toolbar.add_widget(Box::new(size));
-
-        let mut opacity_label = TheText::new(TheId::named("Iso Paint Opacity Label"));
-        opacity_label.set_text(fl!("iso_paint_opacity"));
-        opacity_label.set_text_size(12.0);
-        opacity_label.set_text_color([230, 230, 230, 255]);
-        opacity_label.limiter_mut().set_min_width(46);
-        opacity_label.limiter_mut().set_max_width(46);
-        toolbar.add_widget(Box::new(opacity_label));
-
-        let mut opacity = TheTextLineEdit::new(TheId::named(ISO_PAINT_TOOL_OPACITY));
-        opacity.set_value(TheValue::Float(self.opacity));
-        opacity.set_info_text(None);
-        opacity.set_range(TheValue::RangeF32(0.0..=1.0));
-        opacity.set_continuous(true);
-        opacity.set_status_text(&fl!("status_iso_paint_opacity"));
-        opacity.limiter_mut().set_min_width(104);
-        opacity.limiter_mut().set_max_width(104);
-        toolbar.add_widget(Box::new(opacity));
-
-        toolbar.set_reverse_index(Some(5));
+        toolbar.set_reverse_index(Some(3));
 
         toolbar_canvas.set_layout(toolbar);
         canvas.set_top(toolbar_canvas);
@@ -1466,6 +1508,20 @@ impl Dock for IsoPaintDock {
             .get_region(&server_ctx.curr_region)
             .map(|region| {
                 self.clip_mode = Self::clip_from_key(&region.iso_paint.active_clip);
+                self.material_mode =
+                    Self::material_mode_from_key(&region.iso_paint.active_material_mode);
+                self.selected_brush = Self::brush_index_from_key(&region.iso_paint.active_brush);
+                let preset = self.selected_preset();
+                self.size = if matches!(preset.key, "material" | "brick")
+                    && region.iso_paint.active_size <= 1.001
+                {
+                    preset.size
+                } else {
+                    region.iso_paint.active_size.max(0.05)
+                };
+                self.opacity = region.iso_paint.active_opacity.clamp(0.0, 1.0);
+                self.brush_sizes[self.selected_brush] = self.size;
+                self.brush_opacities[self.selected_brush] = self.opacity;
                 self.pattern_kind =
                     Self::pattern_kind_from_key(&region.iso_paint.active_pattern_kind);
                 self.pattern_scale = region.iso_paint.active_pattern_scale;
@@ -1569,26 +1625,31 @@ impl Dock for IsoPaintDock {
                 self.sync_project_settings(project, server_ctx);
                 return true;
             }
-            TheEvent::ValueChanged(id, value)
-                if matches!(
-                    id.name.as_str(),
-                    ISO_PAINT_TOOL_SIZE | ISO_PAINT_TOOL_OPACITY
-                ) =>
-            {
-                if let Some(value) = value.to_f32() {
-                    match id.name.as_str() {
-                        ISO_PAINT_TOOL_SIZE => self.size = value.clamp(0.05, 8.0),
-                        ISO_PAINT_TOOL_OPACITY => self.opacity = value.clamp(0.0, 1.0),
-                        _ => {}
-                    }
-                    self.sync_project_settings(project, server_ctx);
-                    return true;
-                }
-            }
             _ => {
                 if self.nodeui.handle_event(event) {
                     if let TheEvent::ValueChanged(id, value) = event {
                         match id.name.as_str() {
+                            ISO_PAINT_TOOL_SIZE => {
+                                if let Some(value) = value.to_f32() {
+                                    self.size = value.clamp(0.05, 8.0);
+                                    self.brush_sizes[self.selected_brush] = self.size;
+                                }
+                            }
+                            ISO_PAINT_TOOL_OPACITY => {
+                                if let Some(value) = value.to_f32() {
+                                    self.opacity = value.clamp(0.0, 1.0);
+                                    self.brush_opacities[self.selected_brush] = self.opacity;
+                                }
+                            }
+                            ISO_PAINT_MATERIAL_MODE => {
+                                if let TheValue::Int(index) = value {
+                                    self.material_mode = if *index == 1 {
+                                        IsoPaintMaterialMode::Replace
+                                    } else {
+                                        IsoPaintMaterialMode::Coat
+                                    };
+                                }
+                            }
                             ISO_PAINT_PATTERN_KIND => {
                                 if let TheValue::Int(index) = value {
                                     self.pattern_kind = if *index == 0 {
