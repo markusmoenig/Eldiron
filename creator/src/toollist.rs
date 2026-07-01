@@ -22,6 +22,7 @@ pub struct ToolList {
     pub text_game_mode: bool,
     pub palette_mode: bool,
     pub previous_sidebar_mode: Option<SidebarMode>,
+    pub previous_palette_dock: Option<String>,
 
     pub game_tools: Vec<Box<dyn Tool>>,
     pub curr_game_tool: usize,
@@ -236,7 +237,7 @@ impl ToolList {
     ) -> Option<ProjectUndoAtom> {
         if server_ctx.get_map_context() == MapContext::Region {
             let iso_paint_color = if server_ctx.curr_map_tool_type == MapToolType::IsoPaint {
-                project.palette.get_current_color().map(|color| {
+                project.art_palette.get_current_color().map(|color| {
                     let mut color = color.to_u8_array();
                     color[3] = 255;
                     color
@@ -1331,6 +1332,7 @@ impl ToolList {
             text_game_mode: false,
             palette_mode: false,
             previous_sidebar_mode: None,
+            previous_palette_dock: None,
             game_tools,
             curr_game_tool: 2,
 
@@ -1500,26 +1502,31 @@ impl ToolList {
         let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
         if self.palette_mode {
             self.previous_sidebar_mode = Some(*SIDEBARMODE.read().unwrap());
+            self.previous_palette_dock = if current_dock == "Palette" {
+                None
+            } else {
+                Some(current_dock)
+            };
             *SIDEBARMODE.write().unwrap() = SidebarMode::Palette;
-            if current_dock == "Tiles" || current_dock == "Palette" {
-                DOCKMANAGER.write().unwrap().set_dock(
-                    "Palette".into(),
-                    ui,
-                    ctx,
-                    project,
-                    server_ctx,
-                );
-            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Palette".into(), ui, ctx, project, server_ctx);
         } else if current_dock == "Palette" {
             if let Some(mode) = self.previous_sidebar_mode.take() {
                 *SIDEBARMODE.write().unwrap() = mode;
             }
+            let previous_dock = self
+                .previous_palette_dock
+                .take()
+                .unwrap_or_else(|| "Tiles".into());
             DOCKMANAGER
                 .write()
                 .unwrap()
-                .set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+                .set_dock(previous_dock, ui, ctx, project, server_ctx);
         } else if let Some(mode) = self.previous_sidebar_mode.take() {
             *SIDEBARMODE.write().unwrap() = mode;
+            self.previous_palette_dock = None;
         }
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Action List"),

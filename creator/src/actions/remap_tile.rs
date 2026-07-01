@@ -317,7 +317,7 @@ impl Action for RemapTile {
             .nodeui
             .get_text_value(REMAP_RANGE_ID)
             .unwrap_or_else(|| "all".to_string());
-        let palette = palette_for_range(&project.palette, &range_text);
+        let palette = palette_for_range(&project.art_palette, &range_text);
 
         if remap_all {
             let mut edits = Vec::new();

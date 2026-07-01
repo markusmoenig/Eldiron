@@ -35,8 +35,7 @@ impl Action for ImportPalette {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        let _ = server_ctx;
-        false
+        server_ctx.palette_tool_active
     }
 
     fn apply_project(
@@ -46,14 +45,18 @@ impl Action for ImportPalette {
         ctx: &mut TheContext,
         _server_ctx: &mut ServerContext,
     ) {
-        if _project.ruleset_palette_is_active() {
-            return;
-        }
-
         ctx.ui.open_file_requester(
             TheId::named_with_id("actionImportPalette", Uuid::new_v4()),
-            "Import Palette".into(),
-            TheFileExtension::new("Paint.net".into(), vec!["txt".to_string()]),
+            "Load Palette".into(),
+            TheFileExtension::new(
+                "Palette".into(),
+                vec![
+                    "txt".to_string(),
+                    "TXT".to_string(),
+                    "hex".to_string(),
+                    "HEX".to_string(),
+                ],
+            ),
         );
     }
 
@@ -72,24 +75,20 @@ impl Action for ImportPalette {
         match event {
             TheEvent::FileRequesterResult(id, paths) => {
                 if id.name == "actionImportPalette" {
-                    if project.ruleset_palette_is_active() {
-                        return false;
-                    }
                     for p in paths {
                         if let Ok(contents) = std::fs::read_to_string(p) {
-                            let prev = project.palette.clone();
-                            let prev_materials = project.palette_materials.clone();
+                            let prev = project.art_palette.clone();
+                            let prev_materials = project.art_palette_materials.clone();
 
-                            project.palette.load_from_txt(contents);
-                            project.ensure_palette_materials_len();
+                            project.load_art_palette_from_text(contents);
                             apply_palette(ui, ctx, server_ctx, project);
                             crate::undo::project_helper::refresh_palette_runtime(project);
 
                             let undo_atom = ProjectUndoAtom::PaletteEdit(
                                 prev,
                                 prev_materials,
-                                project.palette.clone(),
-                                project.palette_materials.clone(),
+                                project.art_palette.clone(),
+                                project.art_palette_materials.clone(),
                             );
                             UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
                             return true;

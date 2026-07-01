@@ -90,7 +90,7 @@ impl Action for NewTile {
 
         let mut textures = vec![];
         let mut c = [128, 128, 128, 255];
-        if let Some(col) = project.palette.get_current_color() {
+        if let Some(col) = project.art_palette.get_current_color() {
             c = col.to_u8_array();
         }
 

@@ -1,4 +1,7 @@
-use crate::{ParticleEmitter, Texture};
+use crate::{
+    ParticleEmitter, Texture,
+    material_library::{MaterialDefinition, MaterialFamily},
+};
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug, Default)]
@@ -160,36 +163,31 @@ impl TileMaterialMeta {
         self.base_rmoe_values()
     }
 
+    pub fn material_id(&self) -> Option<u8> {
+        if self.is_default() {
+            return None;
+        }
+        Some(
+            MaterialDefinition::from_preset_finish(
+                &self.normalized_preset(),
+                &self.normalized_finish(),
+            )
+            .id(),
+        )
+    }
+
     fn base_rmoe_values(&self) -> Option<[f32; 4]> {
         if self.is_default() {
             return None;
         }
 
-        let preset = self.normalized_preset();
-        let finish = self.normalized_finish();
-        let (mut roughness, metallic, opacity, emissive): (f32, f32, f32, f32) =
-            match preset.as_str() {
-                "stone" => (0.78, 0.0, 1.0, 0.0),
-                "wood" => (0.62, 0.0, 1.0, 0.0),
-                "metal" => (0.34, 0.9, 1.0, 0.0),
-                "glass" => (0.06, 0.0, 0.35, 0.0),
-                "water" => (0.03, 0.0, 0.55, 0.0),
-                "mirror" => (0.02, 1.0, 1.0, 0.0),
-                "emissive" => (0.45, 0.0, 1.0, 1.0),
-                "dirt" => (0.9, 0.0, 1.0, 0.0),
-                "fabric" => (0.85, 0.0, 1.0, 0.0),
-                "plastic" => (0.45, 0.0, 1.0, 0.0),
-                _ => (0.5, 0.0, 1.0, 0.0),
-            };
-
-        roughness += match finish.as_str() {
-            "matte" => 0.15,
-            "polished" => -0.25,
-            "wet" => -0.35,
-            _ => 0.0,
-        };
-
-        Some([roughness.clamp(0.02, 1.0), metallic, opacity, emissive])
+        Some(
+            MaterialDefinition::from_preset_finish(
+                &self.normalized_preset(),
+                &self.normalized_finish(),
+            )
+            .rmoe_values(),
+        )
     }
 
     fn color_luma_saturation(rgba: [u8; 4]) -> (f32, f32, f32) {
@@ -255,6 +253,14 @@ impl TileMaterialMeta {
             _ => {
                 roughness += dark_detail * 0.08;
             }
+        }
+
+        let family = MaterialFamily::from_preset(&preset);
+        if matches!(
+            family,
+            MaterialFamily::Skin | MaterialFamily::Wax | MaterialFamily::Foliage
+        ) {
+            roughness += dark_detail * 0.04;
         }
 
         if alpha < 0.98 {
@@ -344,7 +350,9 @@ impl Tile {
                     texture.data[idx + 2],
                     texture.data[idx + 3],
                 ];
-                if let Some([roughness, metallic, opacity, emissive]) =
+                if let Some(material_id) = material.material_id() {
+                    texture.set_material_id(x as u32, y as u32, material_id);
+                } else if let Some([roughness, metallic, opacity, emissive]) =
                     material.rmoe_values_for_color(rgba)
                 {
                     texture
@@ -543,7 +551,7 @@ mod tests {
     }
 
     #[test]
-    fn material_meta_varies_by_pixel_color() {
+    fn material_meta_writes_semantic_material_id() {
         let texture = Texture::new(
             vec![
                 16, 16, 16, 255, //
@@ -564,8 +572,13 @@ mod tests {
 
         let (_, _, _, dark_emissive) = material_texture.get_materials(0, 0);
         let (_, _, _, bright_emissive) = material_texture.get_materials(1, 0);
+        let dark_id = material_texture.get_material_id(0, 0);
+        let bright_id = material_texture.get_material_id(1, 0);
 
-        assert!(bright_emissive > dark_emissive);
+        assert_eq!(dark_id, tile.material.material_id());
+        assert_eq!(bright_id, tile.material.material_id());
+        assert_eq!(dark_emissive, bright_emissive);
+        assert_eq!(bright_emissive, 1.0);
     }
 
     #[test]

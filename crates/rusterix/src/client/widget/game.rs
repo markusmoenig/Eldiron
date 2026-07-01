@@ -693,8 +693,11 @@ impl GameWidget {
 
         self.scenemanager
             .set_tile_list(assets.tile_list.clone(), assets.tile_indices.clone());
-        self.scenemanager
-            .set_palette(assets.palette.clone(), assets.palette_materials.clone());
+        self.scenemanager.set_palette(
+            assets.palette.clone(),
+            assets.palette_materials.clone(),
+            assets.palette_material_ids.clone(),
+        );
         self.mapmini = map.as_mini(&assets.blocking_tiles());
 
         self.scenemanager.send(SceneManagerCmd::SetMap(map.clone()));

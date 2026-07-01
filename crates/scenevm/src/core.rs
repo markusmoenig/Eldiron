@@ -109,6 +109,14 @@ pub enum Atom {
         color: [u8; 4],
         material: [u8; 4],
     },
+    SetMaterialTable(Vec<[f32; 4]>),
+    SetRaster3DPaintOverlay {
+        width: u32,
+        height: u32,
+        color_rgba: Vec<u8>,
+        material_rgba: Vec<u8>,
+    },
+    ClearRaster3DPaintOverlay,
     BuildAtlas,
     SetAtlasSize {
         width: u32,

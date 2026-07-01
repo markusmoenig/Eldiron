@@ -7,6 +7,7 @@ use crate::{
     avatar_builder::{AvatarFrameStyle, AvatarRuntimeBuilder},
     chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
     client::widget::Widget,
+    material_library,
     scene_build_index::SceneBuildIndex,
 };
 use buildergraph::{BuilderDocument, BuilderOutputTarget, BuilderPrimitive};
@@ -2987,6 +2988,9 @@ impl SceneHandler {
             });
         }
 
+        self.vm.execute(Atom::SetMaterialTable(
+            material_library::material_table_rows(),
+        ));
         self.vm.execute(Atom::BuildAtlas);
     }
 

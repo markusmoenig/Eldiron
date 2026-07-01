@@ -202,11 +202,17 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
     rusterix.assets.authoring_src = project.authoring.clone();
     rusterix.assets.region_sources.clear();
     rusterix.assets.read_locales();
-    rusterix.assets.palette = project.palette.clone();
+    rusterix.assets.ruleset_palette = project.palette.clone();
+    rusterix.assets.palette = project.art_palette.clone();
     rusterix.assets.palette_materials = project
-        .palette_materials
+        .art_palette_materials
         .iter()
         .map(|m| m.rmoe_values())
+        .collect();
+    rusterix.assets.palette_material_ids = project
+        .art_palette_materials
+        .iter()
+        .map(|m| m.material_id())
         .collect();
     rusterix.assets.maps.clear();
     for region in &project.regions {

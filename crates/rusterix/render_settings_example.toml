@@ -6,9 +6,6 @@ backend_2d = "compute"
 backend_3d = "raster"
 # Quality preset: "low", "medium", "high", "ultra", "custom".
 quality = "custom"
-# Renderer style preset: "clean" keeps normal lighting, "retro" softens shine, "grimy" adds stronger worn surface variation.
-style = "clean"
-
 [viewport]
 # 2D viewport background color used in the game widget and editor 2D preview.
 background_color_2d = "#000000"
@@ -44,10 +41,6 @@ shadow_resolution = 1024
 shadow_bias = 0.0015
 # Fade mode for alpha/visibility transitions: "ordered_dither" or "uniform".
 fade_mode = "ordered_dither"
-# Lighting model: "lambert", "cook_torrance", or "pbr".
-lighting_model = "cook_torrance"
-# Renderer style: "clean" keeps normal lighting, "retro" softens shine, "grimy" adds stronger worn surface variation.
-style = "clean"
 # Avatar readability boost toggle (Raster 3D avatars/billboards).
 avatar_highlight_enabled = true
 # Avatar readability lift multiplier (1.0 = unchanged).
@@ -71,21 +64,21 @@ enabled = true
 # Tone mapper: "none", "reinhard", "aces".
 tone_mapper = "reinhard"
 # Exposure multiplier before tone mapping.
-exposure = 1.0
+exposure = 1.05
 # Post saturation (1.0 = unchanged, 0.0 = grayscale).
-saturation = 1.0
+saturation = 1.06
 # Post luminance/brightness multiplier.
-luminance = 1.0
+luminance = 1.02
 # Output gamma.
 gamma = 2.2
-# Stylized grain/noise amount (0 = off, 1 = strong).
-grit = 0.0
-# Stylized tonal banding amount (0 = off, 1 = strong).
-posterize = 0.0
-# Bias colors toward earthy retro tones (0 = off, 1 = strong).
-palette_bias = 0.0
-# Lift near-black areas after tone mapping (0 = off, 1 = strong).
-shadow_lift = 0.0
+# Fine post grit/noise amount.
+grit = 0.018
+# Gentle tonal quantization amount.
+posterize = 0.06
+# Subtle earthy palette bias.
+palette_bias = 0.02
+# Lift dark areas after tone mapping.
+shadow_lift = 0.02
 # Soften harsh post contrast (0 = off, 1 = strong).
 edge_soften = 0.0
 

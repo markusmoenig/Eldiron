@@ -1,4 +1,5 @@
 use crate::IntoDataInput;
+use crate::material_library::{MaterialDefinition, SEMANTIC_MATERIAL_MARKER};
 use serde::Serializer;
 use std::io::Cursor;
 use theframework::prelude::*;
@@ -80,11 +81,9 @@ pub enum RepeatMode {
 ///
 /// When `data_ext` is present, each pixel has an additional u32 (4 bytes) packed as follows:
 ///
-/// **Bytes 0-1 (u16): Material Properties**
-/// - Bits 0-3:   Roughness (0-15, map to 0.0-1.0)
-/// - Bits 4-7:   Metallic  (0-15, map to 0.0-1.0)
-/// - Bits 8-11:  Opacity   (0-15, map to 0.0-1.0)
-/// - Bits 12-15: Emissive  (0-15, map to 0.0-1.0)
+/// **Bytes 0-1: Material**
+/// - New semantic format: byte 0 is `SEMANTIC_MATERIAL_MARKER`, byte 1 is a material-library id.
+/// - Legacy format: bytes 0-1 are packed roughness/metallic/opacity/emissive nibbles.
 ///
 /// **Bytes 2-3: Normal Map (2-component, reconstruct Z in shader)**
 /// - Byte 2: Normal X component (0-255, map to -1.0 to +1.0)
@@ -784,6 +783,20 @@ impl Texture {
         (r, m, o, e)
     }
 
+    #[inline(always)]
+    fn semantic_material_id_bytes(material_id: u8) -> [u8; 2] {
+        [SEMANTIC_MATERIAL_MARKER, material_id]
+    }
+
+    #[inline(always)]
+    fn material_id_from_bytes(bytes: [u8; 2]) -> Option<u8> {
+        if bytes[0] == SEMANTIC_MATERIAL_MARKER {
+            Some(bytes[1])
+        } else {
+            None
+        }
+    }
+
     /// Pack normal X,Y into upper 2 bytes of u32
     #[inline(always)]
     fn pack_normal(nx: f32, ny: f32) -> u16 {
@@ -825,6 +838,20 @@ impl Texture {
         }
     }
 
+    /// Set semantic material id for a pixel, preserving normal data.
+    pub fn set_material_id(&mut self, x: u32, y: u32, material_id: u8) {
+        self.ensure_data_ext();
+        let x = x.min((self.width - 1) as u32) as usize;
+        let y = y.min((self.height - 1) as u32) as usize;
+        let idx = (y * self.width + x) * 4;
+
+        if let Some(ext) = self.data_ext.as_mut() {
+            let bytes = Self::semantic_material_id_bytes(material_id);
+            ext[idx] = bytes[0];
+            ext[idx + 1] = bytes[1];
+        }
+    }
+
     /// Set material properties for all pixels in the texture
     pub fn set_materials_all(
         &mut self,
@@ -849,6 +876,20 @@ impl Texture {
         }
     }
 
+    /// Set semantic material id for all pixels, preserving normal data.
+    pub fn set_material_id_all(&mut self, material_id: u8) {
+        self.ensure_data_ext();
+
+        if let Some(ext) = self.data_ext.as_mut() {
+            let bytes = Self::semantic_material_id_bytes(material_id);
+            for pixel_idx in 0..(self.width * self.height) {
+                let idx = pixel_idx * 4;
+                ext[idx] = bytes[0];
+                ext[idx + 1] = bytes[1];
+            }
+        }
+    }
+
     /// Get all material properties for a pixel
     /// Returns (roughness, metallic, opacity, emissive) or defaults if data_ext not present
     pub fn get_materials(&self, x: u32, y: u32) -> (f32, f32, f32, f32) {
@@ -857,11 +898,27 @@ impl Texture {
         let idx = (y * self.width + x) * 4;
 
         if let Some(ext) = self.data_ext.as_ref() {
+            if let Some(material_id) = Self::material_id_from_bytes([ext[idx], ext[idx + 1]]) {
+                let [roughness, metallic, opacity, emissive] =
+                    MaterialDefinition::from_id(material_id).rmoe_values();
+                return (roughness, metallic, opacity, emissive);
+            }
             let mat_packed = u16::from_le_bytes([ext[idx], ext[idx + 1]]);
             Self::unpack_materials(mat_packed)
         } else {
             (0.5, 0.0, 1.0, 0.0) // Defaults: half rough, no metal, opaque, no emissive
         }
+    }
+
+    /// Get semantic material id for a pixel when present.
+    pub fn get_material_id(&self, x: u32, y: u32) -> Option<u8> {
+        let x = x.min((self.width - 1) as u32) as usize;
+        let y = y.min((self.height - 1) as u32) as usize;
+        let idx = (y * self.width + x) * 4;
+
+        self.data_ext
+            .as_ref()
+            .and_then(|ext| Self::material_id_from_bytes([ext[idx], ext[idx + 1]]))
     }
 
     /// Set individual roughness value (0.0-1.0), preserving other materials

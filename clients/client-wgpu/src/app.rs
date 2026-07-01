@@ -204,11 +204,17 @@ impl EldironPlayerApp {
             return;
         };
 
-        self.rusterix.assets.palette = project.palette.clone();
+        self.rusterix.assets.ruleset_palette = project.palette.clone();
+        self.rusterix.assets.palette = project.art_palette.clone();
         self.rusterix.assets.palette_materials = project
-            .palette_materials
+            .art_palette_materials
             .iter()
-            .map(|m| [m.roughness, m.metallic, m.opacity, m.emissive])
+            .map(|m| m.rmoe_values())
+            .collect();
+        self.rusterix.assets.palette_material_ids = project
+            .art_palette_materials
+            .iter()
+            .map(|m| m.material_id())
             .collect();
         self.rusterix.set_tiles_for_maps(
             project.tiles.clone(),

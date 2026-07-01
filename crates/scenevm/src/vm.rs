@@ -1,11 +1,20 @@
 // Non-empty dummy buffers for wgpu STORAGE bindings when a scene grid is empty.
 const DUMMY_U32_1: [u32; 1] = [0];
+const MATERIAL_TABLE_ID_COUNT: usize = 256;
+const MATERIAL_TABLE_ROWS_PER_ID: usize = 3;
+const DEFAULT_MATERIAL_TABLE_ROW_COUNT: usize =
+    MATERIAL_TABLE_ID_COUNT * MATERIAL_TABLE_ROWS_PER_ID;
+const DEFAULT_PAINT_COLOR_PIXEL: [u8; 4] = [0, 0, 0, 0];
+const DEFAULT_PAINT_MATERIAL_PIXEL: [u8; 4] = [254, 0, 0, 0];
 
 mod raster3d;
 
 use crate::{
     Camera3D, CameraKind, Chunk, Light, LightType, Poly2D, Texture,
-    atlas::{AtlasEntry, AtlasGpuTables, SharedAtlas, TileEmissiveSummary, default_material_frame},
+    atlas::{
+        AtlasEntry, AtlasGpuTables, SharedAtlas, TileEmissiveSummary, default_material_frame,
+        normalize_material_frame,
+    },
     core::{
         Atom, GeoId, LayerBlendMode, OrganicBillboardInstance, OrganicBillboardSprite,
         PaintSurfaceBuffer, PaletteRemap2DMode, RenderMode, VMDebugStats,
@@ -287,6 +296,13 @@ pub struct VMGpu {
     pub organic_billboard_count: u32,
     pub irradiance_grid_ssbo: Option<wgpu::Buffer>,
     pub irradiance_grid_ssbo_size: usize,
+    pub material_table_ssbo: Option<wgpu::Buffer>,
+    pub material_table_ssbo_size: usize,
+    pub raster3d_paint_color_tex: Option<wgpu::Texture>,
+    pub raster3d_paint_color_view: Option<wgpu::TextureView>,
+    pub raster3d_paint_material_tex: Option<wgpu::Texture>,
+    pub raster3d_paint_material_view: Option<wgpu::TextureView>,
+    pub raster3d_paint_tex_size: (u32, u32),
     // --- Scene-wide uniform grid buffers (3D)
     pub grid_hdr: Option<wgpu::Buffer>,
     pub grid_data: Option<wgpu::Buffer>,
@@ -305,6 +321,14 @@ pub struct Globals {
     pub atlas_h: f32,
     _pad1: f32,
     _pad2: f32,
+}
+
+#[derive(Clone, Debug)]
+struct Raster3DPaintOverlayData {
+    width: u32,
+    height: u32,
+    color_rgba: Vec<u8>,
+    material_rgba: Vec<u8>,
 }
 
 #[repr(C)]
@@ -574,13 +598,46 @@ fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
   return pow(max(c, vec3<f32>(0.0)), vec3<f32>(2.2));
 }
 
+fn semantic_material_rmoe(material_id: u32) -> vec4<f32> {
+  let family = material_id / 4u;
+  let finish = material_id & 3u;
+  var roughness = 0.5;
+  var metallic = 0.0;
+  var opacity = 1.0;
+  var emissive = 0.0;
+
+  if (family == 1u) { roughness = 0.78; }
+  else if (family == 2u) { roughness = 0.92; }
+  else if (family == 3u) { roughness = 0.64; }
+  else if (family == 4u) { roughness = 0.34; metallic = 0.9; }
+  else if (family == 5u) { roughness = 0.06; opacity = 0.35; }
+  else if (family == 6u) { roughness = 0.03; opacity = 0.55; }
+  else if (family == 7u) { roughness = 0.02; metallic = 1.0; }
+  else if (family == 8u) { roughness = 0.45; emissive = 1.0; }
+  else if (family == 9u) { roughness = 0.86; }
+  else if (family == 10u) { roughness = 0.45; }
+  else if (family == 11u) { roughness = 0.78; }
+  else if (family == 12u) { roughness = 0.56; }
+  else if (family == 13u) { roughness = 0.66; }
+  else if (family == 14u) { roughness = 0.42; }
+
+  if (finish == 1u) { roughness = roughness + 0.15; }
+  else if (finish == 2u) { roughness = roughness - 0.25; }
+  else if (finish == 3u) { roughness = roughness - 0.35; }
+
+  return vec4<f32>(clamp(roughness, 0.02, 1.0), metallic, opacity, emissive);
+}
+
 fn unpack_material_nibbles(m: vec4<f32>) -> vec4<f32> {
-  let b0 = u32(round(clamp(m.x, 0.0, 1.0) * 255.0));
-  let b1 = u32(round(clamp(m.y, 0.0, 1.0) * 255.0));
-  let roughness = f32(b0 & 0xFu) / 15.0;
-  let metallic = f32((b0 >> 4u) & 0xFu) / 15.0;
-  let opacity = f32(b1 & 0xFu) / 15.0;
-  let emissive = f32((b1 >> 4u) & 0xFu) / 15.0;
+  let packed = u32(round(clamp(m.x, 0.0, 1.0) * 255.0)) |
+    (u32(round(clamp(m.y, 0.0, 1.0) * 255.0)) << 8u);
+  if ((packed & 0xFFu) == 254u) {
+    return semantic_material_rmoe((packed >> 8u) & 0xFFu);
+  }
+  let roughness = f32(packed & 0xFu) / 15.0;
+  let metallic = f32((packed >> 4u) & 0xFu) / 15.0;
+  let opacity = f32((packed >> 8u) & 0xFu) / 15.0;
+  let emissive = f32((packed >> 12u) & 0xFu) / 15.0;
   return vec4<f32>(roughness, metallic, opacity, emissive);
 }
 
@@ -754,7 +811,9 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     col = vec4<f32>(out_rgb, out_a);
   }
 
-  let mats_raw = textureSampleLevel(atlas_mat_tex, atlas_smp, uv0, 0.0);
+  let mat_dims = vec2<f32>(textureDimensions(atlas_mat_tex, 0));
+  let mat_px = vec2<i32>(clamp(floor(uv0 * mat_dims), vec2<f32>(0.0), mat_dims - vec2<f32>(1.0)));
+  let mats_raw = textureLoad(atlas_mat_tex, mat_px, 0);
   let mats = unpack_material_nibbles(mats_raw);
   let opacity = mats.z;
   let emission = mats.w;
@@ -980,6 +1039,10 @@ struct SceneDataBuf { data: array<u32> };
 @group(0) @binding(8) var<storage, read> scene_data: SceneDataBuf;
 struct IrradianceGridBuf { data: array<vec4<f32>> };
 @group(0) @binding(11) var<storage, read> irradiance_grid: IrradianceGridBuf;
+struct MaterialTableBuf { data: array<vec4<f32>> };
+@group(0) @binding(12) var<storage, read> material_table: MaterialTableBuf;
+@group(0) @binding(13) var paint_color_tex: texture_2d<f32>;
+@group(0) @binding(14) var paint_material_tex: texture_2d<f32>;
 
 struct TileAnimMeta { first_frame: u32, frame_count: u32, _pad0: u32, _pad1: u32 };
 struct TileFrame { ofs: vec2<f32>, scale: vec2<f32> };
@@ -1136,8 +1199,9 @@ fn sample_tile_material(tile_idx: u32, uv: vec2<f32>, clamp_uv: bool, phase_star
     let uv_min = frame.ofs + pad_uv;
     let uv_max = frame.ofs + frame.scale - pad_uv;
     atlas_uv = clamp(atlas_uv, uv_min, uv_max);
-    // Keep material fetch stable (especially opacity/normal bits) to avoid distant cracks.
-    return textureSampleLevel(atlas_mat_tex, atlas_smp, atlas_uv, 0.0);
+    // Material data stores ids and normals; it must not be filtered like color.
+    let texel = vec2<i32>(clamp(floor(atlas_uv * atlas_dims), vec2<f32>(0.0), atlas_dims - vec2<f32>(1.0)));
+    return textureLoad(atlas_mat_tex, texel, 0);
 }
 
 fn palette_tile_index(idx: u32) -> u32 {
@@ -1187,8 +1251,11 @@ fn sample_avatar(meta_idx: u32, uv: vec2<f32>) -> vec4<f32> {
 }
 
 fn unpack_material_nibbles(m: vec4<f32>) -> vec4<f32> {
-    let packed = u32(m.x * 255.0) | (u32(m.y * 255.0) << 8u) |
-                 (u32(m.z * 255.0) << 16u) | (u32(m.w * 255.0) << 24u);
+    let packed = u32(round(m.x * 255.0)) | (u32(round(m.y * 255.0)) << 8u) |
+                 (u32(round(m.z * 255.0)) << 16u) | (u32(round(m.w * 255.0)) << 24u);
+    if ((packed & 0xFFu) == 254u) {
+        return semantic_material_rmoe((packed >> 8u) & 0xFFu);
+    }
     let bits = packed & 0xFFFFu;
     let roughness = f32(bits & 0xFu) / 15.0;
     let metallic = f32((bits >> 4u) & 0xFu) / 15.0;
@@ -1197,9 +1264,63 @@ fn unpack_material_nibbles(m: vec4<f32>) -> vec4<f32> {
     return vec4<f32>(roughness, metallic, opacity, emissive);
 }
 
+fn unpack_material_id(m: vec4<f32>) -> u32 {
+    let packed = u32(round(m.x * 255.0)) | (u32(round(m.y * 255.0)) << 8u) |
+                 (u32(round(m.z * 255.0)) << 16u) | (u32(round(m.w * 255.0)) << 24u);
+    if ((packed & 0xFFu) == 254u) {
+        return (packed >> 8u) & 0xFFu;
+    }
+    return 0u;
+}
+
+fn semantic_material_row(material_id: u32, row: u32, fallback: vec4<f32>) -> vec4<f32> {
+    let clamped_id = min(material_id, 255u);
+    let index = clamped_id * 3u + row;
+    if (index >= arrayLength(&material_table.data)) {
+        return fallback;
+    }
+    return material_table.data[index];
+}
+
+fn semantic_material_rmoe(material_id: u32) -> vec4<f32> {
+    return semantic_material_row(material_id, 0u, vec4<f32>(0.5, 0.0, 1.0, 0.0));
+}
+
+fn semantic_material_traits0(material_id: u32) -> vec4<f32> {
+    return semantic_material_row(material_id, 1u, vec4<f32>(0.0, 0.0, 0.0, 0.12));
+}
+
+fn semantic_material_traits1(material_id: u32) -> vec4<f32> {
+    return semantic_material_row(material_id, 2u, vec4<f32>(0.08, 0.0, 0.0, 0.0));
+}
+
+fn sample_paint_overlay(frag_pos: vec4<f32>) -> vec4<f32> {
+    let dims = textureDimensions(paint_color_tex, 0);
+    if (dims.x == 0u || dims.y == 0u) {
+        return vec4<f32>(0.0);
+    }
+    let px = vec2<i32>(
+        clamp(i32(floor(frag_pos.x)), 0, i32(dims.x) - 1),
+        clamp(i32(floor(frag_pos.y)), 0, i32(dims.y) - 1)
+    );
+    return textureLoad(paint_color_tex, px, 0);
+}
+
+fn sample_paint_material_id(frag_pos: vec4<f32>) -> u32 {
+    let dims = textureDimensions(paint_material_tex, 0);
+    if (dims.x == 0u || dims.y == 0u) {
+        return 0u;
+    }
+    let px = vec2<i32>(
+        clamp(i32(floor(frag_pos.x)), 0, i32(dims.x) - 1),
+        clamp(i32(floor(frag_pos.y)), 0, i32(dims.y) - 1)
+    );
+    return unpack_material_id(textureLoad(paint_material_tex, px, 0));
+}
+
 fn unpack_material_normal_ts(m: vec4<f32>) -> vec3<f32> {
-    let packed = u32(m.x * 255.0) | (u32(m.y * 255.0) << 8u) |
-                 (u32(m.z * 255.0) << 16u) | (u32(m.w * 255.0) << 24u);
+    let packed = u32(round(m.x * 255.0)) | (u32(round(m.y * 255.0)) << 8u) |
+                 (u32(round(m.z * 255.0)) << 16u) | (u32(round(m.w * 255.0)) << 24u);
     let norm_bits = (packed >> 16u) & 0xFFFFu;
     let nx = (f32(norm_bits & 0xFFu) / 255.0) * 2.0 - 1.0;
     let ny = (f32((norm_bits >> 8u) & 0xFFu) / 255.0) * 2.0 - 1.0;
@@ -1409,6 +1530,8 @@ fn hash12(p: vec2<f32>) -> f32 {
 fn apply_post(color_linear: vec3<f32>, frag_pos: vec4<f32>) -> vec3<f32> {
     let post_enabled = UBO.post_params.x > 0.5;
     let tone_mapper = u32(max(UBO.post_params.y, 0.0));
+    let first_person_post = UBO.cam_kind == 2u;
+    let post_style_strength = select(1.0, 0.45, first_person_post);
     let exposure = max(UBO.post_params.z, 0.0);
     let gamma = max(UBO.post_params.w, 0.001);
     let grit = clamp(UBO.post_style0.x, 0.0, 1.0);
@@ -1434,6 +1557,10 @@ fn apply_post(color_linear: vec3<f32>, frag_pos: vec4<f32>) -> vec3<f32> {
 
         let luminance = max(UBO.post_color_adjust.y, 0.0);
         c = c * luminance;
+        let highlight = max(c - vec3<f32>(0.62), vec3<f32>(0.0));
+        let highlight_luma = dot(highlight, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let bloom_tint = mix(vec3<f32>(1.0), max(UBO.post_style1.yzw, vec3<f32>(0.0)), 0.28);
+        c = c + highlight * bloom_tint * (0.055 + highlight_luma * 0.070) * post_style_strength;
         let saturation = max(UBO.post_color_adjust.x, 0.0);
         let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
         c = mix(c, c + vec3<f32>(pow(max(1.0 - luma, 0.0), 2.0)) * 0.12, shadow_lift);
@@ -1442,7 +1569,13 @@ fn apply_post(color_linear: vec3<f32>, frag_pos: vec4<f32>) -> vec3<f32> {
         let levels = mix(32.0, 7.0, posterize);
         c = mix(c, floor(c * levels + vec3<f32>(0.5)) / levels, posterize);
         let grain = hash12(floor(frag_pos.xy)) * 2.0 - 1.0;
-        c = c + vec3<f32>(grain) * grit * 0.035;
+        let grain_amount = select(0.026, 0.014, first_person_post);
+        c = c + vec3<f32>(grain) * grit * grain_amount;
+        let paper = hash12(floor(frag_pos.xy * 0.5) + vec2<f32>(17.0, 3.0)) * 2.0 - 1.0;
+        let nomad_luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let shadow_tone = 1.0 - smoothstep(0.14, 0.62, nomad_luma);
+        c = mix(c, c * vec3<f32>(1.035, 0.995, 0.925), shadow_tone * 0.075 * post_style_strength);
+        c = c + vec3<f32>(paper) * 0.0035 * post_style_strength;
         c = mix(c, vec3<f32>(dot(c, vec3<f32>(0.2126, 0.7152, 0.0722))), edge_soften * 0.10);
         let sat_luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
         c = mix(vec3<f32>(sat_luma), c, saturation);
@@ -1580,11 +1713,27 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     );
     let m1 = unpack_material_nibbles(m1_raw);
     var mat = select(mix(m0, m1, blend), m0, is_avatar);
+    let material_id0 = unpack_material_id(m0_raw);
+    let material_id1 = unpack_material_id(m1_raw);
+    var material_id = select(select(material_id0, material_id1, blend > 0.5), 0u, is_avatar);
+    var material_traits0 = semantic_material_traits0(material_id);
+    var material_traits1 = semantic_material_traits1(material_id);
     let n0_ts = select(unpack_material_normal_ts(m0_raw), vec3<f32>(0.0, 0.0, 1.0), is_avatar);
     let n1_ts = unpack_material_normal_ts(m1_raw);
     let n_ts = normalize(select(mix(n0_ts, n1_ts, blend), n0_ts, is_avatar));
     var color = select(mix(c0, c1, blend), c0, is_avatar);
     let color_base = select(mix(c0_base, c1_base, blend), c0_base, is_avatar);
+    let paint_overlay = sample_paint_overlay(in.pos);
+    let paint_weight = clamp(paint_overlay.a, 0.0, 1.0) * select(1.0, 0.0, is_avatar);
+    if (paint_weight > 0.001) {
+        let paint_material_id = sample_paint_material_id(in.pos);
+        let paint_mat = semantic_material_rmoe(paint_material_id);
+        material_id = paint_material_id;
+        material_traits0 = semantic_material_traits0(material_id);
+        material_traits1 = semantic_material_traits1(material_id);
+        color = vec4<f32>(mix(color.rgb, paint_overlay.rgb, paint_weight), color.a);
+        mat = mix(mat, paint_mat, paint_weight);
+    }
     // Keep first-person nearby surfaces crisp by blending from LOD0 near the camera.
     var alpha_sample = color.a;
     if (!is_avatar && UBO.cam_kind == 2u) {
@@ -1631,9 +1780,19 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     );
     let color_linear = pow(color.rgb, vec3<f32>(2.2));
     if (mat.w > 0.001) {
-        let emissive_boost = 0.65 + mat.w * 1.35;
-        let emissive_color = color_linear;
-        return vec4<f32>(apply_post(emissive_color * emissive_boost, in.pos), out_alpha);
+        let emission_normal = normalize(in.normal);
+        let emission_view = normalize(UBO.cam_pos.xyz - in.world_pos);
+        let emission_edge = pow(clamp(1.0 - abs(dot(emission_normal, emission_view)), 0.0, 1.0), 1.65);
+        let emission_luma = dot(color_linear, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let screen_sparkle = hash12(floor(in.pos.xy * 0.5) + vec2<f32>(31.0, 7.0)) * 2.0 - 1.0;
+        let style_glow = max(UBO.post_style1.yzw, vec3<f32>(0.0));
+        let emissive_boost = 1.05 + mat.w * 2.45;
+        let surface_halo = color_linear * (0.22 + emission_edge * 0.62 + emission_luma * 0.18);
+        let emissive_color = color_linear * emissive_boost
+            + surface_halo * mat.w
+            + style_glow * (0.035 + emission_luma * 0.10)
+            + vec3<f32>(screen_sparkle) * (0.018 * mat.w);
+        return vec4<f32>(apply_post(emissive_color, in.pos), out_alpha);
     }
     let ambient = UBO.ambient_color_strength.xyz * UBO.ambient_color_strength.w
         + max(UBO.post_style1.yzw, vec3<f32>(0.0));
@@ -1660,6 +1819,17 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let bump_apply = (!is_avatar) && bump_strength > 0.001 && abs(det) > 1e-6;
     let bump_mix = select(0.0, bump_strength, bump_apply);
     N = normalize(mix(N, N_ws, bump_mix));
+    let material_family = u32(round(clamp(material_traits1.y, 0.0, 255.0)));
+    let material_finish = u32(round(clamp(material_traits1.z, 0.0, 3.0)));
+    let painted_material_weight = select(1.0, paint_weight, paint_weight > 0.001);
+    let water_surface_weight = select(0.0, 1.0, material_family == 6u)
+        * select(1.0, 0.0, is_avatar)
+        * painted_material_weight
+        * select(1.0, 0.0, abs(det) <= 1e-6);
+    let water_ripple_a = sin(dot(in.world_pos, vec3<f32>(7.7, 3.1, 9.2)));
+    let water_ripple_b = sin(dot(in.world_pos, vec3<f32>(4.2, 5.7, 11.3)) + 1.7);
+    let water_ripple = (T * water_ripple_a + B * water_ripple_b) * 0.035;
+    N = normalize(mix(N, normalize(N + water_ripple), water_surface_weight * (0.45 + paint_weight * 0.35)));
     // Match probe lookup to the same two-sided surface convention as direct lighting.
     let Nf_view = select(-N, N, dot(N, V) >= 0.0);
     let Nf_sun = select(-N, N, dot(N, L) >= 0.0);
@@ -1668,15 +1838,21 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let point_residual = 1.0 - smoothstep(0.025, 0.16, probe_luma) * 0.9;
     var ambient_probe = ambient + probe;
     // Sun lighting stays light-facing so iso camera motion does not change whether a surface is lit.
-    let lighting_model = UBO._pad0.y;
-    let use_retro = lighting_model == 3u;
-    let use_grimy = lighting_model == 4u;
-    let style_active = use_retro || use_grimy;
-    let use_lambert = lighting_model == 0u || style_active;
-    let use_pbr = lighting_model == 2u;
+    let first_person_view = UBO.cam_kind == 2u;
+    let material_style_strength = select(1.0, 0.55, first_person_view);
     var roughness = clamp(mat.x, 0.04, 1.0);
     var metallic = clamp(mat.y, 0.0, 1.0);
     let scene_surface = select(1.0, 0.0, is_avatar);
+    let polished_finish_weight =
+        select(0.0, 1.0, material_finish == 2u) * scene_surface * painted_material_weight;
+    let wet_finish_weight =
+        select(0.0, 1.0, material_finish == 3u) * scene_surface * painted_material_weight;
+    let water_material_weight =
+        select(0.0, 1.0, material_family == 6u) * scene_surface * painted_material_weight;
+    roughness = mix(roughness, max(0.035, roughness * 0.72), polished_finish_weight * 0.35);
+    roughness = mix(roughness, min(roughness, 0.075), wet_finish_weight * 0.72);
+    roughness = mix(roughness, 0.025, water_material_weight);
+    metallic = mix(metallic, 0.0, water_material_weight);
     let matte_weight = smoothstep(0.58, 0.92, roughness) * (1.0 - metallic) * scene_surface;
     let polished_weight = smoothstep(0.20, 0.70, metallic + (1.0 - roughness)) * scene_surface;
     let vertical_weight = (1.0 - abs(N.y)) * scene_surface;
@@ -1684,7 +1860,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let floor_weight = smoothstep(0.18, 0.72, N.y) * scene_surface;
     // Outdoor iso/orbit readability: clear sunny scenes need stronger plane separation
     // without extra user-facing settings.
-    let non_first_person = select(1.0, 0.0, UBO.cam_kind == 2u);
+    let non_first_person = select(1.0, 0.0, first_person_view);
     let clear_air = 1.0 - smoothstep(0.04, 0.55, UBO.fog_color_density.w);
     let outdoor_space = scene_surface * non_first_person * sun_enabled * clear_air;
     let sunward = smoothstep(0.08, 0.72, dot(Nf_sun, L));
@@ -1695,6 +1871,16 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     ambient_probe *= clamp(1.0 - ceiling_weight * 0.08 - vertical_weight * 0.025 + floor_weight * 0.115, 0.66, 1.18);
     let n_dot_v = max(dot(Nf_view, V), 0.0);
     var albedo = color_linear;
+    if (water_material_weight > 0.001) {
+        let water_depth_noise = surface_noise_value(in.world_pos * 2.2 + vec3<f32>(6.0, 13.0, 2.0), 89.0);
+        let water_absorb = vec3<f32>(0.46, 0.62, 0.70) * (0.86 + water_depth_noise * 0.16);
+        albedo = mix(albedo, albedo * water_absorb + UBO.sky_color.xyz * 0.035, water_material_weight * (0.54 + paint_weight * 0.22));
+    }
+    if (wet_finish_weight > 0.001) {
+        let wet_grain = surface_noise_value(in.world_pos * 3.8 + N * 0.37 + vec3<f32>(2.0, 19.0, 5.0), 97.0);
+        let wet_absorb = vec3<f32>(0.72, 0.77, 0.80) * (0.92 + wet_grain * 0.13);
+        albedo = mix(albedo, albedo * wet_absorb + UBO.sky_color.xyz * 0.018, wet_finish_weight * 0.42);
+    }
     if (!is_avatar) {
         let material_noise = surface_noise_value(in.world_pos * 3.35 + N * 0.19, 23.0) * 2.0 - 1.0;
         albedo *= 1.0 + material_noise * matte_weight * 0.075;
@@ -1707,42 +1893,42 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             ceiling_weight * 0.28
         );
     }
-    if (style_active && !is_avatar) {
-        let style_amount = select(0.58, 0.88, use_grimy);
-        let target_roughness = select(0.76, 0.92, use_grimy);
-        let target_metallic = select(0.35, 0.12, use_grimy);
-        let large_grain = hash13(floor(in.world_pos * select(1.65, 2.15, use_grimy)));
-        let fine_grain = hash13(floor(in.world_pos * select(5.0, 7.0, use_grimy) + vec3<f32>(19.0, 7.0, 31.0)));
+    if (!is_avatar) {
+        let style_amount = 0.42 * material_style_strength;
+        let target_roughness = 0.68;
+        let target_metallic = 0.82;
+        let large_grain_scale = 1.25;
+        let fine_grain_scale = 4.25;
+        let large_grain = hash13(floor(in.world_pos * large_grain_scale));
+        let fine_grain = hash13(floor(in.world_pos * fine_grain_scale + vec3<f32>(19.0, 7.0, 31.0)));
         let grime = mix(large_grain, fine_grain, 0.35);
         let grime_value = 0.88 + grime * 0.20;
-        let earth_tint = mix(vec3<f32>(1.0), vec3<f32>(0.98, 0.94, 0.84) * grime_value, style_amount);
+        let style_tint = vec3<f32>(1.015, 0.985, 0.925);
+        let earth_tint = mix(vec3<f32>(1.0), style_tint * grime_value, style_amount);
         albedo = albedo * earth_tint;
-        roughness = mix(roughness, max(roughness, target_roughness), style_amount);
-        metallic = metallic * mix(1.0, target_metallic, style_amount);
+        roughness = mix(roughness, clamp(roughness * 0.86 + 0.08, 0.06, target_roughness), style_amount);
+        metallic = clamp(mix(metallic, metallic * target_metallic, polished_weight * style_amount), 0.0, 1.0);
     }
     let F0 = mix(vec3<f32>(0.04), albedo, metallic);
     let NdotL = max(dot(Nf_sun, L), 0.0);
     let shadow_strength = clamp(UBO.shadow_params.y, 0.0, 1.0);
     let shadow_term = mix(1.0, shadow, shadow_strength);
+    let shadow_depth = 1.0 - shadow_term;
     let sun_radiance = UBO.sun_color_intensity.xyz * UBO.sun_color_intensity.w * sun_enabled * shadow_term;
     var sun = vec3<f32>(0.0);
     if (NdotL > 0.0) {
-        if (use_lambert) {
-            sun = sun_radiance * NdotL;
-        } else {
-            let H = normalize(V + L);
-            let NdotV = max(dot(Nf_view, V), 0.0);
-            let NdotH = max(dot(Nf_sun, H), 0.0);
-            let VdotH = max(dot(V, H), 0.0);
-            let NDF = distribution_ggx(NdotH, roughness);
-            let G = geometry_schlick_ggx(NdotV, roughness) * geometry_schlick_ggx(NdotL, roughness);
-            let F = fresnel_schlick(VdotH, F0);
-            let spec = (NDF * G * F) / max(4.0 * NdotV * NdotL, 1e-5);
-            let kS = F;
-            let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
-            let diffuse = kD * albedo / 3.14159265;
-            sun = (diffuse + spec) * sun_radiance * NdotL;
-        }
+        let H = normalize(V + L);
+        let NdotV = max(dot(Nf_view, V), 0.0);
+        let NdotH = max(dot(Nf_sun, H), 0.0);
+        let VdotH = max(dot(V, H), 0.0);
+        let NDF = distribution_ggx(NdotH, roughness);
+        let G = geometry_schlick_ggx(NdotV, roughness) * geometry_schlick_ggx(NdotL, roughness);
+        let F = fresnel_schlick(VdotH, F0);
+        let spec = (NDF * G * F) / max(4.0 * NdotV * NdotL, 1e-5);
+        let kS = F;
+        let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
+        let diffuse = kD * albedo;
+        sun = (diffuse + spec) * sun_radiance * NdotL;
     }
     var point = vec3<f32>(0.0);
     let point_count = min(UBO.point_light_count_pad.x, 8u);
@@ -1759,49 +1945,70 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let l_atten = (l_intensity * l_range_factor) / max(l_dist * l_dist, 1e-4);
         let radiance = UBO.point_light_color_range[li].xyz * l_atten;
         if (l_ndotl > 0.0) {
-            if (use_lambert) {
-                point += radiance * l_ndotl;
-            } else {
-                let H = normalize(V + l_dir);
-                let NdotV = max(dot(Nf_view, V), 0.0);
-                let NdotH = max(dot(Nf_point, H), 0.0);
-                let VdotH = max(dot(V, H), 0.0);
-                let NDF = distribution_ggx(NdotH, roughness);
-                let G = geometry_schlick_ggx(NdotV, roughness) * geometry_schlick_ggx(l_ndotl, roughness);
-                let F = fresnel_schlick(VdotH, F0);
-                let spec = (NDF * G * F) / max(4.0 * NdotV * l_ndotl, 1e-5);
-                let kS = F;
-                let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
-                let diffuse = kD * albedo / 3.14159265;
-                point += (diffuse + spec) * radiance * l_ndotl;
-            }
+            let H = normalize(V + l_dir);
+            let NdotV = max(dot(Nf_view, V), 0.0);
+            let NdotH = max(dot(Nf_point, H), 0.0);
+            let VdotH = max(dot(V, H), 0.0);
+            let NDF = distribution_ggx(NdotH, roughness);
+            let G = geometry_schlick_ggx(NdotV, roughness) * geometry_schlick_ggx(l_ndotl, roughness);
+            let F = fresnel_schlick(VdotH, F0);
+            let spec = (NDF * G * F) / max(4.0 * NdotV * l_ndotl, 1e-5);
+            let kS = F;
+            let kD = (vec3<f32>(1.0) - kS) * (1.0 - metallic);
+            let diffuse = kD * albedo;
+            point += (diffuse + spec) * radiance * l_ndotl;
         }
     }
     point *= point_residual;
-    var lit_color = vec3<f32>(0.0);
-    if (use_lambert) {
-        lit_color = max(albedo * (ambient_probe + sun + point), vec3<f32>(0.0));
-    } else if (use_pbr) {
-        // PBR ambient term: diffuse + roughness-aware specular IBL approximation from scene colors.
-        let F_ambient = fresnel_schlick_roughness(n_dot_v, F0, roughness);
-        let kS_ambient = F_ambient;
-        let kD_ambient = (vec3<f32>(1.0) - kS_ambient) * (1.0 - metallic);
-        let diffuse_ambient = ambient_probe * albedo * kD_ambient;
-
-        // Cheap environment estimate using sky/fog colors and reflected view direction.
-        let refl = reflect(-V, Nf_view);
-        let sky_mix = clamp(refl.y * 0.5 + 0.5, 0.0, 1.0);
-        let env_color = mix(UBO.fog_color_density.xyz, UBO.sky_color.xyz, sky_mix);
-        let env_spec_strength = max(0.04, (1.0 - roughness) * (1.0 - roughness));
-        let specular_ambient = env_color * kS_ambient * env_spec_strength;
-
-        lit_color = max(diffuse_ambient + specular_ambient + sun + point, vec3<f32>(0.0));
-    } else {
-        // Cook-Torrance direct lighting + diffuse ambient only.
-        lit_color = max(ambient_probe * albedo + sun + point, vec3<f32>(0.0));
-    }
+    var lit_color = max(ambient_probe * albedo + sun + point, vec3<f32>(0.0));
 
     if (!is_avatar) {
+        let fog_luma = dot(UBO.fog_color_density.xyz, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let fog_chroma = mix(vec3<f32>(fog_luma), UBO.fog_color_density.xyz, 0.50);
+        let reflected_view = reflect(-V, Nf_view);
+        let env_up = clamp(reflected_view.y * 0.5 + 0.5, 0.0, 1.0);
+        let env_color = mix(fog_chroma, sky_chroma, env_up);
+        let shadow_color = mix(fog_chroma, sky_chroma, 0.62);
+        let indirect_strength = material_style_strength * scene_surface;
+        let sky_wrap = pow(clamp(Nf_view.y * 0.5 + 0.5, 0.0, 1.0), 1.25);
+        let shadow_bounce = shadow_depth * (0.030 + matte_weight * 0.030 + floor_weight * 0.018) * indirect_strength;
+        let cool_shadow = albedo * shadow_color * shadow_bounce;
+        let matte_scatter = albedo * sky_chroma * matte_weight * sky_wrap * (0.012 + outdoor_space * 0.018) * indirect_strength;
+        let polish_env = env_color * F0 * polished_weight * pow(max(1.0 - roughness, 0.0), 1.6) * (0.090 + shadow_depth * 0.035) * indirect_strength;
+        let wet_weight = smoothstep(0.54, 0.92, 1.0 - roughness) * (1.0 - metallic) * scene_surface;
+        let translucent_weight = (1.0 - smoothstep(0.62, 0.98, mat.z)) * scene_surface;
+        let semantic_subsurface = material_traits0.x;
+        let semantic_transmission = material_traits0.y;
+        let semantic_fuzz = material_traits0.z;
+        let semantic_porosity = material_traits0.w;
+        let semantic_sheen = clamp(material_traits1.x, 0.0, 1.0);
+        let grazing = pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 2.6);
+        let glint_noise = surface_noise_value(in.world_pos * 10.0 + N * 1.7, 71.0);
+        let finish_wet_sheen = wet_finish_weight * (0.060 + grazing * 0.115);
+        let finish_polish_sheen = polished_finish_weight * (0.028 + grazing * 0.055);
+        let wet_sheen = env_color * (wet_weight * 0.050 + translucent_weight * 0.065 + finish_wet_sheen + finish_polish_sheen)
+            * (0.35 + grazing * 1.40)
+            * (0.78 + glint_noise * 0.44)
+            * material_style_strength;
+        let puddle_gloss = env_color
+            * water_material_weight
+            * (0.080 + semantic_transmission * 0.070)
+            * (0.45 + grazing * 1.75)
+            * (0.80 + glint_noise * 0.55)
+            * material_style_strength;
+        let back_wrap = pow(clamp(dot(-Nf_sun, L) * 0.5 + 0.5, 0.0, 1.0), 2.0);
+        let sss_tint = mix(albedo, vec3<f32>(1.0, 0.58, 0.36), smoothstep(0.45, 0.75, semantic_subsurface));
+        let sss_light = (sun_radiance + sky_chroma * (0.12 + outdoor_space * 0.10)) * back_wrap;
+        let semantic_sss = sss_tint * sss_light * semantic_subsurface * (0.050 + semantic_transmission * 0.035) * material_style_strength;
+        let semantic_fuzz_light = albedo * sky_chroma * semantic_fuzz * pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 1.2) * 0.040 * material_style_strength;
+        let semantic_porous_dark = semantic_porosity * (0.010 + shadow_depth * 0.026) * material_style_strength;
+        let semantic_family_sheen = env_color * semantic_sheen * pow(max(1.0 - roughness, 0.0), 1.25) * (0.030 + grazing * 0.070) * material_style_strength;
+        let matte_tooth = (surface_noise_value(in.world_pos * 6.5 + vec3<f32>(13.0, 3.0, 7.0), 41.0) * 2.0 - 1.0)
+            * matte_weight
+            * material_style_strength;
+        lit_color += cool_shadow + matte_scatter + polish_env + wet_sheen + puddle_gloss + semantic_sss + semantic_fuzz_light + semantic_family_sheen;
+        lit_color *= 1.0 + matte_tooth * 0.018 - semantic_porous_dark;
+
         let edge = pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 2.4);
         let edge_amount = edge * (0.018 + matte_weight * 0.020 + polished_weight * 0.045 + outdoor_space * 0.016);
         lit_color += albedo * edge_amount;
@@ -1834,17 +2041,53 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let outdoor_capped = lit_color * (1.0 - outdoor_highlight * 0.13);
         lit_color = mix(lit_color, outdoor_sat, outdoor_space * 0.14);
         lit_color = mix(lit_color, outdoor_capped, outdoor_highlight);
+        let normal_detail = clamp((length(dpdx(Nf_view)) + length(dpdy(Nf_view))) * 0.16, 0.0, 1.0);
+        let dominant_x_wall = abs(N.x) > abs(N.z);
+        let wall_uv = select(
+            vec2<f32>(in.world_pos.x, in.world_pos.y),
+            vec2<f32>(in.world_pos.z, in.world_pos.y),
+            dominant_x_wall
+        );
+        let floor_uv = vec2<f32>(in.world_pos.x, in.world_pos.z);
+        let paint_uv = mix(wall_uv, floor_uv, floor_weight);
+        let grid_frac = abs(fract(paint_uv) - vec2<f32>(0.5));
+        let grid_dist = 0.5 - max(grid_frac.x, grid_frac.y);
+        let contact_noise = 0.72 + surface_noise_value(in.world_pos * 5.1 + vec3<f32>(5.0, 11.0, 17.0), 53.0) * 0.46;
+        let world_crease = (1.0 - smoothstep(0.010, 0.075, grid_dist))
+            * contact_noise
+            * (vertical_weight * 0.030 + floor_weight * 0.012)
+            * material_style_strength;
+        let lower_wall_band = (1.0 - smoothstep(0.030, 0.180, fract(in.world_pos.y)))
+            * vertical_weight
+            * (0.020 + matte_weight * 0.018)
+            * contact_noise
+            * material_style_strength;
+        let screen_crease = normal_detail * (0.026 + matte_weight * 0.020 + polished_weight * 0.010) * material_style_strength;
+        let contact_shadow = clamp(world_crease + lower_wall_band + screen_crease, 0.0, 0.11);
+        let contact_tint = mix(vec3<f32>(0.70, 0.74, 0.80), vec3<f32>(0.62, 0.58, 0.50), matte_weight);
+        lit_color *= 1.0 - contact_shadow;
+        lit_color += albedo * contact_tint * world_crease * 0.18;
+        let soft_edge = pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 1.7);
+        let nomad_rim = soft_edge * (0.030 + matte_weight * 0.018 + polished_weight * 0.070) * material_style_strength;
+        let plane_lift = (floor_weight * 0.012 + vertical_weight * 0.008) * material_style_strength;
+        lit_color += albedo * (nomad_rim + plane_lift);
+        let nomad_luma = dot(lit_color, vec3<f32>(0.2126, 0.7152, 0.0722));
+        let chroma = vec3<f32>(nomad_luma) + (lit_color - vec3<f32>(nomad_luma)) * 1.045;
+        let highlight_guard = 1.0 - smoothstep(0.62, 1.25, nomad_luma) * 0.10;
+        lit_color = mix(lit_color, chroma * highlight_guard, 0.24 * material_style_strength);
     }
 
-    if (style_active && !is_avatar) {
-        let levels = select(7.0, 5.0, use_grimy);
+    if (!is_avatar) {
+        let levels = select(10.0, 18.0, first_person_view);
+        let min_luma = select(0.026, 0.018, first_person_view);
+        let quant_mix = select(0.46, 0.18, first_person_view);
         let luma = max(dot(lit_color, vec3<f32>(0.2126, 0.7152, 0.0722)), 0.001);
-        let min_luma = select(0.032, 0.044, use_grimy);
         let quantized = max(floor(luma * levels + 0.5) / levels, min_luma);
         let quantized_color = lit_color * (quantized / luma);
         let floor_color = albedo * min_luma;
         let floor_weight = 1.0 - smoothstep(min_luma, min_luma * 3.0, luma);
-        lit_color = mix(quantized_color, max(quantized_color, floor_color), floor_weight);
+        let stylized_color = mix(quantized_color, max(quantized_color, floor_color), floor_weight);
+        lit_color = mix(lit_color, stylized_color, quant_mix);
     }
 
     if (is_avatar && UBO.avatar_highlight_params.w > 0.5) {
@@ -2221,6 +2464,10 @@ pub struct VM {
     pub source_sdf: String,
     pub sdf_data: Vec<[f32; 4]>,
     pub sdf_data_dirty: bool,
+    pub material_table: Vec<[f32; 4]>,
+    pub material_table_dirty: bool,
+    raster3d_paint_overlay: Option<Raster3DPaintOverlayData>,
+    raster3d_paint_overlay_dirty: bool,
     pub palette: [[f32; 4]; 256],
     pub palette_dirty: bool,
 
@@ -3517,6 +3764,165 @@ impl VM {
         }
     }
 
+    fn default_material_table() -> Vec<[f32; 4]> {
+        let mut rows = vec![[0.0; 4]; DEFAULT_MATERIAL_TABLE_ROW_COUNT];
+        for id in 0..MATERIAL_TABLE_ID_COUNT {
+            let base = id * MATERIAL_TABLE_ROWS_PER_ID;
+            rows[base] = [0.5, 0.0, 1.0, 0.0];
+            rows[base + 1] = [0.0, 0.0, 0.0, 0.12];
+            rows[base + 2] = [0.08, 0.0, 0.0, 0.0];
+        }
+        rows
+    }
+
+    fn normalize_material_table(mut rows: Vec<[f32; 4]>) -> Vec<[f32; 4]> {
+        let mut defaults = Self::default_material_table();
+        let copy_len = rows.len().min(defaults.len());
+        defaults[..copy_len].copy_from_slice(&rows[..copy_len]);
+        rows.clear();
+        defaults
+    }
+
+    fn upload_material_table_ssbo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        if self.gpu.is_none() {
+            return;
+        }
+        if self.material_table.is_empty() {
+            self.material_table = Self::default_material_table();
+            self.material_table_dirty = true;
+        }
+        let byte_len = (self.material_table.len() * std::mem::size_of::<[f32; 4]>())
+            .max(std::mem::size_of::<[f32; 4]>());
+        let needs_recreate = self
+            .gpu
+            .as_ref()
+            .map(|g| g.material_table_ssbo.is_none() || g.material_table_ssbo_size != byte_len)
+            .unwrap_or(true);
+        if !self.material_table_dirty && !needs_recreate {
+            return;
+        }
+        let bytes: &[u8] = bytemuck::cast_slice(&self.material_table);
+        let g = self.gpu.as_mut().unwrap();
+        if needs_recreate {
+            use wgpu::util::DeviceExt;
+            g.material_table_ssbo = Some(device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("vm-raster3d-material-table"),
+                    contents: bytes,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                },
+            ));
+            g.material_table_ssbo_size = byte_len;
+        } else if let Some(buf) = g.material_table_ssbo.as_ref() {
+            queue.write_buffer(buf, 0, bytes);
+        }
+        self.material_table_dirty = false;
+    }
+
+    fn upload_raster3d_paint_overlay(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        if self.gpu.is_none() {
+            return;
+        }
+
+        let fallback_color = DEFAULT_PAINT_COLOR_PIXEL;
+        let fallback_material = DEFAULT_PAINT_MATERIAL_PIXEL;
+        let (width, height, color_rgba, material_rgba) =
+            if let Some(overlay) = self.raster3d_paint_overlay.as_ref() {
+                (
+                    overlay.width.max(1),
+                    overlay.height.max(1),
+                    overlay.color_rgba.as_slice(),
+                    overlay.material_rgba.as_slice(),
+                )
+            } else {
+                (
+                    1,
+                    1,
+                    fallback_color.as_slice(),
+                    fallback_material.as_slice(),
+                )
+            };
+
+        let recreate = self
+            .gpu
+            .as_ref()
+            .map(|g| {
+                g.raster3d_paint_color_tex.is_none()
+                    || g.raster3d_paint_material_tex.is_none()
+                    || g.raster3d_paint_tex_size != (width, height)
+            })
+            .unwrap_or(true);
+
+        if !recreate && !self.raster3d_paint_overlay_dirty {
+            return;
+        }
+
+        let g = self.gpu.as_mut().unwrap();
+        if recreate {
+            let desc = |label: &'static str| wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            };
+            let color_tex = device.create_texture(&desc("vm-raster3d-paint-color"));
+            let material_tex = device.create_texture(&desc("vm-raster3d-paint-material"));
+            g.raster3d_paint_color_view =
+                Some(color_tex.create_view(&wgpu::TextureViewDescriptor::default()));
+            g.raster3d_paint_material_view =
+                Some(material_tex.create_view(&wgpu::TextureViewDescriptor::default()));
+            g.raster3d_paint_color_tex = Some(color_tex);
+            g.raster3d_paint_material_tex = Some(material_tex);
+            g.raster3d_paint_tex_size = (width, height);
+        }
+
+        let layout = wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(width * 4),
+            rows_per_image: Some(height),
+        };
+        let extent = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        if let Some(tex) = g.raster3d_paint_color_tex.as_ref() {
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: tex,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                color_rgba,
+                layout,
+                extent,
+            );
+        }
+        if let Some(tex) = g.raster3d_paint_material_tex.as_ref() {
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: tex,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                material_rgba,
+                layout,
+                extent,
+            );
+        }
+        self.raster3d_paint_overlay_dirty = false;
+    }
+
     /// Create a VM with a fixed-size atlas (atlas_w x atlas_h).
     pub fn new(atlas_w: u32, atlas_h: u32) -> Self {
         Self::new_with_shared_atlas(SharedAtlas::new(atlas_w, atlas_h))
@@ -3582,6 +3988,10 @@ impl VM {
             source_sdf,
             sdf_data: Vec::new(),
             sdf_data_dirty: true,
+            material_table: Self::default_material_table(),
+            material_table_dirty: true,
+            raster3d_paint_overlay: None,
+            raster3d_paint_overlay_dirty: true,
             transform2d: Mat3::identity(),
             transform3d: Mat4::identity(),
             lights: FxHashMap::default(),
@@ -3720,12 +4130,7 @@ impl VM {
                     mat_frames.truncate(frames.len());
                 }
                 for mf in mat_frames.iter_mut() {
-                    if mf.len() < need {
-                        mf.resize(need, 0);
-                    }
-                    if mf.len() > need {
-                        mf.truncate(need);
-                    }
+                    *mf = normalize_material_frame(std::mem::take(mf), need);
                 }
                 if mat_frames.is_empty() {
                     mat_frames.push(default_material_frame(need));
@@ -3754,20 +4159,61 @@ impl VM {
                     .add_tile(id, 1, 1, vec![frame], vec![mat_frame]);
                 self.mark_all_geometry_dirty();
             }
+            Atom::SetMaterialTable(rows) => {
+                self.material_table = Self::normalize_material_table(rows);
+                self.material_table_dirty = true;
+            }
+            Atom::SetRaster3DPaintOverlay {
+                width,
+                height,
+                color_rgba,
+                material_rgba,
+            } => {
+                let expected = width as usize * height as usize * 4;
+                if width == 0
+                    || height == 0
+                    || color_rgba.len() != expected
+                    || material_rgba.len() != expected
+                {
+                    if self.raster3d_paint_overlay.is_some() {
+                        self.raster3d_paint_overlay = None;
+                        self.raster3d_paint_overlay_dirty = true;
+                    }
+                } else {
+                    let next = Raster3DPaintOverlayData {
+                        width,
+                        height,
+                        color_rgba,
+                        material_rgba,
+                    };
+                    let changed = self
+                        .raster3d_paint_overlay
+                        .as_ref()
+                        .map(|current| {
+                            current.width != next.width
+                                || current.height != next.height
+                                || current.color_rgba != next.color_rgba
+                                || current.material_rgba != next.material_rgba
+                        })
+                        .unwrap_or(true);
+                    if changed {
+                        self.raster3d_paint_overlay = Some(next);
+                        self.raster3d_paint_overlay_dirty = true;
+                    }
+                }
+            }
+            Atom::ClearRaster3DPaintOverlay => {
+                if self.raster3d_paint_overlay.is_some() {
+                    self.raster3d_paint_overlay = None;
+                    self.raster3d_paint_overlay_dirty = true;
+                }
+            }
             Atom::SetTileMaterialFrames { id, frames } => {
                 self.shared_atlas.with_tile_mut(&id, move |tile| {
                     let need = (tile.w as usize) * (tile.h as usize) * 4;
                     let mut mats: Vec<Vec<u8>> = frames
                         .into_iter()
-                        .map(|mut f| {
-                            if f.len() < need {
-                                f.resize(need, 0);
-                            }
-                            if f.len() > need {
-                                f.truncate(need);
-                            }
-                            f
-                        })
+                        .map(|f| normalize_material_frame(f, need))
                         .collect();
                     if mats.len() < tile.frames.len() {
                         let missing = tile.frames.len() - mats.len();
@@ -4387,6 +4833,13 @@ impl VM {
             organic_billboard_count: 0,
             irradiance_grid_ssbo: None,
             irradiance_grid_ssbo_size: 0,
+            material_table_ssbo: None,
+            material_table_ssbo_size: 0,
+            raster3d_paint_color_tex: None,
+            raster3d_paint_color_view: None,
+            raster3d_paint_material_tex: None,
+            raster3d_paint_material_view: None,
+            raster3d_paint_tex_size: (0, 0),
             grid_hdr: None,
             grid_data: None,
             sdf_data_ssbo: None,
@@ -5283,6 +5736,36 @@ impl VM {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 12,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 13,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 14,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -5361,6 +5844,16 @@ impl VM {
                     },
                     wgpu::BindGroupLayoutEntry {
                         binding: 11,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 12,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -7100,6 +7593,10 @@ impl VM {
         let gamma = self.gp9.w.max(0.001);
         let saturation = self.gp8.z.max(0.0);
         let luminance = self.gp8.w.max(0.0);
+        let post_style0 = self.raster3d_post_style0.into_array();
+        let posterize = post_style0[1].clamp(0.0, 1.0);
+        let palette_bias = post_style0[2].clamp(0.0, 1.0);
+        let shadow_lift = post_style0[3].clamp(0.0, 1.0);
         let apply_post_cpu = |mut c: [f32; 3]| -> [f32; 3] {
             c[0] = c[0].max(0.0);
             c[1] = c[1].max(0.0);
@@ -7132,6 +7629,25 @@ impl VM {
                 c[0] *= luminance;
                 c[1] *= luminance;
                 c[2] *= luminance;
+                let luma = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+                let lift = (1.0 - luma).max(0.0).powf(2.0) * 0.12 * shadow_lift;
+                c[0] += lift;
+                c[1] += lift;
+                c[2] += lift;
+                let luma = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+                let earth = [luma * 1.07, luma * 0.98, luma * 0.82];
+                c[0] = c[0] + ((c[0] + (earth[0] - c[0]) * 0.45) - c[0]) * palette_bias;
+                c[1] = c[1] + ((c[1] + (earth[1] - c[1]) * 0.45) - c[1]) * palette_bias;
+                c[2] = c[2] + ((c[2] + (earth[2] - c[2]) * 0.45) - c[2]) * palette_bias;
+                if posterize > 0.0 {
+                    let levels = 32.0 + (7.0 - 32.0) * posterize;
+                    let q0 = ((c[0] * levels + 0.5).floor() / levels).max(0.0);
+                    let q1 = ((c[1] * levels + 0.5).floor() / levels).max(0.0);
+                    let q2 = ((c[2] * levels + 0.5).floor() / levels).max(0.0);
+                    c[0] = c[0] + (q0 - c[0]) * posterize;
+                    c[1] = c[1] + (q1 - c[1]) * posterize;
+                    c[2] = c[2] + (q2 - c[2]) * posterize;
+                }
                 let luma = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
                 c[0] = luma + (c[0] - luma) * saturation;
                 c[1] = luma + (c[1] - luma) * saturation;
@@ -8660,6 +9176,8 @@ impl VM {
         {
             self.upload_organic_billboard_ssbo(device, queue);
             self.upload_irradiance_grid_ssbo(device, queue);
+            self.upload_material_table_ssbo(device, queue);
+            self.upload_raster3d_paint_overlay(device, queue);
             let g = self.gpu.as_mut().unwrap();
             g.ensure_raster3d_targets(device, fb_w, fb_h, shadow_res, raster_samples);
             queue.write_buffer(
@@ -8850,6 +9368,10 @@ impl VM {
                         binding: 11,
                         resource: g.irradiance_grid_ssbo.as_ref().unwrap().as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 12,
+                        resource: g.material_table_ssbo.as_ref().unwrap().as_entire_binding(),
+                    },
                 ],
             }));
             g.u_raster3d_bg = Some(
@@ -8909,6 +9431,22 @@ impl VM {
                             binding: 11,
                             resource: g.irradiance_grid_ssbo.as_ref().unwrap().as_entire_binding(),
                         },
+                        wgpu::BindGroupEntry {
+                            binding: 12,
+                            resource: g.material_table_ssbo.as_ref().unwrap().as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 13,
+                            resource: wgpu::BindingResource::TextureView(
+                                g.raster3d_paint_color_view.as_ref().unwrap(),
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 14,
+                            resource: wgpu::BindingResource::TextureView(
+                                g.raster3d_paint_material_view.as_ref().unwrap(),
+                            ),
+                        },
                     ],
                 }),
             );
@@ -8925,6 +9463,10 @@ impl VM {
         let gamma = self.gp9.w.max(0.001);
         let saturation = self.gp8.z.max(0.0);
         let luminance = self.gp8.w.max(0.0);
+        let post_style0 = self.raster3d_post_style0.into_array();
+        let posterize = post_style0[1].clamp(0.0, 1.0);
+        let palette_bias = post_style0[2].clamp(0.0, 1.0);
+        let shadow_lift = post_style0[3].clamp(0.0, 1.0);
         let apply_post_cpu = |mut c: [f32; 3]| -> [f32; 3] {
             c[0] = c[0].max(0.0);
             c[1] = c[1].max(0.0);
@@ -8957,6 +9499,25 @@ impl VM {
                 c[0] *= luminance;
                 c[1] *= luminance;
                 c[2] *= luminance;
+                let luma = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+                let lift = (1.0 - luma).max(0.0).powf(2.0) * 0.12 * shadow_lift;
+                c[0] += lift;
+                c[1] += lift;
+                c[2] += lift;
+                let luma = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+                let earth = [luma * 1.07, luma * 0.98, luma * 0.82];
+                c[0] = c[0] + ((c[0] + (earth[0] - c[0]) * 0.45) - c[0]) * palette_bias;
+                c[1] = c[1] + ((c[1] + (earth[1] - c[1]) * 0.45) - c[1]) * palette_bias;
+                c[2] = c[2] + ((c[2] + (earth[2] - c[2]) * 0.45) - c[2]) * palette_bias;
+                if posterize > 0.0 {
+                    let levels = 32.0 + (7.0 - 32.0) * posterize;
+                    let q0 = ((c[0] * levels + 0.5).floor() / levels).max(0.0);
+                    let q1 = ((c[1] * levels + 0.5).floor() / levels).max(0.0);
+                    let q2 = ((c[2] * levels + 0.5).floor() / levels).max(0.0);
+                    c[0] = c[0] + (q0 - c[0]) * posterize;
+                    c[1] = c[1] + (q1 - c[1]) * posterize;
+                    c[2] = c[2] + (q2 - c[2]) * posterize;
+                }
                 let luma = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
                 c[0] = luma + (c[0] - luma) * saturation;
                 c[1] = luma + (c[1] - luma) * saturation;

@@ -24,10 +24,13 @@ use rusterix::{
 use self_update::update::Release;
 use shared::rusterix_utils::*;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::mpsc::Receiver;
 #[cfg(all(
     feature = "self-update",
     any(target_os = "windows", target_os = "linux", target_os = "macos")
@@ -36,7 +39,6 @@ use std::sync::{
     Arc, Mutex,
     mpsc::{Sender, channel},
 };
-use std::sync::{Arc, mpsc::Receiver};
 
 #[cfg(all(
     feature = "self-update",
@@ -89,6 +91,7 @@ struct IsoPaintStrokeRenderCache {
     camera_scale: Option<f32>,
     brush: String,
     clip: String,
+    material_id: u8,
     color: [u8; 4],
     pattern_kind: String,
     pattern_scale: f32,
@@ -109,13 +112,27 @@ struct IsoPaintChunkRenderCache {
 struct IsoPaintRenderCache {
     region_id: Option<Uuid>,
     chunks: HashMap<String, IsoPaintChunkRenderCache>,
+    prepared_key: Option<IsoPaintPreparedOverlayKey>,
+    prepared_overlay: Option<IsoPaintPreparedOverlay>,
+    uploaded_key: Option<IsoPaintPreparedOverlayKey>,
 }
 
-#[derive(Default)]
-struct IsoPaintSurfaceBufferCache {
-    region_id: Option<Uuid>,
-    key: u64,
-    buffer: Option<Arc<scenevm::PaintSurfaceBuffer>>,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct IsoPaintPreparedOverlayKey {
+    region_id: Uuid,
+    width: i32,
+    height: i32,
+    layer_key: u64,
+    surface_key: u64,
+    camera_scale_bits: u32,
+}
+
+#[derive(Clone)]
+struct IsoPaintPreparedOverlay {
+    width: u32,
+    height: u32,
+    color_rgba: Vec<u8>,
+    material_rgba: Vec<u8>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -202,7 +219,6 @@ pub struct Editor {
     starter_loader_rx: Option<Receiver<Vec<StarterProjectEntry>>>,
     selected_starter_manifest_id: Option<String>,
     iso_paint_render_cache: IsoPaintRenderCache,
-    iso_paint_surface_cache: IsoPaintSurfaceBufferCache,
 }
 
 impl Editor {
@@ -217,6 +233,49 @@ impl Editor {
     fn iso_paint_color_with_opacity(mut color: [u8; 4], opacity: f32) -> [u8; 4] {
         color[3] = (opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
         color
+    }
+
+    fn iso_paint_material_pixel(material_id: u8) -> [u8; 4] {
+        [254, material_id, 0, 0]
+    }
+
+    fn iso_paint_set_material_pixel(
+        material_pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        x: i32,
+        y: i32,
+        material_id: u8,
+    ) {
+        if x < 0 || y < 0 || x as usize >= width || y as usize >= height {
+            return;
+        }
+        let index = (y as usize * width + x as usize) * 4;
+        if index + 3 >= material_pixels.len() {
+            return;
+        }
+        let material = Self::iso_paint_material_pixel(material_id);
+        material_pixels[index..index + 4].copy_from_slice(&material);
+    }
+
+    fn iso_paint_clear_material_pixel(
+        color_pixels: &[u8],
+        material_pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        x: i32,
+        y: i32,
+    ) {
+        if x < 0 || y < 0 || x as usize >= width || y as usize >= height {
+            return;
+        }
+        let index = (y as usize * width + x as usize) * 4;
+        if index + 3 >= color_pixels.len() || index + 3 >= material_pixels.len() {
+            return;
+        }
+        if color_pixels[index + 3] == 0 {
+            material_pixels[index..index + 4].copy_from_slice(&Self::iso_paint_material_pixel(0));
+        }
     }
 
     fn iso_paint_blend_pixel(
@@ -400,57 +459,6 @@ impl Editor {
         )
     }
 
-    fn iso_paint_composite_at(target: &mut TheRGBABuffer, paint: &TheRGBABuffer, x: i32, y: i32) {
-        let target_dim = *target.dim();
-        let paint_dim = *paint.dim();
-        if target_dim.width <= 0
-            || target_dim.height <= 0
-            || paint_dim.width <= 0
-            || paint_dim.height <= 0
-        {
-            return;
-        }
-
-        let target_w = target_dim.width as usize;
-        let paint_w = paint_dim.width as usize;
-        let paint_h = paint_dim.height as usize;
-        let target_pixels = target.pixels_mut();
-        let paint_pixels = paint.pixels();
-
-        for py in 0..paint_h {
-            let dy = y + py as i32;
-            if dy < 0 || dy >= target_dim.height {
-                continue;
-            }
-            for px in 0..paint_w {
-                let dx = x + px as i32;
-                if dx < 0 || dx >= target_dim.width {
-                    continue;
-                }
-                let src_index = (py * paint_w + px) * 4;
-                let dst_index = (dy as usize * target_w + dx as usize) * 4;
-                if src_index + 3 >= paint_pixels.len() || dst_index + 3 >= target_pixels.len() {
-                    continue;
-                }
-                let src = &paint_pixels[src_index..src_index + 4];
-                let src_a = src[3] as u16;
-                if src_a == 0 {
-                    continue;
-                }
-                let inv_a = 255 - src_a;
-                target_pixels[dst_index] =
-                    ((src[0] as u16 * src_a + target_pixels[dst_index] as u16 * inv_a) / 255) as u8;
-                target_pixels[dst_index + 1] = ((src[1] as u16 * src_a
-                    + target_pixels[dst_index + 1] as u16 * inv_a)
-                    / 255) as u8;
-                target_pixels[dst_index + 2] = ((src[2] as u16 * src_a
-                    + target_pixels[dst_index + 2] as u16 * inv_a)
-                    / 255) as u8;
-                target_pixels[dst_index + 3] = target_pixels[dst_index + 3].max(src[3]);
-            }
-        }
-    }
-
     fn iso_paint_geo_object_matches(a: scenevm::GeoId, b: scenevm::GeoId) -> bool {
         match (a, b) {
             (scenevm::GeoId::GeometryObject(a), scenevm::GeoId::GeometryObject(b)) => a == b,
@@ -501,11 +509,13 @@ impl Editor {
         }
     }
 
-    fn iso_paint_composite_scaled_at(
+    fn iso_paint_composite_overlay_scaled_at(
         target: &mut TheRGBABuffer,
+        material_pixels: &mut [u8],
         paint: &TheRGBABuffer,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         clip: &str,
+        material_id: u8,
         start_screen: Option<[i32; 2]>,
         x: i32,
         y: i32,
@@ -523,6 +533,7 @@ impl Editor {
 
         let scale = scale.clamp(0.05, 20.0);
         let target_w = target_dim.width as usize;
+        let target_h = target_dim.height as usize;
         let paint_w = paint_dim.width as usize;
         let paint_h = paint_dim.height as usize;
         let draw_w = ((paint_dim.width as f32) * scale).round().max(1.0) as usize;
@@ -549,39 +560,43 @@ impl Editor {
                 if sx >= paint_w {
                     continue;
                 }
-
-                let src_index = (sy * paint_w + sx) * 4;
-                let dst_index = (dy as usize * target_w + dx as usize) * 4;
-                if src_index + 3 >= paint_pixels.len() || dst_index + 3 >= target_pixels.len() {
-                    continue;
-                }
-                let src = &paint_pixels[src_index..src_index + 4];
-                let src_a = src[3] as u16;
-                if src_a == 0 {
-                    continue;
-                }
                 if !Self::iso_paint_clip_allows(surface_buffer, clip, start_pixel, dx, dy) {
                     continue;
                 }
-                let inv_a = 255 - src_a;
-                target_pixels[dst_index] =
-                    ((src[0] as u16 * src_a + target_pixels[dst_index] as u16 * inv_a) / 255) as u8;
-                target_pixels[dst_index + 1] = ((src[1] as u16 * src_a
-                    + target_pixels[dst_index + 1] as u16 * inv_a)
-                    / 255) as u8;
-                target_pixels[dst_index + 2] = ((src[2] as u16 * src_a
-                    + target_pixels[dst_index + 2] as u16 * inv_a)
-                    / 255) as u8;
-                target_pixels[dst_index + 3] = target_pixels[dst_index + 3].max(src[3]);
+
+                let src_index = (sy * paint_w + sx) * 4;
+                if src_index + 3 >= paint_pixels.len() {
+                    continue;
+                }
+                let src = [
+                    paint_pixels[src_index],
+                    paint_pixels[src_index + 1],
+                    paint_pixels[src_index + 2],
+                    paint_pixels[src_index + 3],
+                ];
+                if src[3] == 0 {
+                    continue;
+                }
+                Self::iso_paint_blend_pixel(target_pixels, target_w, target_h, dx, dy, src);
+                Self::iso_paint_set_material_pixel(
+                    material_pixels,
+                    target_w,
+                    target_h,
+                    dx,
+                    dy,
+                    material_id,
+                );
             }
         }
     }
 
-    fn iso_paint_composite_brick_scaled_at(
+    fn iso_paint_composite_brick_overlay_scaled_at(
         target: &mut TheRGBABuffer,
+        material_pixels: &mut [u8],
         mask: &TheRGBABuffer,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         clip: &str,
+        material_id: u8,
         start_screen: Option<[i32; 2]>,
         x: i32,
         y: i32,
@@ -603,19 +618,21 @@ impl Editor {
             return;
         }
 
-        if surface_buffer.is_none() {
+        let Some(surface_buffer) = surface_buffer else {
             return;
-        }
+        };
 
         let scale = scale.clamp(0.05, 20.0);
         let target_w = target_dim.width as usize;
+        let target_h = target_dim.height as usize;
         let mask_w = mask_dim.width as usize;
         let mask_h = mask_dim.height as usize;
         let draw_w = ((mask_dim.width as f32) * scale).round().max(1.0) as usize;
         let draw_h = ((mask_dim.height as f32) * scale).round().max(1.0) as usize;
         let target_pixels = target.pixels_mut();
         let mask_pixels = mask.pixels();
-        let start_pixel = Self::iso_paint_start_clip_pixel(surface_buffer, clip, start_screen);
+        let start_pixel =
+            Self::iso_paint_start_clip_pixel(Some(surface_buffer), clip, start_screen);
 
         for dy_local in 0..draw_h {
             let dy = y + dy_local as i32;
@@ -635,6 +652,9 @@ impl Editor {
                 if sx >= mask_w {
                     continue;
                 }
+                if !Self::iso_paint_clip_allows(Some(surface_buffer), clip, start_pixel, dx, dy) {
+                    continue;
+                }
 
                 let src_index = (sy * mask_w + sx) * 4;
                 if src_index + 3 >= mask_pixels.len() {
@@ -644,19 +664,12 @@ impl Editor {
                 if mask_alpha == 0 {
                     continue;
                 }
-                if !Self::iso_paint_clip_allows(surface_buffer, clip, start_pixel, dx, dy) {
-                    continue;
-                }
-
-                let surface_uv = surface_buffer
-                    .and_then(|surface| surface.pixel(dx, dy))
-                    .filter(|pixel| pixel.valid)
-                    .map(|pixel| pixel.uv);
-                let Some(surface_uv) = surface_uv else {
+                let Some(surface_pixel) = surface_buffer.pixel(dx, dy).filter(|pixel| pixel.valid)
+                else {
                     continue;
                 };
                 let mut color = Self::iso_paint_sample_brick_surface_color(
-                    surface_uv,
+                    surface_pixel.uv,
                     base,
                     pattern_kind,
                     pattern_scale,
@@ -665,20 +678,25 @@ impl Editor {
                     pattern_variation,
                 );
                 color[3] = ((color[3] as u16 * mask_alpha as u16) / 255) as u8;
-                Self::iso_paint_blend_pixel(
-                    target_pixels,
+                if color[3] == 0 {
+                    continue;
+                }
+                Self::iso_paint_blend_pixel(target_pixels, target_w, target_h, dx, dy, color);
+                Self::iso_paint_set_material_pixel(
+                    material_pixels,
                     target_w,
-                    target_dim.height as usize,
+                    target_h,
                     dx,
                     dy,
-                    color,
+                    material_id,
                 );
             }
         }
     }
 
-    fn iso_paint_clear_scaled_at(
+    fn iso_paint_clear_overlay_scaled_at(
         target: &mut TheRGBABuffer,
+        material_pixels: &mut [u8],
         mask: &TheRGBABuffer,
         surface_buffer: Option<&scenevm::PaintSurfaceBuffer>,
         clip: &str,
@@ -699,6 +717,7 @@ impl Editor {
 
         let scale = scale.clamp(0.05, 20.0);
         let target_w = target_dim.width as usize;
+        let target_h = target_dim.height as usize;
         let mask_w = mask_dim.width as usize;
         let mask_h = mask_dim.height as usize;
         let draw_w = ((mask_dim.width as f32) * scale).round().max(1.0) as usize;
@@ -725,6 +744,9 @@ impl Editor {
                 if sx >= mask_w {
                     continue;
                 }
+                if !Self::iso_paint_clip_allows(surface_buffer, clip, start_pixel, dx, dy) {
+                    continue;
+                }
 
                 let src_index = (sy * mask_w + sx) * 4;
                 let dst_index = (dy as usize * target_w + dx as usize) * 4;
@@ -735,12 +757,17 @@ impl Editor {
                 if mask_a == 0 {
                     continue;
                 }
-                if !Self::iso_paint_clip_allows(surface_buffer, clip, start_pixel, dx, dy) {
-                    continue;
-                }
                 let keep = 255 - mask_a;
                 target_pixels[dst_index + 3] =
                     ((target_pixels[dst_index + 3] as u16 * keep) / 255) as u8;
+                Self::iso_paint_clear_material_pixel(
+                    target_pixels,
+                    material_pixels,
+                    target_w,
+                    target_h,
+                    dx,
+                    dy,
+                );
             }
         }
     }
@@ -807,33 +834,6 @@ impl Editor {
             .read()
             .ok()
             .map(|rusterix| rusterix.client.camera_d3.scale())
-    }
-
-    fn iso_paint_project_world_anchor(
-        point: [f32; 3],
-        width: i32,
-        height: i32,
-    ) -> Option<[i32; 2]> {
-        if width <= 0 || height <= 0 {
-            return None;
-        }
-
-        let rusterix = RUSTERIX.read().ok()?;
-        let view = rusterix.client.camera_d3.view_matrix();
-        let proj = rusterix
-            .client
-            .camera_d3
-            .projection_matrix(width as f32, height as f32);
-        let clip = (proj * view) * Vec4::new(point[0], point[1], point[2], 1.0);
-        if clip.w.abs() <= f32::EPSILON {
-            return None;
-        }
-
-        let ndc = Vec3::new(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
-        Some([
-            ((ndc.x * 0.5 + 0.5) * width as f32).round() as i32,
-            ((1.0 - (ndc.y * 0.5 + 0.5)) * height as f32).round() as i32,
-        ])
     }
 
     fn iso_paint_stroke_anchor(
@@ -934,6 +934,7 @@ impl Editor {
             camera_scale: camera_scale.or_else(Self::iso_paint_current_camera_scale),
             brush: stroke.brush.clone(),
             clip: stroke.clip.clone(),
+            material_id: stroke.material_id,
             color: Self::iso_paint_color_with_opacity(stroke.color, 1.0),
             pattern_kind: stroke.pattern_kind.clone(),
             pattern_scale: stroke.pattern_scale,
@@ -956,83 +957,81 @@ impl Editor {
         }
     }
 
-    fn iso_paint_surface_buffer(
-        &mut self,
-        region_id: Uuid,
-        width: i32,
-        height: i32,
-    ) -> Option<Arc<scenevm::PaintSurfaceBuffer>> {
-        if width <= 0 || height <= 0 {
-            self.iso_paint_surface_cache.buffer = None;
-            return None;
+    fn iso_paint_layer_key(layer: &IsoPaintLayer) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        layer.visible.hash(&mut hasher);
+        layer.chunks.len().hash(&mut hasher);
+        for (key, chunk) in &layer.chunks {
+            key.hash(&mut hasher);
+            chunk.origin.hash(&mut hasher);
+            chunk.revision.hash(&mut hasher);
+            chunk.strokes.len().hash(&mut hasher);
         }
-
-        let Ok(rusterix) = RUSTERIX.read() else {
-            return self.iso_paint_surface_cache.buffer.clone();
-        };
-        let key = rusterix
-            .scene_handler
-            .vm
-            .paint_surface_key(width as u32, height as u32);
-        let rebuild = self.iso_paint_surface_cache.region_id != Some(region_id)
-            || self.iso_paint_surface_cache.key != key
-            || self.iso_paint_surface_cache.buffer.is_none();
-        if rebuild {
-            let buffer = rusterix
-                .scene_handler
-                .vm
-                .paint_surface_buffer(width as u32, height as u32);
-            self.iso_paint_surface_cache.region_id = Some(region_id);
-            self.iso_paint_surface_cache.key = key;
-            self.iso_paint_surface_cache.buffer = Some(Arc::new(buffer));
-        }
-
-        self.iso_paint_surface_cache.buffer.clone()
+        hasher.finish()
     }
 
-    fn draw_iso_paint_layer(
-        &mut self,
-        buffer: &mut TheRGBABuffer,
+    fn iso_paint_overlay_key(
         region_id: Uuid,
         layer: &IsoPaintLayer,
-    ) {
-        let target_dim = *buffer.dim();
-        let paint_surface =
-            self.iso_paint_surface_buffer(region_id, target_dim.width, target_dim.height);
-        Self::draw_iso_paint_layer_prepared(
-            &mut self.iso_paint_render_cache,
-            buffer,
+        target_dim: TheDim,
+        paint_surface_key: u64,
+        current_camera_scale: Option<f32>,
+    ) -> IsoPaintPreparedOverlayKey {
+        IsoPaintPreparedOverlayKey {
             region_id,
-            layer,
-            paint_surface.as_deref(),
-            Self::iso_paint_current_camera_scale(),
-            Self::iso_paint_project_world_anchor,
-        );
+            width: target_dim.width,
+            height: target_dim.height,
+            layer_key: Self::iso_paint_layer_key(layer),
+            surface_key: paint_surface_key,
+            camera_scale_bits: current_camera_scale.unwrap_or(0.0).to_bits(),
+        }
     }
 
-    fn draw_iso_paint_layer_prepared(
+    fn build_iso_paint_overlay_prepared(
         render_cache: &mut IsoPaintRenderCache,
-        buffer: &mut TheRGBABuffer,
         region_id: Uuid,
         layer: &IsoPaintLayer,
         paint_surface: Option<&scenevm::PaintSurfaceBuffer>,
+        paint_surface_key: u64,
         current_camera_scale: Option<f32>,
+        target_dim: TheDim,
         project_world_anchor: impl Fn([f32; 3], i32, i32) -> Option<[i32; 2]>,
-    ) {
+    ) -> Option<(IsoPaintPreparedOverlayKey, IsoPaintPreparedOverlay, bool)> {
         if render_cache.region_id != Some(region_id) {
             render_cache.region_id = Some(region_id);
             render_cache.chunks.clear();
+            render_cache.prepared_key = None;
+            render_cache.prepared_overlay = None;
+            render_cache.uploaded_key = None;
         }
 
-        if !layer.visible || layer.chunks.is_empty() {
-            return;
+        if !layer.visible
+            || layer.chunks.is_empty()
+            || target_dim.width <= 0
+            || target_dim.height <= 0
+        {
+            return None;
         }
 
-        let target_dim = *buffer.dim();
-        if target_dim.width <= 0 || target_dim.height <= 0 {
-            return;
+        let overlay_key = Self::iso_paint_overlay_key(
+            region_id,
+            layer,
+            target_dim,
+            paint_surface_key,
+            current_camera_scale,
+        );
+        if render_cache.prepared_key == Some(overlay_key)
+            && let Some(overlay) = render_cache.prepared_overlay.as_ref()
+        {
+            return Some((overlay_key, overlay.clone(), false));
         }
+
         let mut paint_overlay = TheRGBABuffer::new(target_dim);
+        let mut material_overlay =
+            vec![0_u8; target_dim.width as usize * target_dim.height as usize * 4];
+        for pixel in material_overlay.chunks_exact_mut(4) {
+            pixel.copy_from_slice(&Self::iso_paint_material_pixel(0));
+        }
 
         render_cache
             .chunks
@@ -1077,9 +1076,11 @@ impl Editor {
                             start_screen = Some(current_screen);
                         }
                     }
+
                     if stroke.erase {
-                        Self::iso_paint_clear_scaled_at(
+                        Self::iso_paint_clear_overlay_scaled_at(
                             &mut paint_overlay,
+                            &mut material_overlay,
                             &stroke.buffer,
                             paint_surface,
                             &stroke.clip,
@@ -1089,11 +1090,13 @@ impl Editor {
                             draw_scale,
                         );
                     } else if stroke.brush == "brick" {
-                        Self::iso_paint_composite_brick_scaled_at(
+                        Self::iso_paint_composite_brick_overlay_scaled_at(
                             &mut paint_overlay,
+                            &mut material_overlay,
                             &stroke.buffer,
                             paint_surface,
                             &stroke.clip,
+                            stroke.material_id,
                             start_screen,
                             draw_origin[0],
                             draw_origin[1],
@@ -1106,11 +1109,13 @@ impl Editor {
                             stroke.pattern_variation,
                         );
                     } else {
-                        Self::iso_paint_composite_scaled_at(
+                        Self::iso_paint_composite_overlay_scaled_at(
                             &mut paint_overlay,
+                            &mut material_overlay,
                             &stroke.buffer,
                             paint_surface,
                             &stroke.clip,
+                            stroke.material_id,
                             start_screen,
                             draw_origin[0],
                             draw_origin[1],
@@ -1121,7 +1126,15 @@ impl Editor {
             }
         }
 
-        Self::iso_paint_composite_at(buffer, &paint_overlay, 0, 0);
+        let overlay = IsoPaintPreparedOverlay {
+            width: target_dim.width as u32,
+            height: target_dim.height as u32,
+            color_rgba: paint_overlay.pixels().to_vec(),
+            material_rgba: material_overlay,
+        };
+        render_cache.prepared_key = Some(overlay_key);
+        render_cache.prepared_overlay = Some(overlay.clone());
+        Some((overlay_key, overlay, true))
     }
 
     fn ensure_project_extension(mut path: PathBuf) -> PathBuf {
@@ -1242,7 +1255,7 @@ impl Editor {
         loaded.migrate_default_ruleset();
         loaded.migrate_button_commands();
         let _ = loaded.sync_ruleset_items();
-        loaded.palette.current_index = 0;
+        loaded.art_palette.current_index = 0;
         Some(loaded)
     }
 
@@ -1336,7 +1349,7 @@ impl Editor {
         loaded.migrate_default_ruleset();
         loaded.migrate_button_commands();
         let _ = loaded.sync_ruleset_items();
-        loaded.palette.current_index = 0;
+        loaded.art_palette.current_index = 0;
         self.starter_project_cache
             .insert(manifest_id.to_string(), loaded.clone());
         Some(loaded)
@@ -1690,26 +1703,29 @@ impl Editor {
         *update_server_icons = true;
         *redraw = true;
 
-        *PALETTE.write().unwrap() = self.project.palette.clone();
+        *PALETTE.write().unwrap() = self.project.art_palette.clone();
         {
             let mut rusterix = RUSTERIX.write().unwrap();
-            rusterix.assets.palette = self.project.palette.clone();
+            rusterix.assets.palette = self.project.art_palette.clone();
             rusterix.assets.palette_materials = self
                 .project
-                .palette_materials
+                .art_palette_materials
                 .iter()
                 .map(|m| m.rmoe_values())
                 .collect();
+            rusterix.assets.palette_material_ids =
+                crate::undo::project_helper::palette_material_ids(&self.project);
             rusterix.set_tiles(self.project.tiles.clone(), true);
             rusterix.set_tile_groups(self.project.tile_groups.clone());
         }
         SCENEMANAGER.write().unwrap().set_palette(
-            self.project.palette.clone(),
+            self.project.art_palette.clone(),
             self.project
-                .palette_materials
+                .art_palette_materials
                 .iter()
                 .map(|m| m.rmoe_values())
                 .collect(),
+            crate::undo::project_helper::palette_material_ids(&self.project),
         );
 
         UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
@@ -4354,7 +4370,6 @@ impl TheTrait for Editor {
             starter_loader_rx: None,
             selected_starter_manifest_id: None,
             iso_paint_render_cache: IsoPaintRenderCache::default(),
-            iso_paint_surface_cache: IsoPaintSurfaceBufferCache::default(),
         }
     }
 
@@ -5520,35 +5535,56 @@ impl TheTrait for Editor {
                             if r.map.name == rusterix.client.current_map {
                                 let region_id = r.id;
                                 let iso_paint = r.iso_paint.clone();
-                                rusterix.draw_game(&r.map, game_messages, game_says, game_choices);
-                                if iso_paint.visible && !iso_paint.chunks.is_empty() {
-                                    let Rusterix {
-                                        client,
-                                        scene_handler,
-                                        ..
-                                    } = &mut **rusterix;
-                                    let scene_handler = &*scene_handler;
-                                    client.for_each_game_widget_mut(|widget| {
+                                let has_iso_paint =
+                                    iso_paint.visible && !iso_paint.chunks.is_empty();
+                                if !has_iso_paint {
+                                    let active_vm = rusterix.scene_handler.vm.active_vm_index();
+                                    rusterix.scene_handler.vm.set_active_vm(0);
+                                    rusterix
+                                        .scene_handler
+                                        .vm
+                                        .execute(scenevm::Atom::ClearRaster3DPaintOverlay);
+                                    rusterix.scene_handler.vm.set_active_vm(active_vm);
+                                    self.iso_paint_render_cache.uploaded_key = None;
+                                }
+                                rusterix.draw_game_with_widget_overlay(
+                                    &r.map,
+                                    game_messages,
+                                    game_says,
+                                    game_choices,
+                                    |widget, scene_handler| {
+                                        if !has_iso_paint {
+                                            return false;
+                                        }
                                         let dim = *widget.buffer.dim();
                                         if dim.width <= 0 || dim.height <= 0 {
-                                            return;
+                                            scene_handler
+                                                .vm
+                                                .execute(scenevm::Atom::ClearRaster3DPaintOverlay);
+                                            return true;
                                         }
+                                        let active_vm = scene_handler.vm.active_vm_index();
+                                        scene_handler.vm.set_active_vm(0);
                                         let paint_surface = scene_handler.vm.paint_surface_buffer(
                                             dim.width as u32,
                                             dim.height as u32,
                                         );
+                                        let paint_surface_key = scene_handler
+                                            .vm
+                                            .paint_surface_key(dim.width as u32, dim.height as u32);
                                         let view = widget.camera_d3.view_matrix();
                                         let proj = widget
                                             .camera_d3
                                             .projection_matrix(dim.width as f32, dim.height as f32);
                                         let camera_scale = Some(widget.camera_d3.scale());
-                                        Self::draw_iso_paint_layer_prepared(
+                                        let overlay = Self::build_iso_paint_overlay_prepared(
                                             &mut self.iso_paint_render_cache,
-                                            &mut widget.buffer,
                                             region_id,
                                             &iso_paint,
                                             Some(&paint_surface),
+                                            paint_surface_key,
                                             camera_scale,
+                                            TheDim::sized(dim.width, dim.height),
                                             |point, width, height| {
                                                 if width <= 0 || height <= 0 {
                                                     return None;
@@ -5572,8 +5608,35 @@ impl TheTrait for Editor {
                                                 ])
                                             },
                                         );
-                                    });
-                                }
+                                        let should_redraw =
+                                            if let Some((key, overlay, changed)) = overlay {
+                                                let needs_upload = changed
+                                                    || self.iso_paint_render_cache.uploaded_key
+                                                        != Some(key);
+                                                if needs_upload {
+                                                    scene_handler.vm.execute(
+                                                        scenevm::Atom::SetRaster3DPaintOverlay {
+                                                            width: overlay.width,
+                                                            height: overlay.height,
+                                                            color_rgba: overlay.color_rgba,
+                                                            material_rgba: overlay.material_rgba,
+                                                        },
+                                                    );
+                                                    self.iso_paint_render_cache.uploaded_key =
+                                                        Some(key);
+                                                }
+                                                needs_upload
+                                            } else {
+                                                scene_handler.vm.execute(
+                                                    scenevm::Atom::ClearRaster3DPaintOverlay,
+                                                );
+                                                self.iso_paint_render_cache.uploaded_key = None;
+                                                true
+                                            };
+                                        scene_handler.vm.set_active_vm(active_vm);
+                                        should_redraw
+                                    },
+                                );
                                 break;
                             }
                         }
@@ -5638,6 +5701,125 @@ impl TheTrait for Editor {
                                 rusterix.build_dynamics_3d(&region.map, animation_frame);
                                 let editor_neutral_background =
                                     !is_running && !self.server_ctx.game_mode;
+                                let iso_paint = region.iso_paint.clone();
+                                let has_iso_paint =
+                                    iso_paint.visible && !iso_paint.chunks.is_empty();
+                                if self.server_ctx.editor_view_mode == EditorViewMode::Iso
+                                    && has_iso_paint
+                                {
+                                    let view = rusterix.client.camera_d3.view_matrix();
+                                    let proj = rusterix
+                                        .client
+                                        .camera_d3
+                                        .projection_matrix(dim.width as f32, dim.height as f32);
+                                    let camera_scale = Some(rusterix.client.camera_d3.scale());
+                                    let active_vm = rusterix.scene_handler.vm.active_vm_index();
+                                    rusterix.scene_handler.vm.set_active_vm(0);
+                                    let surface_key_before = rusterix
+                                        .scene_handler
+                                        .vm
+                                        .paint_surface_key(dim.width as u32, dim.height as u32);
+                                    let expected_key = Self::iso_paint_overlay_key(
+                                        region.id,
+                                        &iso_paint,
+                                        TheDim::sized(dim.width, dim.height),
+                                        surface_key_before,
+                                        camera_scale,
+                                    );
+                                    let overlay_ready = self.iso_paint_render_cache.prepared_key
+                                        == Some(expected_key)
+                                        && self.iso_paint_render_cache.uploaded_key
+                                            == Some(expected_key);
+                                    rusterix.scene_handler.vm.set_active_vm(active_vm);
+
+                                    if !overlay_ready {
+                                        rusterix.draw_d3_with_editor_background(
+                                            &region.map,
+                                            render_view.render_buffer_mut().pixels_mut(),
+                                            dim.width as usize,
+                                            dim.height as usize,
+                                            editor_neutral_background,
+                                        );
+                                    }
+
+                                    if !overlay_ready {
+                                        let active_vm = rusterix.scene_handler.vm.active_vm_index();
+                                        rusterix.scene_handler.vm.set_active_vm(0);
+                                        let paint_surface_key = rusterix
+                                            .scene_handler
+                                            .vm
+                                            .paint_surface_key(dim.width as u32, dim.height as u32);
+                                        let paint_surface =
+                                            rusterix.scene_handler.vm.paint_surface_buffer(
+                                                dim.width as u32,
+                                                dim.height as u32,
+                                            );
+                                        let overlay = Self::build_iso_paint_overlay_prepared(
+                                            &mut self.iso_paint_render_cache,
+                                            region.id,
+                                            &iso_paint,
+                                            Some(&paint_surface),
+                                            paint_surface_key,
+                                            camera_scale,
+                                            TheDim::sized(dim.width, dim.height),
+                                            |point, width, height| {
+                                                if width <= 0 || height <= 0 {
+                                                    return None;
+                                                }
+                                                let clip = (proj * view)
+                                                    * Vec4::new(point[0], point[1], point[2], 1.0);
+                                                if clip.w.abs() <= f32::EPSILON {
+                                                    return None;
+                                                }
+                                                let ndc = Vec3::new(
+                                                    clip.x / clip.w,
+                                                    clip.y / clip.w,
+                                                    clip.z / clip.w,
+                                                );
+                                                Some([
+                                                    ((ndc.x * 0.5 + 0.5) * width as f32).round()
+                                                        as i32,
+                                                    ((1.0 - (ndc.y * 0.5 + 0.5)) * height as f32)
+                                                        .round()
+                                                        as i32,
+                                                ])
+                                            },
+                                        );
+                                        if let Some((key, overlay, changed)) = overlay {
+                                            let needs_upload = changed
+                                                || self.iso_paint_render_cache.uploaded_key
+                                                    != Some(key);
+                                            if needs_upload {
+                                                rusterix.scene_handler.vm.execute(
+                                                    scenevm::Atom::SetRaster3DPaintOverlay {
+                                                        width: overlay.width,
+                                                        height: overlay.height,
+                                                        color_rgba: overlay.color_rgba,
+                                                        material_rgba: overlay.material_rgba,
+                                                    },
+                                                );
+                                                self.iso_paint_render_cache.uploaded_key =
+                                                    Some(key);
+                                            }
+                                        } else {
+                                            rusterix
+                                                .scene_handler
+                                                .vm
+                                                .execute(scenevm::Atom::ClearRaster3DPaintOverlay);
+                                            self.iso_paint_render_cache.uploaded_key = None;
+                                        }
+                                        rusterix.scene_handler.vm.set_active_vm(active_vm);
+                                    }
+                                } else {
+                                    let active_vm = rusterix.scene_handler.vm.active_vm_index();
+                                    rusterix.scene_handler.vm.set_active_vm(0);
+                                    rusterix
+                                        .scene_handler
+                                        .vm
+                                        .execute(scenevm::Atom::ClearRaster3DPaintOverlay);
+                                    rusterix.scene_handler.vm.set_active_vm(active_vm);
+                                    self.iso_paint_render_cache.uploaded_key = None;
+                                }
                                 rusterix.draw_d3_with_editor_background(
                                     &region.map,
                                     render_view.render_buffer_mut().pixels_mut(),
@@ -5895,7 +6077,6 @@ impl TheTrait for Editor {
                         .map(|region| region.iso_paint.clone());
                     if let Some(iso_paint) = iso_paint {
                         let buffer = render_view.render_buffer_mut();
-                        self.draw_iso_paint_layer(buffer, self.server_ctx.curr_region, &iso_paint);
                         if self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint {
                             Self::draw_iso_paint_preview(
                                 buffer,
@@ -6471,19 +6652,23 @@ impl TheTrait for Editor {
                 TheEvent::FileRequesterResult(id, paths) => {
                     // Load a palette from a file
                     if id.name == "Palette Import" {
-                        if self.project.ruleset_palette_is_active() {
-                            return redraw;
-                        }
                         for p in paths {
                             let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
-                            let prev = self.project.palette.clone();
-                            let prev_materials = self.project.palette_materials.clone();
-                            self.project.palette.load_from_txt(contents);
-                            self.project.ensure_palette_materials_len();
-                            *PALETTE.write().unwrap() = self.project.palette.clone();
+                            let prev = self.project.art_palette.clone();
+                            let prev_materials = self.project.art_palette_materials.clone();
+                            self.project.load_art_palette_from_text(contents);
+                            *PALETTE.write().unwrap() = self.project.art_palette.clone();
                             {
                                 let mut rusterix = RUSTERIX.write().unwrap();
-                                rusterix.assets.palette = self.project.palette.clone();
+                                rusterix.assets.palette = self.project.art_palette.clone();
+                                rusterix.assets.palette_materials =
+                                    crate::undo::project_helper::palette_material_values(
+                                        &self.project,
+                                    );
+                                rusterix.assets.palette_material_ids =
+                                    crate::undo::project_helper::palette_material_ids(
+                                        &self.project,
+                                    );
                                 rusterix.set_tiles(self.project.tiles.clone(), true);
                                 rusterix.set_tile_groups(self.project.tile_groups.clone());
                             }
@@ -6491,14 +6676,14 @@ impl TheTrait for Editor {
                             if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
                                 let index = palette_picker.index();
 
-                                palette_picker.set_palette(self.project.palette.clone());
+                                palette_picker.set_palette(self.project.art_palette.clone());
                                 if let Some(widget) = ui.get_widget("Palette Color Picker") {
-                                    if let Some(color) = &self.project.palette[index] {
+                                    if let Some(color) = &self.project.art_palette[index] {
                                         widget.set_value(TheValue::ColorObject(color.clone()));
                                     }
                                 }
                                 if let Some(widget) = ui.get_widget("Palette Hex Edit") {
-                                    if let Some(color) = &self.project.palette[index] {
+                                    if let Some(color) = &self.project.art_palette[index] {
                                         widget.set_value(TheValue::Text(color.to_hex()));
                                     }
                                 }
@@ -6508,8 +6693,8 @@ impl TheTrait for Editor {
                             let undo = ProjectUndoAtom::PaletteEdit(
                                 prev,
                                 prev_materials,
-                                self.project.palette.clone(),
-                                self.project.palette_materials.clone(),
+                                self.project.art_palette.clone(),
+                                self.project.art_palette_materials.clone(),
                             );
                             UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                         }

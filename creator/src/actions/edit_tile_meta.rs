@@ -1,13 +1,12 @@
 use crate::editor::DOCKMANAGER;
 use crate::prelude::*;
+use rusterix::material_library::{
+    MATERIAL_FINISH_NAMES as MATERIAL_FINISH_VALUES,
+    MATERIAL_PRESET_NAMES as MATERIAL_PRESET_VALUES,
+};
 use rusterix::{TileMaterialMeta, TileRole};
 
 const PROCEDURAL_KIND_VALUES: [&str; 5] = ["none", "floor", "wall", "entrance", "exit"];
-const MATERIAL_PRESET_VALUES: [&str; 11] = [
-    "default", "stone", "wood", "metal", "glass", "water", "mirror", "emissive", "dirt", "fabric",
-    "plastic",
-];
-const MATERIAL_FINISH_VALUES: [&str; 4] = ["natural", "matte", "polished", "wet"];
 
 pub struct EditTileMeta {
     id: TheId,
@@ -19,15 +18,19 @@ impl EditTileMeta {
         vec![
             fl!("material_preset_default"),
             fl!("material_preset_stone"),
+            fl!("material_preset_dirt"),
             fl!("material_preset_wood"),
             fl!("material_preset_metal"),
             fl!("material_preset_glass"),
             fl!("material_preset_water"),
             fl!("material_preset_mirror"),
             fl!("material_preset_emissive"),
-            fl!("material_preset_dirt"),
             fl!("material_preset_fabric"),
             fl!("material_preset_plastic"),
+            fl!("material_preset_foliage"),
+            fl!("material_preset_skin"),
+            fl!("material_preset_bone"),
+            fl!("material_preset_wax"),
         ]
     }
 

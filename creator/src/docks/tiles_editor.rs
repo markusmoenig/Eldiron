@@ -770,7 +770,7 @@ impl Dock for TilesEditorDock {
                 {
                     let before = project.clone();
                     let mut state = self.node_graph_state_for_group(project, group_id);
-                    let palette_index = project.palette.current_index;
+                    let palette_index = project.art_palette.current_index;
                     let new_pos = (
                         state.offset.0 + 260,
                         state.offset.1 + 60 + (state.nodes.len() as i32 - 1) * 32,
@@ -2787,7 +2787,7 @@ impl Dock for TilesEditorDock {
                     self.set_frame_index(*index as usize, project, ui, ctx, server_ctx);
                 }
                 // else if id.name == "Palette Item" {
-                //     project.palette.current_index = *index as u16;
+                //     project.art_palette.current_index = *index as u16;
                 // }
             }
             TheEvent::StateChanged(id, state) => {
@@ -3479,7 +3479,7 @@ impl TilesEditorDock {
                         "Palette Index".into(),
                         "Set the palette index used for the generated color.".into(),
                         *index as i32,
-                        project.palette.clone(),
+                        project.art_palette.clone(),
                     ));
                 }
                 Some(TileNodeKind::Colorize4 {
@@ -3496,28 +3496,28 @@ impl TilesEditorDock {
                         "Color 1".into(),
                         "Lowest color band.".into(),
                         *color_1 as i32,
-                        project.palette.clone(),
+                        project.art_palette.clone(),
                     ));
                     nodeui.add_item(TheNodeUIItem::PaletteIndexPicker(
                         "tileNodeColorize4Color2".into(),
                         "Color 2".into(),
                         "Second color band.".into(),
                         *color_2 as i32,
-                        project.palette.clone(),
+                        project.art_palette.clone(),
                     ));
                     nodeui.add_item(TheNodeUIItem::PaletteIndexPicker(
                         "tileNodeColorize4Color3".into(),
                         "Color 3".into(),
                         "Third color band.".into(),
                         *color_3 as i32,
-                        project.palette.clone(),
+                        project.art_palette.clone(),
                     ));
                     nodeui.add_item(TheNodeUIItem::PaletteIndexPicker(
                         "tileNodeColorize4Color4".into(),
                         "Color 4".into(),
                         "Highest color band.".into(),
                         *color_4 as i32,
-                        project.palette.clone(),
+                        project.art_palette.clone(),
                     ));
                     nodeui.add_item(TheNodeUIItem::IntEditSlider(
                         "tileNodeColorize4PixelSize".into(),
@@ -4396,7 +4396,7 @@ impl TilesEditorDock {
 
     fn project_palette_colors(&self, project: &Project) -> Vec<TheColor> {
         project
-            .palette
+            .art_palette
             .colors
             .iter()
             .filter_map(|color| color.clone())

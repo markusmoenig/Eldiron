@@ -2,17 +2,16 @@ use crate::editor::{ACTIONLIST, UNDOMANAGER};
 use crate::prelude::*;
 use crate::undo::project_helper::{apply_palette, refresh_palette_runtime};
 use rusterix::PixelSource;
+use rusterix::material_library::{
+    MATERIAL_FINISH_NAMES as MATERIAL_FINISH_VALUES,
+    MATERIAL_PRESET_NAMES as MATERIAL_PRESET_VALUES,
+};
 use shared::project::PaletteMaterial;
 
 const PALETTE_DOCK_PICKER: &str = "Palette Dock Picker";
 const PALETTE_DOCK_HEX: &str = "Palette Dock Hex Edit";
 const PALETTE_DOCK_MATERIAL_PRESET: &str = "Palette Dock Material Preset";
 const PALETTE_DOCK_MATERIAL_FINISH: &str = "Palette Dock Material Finish";
-const MATERIAL_PRESET_VALUES: [&str; 11] = [
-    "default", "stone", "wood", "metal", "glass", "water", "mirror", "emissive", "dirt", "fabric",
-    "plastic",
-];
-const MATERIAL_FINISH_VALUES: [&str; 4] = ["natural", "matte", "polished", "wet"];
 
 pub(crate) struct PaletteDockBoard {
     id: TheId,
@@ -74,12 +73,7 @@ impl PaletteDockBoard {
     }
 
     fn visible_count(&self) -> usize {
-        self.palette
-            .colors
-            .iter()
-            .rposition(Self::slot_is_occupied)
-            .map(|i| i + 1)
-            .unwrap_or(1)
+        self.palette.colors.len().max(1)
     }
 
     fn calc_layout(&self) -> (i32, i32, i32) {
@@ -323,15 +317,19 @@ impl PaletteDock {
         vec![
             fl!("material_preset_default"),
             fl!("material_preset_stone"),
+            fl!("material_preset_dirt"),
             fl!("material_preset_wood"),
             fl!("material_preset_metal"),
             fl!("material_preset_glass"),
             fl!("material_preset_water"),
             fl!("material_preset_mirror"),
             fl!("material_preset_emissive"),
-            fl!("material_preset_dirt"),
             fl!("material_preset_fabric"),
             fl!("material_preset_plastic"),
+            fl!("material_preset_foliage"),
+            fl!("material_preset_skin"),
+            fl!("material_preset_bone"),
+            fl!("material_preset_wax"),
         ]
     }
 
@@ -359,11 +357,11 @@ impl PaletteDock {
 
     fn normalize_palette(project: &mut Project) -> bool {
         let mut changed = false;
-        project.ensure_palette_materials_len();
-        for (index, color) in project.palette.colors.iter_mut().enumerate() {
+        project.ensure_art_palette_materials_len();
+        for (index, color) in project.art_palette.colors.iter_mut().enumerate() {
             if !PaletteDockBoard::slot_is_occupied(color) && color.is_some() {
                 *color = None;
-                if let Some(material) = project.palette_materials.get_mut(index) {
+                if let Some(material) = project.art_palette_materials.get_mut(index) {
                     *material = PaletteMaterial::default();
                 }
                 changed = true;
@@ -374,13 +372,13 @@ impl PaletteDock {
 
     fn append_index(project: &Project) -> Option<usize> {
         let end = project
-            .palette
+            .art_palette
             .colors
             .iter()
             .rposition(PaletteDockBoard::slot_is_occupied)
             .map(|i| i + 1)
             .unwrap_or(0);
-        (end < project.palette.colors.len()).then_some(end)
+        (end < project.art_palette.colors.len()).then_some(end)
     }
 
     fn build_nodeui() -> TheNodeUI {
@@ -418,28 +416,28 @@ impl PaletteDock {
         ProjectUndoAtom::PaletteEdit(
             prev_palette,
             prev_materials,
-            project.palette.clone(),
-            project.palette_materials.clone(),
+            project.art_palette.clone(),
+            project.art_palette_materials.clone(),
         )
     }
 
     fn sync_widgets(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
-        let index = project.palette.current_index as usize;
+        let index = project.art_palette.current_index as usize;
         if let Some(widget) = ui.get_widget(PALETTE_DOCK_PICKER)
             && let Some(board) = widget.as_any().downcast_mut::<PaletteDockBoard>()
         {
-            board.set_palette(project.palette.clone());
-            board.set_materials(project.palette_materials.clone());
+            board.set_palette(project.art_palette.clone());
+            board.set_materials(project.art_palette_materials.clone());
             board.set_index(index);
-            board.set_read_only(project.ruleset_palette_is_active());
+            board.set_read_only(false);
         }
-        let text = project.palette[index]
+        let text = project.art_palette[index]
             .as_ref()
             .map(TheColor::to_hex)
             .unwrap_or_default();
         self.nodeui.set_text_value(PALETTE_DOCK_HEX, text);
         let material = project
-            .palette_materials
+            .art_palette_materials
             .get(index)
             .cloned()
             .unwrap_or_default();
@@ -457,9 +455,8 @@ impl PaletteDock {
             ctx.ui.relayout = true;
         }
 
-        let locked = project.ruleset_palette_is_active();
         for id in ["Palette Dock New", "Palette Dock Clone", PALETTE_DOCK_HEX] {
-            ui.set_widget_disabled_state(id, ctx, locked);
+            ui.set_widget_disabled_state(id, ctx, false);
         }
     }
 
@@ -469,7 +466,7 @@ impl PaletteDock {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        let source = PixelSource::PaletteIndex(project.palette.current_index);
+        let source = PixelSource::PaletteIndex(project.art_palette.current_index);
         if let Some(map) = project.get_map(server_ctx) {
             server_ctx.curr_map_tool_type = crate::actions::current_selection_tool_type(map);
         }
@@ -803,22 +800,19 @@ impl Dock for PaletteDock {
         }
         match event {
             TheEvent::PaletteEntriesSwapped(id, from, to) if id.name == PALETTE_DOCK_PICKER => {
-                if project.ruleset_palette_is_active() {
-                    return true;
-                }
                 let from = *from as usize;
                 let to = *to as usize;
-                if from < project.palette.colors.len()
-                    && to < project.palette.colors.len()
+                if from < project.art_palette.colors.len()
+                    && to < project.art_palette.colors.len()
                     && from != to
                 {
-                    let prev = project.palette.clone();
-                    let prev_materials = project.palette_materials.clone();
-                    project.palette.colors.swap(from, to);
-                    project.palette_materials.swap(from, to);
-                    Self::make_opaque(&mut project.palette.colors[from]);
-                    Self::make_opaque(&mut project.palette.colors[to]);
-                    project.palette.current_index = to as u16;
+                    let prev = project.art_palette.clone();
+                    let prev_materials = project.art_palette_materials.clone();
+                    project.art_palette.colors.swap(from, to);
+                    project.art_palette_materials.swap(from, to);
+                    Self::make_opaque(&mut project.art_palette.colors[from]);
+                    Self::make_opaque(&mut project.art_palette.colors[to]);
+                    project.art_palette.current_index = to as u16;
                     apply_palette(ui, ctx, server_ctx, project);
                     refresh_palette_runtime(project);
                     self.sync_widgets(ui, ctx, project);
@@ -830,23 +824,20 @@ impl Dock for PaletteDock {
                 true
             }
             TheEvent::PaletteIndexChanged(id, index) if id.name == PALETTE_DOCK_PICKER => {
-                project.palette.current_index = *index;
-                project.ensure_palette_materials_len();
+                project.art_palette.current_index = *index;
+                project.ensure_art_palette_materials_len();
                 apply_palette(ui, ctx, server_ctx, project);
                 self.sync_widgets(ui, ctx, project);
                 true
             }
             TheEvent::ValueChanged(id, TheValue::Text(text)) if id.name == PALETTE_DOCK_HEX => {
-                if project.ruleset_palette_is_active() {
-                    return true;
-                }
                 let color = TheColor::from_hex(text);
-                let index = project.palette.current_index as usize;
-                project.ensure_palette_materials_len();
-                if project.palette[index] != Some(color.clone()) {
-                    let prev = project.palette.clone();
-                    let prev_materials = project.palette_materials.clone();
-                    project.palette[index] = Some(color);
+                let index = project.art_palette.current_index as usize;
+                project.ensure_art_palette_materials_len();
+                if project.art_palette[index] != Some(color.clone()) {
+                    let prev = project.art_palette.clone();
+                    let prev_materials = project.art_palette_materials.clone();
+                    project.art_palette[index] = Some(color);
                     apply_palette(ui, ctx, server_ctx, project);
                     refresh_palette_runtime(project);
                     self.sync_widgets(ui, ctx, project);
@@ -863,11 +854,11 @@ impl Dock for PaletteDock {
                     PALETTE_DOCK_MATERIAL_PRESET | PALETTE_DOCK_MATERIAL_FINISH
                 ) =>
             {
-                let index = project.palette.current_index as usize;
-                project.ensure_palette_materials_len();
-                let prev = project.palette.clone();
-                let prev_materials = project.palette_materials.clone();
-                let material = &mut project.palette_materials[index];
+                let index = project.art_palette.current_index as usize;
+                project.ensure_art_palette_materials_len();
+                let prev = project.art_palette.clone();
+                let prev_materials = project.art_palette_materials.clone();
+                let material = &mut project.art_palette_materials[index];
                 let value = (*value).max(0) as usize;
                 let changed = match id.name.as_str() {
                     PALETTE_DOCK_MATERIAL_PRESET => {
@@ -899,7 +890,6 @@ impl Dock for PaletteDock {
                     if material.preset == "default" {
                         material.finish = "natural".to_string();
                     }
-                    material.apply_preset_finish();
                     refresh_palette_runtime(project);
                     self.sync_widgets(ui, ctx, project);
                     UNDOMANAGER
@@ -911,18 +901,15 @@ impl Dock for PaletteDock {
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
                 if id.name == "Palette Dock New" {
-                    if project.ruleset_palette_is_active() {
-                        return true;
-                    }
                     if let Some(index) = Self::append_index(project) {
-                        let prev = project.palette.clone();
-                        let prev_materials = project.palette_materials.clone();
-                        project.ensure_palette_materials_len();
-                        project.palette.colors[index] = Some(TheColor::from_u8(0, 0, 0, 255));
-                        if let Some(material) = project.palette_materials.get_mut(index) {
+                        let prev = project.art_palette.clone();
+                        let prev_materials = project.art_palette_materials.clone();
+                        project.ensure_art_palette_materials_len();
+                        project.art_palette.colors[index] = Some(TheColor::from_u8(0, 0, 0, 255));
+                        if let Some(material) = project.art_palette_materials.get_mut(index) {
                             *material = PaletteMaterial::default();
                         }
-                        project.palette.current_index = index as u16;
+                        project.art_palette.current_index = index as u16;
                         apply_palette(ui, ctx, server_ctx, project);
                         refresh_palette_runtime(project);
                         self.sync_widgets(ui, ctx, project);
@@ -933,22 +920,19 @@ impl Dock for PaletteDock {
                     }
                     true
                 } else if id.name == "Palette Dock Clone" {
-                    if project.ruleset_palette_is_active() {
-                        return true;
-                    }
                     if let Some(index) = Self::append_index(project) {
-                        let prev = project.palette.clone();
-                        let prev_materials = project.palette_materials.clone();
-                        let src = project.palette.current_index as usize;
-                        project.ensure_palette_materials_len();
-                        project.palette.colors[index] = project.palette.colors[src].clone();
-                        Self::make_opaque(&mut project.palette.colors[index]);
-                        if let Some(src_material) = project.palette_materials.get(src).cloned()
-                            && let Some(dst_material) = project.palette_materials.get_mut(index)
+                        let prev = project.art_palette.clone();
+                        let prev_materials = project.art_palette_materials.clone();
+                        let src = project.art_palette.current_index as usize;
+                        project.ensure_art_palette_materials_len();
+                        project.art_palette.colors[index] = project.art_palette.colors[src].clone();
+                        Self::make_opaque(&mut project.art_palette.colors[index]);
+                        if let Some(src_material) = project.art_palette_materials.get(src).cloned()
+                            && let Some(dst_material) = project.art_palette_materials.get_mut(index)
                         {
                             *dst_material = src_material;
                         }
-                        project.palette.current_index = index as u16;
+                        project.art_palette.current_index = index as u16;
                         apply_palette(ui, ctx, server_ctx, project);
                         refresh_palette_runtime(project);
                         self.sync_widgets(ui, ctx, project);
@@ -971,20 +955,17 @@ impl Dock for PaletteDock {
             TheEvent::Custom(id, TheValue::Int(index))
                 if id.name == "Palette Dock Delete Entry" =>
             {
-                if project.ruleset_palette_is_active() {
-                    return true;
-                }
                 let index = *index as usize;
-                if index < project.palette.colors.len() {
-                    let prev = project.palette.clone();
-                    let prev_materials = project.palette_materials.clone();
-                    project.ensure_palette_materials_len();
-                    project.palette.colors[index] = None;
-                    if let Some(material) = project.palette_materials.get_mut(index) {
+                if index < project.art_palette.colors.len() {
+                    let prev = project.art_palette.clone();
+                    let prev_materials = project.art_palette_materials.clone();
+                    project.ensure_art_palette_materials_len();
+                    project.art_palette.colors[index] = None;
+                    if let Some(material) = project.art_palette_materials.get_mut(index) {
                         *material = PaletteMaterial::default();
                     }
-                    if project.palette.current_index as usize == index {
-                        project.palette.current_index = index.saturating_sub(1) as u16;
+                    if project.art_palette.current_index as usize == index {
+                        project.art_palette.current_index = index.saturating_sub(1) as u16;
                     }
                     apply_palette(ui, ctx, server_ctx, project);
                     refresh_palette_runtime(project);

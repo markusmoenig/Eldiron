@@ -41,29 +41,15 @@ pub enum LightingModel {
     Pbr,
 }
 
-impl LightingModel {
-    fn as_code(self) -> u32 {
-        match self {
-            LightingModel::Lambert => 0,
-            LightingModel::CookTorrance => 1,
-            LightingModel::Pbr => 2,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RenderStyle {
-    Clean,
-    Retro,
-    Grimy,
+    Nomad,
 }
 
 impl RenderStyle {
-    fn lighting_code(self, lighting_model: LightingModel) -> u32 {
+    fn lighting_code(self, _lighting_model: LightingModel) -> u32 {
         match self {
-            RenderStyle::Clean => lighting_model.as_code(),
-            RenderStyle::Retro => 3,
-            RenderStyle::Grimy => 4,
+            RenderStyle::Nomad => 5,
         }
     }
 }
@@ -430,7 +416,7 @@ impl Default for RenderSettings {
             raster_shadow_bias: 0.0015,
             fade_mode: FadeMode::OrderedDither,
             lighting_model: LightingModel::CookTorrance,
-            render_style: RenderStyle::Clean,
+            render_style: RenderStyle::Nomad,
             avatar_highlight_enabled: true,
             avatar_highlight_lift: 1.12,
             avatar_highlight_fill: 0.20,
@@ -438,15 +424,15 @@ impl Default for RenderSettings {
             avatar_shading_enabled: true,
             avatar_skin_shading_enabled: false,
             post_enabled: true,
-            post_tone_mapper: PostToneMapper::Aces,
-            post_exposure: 0.92,
+            post_tone_mapper: PostToneMapper::Reinhard,
+            post_exposure: 1.05,
             post_gamma: 2.2,
-            post_saturation: 1.08,
-            post_luminance: 0.98,
-            post_grit: 0.015,
-            post_posterize: 0.0,
-            post_palette_bias: 0.04,
-            post_shadow_lift: 0.0,
+            post_saturation: 1.06,
+            post_luminance: 1.02,
+            post_grit: 0.018,
+            post_posterize: 0.06,
+            post_palette_bias: 0.02,
+            post_shadow_lift: 0.02,
             post_edge_soften: 0.0,
             frame_time_ms: 1000.0 / 30.0,
             transitions: FxHashMap::default(),
@@ -456,6 +442,18 @@ impl Default for RenderSettings {
 }
 
 impl RenderSettings {
+    fn apply_nomad_post_defaults(&mut self) {
+        self.post_tone_mapper = PostToneMapper::Reinhard;
+        self.post_exposure = 1.05;
+        self.post_saturation = 1.06;
+        self.post_luminance = 1.02;
+        self.post_grit = 0.018;
+        self.post_posterize = 0.06;
+        self.post_palette_bias = 0.02;
+        self.post_shadow_lift = 0.02;
+        self.post_edge_soften = 0.0;
+    }
+
     pub fn scenevm_mode_2d(&self) -> SceneVmRenderMode {
         match self.backend_2d {
             RendererBackend::Compute => SceneVmRenderMode::Compute2D,
@@ -703,12 +701,7 @@ impl RenderSettings {
                 self.msaa_samples = 1;
                 self.raster_shadow_resolution = 512.0;
                 self.raster_shadow_strength = 0.75;
-                self.post_tone_mapper = PostToneMapper::Reinhard;
-                self.post_exposure = 0.95;
-                self.post_saturation = 1.0;
-                self.post_luminance = 1.0;
-                self.post_grit = 0.0;
-                self.post_palette_bias = 0.0;
+                self.apply_nomad_post_defaults();
             }
             RenderQualityPreset::Medium => {
                 self.ao_samples = 2.0;
@@ -719,12 +712,7 @@ impl RenderSettings {
                 self.msaa_samples = 2;
                 self.raster_shadow_resolution = 1024.0;
                 self.raster_shadow_strength = 0.82;
-                self.post_tone_mapper = PostToneMapper::Reinhard;
-                self.post_exposure = 0.95;
-                self.post_saturation = 1.04;
-                self.post_luminance = 0.99;
-                self.post_grit = 0.0;
-                self.post_palette_bias = 0.02;
+                self.apply_nomad_post_defaults();
             }
             RenderQualityPreset::High => {
                 self.ao_samples = 4.0;
@@ -735,12 +723,7 @@ impl RenderSettings {
                 self.msaa_samples = 4;
                 self.raster_shadow_resolution = 2048.0;
                 self.raster_shadow_strength = 0.9;
-                self.post_tone_mapper = PostToneMapper::Aces;
-                self.post_exposure = 0.92;
-                self.post_saturation = 1.08;
-                self.post_luminance = 0.98;
-                self.post_grit = 0.015;
-                self.post_palette_bias = 0.04;
+                self.apply_nomad_post_defaults();
             }
             RenderQualityPreset::Ultra => {
                 self.ao_samples = 8.0;
@@ -751,12 +734,7 @@ impl RenderSettings {
                 self.msaa_samples = 4;
                 self.raster_shadow_resolution = 4096.0;
                 self.raster_shadow_strength = 0.94;
-                self.post_tone_mapper = PostToneMapper::Aces;
-                self.post_exposure = 0.9;
-                self.post_saturation = 1.1;
-                self.post_luminance = 0.98;
-                self.post_grit = 0.02;
-                self.post_palette_bias = 0.05;
+                self.apply_nomad_post_defaults();
             }
             RenderQualityPreset::Custom => {}
         }
@@ -1049,7 +1027,7 @@ impl RenderSettings {
         )));
 
         // gp8.x: fade mode (0 = ordered_dither, 1 = uniform)
-        // gp8.y: lighting/style model (0 = lambert, 1 = cook_torrance, 2 = pbr, 3 = retro, 4 = grimy)
+        // gp8.y: fixed material-aware stylized renderer (5 = nomad)
         // gp8.z: post saturation, gp8.w: post luminance
         vm.execute(Atom::SetGP8(Vec4::new(
             self.fade_mode.as_code() as f32,
@@ -1492,8 +1470,6 @@ impl RenderSettings {
             "shadow_resolution",
             "shadow_bias",
             "fade_mode",
-            "lighting_model",
-            "style",
             "avatar_highlight_enabled",
             "avatar_highlight_lift",
             "avatar_highlight_fill",
@@ -1559,9 +1535,7 @@ impl RenderSettings {
                 LightingModel::Pbr => "pbr".into(),
             })),
             "style" | "render_style" => Some(Value::Str(match self.render_style {
-                RenderStyle::Clean => "clean".into(),
-                RenderStyle::Retro => "retro".into(),
-                RenderStyle::Grimy => "grimy".into(),
+                RenderStyle::Nomad => "nomad".into(),
             })),
             "avatar_highlight_enabled" => Some(Value::Bool(self.avatar_highlight_enabled)),
             "avatar_highlight_lift" => Some(Value::Float(self.avatar_highlight_lift)),
@@ -1932,11 +1906,8 @@ fn parse_lighting_model(v: &str) -> LightingModel {
 }
 
 fn parse_render_style(v: &str) -> RenderStyle {
-    match v.to_ascii_lowercase().as_str() {
-        "retro" => RenderStyle::Retro,
-        "grimy" | "gritty" | "dirty" => RenderStyle::Grimy,
-        _ => RenderStyle::Clean,
-    }
+    let _ = v;
+    RenderStyle::Nomad
 }
 
 fn parse_tone_mapper(v: &str) -> PostToneMapper {
@@ -1983,5 +1954,20 @@ mod tests {
         settings.update_transitions();
         assert!((settings.sun_intensity - 3.0).abs() < f32::EPSILON);
         assert!(settings.transitions.is_empty());
+    }
+
+    #[test]
+    fn style_setting_is_fixed_to_nomad() {
+        let mut settings = RenderSettings::default();
+
+        settings
+            .set("style", Value::Str("clean".to_string()), 0.0)
+            .expect("set render style");
+
+        assert_eq!(settings.render_style, RenderStyle::Nomad);
+        assert_eq!(
+            settings.render_style.lighting_code(settings.lighting_model),
+            5
+        );
     }
 }

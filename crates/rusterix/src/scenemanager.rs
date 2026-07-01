@@ -8,7 +8,7 @@ use theframework::prelude::*;
 #[allow(clippy::large_enum_variant)]
 pub enum SceneManagerCmd {
     SetTileList(Vec<Tile>, FxHashMap<Uuid, u16>),
-    SetPalette(ThePalette, Vec<[f32; 4]>),
+    SetPalette(ThePalette, Vec<[f32; 4]>, Vec<u8>),
     SetMap(Map),
     UpdateMap(Map),
     SetBuilder2D(Option<Box<dyn ChunkBuilder>>),
@@ -66,14 +66,14 @@ impl SceneManager {
         let tile = Tile::from_texture(Texture::from_color(col.to_u8_array()));
         let mut tile = tile;
         tile.id = tile_id;
-        let [roughness, metallic, opacity, emissive] = self
+        let material_id = self
             .assets
-            .palette_materials
+            .palette_material_ids
             .get(index as usize)
             .copied()
-            .unwrap_or([0.5, 0.0, 1.0, 0.0]);
+            .unwrap_or(0);
         for texture in &mut tile.textures {
-            texture.set_materials_all(roughness, metallic, opacity, emissive);
+            texture.set_material_id_all(material_id);
         }
 
         self.assets.tiles.insert(tile_id, tile.clone());
@@ -161,9 +161,10 @@ impl SceneManager {
                 self.dirty = Self::generate_chunk_coords(&self.map.bbox(), self.chunk_size);
                 self.all = self.dirty.clone();
             }
-            SceneManagerCmd::SetPalette(palette, palette_materials) => {
+            SceneManagerCmd::SetPalette(palette, palette_materials, palette_material_ids) => {
                 self.assets.palette = palette;
                 self.assets.palette_materials = palette_materials;
+                self.assets.palette_material_ids = palette_material_ids;
                 self.ensure_palette_tiles_for_map();
                 self.dirty = Self::generate_chunk_coords(&self.map.bbox(), self.chunk_size);
                 self.all = self.dirty.clone();
@@ -223,8 +224,17 @@ impl SceneManager {
         self.send(SceneManagerCmd::SetTileList(tiles, tile_indices));
     }
 
-    pub fn set_palette(&mut self, palette: ThePalette, palette_materials: Vec<[f32; 4]>) {
-        self.send(SceneManagerCmd::SetPalette(palette, palette_materials));
+    pub fn set_palette(
+        &mut self,
+        palette: ThePalette,
+        palette_materials: Vec<[f32; 4]>,
+        palette_material_ids: Vec<u8>,
+    ) {
+        self.send(SceneManagerCmd::SetPalette(
+            palette,
+            palette_materials,
+            palette_material_ids,
+        ));
     }
 
     pub fn set_builder_2d(&mut self, builder: Option<Box<dyn ChunkBuilder>>) {

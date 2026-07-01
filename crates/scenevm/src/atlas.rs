@@ -6,6 +6,8 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 const ATLAS_FRAME_PADDING: u32 = 4;
+const SEMANTIC_MATERIAL_MARKER: u8 = 0xFE;
+const DEFAULT_MATERIAL_PIXEL: [u8; 4] = [7u8, 15u8, 128u8, 128u8];
 
 #[derive(Debug, Clone, Copy)]
 pub struct AtlasEntry {
@@ -161,11 +163,10 @@ impl SharedAtlas {
             return true;
         }
 
-        // Packed material opacity nibble in byte1 low 4 bits (0..15).
         if tile.material_frames.iter().any(|frame| {
             frame
                 .chunks_exact(4)
-                .any(|px| (px.get(1).copied().unwrap_or(15) & 0x0F) < 15)
+                .any(|px| material_opacity_emissive(px).0 < 0.999)
         }) {
             return true;
         }
@@ -260,7 +261,7 @@ impl SharedAtlas {
         guard.tiles_map.clear();
         guard.tiles_order.clear();
         guard.atlas.data.fill(0);
-        guard.atlas_material.data.fill(0);
+        fill_default_material_pixels(&mut guard.atlas_material.data);
         guard.atlas_map.clear();
         guard.atlas_dirty = true;
         guard.layout_dirty = true;
@@ -414,7 +415,7 @@ impl SharedAtlas {
 
 fn build_atlas_inner(inner: &mut SharedAtlasInner) {
     inner.atlas.data.fill(0);
-    inner.atlas_material.data.fill(0);
+    fill_default_material_pixels(&mut inner.atlas_material.data);
     inner.atlas_map.clear();
 
     // Pre-allocate hash maps with estimated capacity
@@ -591,7 +592,7 @@ fn auto_resize_atlas_inner(inner: &mut SharedAtlasInner) {
 
 fn repaint_atlas_pixels_inner(inner: &mut SharedAtlasInner) {
     inner.atlas.data.fill(0);
-    inner.atlas_material.data.fill(0);
+    fill_default_material_pixels(&mut inner.atlas_material.data);
 
     for id in &inner.tiles_order {
         let Some(tile) = inner.tiles_map.get(id) else {
@@ -644,16 +645,56 @@ pub fn default_material_frame(bytes: usize) -> Vec<u8> {
     }
     let mut v = Vec::with_capacity(bytes);
     let pixels = bytes / 4;
-    // Default: roughness=0.5 (7/15), metallic=0.0 (0/15), opacity=1.0 (15/15), emissive=0.0 (0/15)
-    // Packed as: byte0 = r|(m<<4) = 7|0 = 7, byte1 = o|(e<<4) = 15|0 = 15
-    // Normal defaults to 0.0: 128 = (0.0*0.5+0.5)*255
     for _ in 0..pixels {
-        v.extend_from_slice(&[7u8, 15u8, 128u8, 128u8]);
+        v.extend_from_slice(&DEFAULT_MATERIAL_PIXEL);
     }
     if v.len() < bytes {
-        v.resize(bytes, 0);
+        v.extend_from_slice(&DEFAULT_MATERIAL_PIXEL[..bytes - v.len()]);
     }
     v
+}
+
+pub fn normalize_material_frame(mut frame: Vec<u8>, bytes: usize) -> Vec<u8> {
+    if frame.len() > bytes {
+        frame.truncate(bytes);
+    }
+    while frame.len() < bytes {
+        let byte_offset = frame.len() % DEFAULT_MATERIAL_PIXEL.len();
+        frame.push(DEFAULT_MATERIAL_PIXEL[byte_offset]);
+    }
+    frame
+}
+
+fn fill_default_material_pixels(data: &mut [u8]) {
+    for px in data.chunks_exact_mut(4) {
+        px.copy_from_slice(&DEFAULT_MATERIAL_PIXEL);
+    }
+    let rem = data.len() % 4;
+    if rem != 0 {
+        let start = data.len() - rem;
+        data[start..].copy_from_slice(&DEFAULT_MATERIAL_PIXEL[..rem]);
+    }
+}
+
+fn material_opacity_emissive(px: &[u8]) -> (f32, f32) {
+    if px.len() < 2 {
+        return (1.0, 0.0);
+    }
+    if px[0] == SEMANTIC_MATERIAL_MARKER {
+        let family = px[1] / 4;
+        let opacity = match family {
+            5 => 0.35,
+            6 => 0.55,
+            _ => 1.0,
+        };
+        let emissive = if family == 8 { 1.0 } else { 0.0 };
+        return (opacity, emissive);
+    }
+    let packed_oe = px[1];
+    (
+        (packed_oe & 0x0F) as f32 / 15.0,
+        ((packed_oe >> 4) & 0x0F) as f32 / 15.0,
+    )
 }
 
 fn summarize_tile_emission(tile: &Tile) -> TileEmissiveSummary {
@@ -689,9 +730,8 @@ fn summarize_tile_emission(tile: &Tile) -> TileEmissiveSummary {
         for texel in 0..frame_texels {
             let offset = texel * 4;
             let color_alpha = frame[offset + 3] as f32 / 255.0;
-            let packed_oe = material_frame[offset + 1];
-            let opacity = (packed_oe & 0x0F) as f32 / 15.0;
-            let emissive = ((packed_oe >> 4) & 0x0F) as f32 / 15.0;
+            let (opacity, emissive) =
+                material_opacity_emissive(&material_frame[offset..offset + 4]);
             let strength = emissive * opacity * color_alpha;
             if strength <= 0.0 {
                 continue;
@@ -901,5 +941,53 @@ fn blit_rgba_into_with_border(
             dst[top_dst_off..top_dst_off + 4].copy_from_slice(&top_px);
             dst[bot_dst_off..bot_dst_off + 4].copy_from_slice(&bot_px);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn semantic_opaque_material_is_not_translucent() {
+        let atlas = SharedAtlas::new(16, 16);
+        atlas.add_tile(
+            Uuid::nil(),
+            1,
+            1,
+            vec![vec![255, 128, 64, 255]],
+            vec![vec![SEMANTIC_MATERIAL_MARKER, 4, 128, 128]],
+        );
+
+        assert!(!atlas.tile_index_has_translucency(0));
+    }
+
+    #[test]
+    fn semantic_translucent_material_is_translucent() {
+        let atlas = SharedAtlas::new(16, 16);
+        atlas.add_tile(
+            Uuid::nil(),
+            1,
+            1,
+            vec![vec![255, 128, 64, 255]],
+            vec![vec![SEMANTIC_MATERIAL_MARKER, 20, 128, 128]],
+        );
+
+        assert!(atlas.tile_index_has_translucency(0));
+    }
+
+    #[test]
+    fn normalizing_short_material_frame_preserves_default_byte_positions() {
+        assert_eq!(
+            normalize_material_frame(vec![SEMANTIC_MATERIAL_MARKER, 4], 8),
+            vec![SEMANTIC_MATERIAL_MARKER, 4, 128, 128, 7, 15, 128, 128]
+        );
+    }
+
+    #[test]
+    fn default_material_frame_is_opaque() {
+        let frame = default_material_frame(8);
+        assert_eq!(frame, vec![7, 15, 128, 128, 7, 15, 128, 128]);
+        assert_eq!(material_opacity_emissive(&frame[0..4]), (1.0, 0.0));
     }
 }

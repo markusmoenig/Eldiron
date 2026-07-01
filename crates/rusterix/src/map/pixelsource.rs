@@ -62,12 +62,13 @@ impl PixelSource {
         let col = assets.palette.colors.get(index as usize)?.as_ref()?;
         let mut tile = Tile::from_texture(Texture::from_color(col.to_u8_array()));
         tile.id = Self::palette_tile_uuid(index);
-        if let Some([roughness, metallic, opacity, emissive]) =
-            assets.palette_materials.get(index as usize).copied()
-        {
-            for texture in &mut tile.textures {
-                texture.set_materials_all(roughness, metallic, opacity, emissive);
-            }
+        let material_id = assets
+            .palette_material_ids
+            .get(index as usize)
+            .copied()
+            .unwrap_or(0);
+        for texture in &mut tile.textures {
+            texture.set_material_id_all(material_id);
         }
         Some(tile)
     }

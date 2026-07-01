@@ -20,6 +20,7 @@ pub mod edge;
 pub mod hitinfo;
 pub mod intodata;
 pub mod map;
+pub mod material_library;
 pub mod material_profile;
 pub mod particleharness;
 pub mod procedural;

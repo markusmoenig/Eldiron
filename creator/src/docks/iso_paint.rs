@@ -1,5 +1,9 @@
 use crate::editor::UNDOMANAGER;
 use crate::prelude::*;
+use rusterix::material_library::{
+    MATERIAL_FINISH_NAMES as MATERIAL_FINISH_VALUES,
+    MATERIAL_PRESET_NAMES as MATERIAL_PRESET_VALUES, MaterialDefinition,
+};
 
 const ISO_PAINT_BRUSH_LIST: &str = "Iso Paint Brush List";
 const ISO_PAINT_MATERIAL_STRIP: &str = "Iso Paint Material Strip";
@@ -19,11 +23,6 @@ const ISO_PAINT_MORTAR: &str = "Iso Paint Mortar";
 const ISO_PAINT_PATTERN_DETAIL: &str = "Iso Paint Pattern Detail";
 const ISO_PAINT_PATTERN_VARIATION: &str = "Iso Paint Pattern Variation";
 const ISO_PAINT_STAMP_DENSITY: &str = "Iso Paint Stamp Density";
-const MATERIAL_PRESET_VALUES: [&str; 11] = [
-    "default", "stone", "wood", "metal", "glass", "water", "mirror", "emissive", "dirt", "fabric",
-    "plastic",
-];
-const MATERIAL_FINISH_VALUES: [&str; 4] = ["natural", "matte", "polished", "wet"];
 
 #[derive(Clone, Copy, PartialEq)]
 enum IsoPaintOperation {
@@ -120,6 +119,7 @@ impl IsoPaintBrushBoard {
             "moss" => [77, 104, 54, 255],
             "crack" => [102, 102, 99, 255],
             "grass" => [62, 120, 64, 255],
+            "puddle" => [58, 77, 86, 255],
             "screen" => [89, 111, 132, 255],
             _ => [128, 110, 83, 255],
         };
@@ -214,6 +214,60 @@ impl IsoPaintBrushBoard {
                         [37, 91, 45, 255],
                     );
                 }
+            }
+            "puddle" => {
+                let cx = x as i32 + w as i32 / 2;
+                let cy = y as i32 + h as i32 / 2;
+                let rx = (w as f32 * 0.40).max(6.0);
+                let ry = (h as f32 * 0.30).max(5.0);
+                let bounds = (x + 3, y + 3, w.saturating_sub(6), h.saturating_sub(6));
+                let pixels = buffer.pixels_mut();
+                for py in bounds.1..bounds.1 + bounds.3 {
+                    for px in bounds.0..bounds.0 + bounds.2 {
+                        let fx = (px as i32 - cx) as f32 / rx;
+                        let fy = (py as i32 - cy) as f32 / ry;
+                        let wobble = ((px as f32 * 0.17).sin() + (py as f32 * 0.23).cos()) * 0.10;
+                        let d = fx * fx + fy * fy + wobble;
+                        if d >= 1.0 {
+                            continue;
+                        }
+                        let index = (py * stride + px) * 4;
+                        if index + 3 >= pixels.len() {
+                            continue;
+                        }
+                        let edge = (1.0 - d).clamp(0.0, 1.0);
+                        let alpha = (42.0 + edge * 112.0) as u16;
+                        let src = [
+                            (68.0 + edge * 38.0) as u8,
+                            (92.0 + edge * 46.0) as u8,
+                            (104.0 + edge * 62.0) as u8,
+                            alpha as u8,
+                        ];
+                        let keep = 255 - alpha;
+                        pixels[index] =
+                            ((src[0] as u16 * alpha + pixels[index] as u16 * keep) / 255) as u8;
+                        pixels[index + 1] =
+                            ((src[1] as u16 * alpha + pixels[index + 1] as u16 * keep) / 255) as u8;
+                        pixels[index + 2] =
+                            ((src[2] as u16 * alpha + pixels[index + 2] as u16 * keep) / 255) as u8;
+                        pixels[index + 3] = pixels[index + 3].max(src[3]);
+                    }
+                }
+                let shine_y = y as i32 + (h as i32 * 2) / 5;
+                buffer.draw_line(
+                    (x + w / 4) as i32,
+                    shine_y,
+                    (x + (w * 3) / 4) as i32,
+                    shine_y - 4,
+                    [215, 232, 238, 190],
+                );
+                buffer.draw_line(
+                    (x + w / 3) as i32,
+                    shine_y + 5,
+                    (x + (w * 2) / 3) as i32,
+                    shine_y + 2,
+                    [186, 213, 222, 130],
+                );
             }
             "screen" => {
                 for i in 0..8usize {
@@ -484,36 +538,46 @@ impl IsoPaintMaterialStrip {
         self.is_dirty = true;
     }
 
-    fn material_color(index: usize) -> [u8; 4] {
-        match MATERIAL_PRESET_VALUES
-            .get(index)
-            .copied()
-            .unwrap_or("default")
-        {
-            "stone" => [112, 115, 111, 255],
-            "wood" => [126, 78, 42, 255],
-            "metal" => [125, 135, 142, 255],
-            "glass" => [122, 190, 205, 255],
-            "water" => [45, 107, 178, 255],
-            "mirror" => [204, 209, 213, 255],
-            "emissive" => [127, 196, 73, 255],
-            "dirt" => [95, 72, 48, 255],
-            "fabric" => [148, 61, 78, 255],
-            "plastic" => [89, 106, 156, 255],
-            _ => [132, 132, 128, 255],
+    fn material_labels_short() -> Vec<String> {
+        MATERIAL_PRESET_VALUES
+            .iter()
+            .map(|value| match *value {
+                "default" => "Def",
+                "stone" => "Stn",
+                "dirt" => "Dirt",
+                "wood" => "Wood",
+                "metal" => "Met",
+                "glass" => "Gls",
+                "water" => "Wat",
+                "mirror" => "Mir",
+                "emissive" => "Em",
+                "fabric" => "Fab",
+                "plastic" => "Pla",
+                "foliage" => "Fol",
+                "skin" => "Skin",
+                "bone" => "Bone",
+                "wax" => "Wax",
+                _ => "?",
+            })
+            .map(str::to_string)
+            .collect()
+    }
+
+    fn neutral_chip_color(selected: bool, hovered: bool) -> [u8; 4] {
+        if selected {
+            [122, 122, 122, 255]
+        } else if hovered {
+            [96, 96, 96, 255]
+        } else {
+            [74, 74, 74, 255]
         }
     }
 
-    fn finish_color(index: usize) -> [u8; 4] {
-        match MATERIAL_FINISH_VALUES
-            .get(index)
-            .copied()
-            .unwrap_or("natural")
-        {
-            "matte" => [105, 105, 101, 255],
-            "polished" => [178, 184, 190, 255],
-            "wet" => [82, 119, 154, 255],
-            _ => [137, 128, 108, 255],
+    fn chip_text_color(selected: bool) -> [u8; 4] {
+        if selected {
+            [250, 250, 250, 255]
+        } else {
+            [218, 218, 218, 255]
         }
     }
 
@@ -673,6 +737,7 @@ impl TheWidget for IsoPaintMaterialStrip {
         let preset_w = ((aw - (preset_count - 1) * GAP) / preset_count).max(12);
         let preset_h = 21;
         let preset_y = PAD_Y;
+        let material_labels = Self::material_labels_short();
 
         for index in 0..MATERIAL_PRESET_VALUES.len() {
             let x = PAD_X + index as i32 * (preset_w + GAP);
@@ -683,26 +748,32 @@ impl TheWidget for IsoPaintMaterialStrip {
                 preset_w as usize,
                 preset_h as usize,
             );
-            let color = Self::material_color(index);
+            let selected = self.material_preset == index;
+            let hovered = self.hovered == Some(("preset", index));
+            let color = Self::neutral_chip_color(selected, hovered);
             ctx.draw.rect(buffer.pixels_mut(), &global, stride, &color);
-            if MATERIAL_PRESET_VALUES[index] == "emissive" {
-                buffer.draw_line(
-                    global.0 as i32 + 3,
-                    global.1 as i32 + 3,
-                    (global.0 + global.2 - 4) as i32,
-                    (global.1 + global.3 - 4) as i32,
-                    [235, 245, 122, 255],
-                );
-            }
-            let border = if self.material_preset == index {
+            let border = if selected {
                 WHITE
-            } else if self.hovered == Some(("preset", index)) {
+            } else if hovered {
                 [210, 210, 210, 255]
             } else {
                 [38, 38, 38, 255]
             };
             ctx.draw
                 .rect_outline_border(buffer.pixels_mut(), &global, stride, &border, 1);
+            ctx.draw.text_rect_blend(
+                buffer.pixels_mut(),
+                &(global.0 + 1, global.1, global.2.saturating_sub(2), global.3),
+                stride,
+                &material_labels[index],
+                TheFontSettings {
+                    size: 9.5,
+                    ..Default::default()
+                },
+                &Self::chip_text_color(selected),
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
             self.preset_rects.push((index, rect));
         }
 
@@ -721,32 +792,19 @@ impl TheWidget for IsoPaintMaterialStrip {
                 finish_w as usize,
                 finish_h as usize,
             );
-            let mut color = Self::finish_color(index);
-            if self.material_finish != index {
-                color = [
-                    (color[0] as f32 * 0.64) as u8,
-                    (color[1] as f32 * 0.64) as u8,
-                    (color[2] as f32 * 0.64) as u8,
-                    255,
-                ];
-            }
+            let selected = self.material_finish == index;
+            let hovered = self.hovered == Some(("finish", index));
+            let color = Self::neutral_chip_color(selected, hovered);
             ctx.draw.rect(buffer.pixels_mut(), &global, stride, &color);
-            let border = if self.material_finish == index {
+            let border = if selected {
                 WHITE
-            } else if self.hovered == Some(("finish", index)) {
+            } else if hovered {
                 [210, 210, 210, 255]
             } else {
                 [38, 38, 38, 255]
             };
             ctx.draw
                 .rect_outline_border(buffer.pixels_mut(), &global, stride, &border, 1);
-            let luminance =
-                (color[0] as u16 * 30 + color[1] as u16 * 59 + color[2] as u16 * 11) / 100;
-            let text_color = if luminance > 150 {
-                [28, 28, 28, 255]
-            } else {
-                [238, 238, 238, 255]
-            };
             ctx.draw.text_rect_blend(
                 buffer.pixels_mut(),
                 &(global.0 + 2, global.1, global.2.saturating_sub(4), global.3),
@@ -756,7 +814,7 @@ impl TheWidget for IsoPaintMaterialStrip {
                     size: 10.0,
                     ..Default::default()
                 },
-                &text_color,
+                &Self::chip_text_color(selected),
                 TheHorizontalAlign::Center,
                 TheVerticalAlign::Center,
             );
@@ -790,7 +848,7 @@ pub struct IsoPaintDock {
 }
 
 impl IsoPaintDock {
-    const BRUSHES: [IsoPaintBrushPreset; 6] = [
+    const BRUSHES: [IsoPaintBrushPreset; 7] = [
         IsoPaintBrushPreset {
             key: "material",
             size: 1.0,
@@ -832,6 +890,14 @@ impl IsoPaintDock {
             density: 0.6,
         },
         IsoPaintBrushPreset {
+            key: "puddle",
+            size: 1.8,
+            opacity: 0.62,
+            pattern_scale: 1.0,
+            mortar: 0.08,
+            density: 0.6,
+        },
+        IsoPaintBrushPreset {
             key: "screen",
             size: 1.4,
             opacity: 0.7,
@@ -845,15 +911,19 @@ impl IsoPaintDock {
         vec![
             fl!("material_preset_default"),
             fl!("material_preset_stone"),
+            fl!("material_preset_dirt"),
             fl!("material_preset_wood"),
             fl!("material_preset_metal"),
             fl!("material_preset_glass"),
             fl!("material_preset_water"),
             fl!("material_preset_mirror"),
             fl!("material_preset_emissive"),
-            fl!("material_preset_dirt"),
             fl!("material_preset_fabric"),
             fl!("material_preset_plastic"),
+            fl!("material_preset_foliage"),
+            fl!("material_preset_skin"),
+            fl!("material_preset_bone"),
+            fl!("material_preset_wax"),
         ]
     }
 
@@ -970,7 +1040,7 @@ impl IsoPaintDock {
 
     fn selected_palette_color(project: &Project) -> [u8; 4] {
         let mut color = project
-            .palette
+            .art_palette
             .get_current_color()
             .map(|color| color.to_u8_array())
             .unwrap_or([132, 132, 128, 255]);
@@ -985,6 +1055,7 @@ impl IsoPaintDock {
             "moss" => fl!("iso_paint_brush_moss"),
             "crack" => fl!("iso_paint_brush_crack"),
             "grass" => fl!("iso_paint_brush_grass"),
+            "puddle" => fl!("iso_paint_brush_puddle"),
             "screen" => fl!("iso_paint_brush_screen"),
             _ => key.to_string(),
         }
@@ -997,6 +1068,7 @@ impl IsoPaintDock {
             "moss" => fl!("iso_paint_brush_moss_desc"),
             "crack" => fl!("iso_paint_brush_crack_desc"),
             "grass" => fl!("iso_paint_brush_grass_desc"),
+            "puddle" => fl!("iso_paint_brush_puddle_desc"),
             "screen" => fl!("iso_paint_brush_screen_desc"),
             _ => String::new(),
         }
@@ -1130,6 +1202,20 @@ impl IsoPaintDock {
     fn select_brush(&mut self, index: usize, ui: &mut TheUI, ctx: &mut TheContext) {
         self.selected_brush = index.min(Self::BRUSHES.len().saturating_sub(1));
         let brush = self.selected_preset();
+        if brush.key == "puddle" {
+            if let Some(index) = MATERIAL_PRESET_VALUES
+                .iter()
+                .position(|value| *value == "water")
+            {
+                self.material_preset = index as i32;
+            }
+            if let Some(index) = MATERIAL_FINISH_VALUES
+                .iter()
+                .position(|value| *value == "wet")
+            {
+                self.material_finish = index as i32;
+            }
+        }
         self.sync_inspector(ui, ctx);
         ctx.ui.send(TheEvent::SetStatusText(
             TheId::empty(),
@@ -1170,16 +1256,32 @@ impl IsoPaintDock {
     }
 
     fn sync_project_settings(&self, project: &mut Project, server_ctx: &ServerContext) {
-        let color = Self::selected_palette_color(project);
+        let brush = self.selected_preset();
+        let color = if brush.key == "puddle" {
+            [86, 124, 142, 255]
+        } else {
+            Self::selected_palette_color(project)
+        };
         let Some(region) = project.get_region_mut(&server_ctx.curr_region) else {
             return;
         };
-        let brush = self.selected_preset();
+        let material_key = if brush.key == "puddle" {
+            "water"
+        } else {
+            self.selected_material_key()
+        };
+        let finish_key = if brush.key == "puddle" {
+            "wet"
+        } else {
+            self.selected_finish_key()
+        };
+        let material_id = MaterialDefinition::from_preset_finish(material_key, finish_key).id();
         region.iso_paint.set_active_settings(
             Self::operation_key(self.operation),
             brush.key,
-            self.selected_material_key(),
-            self.selected_finish_key(),
+            material_key,
+            finish_key,
+            material_id,
             Self::clip_key(self.clip_mode),
             color,
             Self::pattern_kind_key(self.pattern_kind),

@@ -842,11 +842,11 @@ impl ProjectUndoAtom {
                 rebuild_animation_tree_node(avatar_id, anim_id, project, ui, server_ctx);
             }
             PaletteEdit(old, old_materials, _new, _new_materials) => {
-                let sel = project.palette.current_index;
-                project.palette = old.clone();
-                project.palette.current_index = sel;
-                project.palette_materials = old_materials.clone();
-                project.ensure_palette_materials_len();
+                let sel = project.art_palette.current_index;
+                project.art_palette = old.clone();
+                project.art_palette.current_index = sel;
+                project.art_palette_materials = old_materials.clone();
+                project.ensure_art_palette_materials_len();
                 apply_palette(ui, ctx, server_ctx, project);
                 crate::undo::project_helper::refresh_palette_runtime(project);
             }
@@ -1576,11 +1576,11 @@ impl ProjectUndoAtom {
                 rebuild_animation_tree_node(avatar_id, anim_id, project, ui, server_ctx);
             }
             PaletteEdit(_old, _old_materials, new, new_materials) => {
-                let sel = project.palette.current_index;
-                project.palette = new.clone();
-                project.palette.current_index = sel;
-                project.palette_materials = new_materials.clone();
-                project.ensure_palette_materials_len();
+                let sel = project.art_palette.current_index;
+                project.art_palette = new.clone();
+                project.art_palette.current_index = sel;
+                project.art_palette_materials = new_materials.clone();
+                project.ensure_art_palette_materials_len();
                 apply_palette(ui, ctx, server_ctx, project);
                 crate::undo::project_helper::refresh_palette_runtime(project);
             }

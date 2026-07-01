@@ -120,7 +120,7 @@ impl TileFillTool {
             Some([0, 0, 0, 0])
         } else {
             editing_ctx.get_draw_color(
-                &project.palette,
+                &project.art_palette,
                 server_ctx.palette_opacity,
                 server_ctx.body_marker_color,
             )

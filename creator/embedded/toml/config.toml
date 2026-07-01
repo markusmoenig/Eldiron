@@ -63,8 +63,6 @@ screen_background = "#000000"
 cursor_id = ""
 
 [render]
-# Lighting model: "lambert", "cook_torrance", or "pbr".
-lighting_model = "cook_torrance"
 
 # MSAA sample count for raster 3D (0=off, 4=on).
 msaa_samples = 4
@@ -164,16 +162,31 @@ enabled = true
 tone_mapper = "reinhard"
 
 # Exposure multiplier before tone mapping.
-exposure = 1.0
+exposure = 1.05
 
 # Post saturation (1.0 = unchanged, 0.0 = grayscale).
-saturation = 1.0
+saturation = 1.06
 
 # Post luminance/brightness multiplier.
-luminance = 1.0
+luminance = 1.02
 
 # Output gamma.
 gamma = 2.2
+
+# Fine post grit/noise amount.
+grit = 0.018
+
+# Gentle tonal quantization amount.
+posterize = 0.06
+
+# Subtle earthy palette bias.
+palette_bias = 0.02
+
+# Lift dark areas after tone mapping.
+shadow_lift = 0.02
+
+# Desaturate harsh high-contrast edges.
+edge_soften = 0.0
 
 [simulation]
 # Enable procedural daylight simulation (overrides static sky_color, sun_color, sun_direction)

@@ -2069,6 +2069,29 @@ impl Client {
         choices: Vec<crate::MultipleChoice>,
         scene_handler: &mut SceneHandler,
     ) {
+        self.draw_game_with_widget_overlay(
+            map,
+            assets,
+            messages,
+            choices,
+            scene_handler,
+            |_, _| false,
+        );
+    }
+
+    /// Draw the game into the internal buffer, allowing callers to update 3D widget
+    /// render state after the widget has produced its scene buffers.
+    pub fn draw_game_with_widget_overlay<F>(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        messages: Vec<crate::server::Message>,
+        choices: Vec<crate::MultipleChoice>,
+        scene_handler: &mut SceneHandler,
+        mut widget_overlay: F,
+    ) where
+        F: FnMut(&mut GameWidget, &mut SceneHandler) -> bool,
+    {
         // Keep scene timing in sync with config
         scene_handler.set_timings(self.target_fps as f32, self.game_tick_ms);
         self.update_active_player_camera(map);
@@ -2101,6 +2124,15 @@ impl Client {
                 assets,
                 scene_handler,
             );
+            if widget_overlay(widget, scene_handler) {
+                widget.draw(
+                    map,
+                    &self.server_time,
+                    self.animation_frame,
+                    assets,
+                    scene_handler,
+                );
+            }
 
             if let Some(font) = &self.messages_font {
                 let widget_say = Self::say_table_from_widget(widget);

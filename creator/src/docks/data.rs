@@ -249,14 +249,6 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
                 status: "Visibility fade style. Values: \"ordered_dither\", \"uniform\".",
             },
             SettingNavEntry {
-                key: "lighting_model",
-                status: "3D lighting model. Values: \"lambert\", \"cook_torrance\", \"pbr\".",
-            },
-            SettingNavEntry {
-                key: "style",
-                status: "Renderer style preset. Values: \"clean\", \"retro\", \"grimy\".",
-            },
-            SettingNavEntry {
                 key: "avatar_highlight_enabled",
                 status: "Enable avatar readability boost in Raster 3D. Values: true, false.",
             },
@@ -327,7 +319,7 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
             },
             SettingNavEntry {
                 key: "palette_bias",
-                status: "Bias colors toward earthy retro tones. Typical range: 0..1.",
+                status: "Bias colors toward earthy art tones. Typical range: 0..1.",
             },
             SettingNavEntry {
                 key: "shadow_lift",
@@ -847,7 +839,8 @@ impl Dock for DataDock {
 
         let frame_index = Self::preview_frame_index(avatar, &preview, server_ctx.animation_counter);
         let mut assets = rusterix::Assets::new();
-        assets.palette = project.palette.clone();
+        assets.ruleset_palette = project.palette.clone();
+        assets.palette = project.art_palette.clone();
         assets.tiles = project.tiles.clone();
 
         let out = AvatarRuntimeBuilder::build_preview_for_entity(

@@ -35,8 +35,7 @@ impl Action for ClearPalette {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        let _ = server_ctx;
-        false
+        server_ctx.palette_tool_active
     }
 
     fn apply_project(
@@ -46,23 +45,19 @@ impl Action for ClearPalette {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        if project.ruleset_palette_is_active() {
-            return;
-        }
+        let prev = project.art_palette.clone();
+        let prev_materials = project.art_palette_materials.clone();
 
-        let prev = project.palette.clone();
-        let prev_materials = project.palette_materials.clone();
-
-        project.palette.clear();
-        project.reset_all_palette_materials();
+        project.art_palette.clear();
+        project.reset_all_art_palette_materials();
         apply_palette(ui, ctx, server_ctx, project);
         crate::undo::project_helper::refresh_palette_runtime(project);
 
         let undo_atom = ProjectUndoAtom::PaletteEdit(
             prev,
             prev_materials,
-            project.palette.clone(),
-            project.palette_materials.clone(),
+            project.art_palette.clone(),
+            project.art_palette_materials.clone(),
         );
         UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
     }

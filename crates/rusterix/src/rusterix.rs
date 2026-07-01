@@ -455,6 +455,33 @@ impl Rusterix {
         );
     }
 
+    /// Draw the game as the client sees it, with a callback that can update the
+    /// 3D widget render state before the widget is copied into the client target.
+    pub fn draw_game_with_widget_overlay<F>(
+        &mut self,
+        map: &Map,
+        messages: Vec<crate::server::Message>,
+        says: Vec<crate::server::Say>,
+        choices: Vec<crate::MultipleChoice>,
+        widget_overlay: F,
+    ) where
+        F: FnMut(&mut crate::client::widget::game::GameWidget, &mut SceneHandler) -> bool,
+    {
+        self.apply_runtime_render_state(map, false);
+        let open_container_requests = self.server.get_open_container_requests(&map.id);
+        self.client
+            .process_open_container_requests(open_container_requests);
+        self.client.process_messages(map, says);
+        self.client.draw_game_with_widget_overlay(
+            map,
+            &self.assets,
+            messages,
+            choices,
+            &mut self.scene_handler,
+            widget_overlay,
+        );
+    }
+
     /// Prepare the game scene in SceneVM for direct window presentation.
     /// This avoids CPU readback and lets a caller present with SceneVM's native window path.
     pub fn prepare_game_scene_for_present(&mut self, map: &Map, size: (u32, u32)) -> bool {
@@ -562,19 +589,19 @@ impl Rusterix {
                 continue;
             };
             let tile_id = Uuid::from_u128(0x50414C455454455F0000000000000000u128 | idx as u128);
-            let [roughness, metallic, opacity, emissive] = self
+            let material_id = self
                 .assets
-                .palette_materials
+                .palette_material_ids
                 .get(idx)
                 .copied()
-                .unwrap_or([0.5, 0.0, 1.0, 0.0]);
+                .unwrap_or(0);
             let tile = all_tiles.entry(tile_id).or_insert_with(|| {
                 let mut t = Tile::from_texture(Texture::from_color(col.to_u8_array()));
                 t.id = tile_id;
                 t
             });
             for texture in &mut tile.textures {
-                texture.set_materials_all(roughness, metallic, opacity, emissive);
+                texture.set_material_id_all(material_id);
             }
         }
 

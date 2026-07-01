@@ -1575,7 +1575,7 @@ impl TilesDock {
         project.add_tile_group(group);
         if node_backed {
             let palette_colors = project
-                .palette
+                .art_palette
                 .colors
                 .iter()
                 .filter_map(|color| color.clone())

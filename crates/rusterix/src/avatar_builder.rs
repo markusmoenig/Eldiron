@@ -361,8 +361,8 @@ impl AvatarRuntimeBuilder {
             return default;
         }
         let i = idx as usize;
-        if i < assets.palette.colors.len() {
-            if let Some(col) = &assets.palette[i] {
+        if i < assets.ruleset_palette.colors.len() {
+            if let Some(col) = &assets.ruleset_palette[i] {
                 return col.to_u8_array();
             }
         }

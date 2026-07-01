@@ -1079,12 +1079,9 @@ fn special_action_section_key(action_key: &str) -> Option<(&'static str, &'stati
 
 fn material_selector_alias_index(action_key: &str, value: &str) -> Option<usize> {
     let aliases: &[&str] = if action_key == "material_preset" {
-        &[
-            "default", "stone", "wood", "metal", "glass", "water", "mirror", "emissive", "dirt",
-            "fabric", "plastic",
-        ]
+        &rusterix::material_library::MATERIAL_PRESET_NAMES
     } else if action_key == "material_finish" {
-        &["natural", "matte", "polished", "wet"]
+        &rusterix::material_library::MATERIAL_FINISH_NAMES
     } else {
         return None;
     };
