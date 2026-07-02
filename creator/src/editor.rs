@@ -87,7 +87,7 @@ struct ProjectSession {
     dirty: bool,
 }
 
-#[derive(Default)]
+#[derive(Clone)]
 struct IsoPaintStrokeRenderCache {
     origin: [i32; 2],
     screen_anchor: Option<[i32; 2]>,
@@ -111,10 +111,17 @@ struct IsoPaintStrokeRenderCache {
     buffer: TheRGBABuffer,
 }
 
+#[derive(Clone)]
+struct IsoPaintCachedStrokeRender {
+    key: u64,
+    strokes: Vec<IsoPaintStrokeRenderCache>,
+}
+
 #[derive(Default)]
 struct IsoPaintChunkRenderCache {
     revision: u64,
     strokes: Vec<IsoPaintStrokeRenderCache>,
+    stroke_caches: HashMap<Uuid, IsoPaintCachedStrokeRender>,
 }
 
 #[derive(Default)]
@@ -1470,6 +1477,69 @@ impl Editor {
         (min, max)
     }
 
+    fn iso_paint_stroke_cache_key(stroke: &IsoPaintStroke) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        stroke.id.hash(&mut hasher);
+        stroke.operation.hash(&mut hasher);
+        stroke.brush.hash(&mut hasher);
+        stroke.brush_shape.hash(&mut hasher);
+        stroke.material_id.hash(&mut hasher);
+        stroke.material_mode.hash(&mut hasher);
+        stroke.clip.hash(&mut hasher);
+        stroke.color.hash(&mut hasher);
+        stroke.palette_indices.hash(&mut hasher);
+        stroke.palette_colors.hash(&mut hasher);
+        stroke.pattern_kind.hash(&mut hasher);
+        stroke.pattern_scale.to_bits().hash(&mut hasher);
+        stroke.pattern_mortar.to_bits().hash(&mut hasher);
+        stroke.pattern_detail.to_bits().hash(&mut hasher);
+        stroke.pattern_variation.to_bits().hash(&mut hasher);
+        stroke.size.to_bits().hash(&mut hasher);
+        stroke.opacity.to_bits().hash(&mut hasher);
+        stroke.screen_bounds.hash(&mut hasher);
+        stroke.points.len().hash(&mut hasher);
+        for point in &stroke.points {
+            point.screen.hash(&mut hasher);
+            if let Some(world) = point.world {
+                for value in world {
+                    value.to_bits().hash(&mut hasher);
+                }
+            }
+            if let Some(uv) = point.surface_uv {
+                for value in uv {
+                    value.to_bits().hash(&mut hasher);
+                }
+            }
+            if let Some(normal) = point.surface_normal {
+                for value in normal {
+                    value.to_bits().hash(&mut hasher);
+                }
+            }
+            if let Some(camera_scale) = point.camera_scale {
+                camera_scale.to_bits().hash(&mut hasher);
+            }
+            match &point.owner {
+                Some(IsoPaintOwner::Unknown(id)) => (0_u8, *id).hash(&mut hasher),
+                Some(IsoPaintOwner::Vertex(id)) => (1_u8, *id).hash(&mut hasher),
+                Some(IsoPaintOwner::Linedef(id)) => (2_u8, *id).hash(&mut hasher),
+                Some(IsoPaintOwner::Sector(id)) => (3_u8, *id).hash(&mut hasher),
+                Some(IsoPaintOwner::Character(id)) => (4_u8, *id).hash(&mut hasher),
+                Some(IsoPaintOwner::Item(id)) => (5_u8, *id).hash(&mut hasher),
+                Some(IsoPaintOwner::Light(id)) => (6_u8, *id).hash(&mut hasher),
+                Some(IsoPaintOwner::ItemLight(id)) => (7_u8, *id).hash(&mut hasher),
+                Some(IsoPaintOwner::Triangle(id)) => (8_u8, *id).hash(&mut hasher),
+                Some(IsoPaintOwner::Terrain { x, z }) => (9_u8, *x, *z).hash(&mut hasher),
+                Some(IsoPaintOwner::GeometryObject(id)) => (10_u8, *id).hash(&mut hasher),
+                Some(IsoPaintOwner::Hole { sector_id, hole_id }) => {
+                    (11_u8, *sector_id, *hole_id).hash(&mut hasher)
+                }
+                Some(IsoPaintOwner::Gizmo(id)) => (12_u8, *id).hash(&mut hasher),
+                None => 255_u8.hash(&mut hasher),
+            }
+        }
+        hasher.finish()
+    }
+
     fn build_iso_paint_stroke_caches(stroke: &IsoPaintStroke) -> Vec<IsoPaintStrokeRenderCache> {
         if stroke.points.is_empty() || stroke.operation == "pick" {
             return Vec::new();
@@ -1603,14 +1673,33 @@ impl Editor {
         }]
     }
 
-    fn build_iso_paint_chunk_cache(chunk: &IsoPaintChunk) -> IsoPaintChunkRenderCache {
+    fn build_iso_paint_chunk_cache(
+        chunk: &IsoPaintChunk,
+        previous: Option<IsoPaintChunkRenderCache>,
+    ) -> IsoPaintChunkRenderCache {
+        let mut previous_strokes = previous
+            .map(|cache| cache.stroke_caches)
+            .unwrap_or_default();
+        let mut stroke_caches = HashMap::new();
+        let mut strokes = Vec::new();
+
+        for stroke in &chunk.strokes {
+            let key = Self::iso_paint_stroke_cache_key(stroke);
+            let cached = previous_strokes
+                .remove(&stroke.id)
+                .filter(|cached| cached.key == key)
+                .unwrap_or_else(|| IsoPaintCachedStrokeRender {
+                    key,
+                    strokes: Self::build_iso_paint_stroke_caches(stroke),
+                });
+            strokes.extend(cached.strokes.iter().cloned());
+            stroke_caches.insert(stroke.id, cached);
+        }
+
         IsoPaintChunkRenderCache {
             revision: chunk.revision,
-            strokes: chunk
-                .strokes
-                .iter()
-                .flat_map(Self::build_iso_paint_stroke_caches)
-                .collect(),
+            strokes,
+            stroke_caches,
         }
     }
 
@@ -1736,7 +1825,8 @@ impl Editor {
                 .map(|cached| cached.revision != chunk.revision)
                 .unwrap_or(true);
             if rebuild {
-                let cached = Self::build_iso_paint_chunk_cache(chunk);
+                let previous = render_cache.chunks.remove(key);
+                let cached = Self::build_iso_paint_chunk_cache(chunk, previous);
                 render_cache.chunks.insert(key.clone(), cached);
             }
 
