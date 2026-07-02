@@ -236,19 +236,7 @@ impl ToolList {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         if server_ctx.get_map_context() == MapContext::Region {
-            let iso_paint_color = if server_ctx.curr_map_tool_type == MapToolType::IsoPaint {
-                project.art_palette.get_current_color().map(|color| {
-                    let mut color = color.to_u8_array();
-                    color[3] = 255;
-                    color
-                })
-            } else {
-                None
-            };
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                if let Some(color) = iso_paint_color {
-                    region.iso_paint.active_color = color;
-                }
                 let undo_atom = self
                     .get_current_tool()
                     .region_map_event(map_event, ui, ctx, region, server_ctx);

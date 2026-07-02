@@ -17,6 +17,10 @@ fn default_brush() -> String {
     "material".to_string()
 }
 
+fn default_brush_shape() -> String {
+    "solid".to_string()
+}
+
 fn default_material() -> String {
     "default".to_string()
 }
@@ -47,6 +51,14 @@ fn default_opacity() -> f32 {
 
 fn default_color() -> [u8; 4] {
     [132, 132, 128, 255]
+}
+
+fn default_palette_indices() -> Vec<u16> {
+    Vec::new()
+}
+
+fn default_palette_colors() -> Vec<[u8; 4]> {
+    Vec::new()
 }
 
 fn default_pattern_kind() -> String {
@@ -140,6 +152,8 @@ pub struct IsoPaintStroke {
     pub id: Uuid,
     pub operation: String,
     pub brush: String,
+    #[serde(default = "default_brush_shape")]
+    pub brush_shape: String,
     pub material: String,
     pub finish: String,
     #[serde(default = "default_material_id")]
@@ -150,6 +164,10 @@ pub struct IsoPaintStroke {
     pub clip: String,
     #[serde(default = "default_color")]
     pub color: [u8; 4],
+    #[serde(default = "default_palette_indices")]
+    pub palette_indices: Vec<u16>,
+    #[serde(default = "default_palette_colors")]
+    pub palette_colors: Vec<[u8; 4]>,
     #[serde(default = "default_pattern_kind")]
     pub pattern_kind: String,
     #[serde(default = "default_pattern_scale")]
@@ -170,12 +188,15 @@ impl IsoPaintStroke {
     pub fn new(
         operation: String,
         brush: String,
+        brush_shape: String,
         material: String,
         finish: String,
         material_id: u8,
         material_mode: String,
         clip: String,
         color: [u8; 4],
+        palette_indices: Vec<u16>,
+        palette_colors: Vec<[u8; 4]>,
         pattern_kind: String,
         pattern_scale: f32,
         pattern_mortar: f32,
@@ -190,12 +211,15 @@ impl IsoPaintStroke {
             id: Uuid::new_v4(),
             operation,
             brush,
+            brush_shape,
             material,
             finish,
             material_id,
             material_mode,
             clip,
             color,
+            palette_indices,
+            palette_colors,
             pattern_kind,
             pattern_scale: pattern_scale.clamp(0.25, 4.0),
             pattern_mortar: pattern_mortar.clamp(0.0, 0.4),
@@ -247,6 +271,8 @@ pub struct IsoPaintLayer {
     pub active_operation: String,
     #[serde(default = "default_brush")]
     pub active_brush: String,
+    #[serde(default = "default_brush_shape")]
+    pub active_brush_shape: String,
     #[serde(default = "default_material")]
     pub active_material: String,
     #[serde(default = "default_finish")]
@@ -259,6 +285,10 @@ pub struct IsoPaintLayer {
     pub active_clip: String,
     #[serde(default = "default_color")]
     pub active_color: [u8; 4],
+    #[serde(default = "default_palette_indices")]
+    pub active_palette_indices: Vec<u16>,
+    #[serde(default = "default_palette_colors")]
+    pub active_palette_colors: Vec<[u8; 4]>,
     #[serde(default = "default_pattern_kind")]
     pub active_pattern_kind: String,
     #[serde(default = "default_pattern_scale")]
@@ -283,12 +313,15 @@ impl Default for IsoPaintLayer {
             chunks: IndexMap::default(),
             active_operation: default_operation(),
             active_brush: default_brush(),
+            active_brush_shape: default_brush_shape(),
             active_material: default_material(),
             active_finish: default_finish(),
             active_material_id: default_material_id(),
             active_material_mode: default_material_mode(),
             active_clip: default_clip(),
             active_color: default_color(),
+            active_palette_indices: default_palette_indices(),
+            active_palette_colors: default_palette_colors(),
             active_pattern_kind: default_pattern_kind(),
             active_pattern_scale: default_pattern_scale(),
             active_pattern_mortar: default_pattern_mortar(),
@@ -314,12 +347,15 @@ impl IsoPaintLayer {
         &mut self,
         operation: impl Into<String>,
         brush: impl Into<String>,
+        brush_shape: impl Into<String>,
         material: impl Into<String>,
         finish: impl Into<String>,
         material_id: u8,
         material_mode: impl Into<String>,
         clip: impl Into<String>,
         color: [u8; 4],
+        palette_indices: Vec<u16>,
+        palette_colors: Vec<[u8; 4]>,
         pattern_kind: impl Into<String>,
         pattern_scale: f32,
         pattern_mortar: f32,
@@ -330,6 +366,7 @@ impl IsoPaintLayer {
     ) {
         self.active_operation = operation.into();
         self.active_brush = brush.into();
+        self.active_brush_shape = brush_shape.into();
         self.active_material = material.into();
         self.active_finish = finish.into();
         self.active_material_id = material_id;
@@ -341,6 +378,8 @@ impl IsoPaintLayer {
         };
         self.active_clip = clip.into();
         self.active_color = color;
+        self.active_palette_indices = palette_indices;
+        self.active_palette_colors = palette_colors;
         self.active_pattern_kind = pattern_kind.into();
         self.active_pattern_scale = pattern_scale.clamp(0.25, 4.0);
         self.active_pattern_mortar = pattern_mortar.clamp(0.0, 0.4);
@@ -368,12 +407,15 @@ impl IsoPaintLayer {
         let stroke = IsoPaintStroke::new(
             self.active_operation.clone(),
             self.active_brush.clone(),
+            self.active_brush_shape.clone(),
             self.active_material.clone(),
             self.active_finish.clone(),
             self.active_material_id,
             self.active_material_mode.clone(),
             self.active_clip.clone(),
             self.active_color,
+            self.active_palette_indices.clone(),
+            self.active_palette_colors.clone(),
             self.active_pattern_kind.clone(),
             self.active_pattern_scale,
             self.active_pattern_mortar,
@@ -400,12 +442,13 @@ impl IsoPaintLayer {
                 .iter_mut()
                 .find(|stroke| stroke.id == stroke_id)
             {
-                if stroke
-                    .points
-                    .last()
-                    .is_some_and(|last| last.screen == point.screen)
-                {
-                    return false;
+                if let Some(last) = stroke.points.last() {
+                    let min_spacing = (stroke.size * 0.35).round().clamp(1.0, 4.0) as i32;
+                    let dx = point.screen[0] - last.screen[0];
+                    let dy = point.screen[1] - last.screen[1];
+                    if dx * dx + dy * dy < min_spacing * min_spacing {
+                        return false;
+                    }
                 }
                 stroke.append_point(point);
                 chunk.revision = chunk.revision.wrapping_add(1);

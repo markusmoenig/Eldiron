@@ -983,6 +983,7 @@ fn root_table_prefix(nodeui: &TheNodeUI) -> Option<String> {
             | TheNodeUIItem::IntEditSlider(id, _, _, _, _, _)
             | TheNodeUIItem::PaletteSlider(id, _, _, _, _, _)
             | TheNodeUIItem::PaletteIndexPicker(id, _, _, _, _)
+            | TheNodeUIItem::PaletteIndexRowPicker(id, _, _, _, _)
             | TheNodeUIItem::IntSlider(id, _, _, _, _, _, _)
             | TheNodeUIItem::ColorPicker(id, _, _, _, _)
             | TheNodeUIItem::Checkbox(id, _, _, _) => {
@@ -1272,6 +1273,25 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
                 }
                 has_editable_values = true;
             }
+            TheNodeUIItem::PaletteIndexRowPicker(id, _, _, values, _) => {
+                let action_key = action_param_key(id);
+                let key =
+                    display_key_for_storage(&action_key, &section_stack, root_prefix.as_deref());
+                let val = toml::Value::Array(
+                    values
+                        .iter()
+                        .map(|value| toml::Value::Integer(*value as i64))
+                        .collect(),
+                );
+                if section_stack.is_empty() {
+                    upsert(&mut root_action_entries, key, val, None);
+                } else {
+                    let section_name = section_stack.join(".");
+                    let entries = section_entries_mut(&mut sections, &section_name);
+                    upsert(entries, key, val, None);
+                }
+                has_editable_values = true;
+            }
             TheNodeUIItem::ColorPicker(id, _, _, value, _) => {
                 let action_key = action_param_key(id);
                 let key =
@@ -1497,6 +1517,40 @@ pub fn apply_toml_to_nodeui(nodeui: &mut TheNodeUI, source: &str) -> Result<(), 
                     }
                 }
             }
+            TheNodeUIItem::PaletteIndexRowPicker(id, _, _, _, _) => {
+                let action_key = action_param_key(&id);
+                let table = if section_stack.is_empty() {
+                    Some(action_root)
+                } else {
+                    section_table(&root, &section_stack)
+                        .or_else(|| section_table(action_root, &section_stack))
+                };
+                if let Some(table) = table {
+                    for key in
+                        candidate_input_keys(&action_key, &section_stack, root_prefix.as_deref())
+                    {
+                        if let Some(value) = table.get(&key) {
+                            if let toml::Value::Array(array) = value {
+                                if let Some(TheNodeUIItem::PaletteIndexRowPicker(
+                                    _,
+                                    _,
+                                    _,
+                                    values,
+                                    _,
+                                )) = nodeui.get_item_mut(&id)
+                                {
+                                    *values = array
+                                        .iter()
+                                        .filter_map(toml::Value::as_integer)
+                                        .map(|value| (value as i32).clamp(0, 255))
+                                        .collect();
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
             TheNodeUIItem::ColorPicker(id, _, _, _, _) => {
                 let action_key = action_param_key(&id);
                 let table = if section_stack.is_empty() {
@@ -1570,6 +1624,12 @@ pub fn nodeui_to_value_pairs(nodeui: &TheNodeUI) -> Vec<(String, TheValue)> {
             | TheNodeUIItem::PaletteIndexPicker(id, _, _, value, _)
             | TheNodeUIItem::IntSlider(id, _, _, value, _, _, _) => {
                 out.push((id.clone(), TheValue::Int(*value)));
+            }
+            TheNodeUIItem::PaletteIndexRowPicker(id, _, _, values, _) => {
+                out.push((
+                    id.clone(),
+                    TheValue::List(values.iter().copied().map(TheValue::Int).collect()),
+                ));
             }
             TheNodeUIItem::ColorPicker(id, _, _, value, _) => {
                 out.push((id.clone(), TheValue::ColorObject(value.clone())));

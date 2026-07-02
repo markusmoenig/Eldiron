@@ -1,4 +1,5 @@
 use crate::Embedded;
+use crate::iso_paint_brush::{self, IsoPaintBrushSample};
 use crate::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::scepter::{ScepterEvent, ScepterRegionRequest, ScepterService};
@@ -12,6 +13,7 @@ use eldiron_scepter::{
     AttributesGet, AttributesPatch, GridPoint, RegionPaintCells, RegionPaintRect, RegionRef,
     RegionRenderPreview, ScriptGet, ScriptPatch, ScriptTarget, ScriptTargetKind, TileSelector,
 };
+use rayon::prelude::*;
 use rusterix::render_settings::RendererBackend;
 use rusterix::server::message::AudioCommand;
 use rusterix::{
@@ -45,6 +47,8 @@ use std::sync::{
     any(target_os = "windows", target_os = "linux", target_os = "macos")
 ))]
 use std::thread;
+
+const ISO_PAINT_PAR_COMPOSITE_PIXELS: usize = 32_768;
 
 pub static PREVIEW_ICON: LazyLock<RwLock<(TheRGBATile, i32)>> =
     LazyLock::new(|| RwLock::new((TheRGBATile::default(), 0)));
@@ -93,6 +97,7 @@ struct IsoPaintStrokeRenderCache {
     color_coverage_scale: f32,
     replace_material: bool,
     replace_opacity: u8,
+    writes_material: bool,
     brush: String,
     clip: String,
     material_id: u8,
@@ -253,10 +258,84 @@ impl Editor {
         [254, material_id, mode, coverage]
     }
 
+    fn iso_paint_set_material_pixel_at(
+        material_pixels: &mut [u8],
+        index: usize,
+        material_id: u8,
+        replace_material: bool,
+        replace_opacity: u8,
+        coverage: u8,
+    ) {
+        if coverage == 0 || index + 3 >= material_pixels.len() {
+            return;
+        }
+        let existing = material_pixels[index + 3] as u16;
+        let src = coverage as u16;
+        let out_alpha = (src + (existing * (255 - src)) / 255).min(255) as u8;
+        let material = Self::iso_paint_material_pixel(
+            material_id,
+            replace_material.then_some(replace_opacity),
+            out_alpha,
+        );
+        material_pixels[index..index + 4].copy_from_slice(&material);
+    }
+
+    fn iso_paint_clear_material_pixel_at(material_pixels: &mut [u8], index: usize, coverage: u8) {
+        if coverage == 0 || index + 3 >= material_pixels.len() {
+            return;
+        }
+        let keep = 255_u16.saturating_sub(coverage as u16);
+        let next_alpha = ((material_pixels[index + 3] as u16 * keep) / 255) as u8;
+        if next_alpha == 0 {
+            material_pixels[index..index + 4]
+                .copy_from_slice(&Self::iso_paint_material_pixel(0, None, 0));
+        } else {
+            material_pixels[index + 3] = next_alpha;
+        }
+    }
+
+    fn iso_paint_blend_pixel_at(pixels: &mut [u8], index: usize, color: [u8; 4]) {
+        if color[3] == 0 || index + 3 >= pixels.len() {
+            return;
+        }
+
+        let src_a = color[3] as u32;
+        let dst_a = pixels[index + 3] as u32;
+        let inv_a = 255 - src_a;
+        let out_a = (src_a + (dst_a * inv_a) / 255).min(255);
+        if out_a == 0 {
+            pixels[index..index + 4].copy_from_slice(&[0, 0, 0, 0]);
+            return;
+        }
+
+        let denom = out_a * 255;
+        pixels[index] = ((color[0] as u32 * src_a * 255 + pixels[index] as u32 * dst_a * inv_a)
+            / denom)
+            .min(255) as u8;
+        pixels[index + 1] =
+            ((color[1] as u32 * src_a * 255 + pixels[index + 1] as u32 * dst_a * inv_a) / denom)
+                .min(255) as u8;
+        pixels[index + 2] =
+            ((color[2] as u32 * src_a * 255 + pixels[index + 2] as u32 * dst_a * inv_a) / denom)
+                .min(255) as u8;
+        pixels[index + 3] = out_a as u8;
+    }
+
+    fn iso_paint_write_overlay_pixel_at(pixels: &mut [u8], index: usize, color: [u8; 4]) {
+        if color[3] == 0 || index + 3 >= pixels.len() || color[3] <= pixels[index + 3] {
+            return;
+        }
+
+        pixels[index] = color[0];
+        pixels[index + 1] = color[1];
+        pixels[index + 2] = color[2];
+        pixels[index + 3] = color[3];
+    }
+
     fn iso_paint_color_coverage_scale(brush: &str, material_id: u8) -> f32 {
         let family = material_id / 4;
         if brush == "puddle" {
-            0.0
+            1.0
         } else if matches!(family, 5 | 6) {
             0.12
         } else {
@@ -414,15 +493,14 @@ impl Editor {
         if index + 3 >= material_pixels.len() {
             return;
         }
-        let existing = material_pixels[index + 3] as u16;
-        let src = coverage as u16;
-        let out_alpha = (src + (existing * (255 - src)) / 255).min(255) as u8;
-        let material = Self::iso_paint_material_pixel(
+        Self::iso_paint_set_material_pixel_at(
+            material_pixels,
+            index,
             material_id,
-            replace_material.then_some(replace_opacity),
-            out_alpha,
+            replace_material,
+            replace_opacity,
+            coverage,
         );
-        material_pixels[index..index + 4].copy_from_slice(&material);
     }
 
     fn iso_paint_clear_material_pixel(
@@ -440,14 +518,7 @@ impl Editor {
         if index + 3 >= material_pixels.len() {
             return;
         }
-        let keep = 255_u16.saturating_sub(coverage as u16);
-        let next_alpha = ((material_pixels[index + 3] as u16 * keep) / 255) as u8;
-        if next_alpha == 0 {
-            material_pixels[index..index + 4]
-                .copy_from_slice(&Self::iso_paint_material_pixel(0, None, 0));
-        } else {
-            material_pixels[index + 3] = next_alpha;
-        }
+        Self::iso_paint_clear_material_pixel_at(material_pixels, index, coverage);
     }
 
     fn iso_paint_blend_pixel(
@@ -465,18 +536,28 @@ impl Editor {
         if index + 3 >= pixels.len() {
             return;
         }
-
-        let src_a = color[3] as u16;
-        let inv_a = 255 - src_a;
-        pixels[index] = ((color[0] as u16 * src_a + pixels[index] as u16 * inv_a) / 255) as u8;
-        pixels[index + 1] =
-            ((color[1] as u16 * src_a + pixels[index + 1] as u16 * inv_a) / 255) as u8;
-        pixels[index + 2] =
-            ((color[2] as u16 * src_a + pixels[index + 2] as u16 * inv_a) / 255) as u8;
-        pixels[index + 3] = (src_a + (pixels[index + 3] as u16 * inv_a) / 255).min(255) as u8;
+        Self::iso_paint_blend_pixel_at(pixels, index, color);
     }
 
     fn iso_paint_write_coverage_pixel(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        x: i32,
+        y: i32,
+        color: [u8; 4],
+    ) {
+        if x < 0 || y < 0 || x as usize >= width || y as usize >= height || color[3] == 0 {
+            return;
+        }
+        let index = (y as usize * width + x as usize) * 4;
+        if index + 3 >= pixels.len() || color[3] <= pixels[index + 3] {
+            return;
+        }
+        Self::iso_paint_write_overlay_pixel_at(pixels, index, color);
+    }
+
+    fn iso_paint_write_overlay_pixel(
         pixels: &mut [u8],
         width: usize,
         height: usize,
@@ -506,21 +587,33 @@ impl Editor {
         local_y: i32,
         radius: i32,
         color: [u8; 4],
+        palette: &[[u8; 4]],
+        brush: &str,
+        shape: &str,
+        seed: u32,
     ) {
         let radius = radius.max(1);
-        let radius_sq = radius * radius;
+        let sample = IsoPaintBrushSample {
+            brush,
+            shape,
+            color,
+            palette,
+            opacity: 1.0,
+            radius,
+            seed,
+        };
         for oy in -radius..=radius {
             for ox in -radius..=radius {
-                if ox * ox + oy * oy > radius_sq {
+                let Some(shaped_color) = iso_paint_brush::sample_pixel(&sample, ox, oy) else {
                     continue;
-                }
+                };
                 Self::iso_paint_write_coverage_pixel(
                     pixels,
                     width,
                     height,
                     local_x + ox,
                     local_y + oy,
-                    color,
+                    shaped_color,
                 );
             }
         }
@@ -535,6 +628,10 @@ impl Editor {
         origin: [i32; 2],
         radius: i32,
         color: [u8; 4],
+        palette: &[[u8; 4]],
+        brush: &str,
+        shape: &str,
+        seed: u32,
     ) {
         let dx = b[0] - a[0];
         let dy = b[1] - a[1];
@@ -551,6 +648,10 @@ impl Editor {
                 y - origin[1],
                 radius,
                 color,
+                palette,
+                brush,
+                shape,
+                seed ^ (step as u32).wrapping_mul(0x27d4_eb2d),
             );
         }
     }
@@ -740,6 +841,7 @@ impl Editor {
         color_coverage_scale: f32,
         replace_material: bool,
         replace_opacity: u8,
+        writes_material: bool,
         x: i32,
         y: i32,
         scale: f32,
@@ -765,6 +867,83 @@ impl Editor {
         let paint_pixels = paint.pixels();
         let start_geo_id =
             Self::iso_paint_start_clip_geo_id(surface_buffer, clip, clip_geo_id, start_screen);
+        let draw_area = draw_w.saturating_mul(draw_h);
+
+        if draw_area >= ISO_PAINT_PAR_COMPOSITE_PIXELS {
+            let row_stride = target_w * 4;
+            let color_coverage_scale = color_coverage_scale.clamp(0.0, 1.0);
+            target_pixels
+                .par_chunks_exact_mut(row_stride)
+                .zip(material_pixels.par_chunks_exact_mut(row_stride))
+                .enumerate()
+                .for_each(|(dy, (target_row, material_row))| {
+                    let dy = dy as i32;
+                    let dy_local = dy - y;
+                    if dy_local < 0 || dy_local >= draw_h as i32 {
+                        return;
+                    }
+                    let sy = ((dy_local as f32) / scale).floor() as usize;
+                    if sy >= paint_h {
+                        return;
+                    }
+
+                    let dx_start = x.max(0);
+                    let dx_end = (x + draw_w as i32).min(target_dim.width);
+                    for dx in dx_start..dx_end {
+                        let dx_local = dx - x;
+                        let sx = ((dx_local as f32) / scale).floor() as usize;
+                        if sx >= paint_w
+                            || !Self::iso_paint_clip_allows(
+                                surface_buffer,
+                                clip,
+                                start_geo_id,
+                                dx,
+                                dy,
+                            )
+                        {
+                            continue;
+                        }
+
+                        let src_index = (sy * paint_w + sx) * 4;
+                        if src_index + 3 >= paint_pixels.len() {
+                            continue;
+                        }
+                        let src = [
+                            paint_pixels[src_index],
+                            paint_pixels[src_index + 1],
+                            paint_pixels[src_index + 2],
+                            paint_pixels[src_index + 3],
+                        ];
+                        if src[3] == 0 {
+                            continue;
+                        }
+
+                        let row_index = dx as usize * 4;
+                        let mut color_src = src;
+                        color_src[3] = ((color_src[3] as f32 * color_coverage_scale)
+                            .round()
+                            .clamp(0.0, 255.0)) as u8;
+                        if color_src[3] > 0 && replace_material {
+                            Self::iso_paint_write_overlay_pixel_at(
+                                target_row, row_index, color_src,
+                            );
+                        } else if color_src[3] > 0 {
+                            Self::iso_paint_blend_pixel_at(target_row, row_index, color_src);
+                        }
+                        if writes_material {
+                            Self::iso_paint_set_material_pixel_at(
+                                material_row,
+                                row_index,
+                                material_id,
+                                replace_material,
+                                replace_opacity,
+                                src[3],
+                            );
+                        }
+                    }
+                });
+            return;
+        }
 
         for dy_local in 0..draw_h {
             let dy = y + dy_local as i32;
@@ -806,7 +985,7 @@ impl Editor {
                     .round()
                     .clamp(0.0, 255.0)) as u8;
                 if color_src[3] > 0 && replace_material {
-                    Self::iso_paint_write_coverage_pixel(
+                    Self::iso_paint_write_overlay_pixel(
                         target_pixels,
                         target_w,
                         target_h,
@@ -824,17 +1003,19 @@ impl Editor {
                         color_src,
                     );
                 }
-                Self::iso_paint_set_material_pixel(
-                    material_pixels,
-                    target_w,
-                    target_h,
-                    dx,
-                    dy,
-                    material_id,
-                    replace_material,
-                    replace_opacity,
-                    src[3],
-                );
+                if writes_material {
+                    Self::iso_paint_set_material_pixel(
+                        material_pixels,
+                        target_w,
+                        target_h,
+                        dx,
+                        dy,
+                        material_id,
+                        replace_material,
+                        replace_opacity,
+                        src[3],
+                    );
+                }
             }
         }
     }
@@ -889,6 +1070,93 @@ impl Editor {
             clip_geo_id,
             start_screen,
         );
+        let draw_area = draw_w.saturating_mul(draw_h);
+
+        if draw_area >= ISO_PAINT_PAR_COMPOSITE_PIXELS {
+            let row_stride = target_w * 4;
+            target_pixels
+                .par_chunks_exact_mut(row_stride)
+                .zip(material_pixels.par_chunks_exact_mut(row_stride))
+                .enumerate()
+                .for_each(|(dy, (target_row, material_row))| {
+                    let dy = dy as i32;
+                    let dy_local = dy - y;
+                    if dy_local < 0 || dy_local >= draw_h as i32 {
+                        return;
+                    }
+                    let sy = ((dy_local as f32) / scale).floor() as usize;
+                    if sy >= mask_h {
+                        return;
+                    }
+
+                    let dx_start = x.max(0);
+                    let dx_end = (x + draw_w as i32).min(target_dim.width);
+                    for dx in dx_start..dx_end {
+                        let dx_local = dx - x;
+                        let sx = ((dx_local as f32) / scale).floor() as usize;
+                        if sx >= mask_w
+                            || !Self::iso_paint_clip_allows(
+                                Some(surface_buffer),
+                                clip,
+                                start_geo_id,
+                                dx,
+                                dy,
+                            )
+                        {
+                            continue;
+                        }
+
+                        let src_index = (sy * mask_w + sx) * 4;
+                        if src_index + 3 >= mask_pixels.len() {
+                            continue;
+                        }
+                        let mask_alpha = mask_pixels[src_index + 3];
+                        if mask_alpha == 0 {
+                            continue;
+                        }
+                        let Some(surface_pixel) =
+                            surface_buffer.pixel(dx, dy).filter(|pixel| pixel.valid)
+                        else {
+                            continue;
+                        };
+                        let mut color = Self::iso_paint_sample_brick_surface_color(
+                            surface_pixel.uv,
+                            base,
+                            pattern_kind,
+                            pattern_scale,
+                            pattern_mortar,
+                            pattern_detail,
+                            pattern_variation,
+                        );
+                        let color_alpha = ((color[3] as u16 * mask_alpha as u16) / 255) as u8;
+                        color[3] = if replace_material {
+                            ((color_alpha as u16 * replace_opacity as u16) / 254) as u8
+                        } else {
+                            color_alpha
+                        };
+
+                        let row_index = dx as usize * 4;
+                        if color[3] > 0 {
+                            if replace_material {
+                                Self::iso_paint_write_overlay_pixel_at(
+                                    target_row, row_index, color,
+                                );
+                            } else {
+                                Self::iso_paint_blend_pixel_at(target_row, row_index, color);
+                            }
+                        }
+                        Self::iso_paint_set_material_pixel_at(
+                            material_row,
+                            row_index,
+                            material_id,
+                            replace_material,
+                            replace_opacity,
+                            mask_alpha,
+                        );
+                    }
+                });
+            return;
+        }
 
         for dy_local in 0..draw_h {
             let dy = y + dy_local as i32;
@@ -941,7 +1209,7 @@ impl Editor {
                 };
                 if color[3] > 0 {
                     if replace_material {
-                        Self::iso_paint_write_coverage_pixel(
+                        Self::iso_paint_write_overlay_pixel(
                             target_pixels,
                             target_w,
                             target_h,
@@ -983,6 +1251,7 @@ impl Editor {
         clip: &str,
         start_screen: Option<[i32; 2]>,
         clip_geo_id: Option<scenevm::GeoId>,
+        clears_material: bool,
         x: i32,
         y: i32,
         scale: f32,
@@ -1008,6 +1277,68 @@ impl Editor {
         let mask_pixels = mask.pixels();
         let start_geo_id =
             Self::iso_paint_start_clip_geo_id(surface_buffer, clip, clip_geo_id, start_screen);
+        let draw_area = draw_w.saturating_mul(draw_h);
+
+        if draw_area >= ISO_PAINT_PAR_COMPOSITE_PIXELS {
+            let row_stride = target_w * 4;
+            target_pixels
+                .par_chunks_exact_mut(row_stride)
+                .zip(material_pixels.par_chunks_exact_mut(row_stride))
+                .enumerate()
+                .for_each(|(dy, (target_row, material_row))| {
+                    let dy = dy as i32;
+                    let dy_local = dy - y;
+                    if dy_local < 0 || dy_local >= draw_h as i32 {
+                        return;
+                    }
+                    let sy = ((dy_local as f32) / scale).floor() as usize;
+                    if sy >= mask_h {
+                        return;
+                    }
+
+                    let dx_start = x.max(0);
+                    let dx_end = (x + draw_w as i32).min(target_dim.width);
+                    for dx in dx_start..dx_end {
+                        let dx_local = dx - x;
+                        let sx = ((dx_local as f32) / scale).floor() as usize;
+                        if sx >= mask_w
+                            || !Self::iso_paint_clip_allows(
+                                surface_buffer,
+                                clip,
+                                start_geo_id,
+                                dx,
+                                dy,
+                            )
+                        {
+                            continue;
+                        }
+
+                        let src_index = (sy * mask_w + sx) * 4;
+                        if src_index + 3 >= mask_pixels.len() {
+                            continue;
+                        }
+                        let mask_a = mask_pixels[src_index + 3] as u16;
+                        if mask_a == 0 {
+                            continue;
+                        }
+                        let row_index = dx as usize * 4;
+                        if row_index + 3 >= target_row.len() {
+                            continue;
+                        }
+                        let keep = 255 - mask_a;
+                        target_row[row_index + 3] =
+                            ((target_row[row_index + 3] as u16 * keep) / 255) as u8;
+                        if clears_material {
+                            Self::iso_paint_clear_material_pixel_at(
+                                material_row,
+                                row_index,
+                                mask_pixels[src_index + 3],
+                            );
+                        }
+                    }
+                });
+            return;
+        }
 
         for dy_local in 0..draw_h {
             let dy = y + dy_local as i32;
@@ -1043,14 +1374,16 @@ impl Editor {
                 let keep = 255 - mask_a;
                 target_pixels[dst_index + 3] =
                     ((target_pixels[dst_index + 3] as u16 * keep) / 255) as u8;
-                Self::iso_paint_clear_material_pixel(
-                    material_pixels,
-                    target_w,
-                    target_h,
-                    dx,
-                    dy,
-                    mask_pixels[src_index + 3],
-                );
+                if clears_material {
+                    Self::iso_paint_clear_material_pixel(
+                        material_pixels,
+                        target_w,
+                        target_h,
+                        dx,
+                        dy,
+                        mask_pixels[src_index + 3],
+                    );
+                }
             }
         }
     }
@@ -1157,11 +1490,9 @@ impl Editor {
             .find_map(|point| point.owner.as_ref().map(Self::iso_paint_owner_geo_id));
         let replace_material = stroke.material_mode == "replace";
         let replace_opacity = ((stroke.opacity.clamp(0.0, 1.0) * 254.0).round() as u8).min(254);
-        let color_coverage_scale = if replace_material {
-            stroke.opacity.clamp(0.0, 1.0)
-        } else {
-            Self::iso_paint_color_coverage_scale(&stroke.brush, stroke.material_id)
-        };
+        let writes_material = stroke.brush != "screen";
+        let color_coverage_scale =
+            Self::iso_paint_color_coverage_scale(&stroke.brush, stroke.material_id);
         if !erase && stroke.brush == "brick" && world_anchor.is_none() {
             return Vec::new();
         }
@@ -1195,6 +1526,10 @@ impl Editor {
             )
         };
         let radius = (stroke.size * 2.0).round().max(1.0) as i32;
+        let mut shape_hasher = DefaultHasher::new();
+        stroke.id.hash(&mut shape_hasher);
+        stroke.brush_shape.hash(&mut shape_hasher);
+        let shape_seed = shape_hasher.finish() as u32;
         let pixels = paint.pixels_mut();
 
         if stroke.points.len() == 1 {
@@ -1207,6 +1542,10 @@ impl Editor {
                 point.screen[1] - origin[1],
                 radius,
                 color,
+                &stroke.palette_colors,
+                &stroke.brush,
+                &stroke.brush_shape,
+                shape_seed,
             );
         } else {
             for pair in stroke.points.windows(2) {
@@ -1218,6 +1557,10 @@ impl Editor {
                     pair[0].screen[1] - origin[1],
                     radius,
                     color,
+                    &stroke.palette_colors,
+                    &stroke.brush,
+                    &stroke.brush_shape,
+                    shape_seed,
                 );
                 Self::iso_paint_draw_segment_coverage(
                     pixels,
@@ -1228,6 +1571,10 @@ impl Editor {
                     origin,
                     radius,
                     color,
+                    &stroke.palette_colors,
+                    &stroke.brush,
+                    &stroke.brush_shape,
+                    shape_seed,
                 );
             }
         }
@@ -1241,6 +1588,7 @@ impl Editor {
             color_coverage_scale,
             replace_material,
             replace_opacity,
+            writes_material,
             brush: stroke.brush.clone(),
             clip: stroke.clip.clone(),
             material_id: stroke.material_id,
@@ -1433,6 +1781,7 @@ impl Editor {
                             &stroke.clip,
                             start_screen,
                             stroke.clip_geo_id,
+                            stroke.writes_material,
                             draw_origin[0],
                             draw_origin[1],
                             draw_scale,
@@ -1472,6 +1821,7 @@ impl Editor {
                             stroke.color_coverage_scale,
                             stroke.replace_material,
                             stroke.replace_opacity,
+                            stroke.writes_material,
                             draw_origin[0],
                             draw_origin[1],
                             draw_scale,
@@ -1492,6 +1842,7 @@ impl Editor {
         for chunk_cache in render_cache.chunks.values() {
             for stroke in &chunk_cache.strokes {
                 if stroke.erase
+                    || !stroke.writes_material
                     || !stroke.replace_material
                     || (stroke.replace_opacity == 254
                         && !Self::iso_paint_material_is_translucent(stroke.material_id))

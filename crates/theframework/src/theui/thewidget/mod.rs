@@ -118,7 +118,7 @@ pub mod prelude {
         TheNodeCanvasView, TheNodeCanvasViewTrait,
     };
     pub use crate::theui::thewidget::thepaletteindexpicker::{
-        ThePaletteIndexPicker, ThePaletteIndexPickerTrait,
+        ThePaletteIndexPicker, ThePaletteIndexPickerTrait, ThePaletteIndexRowPicker,
     };
     pub use crate::theui::thewidget::thepalettepicker::{ThePalettePicker, ThePalettePickerTrait};
     pub use crate::theui::thewidget::theseparator::TheSeparator;
