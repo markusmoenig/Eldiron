@@ -679,7 +679,7 @@ MAGIC
     data {
       [ui]
       role = "button"
-      command = "intent.spell:{UI.spell.runes}"
+      command = "intent.invoke:words_of_power:{UI.spell.runes}"
       border_size = 1
       border_color = "#d7bb57"
       background_color = "#322a0dcc"

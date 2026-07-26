@@ -28,6 +28,9 @@ crates/ruleset/rulesets/
       locales.toml
       equipment.toml
       fx.toml
+      icons.toml
+      invocations.toml
+      conditions.toml
       actions.toml
       abilities_spells.toml
       races_classes.toml
@@ -35,6 +38,7 @@ crates/ruleset/rulesets/
       assets/
         humanoid.eldiron_avatar
         orc.eldiron_avatar
+        skeleton.eldiron_avatar
 ```
 
 This location is intentional. The ruleset is not owned by Creator only, and it
@@ -58,7 +62,7 @@ Official rulesets are embedded at compile time by the `eldiron-ruleset` crate.
 
 The ruleset crate includes all official v1 TOML parts with
 `include_str!`, joins them into one effective official TOML source, and also
-embeds the bundled `humanoid` and `orc` avatar assets.
+embeds the bundled `humanoid`, `orc`, and `skeleton` avatar assets.
 
 This lets every binary built from the repository access the same official
 ruleset through a package-safe crate API without each app carrying its own
@@ -171,6 +175,19 @@ should prefer explicit tables and dice-like values.
 
 ## Character Defaults
 
+Identity defaults are optional ruleset references:
+
+```toml
+[identity.defaults]
+race = "Human"
+class = "Warrior"
+```
+
+When present, they must name declared race/class entries. When absent, Eldiron
+does not invent an official race or class: a classless sandbox stays classless,
+including its start UI and action-bar slot resolution. An explicit character
+race or class still wins over the default.
+
 When a character starts, ruleset defaults are applied in this order:
 
 1. global attribute defaults
@@ -207,10 +224,11 @@ service, crafting, training, and dialogue rules without turning every merchant
 or smith into a combat class.
 
 Professions are role labels, not hard crafting caps. Recipe access is gated by
-ruleset skills such as `fletching`, `herbalism`, or `restoration`. A character
-can carry skill points with attributes like `skill_fletching = 25`, while simple
-recipes can require `0` skill and be available immediately. Recipes can also
-require known spells, such as `blessed_herb` requiring `minor_heal`.
+ruleset skills such as `fletching`, `herbalism`, `alchemy`, `ritualism`, or
+`restoration`. A character can carry skill points with attributes like
+`skill_fletching = 25`, while simple recipes can require `0` skill and be
+available immediately. Recipes can also require known spells, such as
+`moonwater` requiring `minor_heal`.
 
 If a character does not define `start_equipped_items`,
 `startup_equipped_items`, or `add_equip_items`, the class loadout supplies
@@ -220,18 +238,116 @@ starting inventory.
 
 Explicit character startup item attributes always override the class loadout.
 
+Rulesets assign engine-facing meaning through optional semantic attribute
+roles. The official mapping is:
+
+```toml
+[attributes.roles]
+health = "HP"
+max_health = "MAX_HP"
+level = "LEVEL"
+experience = "EXP"
+weapon_damage = "DMG"
+armor = "ARMOR"
+```
+
+A different ruleset can use names such as `VITAL`, `RANK`, `HARM`, and `WARD`;
+damage, healing, respawn, XP, equipment summaries, graphical UI placeholders,
+and terminal stats follow the mapping. The role values must reference
+attributes declared by the same ruleset. A classless sandbox may omit
+progression roles, in which case Eldiron does not invent `LEVEL` or `EXP`.
+
+Class resource growth uses a generic list rather than HP/MP-specific fields:
+
+```toml
+[classes.Cleric.progression.level]
+resource_gains = [
+  { attribute = "HP", maximum_attribute = "MAX_HP", per_level = 5 },
+  { attribute = "MP", maximum_attribute = "MAX_MP", per_level = 3 },
+]
+primary_attribute_gain = 1
+```
+
+Custom resources use the same shape. The current and maximum attributes grow
+together while an explicitly authored current value—such as an injured
+character's HP—is preserved.
+
+Action costs use the same generic attribute ids:
+
+```toml
+[actions.focus_bolt]
+kind = "spell"
+cost = { FOCUS = 4 }
+result = { damage = "spells.focus_bolt.damage" }
+```
+
+All typed resource costs are checked before the cast and committed by attribute
+name. `MP` has no privileged runtime branch.
+
+Class unlock tables are the sole gameplay owner of when abilities and spells
+become known:
+
+```toml
+[classes.Warrior.unlocks.level_1]
+abilities = ["basic_attack", "guard"]
+
+[classes.Warrior.unlocks.level_2]
+abilities = ["power_strike"]
+
+[classes.Warrior.unlocks.level_10]
+abilities = ["executioner_strike"]
+```
+
+Do not duplicate these lists on the class or in `starting_loadout`; the latter
+owns items only. The runtime materializes every unlock at or below the
+character's level, the server uses the same table for authorization, and the
+action UI uses it to explain future unlock levels. Validators reject unlocks
+outside `progression.level.max_level`, unknown references, unlocked definitions
+without an action, and broken `rules.*` action-bar commands.
+
+Level thresholds may be explicit:
+
+```toml
+[progression.level]
+max_level = 10
+
+[progression.xp_table]
+level_2 = 100
+level_3 = 250
+```
+
+or formula-driven:
+
+```toml
+[progression.level]
+max_level = 30
+xp_for_level = "level * level * 100"
+```
+
+`max_level` is authoritative for both forms. Runtime XP grants cannot advance
+past it, XP-table rows above it are validation errors, and a classless game may
+omit `classes` and the entire `progression` module without warnings.
+
 ## Intent Rules
 
 Common intent policy belongs in the effective ruleset.
 
-For example, the official attack rule is declarative:
+An action can bind an engine input intent. The binding is case-insensitive and
+must be unique:
 
 ```toml
-[actions.basic_attack]
+[actions.strike]
+kind = "attack"
+intent = "attack"
 target = "hostile_or_neutral_entity"
 range = "weapon"
 cooldown = 1.0
+result = { damage = "weapon" }
 ```
+
+The action id may be anything. The action bound to `attack` supplies ordinary
+and follow-attack requirements, damage, range, ammunition, and cooldown, so a
+custom ruleset does not need an action named `basic_attack`.
 
 Action target kinds describe who or what the action can affect:
 
@@ -247,6 +363,157 @@ Action target kinds describe who or what the action can affect:
 The runtime resolves the target disposition from race relations and reputation.
 Reputation defaults to `0`, which means normal: keep the base race relation.
 Rules should use structured keys that tools can validate.
+
+## Derived Stats
+
+Rulesets may calculate an effective attribute without storing the calculated
+result on every character:
+
+```toml
+[derived_stats.POWER]
+formula = "base + floor(max(0, INT - 10) / 4) + floor(level / 5)"
+minimum = 0
+
+[derived_stats.MAX_MP]
+formula = "base + WIS"
+minimum = 0
+```
+
+`base` is the recipient's saved value for the derived stat. `level` reads the
+ruleset-configured level attribute. Other identifiers resolve through the same
+effective-attribute path, so formulas can depend on ordinary attributes or
+other derived stats. Dependencies are cycle-validated; the runtime also has a
+cycle guard.
+
+Formula syntax supports `+`, `-`, `*`, `/`, comparisons, `&&`, `||`,
+parentheses, and `min`, `max`, `clamp`, `abs`, `floor`, `ceil`, and `round`.
+Optional `minimum` and `maximum` fields clamp the formula result.
+
+The server uses effective values for combat formulas, numeric action
+requirements, `maximum_attribute` action clamps, healing, resource
+regeneration caps, and respawn health. The action UI evaluates the same
+formula. Conditions modify dependencies before they enter a formula and then
+modify the resulting derived stat. Nothing writes the calculated result back
+to the saved base attribute.
+
+## Conditions
+
+Conditions are reusable timed or persistent state. Actions apply or remove
+them, while the condition definition owns duration, stacking, tags, trait
+immunities, numeric attribute modifiers, periodic effects, and visual phases:
+
+```toml
+[conditions.guarded]
+name = "Guarded"
+duration = 2.0
+stacking = "refresh"
+max_stacks = 1
+tags = ["stance", "beneficial"]
+immune_traits = []
+modifiers = [{ attribute = "ARMOR", add = 2 }]
+
+[conditions.weakened]
+duration = 4.0
+stacking = "stack"
+max_stacks = 3
+modifiers = [
+  { attribute = "POWER", add = -0.5, multiply = 0.9, minimum = 1 },
+]
+
+[conditions.guarded.fx.apply]
+preset = "hit_burst"
+
+[conditions.guarded.fx.active]
+preset = "holy_glow"
+
+[conditions.poisoned.periodic]
+interval = 1.0
+initial_delay = 1.0
+effects = [
+  { damage = 2, damage_kind = "poison" },
+  { resource = "STAMINA", add = -1, minimum = 0 },
+]
+
+[conditions.poisoned.fx.tick]
+preset = "poison_burst"
+
+[actions.guard]
+kind = "stance"
+target = "self"
+cooldown = 3.0
+result = { apply_condition = "guarded" }
+```
+
+Valid stacking policies are `replace`, `refresh`, `stack`, and `ignore`.
+`max_stacks` may exceed one only for `stack`. A zero duration persists until
+removed. The runtime exposes `conditions`, `condition_<id>_remaining`, and
+`condition_<id>_stacks` on the entity for UI and scripts. Active periodic
+conditions also expose `condition_<id>_tick_remaining`; applying-source
+identity is stored as `condition_<id>_source`. Periodic effects may deal typed
+damage, heal, or add to a numeric attribute/resource with optional minimum and
+maximum bounds. Their values scale with the active stack count.
+
+Static modifiers accept `add`, `multiply`, `minimum`, and `maximum`; at least
+one operation is required. Evaluation is independent of TOML table order:
+
+1. sum every `add × stacks`
+2. multiply by every `multiply ^ stacks`
+3. apply the strongest minimum and strongest maximum
+
+Combat formulas and numeric action requirements read this effective value
+without overwriting the entity's saved base attribute; the action UI uses the
+same calculation. A multiplier must be non-negative, and a modifier's minimum
+cannot exceed its maximum. If separately authored active bounds conflict, the
+strongest maximum is applied last.
+
+Condition FX stages are `apply`, `active`, `tick`, and `remove`. The `active`
+stage is a replicated persistent particle emitter that follows the affected
+entity until the condition ends. Each other stage is a one-shot ruleset FX
+preset. An explicit `[conditions.<id>.fx.<stage>]` wins. If it is absent, the
+runtime may use `[fx.condition_fallbacks].<stage>`; if that mapping is also
+absent, no particle is required.
+
+Scripts may observe `condition_applied`, `condition_tick`, and
+`condition_removed`. Their payload contains applying source id in `x`, stack
+count in `y`, remaining seconds in `z`, and the condition id as the string.
+
+These mirrored attributes are the condition save contract. Because they live
+on the serialized entity, active ids, stacks, remaining duration, periodic
+phase, and stable source `creator_id` survive a map save/load. Timers pause
+while the region is unloaded. On restoration, stale or expired definitions are
+dropped, the source is resolved to its new runtime id (or falls back to the
+affected entity), and only the persistent `active` FX is rebuilt. Transient
+ruleset FX items are never restored, and restoration does not replay lifecycle
+events or one-shot `apply` particles.
+
+## Optional Invocation Schemes
+
+Ruleset actions can have optional token-sequence bindings. The official example
+defines the available words separately from the action:
+
+```toml
+[invocation_schemes.words_of_power]
+kind = "token_sequence"
+tokens = ["LO", "VI", "FUL", "YA", "IR", "SAR"]
+separator = " "
+max_tokens = 4
+case_sensitive = false
+
+[actions.minor_heal]
+invocations = [
+  { scheme = "words_of_power", sequence = ["LO", "VI"] },
+]
+```
+
+A screen can assemble tokens in any style and submit:
+
+```toml
+command = "intent.invoke:words_of_power:{UI.spell.runes}"
+```
+
+The server resolves the phrase to the bound action before normal targeting and
+execution. This keeps word/rune interfaces, icon action bars, hotkeys, and text
+commands interchangeable. Invocation tokens do not require icons.
 
 ## Item Templates
 
@@ -287,6 +554,25 @@ Ruleset icons live in `[icons]` and are bundled as neutral PNG masks. Item
 templates can set `icon = "training_sword"` as a generic fallback. Item display
 still prefers explicit tiles, avatar channels, and `visual_template` pixel masks
 when present, so hand-shaped pixel item icons remain the primary look.
+Icons are shared semantic assets rather than one file per definition: the
+official Guard action, for example, deliberately references the existing
+`round_shield` icon.
+
+Actions and items may share any semantic icon id, so new content does not
+require one-off artwork. Action icons resolve an explicit `ui.icon`, then an
+icon matching the required ability, required spell, or action id, then
+`[ui.action_icon_fallbacks]` by `healing`, `condition`, action `kind`, and
+`default`. Item icons resolve an explicit `icon`/`icon_template`, then
+`[ui.item_icon_fallbacks]` by `ruleset_kind` and `default`. Ruleset-backed
+project item templates receive the resolved item fallback during sync.
+
+Action particle stages work the same way. Explicit
+`[actions.<id>.fx.<stage>]` data wins; otherwise
+`[fx.action_fallbacks.<semantic-role>].<stage>` may supply a shared preset.
+Healing and condition roles precede the action kind. Attack, spell, stance, and
+other mappings are authored by the ruleset rather than hardcoded by official
+action id. These fallback tables are optional, and all referenced icon and FX
+preset ids are validated.
 
 Ruleset-backed item templates can also carry item script source, authoring text,
 tile ids, and lights. The ruleset can bundle the referenced tiles too, including
@@ -301,6 +587,61 @@ and the default official torch destroys itself at `0%` condition.
 Ruleset item ids are stable. Startup loadouts can reference `training_sword` or
 `padded_armor` even when the visible item name is `Training Sword` or
 `Padded Armor`.
+
+## Equipment Policy
+
+Slots, category conflicts, and class permissions are authored in the ruleset
+rather than hardcoded by the engine:
+
+```toml
+[equipment]
+weapon_slots = ["main_hand", "off_hand"]
+armor_slots = ["head", "torso", "legs", "hands", "feet", "shield"]
+
+[equipment.avatar_anchors]
+main_hand = "main_hand"
+off_hand = "off_hand"
+shield = "off_hand"
+
+[equipment.weapon_categories.spear]
+handed = "two_handed"
+
+[equipment.armor_categories.shield]
+occupies_slots = ["off_hand"]
+
+[classes.Warrior]
+allowed_weapons = ["sword", "axe", "mace", "spear", "bow"]
+allowed_armor = ["cloth", "leather", "chain", "shield"]
+```
+
+The item's declared `slot` is always occupied. A two-handed weapon additionally
+occupies all `weapon_slots`, and `occupies_slots` adds any category-specific
+conflicts. In the example, a shield is stored in `shield` but consumes
+`off_hand`, so it cannot coexist with a bow or spear.
+
+Slot arrays are ordered and duplicate IDs are invalid. For weapon damage,
+range, cooldown, script source context, and UI/terminal equipment totals,
+Eldiron checks equipped weapon slots in the authored order. The first occupied
+weapon slot is the primary attack source. There is no second slot list in
+**Game / Settings** and the engine does not guess names such as `main_hand`;
+custom names work directly.
+
+`avatar_anchors` maps any declared slot name onto the avatar renderer's
+main-hand or off-hand frame anchor. It is optional; omit it for text-only games
+or equipment that should not be drawn on the avatar.
+
+Class permission arrays are independently optional:
+
+- missing `allowed_weapons` or `allowed_armor` means unrestricted for that
+  family
+- an explicit empty array means the class may equip none from that family
+- clothing follows `allowed_armor`
+- a classless character remains unrestricted by class, but still follows
+  slots and handedness
+
+The validator checks starting loadouts against this same policy. At runtime,
+startup, drag/drop, command, and script equip operations all use one cached
+policy and reject changes without losing or moving the item.
 
 ## Palette Ownership
 
@@ -337,13 +678,21 @@ The bundled asset lives in the ruleset directory:
 ```text
 crates/ruleset/rulesets/eldiron/v1/assets/humanoid.eldiron_avatar
 crates/ruleset/rulesets/eldiron/v1/assets/orc.eldiron_avatar
+crates/ruleset/rulesets/eldiron/v1/assets/skeleton.eldiron_avatar
 ```
 
 Runtime asset loading makes this available to clients. Character visuals can
 still provide concrete presentation with values such as `tile_id` or `avatar`.
 An explicit project visual wins over the ruleset default, and a project avatar
-named `humanoid` or `orc` replaces the matching bundled default avatar for the
-project.
+named `humanoid`, `orc`, or `skeleton` replaces the matching bundled default
+avatar for the project. The bundled Skeleton file is a distinct copy of the
+humanoid asset intended as the import target for a dedicated Skeleton atlas.
+
+The official ruleset also demonstrates race traits as gameplay data rather than
+engine branches. Skeleton materializes `traits = ["undead", "skeletal"]`;
+the Cleric's `turn_undead` action uses a generic `target_attributes` membership
+predicate and applies the ordinary particle-backed `turned` condition. Custom
+races, traits, predicates, and conditions use the same path.
 
 Ruleset items can also define `avatar_channels`:
 
@@ -417,7 +766,8 @@ Use the inspector commands to browse the effective ruleset:
 
 - `rules overview`: show active ruleset metadata and section counts
 - `rules validate`: check references, rolls, XP tables, visuals, items, spells, and classes
-- `rules list`: list races, classes, professions, skills, recipes, weapons, armor, spells, and abilities
+- `rules list`: list races, classes, professions, skills, recipes, weapons,
+  armor, spells, abilities, actions, conditions, and invocation schemes
 - `rules list <section>`: list one section
 - `rules show <path>`: show the TOML at a ruleset path
 
@@ -435,8 +785,8 @@ consumes that quantity from matching inventory stacks before damage is queued.
 Stackable inventory items use `quantity` for the current count and `max_stack`
 for slot capacity. The same stack-counting path is used by action `consumes`
 entries for reagents, materials, and future crafting inputs. For example,
-`minor_heal` consumes `1 blessed_herb` only after target, range, MP, and effect
-checks pass.
+`minor_heal` consumes `1 blessed_herb` and `1 moonwater` only after target,
+range, MP, and effect checks pass.
 
 Regenerating resources use top-level `resource_regen` rules. For example,
 `[resource_regen.MP]` restores mana over real-time seconds, carries fractional
@@ -450,16 +800,25 @@ Resource nodes are separate from inventory materials. For example,
 lets it become visible again after its respawn timer. It also sends a localized
 success message such as `You gather Wild Herb x2`. `green_wood_node` works the
 same way for `gather_wood`, producing `green_wood x3`, while `bird_nest_node`
-uses `gather_feathers` to produce `feather x2`. The text command path can use
-the same action with:
+uses `gather_feathers` to produce `feather x2`. The same representation defines
+Moonleaf Patches, Sunstone Outcrops, Old Graves, and Resinous Stumps for ritual
+materials. The text command path can use these actions too:
 
 ```text
 gather herbs
 gather wood
 gather feathers
+gather moonleaf
+mine sun shards
+sift grave dust
+tap ember resin
 craft blessed herb
 craft wooden arrows
 craft hunting bow
+craft moonwater
+craft consecrated oil
+craft warding salt
+craft ember beads
 ```
 
 When no target is named, the text command chooses the nearest visible resource
@@ -574,12 +933,18 @@ worth = 50
 ## Recipes
 
 Recipes live in `recipes.toml` and use the same source of truth as items,
-actions, skills, professions, and spells. The first recipes are intentionally
-small:
+actions, skills, professions, and spells. The official set includes immediate
+crafts and a multi-stage ritual economy:
 
 - `wooden_arrows`: consumes `green_wood x1` and `feather x2`, produces `wooden_arrows x10`
 - `blessed_herb`: requires `minor_heal`, consumes `wild_herb x1`, produces `blessed_herb x1`
 - `hunting_bow`: recommends `skill_fletching = 25`, consumes `green_wood x3`, produces `hunting_bow x1`
+- `moonwater`: distills `moonleaf x2` into `moonwater x2`
+- `consecrated_oil`: combines `blessed_herb x1` and `sun_shard x1`
+- `warding_salt`: purifies `grave_dust x2` with `sun_shard x1`
+- `ember_beads`: shapes `ember_resin x2` into `ember_bead x3`
+- `ritual_censer`: invests three material families in reusable spell equipment
+- `sunward_charm`: turns advanced ritual materials into reusable resistance
 
 Recipe execution consumes input stack quantities and merges output stack
 quantities into existing inventory slots when possible. This is the same economy
@@ -592,13 +957,20 @@ The text command path can craft known recipes by name:
 craft wooden arrows
 craft hunting bow
 craft blessed herb
+craft moonwater
+craft consecrated oil
+craft warding salt
+craft ember beads
+craft ritual censer
+craft sunward charm
 ```
 
 Recipes can also be exposed through rules actions such as
-`rules.craft_blessed_herb`, `rules.craft_wooden_arrows`, and
-`rules.craft_hunting_bow`. This lets screen command slots trigger the same
-recipe path as text commands and scripts while keeping recipes as the source of
-truth for materials, spell gates, skill targets, and outputs.
+`rules.craft_blessed_herb`, `rules.distill_moonwater`,
+`rules.mix_warding_salt`, and `rules.craft_ritual_censer`. This lets screen
+command slots trigger the same recipe path as text commands and scripts while
+keeping recipes as the source of truth for materials, spell gates, skill
+targets, and outputs.
 
 Recipes can still use `required_skill` for hard gates, but ordinary crafting is
 better modeled through output quality. `recommended_skill`, `difficulty`, and a
@@ -606,6 +978,13 @@ supporting attribute such as `DEX` or `WIS` set crafted item `quality` from
 `1..100`; crafted items start at `condition = 100`. Weapon damage scales by item
 quality and condition, so a new Ranger can craft immediately but starts with
 rougher gear.
+
+When `[crafting.skill_gain]` is enabled, a successful recipe also advances its
+skill. The official configuration grants one point per success, plus one while
+below the recipe's recommendation, and stops awarding points twenty above that
+recommendation. The skill definition's `max` remains the absolute cap. This
+turns repeated low-tier preparations into a real path toward gated equipment;
+failed attempts never grant skill.
 
 ## Future Versioning
 

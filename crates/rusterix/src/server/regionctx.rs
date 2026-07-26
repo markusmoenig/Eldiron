@@ -2,6 +2,11 @@ use crate::prelude::*;
 use crate::vm::{Program, VMValue};
 use crate::{CollisionWorld, Entity, MapMini, PlayerCamera};
 use crossbeam_channel::{Receiver, Sender};
+use eldiron_ruleset::{
+    ResolvedAction, ResolvedActionCatalogue, ResolvedActionEffect, ResolvedCondition,
+    ResolvedDerivedStat, ResolvedEquipmentPolicy, ResolvedInvocationScheme,
+};
+use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock, OnceLock, RwLock};
 use theframework::prelude::*;
 use toml::Table;
@@ -58,6 +63,49 @@ impl SimulationMode {
 
 static WORLD_STATE: LazyLock<RwLock<ValueContainer>> =
     LazyLock::new(|| RwLock::new(ValueContainer::default()));
+
+#[derive(Default)]
+pub(crate) struct ResolvedRulesCache {
+    initialized: bool,
+    catalogue: ResolvedActionCatalogue,
+    conditions: BTreeMap<String, ResolvedCondition>,
+    derived_stats: BTreeMap<String, ResolvedDerivedStat>,
+    equipment: ResolvedEquipmentPolicy,
+    error: Option<String>,
+}
+
+fn resolve_rules_state(
+    rules: &Table,
+) -> Result<
+    (
+        ResolvedActionCatalogue,
+        BTreeMap<String, ResolvedCondition>,
+        BTreeMap<String, ResolvedDerivedStat>,
+        ResolvedEquipmentPolicy,
+    ),
+    String,
+> {
+    let catalogue = eldiron_ruleset::resolve_action_catalogue(rules)?;
+    let conditions = eldiron_ruleset::resolve_conditions(rules)?;
+    let derived_stats = eldiron_ruleset::resolve_derived_stats(rules)?;
+    let equipment = eldiron_ruleset::resolve_equipment_policy(rules)?;
+    for action in catalogue.actions.values() {
+        for effect in &action.effects {
+            let condition = match effect {
+                ResolvedActionEffect::ApplyCondition { condition, .. }
+                | ResolvedActionEffect::RemoveCondition { condition, .. } => condition,
+                _ => continue,
+            };
+            if !conditions.contains_key(condition) {
+                return Err(format!(
+                    "actions.{}.result references unknown condition '{}'.",
+                    action.id, condition
+                ));
+            }
+        }
+    }
+    Ok((catalogue, conditions, derived_stats, equipment))
+}
 
 #[derive(Default)]
 pub struct RegionCtx {
@@ -126,12 +174,14 @@ pub struct RegionCtx {
     pub turn_timeout_ms: u32,
     pub config: Table,
     pub rules: Table,
+    pub(crate) resolved_rules: RwLock<ResolvedRulesCache>,
     pub assets: Assets,
 
     pub to_receiver: OnceLock<Receiver<RegionMessage>>,
     pub from_sender: OnceLock<Sender<RegionMessage>>,
 
     pub health_attr: String,
+    pub max_health_attr: String,
     pub level_attr: String,
     pub experience_attr: String,
     pub damage_committed: bool,
@@ -150,6 +200,222 @@ pub struct ChoiceSession {
 }
 
 impl RegionCtx {
+    pub(crate) fn sync_attribute_roles(&mut self) {
+        let roles = eldiron_ruleset::resolve_attribute_roles(&self.rules).unwrap_or_default();
+        self.health_attr = roles.get("health").unwrap_or_default().to_string();
+        self.max_health_attr = roles.get("max_health").unwrap_or_default().to_string();
+        self.level_attr = roles.get("level").unwrap_or_default().to_string();
+        self.experience_attr = roles.get("experience").unwrap_or_default().to_string();
+    }
+
+    fn initialize_resolved_rules(&self) -> Result<(), String> {
+        {
+            let cache = self
+                .resolved_rules
+                .read()
+                .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
+            if cache.initialized {
+                return cache.error.clone().map_or(Ok(()), Err);
+            }
+        }
+
+        let resolved = resolve_rules_state(&self.rules);
+        let mut cache = self
+            .resolved_rules
+            .write()
+            .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
+        if !cache.initialized {
+            cache.initialized = true;
+            match resolved {
+                Ok((catalogue, conditions, derived_stats, equipment)) => {
+                    cache.catalogue = catalogue;
+                    cache.conditions = conditions;
+                    cache.derived_stats = derived_stats;
+                    cache.equipment = equipment;
+                }
+                Err(err) => cache.error = Some(err),
+            }
+        }
+        cache.error.clone().map_or(Ok(()), Err)
+    }
+
+    pub fn set_rules(&mut self, rules: Table) -> Result<(), String> {
+        self.rules = rules;
+        self.sync_attribute_roles();
+        let resolved = resolve_rules_state(&self.rules);
+        let cache = self
+            .resolved_rules
+            .get_mut()
+            .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
+        *cache = ResolvedRulesCache {
+            initialized: true,
+            catalogue: resolved
+                .as_ref()
+                .map(|(catalogue, _, _, _)| catalogue.clone())
+                .unwrap_or_default(),
+            conditions: resolved
+                .as_ref()
+                .map(|(_, conditions, _, _)| conditions.clone())
+                .unwrap_or_default(),
+            derived_stats: resolved
+                .as_ref()
+                .map(|(_, _, derived_stats, _)| derived_stats.clone())
+                .unwrap_or_default(),
+            equipment: resolved
+                .as_ref()
+                .map(|(_, _, _, equipment)| equipment.clone())
+                .unwrap_or_default(),
+            error: resolved.err(),
+        };
+        cache.error.clone().map_or(Ok(()), Err)
+    }
+
+    pub fn invalidate_resolved_rules(&mut self) {
+        if let Ok(cache) = self.resolved_rules.get_mut() {
+            *cache = ResolvedRulesCache::default();
+        }
+    }
+
+    pub fn resolved_action(&self, action_id: &str) -> Result<Option<ResolvedAction>, String> {
+        self.initialize_resolved_rules()?;
+        let cache = self
+            .resolved_rules
+            .read()
+            .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
+        Ok(cache.catalogue.action(action_id).cloned())
+    }
+
+    pub fn resolved_condition(
+        &self,
+        condition_id: &str,
+    ) -> Result<Option<ResolvedCondition>, String> {
+        self.initialize_resolved_rules()?;
+        let cache = self
+            .resolved_rules
+            .read()
+            .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
+        Ok(cache.conditions.get(condition_id.trim()).cloned())
+    }
+
+    pub(crate) fn with_resolved_conditions<T>(
+        &self,
+        read: impl FnOnce(&BTreeMap<String, ResolvedCondition>) -> T,
+    ) -> Result<T, String> {
+        self.initialize_resolved_rules()?;
+        let cache = self
+            .resolved_rules
+            .read()
+            .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
+        Ok(read(&cache.conditions))
+    }
+
+    pub(crate) fn with_resolved_derived_stats<T>(
+        &self,
+        read: impl FnOnce(&BTreeMap<String, ResolvedDerivedStat>) -> T,
+    ) -> Result<T, String> {
+        self.initialize_resolved_rules()?;
+        let cache = self
+            .resolved_rules
+            .read()
+            .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
+        Ok(read(&cache.derived_stats))
+    }
+
+    pub(crate) fn resolved_equipment_policy(&self) -> Result<ResolvedEquipmentPolicy, String> {
+        self.initialize_resolved_rules()?;
+        let cache = self
+            .resolved_rules
+            .read()
+            .map_err(|_| "Resolved rules cache is unavailable.".to_string())?;
+        Ok(cache.equipment.clone())
+    }
+
+    pub fn resolved_action_for_intent(
+        &self,
+        intent: &str,
+    ) -> Result<Option<ResolvedAction>, String> {
+        self.initialize_resolved_rules()?;
+        let intent = intent.trim();
+        if intent.is_empty() {
+            return Ok(None);
+        }
+        let cache = self
+            .resolved_rules
+            .read()
+            .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
+        if let Some(action) = cache.catalogue.actions.get(intent) {
+            return Ok(Some(action.clone()));
+        }
+        Ok(cache.catalogue.action_for_intent(intent).cloned())
+    }
+
+    pub fn resolved_action_for_spell(
+        &self,
+        spell_id: &str,
+    ) -> Result<Option<ResolvedAction>, String> {
+        self.initialize_resolved_rules()?;
+        let spell_id = spell_id.trim();
+        if spell_id.is_empty() {
+            return Ok(None);
+        }
+        let cache = self
+            .resolved_rules
+            .read()
+            .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
+        if let Some(action) = cache.catalogue.actions.get(spell_id)
+            && action.required_spell() == Some(spell_id)
+        {
+            return Ok(Some(action.clone()));
+        }
+        Ok(cache
+            .catalogue
+            .actions
+            .values()
+            .find(|action| action.required_spell() == Some(spell_id))
+            .cloned())
+    }
+
+    pub fn resolved_action_for_invocation(
+        &self,
+        scheme_id: &str,
+        phrase: &str,
+    ) -> Result<Option<ResolvedAction>, String> {
+        self.initialize_resolved_rules()?;
+        let cache = self
+            .resolved_rules
+            .read()
+            .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
+        Ok(cache
+            .catalogue
+            .action_for_invocation(scheme_id, phrase)
+            .cloned())
+    }
+
+    pub fn resolved_invocation_bindings(
+        &self,
+    ) -> Result<Vec<(ResolvedInvocationScheme, String, ResolvedAction)>, String> {
+        self.initialize_resolved_rules()?;
+        let cache = self
+            .resolved_rules
+            .read()
+            .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
+        let mut bindings = Vec::new();
+        for action in cache.catalogue.actions.values() {
+            for invocation in &action.invocations {
+                let Some(scheme) = cache.catalogue.invocation_schemes.get(&invocation.scheme)
+                else {
+                    continue;
+                };
+                bindings.push((
+                    scheme.clone(),
+                    scheme.phrase_for_sequence(&invocation.sequence),
+                    action.clone(),
+                ));
+            }
+        }
+        Ok(bindings)
+    }
+
     pub fn clear_world_state() {
         if let Ok(mut state) = WORLD_STATE.write() {
             *state = ValueContainer::default();

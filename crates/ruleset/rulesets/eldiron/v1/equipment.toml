@@ -1,6 +1,11 @@
 [equipment]
 weapon_slots = ["main_hand", "off_hand"]
-armor_slots = ["head", "torso", "legs", "hands", "feet", "shield"]
+armor_slots = ["head", "torso", "legs", "hands", "feet", "shield", "focus"]
+
+[equipment.avatar_anchors]
+main_hand = "main_hand"
+off_hand = "off_hand"
+shield = "off_hand"
 
 [equipment.weapon_categories.sword]
 handed = "one_handed"
@@ -48,6 +53,12 @@ dex_penalty = 1
 crafting_family = "armorsmithing"
 armor_bonus = 1
 dex_penalty = 1
+occupies_slots = ["off_hand"]
+
+[equipment.armor_categories.focus]
+crafting_family = "ritualism"
+armor_bonus = 0
+dex_penalty = 0
 
 [visual_templates.sword_diagonal]
 width = 24
@@ -618,6 +629,43 @@ highlight_color_index = 23
 [items.armor.round_shield.attributes]
 ARMOR = 1
 
+[items.armor.ritual_censer]
+name = "Ritual Censer"
+description = "A hand-balanced censer whose prepared smoke steadies healing and protective magic."
+category = "focus"
+slot = "focus"
+rarity = "uncommon"
+color = 14
+worth = 85
+icon = "novice_mace"
+visual_template = "mace_diagonal"
+blade_color_index = 14
+grip_color_index = 10
+accent_color_index = 23
+highlight_color_index = 13
+
+[items.armor.ritual_censer.attributes]
+POWER = 1
+RESIST = 1
+
+[items.armor.sunward_charm]
+name = "Sunward Charm"
+description = "A warm talisman that turns hostile sorcery and stray flame away from its bearer."
+category = "focus"
+slot = "focus"
+rarity = "uncommon"
+color = 14
+worth = 120
+icon = "holy_light"
+visual_template = "coin_round"
+blade_color_index = 14
+accent_color_index = 23
+highlight_color_index = 13
+
+[items.armor.sunward_charm.attributes]
+RESIST = 2
+FIRE_RESIST = 1
+
 [items.clothing.linen_shirt]
 name = "Linen Shirt"
 description = "A plain linen shirt for everyday travel and layering under armor."
@@ -733,6 +781,86 @@ stackable = true
 quantity = 3
 reagent_for = "restoration"
 
+[items.reagents.moonwater]
+name = "Moonwater"
+description = "Moonleaf distilled into a cool reagent associated with life and renewal."
+category = "liquid"
+slot = "reagent"
+rarity = "common"
+color = 24
+max_stack = 20
+icon = "minor_heal"
+visual_template = "coin_round"
+blade_color_index = 24
+accent_color_index = 23
+highlight_color_index = 16
+
+[items.reagents.moonwater.attributes]
+stackable = true
+quantity = 2
+reagent_for = "life"
+word_of_power = "VI"
+
+[items.reagents.consecrated_oil]
+name = "Consecrated Oil"
+description = "Blessed herbs carrying a sun shard's radiance for grace and holy fire."
+category = "oil"
+slot = "reagent"
+rarity = "common"
+color = 14
+max_stack = 20
+icon = "holy_light"
+visual_template = "coin_round"
+blade_color_index = 14
+accent_color_index = 13
+highlight_color_index = 23
+
+[items.reagents.consecrated_oil.attributes]
+stackable = true
+quantity = 2
+reagent_for = "divine"
+word_of_power = "YA"
+
+[items.reagents.warding_salt]
+name = "Warding Salt"
+description = "Grave dust purified by sunlight, used to trace boundaries the dead cannot cross."
+category = "salt"
+slot = "reagent"
+rarity = "common"
+color = 23
+max_stack = 30
+icon = "round_shield"
+visual_template = "coin_round"
+blade_color_index = 23
+accent_color_index = 16
+highlight_color_index = 14
+
+[items.reagents.warding_salt.attributes]
+stackable = true
+quantity = 3
+reagent_for = "warding"
+word_of_power = "SAR"
+
+[items.reagents.ember_bead]
+name = "Ember Bead"
+description = "A hardened drop of volatile resin that wakes when a flame word is spoken."
+category = "bead"
+slot = "reagent"
+rarity = "common"
+color = 9
+max_stack = 30
+icon = "torch"
+visual_template = "coin_round"
+blade_color_index = 9
+accent_color_index = 14
+highlight_color_index = 23
+
+[items.reagents.ember_bead.attributes]
+stackable = true
+quantity = 3
+reagent_for = "fire"
+word_of_power = "FUL"
+
 [items.materials.green_wood]
 name = "Green Wood"
 description = "Fresh flexible wood suitable for simple shafts, handles, and early crafting."
@@ -783,6 +911,83 @@ highlight_color_index = 23
 stackable = true
 quantity = 5
 crafting_family = "herbalism"
+
+[items.materials.moonleaf]
+name = "Moonleaf"
+description = "A pale night-growing leaf that holds dew long after sunrise."
+category = "herb"
+slot = "material"
+rarity = "common"
+color = 24
+max_stack = 50
+icon = "wild_herb"
+visual_template = "herb_sprig"
+blade_color_index = 24
+grip_color_index = 13
+accent_color_index = 23
+highlight_color_index = 16
+
+[items.materials.moonleaf.attributes]
+stackable = true
+quantity = 4
+crafting_family = "alchemy"
+
+[items.materials.sun_shard]
+name = "Sun Shard"
+description = "A soft golden mineral that stores a trace of daylight."
+category = "mineral"
+slot = "material"
+rarity = "uncommon"
+color = 14
+max_stack = 40
+icon = "holy_light"
+visual_template = "coin_round"
+blade_color_index = 14
+accent_color_index = 9
+highlight_color_index = 23
+
+[items.materials.sun_shard.attributes]
+stackable = true
+quantity = 3
+crafting_family = "ritualism"
+
+[items.materials.grave_dust]
+name = "Grave Dust"
+description = "Cold mineral dust carrying the memory of a burial place."
+category = "dust"
+slot = "material"
+rarity = "common"
+color = 25
+max_stack = 50
+icon = "loot_corpse"
+visual_template = "coin_round"
+blade_color_index = 25
+accent_color_index = 30
+highlight_color_index = 23
+
+[items.materials.grave_dust.attributes]
+stackable = true
+quantity = 4
+crafting_family = "ritualism"
+
+[items.materials.ember_resin]
+name = "Ember Resin"
+description = "Warm sap from scorched wood, stable until shaped or exposed to magic."
+category = "resin"
+slot = "material"
+rarity = "common"
+color = 9
+max_stack = 50
+icon = "torch"
+visual_template = "coin_round"
+blade_color_index = 9
+accent_color_index = 10
+highlight_color_index = 14
+
+[items.materials.ember_resin.attributes]
+stackable = true
+quantity = 4
+crafting_family = "alchemy"
 
 [items.resources.wild_herb_node]
 name = "Wild Herb Node"
@@ -853,6 +1058,105 @@ resource_id = "bird_nest_node"
 resource_kind = "nest"
 resource_action = "gather_feathers"
 respawn = 300
+amount = 2
+takeable = false
+
+[items.resources.moonleaf_patch]
+name = "Moonleaf Patch"
+description = "A shaded patch of pale leaves beaded with cold dew."
+category = "herb"
+slot = "resource"
+rarity = "common"
+color = 24
+icon = "wild_herb_node"
+visual_template = "herb_sprig"
+blade_color_index = 24
+grip_color_index = 13
+accent_color_index = 23
+highlight_color_index = 16
+
+[items.resources.moonleaf_patch.attributes]
+static = true
+blocking = false
+visible = true
+resource_id = "moonleaf_patch"
+resource_kind = "herb"
+resource_action = "gather_moonleaf"
+respawn = 360
+amount = 2
+takeable = false
+
+[items.resources.sunstone_outcrop]
+name = "Sunstone Outcrop"
+description = "A low mineral outcrop glittering with trapped golden light."
+category = "mineral"
+slot = "resource"
+rarity = "uncommon"
+color = 14
+icon = "green_wood_node"
+visual_template = "spear_diagonal"
+blade_color_index = 14
+grip_color_index = 25
+highlight_color_index = 23
+
+[items.resources.sunstone_outcrop.attributes]
+static = true
+blocking = true
+visible = true
+resource_id = "sunstone_outcrop"
+resource_kind = "mineral"
+resource_action = "mine_sun_shards"
+respawn = 480
+amount = 2
+takeable = false
+
+[items.resources.old_grave]
+name = "Old Grave"
+description = "A weathered grave whose cold soil is useful in banishing rites."
+category = "grave"
+slot = "resource"
+rarity = "common"
+color = 25
+icon = "loot_corpse"
+visual_template = "tombstone_mark"
+blade_color_index = 25
+grip_color_index = 30
+accent_color_index = 29
+highlight_color_index = 23
+
+[items.resources.old_grave.attributes]
+static = true
+blocking = true
+visible = true
+resource_id = "old_grave"
+resource_kind = "grave"
+resource_action = "sift_grave_dust"
+respawn = 420
+amount = 2
+takeable = false
+
+[items.resources.resinous_stump]
+name = "Resinous Stump"
+description = "A fire-scarred stump bleeding beads of warm amber resin."
+category = "wood"
+slot = "resource"
+rarity = "common"
+color = 9
+icon = "green_wood_node"
+visual_template = "spear_diagonal"
+blade_color_index = 9
+grip_color_index = 10
+accent_color_index = 14
+highlight_color_index = 23
+
+[items.resources.resinous_stump.attributes]
+static = true
+blocking = false
+visible = true
+resource_id = "resinous_stump"
+resource_kind = "resin"
+resource_action = "tap_ember_resin"
+respawn = 360
 amount = 2
 takeable = false
 

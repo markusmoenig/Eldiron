@@ -500,52 +500,6 @@ impl MsgResolver {
     }
 }
 
-fn configured_slot_names(assets: &Assets, key: &str) -> Vec<String> {
-    assets
-        .config
-        .parse::<toml::Table>()
-        .ok()
-        .and_then(|config| config.get("game").and_then(toml::Value::as_table).cloned())
-        .and_then(|game| game.get(key).cloned())
-        .and_then(|value| value.as_array().cloned())
-        .map(|slots| {
-            slots
-                .iter()
-                .filter_map(toml::Value::as_str)
-                .map(|slot| slot.trim().to_ascii_lowercase())
-                .filter(|slot| !slot.is_empty())
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn is_weapon_slot(assets: &Assets, slot: &str) -> bool {
-    let normalized = slot.trim().to_ascii_lowercase();
-    let configured = configured_slot_names(assets, "weapon_slots");
-    if !configured.is_empty() {
-        return configured
-            .iter()
-            .any(|configured| configured == &normalized);
-    }
-
-    matches!(
-        normalized.as_str(),
-        "main_hand" | "mainhand" | "weapon" | "hand_main" | "off_hand" | "offhand" | "hand_off"
-    )
-}
-
-fn is_gear_slot(assets: &Assets, slot: &str) -> bool {
-    let normalized = slot.trim().to_ascii_lowercase();
-    let configured = configured_slot_names(assets, "gear_slots");
-    if !configured.is_empty() {
-        return configured
-            .iter()
-            .any(|configured| configured == &normalized);
-    }
-
-    !is_weapon_slot(assets, slot)
-}
-
 fn fmt_scalar(value: f32) -> String {
     if (value - value.round()).abs() <= 0.0001 {
         (value.round() as i32).to_string()
@@ -557,32 +511,30 @@ fn fmt_scalar(value: f32) -> String {
     }
 }
 
-fn configured_attr_name(assets: &Assets, key: &str, default: &str) -> String {
-    assets
-        .config
-        .parse::<toml::Table>()
-        .ok()
-        .and_then(|config| {
-            config
-                .get("game")
-                .and_then(toml::Value::as_table)
-                .and_then(|game| game.get(key))
-                .and_then(toml::Value::as_str)
-                .map(str::to_string)
-        })
-        .unwrap_or_else(|| default.to_string())
+fn ruleset_attribute_role(assets: &Assets, role: &str) -> Option<String> {
+    assets.ruleset_attribute_role(role)
 }
 
-fn sum_equipped_attr(
-    entity: &crate::Entity,
-    assets: &Assets,
-    attr: &str,
-    filter: fn(&Assets, &str) -> bool,
-) -> f32 {
+fn sum_equipped_attr(entity: &crate::Entity, assets: &Assets, attr: &str, weapon: bool) -> f32 {
+    let policy = assets
+        .rules
+        .parse::<toml::Table>()
+        .ok()
+        .and_then(|rules| eldiron_ruleset::resolve_equipment_policy(&rules).ok())
+        .unwrap_or_default();
+    let slots = if weapon {
+        &policy.weapon_slots
+    } else {
+        &policy.armor_slots
+    };
     entity
         .equipped
         .iter()
-        .filter(|(slot, _)| filter(assets, slot))
+        .filter(|(slot, _)| {
+            slots
+                .iter()
+                .any(|candidate| candidate.eq_ignore_ascii_case(slot))
+        })
         .map(|(_, item)| item.attributes.get_float_default(attr, 0.0))
         .sum()
 }
@@ -597,36 +549,44 @@ fn sum_all_equipped_attr(entity: &crate::Entity, attr: &str) -> f32 {
 
 fn resolve_entity_attr(entity: &crate::Entity, attr: &str, assets: &Assets) -> String {
     if let Some(inner) = attr.strip_prefix("weapon.") {
-        return fmt_scalar(sum_equipped_attr(entity, assets, inner, is_weapon_slot));
+        return fmt_scalar(sum_equipped_attr(entity, assets, inner, true));
     }
     if let Some(inner) = attr.strip_prefix("equipped.") {
         return fmt_scalar(sum_all_equipped_attr(entity, inner));
     }
     if let Some(inner) = attr.strip_prefix("armor.") {
-        return fmt_scalar(sum_equipped_attr(entity, assets, inner, is_gear_slot));
+        return fmt_scalar(sum_equipped_attr(entity, assets, inner, false));
     }
     if attr.eq_ignore_ascii_case("ATTACK") {
-        return fmt_scalar(sum_equipped_attr(entity, assets, "DMG", is_weapon_slot));
+        let Some(attribute) = ruleset_attribute_role(assets, "weapon_damage") else {
+            return "0".to_string();
+        };
+        return fmt_scalar(sum_equipped_attr(entity, assets, &attribute, true));
     }
     if attr.eq_ignore_ascii_case("ARMOR") {
-        return fmt_scalar(sum_equipped_attr(entity, assets, "ARMOR", is_gear_slot));
+        let Some(attribute) = ruleset_attribute_role(assets, "armor") else {
+            return "0".to_string();
+        };
+        return fmt_scalar(sum_equipped_attr(entity, assets, &attribute, false));
     }
     if attr.eq_ignore_ascii_case("LEVEL") {
-        let level_attr = configured_attr_name(assets, "level", "LEVEL");
-        return format!(
-            "{}",
-            entity
-                .attributes
-                .get_float_default(&level_attr, 1.0)
-                .round() as i32
-        );
+        if let Some(level_attr) = ruleset_attribute_role(assets, "level") {
+            return format!(
+                "{}",
+                entity
+                    .attributes
+                    .get_float_default(&level_attr, 1.0)
+                    .round() as i32
+            );
+        }
     }
     if attr.eq_ignore_ascii_case("EXPERIENCE") || attr.eq_ignore_ascii_case("EXP") {
-        let exp_attr = configured_attr_name(assets, "experience", "EXP");
-        return format!(
-            "{}",
-            entity.attributes.get_float_default(&exp_attr, 0.0).round() as i32
-        );
+        if let Some(exp_attr) = ruleset_attribute_role(assets, "experience") {
+            return format!(
+                "{}",
+                entity.attributes.get_float_default(&exp_attr, 0.0).round() as i32
+            );
+        }
     }
 
     if let Some(attr_val) = entity.attributes.get(attr) {
@@ -656,4 +616,64 @@ fn matches_token_syntax(value: &str) -> bool {
         .any(|prefix| {
             value.len() >= prefix.len() && value[..prefix.len()].eq_ignore_ascii_case(prefix)
         })
+}
+
+#[cfg(test)]
+mod ruleset_equipment_tests {
+    use super::*;
+
+    #[test]
+    fn equipment_placeholders_use_ruleset_owned_custom_slots() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [attributes]
+            combat = ["HARM", "WARD"]
+            [attributes.roles]
+            weapon_damage = "HARM"
+            armor = "WARD"
+
+            [equipment]
+            weapon_slots = ["grip"]
+            armor_slots = ["shell"]
+        "#
+        .to_string();
+
+        let mut weapon = crate::Item::new();
+        weapon.set_attribute("HARM", crate::Value::Int(4));
+        let mut armor = crate::Item::new();
+        armor.set_attribute("WARD", crate::Value::Int(3));
+        let mut entity = crate::Entity::new();
+        entity.equipped.insert("grip".into(), weapon);
+        entity.equipped.insert("shell".into(), armor);
+
+        assert_eq!(resolve_entity_attr(&entity, "ATTACK", &assets), "4");
+        assert_eq!(resolve_entity_attr(&entity, "ARMOR", &assets), "3");
+    }
+
+    #[test]
+    fn progression_placeholders_use_optional_ruleset_attribute_roles() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [attributes]
+            progression = ["RANK", "RENOWN"]
+            [attributes.roles]
+            level = "RANK"
+            experience = "RENOWN"
+        "#
+        .to_string();
+        let mut entity = crate::Entity::new();
+        entity.id = 7;
+        entity.set_attribute("RANK", crate::Value::Int(4));
+        entity.set_attribute("RENOWN", crate::Value::Int(275));
+
+        assert_eq!(resolve_entity_attr(&entity, "LEVEL", &assets), "4");
+        assert_eq!(resolve_entity_attr(&entity, "EXP", &assets), "275");
+        assert!(!entity.attributes.contains("LEVEL"));
+
+        assets.rules.clear();
+        assert_eq!(
+            resolve_entity_attr(&entity, "LEVEL", &assets),
+            "Entity#7:LEVEL"
+        );
+    }
 }

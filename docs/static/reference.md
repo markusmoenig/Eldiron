@@ -193,6 +193,8 @@ attack()
 # Use a named ruleset action against the current target or target id.
 use_action(action_id)
 use_action(action_id, target_id)
+# Optionally choose the exact owned source-item instance declared by the action.
+use_action(action_id, target_id, source_item_id)
 
 # Returns an array of filtered item ids in the character's inventory.
 # Returns all items if filter_string is empty. Otherwise, returns items whose name

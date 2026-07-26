@@ -73,6 +73,26 @@ impl Default for Assets {
 }
 
 impl Assets {
+    pub fn ruleset_attribute_role(&self, role: &str) -> Option<String> {
+        self.rules
+            .parse::<toml::Table>()
+            .ok()
+            .and_then(|rules| eldiron_ruleset::resolve_attribute_roles(&rules).ok())
+            .and_then(|roles| roles.get(role).map(str::to_string))
+    }
+
+    pub fn ruleset_declares_attribute(&self, attribute: &str) -> bool {
+        self.rules
+            .parse::<toml::Table>()
+            .ok()
+            .map(|rules| {
+                eldiron_ruleset::declared_attribute_ids(&rules)
+                    .iter()
+                    .any(|candidate| candidate.eq_ignore_ascii_case(attribute))
+            })
+            .unwrap_or(false)
+    }
+
     fn collect_locale_entries(
         prefix: Option<&str>,
         table: &toml::value::Table,

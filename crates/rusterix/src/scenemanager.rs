@@ -152,6 +152,18 @@ impl SceneManager {
         }
     }
 
+    /// Drop all queued work and force consumers to clear geometry before a
+    /// different Creator project becomes active.
+    pub fn reset_for_project_switch(&mut self) {
+        self.map = Map::default();
+        self.dirty.clear();
+        self.all.clear();
+        self.total_chunks = 0;
+        self.focus_chunk = None;
+        self.results.clear();
+        self.results.push(SceneManagerResult::Clear);
+    }
+
     /// Send a command (process immediately, no channels needed)
     pub fn send(&mut self, cmd: SceneManagerCmd) {
         match cmd {
@@ -367,5 +379,25 @@ impl SceneManager {
     /// Get the number of chunks remaining to process
     pub fn remaining_chunks(&self) -> usize {
         self.dirty.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn project_switch_reset_discards_old_results_and_forces_a_clear() {
+        let mut manager = SceneManager::new();
+        manager.startup();
+        manager.dirty.insert((32, 64));
+        manager.focus_chunk = Some((32, 64));
+
+        manager.reset_for_project_switch();
+
+        assert!(!manager.is_busy());
+        assert_eq!(manager.focus_chunk, None);
+        assert!(matches!(manager.receive(), Some(SceneManagerResult::Clear)));
+        assert!(manager.receive().is_none());
     }
 }

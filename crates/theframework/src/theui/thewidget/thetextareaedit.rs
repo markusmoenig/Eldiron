@@ -1,6 +1,3 @@
-#[cfg(not(target_arch = "wasm32"))]
-use arboard::Clipboard;
-
 use fontdue::layout::{HorizontalAlign, LayoutSettings};
 use web_time::Instant;
 
@@ -268,13 +265,6 @@ impl TheWidget for TheTextAreaEdit {
                     redraw = true;
                     update_status = true;
 
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        if let Ok(mut clipboard) = Clipboard::new() {
-                            let _ = clipboard.set_text(text.clone());
-                        }
-                    }
-
                     ctx.ui
                         .send(TheEvent::SetClipboard(TheValue::Text(text), None));
                 }
@@ -287,13 +277,6 @@ impl TheWidget for TheTextAreaEdit {
                     self.is_dirty = true;
                     redraw = true;
                     update_status = true;
-
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        if let Ok(mut clipboard) = Clipboard::new() {
-                            let _ = clipboard.set_text(text.clone());
-                        }
-                    }
 
                     ctx.ui
                         .send(TheEvent::SetClipboard(TheValue::Text(text), None));
@@ -308,60 +291,23 @@ impl TheWidget for TheTextAreaEdit {
                     }
                 }
             }
-            TheEvent::Paste(_value, _) => {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    let text = if let Some(text) = _value.to_string() {
-                        Some(text)
-                    } else if let Ok(mut clipboard) = Clipboard::new() {
-                        clipboard.get_text().ok()
-                    } else {
-                        None
-                    };
-
-                    if let Some(text) = text {
-                        let prev_state = self.state.save();
-
-                        self.state.insert_text(text);
-                        self.modified_since_last_tick = true;
-                        self.is_dirty = true;
-                        redraw = true;
-                        update_status = true;
-
-                        // if self.continuous {
-                        //     self.emit_value_changed(ctx);
-                        // }
-
-                        let mut undo = TheUndo::new(TheId::named("Cut"));
-                        undo.set_undo_data(prev_state);
-                        undo.set_redo_data(self.state.save());
-                        self.undo_stack.add(undo);
-
-                        if self.continuous {
-                            self.emit_value_changed(ctx);
-                        }
-                    }
-                }
-
-                #[cfg(target_arch = "wasm32")]
-                {
+            TheEvent::Paste(value, _) => {
+                if let Some(text) = value.to_string() {
                     let prev_state = self.state.save();
 
-                    if let Some(text) = _value.to_string() {
-                        self.state.insert_text(text);
-                        self.modified_since_last_tick = true;
-                        self.is_dirty = true;
-                        redraw = true;
-                        update_status = true;
+                    self.state.insert_text(text);
+                    self.modified_since_last_tick = true;
+                    self.is_dirty = true;
+                    redraw = true;
+                    update_status = true;
 
-                        if self.continuous {
-                            self.emit_value_changed(ctx);
-                        }
+                    let mut undo = TheUndo::new(TheId::named("Cut"));
+                    undo.set_undo_data(prev_state);
+                    undo.set_redo_data(self.state.save());
+                    self.undo_stack.add(undo);
 
-                        let mut undo = TheUndo::new(TheId::named("Cut"));
-                        undo.set_undo_data(prev_state);
-                        undo.set_redo_data(self.state.save());
-                        self.undo_stack.add(undo);
+                    if self.continuous {
+                        self.emit_value_changed(ctx);
                     }
                 }
             }
@@ -1871,5 +1817,22 @@ impl TheTextAreaEdit {
             text.push_str(&format!(" {}", hl.syntax()));
         }
         text
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn paste_uses_text_carried_by_event() {
+        let mut edit = TheTextAreaEdit::new(TheId::named("Test"));
+        let mut ctx = TheContext::new(100, 100, 1.0);
+
+        assert!(edit.on_event(
+            &TheEvent::Paste(TheValue::Text("external\ntext".to_string()), None),
+            &mut ctx,
+        ));
+        assert_eq!(edit.value().to_string().as_deref(), Some("external\ntext"));
     }
 }

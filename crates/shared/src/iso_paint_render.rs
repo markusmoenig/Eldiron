@@ -517,78 +517,78 @@ impl IsoPaintRenderer {
         let mut sprites = Vec::new();
         let mut instances = Vec::new();
         for (stamp, resolved_world) in resolved_stamps {
-                let Some(world) = resolved_world else {
-                    continue;
-                };
-                let (source, anchor) = Self::iso_paint_native_stamp_raster(stamp);
-                let source_width = source.dim().width.max(0) as usize;
-                let source_height = source.dim().height.max(0) as usize;
-                if source_width == 0 || source_height == 0 {
-                    continue;
-                }
-                let pixels = source.pixels();
-                let mut min_x = source_width;
-                let mut min_y = source_height;
-                let mut max_x = 0usize;
-                let mut max_y = 0usize;
-                let mut found = false;
-                for y in 0..source_height {
-                    for x in 0..source_width {
-                        if pixels[(y * source_width + x) * 4 + 3] == 0 {
-                            continue;
-                        }
-                        found = true;
-                        min_x = min_x.min(x);
-                        min_y = min_y.min(y);
-                        max_x = max_x.max(x);
-                        max_y = max_y.max(y);
+            let Some(world) = resolved_world else {
+                continue;
+            };
+            let (source, anchor) = Self::iso_paint_native_stamp_raster(stamp);
+            let source_width = source.dim().width.max(0) as usize;
+            let source_height = source.dim().height.max(0) as usize;
+            if source_width == 0 || source_height == 0 {
+                continue;
+            }
+            let pixels = source.pixels();
+            let mut min_x = source_width;
+            let mut min_y = source_height;
+            let mut max_x = 0usize;
+            let mut max_y = 0usize;
+            let mut found = false;
+            for y in 0..source_height {
+                for x in 0..source_width {
+                    if pixels[(y * source_width + x) * 4 + 3] == 0 {
+                        continue;
                     }
+                    found = true;
+                    min_x = min_x.min(x);
+                    min_y = min_y.min(y);
+                    max_x = max_x.max(x);
+                    max_y = max_y.max(y);
                 }
-                if !found {
-                    continue;
+            }
+            if !found {
+                continue;
+            }
+            let crop_width = max_x - min_x + 1;
+            let crop_height = max_y - min_y + 1;
+            let sprite_width = crop_width.min(256);
+            let sprite_height = crop_height.min(256);
+            let mut rgba = vec![0u8; sprite_width * sprite_height * 4];
+            for y in 0..sprite_height {
+                let source_y = min_y + y * crop_height / sprite_height;
+                for x in 0..sprite_width {
+                    let source_x = min_x + x * crop_width / sprite_width;
+                    let source_index = (source_y * source_width + source_x) * 4;
+                    let target_index = (y * sprite_width + x) * 4;
+                    rgba[target_index..target_index + 4]
+                        .copy_from_slice(&pixels[source_index..source_index + 4]);
                 }
-                let crop_width = max_x - min_x + 1;
-                let crop_height = max_y - min_y + 1;
-                let sprite_width = crop_width.min(256);
-                let sprite_height = crop_height.min(256);
-                let mut rgba = vec![0u8; sprite_width * sprite_height * 4];
-                for y in 0..sprite_height {
-                    let source_y = min_y + y * crop_height / sprite_height;
-                    for x in 0..sprite_width {
-                        let source_x = min_x + x * crop_width / sprite_width;
-                        let source_index = (source_y * source_width + source_x) * 4;
-                        let target_index = (y * sprite_width + x) * 4;
-                        rgba[target_index..target_index + 4]
-                            .copy_from_slice(&pixels[source_index..source_index + 4]);
-                    }
-                }
+            }
 
-                let authored_height = stamp
-                    .viewport_size
-                    .map(|size| size[1])
-                    .filter(|height| *height > 0)
-                    .unwrap_or(height.max(1) as i32) as f32;
-                let world_per_pixel =
-                    2.0 * stamp.camera_scale.unwrap_or(6.0).max(0.001) / authored_height;
-                let crop_center_x = (min_x as f32 + max_x as f32) * 0.5;
-                let crop_center_y = (min_y as f32 + max_y as f32) * 0.5;
-                let offset_x = (crop_center_x - anchor[0] as f32) * world_per_pixel;
-                let offset_y = (crop_center_y - anchor[1] as f32) * world_per_pixel;
-                let anchor_world = Vec3::new(world[0], world[1], world[2]);
-                let center = anchor_world + camera.right * offset_x - camera.up * offset_y;
-                let sprite_index = sprites.len() as u32;
-                sprites.push(scenevm::OrganicBillboardSprite {
-                    width: sprite_width as u32,
-                    height: sprite_height as u32,
-                    rgba,
-                });
-                instances.push(scenevm::OrganicBillboardInstance {
-                    center: [center.x, center.y, center.z],
-                    width: crop_width as f32 * world_per_pixel,
-                    height: crop_height as f32 * world_per_pixel,
-                    sprite_index,
-                    flags: 1,
-                });
+            let authored_height = stamp
+                .viewport_size
+                .map(|size| size[1])
+                .filter(|height| *height > 0)
+                .unwrap_or(height.max(1) as i32) as f32;
+            let world_per_pixel =
+                2.0 * stamp.camera_scale.unwrap_or(6.0).max(0.001) / authored_height;
+            let crop_center_x = (min_x as f32 + max_x as f32) * 0.5;
+            let crop_center_y = (min_y as f32 + max_y as f32) * 0.5;
+            let offset_x = (crop_center_x - anchor[0] as f32) * world_per_pixel;
+            let offset_y = (crop_center_y - anchor[1] as f32) * world_per_pixel;
+            let anchor_world = Vec3::new(world[0], world[1], world[2]);
+            let center = anchor_world + camera.right * offset_x - camera.up * offset_y;
+            let sprite_index = sprites.len() as u32;
+            sprites.push(scenevm::OrganicBillboardSprite {
+                width: sprite_width as u32,
+                height: sprite_height as u32,
+                rgba,
+            });
+            instances.push(scenevm::OrganicBillboardInstance {
+                center: [center.x, center.y, center.z],
+                width: crop_width as f32 * world_per_pixel,
+                height: crop_height as f32 * world_per_pixel,
+                sprite_index,
+                flags: 1,
+            });
         }
 
         if sprites.is_empty() {
@@ -6320,11 +6320,10 @@ mod tests {
         assert!(table.len().is_power_of_two());
         assert!(table.len() >= entries.len() * 2);
         for expected in entries {
-            let mut index = IsoPaintRenderer::surface_paint_entry_hash(
-                expected.geo,
-                expected.uv_origin,
-            ) as usize
-                & (table.len() - 1);
+            let mut index =
+                IsoPaintRenderer::surface_paint_entry_hash(expected.geo, expected.uv_origin)
+                    as usize
+                    & (table.len() - 1);
             loop {
                 let candidate = table[index];
                 assert_ne!(candidate.uv_size, [0; 2], "entry missing from lookup table");
@@ -6354,9 +6353,11 @@ mod tests {
             .values()
             .next()
             .expect("replace stroke creates a baked chunk");
-        assert!(chunk.material_rgba.chunks_exact(4).any(|pixel| {
-            pixel[0] == 254 && pixel[1] == 0 && pixel[2] == 52 && pixel[3] > 0
-        }));
+        assert!(
+            chunk.material_rgba.chunks_exact(4).any(|pixel| {
+                pixel[0] == 254 && pixel[1] == 0 && pixel[2] == 52 && pixel[3] > 0
+            })
+        );
         assert_eq!(
             IsoPaintRenderer::surface_paint_alpha_geo_ids(&layer.baked_chunks),
             vec![scenevm::GeoId::Sector(7)]
@@ -6375,9 +6376,7 @@ mod tests {
             .with_paint_geo(Some([7, 0, 0, 1]));
         layer.begin_stroke(point);
 
-        assert!(
-            IsoPaintRenderer::surface_paint_alpha_geo_ids(&layer.baked_chunks).is_empty()
-        );
+        assert!(IsoPaintRenderer::surface_paint_alpha_geo_ids(&layer.baked_chunks).is_empty());
     }
 
     #[test]
@@ -6400,9 +6399,12 @@ mod tests {
             .next()
             .expect("zero-opacity Replace still creates its spatial mask");
         assert!(chunk.color_rgba.chunks_exact(4).all(|pixel| pixel[3] == 0));
-        assert!(chunk.material_rgba.chunks_exact(4).any(|pixel| {
-            pixel[0] == 254 && pixel[1] == 0 && pixel[2] == 1 && pixel[3] > 0
-        }));
+        assert!(
+            chunk
+                .material_rgba
+                .chunks_exact(4)
+                .any(|pixel| { pixel[0] == 254 && pixel[1] == 0 && pixel[2] == 1 && pixel[3] > 0 })
+        );
         assert_eq!(
             IsoPaintRenderer::surface_paint_alpha_geo_ids(&layer.baked_chunks),
             vec![scenevm::GeoId::Sector(7)]

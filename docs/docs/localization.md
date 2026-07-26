@@ -14,7 +14,7 @@ Locale data uses **TOML**. Each top-level table is one language, for example `[e
 combat.damage.incoming = "{attacker} hits you for {amount} damage"
 combat.damage.outgoing = "You hit {defender} for {amount} damage"
 actions.not_ready = "{action} is not ready yet"
-spells.not_enough_mp = "Not enough MP to cast {spell}"
+actions.cannot_use = "Cannot use {action}"
 system.cant_do_that_yet = "Can't do that yet"
 system.cant_afford = "You can't afford that"
 system.you_bought = "You bought"
@@ -143,7 +143,6 @@ missing_target_key = "actions.missing_target"
 gathered_key = "actions.gathered"
 
 [messages.spells]
-not_enough_mp_key = "spells.not_enough_mp"
 heal_key = "spells.heal"
 ```
 

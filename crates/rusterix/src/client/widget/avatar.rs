@@ -56,7 +56,7 @@ impl AvatarWidget {
             damage_border_color_index: None,
             border_size: 2,
             damage_flash_seconds: 0.8,
-            damage_stat: "HP".to_string(),
+            damage_stat: String::new(),
             last_stat_value: None,
             damage_flash_started: None,
         }
@@ -227,8 +227,15 @@ impl AvatarWidget {
         fallback
     }
 
-    fn update_damage_state(&mut self, entity: &Entity) {
-        let current = entity.attributes.get_float(&self.damage_stat);
+    fn update_damage_state(&mut self, entity: &Entity, assets: &Assets) {
+        let damage_stat = if self.damage_stat.is_empty() {
+            assets.ruleset_attribute_role("health")
+        } else {
+            Some(self.damage_stat.clone())
+        };
+        let current = damage_stat
+            .as_deref()
+            .and_then(|attribute| entity.attributes.get_float(attribute));
         if let Some(current) = current {
             if let Some(previous) = self.last_stat_value
                 && current < previous
@@ -341,7 +348,7 @@ impl AvatarWidget {
             target.blend_into(self.rect.x as i32, self.rect.y as i32, &self.buffer);
             return;
         };
-        self.update_damage_state(entity);
+        self.update_damage_state(entity, assets);
 
         let Some(avatar) = self
             .avatar_name

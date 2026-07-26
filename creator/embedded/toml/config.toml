@@ -25,18 +25,6 @@ terminal_mode = "text"
 # Optional screen to show after a game.start command.
 play_screen = ""
 
-# The supported gear slots
-gear_slots = ["head", "torso", "legs", "hands", "feet"]
-
-# The supported weapon slots
-weapon_slots = ["main_hand", "off_hand"]
-
-# The attribute which stores the current character level
-level = "LEVEL"
-
-# The attribute which stores accumulated experience
-experience = "EXP"
-
 # Enables generated marker ramp shading for avatars
 avatar_shading = true
 

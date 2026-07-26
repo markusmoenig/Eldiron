@@ -3,10 +3,11 @@ use crate::server::region::{
     RegionInstance, add_debug_value, apply_damage_direct, apply_damage_rules,
     apply_spell_default_attrs, consume_attack_ammunition_for_source, craft_ruleset_recipe,
     current_attack_base_damage_for_entity, current_attack_cooldown_for_entity,
-    drop_items_into_ruleset_loot_container, entity_disposition_by_id, entity_is_hostile_by_id,
-    entity_item_by_id, execute_ruleset_action, grant_experience, has_attack_ammunition_or_message,
-    is_spell_on_cooldown, open_dialog_node, queue_applied_damage_event, set_entity_cooldown_attrs,
-    set_spell_cooldown,
+    current_attack_weapon_for_entity, drop_items_into_ruleset_loot_container,
+    entity_disposition_by_id, entity_is_hostile_by_id, entity_item_by_id,
+    equip_inventory_item_for_entity, execute_ruleset_action_with_source, grant_experience,
+    has_attack_ammunition_or_message, is_spell_on_cooldown, open_dialog_node,
+    queue_applied_damage_event, set_entity_cooldown_attrs, set_spell_cooldown,
 };
 use crate::server::regionctx::{ChoiceSession, ScriptScope};
 use crate::vm::*;
@@ -350,6 +351,9 @@ fn convert_attr_value(key: &str, val: &VMValue, hint: Option<&Value>, health_att
 }
 
 fn restore_entity_health_if_revived(entity: &mut Entity, health_attr: &str) {
+    if health_attr.is_empty() {
+        return;
+    }
     if entity.attributes.get_float_default(health_attr, 1.0) > 0.0 {
         return;
     }
@@ -825,24 +829,6 @@ impl<'a> RegionHost<'a> {
         None
     }
 
-    fn configured_weapon_slots(&self) -> Vec<String> {
-        self.ctx
-            .config
-            .get("game")
-            .and_then(toml::Value::as_table)
-            .and_then(|game| game.get("weapon_slots"))
-            .and_then(toml::Value::as_array)
-            .map(|slots| {
-                slots
-                    .iter()
-                    .filter_map(toml::Value::as_str)
-                    .map(|slot| slot.trim().to_ascii_lowercase())
-                    .filter(|slot| !slot.is_empty())
-                    .collect()
-            })
-            .unwrap_or_else(|| vec!["main_hand".into(), "off_hand".into()])
-    }
-
     fn current_attack_source_item_id(&self) -> Option<u32> {
         if let Some(item_id) = self.ctx.curr_item_id {
             return Some(item_id);
@@ -855,33 +841,7 @@ impl<'a> RegionHost<'a> {
             .iter()
             .find(|entity| entity.id == self.ctx.curr_entity_id)?;
 
-        let configured_slots = self.configured_weapon_slots();
-        for slot in &configured_slots {
-            if let Some((_, item)) = entity
-                .equipped
-                .iter()
-                .find(|(equipped_slot, _)| equipped_slot.trim().eq_ignore_ascii_case(slot))
-            {
-                return Some(item.id);
-            }
-        }
-
-        entity
-            .equipped
-            .iter()
-            .find(|(slot, _)| {
-                matches!(
-                    slot.trim().to_ascii_lowercase().as_str(),
-                    "main_hand"
-                        | "mainhand"
-                        | "weapon"
-                        | "hand_main"
-                        | "off_hand"
-                        | "offhand"
-                        | "hand_off"
-                )
-            })
-            .map(|(_, item)| item.id)
+        current_attack_weapon_for_entity(self.ctx, entity).map(|item| item.id)
     }
 
     fn current_attack_base_damage(&self) -> i32 {
@@ -2205,9 +2165,9 @@ impl<'a> HostHandler for RegionHost<'a> {
                         .and_then(|e| e.get_item(item_id))
                         .and_then(|it| it.attributes.get_str("slot").map(|s| s.to_string()))
                     {
-                        if let Some(entity) = self.ctx.get_current_entity_mut() {
-                            let _ = entity.equip_item(item_id, &slot);
-                        }
+                        let entity_id = self.ctx.curr_entity_id;
+                        let _ =
+                            equip_inventory_item_for_entity(self.ctx, entity_id, item_id, &slot);
                     }
                 }
             }
@@ -2501,11 +2461,13 @@ impl<'a> HostHandler for RegionHost<'a> {
                         .get(1)
                         .and_then(Self::parse_target_arg_id)
                         .or_else(|| self.get_current_target_id());
-                    let ok = execute_ruleset_action(
+                    let source_item_id = args.get(2).and_then(Self::parse_target_arg_id);
+                    let ok = execute_ruleset_action_with_source(
                         self.ctx,
                         self.ctx.curr_entity_id,
                         action_id,
                         target_id,
+                        source_item_id,
                     );
                     return self.debug_return_bool(ok);
                 }
@@ -3154,8 +3116,11 @@ mod tests {
     use crate::Currencies;
     use crate::GeometryObject;
     use crate::server::region::{
-        apply_ruleset_character_defaults, drop_items_into_ruleset_loot_container,
-        ruleset_starting_wealth_for_entity, update_entity_respawns,
+        RulesetActionTarget, apply_ruleset_character_defaults,
+        drop_items_into_ruleset_loot_container, execute_ruleset_action,
+        execute_ruleset_action_with_target, remove_transient_ruleset_fx_items,
+        restore_ruleset_conditions, ruleset_starting_wealth_for_entity, update_entity_respawns,
+        update_ruleset_conditions, update_spell_items,
     };
     use crate::vm::{Execution, Program, VM, VMValue};
     use std::sync::Arc;
@@ -3424,6 +3389,7 @@ mod tests {
         fn new() -> Self {
             let ctx = RegionCtx {
                 health_attr: "HP".into(),
+                max_health_attr: "MAX_HP".into(),
                 level_attr: "LEVEL".into(),
                 ticks_per_minute: 10,
                 ..Default::default()
@@ -3439,22 +3405,20 @@ mod tests {
 
         fn with_rules(rules: &str) -> Self {
             let mut arena = Self::new();
-            arena.ctx.rules = rules
-                .parse::<toml::Table>()
-                .expect("valid arena rules TOML");
+            arena
+                .ctx
+                .set_rules(
+                    rules
+                        .parse::<toml::Table>()
+                        .expect("valid arena rules TOML"),
+                )
+                .expect("resolvable arena rules");
             arena.ctx.currencies = Currencies::from_rules(&arena.ctx.rules);
             arena
         }
 
         fn with_official_rules() -> Self {
-            let mut arena = Self::with_rules(&official_rules_source());
-            arena.ctx.config = r#"
-                [game]
-                weapon_slots = ["main_hand", "off_hand"]
-            "#
-            .parse::<toml::Table>()
-            .expect("valid arena config TOML");
-            arena
+            Self::with_rules(&official_rules_source())
         }
 
         fn load_official_locales(&mut self) {
@@ -3656,13 +3620,24 @@ mod tests {
         fn inventory_item_quantity(&self, entity_id: u32, ruleset_id: &str) -> i32 {
             self.entity(entity_id)
                 .iter_inventory()
-                .find_map(|(_, item)| {
+                .filter_map(|(_, item)| {
                     item.attributes
                         .get_str("ruleset_id")
                         .filter(|id| id.trim() == ruleset_id)
                         .map(|_| item.attributes.get_int_default("quantity", 1))
                 })
-                .unwrap_or(0)
+                .sum()
+        }
+
+        fn inventory_item_stack_count(&self, entity_id: u32, ruleset_id: &str) -> usize {
+            self.entity(entity_id)
+                .iter_inventory()
+                .filter(|(_, item)| {
+                    item.attributes
+                        .get_str("ruleset_id")
+                        .is_some_and(|id| id.trim() == ruleset_id)
+                })
+                .count()
         }
 
         fn target(&self, id: u32) -> Option<u32> {
@@ -4212,28 +4187,34 @@ mod tests {
     }
 
     #[test]
-    fn ruleset_spell_damage_uses_damaged_event_cost_and_cooldown() {
+    fn ruleset_spell_damage_uses_typed_custom_action_event_cost_and_cooldown() {
         let mut arena = HeadlessRulesArena::with_rules(
             r#"
+            [attributes]
+            resources = ["HP", "MAX_HP", "FOCUS"]
+            [attributes.roles]
+            health = "HP"
+            max_health = "MAX_HP"
+
             [race_relations.Human]
             Orc = "hostile"
 
-            [actions.holy_light]
-            name = "Holy Light"
+            [actions.radiant_bolt]
+            name = "Radiant Bolt"
             kind = "spell"
             requires = { spell = "holy_light" }
             target = "hostile_entity"
             range = 5
             cooldown = 5.0
-            cost = { MP = 4 }
+            cost = { FOCUS = 4 }
             result = { damage = "spells.holy_light.damage" }
 
             [spells.holy_light]
             name = "Holy Light"
-            kind = "damage"
+            kind = "heal"
             damage_kind = "arcane"
-            range = 5
-            cost_mp = 4
+            range = 0.25
+            cooldown = 99.0
 
             [spells.holy_light.damage]
             roll = "1d1"
@@ -4246,7 +4227,7 @@ mod tests {
             r#"
             fn event(event, value) {
                 if event == "intent" && value == "holy_light" {
-                    use_action("holy_light");
+                    use_action("radiant_bolt");
                 }
             }
             "#,
@@ -4268,14 +4249,14 @@ mod tests {
         arena.add_entity(2, "Orc", 20, 1, None);
         arena.set_entity_attr(1, "race", Value::Str("Human".into()));
         arena.set_entity_attr(2, "race", Value::Str("Orc".into()));
-        arena.set_entity_attr(1, "MP", Value::Int(10));
+        arena.set_entity_attr(1, "FOCUS", Value::Int(10));
 
         arena.run_entity_event(1, "intent", VMValue::from_string("holy_light"));
         assert_eq!(arena.hp(2), 20);
         arena.drain_entity_events();
 
         assert_eq!(arena.hp(2), 16);
-        assert_eq!(arena.mp(1), 6);
+        assert_eq!(arena.attr_f32(1, "FOCUS") as i32, 6);
         assert!(is_spell_on_cooldown(&arena.ctx, 1, "holy_light"));
         assert_eq!(arena.attr_f32(2, "last_attacker") as u32, 1);
         assert_eq!(arena.attr_f32(2, "last_damage") as i32, 4);
@@ -4286,13 +4267,19 @@ mod tests {
         arena.drain_entity_events();
 
         assert_eq!(arena.hp(2), 16);
-        assert_eq!(arena.mp(1), 6);
+        assert_eq!(arena.attr_f32(1, "FOCUS") as i32, 6);
     }
 
     #[test]
     fn ruleset_minor_heal_spends_mp_respects_max_hp_and_cooldown() {
         let mut arena = HeadlessRulesArena::with_rules(
             r#"
+            [attributes]
+            resources = ["HP", "MAX_HP", "MP"]
+            [attributes.roles]
+            health = "HP"
+            max_health = "MAX_HP"
+
             [actions.minor_heal]
             name = "Minor Heal"
             kind = "spell"
@@ -4307,7 +4294,6 @@ mod tests {
             name = "Minor Heal"
             kind = "heal"
             range = 5
-            cost_mp = 3
 
             [spells.minor_heal.healing]
             roll = "1d1"
@@ -4346,6 +4332,12 @@ mod tests {
     fn ruleset_spells_do_not_spend_resources_on_invalid_targets() {
         let mut arena = HeadlessRulesArena::with_rules(
             r#"
+            [attributes]
+            resources = ["HP", "MAX_HP", "MP"]
+            [attributes.roles]
+            health = "HP"
+            max_health = "MAX_HP"
+
             [race_relations.Human]
             Orc = "hostile"
 
@@ -4374,7 +4366,6 @@ mod tests {
             kind = "damage"
             damage_kind = "arcane"
             range = 5
-            cost_mp = 4
 
             [spells.holy_light.damage]
             roll = "1d1"
@@ -4385,7 +4376,6 @@ mod tests {
             name = "Minor Heal"
             kind = "heal"
             range = 5
-            cost_mp = 3
 
             [spells.minor_heal.healing]
             roll = "1d1"
@@ -4442,7 +4432,7 @@ mod tests {
     }
 
     #[test]
-    fn ruleset_spell_failure_for_not_enough_mp_has_no_side_effects() {
+    fn ruleset_spell_failure_for_insufficient_resource_has_no_side_effects() {
         let mut arena = HeadlessRulesArena::with_rules(
             r#"
             [race_relations.Human]
@@ -4463,7 +4453,6 @@ mod tests {
             kind = "damage"
             damage_kind = "arcane"
             range = 5
-            cost_mp = 4
 
             [spells.holy_light.damage]
             roll = "1d1"
@@ -4510,6 +4499,12 @@ mod tests {
     fn lethal_ruleset_spell_fires_death_and_kill_once() {
         let mut arena = HeadlessRulesArena::with_rules(
             r#"
+            [attributes]
+            resources = ["HP", "MAX_HP", "MP"]
+            [attributes.roles]
+            health = "HP"
+            max_health = "MAX_HP"
+
             [race_relations.Human]
             Orc = "hostile"
 
@@ -4528,7 +4523,6 @@ mod tests {
             kind = "damage"
             damage_kind = "arcane"
             range = 5
-            cost_mp = 4
 
             [spells.holy_light.damage]
             roll = "1d1"
@@ -4636,6 +4630,415 @@ mod tests {
     }
 
     #[test]
+    fn official_guard_condition_modifies_armor_without_overwriting_base_state() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.add_official_entity(1, "Warrior", "Human", 1, None);
+        arena.add_official_entity(2, "Warrior", "Human", 1, None);
+        arena.add_official_entity(3, "Warrior", "Orc", 1, None);
+
+        assert!(execute_ruleset_action(&mut arena.ctx, 1, "guard", None));
+        assert_eq!(arena.entity(1).attributes.get_int_default("ARMOR", 0), 1);
+        assert!(arena.has_str_array_attr(1, "conditions", "guarded"));
+        assert_eq!(
+            arena
+                .entity(1)
+                .attributes
+                .get_int_default("condition_guarded_stacks", 0),
+            1
+        );
+        assert_eq!(
+            arena
+                .entity(1)
+                .attributes
+                .get_float_default("condition_guarded_remaining", 0.0),
+            2.0
+        );
+        assert!(arena.ctx.map.items.iter().any(|item| {
+            item.attributes.get_str("fx_condition") == Some("guarded")
+                && item.attributes.get_str("fx_stage") == Some("condition_active")
+                && item.attributes.get_bool_default("fx_persistent", false)
+                && item.attributes.get_uint_default("fx_follow_entity", 0) == 1
+                && matches!(
+                    item.attributes.get("particle_emitter"),
+                    Some(Value::ParticleEmitter(_))
+                )
+        }));
+
+        let guarded_damage = apply_damage_rules(&arena.ctx, 1, 3, 10, "physical", 0);
+        let normal_damage = apply_damage_rules(&arena.ctx, 2, 3, 10, "physical", 0);
+        assert!(apply_damage_direct(
+            &mut arena.ctx,
+            1,
+            3,
+            guarded_damage,
+            "physical",
+            None
+        ));
+        assert!(apply_damage_direct(
+            &mut arena.ctx,
+            2,
+            3,
+            normal_damage,
+            "physical",
+            None
+        ));
+        assert_eq!(arena.hp(1), arena.hp(2) + 2);
+
+        update_ruleset_conditions(&mut arena.ctx, 2.1);
+        assert!(!arena.has_str_array_attr(1, "conditions", "guarded"));
+        assert_eq!(
+            arena
+                .entity(1)
+                .attributes
+                .get_int_default("condition_guarded_stacks", -1),
+            0
+        );
+        assert_eq!(arena.entity(1).attributes.get_int_default("ARMOR", 0), 1);
+        assert!(arena.ctx.map.items.iter().any(|item| {
+            item.attributes.get_str("fx_condition") == Some("guarded")
+                && item.attributes.get_str("fx_stage") == Some("condition_remove")
+        }));
+        assert!(!arena.ctx.map.items.iter().any(|item| {
+            item.attributes.get_str("fx_condition") == Some("guarded")
+                && item.attributes.get_str("fx_stage") == Some("condition_active")
+                && item.attributes.get_bool_default("fx_persistent", false)
+        }));
+    }
+
+    #[test]
+    fn project_conditions_support_periodic_fx_stacks_removal_and_trait_immunity() {
+        let mut arena = HeadlessRulesArena::with_rules(
+            r#"
+            [conditions.poisoned]
+            duration = 5
+            stacking = "stack"
+            max_stacks = 3
+            immune_traits = ["undead"]
+            modifiers = [{ attribute = "SPEED", add = -1 }]
+
+            [conditions.poisoned.periodic]
+            interval = 1
+            initial_delay = 1
+            effects = [
+                { damage = 2, damage_kind = "poison" },
+                { resource = "STAMINA", add = -1, minimum = 0 },
+            ]
+
+            [conditions.poisoned.fx.apply]
+            preset = "poison_burst"
+
+            [conditions.poisoned.fx.active]
+            preset = "poison_motes"
+
+            [conditions.poisoned.fx.tick]
+            preset = "poison_burst"
+
+            [conditions.poisoned.fx.remove]
+            preset = "poison_burst"
+
+            [fx.presets.poison_motes]
+            shape = "aura"
+            motion = "up"
+            duration = "long"
+            colors = ["green"]
+
+            [fx.presets.poison_burst]
+            shape = "burst"
+            motion = "radial_out"
+            duration = "instant"
+            colors = ["green"]
+
+            [actions.poison]
+            kind = "interaction"
+            target = "any_entity"
+            result = { apply_condition = "poisoned" }
+
+            [actions.cure]
+            kind = "interaction"
+            target = "any_entity"
+            result = { remove_condition = "poisoned" }
+            "#,
+        );
+        arena.add_entity(1, "Alchemist", 10, 1, None);
+        arena.add_entity(2, "Living", 10, 1, None);
+        arena.add_entity(3, "Skeleton", 10, 1, None);
+        arena.set_entity_attr(2, "STAMINA", Value::Int(10));
+        arena.set_entity_attr(3, "traits", Value::StrArray(vec!["undead".into()]));
+
+        for expected in 1..=3 {
+            assert!(execute_ruleset_action(&mut arena.ctx, 1, "poison", Some(2)));
+            assert_eq!(
+                arena
+                    .entity(2)
+                    .attributes
+                    .get_int_default("condition_poisoned_stacks", 0),
+                expected
+            );
+        }
+        assert_eq!(
+            arena
+                .ctx
+                .entity_state_data
+                .get(&2)
+                .and_then(|state| state.get_uint("__condition_source:poisoned")),
+            Some(1)
+        );
+        assert!(arena.ctx.map.items.iter().any(|item| {
+            item.attributes.get_str("fx_condition") == Some("poisoned")
+                && item.attributes.get_str("fx_stage") == Some("condition_active")
+                && item.attributes.get_bool_default("fx_persistent", false)
+                && item.attributes.get_uint_default("fx_follow_entity", 0) == 2
+        }));
+        assert!(
+            arena
+                .ctx
+                .to_execute_entity
+                .iter()
+                .any(|(entity_id, event, payload)| {
+                    *entity_id == 2
+                        && event == "condition_applied"
+                        && payload.x == 1.0
+                        && payload.y == 3.0
+                        && payload.string.as_deref() == Some("poisoned")
+                })
+        );
+        arena
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 2)
+            .unwrap()
+            .position = Vec3::new(9.0, 1.0, 4.0);
+        arena.ctx.delta_time = 0.1;
+        update_spell_items(&mut arena.ctx);
+        assert!(arena.ctx.map.items.iter().any(|item| {
+            item.attributes.get_str("fx_condition") == Some("poisoned")
+                && item.attributes.get_str("fx_stage") == Some("condition_active")
+                && item.position == Vec3::new(9.0, 1.55, 4.0)
+        }));
+        arena
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 2)
+            .unwrap()
+            .position = Vec3::new(2.0, 1.0, 0.0);
+
+        update_ruleset_conditions(&mut arena.ctx, 1.0);
+        assert_eq!(arena.hp(2), 4);
+        assert_eq!(arena.entity(2).attributes.get_int_default("STAMINA", 0), 7);
+        assert!(
+            arena
+                .ctx
+                .to_execute_entity
+                .iter()
+                .any(|(entity_id, event, payload)| {
+                    *entity_id == 2
+                        && event == "condition_tick"
+                        && payload.x == 1.0
+                        && payload.y == 3.0
+                        && payload.string.as_deref() == Some("poisoned")
+                })
+        );
+        assert!(arena.ctx.map.items.iter().any(|item| {
+            item.attributes.get_str("fx_condition") == Some("poisoned")
+                && item.attributes.get_str("fx_stage") == Some("condition_tick")
+        }));
+        assert!(!execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "poison",
+            Some(3)
+        ));
+        assert!(!arena.has_str_array_attr(3, "conditions", "poisoned"));
+        assert!(execute_ruleset_action(&mut arena.ctx, 1, "cure", Some(2)));
+        assert!(!arena.has_str_array_attr(2, "conditions", "poisoned"));
+        assert!(arena.ctx.map.items.iter().any(|item| {
+            item.attributes.get_str("fx_condition") == Some("poisoned")
+                && item.attributes.get_str("fx_stage") == Some("condition_remove")
+        }));
+        assert!(!arena.ctx.map.items.iter().any(|item| {
+            item.attributes.get_str("fx_condition") == Some("poisoned")
+                && item.attributes.get_str("fx_stage") == Some("condition_active")
+                && item.attributes.get_bool_default("fx_persistent", false)
+        }));
+        assert!(
+            arena
+                .ctx
+                .to_execute_entity
+                .iter()
+                .any(|(entity_id, event, payload)| {
+                    *entity_id == 2
+                        && event == "condition_removed"
+                        && payload.x == 1.0
+                        && payload.y == 3.0
+                        && payload.string.as_deref() == Some("poisoned")
+                })
+        );
+    }
+
+    #[test]
+    fn serialized_conditions_restore_timing_source_and_active_fx() {
+        let rules = r#"
+            [conditions.focused]
+            duration = 5
+            stacking = "refresh"
+
+            [conditions.focused.periodic]
+            interval = 1
+            initial_delay = 0.75
+            effects = [{ resource = "STAMINA", add = -1, minimum = 0 }]
+
+            [conditions.focused.fx.active]
+            preset = "focus_aura"
+
+            [conditions.focused.fx.tick]
+            preset = "focus_pulse"
+
+            [conditions.focused.fx.remove]
+            preset = "focus_pulse"
+
+            [fx.presets.focus_aura]
+            shape = "aura"
+            motion = "pulse"
+            duration = "long"
+            colors = ["blue"]
+
+            [fx.presets.focus_pulse]
+            shape = "burst"
+            motion = "radial_out"
+            duration = "instant"
+            colors = ["blue"]
+
+            [actions.focus]
+            kind = "stance"
+            target = "self"
+            result = { apply_condition = "focused" }
+        "#;
+        let mut arena = HeadlessRulesArena::with_rules(rules);
+        arena.add_entity(1, "Mystic", 10, 1, None);
+        arena.set_entity_attr(1, "STAMINA", Value::Int(3));
+
+        assert!(execute_ruleset_action(&mut arena.ctx, 1, "focus", None));
+        update_ruleset_conditions(&mut arena.ctx, 0.25);
+        assert_eq!(
+            arena
+                .entity(1)
+                .attributes
+                .get_float_default("condition_focused_remaining", 0.0),
+            4.75
+        );
+        assert_eq!(
+            arena
+                .entity(1)
+                .attributes
+                .get_float_default("condition_focused_tick_remaining", 0.0),
+            0.5
+        );
+        let source_creator_id = arena
+            .entity(1)
+            .attributes
+            .get("condition_focused_source")
+            .and_then(|value| match value {
+                Value::Id(value) => Some(*value),
+                _ => None,
+            })
+            .expect("stable condition source id");
+        assert_eq!(source_creator_id, arena.entity(1).creator_id);
+
+        let mut saved_entities = arena.ctx.map.entities.clone();
+        let saved_items = arena.ctx.map.items.clone();
+        assert!(
+            saved_items
+                .iter()
+                .any(|item| item.attributes.get_bool_default("is_ruleset_fx", false))
+        );
+        saved_entities[0].id = 101;
+
+        let mut restored = HeadlessRulesArena::with_rules(rules);
+        restored.ctx.map.entities = saved_entities;
+        restored.ctx.map.items = saved_items;
+        remove_transient_ruleset_fx_items(&mut restored.ctx);
+        assert!(restored.ctx.map.items.is_empty());
+        restore_ruleset_conditions(&mut restored.ctx);
+
+        let state = restored
+            .ctx
+            .entity_state_data
+            .get(&101)
+            .expect("restored condition state");
+        assert_eq!(state.get_float("__condition_remaining:focused"), Some(4.75));
+        assert_eq!(state.get_float("__condition_tick_left:focused"), Some(0.5));
+        assert_eq!(state.get_uint("__condition_source:focused"), Some(101));
+        assert!(restored.ctx.to_execute_entity.is_empty());
+        assert_eq!(
+            restored
+                .ctx
+                .map
+                .items
+                .iter()
+                .filter(|item| {
+                    item.attributes.get_str("fx_condition") == Some("focused")
+                        && item.attributes.get_str("fx_stage") == Some("condition_active")
+                        && item.attributes.get_bool_default("fx_persistent", false)
+                        && item.attributes.get_uint_default("fx_follow_entity", 0) == 101
+                })
+                .count(),
+            1
+        );
+
+        update_ruleset_conditions(&mut restored.ctx, 0.49);
+        assert_eq!(
+            restored
+                .entity(101)
+                .attributes
+                .get_int_default("STAMINA", 0),
+            3
+        );
+        update_ruleset_conditions(&mut restored.ctx, 0.02);
+        assert_eq!(
+            restored
+                .entity(101)
+                .attributes
+                .get_int_default("STAMINA", 0),
+            2
+        );
+
+        update_ruleset_conditions(&mut restored.ctx, 5.0);
+        assert!(!restored.has_str_array_attr(101, "conditions", "focused"));
+        assert!(!restored.ctx.map.items.iter().any(|item| {
+            item.attributes.get_str("fx_condition") == Some("focused")
+                && item.attributes.get_str("fx_stage") == Some("condition_active")
+                && item.attributes.get_bool_default("fx_persistent", false)
+        }));
+        assert!(restored.ctx.map.items.iter().any(|item| {
+            item.attributes.get_str("fx_condition") == Some("focused")
+                && item.attributes.get_str("fx_stage") == Some("condition_remove")
+        }));
+    }
+
+    #[test]
+    fn official_skeleton_uses_bundled_avatar_traits_and_relations() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.add_official_entity(1, "Citizen", "Human", 1, None);
+        arena.add_official_entity(2, "Citizen", "Skeleton", 1, None);
+
+        assert_eq!(arena.attr_str(2, "avatar"), "skeleton");
+        assert!(arena.has_str_array_attr(2, "traits", "undead"));
+        assert!(arena.has_str_array_attr(2, "traits", "skeletal"));
+        assert_eq!(
+            entity_disposition_by_id(&arena.ctx, 1, 2).as_deref(),
+            Some("hostile")
+        );
+        assert_eq!(
+            entity_disposition_by_id(&arena.ctx, 2, 1).as_deref(),
+            Some("hostile")
+        );
+    }
+
+    #[test]
     fn official_ruleset_warrior_attack_uses_weapon_and_hostility() {
         let mut arena = HeadlessRulesArena::with_official_rules();
         arena.add_script_class(
@@ -4717,11 +5120,15 @@ mod tests {
         arena.add_official_entity(1, "Cleric", "Human", 2, Some(2));
         arena.add_official_entity(2, "Warrior", "Orc", 1, None);
         arena.add_official_inventory_item(1, 201, "reagents", "blessed_herb");
+        arena.add_official_inventory_item(1, 202, "reagents", "moonwater");
+        arena.add_official_inventory_item(1, 203, "reagents", "consecrated_oil");
 
         assert!(arena.has_str_array_attr(1, "spells", "minor_heal"));
         assert!(arena.has_str_array_attr(1, "spells", "holy_light"));
         assert_eq!(arena.mp(1), 11);
         assert_eq!(arena.inventory_item_quantity(1, "blessed_herb"), 3);
+        assert_eq!(arena.inventory_item_quantity(1, "moonwater"), 2);
+        assert_eq!(arena.inventory_item_quantity(1, "consecrated_oil"), 2);
         assert_eq!(
             entity_disposition_by_id(&arena.ctx, 1, 2).as_deref(),
             Some("hostile")
@@ -4734,6 +5141,7 @@ mod tests {
 
         assert!(arena.hp(2) < orc_hp);
         assert_eq!(arena.mp(1), 7);
+        assert_eq!(arena.inventory_item_quantity(1, "consecrated_oil"), 1);
         assert!(is_spell_on_cooldown(&arena.ctx, 1, "holy_light"));
         assert_eq!(arena.attr_str(2, "last_kind"), "arcane");
         assert_eq!(arena.attr_f32(2, "last_attacker") as u32, 1);
@@ -4748,6 +5156,7 @@ mod tests {
         assert!(arena.hp(1) <= arena.entity(1).attributes.get_int_default("MAX_HP", 0));
         assert_eq!(arena.mp(1), 4);
         assert_eq!(arena.inventory_item_quantity(1, "blessed_herb"), 2);
+        assert_eq!(arena.inventory_item_quantity(1, "moonwater"), 1);
         assert!(is_spell_on_cooldown(&arena.ctx, 1, "minor_heal"));
     }
 
@@ -4765,6 +5174,7 @@ mod tests {
             "#,
         );
         arena.add_official_entity(1, "Cleric", "Human", 1, Some(1));
+        arena.add_official_inventory_item(1, 201, "reagents", "moonwater");
         arena.set_entity_attr(1, "HP", Value::Int(5));
         arena.set_entity_attr(1, "target", Value::UInt(1));
         arena.set_entity_attr(1, "attack_target", Value::UInt(1));
@@ -4779,7 +5189,540 @@ mod tests {
     }
 
     #[test]
-    fn official_ruleset_recipe_consumes_material_stacks_and_merges_outputs() {
+    fn standalone_sandbox_ruleset_gathers_by_skill_without_classes_or_levels() {
+        let mut arena = HeadlessRulesArena::with_rules(
+            r#"
+            [skills.mining]
+            name = "Mining"
+
+            [actions.mine_ore]
+            name = "Mine Ore"
+            kind = "gather"
+            skill = "mining"
+            required_skill = 25
+            target = "resource_node"
+            range = 2
+            cooldown = 1
+            consumes = [{ item = "mining_charge", quantity = 1 }]
+            result = { item = "iron_ore", quantity = 2 }
+
+            [items.materials.iron_ore]
+            name = "Iron Ore"
+            slot = "material"
+            stackable = true
+            max_stack = 100
+
+            [items.tools.mining_charge]
+            name = "Mining Charge"
+            slot = "tool"
+            stackable = true
+            max_stack = 20
+
+            [resources.iron_vein]
+            name = "Iron Vein"
+            action = "mine_ore"
+            skill = "mining"
+            respawn = 30
+            "#,
+        );
+        assert!(arena.ctx.rules.get("classes").is_none());
+        assert!(arena.ctx.rules.get("progression").is_none());
+
+        let mut miner = Entity::new();
+        miner.id = 1;
+        miner.position = Vec3::new(0.0, 1.0, 0.0);
+        miner.inventory.resize(4, None);
+        miner.set_attribute("name", Value::Str("Miner".into()));
+        miner.set_attribute("mode", Value::Str("active".into()));
+        miner.set_attribute("visible", Value::Bool(true));
+        miner.set_attribute("skill_mining", Value::Int(24));
+        let mut charge = Item::new();
+        charge.id = 3;
+        charge.set_attribute("name", Value::Str("Mining Charge".into()));
+        charge.set_attribute("ruleset_id", Value::Str("mining_charge".into()));
+        charge.set_attribute("quantity", Value::Int(1));
+        miner.inventory[0] = Some(charge);
+        arena.ctx.map.entities.push(miner);
+
+        let mut vein = Item::new();
+        vein.id = 2;
+        vein.position = Vec3::new(1.0, 1.0, 0.0);
+        vein.set_attribute("name", Value::Str("Iron Vein".into()));
+        vein.set_attribute("ruleset_id", Value::Str("iron_vein".into()));
+        vein.set_attribute("ruleset_kind", Value::Str("resource".into()));
+        vein.set_attribute("resource_id", Value::Str("iron_vein".into()));
+        vein.set_attribute("resource_action", Value::Str("mine_ore".into()));
+        vein.set_attribute("visible", Value::Bool(true));
+        arena.ctx.map.items.push(vein);
+
+        assert!(!execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "mine_ore",
+            Some(2)
+        ));
+        assert_eq!(arena.inventory_item_quantity(1, "iron_ore"), 0);
+        assert_eq!(arena.inventory_item_quantity(1, "mining_charge"), 1);
+        assert!(
+            !arena
+                .map_item(2)
+                .attributes
+                .get_bool_default("resource_depleted", false)
+        );
+
+        arena.set_entity_attr(1, "skill_mining", Value::Int(25));
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "mine_ore",
+            Some(2)
+        ));
+        assert_eq!(arena.inventory_item_quantity(1, "iron_ore"), 2);
+        assert_eq!(arena.inventory_item_quantity(1, "mining_charge"), 0);
+        assert!(
+            arena
+                .map_item(2)
+                .attributes
+                .get_bool_default("resource_depleted", false)
+        );
+        assert!(
+            !arena
+                .map_item(2)
+                .attributes
+                .get_bool_default("visible", true)
+        );
+    }
+
+    #[test]
+    fn standalone_sandbox_ruleset_targets_items_and_world_positions() {
+        let mut arena = HeadlessRulesArena::with_rules(
+            r#"
+            [actions.inspect_item]
+            name = "Inspect Item"
+            kind = "interaction"
+            target = "any_item"
+            range = 3
+            requires = { attributes = [
+                { id = "mode", equals = "active" },
+                { id = "karma", at_least = 10 },
+                { id = "traits", contains = "undead" },
+            ] }
+            result = { script = "inspect_target" }
+
+            [actions.unlock_chest]
+            name = "Unlock Chest"
+            kind = "interaction"
+            target = "any_item"
+            range = 2
+            source = { item = "lockpick", condition_cost = 5, destroy_on_empty = true }
+            result = { script = "unlock_target" }
+
+            [actions.mark_location]
+            name = "Mark Location"
+            kind = "interaction"
+            target = "world_position"
+            range = 4
+            result = { script = "mark_location" }
+
+            [actions.intimidate]
+            name = "Intimidate"
+            kind = "interaction"
+            target = "any_entity"
+            range = 2
+            requires = { attributes = [
+                { id = "stamina", at_least = 2 },
+            ] }
+            result = { script = "intimidated", modify = [
+                { recipient = "actor", resource = "stamina", add = -2, minimum = 0 },
+                { attribute = "karma", add = -5, minimum = 0 },
+                { attribute = "mode", set = "frightened" },
+            ] }
+
+            [actions.rest]
+            name = "Rest"
+            kind = "interaction"
+            target = "self"
+            result = { modify = [
+                { resource = "stamina", add = 10, maximum_attribute = "max_stamina" },
+            ] }
+
+            [actions.turn_undead]
+            name = "Turn Undead"
+            kind = "interaction"
+            target = "any_entity"
+            range = 3
+            requires = { target_attributes = [
+                { id = "traits", contains = "undead" },
+            ] }
+            result = { modify = [
+                { attribute = "mode", set = "turned" },
+            ] }
+
+            [actions.failed_transition]
+            name = "Failed Transition"
+            kind = "interaction"
+            target = "self"
+            result = { modify = [
+                { attribute = "mode", set = "resting" },
+                { resource = "stamina", add = 1, maximum_attribute = "missing_max_stamina" },
+            ] }
+
+            [actions.take]
+            name = "Take"
+            kind = "interaction"
+            target = "ground_item"
+            range = 2
+            cooldown = 1
+            result = { take = true }
+
+            [items.tools.lockpick]
+            name = "Lockpick"
+            slot = "tool"
+            stackable = false
+            "#,
+        );
+        assert!(arena.ctx.rules.get("classes").is_none());
+        assert!(arena.ctx.rules.get("progression").is_none());
+
+        let mut actor = Entity::new();
+        actor.id = 1;
+        actor.position = Vec3::new(0.0, 1.0, 0.0);
+        actor.inventory.resize(4, None);
+        actor.set_attribute("name", Value::Str("Crafter".into()));
+        actor.set_attribute("mode", Value::Str("active".into()));
+        actor.set_attribute("karma", Value::Int(9));
+        actor.set_attribute("traits", Value::StrArray(vec!["living".into()]));
+        actor.set_attribute("stamina", Value::Int(2));
+        actor.set_attribute("max_stamina", Value::Int(6));
+        actor.set_attribute("visible", Value::Bool(true));
+        arena.ctx.map.entities.push(actor);
+
+        let mut target = Entity::new();
+        target.id = 7;
+        target.position = Vec3::new(1.0, 1.0, 0.0);
+        target.set_attribute("name", Value::Str("Target".into()));
+        target.set_attribute("karma", Value::Int(3));
+        target.set_attribute("mode", Value::Str("calm".into()));
+        target.set_attribute("traits", Value::StrArray(vec!["living".into()]));
+        target.set_attribute("visible", Value::Bool(true));
+        arena.ctx.map.entities.push(target);
+
+        let mut inspectable = Item::new();
+        inspectable.id = 2;
+        inspectable.position = Vec3::new(1.0, 1.0, 0.0);
+        inspectable.set_attribute("name", Value::Str("Ancient Box".into()));
+        inspectable.set_attribute("visible", Value::Bool(true));
+        inspectable.set_attribute("static", Value::Bool(true));
+        arena.ctx.map.items.push(inspectable);
+
+        assert!(!execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "turn_undead",
+            Some(7),
+        ));
+        assert_eq!(arena.entity(7).attributes.get_str("mode"), Some("calm"));
+        arena.set_entity_attr(
+            7,
+            "traits",
+            Value::StrArray(vec!["undead".into(), "skeletal".into()]),
+        );
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "turn_undead",
+            Some(7),
+        ));
+        assert_eq!(arena.entity(7).attributes.get_str("mode"), Some("turned"));
+
+        assert!(execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "intimidate",
+            Some(7),
+        ));
+        assert_eq!(arena.entity(1).attributes.get_int_default("stamina", -1), 0);
+        assert_eq!(arena.entity(7).attributes.get_int_default("karma", -1), 0);
+        assert_eq!(
+            arena.entity(7).attributes.get_str("mode"),
+            Some("frightened")
+        );
+        let (event_actor, event, value) = arena
+            .ctx
+            .to_execute_entity
+            .pop()
+            .expect("state action queues its completion event");
+        assert_eq!(event_actor, 1);
+        assert_eq!(event, "intimidated");
+        assert_eq!(value.x as u32, 7);
+        assert_eq!(value.string.as_deref(), Some("intimidate"));
+        assert!(!execute_ruleset_action(
+            &mut arena.ctx,
+            1,
+            "intimidate",
+            Some(7),
+        ));
+        assert_eq!(arena.entity(7).attributes.get_int_default("karma", -1), 0);
+
+        assert!(execute_ruleset_action_with_target(
+            &mut arena.ctx,
+            1,
+            "rest",
+            None,
+        ));
+        assert_eq!(arena.entity(1).attributes.get_int_default("stamina", -1), 6);
+        assert!(!execute_ruleset_action_with_target(
+            &mut arena.ctx,
+            1,
+            "failed_transition",
+            None,
+        ));
+        assert_eq!(arena.entity(1).attributes.get_str("mode"), Some("active"));
+        assert_eq!(arena.entity(1).attributes.get_int_default("stamina", -1), 6);
+
+        assert!(!execute_ruleset_action_with_target(
+            &mut arena.ctx,
+            1,
+            "inspect_item",
+            Some(RulesetActionTarget::Item {
+                item_id: 2,
+                owner_entity_id: None,
+            }),
+        ));
+        assert!(arena.ctx.to_execute_entity.is_empty());
+        arena.set_entity_attr(1, "karma", Value::Int(10));
+        assert!(!execute_ruleset_action_with_target(
+            &mut arena.ctx,
+            1,
+            "inspect_item",
+            Some(RulesetActionTarget::Item {
+                item_id: 2,
+                owner_entity_id: None,
+            }),
+        ));
+        assert!(arena.ctx.to_execute_entity.is_empty());
+        arena.set_entity_attr(1, "traits", Value::StrArray(vec!["undead".into()]));
+        assert!(execute_ruleset_action_with_target(
+            &mut arena.ctx,
+            1,
+            "inspect_item",
+            Some(RulesetActionTarget::Item {
+                item_id: 2,
+                owner_entity_id: None,
+            }),
+        ));
+        let (event_actor, event, value) = arena
+            .ctx
+            .to_execute_entity
+            .pop()
+            .expect("item action queues its script event");
+        assert_eq!(event_actor, 1);
+        assert_eq!(event, "inspect_target");
+        assert_eq!(value.x as u32, 2);
+        assert_eq!(value.y as u32, 0);
+        assert_eq!(value.string.as_deref(), Some("inspect_item"));
+
+        assert!(!execute_ruleset_action_with_source(
+            &mut arena.ctx,
+            1,
+            "unlock_chest",
+            Some(2),
+            None,
+        ));
+        assert!(arena.ctx.to_execute_entity.is_empty());
+
+        let mut hammer = Item::new();
+        hammer.id = 4;
+        hammer.set_attribute("name", Value::Str("Hammer".into()));
+        hammer.set_attribute("ruleset_id", Value::Str("hammer".into()));
+        hammer.set_attribute("condition", Value::Float(10.0));
+        arena.ctx.map.entities[0].inventory[0] = Some(hammer);
+        let mut first_lockpick = Item::new();
+        first_lockpick.id = 5;
+        first_lockpick.set_attribute("name", Value::Str("Lockpick".into()));
+        first_lockpick.set_attribute("ruleset_id", Value::Str("lockpick".into()));
+        first_lockpick.set_attribute("condition", Value::Float(10.0));
+        arena.ctx.map.entities[0].inventory[1] = Some(first_lockpick);
+        let mut selected_lockpick = Item::new();
+        selected_lockpick.id = 6;
+        selected_lockpick.set_attribute("name", Value::Str("Lockpick".into()));
+        selected_lockpick.set_attribute("ruleset_id", Value::Str("lockpick".into()));
+        selected_lockpick.set_attribute("condition", Value::Float(10.0));
+        arena.ctx.map.entities[0].inventory[2] = Some(selected_lockpick);
+
+        assert!(!execute_ruleset_action_with_source(
+            &mut arena.ctx,
+            1,
+            "unlock_chest",
+            Some(2),
+            Some(4),
+        ));
+        assert!(arena.ctx.to_execute_entity.is_empty());
+        arena
+            .ctx
+            .map
+            .items
+            .iter_mut()
+            .find(|item| item.id == 2)
+            .expect("chest exists")
+            .position = Vec3::new(5.0, 1.0, 0.0);
+        assert!(!execute_ruleset_action_with_source(
+            &mut arena.ctx,
+            1,
+            "unlock_chest",
+            Some(2),
+            Some(6),
+        ));
+        assert_eq!(
+            arena
+                .entity(1)
+                .get_item(6)
+                .expect("failed action does not wear source")
+                .attributes
+                .get_float_default("condition", 0.0),
+            10.0
+        );
+        arena
+            .ctx
+            .map
+            .items
+            .iter_mut()
+            .find(|item| item.id == 2)
+            .expect("chest exists")
+            .position = Vec3::new(1.0, 1.0, 0.0);
+        assert!(execute_ruleset_action_with_source(
+            &mut arena.ctx,
+            1,
+            "unlock_chest",
+            Some(2),
+            Some(6),
+        ));
+        let (_, event, value) = arena
+            .ctx
+            .to_execute_entity
+            .pop()
+            .expect("source-item action queues its script event");
+        assert_eq!(event, "unlock_target");
+        assert_eq!(value.x as u32, 2);
+        assert_eq!(value.z as u32, 6);
+        assert_eq!(value.string.as_deref(), Some("unlock_chest"));
+        assert_eq!(
+            arena
+                .entity(1)
+                .get_item(6)
+                .expect("selected lockpick remains after first use")
+                .attributes
+                .get_float_default("condition", 0.0),
+            5.0
+        );
+        assert_eq!(
+            arena
+                .entity(1)
+                .get_item(5)
+                .expect("unselected lockpick is untouched")
+                .attributes
+                .get_float_default("condition", 0.0),
+            10.0
+        );
+
+        assert!(execute_ruleset_action_with_source(
+            &mut arena.ctx,
+            1,
+            "unlock_chest",
+            Some(2),
+            Some(6),
+        ));
+        let _ = arena.ctx.to_execute_entity.pop();
+        assert!(arena.entity(1).get_item(6).is_none());
+        assert!(arena.entity(1).get_item(5).is_some());
+        assert!(execute_ruleset_action_with_source(
+            &mut arena.ctx,
+            1,
+            "unlock_chest",
+            Some(2),
+            None,
+        ));
+        let (_, _, value) = arena
+            .ctx
+            .to_execute_entity
+            .pop()
+            .expect("automatic source selection queues its script event");
+        assert_eq!(value.z as u32, 5);
+        assert_eq!(
+            arena
+                .entity(1)
+                .get_item(5)
+                .expect("automatically selected lockpick remains")
+                .attributes
+                .get_float_default("condition", 0.0),
+            5.0
+        );
+
+        let position = Vec3::new(2.0, 1.0, 1.0);
+        assert!(execute_ruleset_action_with_target(
+            &mut arena.ctx,
+            1,
+            "mark_location",
+            Some(RulesetActionTarget::Position(position)),
+        ));
+        let (_, event, value) = arena
+            .ctx
+            .to_execute_entity
+            .pop()
+            .expect("position action queues its script event");
+        assert_eq!(event, "mark_location");
+        assert_eq!((value.x, value.y, value.z), (2.0, 1.0, 1.0));
+        assert_eq!(value.string.as_deref(), Some("mark_location"));
+
+        assert!(!execute_ruleset_action_with_target(
+            &mut arena.ctx,
+            1,
+            "mark_location",
+            Some(RulesetActionTarget::Position(Vec3::new(9.0, 1.0, 0.0))),
+        ));
+        assert!(arena.ctx.to_execute_entity.is_empty());
+
+        let mut loose_item = Item::new();
+        loose_item.id = 3;
+        loose_item.position = Vec3::new(1.0, 1.0, 0.0);
+        loose_item.set_attribute("name", Value::Str("Loose Gem".into()));
+        loose_item.set_attribute("ruleset_id", Value::Str("loose_gem".into()));
+        loose_item.set_attribute("visible", Value::Bool(true));
+        arena.ctx.map.items.push(loose_item);
+
+        for (index, slot) in arena.ctx.map.entities[0].inventory.iter_mut().enumerate() {
+            let mut filler = Item::new();
+            filler.id = 10 + index as u32;
+            filler.set_attribute("name", Value::Str(format!("Filler {}", index)));
+            *slot = Some(filler);
+        }
+        assert!(!execute_ruleset_action_with_target(
+            &mut arena.ctx,
+            1,
+            "take",
+            Some(RulesetActionTarget::Item {
+                item_id: 3,
+                owner_entity_id: None,
+            }),
+        ));
+        assert!(arena.ctx.map.items.iter().any(|item| item.id == 3));
+
+        arena.ctx.map.entities[0].inventory[0] = None;
+        assert!(execute_ruleset_action_with_target(
+            &mut arena.ctx,
+            1,
+            "take",
+            Some(RulesetActionTarget::Item {
+                item_id: 3,
+                owner_entity_id: None,
+            }),
+        ));
+        assert!(arena.ctx.map.items.iter().all(|item| item.id != 3));
+        assert_eq!(arena.inventory_item_quantity(1, "loose_gem"), 1);
+    }
+
+    #[test]
+    fn official_ruleset_recipe_preserves_total_outputs_across_quality_stacks() {
         let mut arena = HeadlessRulesArena::with_official_rules();
         arena.add_official_entity(1, "Ranger", "Human", 1, None);
         arena.add_official_inventory_item(1, 201, "materials", "green_wood");
@@ -4791,6 +5734,7 @@ mod tests {
         assert_eq!(arena.inventory_item_quantity(1, "green_wood"), 4);
         assert_eq!(arena.inventory_item_quantity(1, "feather"), 3);
         assert_eq!(arena.inventory_item_quantity(1, "wooden_arrows"), 30);
+        assert_eq!(arena.inventory_item_stack_count(1, "wooden_arrows"), 2);
     }
 
     #[test]
@@ -4906,6 +5850,7 @@ mod tests {
             .and_then(toml::Value::as_table_mut)
             .expect("gather_wood action")
             .insert("required_skill".into(), toml::Value::Integer(25));
+        arena.ctx.invalidate_resolved_rules();
 
         assert!(!execute_ruleset_action(
             &mut arena.ctx,
@@ -5034,6 +5979,8 @@ mod tests {
         arena.clear_inventory(2);
         arena.equip_official_item(1, 101, "weapons", "hunting_bow");
         arena.add_official_inventory_item(2, 201, "reagents", "blessed_herb");
+        arena.add_official_inventory_item(2, 202, "reagents", "moonwater");
+        arena.add_official_inventory_item(2, 203, "reagents", "consecrated_oil");
         arena.add_official_world_item(301, "resources", "wild_herb_node", 1.0, 0.0);
         arena.add_official_world_item(302, "resources", "green_wood_node", 1.0, 0.0);
         arena.add_official_world_item(303, "resources", "green_wood_node", 1.0, 0.5);
@@ -5122,6 +6069,7 @@ mod tests {
         ));
         assert!(arena.hp(2) > 6);
         assert_eq!(arena.inventory_item_quantity(2, "blessed_herb"), 2);
+        assert_eq!(arena.inventory_item_quantity(2, "moonwater"), 1);
         arena.ctx.entity_state_data.clear();
 
         arena.set_entity_attr(4, "HP", Value::Int(30));
@@ -5151,8 +6099,54 @@ mod tests {
         ));
         arena.drain_entity_events();
         assert!(arena.hp(4) < second_orc_hp);
+        assert_eq!(arena.inventory_item_quantity(2, "consecrated_oil"), 1);
         assert_eq!(arena.attr_f32(4, "last_attacker") as u32, 2);
         assert_eq!(arena.attr_str(4, "last_kind"), "arcane");
+    }
+
+    #[test]
+    fn official_ritual_crafting_turns_collectibles_into_reagents_and_equipment() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.add_official_entity(1, "Cleric", "Human", 10, None);
+        arena.clear_inventory(1);
+        arena.set_entity_attr(1, "skill_alchemy", Value::Int(100));
+        arena.set_entity_attr(1, "skill_restoration", Value::Int(100));
+        arena.set_entity_attr(1, "skill_ritualism", Value::Int(100));
+        arena.add_official_inventory_item(1, 201, "materials", "wild_herb");
+        arena.add_official_inventory_item(1, 202, "materials", "moonleaf");
+        arena.add_official_inventory_item(1, 203, "materials", "sun_shard");
+        arena.add_official_inventory_item(1, 204, "materials", "sun_shard");
+        arena.add_official_inventory_item(1, 205, "materials", "grave_dust");
+        arena.add_official_inventory_item(1, 206, "materials", "ember_resin");
+        arena.add_official_inventory_item(1, 207, "materials", "green_wood");
+        arena
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 1)
+            .unwrap()
+            .inventory
+            .resize(20, None);
+
+        assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "blessed_herb"));
+        assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "moonwater"));
+        assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "consecrated_oil"));
+        assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "warding_salt"));
+        assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "ember_beads"));
+
+        assert_eq!(arena.inventory_item_quantity(1, "moonwater"), 2);
+        assert_eq!(arena.inventory_item_quantity(1, "consecrated_oil"), 2);
+        assert_eq!(arena.inventory_item_quantity(1, "warding_salt"), 3);
+        assert_eq!(arena.inventory_item_quantity(1, "ember_bead"), 3);
+
+        assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "ritual_censer"));
+        assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "sunward_charm"));
+        assert_eq!(arena.inventory_item_quantity(1, "ritual_censer"), 1);
+        assert_eq!(arena.inventory_item_quantity(1, "sunward_charm"), 1);
+        assert_eq!(arena.inventory_item_quantity(1, "consecrated_oil"), 1);
+        assert_eq!(arena.inventory_item_quantity(1, "warding_salt"), 1);
+        assert_eq!(arena.inventory_item_quantity(1, "moonwater"), 1);
     }
 
     #[test]
@@ -5170,6 +6164,13 @@ mod tests {
         assert!(craft_ruleset_recipe(&mut arena.ctx, 2, "blessed_herb"));
         assert_eq!(arena.inventory_item_quantity(2, "wild_herb"), 4);
         assert_eq!(arena.inventory_item_quantity(2, "blessed_herb"), 1);
+        assert_eq!(
+            arena
+                .entity(2)
+                .attributes
+                .get_int_default("skill_restoration", 0),
+            2
+        );
     }
 
     #[test]
@@ -5182,6 +6183,13 @@ mod tests {
         assert!(craft_ruleset_recipe(&mut arena.ctx, 1, "hunting_bow"));
         assert_eq!(arena.inventory_item_quantity(1, "green_wood"), 2);
         assert_eq!(arena.inventory_item_quantity(1, "hunting_bow"), 1);
+        assert_eq!(
+            arena
+                .entity(1)
+                .attributes
+                .get_int_default("skill_fletching", 0),
+            2
+        );
         let low_quality = arena
             .ctx
             .map

@@ -3280,10 +3280,7 @@ impl VM {
                         let Some(normal) = (b - a).cross(c - a).try_normalized() else {
                             continue;
                         };
-                        return Some((
-                            [world.x, world.y, world.z],
-                            [normal.x, normal.y, normal.z],
-                        ));
+                        return Some(([world.x, world.y, world.z], [normal.x, normal.y, normal.z]));
                     }
                 }
             }
@@ -13420,7 +13417,9 @@ mod shader_tests {
     #[test]
     fn raster_shader_locations_fit_minimum_wgpu_limit() {
         for suffix in SCENEVM_3D_RASTER_WGSL.split("@location(").skip(1) {
-            let end = suffix.find(')').expect("location has a closing parenthesis");
+            let end = suffix
+                .find(')')
+                .expect("location has a closing parenthesis");
             let location = suffix[..end]
                 .parse::<u32>()
                 .expect("location is an integer");

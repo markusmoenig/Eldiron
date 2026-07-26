@@ -468,6 +468,19 @@ impl DockManager {
         }
     }
 
+    /// Clear state that belongs to the project which is being deactivated.
+    pub fn reset_for_project_switch(&mut self) {
+        for dock in self.docks.values_mut() {
+            dock.reset_for_project_switch();
+        }
+        for dock in self.editor_docks.values_mut() {
+            dock.reset_for_project_switch();
+        }
+        self.auto_text_play_prev_dock = None;
+        self.auto_text_play_active = false;
+        self.supports_undo = false;
+    }
+
     pub fn apply_eldrin_debug_data(
         &mut self,
         ui: &mut TheUI,

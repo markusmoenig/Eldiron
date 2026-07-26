@@ -43,18 +43,6 @@ click_intents_2d = false       # Target 2D intents with mouse clicks while keepi
 auto_walk_2d = false           # In walk mode, clicking terrain in 2D makes the player path-walk there.
 locale = "en"                    # Active locale used for localized strings and rules-based messages.
 
-# The supported gear slots
-gear_slots = ["head", "torso", "legs", "hands", "feet"]
-
-# The supported weapon slots
-weapon_slots = ["main_hand", "off_hand"]
-
-# The attribute which stores the current level
-level = "LEVEL"
-
-# The attribute which stores accumulated experience
-experience = "EXP"
-
 # Enables generated marker ramp shading for avatars.
 avatar_shading = true
 
@@ -142,7 +130,7 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
 
 - **`start_screen`**
   The **name of the screen** to load on startup.
-  If empty, Eldiron will display a black screen.
+  If empty, Eldiron displays `start_region` in an implicit full-viewport game view.
 
 - **`terminal_mode`**
   Selects how `eldiron-client-terminal` plays the project by default.
@@ -178,20 +166,6 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
   - Recommended for 2D rules screens that use a Walk/default command button.
   - Default: `false`.
 
-- **`gear_slots`**
-  The **valid gear slots** of items. Items can define it's gear slot by setting `slot` in the data tool.
-
-- **`weapon_slots`**
-  The **valid weapon slots** of items. Items can define it's weapon slot by setting `slot` in the data tool.
-
-### `level`
-
-  The name of the character attribute used as the current level for [Rules](../rules) progression formulas. Default: **"LEVEL"**.
-
-### `experience`
-
-  The name of the character attribute used to store accumulated experience. Default: **"EXP"**.
-
 ## Ruleset Selection
 
 Selects the official ruleset used by the project.
@@ -201,6 +175,16 @@ starts empty and can override that official ruleset for this project. Gameplay
 definitions such as formulas, classes, spells, intent ranges, and equipment
 rules should live in the official ruleset or in **Game / Rules**, not in
 individual character or item attributes.
+
+Equipment slot lists are ruleset data under `[equipment]`. They are not game
+settings: server combat, graphical UI, terminal stats, and equip validation all
+consume the same resolved `weapon_slots` and `armor_slots`.
+
+Semantic attribute names are also ruleset data under `[attributes.roles]`.
+For example, the official ruleset maps `health`, `max_health`, `level`,
+`experience`, `weapon_damage`, and `armor` to `HP`, `MAX_HP`, `LEVEL`, `EXP`,
+`DMG`, and `ARMOR`. A classless sandbox can omit level and experience roles
+entirely; Eldiron will not invent those attributes.
 
 - `id`: ruleset id, for example `eldiron.official`
 - `version`: requested ruleset version, for example `1.0.0`

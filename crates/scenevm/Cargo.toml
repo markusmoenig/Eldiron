@@ -16,7 +16,7 @@ pollster = { version = "0.4", optional = true }
 uuid = { version = "1.18.1", features = ["v4", "rng-getrandom"] }
 rustc-hash = "2.1.1"
 vek = { version = "0.17.1", default-features = true }
-bytemuck = "1.24.0"
+bytemuck = { version = "1.24.0", features = ["derive"] }
 image = { version = "0.25.10", default-features = false, features = [
     "png",
     "jpeg",

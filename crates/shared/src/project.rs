@@ -1653,13 +1653,10 @@ mod tests {
     fn project_can_load_hideout2d_fixture() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../test_projects/Hideout2D.eldiron");
-        if !path.exists() {
-            return;
-        }
-
-        let contents = std::fs::read_to_string(path).expect("read Hideout2D fixture");
-        let project: Project =
-            serde_json::from_str(&contents).expect("Hideout2D fixture deserializes");
+        let contents = std::fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("read Hideout2D fixture '{}': {err}", path.display()));
+        let project: Project = serde_json::from_str(&contents)
+            .unwrap_or_else(|err| panic!("Hideout2D fixture deserializes: {err}"));
 
         assert!(
             project
@@ -1667,6 +1664,135 @@ mod tests {
                 .values()
                 .any(|screen| screen.map.name == "Start"),
             "Hideout2D fixture should contain the Start screen"
+        );
+    }
+
+    #[test]
+    fn hideout2d_resolves_through_current_ruleset_model() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../test_projects/Hideout2D.eldiron");
+        let contents = std::fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("read Hideout2D fixture '{}': {err}", path.display()));
+        let mut project: Project = serde_json::from_str(&contents)
+            .unwrap_or_else(|err| panic!("Hideout2D fixture deserializes: {err}"));
+        let selection = crate::rulesets::selected_ruleset_config(&project.config);
+        assert_eq!(selection.id, crate::rulesets::OFFICIAL_RULESET_ID);
+        assert_eq!(selection.version, crate::rulesets::OFFICIAL_RULESET_VERSION);
+        assert_eq!(
+            selection.schema_version,
+            crate::rulesets::OFFICIAL_RULESET_SCHEMA_VERSION
+        );
+        assert_eq!(selection.source, "official");
+
+        let resolved = crate::rulesets::resolve_project_ruleset(&project.config, &project.rules)
+            .unwrap_or_else(|err| panic!("Hideout2D resolves its ruleset: {err}"));
+        assert_eq!(resolved.metadata().id, crate::rulesets::OFFICIAL_RULESET_ID);
+        assert_eq!(
+            resolved.metadata().schema_version,
+            crate::rulesets::OFFICIAL_RULESET_SCHEMA_VERSION
+        );
+        assert!(
+            resolved.validation().is_ok(),
+            "Hideout2D should resolve without ruleset validation errors: {:?}",
+            resolved.validation().issues
+        );
+        assert!(resolved.table().get("actions").is_some());
+        assert!(resolved.table().get("classes").is_some());
+        assert!(resolved.table().get("items").is_some());
+        let basic_attack = resolved
+            .action("basic_attack")
+            .expect("Hideout2D resolves typed Basic Attack")
+            .expect("Hideout2D includes Basic Attack");
+        assert_eq!(
+            basic_attack.kind,
+            crate::rulesets::ResolvedActionKind::Attack
+        );
+        assert_eq!(
+            basic_attack.damage_source(),
+            Some(&crate::rulesets::ResolvedActionValueSource::Weapon)
+        );
+        let minor_heal = resolved
+            .action("minor_heal")
+            .expect("Hideout2D resolves typed Minor Heal")
+            .expect("Hideout2D includes Minor Heal");
+        assert_eq!(minor_heal.required_spell(), Some("minor_heal"));
+        assert!(matches!(
+            minor_heal.healing_source(),
+            Some(crate::rulesets::ResolvedActionValueSource::RulesetPath(path))
+                if path == "spells.minor_heal.healing"
+        ));
+        let holy_light = resolved
+            .action("holy_light")
+            .expect("Hideout2D resolves typed Holy Light")
+            .expect("Hideout2D includes Holy Light");
+        assert_eq!(holy_light.required_spell(), Some("holy_light"));
+        assert!(matches!(
+            holy_light.damage_source(),
+            Some(crate::rulesets::ResolvedActionValueSource::RulesetPath(path))
+                if path == "spells.holy_light.damage"
+        ));
+
+        assert!(
+            project.characters.values().any(|character| {
+                character.name == "Skeleton"
+                    && character.data.contains("avatar = \"skeleton\"")
+                    && character.data.contains("race = \"Skeleton\"")
+                    && character.data.contains("class = \"Warrior\"")
+            }),
+            "Hideout2D should contain its ruleset-backed Skeleton"
+        );
+        for character_name in [
+            "Bone Warden",
+            "Bone Archer",
+            "Warden Mara",
+            "Brother Corvin",
+            "Quartermaster Nessa",
+        ] {
+            assert!(
+                project
+                    .characters
+                    .values()
+                    .any(|character| character.name == character_name),
+                "Hideout2D should contain {character_name}"
+            );
+        }
+        for item_name in [
+            "Grave Sigil",
+            "Old Grave",
+            "Sunstone Outcrop",
+            "Moonleaf Patch",
+        ] {
+            assert!(
+                project.items.values().any(|item| item.name == item_name),
+                "Hideout2D should contain {item_name}"
+            );
+        }
+        assert!(
+            project
+                .characters
+                .values()
+                .find(|character| character.name == "Brother Corvin")
+                .is_some_and(|character| character.data.contains("SAR IR")),
+            "Hideout2D should connect Words of Power to the dungeon quest"
+        );
+        assert!(
+            !crate::rulesets::bundled_avatars_for_project(&project.config)
+                .expect("official avatars resolve")
+                .is_empty()
+        );
+        assert!(
+            !crate::rulesets::bundled_textures_for_project(&project.config)
+                .expect("official icons resolve")
+                .is_empty()
+        );
+        project
+            .sync_ruleset_items()
+            .unwrap_or_else(|err| panic!("Hideout2D syncs ruleset items: {err}"));
+        assert_eq!(
+            std::fs::read_to_string(&path)
+                .unwrap_or_else(|err| panic!("re-read '{}': {err}", path.display())),
+            contents,
+            "Hideout2D model checks must not rewrite the fixture"
         );
     }
 
@@ -1682,7 +1808,10 @@ mod tests {
         let project: Project = serde_json::from_str(&contents).expect("Gate fixture deserializes");
 
         assert!(
-            project.regions.iter().any(|region| region.name == "StartScene"),
+            project
+                .regions
+                .iter()
+                .any(|region| region.name == "StartScene"),
             "Gate fixture should contain the StartScene region"
         );
     }
@@ -1703,11 +1832,11 @@ mod tests {
     fn project_with_ruleset_keeps_rules_override() {
         let mut project = Project::new();
         project.config = crate::rulesets::DEFAULT_RULESET_CONFIG.to_string();
-        project.rules = "[spells.minor_heal]\ncost_mp = 3\n".to_string();
+        project.rules = "[actions.minor_heal]\ncost = { MP = 3 }\n".to_string();
 
         assert!(!project.migrate_default_ruleset());
 
-        assert_eq!(project.rules, "[spells.minor_heal]\ncost_mp = 3\n");
+        assert_eq!(project.rules, "[actions.minor_heal]\ncost = { MP = 3 }\n");
     }
 
     #[test]

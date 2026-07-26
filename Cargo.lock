@@ -391,7 +391,7 @@ dependencies = [
 
 [[package]]
 name = "buildergraph"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1322,7 +1322,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "eldiron-client"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "console_error_panic_hook",
  "eldiron-shared",
@@ -1341,7 +1341,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-client-terminal"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "crossterm 0.29.0",
  "eldiron-shared",
@@ -1356,7 +1356,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-client-wgpu"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "eldiron-shared",
  "instant",
@@ -1371,7 +1371,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-creator"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "arboard",
  "earcutr",
@@ -1402,7 +1402,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-icon-builder"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "image",
  "serde",
@@ -1412,7 +1412,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-ruleset"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "theframework",
  "toml 0.9.11+spec-1.1.0",
@@ -1420,7 +1420,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-shared"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "buildergraph",
  "earcutr",
@@ -1450,7 +1450,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-source"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "clap",
  "eldiron-shared",
@@ -1465,7 +1465,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron_scepter"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3682,7 +3682,7 @@ dependencies = [
 
 [[package]]
 name = "organicgraph"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "image",
  "serde",
@@ -4378,7 +4378,7 @@ dependencies = [
 
 [[package]]
 name = "run-wasm"
-version = "0.1.0"
+version = "0.93.0"
 dependencies = [
  "cargo-run-wasm",
 ]
@@ -4447,7 +4447,7 @@ dependencies = [
 
 [[package]]
 name = "rusteria"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "image",
  "indexmap",
@@ -4463,7 +4463,7 @@ dependencies = [
 
 [[package]]
 name = "rusterix"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "bincode",
  "buildergraph",
@@ -4661,7 +4661,7 @@ dependencies = [
 
 [[package]]
 name = "scenevm"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "bytemuck",
  "fontdue",
@@ -5225,7 +5225,7 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "arboard",
  "console_error_panic_hook",
@@ -5334,7 +5334,7 @@ dependencies = [
 
 [[package]]
 name = "tilegraph"
-version = "0.92.1"
+version = "0.93.0"
 dependencies = [
  "image",
  "rayon",

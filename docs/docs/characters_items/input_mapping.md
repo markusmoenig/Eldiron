@@ -129,3 +129,16 @@ This activates the button with:
 ```toml
 command = "intent.spell:Fireball"
 ```
+
+## Invocation Sequences
+
+An optional ruleset invocation sequence uses:
+
+```toml
+command = "intent.invoke:words_of_power:LO VI"
+```
+
+The server resolves the scheme and phrase to a normal ruleset action. The same
+action can still be selected directly through `rules.<action_id>` or presented
+with an icon. Invocation tokens are therefore an optional input vocabulary,
+not a separate spell implementation.

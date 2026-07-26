@@ -2,6 +2,7 @@ use crate::{
     Assets, Avatar, AvatarBuildOutput, AvatarBuildRequest, AvatarBuilder, AvatarDirection,
     AvatarMarkerColors, AvatarShadingOptions, Entity, Item, PixelSource, Value,
 };
+use eldiron_ruleset::{ResolvedEquipmentAvatarAnchor, ResolvedEquipmentPolicy};
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, GeoId, SceneVM};
 use std::hash::{Hash, Hasher};
@@ -532,32 +533,37 @@ impl AvatarRuntimeBuilder {
         false
     }
 
-    fn weapon_order_for_direction(direction: AvatarDirection) -> [(&'static str, bool); 2] {
+    fn weapon_order_for_direction(
+        direction: AvatarDirection,
+    ) -> [(ResolvedEquipmentAvatarAnchor, bool); 2] {
         if direction.is_back_facing() {
-            [("main_hand", true), ("off_hand", false)]
+            [
+                (ResolvedEquipmentAvatarAnchor::MainHand, true),
+                (ResolvedEquipmentAvatarAnchor::OffHand, false),
+            ]
         } else {
-            [("off_hand", false), ("main_hand", true)]
+            [
+                (ResolvedEquipmentAvatarAnchor::OffHand, false),
+                (ResolvedEquipmentAvatarAnchor::MainHand, true),
+            ]
         }
     }
 
-    fn find_equipped_for_slot<'a>(entity: &'a Entity, canonical_slot: &str) -> Option<&'a Item> {
-        let aliases: &[&str] = match canonical_slot {
-            "main_hand" => &[
-                "main_hand",
-                "mainhand",
-                "weapon",
-                "weapon_main",
-                "hand_main",
-            ],
-            "off_hand" => &["off_hand", "offhand", "weapon_off", "hand_off", "shield"],
-            _ => &[],
-        };
-        for alias in aliases {
-            if let Some(item) = entity.equipped.get(*alias) {
-                return Some(item);
-            }
-        }
-        None
+    fn find_equipped_for_anchor<'a>(
+        entity: &'a Entity,
+        policy: &ResolvedEquipmentPolicy,
+        anchor: ResolvedEquipmentAvatarAnchor,
+    ) -> Option<&'a Item> {
+        policy
+            .slots_for_avatar_anchor(anchor)
+            .into_iter()
+            .find_map(|slot| {
+                entity
+                    .equipped
+                    .iter()
+                    .find(|(equipped_slot, _)| equipped_slot.eq_ignore_ascii_case(slot))
+                    .map(|(_, item)| item)
+            })
     }
 
     fn scaled_texture_rgba(
@@ -1046,22 +1052,29 @@ impl AvatarRuntimeBuilder {
         let preview_debug = entity
             .attributes
             .get_bool_default("avatar_preview_debug", false);
-        for (slot, is_main) in Self::weapon_order_for_direction(direction) {
+        let equipment = assets
+            .rules
+            .parse::<toml::Table>()
+            .ok()
+            .and_then(|rules| eldiron_ruleset::resolve_equipment_policy(&rules).ok())
+            .unwrap_or_default();
+        for (anchor_role, is_main) in Self::weapon_order_for_direction(direction) {
+            let anchor_id = if is_main { "main_hand" } else { "off_hand" };
             let anchor = if is_main { main_anchor } else { off_anchor };
             let Some(anchor) = anchor else {
                 if preview_debug {
                     eprintln!(
-                        "[RIGPREVIEW] overlay slot='{}' -> no anchor (main={:?} off={:?})",
-                        slot, main_anchor, off_anchor
+                        "[RIGPREVIEW] overlay anchor={:?} -> no anchor (main={:?} off={:?})",
+                        anchor_role, main_anchor, off_anchor
                     );
                 }
                 continue;
             };
-            let Some(item) = Self::find_equipped_for_slot(entity, slot) else {
+            let Some(item) = Self::find_equipped_for_anchor(entity, &equipment, anchor_role) else {
                 if preview_debug {
                     eprintln!(
-                        "[RIGPREVIEW] overlay slot='{}' -> no equipped item for slot aliases",
-                        slot
+                        "[RIGPREVIEW] overlay anchor={:?} -> no mapped equipped item",
+                        anchor_role
                     );
                 }
                 continue;
@@ -1075,8 +1088,8 @@ impl AvatarRuntimeBuilder {
                 let Some(tile) = assets.tiles.get(&tile_id) else {
                     if preview_debug {
                         eprintln!(
-                            "[RIGPREVIEW] overlay slot='{}' -> tile '{}' not found in assets",
-                            slot, tile_id
+                            "[RIGPREVIEW] overlay anchor={:?} -> tile '{}' not found in assets",
+                            anchor_role, tile_id
                         );
                     }
                     continue;
@@ -1084,8 +1097,8 @@ impl AvatarRuntimeBuilder {
                 if tile.textures.is_empty() {
                     if preview_debug {
                         eprintln!(
-                            "[RIGPREVIEW] overlay slot='{}' -> tile '{}' has no textures",
-                            slot, tile_id
+                            "[RIGPREVIEW] overlay anchor={:?} -> tile '{}' has no textures",
+                            anchor_role, tile_id
                         );
                     }
                     continue;
@@ -1095,7 +1108,7 @@ impl AvatarRuntimeBuilder {
                     if preview_debug {
                         eprintln!(
                             "[RIGPREVIEW] overlay slot='{}' -> texture scale failed (w={} h={} scale={})",
-                            slot, tex.width, tex.height, scale
+                            anchor_id, tex.width, tex.height, scale
                         );
                     }
                     continue;
@@ -1104,7 +1117,7 @@ impl AvatarRuntimeBuilder {
                 debug_source = tile_id.to_string();
                 (scaled, sw, sh, Self::item_rig_pivot(item))
             } else if let Some((rgba, width, height, default_pivot)) =
-                Self::generated_rig_texture(item, assets, slot)
+                Self::generated_rig_texture(item, assets, anchor_id)
             {
                 let Some((scaled, sw, sh)) = Self::scaled_rgba(&rgba, width, height, scale) else {
                     continue;
@@ -1116,7 +1129,7 @@ impl AvatarRuntimeBuilder {
                 if preview_debug {
                     eprintln!(
                         "[RIGPREVIEW] overlay slot='{}' -> no tile_id or generated rig visual for direction {:?}",
-                        slot, direction
+                        anchor_id, direction
                     );
                 }
                 continue;
@@ -1132,11 +1145,11 @@ impl AvatarRuntimeBuilder {
             let py = (pivot[1].clamp(0.0, 1.0) * (sh as f32 - 1.0)).round() as i32;
             let dst_x = anchor.0 as i32 - px;
             let dst_y = anchor.1 as i32 - py;
-            let layer = Self::item_rig_layer(item, direction, slot);
+            let layer = Self::item_rig_layer(item, direction, anchor_id);
             if preview_debug {
                 eprintln!(
                     "[RIGPREVIEW] overlay slot='{}' layer={:?} anchor=({}, {}) tile='{}' tex={}x{} scale={} flip={} pivot=({:.2},{:.2}) dst=({}, {})",
-                    slot,
+                    anchor_id,
                     layer,
                     anchor.0,
                     anchor.1,
@@ -1806,5 +1819,43 @@ mod tests {
             .get(&("Idle".to_string(), AvatarDirection::FrontRight, 0))
             .unwrap();
         assert_eq!(rgba, &[0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn avatar_equipment_anchors_accept_ruleset_owned_slot_names() {
+        let rules = r#"
+            [equipment]
+            weapon_slots = ["grip"]
+            armor_slots = ["guard_mount"]
+
+            [equipment.avatar_anchors]
+            grip = "main_hand"
+            guard_mount = "off_hand"
+        "#
+        .parse::<toml::Table>()
+        .unwrap();
+        let policy = eldiron_ruleset::resolve_equipment_policy(&rules).unwrap();
+        let mut entity = Entity::new();
+        let weapon = Item::new();
+        let weapon_id = weapon.id;
+        entity.equipped.insert("grip".into(), weapon);
+
+        assert_eq!(
+            AvatarRuntimeBuilder::find_equipped_for_anchor(
+                &entity,
+                &policy,
+                ResolvedEquipmentAvatarAnchor::MainHand,
+            )
+            .map(|item| item.id),
+            Some(weapon_id)
+        );
+        assert!(
+            AvatarRuntimeBuilder::find_equipped_for_anchor(
+                &entity,
+                &policy,
+                ResolvedEquipmentAvatarAnchor::OffHand,
+            )
+            .is_none()
+        );
     }
 }

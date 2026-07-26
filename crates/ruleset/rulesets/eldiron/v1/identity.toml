@@ -10,10 +10,17 @@ hostile = -1
 [race_relations.Human]
 Human = "friendly"
 Orc = "hostile"
+Skeleton = "hostile"
 
 [race_relations.Orc]
 Human = "hostile"
 Orc = "friendly"
+Skeleton = "hostile"
+
+[race_relations.Skeleton]
+Human = "hostile"
+Orc = "hostile"
+Skeleton = "friendly"
 
 [reputation]
 default = 0

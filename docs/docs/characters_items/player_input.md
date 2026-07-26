@@ -279,6 +279,33 @@ command = "intent.spell:Fireball"
 
 In both cases the runtime treats this as a spell intent and routes it through the normal intent system.
 
+## Ruleset Invocations
+
+Rulesets may bind token sequences to ordinary actions. A game-specific screen
+can present the tokens as words, runes, icons, or any other controls and submit
+the assembled phrase:
+
+```toml
+command = "intent.invoke:words_of_power:{UI.spell.runes}"
+```
+
+For example, the official `LO VI` phrase resolves to `action:minor_heal`.
+Resolution is server-side, and the action still owns its requirements, target,
+costs, cooldown, and effects. Games that prefer direct spell or rules-action
+buttons do not need to use invocation schemes.
+
+When a Messages widget enables `command_input`, players can also type an
+invocation directly:
+
+```text
+LO VI
+SAR IR at skeleton
+invoke words_of_power:YA FUL at orc
+```
+
+The text path resolves these through the same invocation catalogue. Self and
+friendly-or-self actions infer the player when no target is written.
+
 ## Where To Configure What
 
 - Keyboard mappings: [Input Mapping](input_mapping)

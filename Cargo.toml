@@ -4,17 +4,17 @@ members = ["creator", "run-wasm", "crates/ruleset", "crates/shared", "crates/sou
 resolver = "2"
 
 [workspace.dependencies]
-theframework = { path = "crates/theframework", version = "0.92.1", features = [
+theframework = { path = "crates/theframework", version = "0.93.0", features = [
     "ui",
 ], default-features = false }
 
-rusterix = { path = "crates/rusterix", version = "0.92.1" }
-rusteria = { path = "crates/rusterix/rusteria", version = "0.92.1", package = "rusteria" }
-scenevm = { path = "crates/scenevm", version = "0.92.1" }
+rusterix = { path = "crates/rusterix", version = "0.93.0" }
+rusteria = { path = "crates/rusterix/rusteria", version = "0.93.0", package = "rusteria" }
+scenevm = { path = "crates/scenevm", version = "0.93.0" }
 
 [workspace.package]
 edition = "2024"
-version = "0.92.1"
+version = "0.93.0"
 license = "MIT"
 authors = ["Markus Moenig"]
 description = "A retro-style RPG game creator."

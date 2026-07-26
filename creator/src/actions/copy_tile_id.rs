@@ -59,9 +59,8 @@ impl Action for CopyTileID {
 
         if let Some(id) = id {
             let txt = format!("\"{id}\"");
-            ctx.ui.clipboard = Some(TheValue::Text(txt.clone()));
-            let mut clipboard = arboard::Clipboard::new().unwrap();
-            clipboard.set_text(txt.clone()).unwrap();
+            ctx.ui
+                .send(TheEvent::SetClipboard(TheValue::Text(txt), None));
         }
 
         None

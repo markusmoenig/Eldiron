@@ -47,8 +47,8 @@ impl StatWidget {
             toml_str: String::new(),
             buffer: TheRGBABuffer::default(),
             party: None,
-            stat: "HP".into(),
-            max_stat: "MAX_HP".into(),
+            stat: String::new(),
+            max_stat: String::new(),
             mode: StatWidgetMode::Bar,
             orientation: StatWidgetOrientation::Horizontal,
             tile_ids: Vec::new(),
@@ -92,7 +92,10 @@ impl StatWidget {
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
                 .map(str::to_string)
-                .unwrap_or_else(|| format!("MAX_{}", self.stat));
+                .unwrap_or_default();
+            if self.max_stat.is_empty() && !self.stat.is_empty() {
+                self.max_stat = format!("MAX_{}", self.stat);
+            }
 
             if let Some(v) = ui.get("mode").and_then(toml::Value::as_str) {
                 self.mode = match v.trim().to_ascii_lowercase().as_str() {
@@ -161,12 +164,28 @@ impl StatWidget {
     ) {
         self.buffer.fill([0, 0, 0, 0]);
 
+        let stat = if self.stat.is_empty() {
+            assets.ruleset_attribute_role("health").unwrap_or_default()
+        } else {
+            self.stat.clone()
+        };
+        let max_stat = if self.max_stat.is_empty() {
+            if self.stat.is_empty() {
+                assets
+                    .ruleset_attribute_role("max_health")
+                    .unwrap_or_default()
+            } else {
+                format!("MAX_{}", stat)
+            }
+        } else {
+            self.max_stat.clone()
+        };
         let ratio = entity
             .map(|entity| {
-                let current = entity.attributes.get_float_default(&self.stat, 0.0);
+                let current = entity.attributes.get_float_default(&stat, 0.0);
                 let max = entity
                     .attributes
-                    .get_float_default(&self.max_stat, current.max(1.0));
+                    .get_float_default(&max_stat, current.max(1.0));
                 if max <= 0.0 {
                     0.0
                 } else {

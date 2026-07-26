@@ -3111,6 +3111,16 @@ impl Dock for TilesEditorDock {
         }
     }
 
+    fn reset_for_project_switch(&mut self) {
+        self.tile_undos.clear();
+        self.current_tile_id = None;
+        self.current_undo_key = None;
+        self.current_node_group_id = None;
+        self.anim_preview = false;
+        self.paste_preview_texture = None;
+        self.paste_preview_pos = None;
+    }
+
     fn undo(
         &mut self,
         ui: &mut TheUI,

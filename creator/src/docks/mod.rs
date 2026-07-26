@@ -104,6 +104,10 @@ pub trait Dock: Send + Sync {
     /// Mark dock-local undo state as saved.
     fn mark_saved(&mut self) {}
 
+    /// Clear project-bound selections, previews, and undo history before a
+    /// different project tab becomes active.
+    fn reset_for_project_switch(&mut self) {}
+
     /// If the dock supports undo, set its current state to the UI.
     fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {}
 

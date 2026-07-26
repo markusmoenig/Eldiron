@@ -33,14 +33,30 @@ WIS = 8
 VIT = 12
 SPEED = 1
 
+[races.Skeleton]
+description = "Animated skeletal remains driven by necromancy or lingering will."
+default_avatar = "skeleton"
+languages = []
+traits = ["undead", "skeletal"]
+
+[races.Skeleton.attributes]
+HP = 12
+MAX_HP = 12
+MP = 0
+MAX_MP = 0
+STR = 10
+DEX = 10
+INT = 6
+WIS = 6
+VIT = 12
+SPEED = 1
+
 [classes.Citizen]
 description = "Civilian baseline for settlement people, vendors, crafters, trainers, and other non-adventuring NPCs."
 role = "civilian"
 primary_attributes = ["VIT"]
 allowed_weapons = []
-allowed_armor = ["cloth", "leather"]
-abilities = []
-spells = []
+allowed_armor = ["cloth", "leather", "focus"]
 
 [classes.Citizen.attributes]
 HP = 10
@@ -58,7 +74,9 @@ INIT = 0
 inventory_slots = 8
 
 [classes.Citizen.progression.level]
-hp_per_level = 3
+resource_gains = [
+  { attribute = "HP", maximum_attribute = "MAX_HP", per_level = 3 },
+]
 primary_attribute_gain = 1
 
 [classes.Citizen.starting_loadout]
@@ -102,9 +120,7 @@ description = "Durable martial adventurer trained for weapons and armor."
 role = "martial"
 primary_attributes = ["STR", "VIT"]
 allowed_weapons = ["sword", "axe", "mace", "spear", "bow"]
-allowed_armor = ["cloth", "leather", "chain", "shield"]
-abilities = ["basic_attack", "guard", "power_strike"]
-spells = []
+allowed_armor = ["cloth", "leather", "chain", "shield", "focus"]
 
 [classes.Warrior.attributes]
 HP = 16
@@ -125,34 +141,55 @@ bonus_attribute = "STR"
 bonus_every = 5
 
 [classes.Warrior.progression.level]
-hp_per_level = 6
+resource_gains = [
+  { attribute = "HP", maximum_attribute = "MAX_HP", per_level = 6 },
+]
 primary_attribute_gain = 1
 
 [classes.Warrior.unlocks.level_1]
 abilities = ["basic_attack", "guard"]
-equipment = ["training_sword", "padded_armor"]
 
 [classes.Warrior.unlocks.level_2]
 abilities = ["power_strike"]
+
+[classes.Warrior.unlocks.level_4]
+abilities = ["rally"]
+
+[classes.Warrior.unlocks.level_6]
+abilities = ["crushing_blow"]
+
+[classes.Warrior.unlocks.level_8]
+abilities = ["iron_guard"]
+
+[classes.Warrior.unlocks.level_10]
+abilities = ["executioner_strike"]
 
 [classes.Warrior.starting_loadout]
 weapons = ["training_sword"]
 armor = ["padded_armor"]
 clothing = ["wool_trousers", "leather_shoes"]
 inventory = []
-abilities = ["basic_attack", "guard"]
 
 [classes.Warrior.action_bar]
-main = ["rules.basic_attack", "rules.power_strike", "rules.gather_wood", "rules.gather_feathers", "rules.craft_wooden_arrows"]
+main = [
+  "rules.basic_attack",
+  "rules.power_strike",
+  "rules.guard",
+  "rules.rally",
+  "rules.crushing_blow",
+  "rules.iron_guard",
+  "rules.executioner_strike",
+  "rules.gather_wood",
+  "rules.gather_feathers",
+  "rules.craft_wooden_arrows",
+]
 
 [classes.Cleric]
 description = "Armored divine caster trained to heal allies and hold a line."
 role = "divine"
 primary_attributes = ["WIS", "VIT"]
 allowed_weapons = ["mace"]
-allowed_armor = ["cloth", "leather", "chain", "shield"]
-abilities = ["basic_attack", "guard"]
-spells = ["minor_heal"]
+allowed_armor = ["cloth", "leather", "chain", "shield", "focus"]
 
 [classes.Cleric.attributes]
 HP = 14
@@ -177,37 +214,58 @@ bonus_attribute = "WIS"
 bonus_every = 6
 
 [classes.Cleric.progression.level]
-hp_per_level = 5
-mp_per_level = 3
+resource_gains = [
+  { attribute = "HP", maximum_attribute = "MAX_HP", per_level = 5 },
+  { attribute = "MP", maximum_attribute = "MAX_MP", per_level = 3 },
+]
 primary_attribute_gain = 1
 
 [classes.Cleric.unlocks.level_1]
 abilities = ["basic_attack", "guard"]
 spells = ["minor_heal"]
-equipment = ["novice_mace", "cleric_vestments", "round_shield"]
 
 [classes.Cleric.unlocks.level_2]
 spells = ["holy_light"]
+
+[classes.Cleric.unlocks.level_4]
+spells = ["blessing", "turn_undead"]
+
+[classes.Cleric.unlocks.level_6]
+spells = ["greater_heal"]
+
+[classes.Cleric.unlocks.level_8]
+spells = ["smite"]
+
+[classes.Cleric.unlocks.level_10]
+spells = ["sanctuary"]
 
 [classes.Cleric.starting_loadout]
 weapons = ["novice_mace"]
 armor = ["cleric_vestments", "round_shield"]
 clothing = ["wool_trousers", "leather_shoes"]
-inventory = ["blessed_herb"]
-abilities = ["basic_attack", "guard"]
-spells = ["minor_heal"]
+inventory = ["blessed_herb", "moonwater"]
 
 [classes.Cleric.action_bar]
-main = ["rules.basic_attack", "rules.minor_heal", "rules.holy_light", "rules.gather_herbs", "rules.craft_blessed_herb"]
+main = [
+  "rules.basic_attack",
+  "rules.guard",
+  "rules.minor_heal",
+  "rules.holy_light",
+  "rules.blessing",
+  "rules.turn_undead",
+  "rules.greater_heal",
+  "rules.smite",
+  "rules.sanctuary",
+  "rules.gather_herbs",
+  "rules.craft_blessed_herb",
+]
 
 [classes.Ranger]
 description = "Mobile hunter trained for bows, light armor, and wilderness survival."
 role = "ranged"
 primary_attributes = ["DEX", "VIT"]
 allowed_weapons = ["bow", "sword", "axe"]
-allowed_armor = ["cloth", "leather"]
-abilities = ["basic_attack"]
-spells = []
+allowed_armor = ["cloth", "leather", "focus"]
 
 [classes.Ranger.attributes]
 HP = 14
@@ -229,19 +287,45 @@ bonus_attribute = "DEX"
 bonus_every = 5
 
 [classes.Ranger.progression.level]
-hp_per_level = 5
+resource_gains = [
+  { attribute = "HP", maximum_attribute = "MAX_HP", per_level = 5 },
+]
 primary_attribute_gain = 1
 
 [classes.Ranger.unlocks.level_1]
 abilities = ["basic_attack"]
-equipment = ["hunting_bow", "leather_vest"]
+
+[classes.Ranger.unlocks.level_2]
+abilities = ["aimed_shot"]
+
+[classes.Ranger.unlocks.level_4]
+abilities = ["quick_step"]
+
+[classes.Ranger.unlocks.level_6]
+abilities = ["piercing_shot"]
+
+[classes.Ranger.unlocks.level_8]
+abilities = ["hunter_focus"]
+
+[classes.Ranger.unlocks.level_10]
+abilities = ["deadly_shot"]
 
 [classes.Ranger.starting_loadout]
 weapons = ["hunting_bow"]
 armor = ["leather_vest"]
 clothing = ["wool_trousers", "leather_shoes"]
 inventory = ["wooden_arrows"]
-abilities = ["basic_attack"]
 
 [classes.Ranger.action_bar]
-main = ["rules.basic_attack", "rules.gather_wood", "rules.gather_feathers", "rules.craft_wooden_arrows", "rules.craft_hunting_bow"]
+main = [
+  "rules.basic_attack",
+  "rules.aimed_shot",
+  "rules.quick_step",
+  "rules.piercing_shot",
+  "rules.hunter_focus",
+  "rules.deadly_shot",
+  "rules.gather_wood",
+  "rules.gather_feathers",
+  "rules.craft_wooden_arrows",
+  "rules.craft_hunting_bow",
+]

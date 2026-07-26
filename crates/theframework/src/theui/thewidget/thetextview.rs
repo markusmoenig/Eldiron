@@ -1,6 +1,3 @@
-#[cfg(not(target_arch = "wasm32"))]
-use arboard::Clipboard;
-
 use std::ops::Range;
 
 use unicode_segmentation::UnicodeSegmentation;
@@ -202,12 +199,6 @@ impl TheWidget for TheTextView {
                 let text = self.state.copy_text();
                 if !text.is_empty() {
                     redraw = true;
-
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        let mut clipboard = Clipboard::new().unwrap();
-                        clipboard.set_text(text.clone()).unwrap();
-                    }
 
                     ctx.ui
                         .send(TheEvent::SetClipboard(TheValue::Text(text), None));

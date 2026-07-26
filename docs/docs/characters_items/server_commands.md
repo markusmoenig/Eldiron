@@ -86,20 +86,24 @@ Use `attack()` for normal weapon or unarmed attacks.
 
 *This command can only be used with characters.*
 
-Runs a named ruleset action against the current target, or against an explicit
-target ID.
+Runs a named ruleset action against the current target, against an explicit
+target ID, or with an explicit owned source-item instance.
 
 ```eldrin
 use_action("power_strike")
 use_action("power_strike", target_id)
+use_action("unlock_chest", chest_id, lockpick_id)
 ```
 
 Behavior:
 
 - reads the action from `[actions.<id>]` in the active ruleset
-- checks ability or spell requirements
-- checks target rules, range, cooldowns, and consumed reagents/items
+- checks ability, spell, skill, source-item, and item-cost requirements
+- checks typed entity/item targeting, range, and cooldowns
 - applies the action result through the normal combat or spell path
+- for script-event actions with `source = { item = "..." }`, validates the
+  explicit third argument or automatically selects an equipped/inventory item
+- applies configured source condition wear only after successful execution
 
 Common action target kinds:
 
@@ -108,6 +112,11 @@ Common action target kinds:
 - `friendly_entity`: friendly targets only
 - `friendly_or_self`: friendly targets or the acting character
 - `any_entity`: any character target
+- `ground_item`: a world item
+- `inventory_item`: an item owned by a character
+- `any_item`: either a world or owned item
+- `resource_node`: a ruleset resource node
+- `world_position`: a 2D terrain click or text-command coordinate
 - `ground_item`: a nearby item on the ground
 - `resource_node`: a ruleset resource item
 - `self`: the acting character

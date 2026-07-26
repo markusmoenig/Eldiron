@@ -119,6 +119,12 @@ mod tests {
             Some(ClientCommandBinding::Intent("attack".into()))
         );
         assert_eq!(
+            parse_client_command("intent.invoke:words_of_power:LO VI"),
+            Some(ClientCommandBinding::Intent(
+                "invoke:words_of_power:LO VI".into()
+            ))
+        );
+        assert_eq!(
             parse_client_command("intent."),
             Some(ClientCommandBinding::Intent(String::new()))
         );

@@ -14,8 +14,8 @@ name = "eldiron-source"
 path = "src/main.rs"
 
 [dependencies]
-shared = { path = "../shared", version = "0.92.1", package = "eldiron-shared" }
-rusterix = { path = "../rusterix", version = "0.92.1" }
+shared = { path = "../shared", version = "0.93.0", package = "eldiron-shared" }
+rusterix = { path = "../rusterix", version = "0.93.0" }
 clap = { version = "4.5", features = ["derive"] }
 notify = "8.2"
 serde = { version = "1.0", features = ["derive"] }

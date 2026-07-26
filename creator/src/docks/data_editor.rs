@@ -84,6 +84,10 @@ impl Dock for DataEditorDock {
         self.inner.mark_saved();
     }
 
+    fn reset_for_project_switch(&mut self) {
+        self.inner.reset_for_project_switch();
+    }
+
     fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {
         self.inner.set_undo_state_to_ui(ctx);
     }

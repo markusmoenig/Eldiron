@@ -318,13 +318,12 @@ impl IsoPaintTool {
                         height as u32,
                         screen_uv,
                     )?;
-                    let brush_transform =
-                        rusterix.scene_handler.vm.paint_surface_brush_transform(
-                            width as u32,
-                            height as u32,
-                            screen_uv,
-                            &surface,
-                        );
+                    let brush_transform = rusterix.scene_handler.vm.paint_surface_brush_transform(
+                        width as u32,
+                        height as u32,
+                        screen_uv,
+                        &surface,
+                    );
                     Some((surface, brush_transform))
                 })
             })

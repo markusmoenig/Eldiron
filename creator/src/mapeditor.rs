@@ -575,6 +575,7 @@ impl MapEditor {
     }
 
     pub fn load_from_project(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext, project: &Project) {
+        self.curr_tile_uuid = None;
         {
             let mut rusterix = RUSTERIX.write().unwrap();
             rusterix.set_tiles(project.tiles.clone(), true);

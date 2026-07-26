@@ -4,6 +4,7 @@ pub mod context;
 pub mod interaction;
 pub mod iso_paint;
 pub mod iso_paint_brush;
+#[cfg(feature = "graphics")]
 pub mod iso_paint_render;
 pub mod item;
 pub mod project;

@@ -411,11 +411,22 @@ impl TheUI {
     pub fn paste(&mut self, ctx: &mut TheContext) {
         if let Some(id) = &ctx.ui.focus {
             if let Some(widget) = self.get_widget_abs(None, Some(&id.uuid)) {
-                let event = if let Some(value) = &ctx.ui.clipboard {
-                    TheEvent::Paste(value.clone(), ctx.ui.clipboard_app_type.clone())
+                #[cfg(not(target_arch = "wasm32"))]
+                let system_text = arboard::Clipboard::new()
+                    .ok()
+                    .and_then(|mut clipboard| clipboard.get_text().ok());
+                #[cfg(target_arch = "wasm32")]
+                let system_text: Option<String> = None;
+
+                let (value, app_type) = if let Some(text) = system_text {
+                    (TheValue::Text(text), Some("text/plain".to_string()))
                 } else {
-                    TheEvent::Paste(TheValue::Empty, ctx.ui.clipboard_app_type.clone())
+                    (
+                        ctx.ui.clipboard.clone().unwrap_or(TheValue::Empty),
+                        ctx.ui.clipboard_app_type.clone(),
+                    )
                 };
+                let event = TheEvent::Paste(value, app_type);
                 self.is_dirty = widget.on_event(&event, ctx);
                 self.process_events(ctx);
             }
@@ -489,6 +500,13 @@ impl TheUI {
 
                 match event {
                     TheEvent::SetClipboard(value, app_type) => {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        if let TheValue::Text(text) = &value
+                            && let Ok(mut clipboard) = arboard::Clipboard::new()
+                        {
+                            let _ = clipboard.set_text(text.clone());
+                        }
+
                         ctx.ui.clipboard = Some(value);
                         ctx.ui.clipboard_app_type = app_type;
                         ctx.ui.send(TheEvent::ClipboardChanged);

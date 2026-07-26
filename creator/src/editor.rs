@@ -89,6 +89,9 @@ struct ProjectSession {
     project_path: Option<PathBuf>,
     undo: UndoManager,
     dirty: bool,
+    /// Dock-local undo stacks are global UI objects and are cleared when a tab
+    /// is detached. Keep their unsaved status with the owning session.
+    detached_dock_dirty: bool,
 }
 
 #[allow(dead_code)]
@@ -4294,18 +4297,6 @@ impl Editor {
         String::from_utf8(bytes).ok()
     }
 
-    fn refresh_system_text_clipboard(ctx: &mut TheContext) {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            if let Ok(mut clipboard) = arboard::Clipboard::new()
-                && let Ok(text) = clipboard.get_text()
-            {
-                ctx.ui.clipboard = Some(TheValue::Text(text));
-                ctx.ui.clipboard_app_type = Some("text/plain".to_string());
-            }
-        }
-    }
-
     fn load_project_from_json_path(path: &std::path::Path) -> Option<Project> {
         let contents = std::fs::read_to_string(path).ok()?;
         let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
@@ -4496,10 +4487,13 @@ impl Editor {
             return;
         }
         self.persist_active_region_view_state();
+        let dock_dirty = DOCKMANAGER.read().unwrap().has_dock_changes();
         self.sessions[self.active_session].project = self.project.clone();
         self.sessions[self.active_session].project_path = self.project_path.clone();
         self.sessions[self.active_session].undo = UNDOMANAGER.read().unwrap().clone();
-        self.sessions[self.active_session].dirty = self.active_session_has_changes();
+        self.sessions[self.active_session].detached_dock_dirty |= dock_dirty;
+        self.sessions[self.active_session].dirty = UNDOMANAGER.read().unwrap().has_unsaved()
+            || self.sessions[self.active_session].detached_dock_dirty;
     }
 
     fn sync_editor_from_active_session(&mut self) {
@@ -4510,6 +4504,58 @@ impl Editor {
         self.project = session.project;
         self.project_path = session.project_path;
         *UNDOMANAGER.write().unwrap() = session.undo;
+    }
+
+    fn deactivate_project_for_switch(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        // Finish editor-local interactions while the outgoing project is still
+        // installed, then snapshot it before clearing global UI state.
+        DOCKMANAGER.write().unwrap().minimize(ui, ctx);
+        {
+            let mut tools = TOOLLIST.write().unwrap();
+            if tools.editor_mode {
+                tools.set_game_tools(ui, ctx);
+            }
+            tools.deactivte_tool(ui, ctx, &mut self.project, &mut self.server_ctx);
+            tools.reset_for_project_switch(ctx);
+        }
+        *SIDEBARMODE.write().unwrap() = SidebarMode::Region;
+        EDITCAMERA.write().unwrap().reset_for_project_switch();
+        self.sync_active_session_from_editor();
+        DOCKMANAGER.write().unwrap().reset_for_project_switch();
+
+        ctx.ui.clear_focus();
+        ctx.ui.clear_hover();
+        self.last_3d_hover_redraw_at = None;
+        self.pending_game_messages.clear();
+        self.pending_game_says.clear();
+        self.pending_game_choices.clear();
+        self.pending_text_game_command = None;
+        self.pending_text_game_runtime_flush = false;
+        self.last_processed_log_len = 0;
+        self.iso_paint_render_cache = SharedIsoPaintRenderCache::default();
+        TEXTGAME.write().unwrap().reset();
+
+        SCENEMANAGER.write().unwrap().reset_for_project_switch();
+        {
+            let mut rusterix = RUSTERIX.write().unwrap();
+            if rusterix.server.state != rusterix::ServerState::Off {
+                rusterix.server.stop();
+            }
+            rusterix.clear_say_messages();
+            rusterix.player_camera = PlayerCamera::D2;
+            rusterix.scene_handler.clear_runtime_scene();
+            rusterix.scene_handler.clear_overlay();
+            rusterix.scene_handler.build_index.clear();
+            rusterix.client.scene.d2_static.clear();
+            rusterix.client.scene.d2_dynamic.clear();
+            rusterix.client.scene.d3_static.clear();
+            rusterix.client.scene.d3_dynamic.clear();
+            rusterix.client.scene.d3_overlay.clear();
+            rusterix.client.scene.lights.clear();
+            rusterix.client.scene.dynamic_lights.clear();
+            rusterix.client.scene.chunks.clear();
+            rusterix.set_dirty();
+        }
     }
 
     fn rebuild_project_tabs(&self, ui: &mut TheUI) {
@@ -4661,13 +4707,14 @@ impl Editor {
     ) {
         Self::sanitize_loaded_project(&mut project);
 
-        self.sync_active_session_from_editor();
+        self.deactivate_project_for_switch(ui, ctx);
         let new_index = if self.replace_next_project_load_in_active_tab {
             self.sessions[self.active_session] = ProjectSession {
                 project,
                 project_path,
                 undo: UndoManager::default(),
                 dirty: false,
+                detached_dock_dirty: false,
             };
             self.replace_next_project_load_in_active_tab = false;
             self.active_session
@@ -4677,10 +4724,14 @@ impl Editor {
                 project_path,
                 undo: UndoManager::default(),
                 dirty: false,
+                detached_dock_dirty: false,
             });
             self.sessions.len() - 1
         };
-        self.switch_to_session(new_index, ui, ctx, update_server_icons, redraw);
+        self.active_session = new_index;
+        self.sync_editor_from_active_session();
+        self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
+        self.rebuild_project_tabs(ui);
     }
 
     fn activate_loaded_project(
@@ -4785,6 +4836,24 @@ impl Editor {
             crate::undo::project_helper::palette_material_ids(&self.project),
         );
 
+        // Project activation is a hard scene boundary. Rebuild even when two
+        // tabs were cloned from the same project and therefore reuse map UUIDs.
+        crate::utils::editor_scene_full_rebuild(&self.project, &self.server_ctx);
+        if self.server_ctx.editor_view_mode != EditorViewMode::D2 {
+            TOOLLIST
+                .write()
+                .unwrap()
+                .update_geometry_overlay_3d(&mut self.project, &mut self.server_ctx);
+        }
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Minimap"),
+            TheValue::Empty,
+        ));
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Action List"),
+            TheValue::Empty,
+        ));
+
         UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
     }
 
@@ -4800,17 +4869,20 @@ impl Editor {
             self.rebuild_project_tabs(ui);
             return;
         }
-        if index == self.active_session {
-            self.sync_editor_from_active_session();
-            self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
+        if !Self::session_switch_required(self.active_session, index) {
             self.rebuild_project_tabs(ui);
             return;
         }
-        self.sync_active_session_from_editor();
+
+        self.deactivate_project_for_switch(ui, ctx);
         self.active_session = index;
         self.sync_editor_from_active_session();
         self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
         self.rebuild_project_tabs(ui);
+    }
+
+    fn session_switch_required(active_index: usize, requested_index: usize) -> bool {
+        active_index != requested_index
     }
 
     fn sanitize_loaded_project(project: &mut Project) {
@@ -4869,7 +4941,7 @@ impl Editor {
             return;
         }
 
-        self.sync_active_session_from_editor();
+        self.deactivate_project_for_switch(ui, ctx);
         self.sessions.remove(self.active_session);
 
         if self.sessions.is_empty() {
@@ -4879,6 +4951,7 @@ impl Editor {
                 project_path: None,
                 undo: UndoManager::default(),
                 dirty: false,
+                detached_dock_dirty: false,
             });
             self.active_session = 0;
         } else if self.active_session >= self.sessions.len() {
@@ -4900,7 +4973,14 @@ impl Editor {
     }
 
     fn active_session_has_changes(&self) -> bool {
-        UNDOMANAGER.read().unwrap().has_unsaved() || DOCKMANAGER.read().unwrap().has_dock_changes()
+        let detached_dock_dirty = self
+            .sessions
+            .get(self.active_session)
+            .map(|session| session.detached_dock_dirty)
+            .unwrap_or(false);
+        UNDOMANAGER.read().unwrap().has_unsaved()
+            || DOCKMANAGER.read().unwrap().has_dock_changes()
+            || detached_dock_dirty
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -7375,6 +7455,7 @@ impl TheTrait for Editor {
             project_path: None,
             undo: UndoManager::default(),
             dirty: false,
+            detached_dock_dirty: false,
         };
 
         Self {
@@ -9701,6 +9782,8 @@ impl TheTrait for Editor {
                                     DOCKMANAGER.write().unwrap().mark_saved();
                                     if self.active_session < self.sessions.len() {
                                         self.sessions[self.active_session].dirty = false;
+                                        self.sessions[self.active_session].detached_dock_dirty =
+                                            false;
                                     }
                                     self.sync_active_session_from_editor();
                                     self.rebuild_project_tabs(ui);
@@ -9928,6 +10011,8 @@ impl TheTrait for Editor {
                                     DOCKMANAGER.write().unwrap().mark_saved();
                                     if self.active_session < self.sessions.len() {
                                         self.sessions[self.active_session].dirty = false;
+                                        self.sessions[self.active_session].detached_dock_dirty =
+                                            false;
                                     }
                                     self.sync_active_session_from_editor();
                                     self.rebuild_project_tabs(ui);
@@ -10171,7 +10256,6 @@ impl TheTrait for Editor {
                             ctx.ui.send(TheEvent::Copy);
                         }
                     } else if id.name == "Paste" {
-                        Self::refresh_system_text_clipboard(ctx);
                         if ui.focus_widget_supports_clipboard(ctx) {
                             // Widget specific
                             ui.paste(ctx);
@@ -10329,8 +10413,7 @@ impl TheTrait for Editor {
             redraw = true;
         }
 
-        let active_dirty = UNDOMANAGER.read().unwrap().has_unsaved()
-            || DOCKMANAGER.read().unwrap().has_dock_changes();
+        let active_dirty = self.active_session_has_changes();
         if self.active_session < self.sessions.len()
             && self.sessions[self.active_session].dirty != active_dirty
         {
@@ -10491,6 +10574,12 @@ mod tests {
         Editor::coalesce_polyview_hover_events(&mut events);
 
         assert_eq!(events.len(), 3);
+    }
+
+    #[test]
+    fn selecting_the_active_project_tab_does_not_reload_its_snapshot() {
+        assert!(!Editor::session_switch_required(1, 1));
+        assert!(Editor::session_switch_required(1, 0));
     }
 }
 

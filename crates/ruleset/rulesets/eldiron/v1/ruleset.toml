@@ -21,6 +21,10 @@ description = "Default Eldiron humanoid avatar."
 path = "assets/orc.eldiron_avatar"
 description = "Default Eldiron orc avatar, copied from humanoid as an editable starting point."
 
+[assets.avatars.skeleton]
+path = "assets/skeleton.eldiron_avatar"
+description = "Default Eldiron skeleton avatar, copied from humanoid for importing a dedicated skeleton atlas."
+
 [visuals.defaults]
 avatar = "humanoid"
 
@@ -28,6 +32,30 @@ avatar = "humanoid"
 tile_id = "explicit character tile_id wins over ruleset visuals"
 avatar = "explicit character avatar/avatar_id wins over ruleset visuals"
 empty_visual = "tile_id = \"\" or avatar = \"\" disables inherited default visuals"
+
+[ui.action_icon_fallbacks]
+healing = "minor_heal"
+condition = "round_shield"
+attack = "basic_attack"
+spell = "holy_light"
+stance = "round_shield"
+interaction = "use"
+gather = "gather_herbs"
+craft = "use"
+default = "use"
+
+[ui.item_icon_fallbacks]
+weapon = "basic_attack"
+armor = "round_shield"
+clothing = "linen_shirt"
+container = "small_bag"
+ammunition = "wooden_arrows"
+reagent = "blessed_herb"
+material = "green_wood"
+resource = "gather_herbs"
+currency = "small_bag"
+tool = "use"
+default = "use"
 
 [ui.container_templates.default]
 mode = "procedural"
@@ -110,10 +138,60 @@ amount = 2
 produces = { item = "feather", quantity = 2 }
 visual_template = "arrow_diagonal"
 
+[resources.moonleaf_patch]
+name = "Moonleaf Patch"
+description = "A shaded patch of pale leaves beaded with cold dew."
+kind = "herb"
+action = "gather_moonleaf"
+skill = "herbalism"
+respawn = 360
+amount = 2
+produces = { item = "moonleaf", quantity = 2 }
+visual_template = "herb_sprig"
+
+[resources.sunstone_outcrop]
+name = "Sunstone Outcrop"
+description = "A low mineral outcrop glittering with trapped golden light."
+kind = "mineral"
+action = "mine_sun_shards"
+skill = "ritualism"
+respawn = 480
+amount = 2
+produces = { item = "sun_shard", quantity = 2 }
+visual_template = "spear_diagonal"
+
+[resources.old_grave]
+name = "Old Grave"
+description = "A weathered grave whose cold soil is useful in banishing rites."
+kind = "grave"
+action = "sift_grave_dust"
+skill = "ritualism"
+respawn = 420
+amount = 2
+produces = { item = "grave_dust", quantity = 2 }
+visual_template = "tombstone_mark"
+
+[resources.resinous_stump]
+name = "Resinous Stump"
+description = "A fire-scarred stump bleeding beads of warm amber resin."
+kind = "resin"
+action = "tap_ember_resin"
+skill = "alchemy"
+respawn = 360
+amount = 2
+produces = { item = "ember_resin", quantity = 2 }
+visual_template = "spear_diagonal"
+
 [crafting]
 profession_limit = 0
 learn_mode = "use_based"
 recipe_knowledge = "open_for_simple"
+
+[crafting.skill_gain]
+enabled = true
+per_success = 1
+below_recommended_bonus = 1
+mastery_margin = 20
 
 [skills.fletching]
 name = "Fletching"
@@ -129,6 +207,18 @@ max = 100
 
 [skills.restoration]
 name = "Restoration"
+attribute = "WIS"
+min = 0
+max = 100
+
+[skills.alchemy]
+name = "Alchemy"
+attribute = "INT"
+min = 0
+max = 100
+
+[skills.ritualism]
+name = "Ritualism"
 attribute = "WIS"
 min = 0
 max = 100

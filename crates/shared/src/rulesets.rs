@@ -5,12 +5,12 @@ use theframework::prelude::Uuid;
 pub fn bundled_avatars_for_project(
     config_src: &str,
 ) -> Result<Vec<(&'static str, rusterix::Avatar)>, String> {
-    let (id, version, source) = eldiron_ruleset::selected_ruleset(config_src);
-    if source == "project" {
+    let selection = eldiron_ruleset::selected_ruleset_config(config_src);
+    if selection.source == "project" {
         return Ok(Vec::new());
     }
 
-    eldiron_ruleset::bundled_avatar_assets_for_ruleset(&id, &version)
+    eldiron_ruleset::bundled_avatar_assets_for_ruleset(&selection.id, &selection.version)
         .into_iter()
         .map(|asset| {
             serde_json::from_str::<rusterix::Avatar>(asset.source)
@@ -26,12 +26,12 @@ pub fn bundled_avatars_for_project(
 }
 
 pub fn bundled_tiles_for_project(config_src: &str) -> Result<Vec<(Uuid, rusterix::Tile)>, String> {
-    let (id, version, source) = eldiron_ruleset::selected_ruleset(config_src);
-    if source == "project" {
+    let selection = eldiron_ruleset::selected_ruleset_config(config_src);
+    if selection.source == "project" {
         return Ok(Vec::new());
     }
 
-    eldiron_ruleset::bundled_tile_assets_for_ruleset(&id, &version)
+    eldiron_ruleset::bundled_tile_assets_for_ruleset(&selection.id, &selection.version)
         .into_iter()
         .map(|asset| {
             serde_json::from_str::<rusterix::Tile>(asset.source)
@@ -49,12 +49,12 @@ pub fn bundled_tiles_for_project(config_src: &str) -> Result<Vec<(Uuid, rusterix
 pub fn bundled_textures_for_project(
     config_src: &str,
 ) -> Result<Vec<(&'static str, rusterix::Texture)>, String> {
-    let (id, version, source) = eldiron_ruleset::selected_ruleset(config_src);
-    if source == "project" {
+    let selection = eldiron_ruleset::selected_ruleset_config(config_src);
+    if selection.source == "project" {
         return Ok(Vec::new());
     }
 
-    eldiron_ruleset::bundled_texture_assets_for_ruleset(&id, &version)
+    eldiron_ruleset::bundled_texture_assets_for_ruleset(&selection.id, &selection.version)
         .into_iter()
         .map(|asset| {
             rusterix::Texture::from_image_safe(asset.source)

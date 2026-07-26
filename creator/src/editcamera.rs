@@ -239,6 +239,12 @@ impl EditCamera {
         self.fly_pointer = None;
     }
 
+    pub fn reset_for_project_switch(&mut self) {
+        self.move_action = None;
+        self.last_action_time_ms = None;
+        self.reset_mouse_tracking();
+    }
+
     pub fn mouse_dragged_orbit(&mut self, coord: &Vec2<i32>) {
         let curr = *coord;
         if let Some(prev) = self.last_mouse {

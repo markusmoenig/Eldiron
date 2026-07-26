@@ -2866,11 +2866,8 @@ pub(crate) fn extrude_selected_geometry_faces(map: &mut Map, amount: f32) -> boo
             }
 
             let mut cap_face = face.clone();
-            cap_face.paint_uvs = rusterix::remap_geometry_face_paint_uvs(
-                &object.vertices,
-                face,
-                &cap_indices,
-            );
+            cap_face.paint_uvs =
+                rusterix::remap_geometry_face_paint_uvs(&object.vertices, face, &cap_indices);
             cap_face.indices = cap_indices.clone();
             cap_face.uvs = face_uvs_for_indices(object, &cap_face.indices);
             cap_face.auto_uv = true;
@@ -3007,11 +3004,8 @@ pub(crate) fn subdivide_selected_geometry_faces(map: &mut Map) -> bool {
                 };
                 replacement_index += 1;
                 new_face.paint_surface_id = Some(paint_surface_id);
-                new_face.paint_uvs = rusterix::remap_geometry_face_paint_uvs(
-                    &object.vertices,
-                    &face,
-                    &indices,
-                );
+                new_face.paint_uvs =
+                    rusterix::remap_geometry_face_paint_uvs(&object.vertices, &face, &indices);
                 new_face.indices = indices;
                 new_face.uvs = face_uvs_for_indices(object, &new_face.indices);
                 new_face.auto_uv = true;
@@ -3061,11 +3055,8 @@ pub(crate) fn subdivide_selected_geometry_faces(map: &mut Map) -> bool {
 
                 if inserted {
                     let mut updated_face = face.clone();
-                    updated_face.paint_uvs = rusterix::remap_geometry_face_paint_uvs(
-                        &object.vertices,
-                        &face,
-                        &indices,
-                    );
+                    updated_face.paint_uvs =
+                        rusterix::remap_geometry_face_paint_uvs(&object.vertices, &face, &indices);
                     updated_face.indices = indices;
                     updated_face.uvs = face_uvs_for_indices(object, &updated_face.indices);
                     updated_face.auto_uv = true;
@@ -3144,11 +3135,8 @@ pub(crate) fn inset_selected_geometry_faces(map: &mut Map, amount: f32) -> bool 
             }
 
             let mut inner_face = face.clone();
-            inner_face.paint_uvs = rusterix::remap_geometry_face_paint_uvs(
-                &object.vertices,
-                &face,
-                &inner_indices,
-            );
+            inner_face.paint_uvs =
+                rusterix::remap_geometry_face_paint_uvs(&object.vertices, &face, &inner_indices);
             inner_face.indices = inner_indices.clone();
             inner_face.uvs = face_uvs_for_indices(object, &inner_face.indices);
             inner_face.auto_uv = true;

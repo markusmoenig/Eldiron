@@ -1,3 +1,45 @@
+# Eldiron v0.93.0
+
+## Improvements
+
+### Rules
+
+- Reworked rulesets into an authorable, split-TOML package model with a shared embedded loader, explicit ruleset id/version/schema metadata, compatibility checks, project selection, official-base overrides, and project-owned standalone rulesets.
+- Added a typed resolved-rules layer for cached actions, invocation schemes, conditions, semantic attribute roles, derived statistics, equipment policy, identity defaults, and class resource growth while keeping ordinary ruleset content editable as TOML instead of Rust.
+- Made races, classes, levels, spells, crafting, and other fantasy-RPG concepts optional so classless and level-less sandbox rulesets can use the same action runtime without inheriting official attributes, identities, or progression.
+- Expanded the generic action executor with rules-owned targets, range, requirements, arbitrary resource and item costs, cooldowns, predicates, source items, entity/item/world-position targets, transactional attribute changes, condition application/removal, gathering, crafting, taking items, and script-event escape hatches. This supports both class-based games and skill/action-driven sandbox games.
+- Added configurable semantic attribute roles and formula-driven derived statistics so custom rulesets can replace names such as `HP`, `MP`, `LEVEL`, `EXP`, `DMG`, and `ARMOR`, use arbitrary resources, and omit official concepts that they do not need.
+- Completed the official level 1–10 progression for Warrior, Cleric, and Ranger, with one coherent unlock path at levels 1, 2, 4, 6, 8, and 10 and a representation that can extend through level 30 without another schema redesign.
+- Added the Warrior actions Guard, Rally, Crushing Blow, Iron Guard, and Executioner Strike; the Ranger actions Aimed Shot, Quick Step, Piercing Shot, Hunter Focus, and Deadly Shot; and the Cleric spells Minor Heal, Holy Light, Blessing, Turn Undead, Greater Heal, Smite, and Sanctuary.
+- Added a generic timed-condition system with stacking policies, trait immunities, additive/multiplicative/bounded modifiers, periodic damage/healing/attribute effects, lifecycle events, persistence, and apply/active/tick/remove particle stages. Official stances, blessings, wards, and Turn Undead now use this shared path.
+- Added the official Skeleton race with `undead` and `skeletal` traits, race relations, a separately replaceable bundled Skeleton avatar copy, generic trait-gated Turn Undead behavior, and condition particles.
+- Added optional token-sequence invocation schemes and per-action bindings. The official Words of Power lexicon now maps every spell phrase to the normal action catalogue, preserving the same targeting, costs, reagents, cooldowns, effects, and validation regardless of whether a game presents words, runes, icons, or direct spell buttons.
+- Extended message-log text commands to execute ruleset invocations directly, including `LO VI`, targeted forms such as `SAR IR at Skeleton`, explicit `invoke` commands, scheme-qualified disambiguation, longest-phrase matching, and automatic self targeting for `self` and `friendly_or_self` actions.
+- Expanded the spell economy with Moonleaf, Sun Shards, Grave Dust, and Ember Resin collectibles; Moonwater, Consecrated Oil, Warding Salt, and Ember Bead reagents; matching resource nodes and gather actions; and connected reagent requirements for the official spellbook.
+- Added a deeper crafting loop with Blessed Herb, Wooden Arrows, Hunting Bow, Moonwater, Consecrated Oil, Warding Salt, Ember Beads, Ritual Censer, and Sunward Charm recipes, including skill gates, quality-aware stacking, deterministic use-based skill advancement, mastery ranges, and reusable crafted equipment.
+- Expanded official items and equipment with ritual focuses, protective charms, spell reagents, collectibles, resource nodes, class permissions, two-handed/occupied-slot enforcement, arbitrary slot-to-avatar anchors, and consistent quality/condition behavior.
+- Added reusable semantic icon fallbacks for actions and items and procedural FX fallbacks for actions and conditions, so new definitions no longer require a unique icon or particle block before they can be usable and readable.
+- Improved rules-aware UI state and descriptions for actions, spells, inventory, equipment, targets, requirements, costs, cooldowns, locked progression entries, generic statistics, and icon fallback resolution.
+- Expanded ruleset validation, terminal inspection, and headless regression coverage across schema compatibility, references, formulas, progression, equipment, classless sandbox actions, invocations, conditions, traits, gathering, ritual crafting, resource regeneration, visuals, and the official level-10 capstones.
+
+### Examples
+
+- Updated `test_projects/Hideout2D.eldiron` as the canonical in-development ruleset integration game while leaving the released starter project unchanged. Hideout now uses the official ruleset selection/override model, contains a northern dungeon populated by Skeletons, a Bone Archer, and a Bone Warden, and replaces the original demonstration NPC loop with the multi-stage **The Bell Below** quest, expedition supplies, ritual guidance, dungeon loot, and a Grave Sigil objective.
+- Updated the Dungeon Master-inspired `source_projects/stonefall-dungeon` example to submit its rune/word combinations through the shared `words_of_power` invocation scheme instead of translating spells in project script.
+
+### Documentation
+
+- Added the Ruleset Contract and implementation Capability Audit, rewrote the ruleset architecture and authoring documentation, and expanded the Official Rules reference with synchronized level progression, actions, spells and their Words of Power, conditions, particles, races, equipment, items, resources, reagents, recipes, and crafting tables.
+
+## Bug Fixes
+
+### Creator
+
+- Fixed project-tab switching so selecting the active tab no longer reloads a stale snapshot, outgoing runtime/dock/tool state is detached cleanly, and the incoming project's 2D and direct-3D scenes, overlays, palette, actions, minimap, and UI context are rebuilt even when cloned projects reuse UUIDs.
+- Fixed text copy/paste by centralizing system clipboard access for focused text widgets, avoiding duplicate clipboard reads and preserving Eldiron's separate object/image clipboard during global paste operations.
+
+---
+
 # Eldiron v0.92.1
 
 ## Improvements

@@ -244,9 +244,15 @@ impl TextGameState {
             }
             "stats" | "stat" => {
                 if let Some(region) = current_region(project, server_ctx) {
-                    if let Some(text) =
-                        sg::render_player_stats(&region.map, &project.authoring, &project.config)
-                    {
+                    let effective_rules =
+                        shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+                            .unwrap_or_default();
+                    if let Some(text) = sg::render_player_stats(
+                        &region.map,
+                        &project.authoring,
+                        &project.config,
+                        &effective_rules,
+                    ) {
                         self.push_plain_block(&text);
                     } else {
                         self.push_plain_line("No local player found.");

@@ -694,8 +694,7 @@ impl IsoPaintLayer {
         if self.active_brush == "material" {
             [1.0, 0.0, 0.0, 1.0]
         } else {
-            validated_brush_transform(point.brush_transform)
-                .unwrap_or([1.0, 0.0, 0.0, 1.0])
+            validated_brush_transform(point.brush_transform).unwrap_or([1.0, 0.0, 0.0, 1.0])
         }
     }
 
@@ -725,8 +724,8 @@ impl IsoPaintLayer {
             // channel for spatial brush coverage. The renderer can therefore route a globally
             // translucent Replace through the alpha pass without confusing it with the soft edge
             // of an otherwise opaque stroke.
-            let replace_opacity = ((self.active_opacity.clamp(0.0, 1.0) * 254.0).round() as u8)
-                .min(254);
+            let replace_opacity =
+                ((self.active_opacity.clamp(0.0, 1.0) * 254.0).round() as u8).min(254);
             replace_opacity.saturating_add(1).max(1)
         } else {
             0
@@ -750,9 +749,8 @@ impl IsoPaintLayer {
         }
         let keep_a = dst_a - src_a;
         for channel in 0..3 {
-            dst[channel] = ((src[channel] as u16 * src_a
-                + dst[channel] as u16 * keep_a)
-                / dst_a) as u8;
+            dst[channel] =
+                ((src[channel] as u16 * src_a + dst[channel] as u16 * keep_a) / dst_a) as u8;
         }
         // Deliberately do not add alpha here: re-sampling a coat must not make it denser.
     }
@@ -1472,7 +1470,10 @@ mod tests {
         }
         let width = bounds[2] - bounds[0] + 1;
         let height = bounds[3] - bounds[1] + 1;
-        assert!(width > height * 2, "expected wide ellipse, got {width}x{height}");
+        assert!(
+            width > height * 2,
+            "expected wide ellipse, got {width}x{height}"
+        );
     }
 
     #[test]

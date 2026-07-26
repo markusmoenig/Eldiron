@@ -267,6 +267,12 @@ impl Dock for CodeDock {
         }
     }
 
+    fn reset_for_project_switch(&mut self) {
+        self.entity_undos.clear();
+        self.current_entity = None;
+        self.prev_state = None;
+    }
+
     fn undo(
         &mut self,
         ui: &mut TheUI,

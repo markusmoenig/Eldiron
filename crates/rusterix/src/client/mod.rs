@@ -551,6 +551,7 @@ impl Client {
         }
 
         let (group, index) = Self::split_command_slot(slot)?;
+        let rules = assets.rules.parse::<Table>().ok()?;
         let class = entity
             .and_then(|entity| {
                 entity
@@ -558,9 +559,12 @@ impl Client {
                     .or_else(|| entity.get_attr_string("class_name"))
             })
             .or_else(|| ui_state.get("start.class").cloned())
-            .unwrap_or_else(|| "Warrior".to_string());
+            .or_else(|| {
+                eldiron_ruleset::resolve_identity_defaults(&rules)
+                    .ok()
+                    .and_then(|identity| identity.class)
+            })?;
 
-        let rules = assets.rules.parse::<Table>().ok()?;
         let command = rules
             .get("classes")?
             .as_table()?
@@ -1766,6 +1770,8 @@ impl Client {
 
         if has_start_screen {
             self.init_screen(self.current_screen.clone(), assets, scene_handler);
+        } else if self.current_screen.trim().is_empty() {
+            self.init_region_fallback(assets, scene_handler);
         } else if !self.current_screen.trim().is_empty() {
             eprintln!("Did not find start screen");
         }
@@ -2065,6 +2071,46 @@ impl Client {
             widget.player_pos = pos;
         }
         self.pending_game_camera_pos = None;
+    }
+
+    fn clear_screen_widgets(&mut self) {
+        self.game_widgets.clear();
+        self.button_widgets.clear();
+        self.avatar_widgets.clear();
+        self.profile_widgets.clear();
+        self.stat_widgets.clear();
+        self.text_widgets.clear();
+        self.text_input_widgets.clear();
+        self.deco_widgets.clear();
+        self.messages_widgets.clear();
+        self.screen_widget = None;
+        self.focused_text_input = None;
+    }
+
+    fn init_region_fallback(&mut self, assets: &Assets, scene_handler: &mut SceneHandler) {
+        self.clear_screen_widgets();
+
+        let mut game_widget = self.region_fallback_widget();
+        if let Some(map) = assets.maps.get(&self.current_map) {
+            game_widget.build(map, assets, scene_handler);
+        }
+        self.game_widgets.insert(Uuid::default(), game_widget);
+    }
+
+    fn region_fallback_widget(&self) -> GameWidget {
+        let width = self.viewport.x.max(1);
+        let height = self.viewport.y.max(1);
+        let mut game_widget = GameWidget {
+            name: self.current_map.clone(),
+            rect: Rect::new(0.0, 0.0, width as f32, height as f32),
+            toml_str: "[ui]\nrole = \"game\"\n".to_string(),
+            buffer: TheRGBABuffer::new(TheDim::sized(width, height)),
+            grid_size: self.grid_size,
+            ..Default::default()
+        };
+
+        game_widget.init();
+        game_widget
     }
 
     /// Draw the game into the internal buffer
@@ -5201,16 +5247,7 @@ impl Client {
         assets: &mut Assets,
         scene_handler: &mut SceneHandler,
     ) {
-        self.game_widgets.clear();
-        self.button_widgets.clear();
-        self.avatar_widgets.clear();
-        self.profile_widgets.clear();
-        self.stat_widgets.clear();
-        self.text_widgets.clear();
-        self.text_input_widgets.clear();
-        self.deco_widgets.clear();
-        self.messages_widgets.clear();
-        self.focused_text_input = None;
+        self.clear_screen_widgets();
 
         self.screen_widget = Some(ScreenWidget {
             buffer: TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y)),
@@ -6811,7 +6848,7 @@ impl Client {
                     item.container.as_ref().and_then(|items| items.get(index))
                 {
                     return Some((
-                        rules_ui::describe_item(container_item),
+                        rules_ui::describe_item(container_item, assets),
                         *slot_rect,
                         None,
                         format!("container:{}:{}", item.id, container_item.id),
@@ -6850,7 +6887,7 @@ impl Client {
                         return None;
                     }
                     return Some((
-                        rules_ui::describe_item(item),
+                        rules_ui::describe_item(item, assets),
                         widget.rect,
                         None,
                         format!("inventory:{}:{}", widget.id, item.id),
@@ -6862,7 +6899,7 @@ impl Client {
                     && let Some(item) = entity.get_equipped_item(slot)
                 {
                     return Some((
-                        rules_ui::describe_item(item),
+                        rules_ui::describe_item(item, assets),
                         widget.rect,
                         None,
                         format!("equipped:{}:{}", widget.id, item.id),
@@ -6914,7 +6951,7 @@ impl Client {
         if let Some(item_id) = self.hovered_item_id
             && let Some(item) = map.items.iter().find(|item| item.id == item_id)
         {
-            let mut description = rules_ui::describe_item(item);
+            let mut description = rules_ui::describe_item(item, assets);
             let tile_pos = Self::quantize_2d_tile_pos(item.get_pos_xz());
             let pile_count = map
                 .items
@@ -6947,6 +6984,48 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn command_slots_use_the_ruleset_identity_default_and_allow_classless_rules() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [identity.defaults]
+            class = "Artificer"
+
+            [classes.Artificer.action_bar]
+            primary = ["tinker"]
+        "#
+        .to_string();
+        let ui_state = FxHashMap::default();
+        assert_eq!(
+            Client::command_for_slot("primary.0", &assets, None, &ui_state).as_deref(),
+            Some("rules.tinker")
+        );
+
+        assets.rules = "[actions.inspect]\nkind = \"interaction\"".to_string();
+        assert_eq!(
+            Client::command_for_slot("primary.0", &assets, None, &ui_state),
+            None
+        );
+    }
+
+    #[test]
+    fn region_fallback_widget_fills_viewport() {
+        let mut client = Client::new();
+        client.current_map = "Start".to_string();
+        client.viewport = Vec2::new(320, 180);
+        client.grid_size = 24.0;
+
+        let widget = client.region_fallback_widget();
+        assert_eq!(widget.name, "Start");
+        assert_eq!(widget.rect.x, 0.0);
+        assert_eq!(widget.rect.y, 0.0);
+        assert_eq!(widget.rect.width, 320.0);
+        assert_eq!(widget.rect.height, 180.0);
+        assert_eq!(widget.buffer.dim().width, 320);
+        assert_eq!(widget.buffer.dim().height, 180);
+        assert_eq!(widget.grid_size, 24.0);
+    }
 
     #[test]
     fn one_shot_intents_are_only_immediate_in_2d_without_click_targeting() {

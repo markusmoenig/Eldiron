@@ -419,8 +419,11 @@ impl Entity {
         })
     }
 
-    /// Equip an item into a specific slot
-    pub fn equip_item(&mut self, item_id: u32, slot: &str) -> Result<(), String> {
+    /// Mechanically move an inventory item into an equipment slot.
+    ///
+    /// Runtime callers must pass through the region's resolved equipment
+    /// policy before using this operation.
+    pub(crate) fn equip_item_unchecked(&mut self, item_id: u32, slot: &str) -> Result<(), String> {
         if let Some(item) = self.remove_item(item_id) {
             if let Some(old_item) = self.equipped.shift_remove(slot) {
                 _ = self.add_item(old_item);

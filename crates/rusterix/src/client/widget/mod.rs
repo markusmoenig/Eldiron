@@ -532,7 +532,17 @@ impl Widget {
         visual_state: ButtonVisualState,
     ) -> Option<(&'a Texture, Pixel)> {
         let root = assets.rules.parse::<Table>().ok()?;
-        let command_table = Self::command_icon_table(&root, command?)?;
+        let command = command?;
+        let resolved_action_icon = match parse_client_command(command) {
+            Some(ClientCommandBinding::RulesAction(action_id)) => {
+                eldiron_ruleset::resolve_action(&root, &action_id)
+                    .ok()
+                    .flatten()
+                    .and_then(|action| eldiron_ruleset::resolve_action_icon(&root, &action))
+            }
+            _ => None,
+        };
+        let command_table = Self::command_icon_table(&root, command)?;
         let ui = command_table.get("ui").and_then(toml::Value::as_table);
 
         let icon_key = match visual_state {
@@ -549,6 +559,7 @@ impl Widget {
                     .and_then(toml::Value::as_str)
                     .map(str::trim)
                     .filter(|value| !value.is_empty())
+                    .map(str::to_string)
             })
             .or_else(|| {
                 ui.and_then(|ui| ui.get("icon"))
@@ -556,8 +567,10 @@ impl Widget {
                     .and_then(toml::Value::as_str)
                     .map(str::trim)
                     .filter(|value| !value.is_empty())
-            })?;
-        let icon_name = Self::resolve_icon_texture_id(&root, icon_name);
+                    .map(str::to_string)
+            })
+            .or(resolved_action_icon)?;
+        let icon_name = Self::resolve_icon_texture_id(&root, &icon_name);
 
         let color = match visual_state {
             ButtonVisualState::Selected => Self::command_icon_color(
@@ -1031,20 +1044,24 @@ impl Widget {
     }
 
     fn item_icon_texture_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
-        let icon_id = item
+        let explicit_icon = item
             .attributes
             .get_str("icon")
-            .or_else(|| item.attributes.get_str("icon_template"))?
-            .trim();
-        if icon_id.is_empty() {
-            return None;
-        }
-        let texture = assets.textures.get(icon_id).or_else(|| {
-            assets
-                .rules
-                .parse::<Table>()
-                .ok()
-                .map(|root| Self::resolve_icon_texture_id(&root, icon_id))
+            .or_else(|| item.attributes.get_str("icon_template"));
+        let root = assets.rules.parse::<Table>().ok();
+        let icon_id = root
+            .as_ref()
+            .and_then(|root| {
+                eldiron_ruleset::resolve_item_icon(
+                    root,
+                    item.attributes.get_str("ruleset_kind"),
+                    explicit_icon,
+                )
+            })
+            .or_else(|| explicit_icon.map(str::to_string))?;
+        let texture = assets.textures.get(&icon_id).or_else(|| {
+            root.as_ref()
+                .map(|root| Self::resolve_icon_texture_id(root, &icon_id))
                 .and_then(|texture_id| assets.textures.get(texture_id.as_str()))
         })?;
         let mut color = Self::item_icon_color(assets, item, [216, 216, 216, 255]);

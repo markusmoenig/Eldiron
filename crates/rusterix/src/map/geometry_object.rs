@@ -341,9 +341,7 @@ pub fn remap_geometry_face_paint_uvs(
                 let w = (d00 * d21 - d01 * d20) / denominator;
                 let u = 1.0 - v - w;
                 if u >= -1e-4 && v >= -1e-4 && w >= -1e-4 {
-                    return source_uvs[0] * u
-                        + source_uvs[index] * v
-                        + source_uvs[index + 1] * w;
+                    return source_uvs[0] * u + source_uvs[index] * v + source_uvs[index + 1] * w;
                 }
             }
             fallback_uvs

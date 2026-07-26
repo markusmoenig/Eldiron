@@ -1196,20 +1196,14 @@ mod tests {
         let mut first = source.clone();
         first.indices = vec![source.indices[0], source.indices[1], source.indices[2]];
         first.paint_surface_id = Some(source_surface_id);
-        first.paint_uvs = crate::remap_geometry_face_paint_uvs(
-            &object.vertices,
-            &source,
-            &first.indices,
-        );
+        first.paint_uvs =
+            crate::remap_geometry_face_paint_uvs(&object.vertices, &source, &first.indices);
         let mut second = source.clone();
         second.id = Uuid::new_v4();
         second.indices = vec![source.indices[2], source.indices[3], source.indices[0]];
         second.paint_surface_id = Some(source_surface_id);
-        second.paint_uvs = crate::remap_geometry_face_paint_uvs(
-            &object.vertices,
-            &source,
-            &second.indices,
-        );
+        second.paint_uvs =
+            crate::remap_geometry_face_paint_uvs(&object.vertices, &source, &second.indices);
         object.faces.extend([first, second]);
 
         let mut map = Map::default();

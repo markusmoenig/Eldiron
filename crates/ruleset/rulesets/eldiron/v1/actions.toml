@@ -32,6 +32,158 @@ result = { damage = "abilities.power_strike.damage" }
 [actions.power_strike.ui]
 icon = "power_strike"
 
+[actions.guard]
+name = "Guard"
+description = "Adopt a defensive stance that grants +2 ARMOR for 2 seconds."
+kind = "stance"
+requires = { ability = "guard" }
+target = "self"
+cooldown = 3.0
+result = { apply_condition = "guarded" }
+
+[actions.guard.ui]
+# Actions can reuse a semantic item icon; they do not require one-off artwork.
+icon = "round_shield"
+
+[actions.rally]
+name = "Rally"
+description = "Build battle momentum, improving physical damage and resolve for 6 seconds."
+kind = "stance"
+requires = { ability = "rally" }
+target = "self"
+cooldown = 10.0
+result = { apply_condition = "rallied" }
+
+[actions.rally.ui]
+icon = "basic_attack"
+
+[actions.rally.fx.cast]
+preset = "hit_burst"
+colors = ["gold", "orange"]
+
+[actions.crushing_blow]
+name = "Crushing Blow"
+description = "Deliver a forceful weapon attack with a longer recovery."
+kind = "attack"
+requires = { ability = "crushing_blow" }
+target = "hostile_or_neutral_entity"
+range = "weapon"
+cooldown = 6.0
+result = { damage = "abilities.crushing_blow.damage" }
+
+[actions.crushing_blow.ui]
+icon = "power_strike"
+
+[actions.crushing_blow.fx.impact]
+preset = "hit_burst"
+size = "large"
+density = "dense"
+
+[actions.iron_guard]
+name = "Iron Guard"
+description = "Trade speed for heavy physical protection for 5 seconds."
+kind = "stance"
+requires = { ability = "iron_guard" }
+target = "self"
+cooldown = 12.0
+result = { apply_condition = "iron_guarded" }
+
+[actions.iron_guard.ui]
+icon = "round_shield"
+
+[actions.executioner_strike]
+name = "Executioner's Strike"
+description = "Commit to a devastating weapon attack."
+kind = "attack"
+requires = { ability = "executioner_strike" }
+target = "hostile_or_neutral_entity"
+range = "weapon"
+cooldown = 8.0
+result = { damage = "abilities.executioner_strike.damage" }
+
+[actions.executioner_strike.ui]
+icon = "power_strike"
+
+[actions.executioner_strike.fx.impact]
+preset = "hit_burst"
+size = "large"
+density = "dense"
+colors = ["white", "gold"]
+
+[actions.aimed_shot]
+name = "Aimed Shot"
+description = "Take careful aim before making a stronger ranged attack."
+kind = "attack"
+requires = { ability = "aimed_shot" }
+target = "hostile_or_neutral_entity"
+range = "weapon"
+cooldown = 4.0
+result = { damage = "abilities.aimed_shot.damage" }
+
+[actions.aimed_shot.ui]
+icon = "hunting_bow"
+
+[actions.quick_step]
+name = "Quick Step"
+description = "Gain speed and a small armor bonus for 4 seconds."
+kind = "stance"
+requires = { ability = "quick_step" }
+target = "self"
+cooldown = 9.0
+result = { apply_condition = "quick_step" }
+
+[actions.quick_step.ui]
+icon = "walk"
+
+[actions.piercing_shot]
+name = "Piercing Shot"
+description = "Loose a forceful shot with a longer recovery."
+kind = "attack"
+requires = { ability = "piercing_shot" }
+target = "hostile_or_neutral_entity"
+range = "weapon"
+cooldown = 6.0
+result = { damage = "abilities.piercing_shot.damage" }
+
+[actions.piercing_shot.ui]
+icon = "hunting_bow"
+
+[actions.piercing_shot.fx.impact]
+preset = "hit_burst"
+size = "medium"
+density = "dense"
+
+[actions.hunter_focus]
+name = "Hunter's Focus"
+description = "Improve damage and initiative for 6 seconds."
+kind = "stance"
+requires = { ability = "hunter_focus" }
+target = "self"
+cooldown = 10.0
+result = { apply_condition = "hunter_focus" }
+
+[actions.hunter_focus.ui]
+icon = "look"
+
+[actions.deadly_shot]
+name = "Deadly Shot"
+description = "Commit to a devastating ranged attack."
+kind = "attack"
+requires = { ability = "deadly_shot" }
+target = "hostile_or_neutral_entity"
+range = "weapon"
+cooldown = 8.0
+result = { damage = "abilities.deadly_shot.damage" }
+
+[actions.deadly_shot.ui]
+icon = "hunting_bow"
+
+[actions.deadly_shot.fx.impact]
+preset = "hit_burst"
+size = "large"
+density = "dense"
+colors = ["white", "gold"]
+
 [actions.minor_heal]
 name = "Minor Heal"
 description = "Restore a small amount of health to yourself or an ally."
@@ -41,8 +193,12 @@ target = "friendly_or_self"
 range = 5
 cooldown = 4.0
 cost = { MP = 3 }
-consumes = [{ item = "blessed_herb", quantity = 1 }]
+consumes = [
+    { item = "blessed_herb", quantity = 1 },
+    { item = "moonwater", quantity = 1 },
+]
 result = { healing = "spells.minor_heal.healing" }
+invocations = [{ scheme = "words_of_power", sequence = ["LO", "VI"] }]
 
 [actions.minor_heal.ui]
 icon = "minor_heal"
@@ -68,8 +224,9 @@ target = "hostile_or_neutral_entity"
 range = 5
 cooldown = 5.0
 cost = { MP = 4 }
-consumes = []
+consumes = [{ item = "consecrated_oil", quantity = 1 }]
 result = { damage = "spells.holy_light.damage" }
+invocations = [{ scheme = "words_of_power", sequence = ["YA", "FUL"] }]
 
 [actions.holy_light.ui]
 icon = "holy_light"
@@ -86,6 +243,166 @@ colors = ["warm_white", "gold"]
 duration = 0.65
 density = "dense"
 size = "medium"
+
+[actions.blessing]
+name = "Blessing"
+description = "Grant an ally divine power and resistance for 8 seconds."
+kind = "spell"
+requires = { spell = "blessing" }
+target = "friendly_or_self"
+range = 5
+cooldown = 8.0
+cost = { MP = 5 }
+consumes = [{ item = "consecrated_oil", quantity = 1 }]
+result = { apply_condition = "blessed" }
+invocations = [{ scheme = "words_of_power", sequence = ["YA"] }]
+
+[actions.blessing.ui]
+icon = "holy_light"
+
+[actions.blessing.fx.cast]
+preset = "holy_glow"
+
+[actions.blessing.fx.impact]
+preset = "holy_glow"
+
+[actions.turn_undead]
+name = "Turn Undead"
+description = "Repel an undead creature with divine force, weakening its power and speed for 5 seconds."
+kind = "spell"
+requires = { spell = "turn_undead", target_attributes = [{ id = "traits", contains = "undead" }] }
+target = "hostile_or_neutral_entity"
+range = 5
+cooldown = 10.0
+cost = { MP = 5 }
+consumes = [{ item = "warding_salt", quantity = 1 }]
+result = { apply_condition = "turned" }
+invocations = [{ scheme = "words_of_power", sequence = ["SAR", "IR"] }]
+
+[actions.turn_undead.ui]
+icon = "holy_light"
+
+[actions.turn_undead.fx.cast]
+preset = "holy_glow"
+size = "medium"
+density = "dense"
+
+[actions.turn_undead.fx.impact]
+preset = "hit_burst"
+colors = ["warm_white", "gold", "blue"]
+size = "large"
+density = "dense"
+
+[actions.greater_heal]
+name = "Greater Heal"
+description = "Restore a substantial amount of health to yourself or an ally."
+kind = "spell"
+requires = { spell = "greater_heal" }
+target = "friendly_or_self"
+range = 5
+cooldown = 7.0
+cost = { MP = 7 }
+consumes = [
+    { item = "blessed_herb", quantity = 2 },
+    { item = "moonwater", quantity = 1 },
+]
+result = { healing = "spells.greater_heal.healing" }
+invocations = [{ scheme = "words_of_power", sequence = ["LO", "LO"] }]
+
+[actions.greater_heal.ui]
+icon = "minor_heal"
+
+[actions.greater_heal.fx.cast]
+preset = "rising_motes"
+size = "medium"
+density = "dense"
+
+[actions.greater_heal.fx.impact]
+preset = "holy_glow"
+size = "large"
+density = "dense"
+
+[actions.smite]
+name = "Smite"
+description = "Strike an attackable creature with concentrated divine force."
+kind = "spell"
+requires = { spell = "smite" }
+target = "hostile_or_neutral_entity"
+range = 6
+cooldown = 7.0
+cost = { MP = 6 }
+consumes = [
+    { item = "consecrated_oil", quantity = 1 },
+    { item = "ember_bead", quantity = 1 },
+]
+result = { damage = "spells.smite.damage" }
+invocations = [{ scheme = "words_of_power", sequence = ["FUL", "YA"] }]
+
+[actions.smite.ui]
+icon = "holy_light"
+
+[actions.smite.fx.cast]
+preset = "holy_glow"
+
+[actions.smite.fx.travel]
+preset = "holy_bolt"
+
+[actions.smite.fx.impact]
+preset = "hit_burst"
+colors = ["warm_white", "gold"]
+size = "large"
+density = "dense"
+
+[actions.sanctuary]
+name = "Sanctuary"
+description = "Ward yourself or an ally with strong physical and magical protection."
+kind = "spell"
+requires = { spell = "sanctuary" }
+target = "friendly_or_self"
+range = 5
+cooldown = 12.0
+cost = { MP = 9 }
+consumes = [
+    { item = "warding_salt", quantity = 1 },
+    { item = "moonwater", quantity = 1 },
+]
+result = { apply_condition = "sanctuary" }
+invocations = [{ scheme = "words_of_power", sequence = ["SAR", "VI"] }]
+
+[actions.sanctuary.ui]
+icon = "round_shield"
+
+[actions.sanctuary.fx.cast]
+preset = "holy_glow"
+size = "large"
+density = "dense"
+
+[actions.sanctuary.fx.impact]
+preset = "holy_glow"
+size = "large"
+density = "dense"
+
+[actions.fire_spark]
+name = "Fire Spark"
+description = "Launch a small spark of fire at an attackable creature."
+kind = "spell"
+requires = { spell = "fire_spark" }
+target = "hostile_or_neutral_entity"
+range = 6
+cooldown = 3.0
+cost = { MP = 2 }
+consumes = [{ item = "ember_bead", quantity = 1 }]
+result = { damage = "spells.fire_spark.damage" }
+invocations = [{ scheme = "words_of_power", sequence = ["FUL"] }]
+
+[actions.fire_spark.ui]
+icon = "holy_light"
+
+[actions.fire_spark.fx.travel]
+preset = "ember_trail"
+
+[actions.fire_spark.fx.impact]
+preset = "fire_burst"
 
 [actions.take]
 name = "Take"
@@ -142,6 +459,62 @@ result = { item = "feather", quantity = 2 }
 [actions.gather_feathers.ui]
 icon = "gather_feathers"
 
+[actions.gather_moonleaf]
+name = "Gather Moonleaf"
+description = "Gather pale moonleaf from a shaded patch."
+kind = "gather"
+skill = "herbalism"
+required_skill = 5
+target = "resource_node"
+range = 1.5
+cooldown = 2.5
+result = { item = "moonleaf", quantity = 2 }
+
+[actions.gather_moonleaf.ui]
+icon = "gather_herbs"
+
+[actions.mine_sun_shards]
+name = "Mine Sun Shards"
+description = "Chip luminous sun shards from a mineral outcrop."
+kind = "gather"
+skill = "ritualism"
+required_skill = 5
+target = "resource_node"
+range = 1.5
+cooldown = 4.0
+result = { item = "sun_shard", quantity = 2 }
+
+[actions.mine_sun_shards.ui]
+icon = "holy_light"
+
+[actions.sift_grave_dust]
+name = "Sift Grave Dust"
+description = "Carefully collect ritual dust from an old grave."
+kind = "gather"
+skill = "ritualism"
+required_skill = 10
+target = "resource_node"
+range = 1.5
+cooldown = 3.0
+result = { item = "grave_dust", quantity = 2 }
+
+[actions.sift_grave_dust.ui]
+icon = "loot_corpse"
+
+[actions.tap_ember_resin]
+name = "Tap Ember Resin"
+description = "Draw warm alchemical resin from a scorched stump."
+kind = "gather"
+skill = "alchemy"
+required_skill = 5
+target = "resource_node"
+range = 1.5
+cooldown = 3.0
+result = { item = "ember_resin", quantity = 2 }
+
+[actions.tap_ember_resin.ui]
+icon = "torch"
+
 [actions.craft_blessed_herb]
 name = "Bless Herb"
 description = "Bless a wild herb into a simple restoration reagent."
@@ -174,3 +547,69 @@ cooldown = 8.0
 
 [actions.craft_hunting_bow.ui]
 icon = "hunting_bow"
+
+[actions.distill_moonwater]
+name = "Distill Moonwater"
+description = "Steep moonleaf into a life-aligned ritual reagent."
+kind = "craft"
+recipe = "moonwater"
+target = "self"
+cooldown = 4.0
+
+[actions.distill_moonwater.ui]
+icon = "minor_heal"
+
+[actions.prepare_consecrated_oil]
+name = "Prepare Consecrated Oil"
+description = "Bind a sun shard's radiance into blessed herbs."
+kind = "craft"
+recipe = "consecrated_oil"
+target = "self"
+cooldown = 5.0
+
+[actions.prepare_consecrated_oil.ui]
+icon = "holy_light"
+
+[actions.mix_warding_salt]
+name = "Mix Warding Salt"
+description = "Temper grave dust with sunlight into a protective circle reagent."
+kind = "craft"
+recipe = "warding_salt"
+target = "self"
+cooldown = 5.0
+
+[actions.mix_warding_salt.ui]
+icon = "round_shield"
+
+[actions.shape_ember_beads]
+name = "Shape Ember Beads"
+description = "Harden volatile ember resin into portable fire reagents."
+kind = "craft"
+recipe = "ember_beads"
+target = "self"
+cooldown = 4.0
+
+[actions.shape_ember_beads.ui]
+icon = "torch"
+
+[actions.craft_ritual_censer]
+name = "Craft Ritual Censer"
+description = "Build a balanced focus for restorative and warding rites."
+kind = "craft"
+recipe = "ritual_censer"
+target = "self"
+cooldown = 10.0
+
+[actions.craft_ritual_censer.ui]
+icon = "novice_mace"
+
+[actions.craft_sunward_charm]
+name = "Craft Sunward Charm"
+description = "Set sun shards around a moonwater-bound ward."
+kind = "craft"
+recipe = "sunward_charm"
+target = "self"
+cooldown = 12.0
+
+[actions.craft_sunward_charm.ui]
+icon = "holy_light"

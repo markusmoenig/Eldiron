@@ -1400,10 +1400,18 @@ fn parse_rules_character_value(raw: &str) -> Value {
     }
 }
 
-fn set_rules_character_arg(entity: &mut Entity, key: &str, value: &str) -> Result<(), String> {
+fn set_rules_character_arg(
+    rules: &toml::Table,
+    entity: &mut Entity,
+    key: &str,
+    value: &str,
+) -> Result<(), String> {
     let normalized_key = match key.trim().to_ascii_lowercase().as_str() {
         "" => return Err("Character argument has an empty key.".into()),
-        "level" => "LEVEL".to_string(),
+        "level" => shared::rulesets::resolve_attribute_roles(rules)
+            .ok()
+            .and_then(|roles| roles.get("level").map(str::to_string))
+            .unwrap_or_else(|| key.trim().to_string()),
         "race" => "race".to_string(),
         "class" => "class".to_string(),
         _ => key.trim().to_string(),
@@ -1412,14 +1420,14 @@ fn set_rules_character_arg(entity: &mut Entity, key: &str, value: &str) -> Resul
     Ok(())
 }
 
-fn rules_character_entity(args: &[String]) -> Result<Entity, String> {
+fn rules_character_entity(rules: &toml::Table, args: &[String]) -> Result<Entity, String> {
     let Some(class_id) = args.first() else {
         return Err(rules_command_usage().into());
     };
     let mut entity = Entity::new();
 
     if let Some((key, value)) = class_id.split_once('=') {
-        set_rules_character_arg(&mut entity, key, value)?;
+        set_rules_character_arg(rules, &mut entity, key, value)?;
     } else {
         entity.set_attribute("class", Value::Str(class_id.trim().to_string()));
     }
@@ -1431,7 +1439,7 @@ fn rules_character_entity(args: &[String]) -> Result<Entity, String> {
                 raw
             ));
         };
-        set_rules_character_arg(&mut entity, key, value)?;
+        set_rules_character_arg(rules, &mut entity, key, value)?;
     }
 
     Ok(entity)
@@ -1465,33 +1473,31 @@ fn rules_character_string_array(entity: &Entity, key: &str) -> Vec<String> {
     }
 }
 
-fn rules_character_attribute_lines(entity: &Entity) -> Vec<String> {
-    let preferred = [
-        "HP",
-        "MAX_HP",
-        "MP",
-        "MAX_MP",
-        "STR",
-        "DEX",
-        "INT",
-        "WIS",
-        "VIT",
-        "POWER",
-        "DMG",
-        "ARMOR",
-        "RESIST",
-        "INIT",
-        "SPEED",
-        "LEVEL",
-        "EXP",
-        "inventory_slots",
-    ];
+fn rules_character_attribute_lines(rules: &toml::Table, entity: &Entity) -> Vec<String> {
+    let mut preferred = Vec::new();
+    if let Some(attributes) = rules.get("attributes").and_then(toml::Value::as_table) {
+        for group in ["primary", "resources", "combat", "progression"] {
+            if let Some(values) = attributes.get(group).and_then(toml::Value::as_array) {
+                preferred.extend(
+                    values
+                        .iter()
+                        .filter_map(toml::Value::as_str)
+                        .map(str::to_string),
+                );
+            }
+        }
+        if let Some(defaults) = attributes.get("defaults").and_then(toml::Value::as_table) {
+            preferred.extend(defaults.keys().cloned());
+        }
+    }
+    preferred.push("inventory_slots".to_string());
     let mut lines = Vec::new();
     let mut seen = BTreeSet::new();
     for key in preferred {
-        if let Some(value) = entity.attributes.get(key) {
+        if seen.insert(key.clone())
+            && let Some(value) = entity.attributes.get(&key)
+        {
             lines.push(format!("{}: {}", key, value));
-            seen.insert(key.to_string());
         }
     }
 
@@ -2030,14 +2036,18 @@ fn format_rules_character(rules: &toml::Table, entity: &Entity) -> String {
         .get_str("class")
         .map(str::to_string)
         .unwrap_or_else(|| "-".into());
-    let level = entity.attributes.get_int_default("LEVEL", 1);
+    let level = shared::rulesets::resolve_attribute_roles(rules)
+        .ok()
+        .and_then(|roles| roles.get("level").map(str::to_string))
+        .map(|attribute| entity.attributes.get_int_default(&attribute, 1))
+        .unwrap_or(1);
     let numeric_attrs = rules_character_numeric_attributes(entity);
     let role = shared::rulesets::summarize_class(rules, &class)
         .ok()
         .and_then(|summary| summary.role);
 
     let sections = vec![
-        ("attributes", rules_character_attribute_lines(entity)),
+        ("attributes", rules_character_attribute_lines(rules, entity)),
         (
             "abilities",
             rules_character_string_array(entity, "abilities"),
@@ -2085,7 +2095,7 @@ fn format_rules_character(rules: &toml::Table, entity: &Entity) -> String {
 
 fn run_rules_character_command(args: &[String]) -> Result<(), String> {
     let rules = official_rules_table()?;
-    let mut entity = rules_character_entity(args)?;
+    let mut entity = rules_character_entity(&rules, args)?;
     rusterix::server::region::apply_ruleset_character_defaults(&rules, &mut entity);
     println!("{}", format_rules_character(&rules, &entity));
     Ok(())
@@ -3016,7 +3026,14 @@ fn render_roguelike_tui_frame(
         if rect.width == 0 || rect.height == 0 {
             continue;
         }
-        render_roguelike_tui_widget(frame, rect, widget, region, &screen_frame);
+        render_roguelike_tui_widget(
+            frame,
+            rect,
+            widget,
+            region,
+            &screen_frame,
+            &app.assets.rules,
+        );
     }
 }
 
@@ -3049,8 +3066,10 @@ fn render_roguelike_tui_widget(
     widget: &shared::terminal_screen::TerminalWidget,
     region: &shared::region::Region,
     screen_frame: &TerminalScreenFrame,
+    rules_src: &str,
 ) {
-    let lines = shared::terminal_screen::terminal_widget_lines(widget, region, screen_frame);
+    let lines =
+        shared::terminal_screen::terminal_widget_lines(widget, region, screen_frame, rules_src);
     let text = lines.join("\n");
     match widget.role.as_str() {
         "game" => {
@@ -3610,10 +3629,10 @@ mod tests {
         assert!(summary.contains("id: eldiron.official"));
         assert!(summary.contains("classes: 4"));
         assert!(summary.contains("professions: 7"));
-        assert!(summary.contains("skills: 7"));
-        assert!(summary.contains("resources: 3"));
-        assert!(summary.contains("recipes: 3"));
-        assert!(summary.contains("spells: 3"));
+        assert!(summary.contains("skills: 9"));
+        assert!(summary.contains("resources: 7"));
+        assert!(summary.contains("recipes: 9"));
+        assert!(summary.contains("spells: 8"));
     }
 
     #[test]
@@ -3629,9 +3648,11 @@ mod tests {
     #[test]
     fn formats_resolved_rules_character() {
         let rules = official_rules_table().unwrap();
-        let mut entity =
-            rules_character_entity(&["Cleric".into(), "race=Human".into(), "level=2".into()])
-                .unwrap();
+        let mut entity = rules_character_entity(
+            &rules,
+            &["Cleric".into(), "race=Human".into(), "level=2".into()],
+        )
+        .unwrap();
         rusterix::server::region::apply_ruleset_character_defaults(&rules, &mut entity);
         let output = format_rules_character(&rules, &entity);
 
@@ -3643,21 +3664,26 @@ mod tests {
         assert!(output.contains("cost MP=4"));
         assert!(output.contains("main_hand: Novice Mace"));
 
-        let mut ranger =
-            rules_character_entity(&["Ranger".into(), "race=Human".into(), "level=1".into()])
-                .unwrap();
+        let mut ranger = rules_character_entity(
+            &rules,
+            &["Ranger".into(), "race=Human".into(), "level=1".into()],
+        )
+        .unwrap();
         rusterix::server::region::apply_ruleset_character_defaults(&rules, &mut ranger);
         let output = format_rules_character(&rules, &ranger);
         assert!(output.contains("class: Ranger"));
         assert!(output.contains("main_hand: Hunting Bow"));
         assert!(output.contains("Wooden Arrows"));
 
-        let mut citizen = rules_character_entity(&[
-            "Citizen".into(),
-            "race=Human".into(),
-            "level=1".into(),
-            "profession=Blacksmith".into(),
-        ])
+        let mut citizen = rules_character_entity(
+            &rules,
+            &[
+                "Citizen".into(),
+                "race=Human".into(),
+                "level=1".into(),
+                "profession=Blacksmith".into(),
+            ],
+        )
         .unwrap();
         rusterix::server::region::apply_ruleset_character_defaults(&rules, &mut citizen);
         let output = format_rules_character(&rules, &citizen);

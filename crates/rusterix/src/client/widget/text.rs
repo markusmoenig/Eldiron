@@ -49,11 +49,6 @@ impl Default for TextWidget {
 }
 
 impl TextWidget {
-    const CORE_RULE_NUMBERS: [&'static str; 16] = [
-        "HP", "MAX_HP", "MP", "MAX_MP", "STR", "DEX", "INT", "WIS", "VIT", "DMG", "POWER", "ARMOR",
-        "RESIST", "INIT", "SPEED", "LEVEL",
-    ];
-
     pub fn new() -> Self {
         Self {
             name: String::new(),
@@ -241,7 +236,7 @@ impl TextWidget {
                                     ));
                                 } else if let Some(value) = Self::player_attr_value(entity, key) {
                                     return Some(value);
-                                } else if Self::CORE_RULE_NUMBERS.contains(&key) {
+                                } else if assets.ruleset_declares_attribute(key) {
                                     return Some("0".to_string());
                                 }
                             }
@@ -324,7 +319,13 @@ impl TextWidget {
             .get("start.class")
             .map(|value| value.trim())
             .filter(|value| !value.is_empty())
-            .unwrap_or("Warrior");
+            .map(str::to_string)
+            .or_else(|| {
+                let root = assets.rules.parse::<toml::Table>().ok()?;
+                eldiron_ruleset::resolve_identity_defaults(&root)
+                    .ok()?
+                    .class
+            });
 
         match key {
             "NAME" => ui_state
@@ -332,54 +333,25 @@ impl TextWidget {
                 .map(|value| value.trim())
                 .filter(|value| !value.is_empty())
                 .map(str::to_string),
-            "CLASS" => Some(class.to_string()),
-            "CLASS_DESCRIPTION" => Self::ruleset_class_string(assets, class, "description"),
-            "CLASS_ROLE" => Self::ruleset_class_string(assets, class, "role")
+            "CLASS" => class,
+            "CLASS_DESCRIPTION" => {
+                Self::ruleset_class_string(assets, class.as_deref()?, "description")
+            }
+            "CLASS_ROLE" => Self::ruleset_class_string(assets, class.as_deref()?, "role")
                 .map(|value| Self::humanize(&value)),
-            "CLASS_ATTRIBUTES" => Self::ruleset_class_array(assets, class, "primary_attributes")
-                .map(|values| {
-                    if values.is_empty() {
-                        "-".to_string()
-                    } else {
-                        values.join(", ")
-                    }
-                }),
+            "CLASS_ATTRIBUTES" => {
+                Self::ruleset_class_array(assets, class.as_deref()?, "primary_attributes").map(
+                    |values| {
+                        if values.is_empty() {
+                            "-".to_string()
+                        } else {
+                            values.join(", ")
+                        }
+                    },
+                )
+            }
             "CLASS_WEAPONS" => {
-                Self::ruleset_class_array(assets, class, "allowed_weapons").map(|values| {
-                    if values.is_empty() {
-                        "None".to_string()
-                    } else {
-                        Self::human_list(values)
-                    }
-                })
-            }
-            "CLASS_ARMOR" => {
-                Self::ruleset_class_array(assets, class, "allowed_armor").map(|values| {
-                    if values.is_empty() {
-                        "None".to_string()
-                    } else {
-                        Self::human_list(values)
-                    }
-                })
-            }
-            "CLASS_ABILITIES" => {
-                Self::ruleset_class_array(assets, class, "abilities").map(|values| {
-                    if values.is_empty() {
-                        "None".to_string()
-                    } else {
-                        Self::human_list(values)
-                    }
-                })
-            }
-            "CLASS_SPELLS" => Self::ruleset_class_array(assets, class, "spells").map(|values| {
-                if values.is_empty() {
-                    "None".to_string()
-                } else {
-                    Self::human_list(values)
-                }
-            }),
-            "CLASS_EQUIPMENT" => {
-                Self::ruleset_class_loadout(assets, class, &["equipment", "weapons", "armor"]).map(
+                Self::ruleset_class_array(assets, class.as_deref()?, "allowed_weapons").map(
                     |values| {
                         if values.is_empty() {
                             "None".to_string()
@@ -389,14 +361,53 @@ impl TextWidget {
                     },
                 )
             }
-            "CLASS_INVENTORY" => {
-                Self::ruleset_class_loadout(assets, class, &["inventory", "items"]).map(|values| {
+            "CLASS_ARMOR" => Self::ruleset_class_array(assets, class.as_deref()?, "allowed_armor")
+                .map(|values| {
+                    if values.is_empty() {
+                        "None".to_string()
+                    } else {
+                        Self::human_list(values)
+                    }
+                }),
+            "CLASS_ABILITIES" => Self::ruleset_class_array(assets, class.as_deref()?, "abilities")
+                .map(|values| {
+                    if values.is_empty() {
+                        "None".to_string()
+                    } else {
+                        Self::human_list(values)
+                    }
+                }),
+            "CLASS_SPELLS" => {
+                Self::ruleset_class_array(assets, class.as_deref()?, "spells").map(|values| {
                     if values.is_empty() {
                         "None".to_string()
                     } else {
                         Self::human_list(values)
                     }
                 })
+            }
+            "CLASS_EQUIPMENT" => Self::ruleset_class_loadout(
+                assets,
+                class.as_deref()?,
+                &["equipment", "weapons", "armor"],
+            )
+            .map(|values| {
+                if values.is_empty() {
+                    "None".to_string()
+                } else {
+                    Self::human_list(values)
+                }
+            }),
+            "CLASS_INVENTORY" => {
+                Self::ruleset_class_loadout(assets, class.as_deref()?, &["inventory", "items"]).map(
+                    |values| {
+                        if values.is_empty() {
+                            "None".to_string()
+                        } else {
+                            Self::human_list(values)
+                        }
+                    },
+                )
             }
             _ => None,
         }
@@ -562,6 +573,35 @@ mod tests {
         assert_eq!(
             TextWidget::start_ui_value(&assets, &ui_state, "CLASS_EQUIPMENT").as_deref(),
             Some("Training Sword, Padded Armor")
+        );
+    }
+
+    #[test]
+    fn resolves_start_class_from_ruleset_identity_without_an_official_fallback() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [identity.defaults]
+            class = "Artificer"
+
+            [classes.Artificer]
+            role = "maker"
+        "#
+        .to_string();
+
+        let ui_state = FxHashMap::default();
+        assert_eq!(
+            TextWidget::start_ui_value(&assets, &ui_state, "CLASS").as_deref(),
+            Some("Artificer")
+        );
+        assert_eq!(
+            TextWidget::start_ui_value(&assets, &ui_state, "CLASS_ROLE").as_deref(),
+            Some("Maker")
+        );
+
+        assets.rules = "[actions.inspect]\nkind = \"interaction\"".to_string();
+        assert_eq!(
+            TextWidget::start_ui_value(&assets, &ui_state, "CLASS"),
+            None
         );
     }
 }

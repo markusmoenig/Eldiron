@@ -1,0 +1,231 @@
+# Conditions are reusable timed or persistent gameplay state.
+#
+# Actions decide when a condition is applied or removed. The condition owns its
+# duration, stacking behavior, tags, trait immunities, gameplay effects, and FX.
+
+[conditions.guarded]
+name = "Guarded"
+description = "A defensive stance that briefly improves physical protection."
+duration = 2.0
+stacking = "refresh"
+max_stacks = 1
+tags = ["stance", "beneficial", "physical"]
+immune_traits = []
+modifiers = [{ attribute = "ARMOR", add = 2 }]
+
+[conditions.guarded.fx.apply]
+preset = "hit_burst"
+colors = ["blue", "warm_white"]
+duration = "instant"
+size = "small"
+density = "light"
+
+[conditions.guarded.fx.active]
+preset = "holy_glow"
+colors = ["blue", "warm_white"]
+size = "small"
+density = "light"
+
+[conditions.guarded.fx.remove]
+preset = "hit_burst"
+colors = ["blue"]
+duration = "instant"
+size = "small"
+density = "light"
+
+[conditions.rallied]
+name = "Rallied"
+description = "Battle momentum improves physical damage and resolve."
+duration = 6.0
+stacking = "refresh"
+max_stacks = 1
+tags = ["stance", "beneficial", "physical"]
+immune_traits = []
+modifiers = [
+  { attribute = "DMG", add = 2 },
+  { attribute = "RESIST", add = 1 },
+]
+
+[conditions.rallied.fx.apply]
+preset = "hit_burst"
+colors = ["gold", "orange"]
+
+[conditions.rallied.fx.active]
+preset = "holy_glow"
+colors = ["gold", "orange"]
+size = "small"
+density = "light"
+
+[conditions.rallied.fx.remove]
+preset = "hit_burst"
+colors = ["gold"]
+
+[conditions.iron_guarded]
+name = "Iron Guard"
+description = "A committed defensive stance trades speed for heavy protection."
+duration = 5.0
+stacking = "refresh"
+max_stacks = 1
+tags = ["stance", "beneficial", "physical"]
+immune_traits = []
+modifiers = [
+  { attribute = "ARMOR", add = 4 },
+  { attribute = "SPEED", multiply = 0.75, minimum = 1 },
+]
+
+[conditions.iron_guarded.fx.apply]
+preset = "hit_burst"
+colors = ["blue", "white"]
+
+[conditions.iron_guarded.fx.active]
+preset = "holy_glow"
+colors = ["blue", "white"]
+size = "medium"
+density = "light"
+
+[conditions.iron_guarded.fx.remove]
+preset = "hit_burst"
+colors = ["blue"]
+
+[conditions.quick_step]
+name = "Quick Step"
+description = "A brief burst of movement sharpens speed and avoidance."
+duration = 4.0
+stacking = "refresh"
+max_stacks = 1
+tags = ["stance", "beneficial", "physical"]
+immune_traits = []
+modifiers = [
+  { attribute = "SPEED", add = 1, maximum = 3 },
+  { attribute = "ARMOR", add = 1 },
+]
+
+[conditions.quick_step.fx.apply]
+preset = "rising_motes"
+colors = ["white", "blue"]
+size = "small"
+density = "light"
+
+[conditions.quick_step.fx.active]
+preset = "rising_motes"
+colors = ["white", "blue"]
+size = "small"
+density = "light"
+
+[conditions.quick_step.fx.remove]
+preset = "hit_burst"
+colors = ["white"]
+
+[conditions.hunter_focus]
+name = "Hunter's Focus"
+description = "Focused breathing improves damage and initiative."
+duration = 6.0
+stacking = "refresh"
+max_stacks = 1
+tags = ["stance", "beneficial", "physical"]
+immune_traits = []
+modifiers = [
+  { attribute = "DMG", add = 2 },
+  { attribute = "INIT", add = 2 },
+]
+
+[conditions.hunter_focus.fx.apply]
+preset = "rising_motes"
+colors = ["gold", "white"]
+size = "small"
+density = "light"
+
+[conditions.hunter_focus.fx.active]
+preset = "holy_glow"
+colors = ["gold", "white"]
+size = "small"
+density = "light"
+
+[conditions.hunter_focus.fx.remove]
+preset = "hit_burst"
+colors = ["gold"]
+
+[conditions.blessed]
+name = "Blessed"
+description = "Divine favor improves spell power and resistance."
+duration = 8.0
+stacking = "refresh"
+max_stacks = 1
+tags = ["blessing", "beneficial", "divine"]
+immune_traits = []
+modifiers = [
+  { attribute = "POWER", add = 2 },
+  { attribute = "RESIST", add = 2 },
+]
+
+[conditions.blessed.fx.apply]
+preset = "holy_glow"
+
+[conditions.blessed.fx.active]
+preset = "holy_glow"
+size = "medium"
+density = "light"
+
+[conditions.blessed.fx.remove]
+preset = "rising_motes"
+size = "small"
+density = "light"
+
+[conditions.turned]
+name = "Turned"
+description = "Divine force suppresses an undead creature's power and movement."
+duration = 5.0
+stacking = "refresh"
+max_stacks = 1
+tags = ["control", "harmful", "divine", "undead"]
+immune_traits = []
+modifiers = [
+  { attribute = "POWER", add = -4, minimum = 0 },
+  { attribute = "SPEED", multiply = 0.5, minimum = 0.5 },
+]
+
+[conditions.turned.fx.apply]
+preset = "hit_burst"
+colors = ["warm_white", "gold", "blue"]
+size = "large"
+density = "dense"
+
+[conditions.turned.fx.active]
+preset = "holy_glow"
+colors = ["warm_white", "gold", "blue"]
+size = "medium"
+density = "medium"
+
+[conditions.turned.fx.remove]
+preset = "rising_motes"
+colors = ["blue", "white"]
+size = "small"
+density = "light"
+
+[conditions.sanctuary]
+name = "Sanctuary"
+description = "A divine ward grants strong physical and magical protection."
+duration = 8.0
+stacking = "refresh"
+max_stacks = 1
+tags = ["ward", "beneficial", "divine"]
+immune_traits = []
+modifiers = [
+  { attribute = "ARMOR", add = 3 },
+  { attribute = "RESIST", add = 4 },
+]
+
+[conditions.sanctuary.fx.apply]
+preset = "holy_glow"
+size = "large"
+density = "dense"
+
+[conditions.sanctuary.fx.active]
+preset = "holy_glow"
+size = "large"
+density = "medium"
+
+[conditions.sanctuary.fx.remove]
+preset = "rising_motes"
+size = "medium"
+density = "dense"

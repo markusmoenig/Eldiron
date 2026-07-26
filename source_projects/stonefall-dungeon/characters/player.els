@@ -56,9 +56,6 @@ Character "player" {
         if event == "intent" && value == "talk" {
             dialog( value.subject_id,  "");
         }
-        if event == "intent" && value == "spell:LO VI" {
-            use_action( "minor_heal");
-        }
         if event == "kill" {
             let name = get_attr_of( value,  "name");
             message( id(),   "You kill the " + name,  "success");

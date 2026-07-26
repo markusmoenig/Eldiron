@@ -2,6 +2,15 @@ use crate::{
     Assets, Entity, Item, Value,
     client::command::{ClientCommandBinding, parse_client_command},
 };
+use eldiron_ruleset::{
+    ResolvedAction, ResolvedActionAttributePredicate, ResolvedActionEffect,
+    ResolvedActionEffectRecipient, ResolvedActionEffectValue, ResolvedActionKind,
+    ResolvedActionModification, ResolvedActionModificationField, ResolvedActionPredicateValue,
+    ResolvedActionRange, ResolvedActionRequirement, ResolvedCondition,
+    ResolvedConditionPeriodicEffect, ResolvedDerivedStat, evaluate_formula,
+    resolve_attribute_roles, resolve_condition, resolve_conditions, resolve_derived_stats,
+};
+use std::collections::{BTreeMap, BTreeSet};
 use toml::Table;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -105,7 +114,7 @@ pub fn cooldown_total_attr(namespace: &str, id: &str) -> String {
     format!("cooldown_total_{}", cooldown_attr_suffix(namespace, id))
 }
 
-pub fn describe_item(item: &Item) -> RulesDescription {
+pub fn describe_item(item: &Item, assets: &Assets) -> RulesDescription {
     let title = item
         .attributes
         .get_str("name")
@@ -151,12 +160,16 @@ pub fn describe_item(item: &Item) -> RulesDescription {
     }
     if let Some(damage) = item_damage_line(item) {
         lines.push(damage);
-    } else if let Some(dmg) = item.attributes.get_float("DMG")
+    } else if let Some(dmg) = assets
+        .ruleset_attribute_role("weapon_damage")
+        .and_then(|attribute| item.attributes.get_float(&attribute))
         && dmg > 0.0
     {
         lines.push(format_number_line("Damage", dmg));
     }
-    if let Some(armor) = item.attributes.get_float("ARMOR")
+    if let Some(armor) = assets
+        .ruleset_attribute_role("armor")
+        .and_then(|attribute| item.attributes.get_float(&attribute))
         && armor > 0.0
     {
         lines.push(format_number_line("Armor", armor));
@@ -300,10 +313,10 @@ pub fn describe_command(
             let Ok(root) = assets.rules.parse::<Table>() else {
                 return fallback_rules_action_description(&action_id);
             };
-            let Some(action) = table_at(&root, &["actions", &action_id]) else {
+            let Ok(Some(action)) = eldiron_ruleset::resolve_action(&root, &action_id) else {
                 return fallback_rules_action_description(&action_id);
             };
-            describe_rules_action(&root, &action_id, action, actor)
+            describe_rules_action(&root, &action, actor)
         }
     }
 }
@@ -331,6 +344,215 @@ pub fn command_state(assets: &Assets, actor: Option<&Entity>, command: &str) -> 
     }
 }
 
+fn action_attribute_predicate_matches(
+    value: Option<&Value>,
+    predicate: &ResolvedActionAttributePredicate,
+) -> bool {
+    let Some(value) = value else {
+        return false;
+    };
+    match value {
+        Value::Bool(value) => predicate.matches_bool(*value),
+        Value::Int(value) => predicate.matches_number(*value as f32),
+        Value::UInt(value) => predicate.matches_number(*value as f32),
+        Value::Int64(value) => predicate.matches_number(*value as f32),
+        Value::Float(value) => predicate.matches_number(*value),
+        Value::Str(value) => predicate.matches_string(value),
+        Value::StrArray(values) => predicate.matches_strings(values),
+        _ => false,
+    }
+}
+
+fn condition_attribute_suffix(condition_id: &str) -> String {
+    let mut suffix = "condition_".to_string();
+    for ch in condition_id.trim().chars() {
+        if ch.is_ascii_alphanumeric() {
+            suffix.push(ch.to_ascii_lowercase());
+        } else {
+            suffix.push('_');
+        }
+    }
+    while suffix.contains("__") {
+        suffix = suffix.replace("__", "_");
+    }
+    suffix.trim_matches('_').to_string()
+}
+
+fn effective_rules_attribute(root: &Table, entity: &Entity, attribute: &str) -> f32 {
+    let conditions = resolve_conditions(root).unwrap_or_default();
+    let derived_stats = resolve_derived_stats(root).unwrap_or_default();
+    let level_attribute = resolve_attribute_roles(root)
+        .ok()
+        .and_then(|roles| roles.get("level").map(str::to_string));
+    effective_rules_attribute_inner(
+        entity,
+        attribute,
+        &conditions,
+        &derived_stats,
+        level_attribute.as_deref(),
+        &mut BTreeSet::new(),
+    )
+}
+
+fn effective_rules_attribute_inner(
+    entity: &Entity,
+    attribute: &str,
+    conditions: &BTreeMap<String, ResolvedCondition>,
+    derived_stats: &BTreeMap<String, ResolvedDerivedStat>,
+    level_attribute: Option<&str>,
+    visiting: &mut BTreeSet<String>,
+) -> f32 {
+    let raw = entity.attributes.get_float_default(attribute, 0.0);
+    let visit_key = attribute.to_ascii_lowercase();
+    if !visiting.insert(visit_key.clone()) {
+        return raw;
+    }
+    let derived = derived_stats.get(attribute).or_else(|| {
+        derived_stats
+            .values()
+            .find(|stat| stat.id.eq_ignore_ascii_case(attribute))
+    });
+    let mut resolved = derived
+        .and_then(|stat| {
+            evaluate_formula(&stat.formula, |name| match name {
+                "base" => raw,
+                "level" => level_attribute
+                    .map(|attribute| entity.attributes.get_float_default(attribute, 1.0))
+                    .unwrap_or(1.0),
+                dependency => effective_rules_attribute_inner(
+                    entity,
+                    dependency,
+                    conditions,
+                    derived_stats,
+                    level_attribute,
+                    visiting,
+                ),
+            })
+            .map(|mut value| {
+                if let Some(minimum) = stat.minimum {
+                    value = value.max(minimum);
+                }
+                if let Some(maximum) = stat.maximum {
+                    value = value.min(maximum);
+                }
+                value
+            })
+        })
+        .unwrap_or(raw);
+    visiting.remove(&visit_key);
+    resolved = apply_rules_condition_modifiers(entity, attribute, conditions, resolved);
+    resolved
+}
+
+fn apply_rules_condition_modifiers(
+    entity: &Entity,
+    attribute: &str,
+    conditions: &BTreeMap<String, ResolvedCondition>,
+    base: f32,
+) -> f32 {
+    let base = base as f64;
+    let active = match entity.attributes.get("conditions") {
+        Some(Value::StrArray(ids)) => ids.clone(),
+        Some(Value::Str(ids)) => ids
+            .split(',')
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(str::to_string)
+            .collect(),
+        _ => Vec::new(),
+    };
+    let mut add = 0.0f64;
+    let mut multiply = 1.0f64;
+    let mut minimum: Option<f64> = None;
+    let mut maximum: Option<f64> = None;
+    for condition_id in active {
+        let Some(condition) = conditions.get(&condition_id) else {
+            continue;
+        };
+        let suffix = condition_attribute_suffix(&condition_id);
+        let stacks = entity
+            .attributes
+            .get_float_default(&format!("{}_stacks", suffix), 1.0)
+            .round()
+            .max(1.0) as usize;
+        for modifier in condition
+            .modifiers
+            .iter()
+            .filter(|modifier| modifier.attribute.eq_ignore_ascii_case(attribute))
+        {
+            add += modifier.add as f64 * stacks as f64;
+            multiply *= (modifier.multiply as f64).powi(stacks.min(i32::MAX as usize) as i32);
+            if let Some(value) = modifier.minimum {
+                minimum = Some(minimum.map_or(value as f64, |current| current.max(value as f64)));
+            }
+            if let Some(value) = modifier.maximum {
+                maximum = Some(maximum.map_or(value as f64, |current| current.min(value as f64)));
+            }
+        }
+    }
+    let mut value = (base + add) * multiply;
+    if let Some(minimum) = minimum {
+        value = value.max(minimum);
+    }
+    if let Some(maximum) = maximum {
+        value = value.min(maximum);
+    }
+    value.clamp(f32::MIN as f64, f32::MAX as f64) as f32
+}
+
+fn action_entity_attribute_predicate_matches(
+    root: &Table,
+    entity: &Entity,
+    id: &str,
+    predicate: &ResolvedActionAttributePredicate,
+) -> bool {
+    if matches!(
+        predicate,
+        ResolvedActionAttributePredicate::AtLeast(_)
+            | ResolvedActionAttributePredicate::AtMost(_)
+            | ResolvedActionAttributePredicate::Equals(ResolvedActionPredicateValue::Number(_))
+            | ResolvedActionAttributePredicate::NotEquals(ResolvedActionPredicateValue::Number(_))
+    ) {
+        return predicate.matches_number(effective_rules_attribute(root, entity, id));
+    }
+    action_attribute_predicate_matches(entity.attributes.get(id), predicate)
+}
+
+fn action_predicate_value_label(value: &ResolvedActionPredicateValue) -> String {
+    match value {
+        ResolvedActionPredicateValue::Bool(value) => value.to_string(),
+        ResolvedActionPredicateValue::Number(value) => format_clean_number(*value),
+        ResolvedActionPredicateValue::String(value) => value.clone(),
+    }
+}
+
+fn action_attribute_requirement_reason(
+    id: &str,
+    predicate: &ResolvedActionAttributePredicate,
+) -> String {
+    let name = title_case(&id.replace('_', " "));
+    match predicate {
+        ResolvedActionAttributePredicate::Equals(value) => {
+            format!("Need {} = {}", name, action_predicate_value_label(value))
+        }
+        ResolvedActionAttributePredicate::NotEquals(value) => {
+            format!("Need {} != {}", name, action_predicate_value_label(value))
+        }
+        ResolvedActionAttributePredicate::AtLeast(value) => {
+            format!("Need {} at least {}", name, format_clean_number(*value))
+        }
+        ResolvedActionAttributePredicate::AtMost(value) => {
+            format!("Need {} at most {}", name, format_clean_number(*value))
+        }
+        ResolvedActionAttributePredicate::Contains(value) => {
+            format!("Need {} containing {}", name, value)
+        }
+        ResolvedActionAttributePredicate::NotContains(value) => {
+            format!("Need {} not containing {}", name, value)
+        }
+    }
+}
+
 fn rules_action_state(assets: &Assets, actor: &Entity, action_id: &str) -> CommandState {
     let mut state = CommandState::default();
     apply_cooldown_from_actor(actor, "rules", action_id, &mut state);
@@ -338,83 +560,80 @@ fn rules_action_state(assets: &Assets, actor: &Entity, action_id: &str) -> Comma
     let Ok(root) = assets.rules.parse::<Table>() else {
         return state;
     };
-    let Some(action) = table_at(&root, &["actions", action_id]) else {
+    let Ok(Some(action)) = eldiron_ruleset::resolve_action(&root, action_id) else {
         state.enabled = false;
         state.disabled_reason = Some("Unknown action".to_string());
         return state;
     };
 
-    if let Some(requires) = action.get("requires").and_then(toml::Value::as_table) {
-        if let Some(ability) = requires
-            .get("ability")
-            .and_then(toml::Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            && !entity_has_list_value(actor, "abilities", ability)
-        {
+    for requirement in &action.requirements {
+        match requirement {
+            ResolvedActionRequirement::Ability(ability) => {
+                if !entity_has_list_value(actor, "abilities", ability) {
+                    state.enabled = false;
+                    state.disabled_reason = Some(
+                        future_class_unlock_reason(&root, actor, "abilities", ability)
+                            .unwrap_or_else(|| "Ability not learned".to_string()),
+                    );
+                }
+            }
+            ResolvedActionRequirement::Spell(spell) => {
+                apply_cooldown_from_actor(actor, "spell", spell, &mut state);
+                if !entity_has_list_value(actor, "spells", spell) {
+                    state.enabled = false;
+                    state.disabled_reason = Some(
+                        future_class_unlock_reason(&root, actor, "spells", spell)
+                            .unwrap_or_else(|| "Spell not learned".to_string()),
+                    );
+                }
+            }
+            ResolvedActionRequirement::Skill { id, minimum } => {
+                if actor.attributes.get_float_default(id, 0.0) < *minimum as f32 {
+                    state.enabled = false;
+                    state.disabled_reason = Some(format!(
+                        "Need {} {}",
+                        minimum,
+                        title_case(&id.replace('_', " "))
+                    ));
+                }
+            }
+            ResolvedActionRequirement::Profession(_) => {}
+            ResolvedActionRequirement::Attribute { id, predicate } => {
+                if !action_entity_attribute_predicate_matches(&root, actor, id, predicate) {
+                    state.enabled = false;
+                    state.disabled_reason =
+                        Some(action_attribute_requirement_reason(id, predicate));
+                }
+            }
+            ResolvedActionRequirement::TargetAttribute { .. } => {}
+        }
+    }
+
+    for cost in &action.resource_costs {
+        if cost.amount <= 0.0 {
+            continue;
+        }
+        let current = actor.attributes.get_float_default(&cost.resource, 0.0);
+        if current < cost.amount {
             state.enabled = false;
-            state.disabled_reason = Some(
-                future_class_unlock_reason(&root, actor, "abilities", ability)
-                    .unwrap_or_else(|| "Ability not learned".to_string()),
-            );
-        }
-        if let Some(spell) = requires
-            .get("spell")
-            .and_then(toml::Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-        {
-            apply_cooldown_from_actor(actor, "spell", spell, &mut state);
-            if !entity_has_list_value(actor, "spells", spell) {
-                state.enabled = false;
-                state.disabled_reason = Some(
-                    future_class_unlock_reason(&root, actor, "spells", spell)
-                        .unwrap_or_else(|| "Spell not learned".to_string()),
-                );
-            }
+            state.disabled_reason = Some(format!(
+                "Need {} {}",
+                format_clean_number(cost.amount),
+                cost.resource
+            ));
+            break;
         }
     }
 
-    if let Some(cost) = action.get("cost").and_then(toml::Value::as_table) {
-        for (key, value) in cost {
-            let required = value_number(value).round().max(0.0) as i32;
-            if required <= 0 {
-                continue;
-            }
-            let current = actor.attributes.get_int_default(key, 0);
-            if current < required {
-                state.enabled = false;
-                state.disabled_reason = Some(format!("Need {} {}", required, key));
-                break;
-            }
-        }
-    }
-
-    if let Some(consumes) = action.get("consumes").and_then(toml::Value::as_array) {
-        for entry in consumes.iter().filter_map(toml::Value::as_table) {
-            let Some(item_id) = entry
-                .get("item")
-                .and_then(toml::Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-            else {
-                continue;
-            };
-            let quantity = entry
-                .get("quantity")
-                .map(value_number)
-                .unwrap_or(1.0)
-                .round()
-                .max(1.0) as i32;
-            if inventory_item_quantity(actor, item_id) < quantity {
-                state.enabled = false;
-                state.disabled_reason = Some(format!(
-                    "Need {} {}",
-                    quantity,
-                    title_case(&item_id.replace('_', " "))
-                ));
-                break;
-            }
+    for cost in &action.item_costs {
+        if inventory_item_quantity(actor, &cost.item) < cost.quantity as i32 {
+            state.enabled = false;
+            state.disabled_reason = Some(format!(
+                "Need {} {}",
+                cost.quantity,
+                title_case(&cost.item.replace('_', " "))
+            ));
+            break;
         }
     }
 
@@ -423,78 +642,271 @@ fn rules_action_state(assets: &Assets, actor: &Entity, action_id: &str) -> Comma
 
 fn describe_rules_action(
     root: &Table,
-    action_id: &str,
-    action: &Table,
+    action: &ResolvedAction,
     actor: Option<&Entity>,
 ) -> RulesDescription {
-    let title = action
-        .get("name")
-        .and_then(toml::Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_else(|| title_case(&action_id.replace('_', " ")));
-
-    let subtitle = action
-        .get("kind")
-        .and_then(toml::Value::as_str)
-        .map(title_case)
-        .or_else(|| Some("Rules Action".to_string()));
+    let subtitle = match &action.kind {
+        ResolvedActionKind::Custom(kind) => title_case(kind),
+        kind => title_case(kind.id()),
+    };
 
     let mut lines = Vec::new();
-    if let Some(description) = action.get("description").and_then(toml::Value::as_str)
+    if let Some(description) = action.description.as_deref()
         && !description.trim().is_empty()
     {
         lines.push(description.trim().to_string());
     }
-    if let Some(target) = action.get("target").and_then(toml::Value::as_str) {
-        lines.push(format!("Target: {}", title_case(&target.replace('_', " "))));
-    }
-    if let Some(range) = action.get("range") {
-        let text = if range.as_str() == Some("weapon") {
-            actor
-                .and_then(|entity| current_weapon_range(root, entity))
-                .map(|range| format!("{:.1}", range))
-                .unwrap_or_else(|| "weapon".to_string())
-        } else {
-            format_value(range)
-        };
-        lines.push(format!("Range: {}", text));
-    }
-    if let Some(cooldown) = action.get("cooldown").map(value_number)
-        && cooldown > 0.0
-    {
-        lines.push(format!("Cooldown: {:.1}s", cooldown));
-    }
-    if let Some(cost) = action.get("cost").and_then(toml::Value::as_table) {
-        let parts = cost
-            .iter()
-            .map(|(key, value)| format!("{} {}", format_value(value), key))
-            .collect::<Vec<_>>();
-        if !parts.is_empty() {
-            lines.push(format!("Cost: {}", parts.join(", ")));
+    lines.push(format!(
+        "Target: {}",
+        title_case(&action.target.id().replace('_', " "))
+    ));
+    for requirement in &action.requirements {
+        if let ResolvedActionRequirement::TargetAttribute { id, predicate } = requirement {
+            let reason = action_attribute_requirement_reason(id, predicate);
+            lines.push(format!(
+                "Requires Target: {}",
+                reason.strip_prefix("Need ").unwrap_or(&reason)
+            ));
         }
     }
-    if let Some(consumes) = action.get("consumes").and_then(toml::Value::as_array) {
-        let parts = consumes
+    match &action.range {
+        ResolvedActionRange::Default => {}
+        ResolvedActionRange::Fixed(range) => {
+            lines.push(format!("Range: {}", format_clean_number(*range)));
+        }
+        ResolvedActionRange::Weapon { .. } => {
+            let range = actor
+                .and_then(|entity| current_weapon_range(root, entity))
+                .map(format_clean_number)
+                .unwrap_or_else(|| "weapon".to_string());
+            lines.push(format!("Range: {}", range));
+        }
+        ResolvedActionRange::Source { source, fallback } => {
+            lines.push(format!(
+                "Range: {} ({})",
+                format_clean_number(*fallback),
+                title_case(&source.replace('_', " "))
+            ));
+        }
+    }
+    if action.cooldown_seconds > 0.0 {
+        lines.push(format!("Cooldown: {:.1}s", action.cooldown_seconds));
+    }
+    if !action.resource_costs.is_empty() {
+        let parts = action
+            .resource_costs
             .iter()
-            .filter_map(toml::Value::as_table)
-            .filter_map(|entry| {
-                let item = entry.get("item")?.as_str()?;
-                let quantity = entry.get("quantity").map(value_number).unwrap_or(1.0);
-                Some(format!(
+            .map(|cost| format!("{} {}", format_clean_number(cost.amount), cost.resource))
+            .collect::<Vec<_>>();
+        lines.push(format!("Cost: {}", parts.join(", ")));
+    }
+    if !action.item_costs.is_empty() {
+        let parts = action
+            .item_costs
+            .iter()
+            .map(|cost| {
+                format!(
                     "{} {}",
-                    format_clean_number(quantity),
-                    title_case(&item.replace('_', " "))
-                ))
+                    cost.quantity,
+                    title_case(&cost.item.replace('_', " "))
+                )
             })
             .collect::<Vec<_>>();
-        if !parts.is_empty() {
-            lines.push(format!("Consumes: {}", parts.join(", ")));
+        lines.push(format!("Consumes: {}", parts.join(", ")));
+    }
+    for effect in &action.effects {
+        match effect {
+            ResolvedActionEffect::ApplyCondition { condition, .. } => {
+                if let Ok(Some(condition)) = resolve_condition(root, condition) {
+                    let duration = if condition.duration_seconds > 0.0 {
+                        format!(" for {:.1}s", condition.duration_seconds)
+                    } else {
+                        String::new()
+                    };
+                    let modifiers = condition
+                        .modifiers
+                        .iter()
+                        .map(|modifier| {
+                            let attribute = title_case(&modifier.attribute.replace('_', " "));
+                            if modifier.multiply == 1.0
+                                && modifier.minimum.is_none()
+                                && modifier.maximum.is_none()
+                            {
+                                let value = format_clean_number(modifier.add);
+                                return format!(
+                                    "{}{} {}",
+                                    if modifier.add >= 0.0 { "+" } else { "" },
+                                    value,
+                                    attribute
+                                );
+                            }
+                            let mut operations = Vec::new();
+                            if modifier.add != 0.0 {
+                                operations.push(format!(
+                                    "{}{}",
+                                    if modifier.add >= 0.0 { "+" } else { "" },
+                                    format_clean_number(modifier.add)
+                                ));
+                            }
+                            if modifier.multiply != 1.0 {
+                                operations
+                                    .push(format!("×{}", format_clean_number(modifier.multiply)));
+                            }
+                            if let Some(minimum) = modifier.minimum {
+                                operations.push(format!("min {}", format_clean_number(minimum)));
+                            }
+                            if let Some(maximum) = modifier.maximum {
+                                operations.push(format!("max {}", format_clean_number(maximum)));
+                            }
+                            format!("{}: {}", attribute, operations.join(", "))
+                        })
+                        .collect::<Vec<_>>();
+                    let modifier = if modifiers.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" ({})", modifiers.join(", "))
+                    };
+                    lines.push(format!(
+                        "Applies: {}{}{}",
+                        condition.name, duration, modifier
+                    ));
+                    if let Some(periodic) = &condition.periodic {
+                        let effects = periodic
+                            .effects
+                            .iter()
+                            .map(|effect| match effect {
+                                ResolvedConditionPeriodicEffect::Damage {
+                                    amount,
+                                    damage_kind,
+                                } => format!(
+                                    "{} {} damage",
+                                    format_clean_number(*amount),
+                                    title_case(&damage_kind.replace('_', " "))
+                                ),
+                                ResolvedConditionPeriodicEffect::Healing { amount } => {
+                                    format!("{} healing", format_clean_number(*amount))
+                                }
+                                ResolvedConditionPeriodicEffect::Modify {
+                                    field,
+                                    add,
+                                    minimum,
+                                    maximum,
+                                } => {
+                                    let mut effect = format!(
+                                        "{}{} {}",
+                                        if *add >= 0.0 { "+" } else { "" },
+                                        format_clean_number(*add),
+                                        title_case(&field.id().replace('_', " "))
+                                    );
+                                    if let Some(minimum) = minimum {
+                                        effect.push_str(&format!(
+                                            " (min {})",
+                                            format_clean_number(*minimum)
+                                        ));
+                                    }
+                                    if let Some(maximum) = maximum {
+                                        effect.push_str(&format!(
+                                            " (max {})",
+                                            format_clean_number(*maximum)
+                                        ));
+                                    }
+                                    effect
+                                }
+                            })
+                            .collect::<Vec<_>>();
+                        lines.push(format!(
+                            "Every {:.1}s per stack: {}",
+                            periodic.interval_seconds,
+                            effects.join(", ")
+                        ));
+                    }
+                } else {
+                    lines.push(format!(
+                        "Applies: {}",
+                        title_case(&condition.replace('_', " "))
+                    ));
+                }
+            }
+            ResolvedActionEffect::RemoveCondition { condition, .. } => {
+                let name = resolve_condition(root, condition)
+                    .ok()
+                    .flatten()
+                    .map(|condition| condition.name)
+                    .unwrap_or_else(|| title_case(&condition.replace('_', " ")));
+                lines.push(format!("Removes: {}", name));
+            }
+            _ => {}
         }
+    }
+    for effect in &action.effects {
+        let ResolvedActionEffect::Modify {
+            recipient,
+            field,
+            operation,
+            minimum,
+            maximum,
+            maximum_attribute,
+        } = effect
+        else {
+            continue;
+        };
+        let recipient = match recipient {
+            ResolvedActionEffectRecipient::Actor => "Actor",
+            ResolvedActionEffectRecipient::Target => "Target",
+        };
+        let field = match field {
+            ResolvedActionModificationField::Attribute(id)
+            | ResolvedActionModificationField::Resource(id) => title_case(&id.replace('_', " ")),
+        };
+        let operation = match operation {
+            ResolvedActionModification::Add(value) => {
+                let value = format_clean_number(*value);
+                if value.starts_with('-') {
+                    value
+                } else {
+                    format!("+{}", value)
+                }
+            }
+            ResolvedActionModification::Set(ResolvedActionEffectValue::Bool(value)) => {
+                format!("= {}", value)
+            }
+            ResolvedActionModification::Set(ResolvedActionEffectValue::Integer(value)) => {
+                format!("= {}", value)
+            }
+            ResolvedActionModification::Set(ResolvedActionEffectValue::Float(value)) => {
+                format!("= {}", format_clean_number(*value))
+            }
+            ResolvedActionModification::Set(ResolvedActionEffectValue::String(value)) => {
+                format!("= {}", value)
+            }
+        };
+        let mut clamps = Vec::new();
+        if let Some(minimum) = minimum {
+            clamps.push(format!("min {}", format_clean_number(*minimum)));
+        }
+        if let Some(maximum) = maximum {
+            clamps.push(format!("max {}", format_clean_number(*maximum)));
+        }
+        if let Some(maximum_attribute) = maximum_attribute {
+            clamps.push(format!(
+                "max {}",
+                title_case(&maximum_attribute.replace('_', " "))
+            ));
+        }
+        let clamp = if clamps.is_empty() {
+            String::new()
+        } else {
+            format!(" ({})", clamps.join(", "))
+        };
+        lines.push(format!(
+            "Effect: {} {} {}{}",
+            recipient, field, operation, clamp
+        ));
     }
 
     RulesDescription {
-        title,
-        subtitle,
+        title: action.name.clone(),
+        subtitle: Some(subtitle),
         lines,
     }
 }
@@ -544,7 +956,12 @@ fn future_class_unlock_reason(
         })?
         .as_table()?;
     let unlocks = class.get("unlocks")?.as_table()?;
-    let actor_level = actor.attributes.get_int_default("LEVEL", 1).max(1) as u32;
+    let actor_level = resolve_attribute_roles(root)
+        .ok()
+        .and_then(|roles| roles.get("level").map(str::to_string))
+        .map(|attribute| actor.attributes.get_int_default(&attribute, 1))
+        .unwrap_or(1)
+        .max(1) as u32;
     let mut levels: Vec<u32> = unlocks
         .iter()
         .filter_map(|(level_key, value)| {
@@ -691,14 +1108,6 @@ fn value_number(value: &toml::Value) -> f32 {
         .unwrap_or(0.0) as f32
 }
 
-fn format_value(value: &toml::Value) -> String {
-    if let Some(text) = value.as_str() {
-        text.to_string()
-    } else {
-        format_clean_number(value_number(value))
-    }
-}
-
 fn format_clean_number(value: f32) -> String {
     if (value - value.round()).abs() < f32::EPSILON {
         format!("{}", value.round() as i32)
@@ -754,16 +1163,14 @@ fn ruleset_item_matches_id(item: &Item, ruleset_id: &str) -> bool {
 }
 
 fn current_weapon_range(root: &Table, entity: &Entity) -> Option<f32> {
-    let weapon = entity
-        .equipped
-        .iter()
-        .find(|(slot, _)| {
-            matches!(
-                slot.trim().to_ascii_lowercase().as_str(),
-                "main_hand" | "mainhand" | "weapon" | "hand_main" | "off_hand" | "offhand"
-            )
-        })
-        .map(|(_, item)| item)?;
+    let policy = eldiron_ruleset::resolve_equipment_policy(root).ok()?;
+    let weapon = policy.weapon_slots.iter().find_map(|slot| {
+        entity
+            .equipped
+            .iter()
+            .find(|(equipped_slot, _)| equipped_slot.eq_ignore_ascii_case(slot))
+            .map(|(_, item)| item)
+    })?;
 
     let own_range = weapon
         .attributes
@@ -821,6 +1228,11 @@ mod tests {
     fn rules_action_state_reports_future_ability_unlock_level() {
         let mut assets = Assets::new();
         assets.rules = r#"
+            [attributes]
+            progression = ["RANK"]
+            [attributes.roles]
+            level = "RANK"
+
             [actions.power_strike]
             name = "Power Strike"
             requires = { ability = "power_strike" }
@@ -835,7 +1247,7 @@ mod tests {
 
         let mut actor = Entity::new();
         actor.set_attribute("class", Value::Str("Warrior".to_string()));
-        actor.set_attribute("LEVEL", Value::Int(1));
+        actor.set_attribute("RANK", Value::Int(1));
         actor.set_attribute(
             "abilities",
             Value::StrArray(vec!["basic_attack".to_string()]),
@@ -854,6 +1266,11 @@ mod tests {
     fn rules_action_state_reports_future_spell_unlock_level() {
         let mut assets = Assets::new();
         assets.rules = r#"
+            [attributes]
+            progression = ["RANK"]
+            [attributes.roles]
+            level = "RANK"
+
             [actions.holy_light]
             name = "Holy Light"
             requires = { spell = "holy_light" }
@@ -868,7 +1285,7 @@ mod tests {
 
         let mut actor = Entity::new();
         actor.set_attribute("class", Value::Str("Cleric".to_string()));
-        actor.set_attribute("LEVEL", Value::Int(1));
+        actor.set_attribute("RANK", Value::Int(1));
         actor.set_attribute("spells", Value::StrArray(vec!["minor_heal".to_string()]));
 
         let state = command_state(&assets, Some(&actor), "rules.holy_light");
@@ -877,6 +1294,108 @@ mod tests {
         assert_eq!(
             state.disabled_reason.as_deref(),
             Some("Available at level 2")
+        );
+    }
+
+    #[test]
+    fn rules_action_state_reports_custom_attribute_predicates() {
+        let mut assets = Assets::new();
+        assets.rules = r#"
+            [conditions.inspired]
+            modifiers = [{ attribute = "karma", add = 1 }]
+
+            [derived_stats.karma]
+            formula = "base + resolve"
+
+            [actions.haunt]
+            name = "Haunt"
+            requires = { attributes = [
+                { id = "traits", contains = "undead" },
+                { id = "karma", at_least = 10 },
+            ], target_attributes = [
+                { id = "mode", not_equals = "warded" },
+            ] }
+            result = {
+                script = "haunt",
+                modify = [
+                    { recipient = "actor", resource = "stamina", add = -2, minimum = 0 },
+                ],
+            }
+        "#
+        .to_string();
+
+        let mut actor = Entity::new();
+        actor.set_attribute("traits", Value::StrArray(vec!["undead".to_string()]));
+        actor.set_attribute("karma", Value::Int(8));
+        actor.set_attribute("resolve", Value::Int(1));
+
+        let state = command_state(&assets, Some(&actor), "rules.haunt");
+        assert!(!state.enabled);
+        assert_eq!(
+            state.disabled_reason.as_deref(),
+            Some("Need Karma at least 10")
+        );
+
+        actor.set_attribute("conditions", Value::StrArray(vec!["inspired".to_string()]));
+        actor.set_attribute("condition_inspired_stacks", Value::Int(1));
+        let state = command_state(&assets, Some(&actor), "rules.haunt");
+        assert!(state.enabled);
+        assert!(state.disabled_reason.is_none());
+
+        let description = describe_command(&assets, Some(&actor), "rules.haunt");
+        assert!(
+            description
+                .lines
+                .iter()
+                .any(|line| line == "Effect: Actor Stamina -2 (min 0)")
+        );
+        assert!(
+            description
+                .lines
+                .iter()
+                .any(|line| line == "Requires Target: Mode != warded")
+        );
+    }
+
+    #[test]
+    fn rules_action_description_explains_condition_effects() {
+        let mut assets = Assets::new();
+        assets.rules = r#"
+            [conditions.guarded]
+            name = "Guarded"
+            duration = 2
+            stacking = "refresh"
+            modifiers = [
+                { attribute = "ARMOR", add = 2 },
+                { attribute = "SPEED", multiply = 0.5, minimum = 1 },
+            ]
+
+            [conditions.guarded.periodic]
+            interval = 1
+            effects = [{ resource = "STAMINA", add = 1, maximum = 10 }]
+
+            [actions.guard]
+            name = "Guard"
+            kind = "stance"
+            target = "self"
+            cooldown = 3
+            result = { apply_condition = "guarded" }
+        "#
+        .to_string();
+
+        let description = describe_command(&assets, None, "rules.guard");
+
+        assert_eq!(description.title, "Guard");
+        assert!(
+            description.lines.iter().any(|line| {
+                line == "Applies: Guarded for 2.0s (+2 Armor, Speed: ×0.5, min 1)"
+            })
+        );
+        assert!(
+            description
+                .lines
+                .iter()
+                .any(|line| line == "Every 1.0s per stack: +1 Stamina (max 10)")
         );
     }
 
@@ -896,7 +1415,16 @@ mod tests {
         item.set_attribute("damage_bonus_every", Value::Int(4));
         item.set_attribute("damage_kind", Value::Str("physical".to_string()));
 
-        let description = describe_item(&item);
+        let mut assets = Assets::new();
+        assets.rules = r#"
+            [attributes]
+            combat = ["DMG", "ARMOR"]
+            [attributes.roles]
+            weapon_damage = "DMG"
+            armor = "ARMOR"
+        "#
+        .to_string();
+        let description = describe_item(&item, &assets);
 
         assert_eq!(description.title, "Wooden Arrows");
         assert!(
@@ -957,7 +1485,7 @@ mod tests {
         bag.set_attribute("container_template", Value::Str("bag_small".to_string()));
         bag.apply_container_attributes();
 
-        let description = describe_item(&bag);
+        let description = describe_item(&bag, &Assets::new());
         assert!(
             description
                 .lines

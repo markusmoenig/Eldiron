@@ -736,6 +736,9 @@ impl SceneHandler {
         if !item.attributes.get_bool_default("is_ruleset_fx", false) {
             return true;
         }
+        if item.attributes.get_bool_default("fx_persistent", false) {
+            return true;
+        }
         let first_seen = *self
             .ruleset_fx_first_seen
             .entry(item.id)
@@ -745,7 +748,7 @@ impl SceneHandler {
         let lifetime = item
             .attributes
             .get_float_default("fx_lifetime", 0.6)
-            .clamp(0.1, 1.25);
+            .clamp(0.1, 60.0);
         elapsed <= lifetime
     }
 

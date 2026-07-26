@@ -1,6 +1,3 @@
-#[cfg(not(target_arch = "wasm32"))]
-use arboard::Clipboard;
-
 use num_traits::ToPrimitive;
 use web_time::Instant;
 
@@ -809,14 +806,6 @@ impl TheWidget for TheTextLineEdit {
                 let text = self.state.copy_text();
                 if !text.is_empty() {
                     redraw = true;
-                    // update_status = true;
-
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        let mut clipboard = Clipboard::new().unwrap();
-                        clipboard.set_text(text.clone()).unwrap();
-                    }
-
                     ctx.ui
                         .send(TheEvent::SetClipboard(TheValue::Text(text), None));
                 }
@@ -828,12 +817,6 @@ impl TheWidget for TheTextLineEdit {
                     self.modified_since_last_tick = true;
                     self.is_dirty = true;
                     redraw = true;
-
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        let mut clipboard = Clipboard::new().unwrap();
-                        clipboard.set_text(text.clone()).unwrap();
-                    }
 
                     ctx.ui
                         .send(TheEvent::SetClipboard(TheValue::Text(text), None));
@@ -848,12 +831,8 @@ impl TheWidget for TheTextLineEdit {
                     }
                 }
             }
-            TheEvent::Paste(_value, _) => {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    let mut clipboard = Clipboard::new().unwrap();
-                    let text = clipboard.get_text().unwrap();
-
+            TheEvent::Paste(value, _) => {
+                if let Some(text) = value.to_string() {
                     let prev_state = self.state.save();
 
                     self.state.insert_text(text);
@@ -868,27 +847,6 @@ impl TheWidget for TheTextLineEdit {
 
                     if self.continuous {
                         ctx.ui.send_widget_value_changed(self.id(), self.value());
-                    }
-                }
-
-                #[cfg(target_arch = "wasm32")]
-                {
-                    let prev_state = self.state.save();
-
-                    if let Some(text) = _value.to_string() {
-                        self.state.insert_text(text);
-                        self.modified_since_last_tick = true;
-                        self.is_dirty = true;
-                        redraw = true;
-
-                        if self.continuous {
-                            ctx.ui.send_widget_value_changed(self.id(), self.value());
-                        }
-
-                        let mut undo = TheUndo::new(TheId::named("Cut"));
-                        undo.set_undo_data(prev_state);
-                        undo.set_redo_data(self.state.save());
-                        self.undo_stack.add(undo);
                     }
                 }
             }
@@ -1211,5 +1169,22 @@ impl TheTextLineEdit {
         if self.frameless && !self.embedded {
             self.renderer.padding.1 += 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn paste_uses_text_carried_by_event() {
+        let mut edit = TheTextLineEdit::new(TheId::named("Test"));
+        let mut ctx = TheContext::new(100, 30, 1.0);
+
+        assert!(edit.on_event(
+            &TheEvent::Paste(TheValue::Text("external text".to_string()), None),
+            &mut ctx,
+        ));
+        assert_eq!(edit.value().to_string().as_deref(), Some("external text"));
     }
 }

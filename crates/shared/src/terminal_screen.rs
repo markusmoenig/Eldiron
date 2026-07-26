@@ -104,23 +104,25 @@ pub fn render_roguelike_screen(
         return render_roguelike_view(region, frame);
     };
 
+    let rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)
+        .unwrap_or_else(|_| project.rules.clone());
     let mut canvas = vec![vec![' '; layout.width]; layout.height];
     for widget in &layout.widgets {
         match widget.role.as_str() {
             "game" => draw_block(
                 &mut canvas,
                 &widget.rect,
-                &terminal_widget_lines(widget, region, frame),
+                &terminal_widget_lines(widget, region, frame, &rules),
             ),
             "messages" => draw_message_widget(
                 &mut canvas,
                 widget,
-                &terminal_widget_lines(widget, region, frame),
+                &terminal_widget_lines(widget, region, frame, &rules),
             ),
             "text" | "stat" | "avatar" => draw_text_block(
                 &mut canvas,
                 &widget.rect,
-                &terminal_widget_lines(widget, region, frame),
+                &terminal_widget_lines(widget, region, frame, &rules),
             ),
             "button" => {
                 draw_button_widget(&mut canvas, widget, region);
@@ -170,6 +172,7 @@ pub fn terminal_widget_lines(
     widget: &TerminalWidget,
     region: &Region,
     frame: &TerminalScreenFrame,
+    rules_src: &str,
 ) -> Vec<String> {
     match widget.role.as_str() {
         "game" => render_roguelike_map(&region.map)
@@ -198,7 +201,7 @@ pub fn terminal_widget_lines(
             lines
         }
         "text" => render_text_widget(widget, region),
-        "stat" => render_stat_widget(widget, region),
+        "stat" => render_stat_widget(widget, region, rules_src),
         "avatar" => render_avatar_widget(widget, region),
         "button" => vec![widget_button_label(widget, region)],
         _ => Vec::new(),
@@ -384,20 +387,50 @@ fn render_text_widget(widget: &TerminalWidget, region: &Region) -> Vec<String> {
         .collect()
 }
 
-fn render_stat_widget(widget: &TerminalWidget, region: &Region) -> Vec<String> {
+fn render_stat_widget(widget: &TerminalWidget, region: &Region, rules_src: &str) -> Vec<String> {
     let Some(ui) = widget_ui_table(widget) else {
         return Vec::new();
     };
-    let stat = ui.get("stat").and_then(toml::Value::as_str).unwrap_or("HP");
+    let explicit_stat = ui
+        .get("stat")
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let roles = rules_src
+        .parse::<toml::Table>()
+        .ok()
+        .and_then(|rules| eldiron_ruleset::resolve_attribute_roles(&rules).ok());
+    let stat = explicit_stat
+        .map(str::to_string)
+        .or_else(|| {
+            roles
+                .as_ref()
+                .and_then(|roles| roles.get("health"))
+                .map(str::to_string)
+        })
+        .unwrap_or_default();
+    if stat.is_empty() {
+        return vec!["Stat: -".to_string()];
+    }
     let max_stat = ui
         .get("max_stat")
         .and_then(toml::Value::as_str)
         .map(str::to_string)
+        .or_else(|| {
+            explicit_stat.is_none().then(|| {
+                roles
+                    .as_ref()
+                    .and_then(|roles| roles.get("max_health"))
+                    .unwrap_or("")
+                    .to_string()
+            })
+        })
+        .filter(|value| !value.is_empty())
         .unwrap_or_else(|| format!("MAX_{}", stat));
     let Some(player) = current_player(region) else {
         return vec![format!("{}: -", stat)];
     };
-    let current = player_attr_number(player, stat).unwrap_or(0.0);
+    let current = player_attr_number(player, &stat).unwrap_or(0.0);
     let max = player_attr_number(player, &max_stat).unwrap_or(current.max(1.0));
     let ratio = if max <= 0.0 {
         0.0
@@ -749,6 +782,38 @@ mod tests {
         assert!(rendered.contains("##"));
         assert!(rendered.contains("hints"));
         assert!(!rendered.contains("Cellar"));
+    }
+
+    #[test]
+    fn default_stat_widget_uses_ruleset_health_roles() {
+        let widget = TerminalWidget {
+            name: "Vitality".into(),
+            role: "stat".into(),
+            rect: TerminalRect {
+                x: 0,
+                y: 0,
+                width: 23,
+                height: 1,
+            },
+            data: "[ui]\nrole = \"stat\"\n".into(),
+        };
+        let mut region = Region::default();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("VITAL", Value::Int(7));
+        player.set_attribute("VITAL_CAP", Value::Int(10));
+        region.map.entities.push(player);
+        let rules = r#"
+            [attributes]
+            resources = ["VITAL", "VITAL_CAP"]
+            [attributes.roles]
+            health = "VITAL"
+            max_health = "VITAL_CAP"
+        "#;
+
+        let lines = terminal_widget_lines(&widget, &region, &TerminalScreenFrame::default(), rules);
+        assert_eq!(lines, vec!["VITAL [#######---] 7/10"]);
+        assert!(!region.map.entities[0].attributes.contains("HP"));
     }
 
     fn add_widget(map: &mut Map, name: &str, role: &str, x: f32, y: f32, w: f32, h: f32) {

@@ -1,0 +1,37 @@
+# Invocation schemes are optional ways to select ordinary ruleset actions.
+# They do not replace actions or spell mechanics. Games may present these
+# tokens as text, runes, icons, keyboard chords, or any other interface.
+
+[invocation_schemes.words_of_power]
+name = "Words of Power"
+kind = "token_sequence"
+tokens = ["LO", "VI", "FUL", "YA", "IR", "SAR"]
+separator = " "
+max_tokens = 4
+case_sensitive = false
+
+# The lexicon is presentation data. An interface may show these meanings as
+# tooltips, render each word as a rune, or hide them and expose spell buttons.
+[invocation_schemes.words_of_power.lexicon.LO]
+meaning = "restore"
+affinity = "herb"
+
+[invocation_schemes.words_of_power.lexicon.VI]
+meaning = "life"
+affinity = "moon"
+
+[invocation_schemes.words_of_power.lexicon.FUL]
+meaning = "flame"
+affinity = "ember"
+
+[invocation_schemes.words_of_power.lexicon.YA]
+meaning = "grace"
+affinity = "sun"
+
+[invocation_schemes.words_of_power.lexicon.IR]
+meaning = "banish"
+affinity = "grave"
+
+[invocation_schemes.words_of_power.lexicon.SAR]
+meaning = "ward"
+affinity = "salt"

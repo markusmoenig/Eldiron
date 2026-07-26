@@ -99,6 +99,8 @@ fn format_catalog_summary(source: &str, catalog: &RulesetCatalog) -> String {
          resources: {} ({})\n\
          recipes: {} ({})\n\
          actions: {} ({})\n\
+         conditions: {} ({})\n\
+         invocation schemes: {} ({})\n\
          abilities: {} ({})\n\
          spells: {} ({})\n\
          weapons: {} ({})\n\
@@ -124,6 +126,10 @@ fn format_catalog_summary(source: &str, catalog: &RulesetCatalog) -> String {
         format_list(&catalog.recipes),
         catalog.actions.len(),
         format_list(&catalog.actions),
+        catalog.conditions.len(),
+        format_list(&catalog.conditions),
+        catalog.invocation_schemes.len(),
+        format_list(&catalog.invocation_schemes),
         catalog.abilities.len(),
         format_list(&catalog.abilities),
         catalog.spells.len(),

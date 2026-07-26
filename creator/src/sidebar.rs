@@ -36,6 +36,14 @@ pub struct Sidebar {
 
 #[allow(clippy::new_without_default)]
 impl Sidebar {
+    pub fn reset_for_project_switch(&mut self) {
+        self.curr_tilemap_uuid = None;
+        self.curr_tile_collection_uuid = None;
+        self.curr_treasury_package_slug = None;
+        self.pending_palette_drag_undo = None;
+        self.startup = true;
+    }
+
     fn preview_audio_asset(asset: &Asset) {
         let AssetBuffer::Audio(bytes) = &asset.buffer else {
             return;
@@ -3330,6 +3338,8 @@ impl Sidebar {
         server_ctx: &mut ServerContext,
         project: &mut Project,
     ) {
+        self.reset_for_project_switch();
+
         _ = RUSTERIX
             .write()
             .unwrap()

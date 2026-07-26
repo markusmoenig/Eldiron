@@ -5,6 +5,26 @@
 # mood, scale, or color when needed. Detailed numeric particle tuning can be
 # added later under explicit advanced override tables.
 
+[fx.action_fallbacks.attack]
+impact = "hit_burst"
+
+[fx.action_fallbacks.healing]
+cast = "rising_motes"
+impact = "rising_motes"
+
+[fx.action_fallbacks.condition]
+cast = "holy_glow"
+
+[fx.action_fallbacks.spell]
+cast = "holy_glow"
+impact = "hit_burst"
+
+[fx.condition_fallbacks]
+apply = "hit_burst"
+active = "holy_glow"
+tick = "hit_burst"
+remove = "hit_burst"
+
 [fx.presets.hit_burst]
 description = "A short impact burst from the target center."
 kind = "particles"

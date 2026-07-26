@@ -90,22 +90,6 @@ const GAME_SETTINGS_NAV_SECTIONS: &[SettingNavSection] = &[
                 status: "Active locale id, for example \"en\" or \"de\". Use \"auto\" for system locale.",
             },
             SettingNavEntry {
-                key: "gear_slots",
-                status: "Array of supported equipment slot names.",
-            },
-            SettingNavEntry {
-                key: "weapon_slots",
-                status: "Array of supported weapon slot names.",
-            },
-            SettingNavEntry {
-                key: "level",
-                status: "Attribute name used as the current progression level.",
-            },
-            SettingNavEntry {
-                key: "experience",
-                status: "Attribute name used for accumulated experience, for example \"EXP\".",
-            },
-            SettingNavEntry {
                 key: "avatar_shading",
                 status: "Enable generated runtime marker-ramp shading for avatars. Values: true, false.",
             },
@@ -911,6 +895,13 @@ impl Dock for DataDock {
         for undo in self.entity_undos.values_mut() {
             undo.index = -1;
         }
+    }
+
+    fn reset_for_project_switch(&mut self) {
+        self.entity_undos.clear();
+        self.current_entity = None;
+        self.prev_state = None;
+        self.validation_signatures.clear();
     }
 
     fn undo(

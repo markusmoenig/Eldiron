@@ -9,12 +9,7 @@ use theframework::prelude::*;
 pub enum ProjectUndoAtom {
     MapEdit(ProjectContext, Box<Map>, Box<Map>),
     RegionEdit(ProjectContext, Box<Region>, Box<Region>),
-    RegionPaintEdit(
-        ProjectContext,
-        Uuid,
-        Box<IsoPaintLayer>,
-        Box<IsoPaintLayer>,
-    ),
+    RegionPaintEdit(ProjectContext, Uuid, Box<IsoPaintLayer>, Box<IsoPaintLayer>),
     TilePickerEdit(Box<Project>, Box<Project>),
     ProjectEdit(String, Box<Project>, Box<Project>),
     AddRegion(Region),

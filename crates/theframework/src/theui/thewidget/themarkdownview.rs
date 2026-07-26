@@ -1,8 +1,5 @@
 use std::ops::Range;
 
-#[cfg(not(target_arch = "wasm32"))]
-use arboard::Clipboard;
-
 use markdown::{ParseOptions, mdast::Node};
 use web_time::Instant;
 
@@ -230,12 +227,6 @@ impl TheWidget for TheMarkdownView {
                 let text = self.state.copy_text();
                 if !text.is_empty() {
                     redraw = true;
-
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        let mut clipboard = Clipboard::new().unwrap();
-                        clipboard.set_text(text.clone()).unwrap();
-                    }
 
                     ctx.ui
                         .send(TheEvent::SetClipboard(TheValue::Text(text), None));

@@ -414,12 +414,21 @@ Core commands:
 
 Ruleset commands:
 
+- `<invocation phrase> [target]`, for example `LO VI` or `SAR IR at skeleton`
+- `invoke <invocation phrase> [target]`
+- `invoke <scheme>:<invocation phrase> [target]`
 - `cast <spell> [target]`
 - `craft <recipe>`
 - `action <action> [target]`
 - `use action <action> [target]`
 - `use <action> [target]`
 - `<action> [target]`, when the action id is known by the active ruleset
+
+Raw invocation phrases are matched against every invocation scheme in the
+active ruleset. The longest matching phrase wins, matching respects the
+scheme's case-sensitivity setting, and `invoke <scheme>:...` disambiguates
+rulesets that expose more than one scheme. Actions targeting `self` or
+`friendly_or_self` infer the player when no target is supplied.
 
 The `stats` command is ruleset-driven. It prints the attributes declared by the
 active ruleset's `[attributes]` groups, such as `resources`, `primary`, `combat`,

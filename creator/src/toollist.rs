@@ -62,6 +62,26 @@ impl ToolList {
     const PALETTE_BUTTON_NAME: &'static str = "Palette Mode";
     const GRID_SUBDIVISIONS: [f32; 6] = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0];
 
+    pub fn reset_for_project_switch(&mut self, ctx: &mut TheContext) {
+        self.authoring_mode = false;
+        self.text_game_mode = false;
+        self.palette_mode = false;
+        self.previous_sidebar_mode = None;
+        self.previous_palette_dock = None;
+        self.last_3d_hover_pick_at = None;
+        self.last_3d_overlay_update_at = None;
+        ctx.ui.set_widget_state(
+            Self::AUTHORING_BUTTON_NAME.to_string(),
+            TheWidgetState::None,
+        );
+        ctx.ui.set_widget_state(
+            Self::TEXT_PLAY_BUTTON_NAME.to_string(),
+            TheWidgetState::None,
+        );
+        ctx.ui
+            .set_widget_state(Self::PALETTE_BUTTON_NAME.to_string(), TheWidgetState::None);
+    }
+
     fn handle_action_hud_icon_click(
         &self,
         ui: &mut TheUI,

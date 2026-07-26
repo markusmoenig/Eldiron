@@ -149,32 +149,26 @@ If a specific frame anchor is missing, Eldiron falls back to available perspecti
 
 ## Equip Slots For Weapons
 
-Set the item `slot` to the names defined in your Game Settings.
+Set the item `slot` to a name declared by the active ruleset's
+`equipment.weapon_slots` or `equipment.armor_slots`.
 
-Default weapon slots are:
+Map slots that should render in an avatar hand:
 
-- `main_hand`
-- `off_hand`
+```toml
+[equipment]
+weapon_slots = ["grip", "brace"]
+armor_slots = ["shield_mount"]
 
-For avatar hand lookup compatibility, Eldiron also recognizes common aliases.
+[equipment.avatar_anchors]
+grip = "main_hand"
+brace = "off_hand"
+shield_mount = "off_hand"
+```
 
-Main hand aliases:
-
-- `main_hand`
-- `mainhand`
-- `weapon`
-- `weapon_main`
-- `hand_main`
-
-Off hand aliases:
-
-- `off_hand`
-- `offhand`
-- `weapon_off`
-- `hand_off`
-- `shield`
-
-Use your preferred naming style; these aliases are resolved by the runtime.
+The keys can use any ruleset-owned slot names. The values name the two anchor
+capabilities currently exposed by avatar frames: `main_hand` and `off_hand`.
+The runtime does not infer aliases. Omit a slot from `avatar_anchors` when its
+item should not be composited onto the avatar.
 
 ---
 

@@ -1,9 +1,11 @@
 # Recipes transform stackable materials into stackable outputs.
 #
-# The first recipes deliberately mirror the current combat resource loops:
-# arrows for Rangers and herbs for Clerics. Crafting always creates the item
-# when hard requirements are met; skill and attributes determine output quality.
-# Item quality and condition are stored as 1..100 percentage values.
+# Recipes connect gathering to combat and spellcasting rather than existing as
+# an isolated list. Ritual work is intentionally multi-stage: raw world
+# materials become prepared reagents, and prepared reagents can also become
+# reusable magical equipment. Crafting always creates the item when hard
+# requirements are met; skill and attributes determine output quality. Item
+# quality and condition are stored as 1..100 percentage values.
 
 [recipes.wooden_arrows]
 name = "Wooden Arrows"
@@ -59,4 +61,123 @@ consumes = [
 ]
 produces = [
     { item = "hunting_bow", quantity = 1 },
+]
+
+[recipes.moonwater]
+name = "Moonwater"
+description = "Distill pale moonleaf into a cool life-aligned reagent."
+skill = "alchemy"
+required_skill = 0
+recommended_skill = 12
+difficulty = 12
+attribute = "INT"
+profession_hint = "Herbalist"
+station = "workbench"
+time = 4.0
+requires = { spell = "minor_heal" }
+consumes = [
+    { item = "moonleaf", quantity = 2 },
+]
+produces = [
+    { item = "moonwater", quantity = 2 },
+]
+
+[recipes.consecrated_oil]
+name = "Consecrated Oil"
+description = "Bind a sun shard's light into blessed herbs for divine rites."
+skill = "restoration"
+required_skill = 5
+recommended_skill = 20
+difficulty = 22
+attribute = "WIS"
+class_hint = "Cleric"
+station = "shrine"
+time = 5.0
+requires = { spell = "holy_light" }
+consumes = [
+    { item = "blessed_herb", quantity = 1 },
+    { item = "sun_shard", quantity = 1 },
+]
+produces = [
+    { item = "consecrated_oil", quantity = 2 },
+]
+
+[recipes.warding_salt]
+name = "Warding Salt"
+description = "Purify grave dust with a sun shard to mark a boundary against the dead."
+skill = "ritualism"
+required_skill = 0
+recommended_skill = 25
+difficulty = 28
+attribute = "WIS"
+class_hint = "Cleric"
+station = "shrine"
+time = 5.0
+requires = { spell = "turn_undead" }
+consumes = [
+    { item = "grave_dust", quantity = 2 },
+    { item = "sun_shard", quantity = 1 },
+]
+produces = [
+    { item = "warding_salt", quantity = 3 },
+]
+
+[recipes.ember_beads]
+name = "Ember Beads"
+description = "Roll warm resin into stable beads that flare when a fire word is spoken."
+skill = "alchemy"
+required_skill = 5
+recommended_skill = 18
+difficulty = 20
+attribute = "INT"
+profession_hint = "Herbalist"
+station = "workbench"
+time = 4.0
+consumes = [
+    { item = "ember_resin", quantity = 2 },
+]
+produces = [
+    { item = "ember_bead", quantity = 3 },
+]
+
+[recipes.ritual_censer]
+name = "Ritual Censer"
+description = "Balance divine oil and warding salt in a carved wooden focus."
+skill = "ritualism"
+required_skill = 15
+recommended_skill = 35
+difficulty = 38
+attribute = "WIS"
+class_hint = "Cleric"
+station = "workbench"
+time = 10.0
+requires = { spell = "blessing" }
+consumes = [
+    { item = "green_wood", quantity = 2 },
+    { item = "consecrated_oil", quantity = 1 },
+    { item = "warding_salt", quantity = 1 },
+]
+produces = [
+    { item = "ritual_censer", quantity = 1 },
+]
+
+[recipes.sunward_charm]
+name = "Sunward Charm"
+description = "Set twin sun shards around a moonwater-bound protective seal."
+skill = "ritualism"
+required_skill = 25
+recommended_skill = 50
+difficulty = 55
+attribute = "WIS"
+class_hint = "Cleric"
+station = "shrine"
+time = 12.0
+requires = { spell = "sanctuary" }
+consumes = [
+    { item = "sun_shard", quantity = 2 },
+    { item = "moonwater", quantity = 1 },
+    { item = "warding_salt", quantity = 1 },
+]
+produces = [
+    { item = "sunward_charm", quantity = 1 },
 ]

@@ -898,42 +898,35 @@ impl ServerContext {
 
     /// Clears all state data.
     pub fn clear(&mut self) {
-        self.curr_region_content = ContentContext::Unknown;
-        self.curr_character = ContentContext::Unknown;
-        self.curr_item = ContentContext::Unknown;
-        self.cc = ContentContext::Unknown;
+        // The tree root IDs belong to the long-lived Creator UI. Everything else
+        // is project/session state and must not leak into the next project tab.
+        let tree_ids = (
+            self.tree_regions_id,
+            self.tree_characters_id,
+            self.tree_items_id,
+            self.tree_tilemaps_id,
+            self.tree_screens_id,
+            self.tree_avatars_id,
+            self.tree_assets_id,
+            self.tree_assets_fonts_id,
+            self.tree_assets_audio_id,
+            self.tree_palette_id,
+            self.tree_settings_id,
+        );
 
-        self.curr_region = Uuid::nil();
-        self.curr_grid_id = None;
-        self.curr_screen = Uuid::nil();
-        self.tile_node_group_id = None;
-        self.curr_builder_graph_id = None;
-        self.curr_builder_graph_name = None;
-        self.curr_builder_graph_data = None;
-        self.builder_tool_active = false;
-        self.builder_auto_vertex_mode = false;
-        self.curr_block_asset_id = None;
-        self.curr_block_asset_name = None;
-        self.block_tool_active = false;
-        self.block_grid_cell_size = 1.0;
-        self.block_grid_level = 0;
-        self.block_rotation_quarters = 0;
-        self.block_height_cells = 2;
-        self.block_span_extra_cells = 0;
-        self.block_operation = 0;
-        self.block_stroke_mode = 0;
-        self.block_damage_enabled = false;
-        self.block_drag_base_y = None;
-        self.block_drag_start_cell = None;
-        self.block_drag_end_cell = None;
-        self.palette_tool_active = false;
-        self.interactions.clear();
-        self.moved_entities.clear();
-        self.moved_items.clear();
-        self.editing_view_pos_by_map.clear();
-        self.editing_view_look_by_map.clear();
-        self.editing_view_2d_by_map.clear();
-        self.editing_view_iso_scale_by_map.clear();
+        *self = Self::new();
+
+        self.tree_regions_id = tree_ids.0;
+        self.tree_characters_id = tree_ids.1;
+        self.tree_items_id = tree_ids.2;
+        self.tree_tilemaps_id = tree_ids.3;
+        self.tree_screens_id = tree_ids.4;
+        self.tree_avatars_id = tree_ids.5;
+        self.tree_assets_id = tree_ids.6;
+        self.tree_assets_fonts_id = tree_ids.7;
+        self.tree_assets_audio_id = tree_ids.8;
+        self.tree_palette_id = tree_ids.9;
+        self.tree_settings_id = tree_ids.10;
     }
 
     pub fn clear_interactions(&mut self) {
@@ -1350,7 +1343,8 @@ impl ServerContext {
 
 #[cfg(test)]
 mod tests {
-    use super::ServerContext;
+    use super::{ProjectContext, ServerContext};
+    use theframework::prelude::{Uuid, Vec2};
 
     #[test]
     fn edit_grid_step_rounds_and_clamps_subdivisions() {
@@ -1362,5 +1356,31 @@ mod tests {
         assert_eq!(ServerContext::edit_grid_step(99.0), 0.03125);
         assert_eq!(ServerContext::edit_grid_step(3.6), 0.25);
         assert_eq!(ServerContext::edit_grid_step(10.0), 0.125);
+    }
+
+    #[test]
+    fn clear_resets_all_project_state_but_preserves_ui_tree_ids() {
+        let mut context = ServerContext::new();
+        let tree_regions_id = context.tree_regions_id;
+        let tree_assets_id = context.tree_assets_id;
+        context.curr_region = Uuid::new_v4();
+        context.pc = ProjectContext::ProjectSettings;
+        context.curr_tile_id = Some(Uuid::new_v4());
+        context.hover = (Some(1), Some(2), Some(3));
+        context.hover_cursor = Some(Vec2::new(4.0, 5.0));
+        context.game_input_mode = true;
+        context.paste_clipboard = Some(Default::default());
+
+        context.clear();
+
+        assert_eq!(context.tree_regions_id, tree_regions_id);
+        assert_eq!(context.tree_assets_id, tree_assets_id);
+        assert_eq!(context.curr_region, Uuid::nil());
+        assert_eq!(context.pc, ProjectContext::Unknown);
+        assert_eq!(context.curr_tile_id, None);
+        assert_eq!(context.hover, (None, None, None));
+        assert_eq!(context.hover_cursor, None);
+        assert!(!context.game_input_mode);
+        assert!(context.paste_clipboard.is_none());
     }
 }
